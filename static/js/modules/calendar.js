@@ -1,74 +1,204 @@
-import { CALENDAR_SOURCES } from "../config/config.js";
+// calendar.js
+import { format } from "../helpers/dates.js";
 
-export async function fetchAllEvents() {
-  const all = [];
+const CAL_URL = "/api/calendar/all";
 
-  for (const src of CALENDAR_SOURCES) {
-    try {
-      const res = await fetch(src.icsUrl);
-      const text = await res.text();
-      const events = parseICS(text, src);
-      all.push(...events);
-    } catch (err) {
-      console.error("Calendar error:", src.name, err);
-    }
+/* ------------------------------------------------------------------
+   MAIN REFRESH FUNCTION
+-------------------------------------------------------------------*/
+
+export async function refreshCalendar() {
+  try {
+    const res = await fetch(CAL_URL);
+    const events = await res.json();
+
+    console.log("Events received:", events);
+
+    // Normalize dates to LOCAL TIME
+    const normalized = normalizeEvents(events);
+
+    const expanded = expandMultiDay(normalized);
+    const todayEvents = getTodayEvents(expanded);
+    const weekEvents = getNext7DaysEvents(expanded);
+
+    renderToday(todayEvents);
+    renderWeek(weekEvents);
+  } catch (err) {
+    console.error("Calendar error:", err);
   }
-
-  return all;
 }
 
-export function parseICS(text, source) {
-  const events = [];
-  const lines = text.split(/\r?\n/);
-  let evt = null;
+/* ------------------------------------------------------------------
+   NORMALIZE EVENT DATES TO LOCAL TIME
+-------------------------------------------------------------------*/
 
-  const flush = () => {
-    if (evt && evt.start && evt.end && evt.summary) {
-      events.push(evt);
-    }
-    evt = null;
-  };
+function toLocal(date) {
+  const d = new Date(date);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+}
 
-  for (let line of lines) {
-    line = line.trim();
+function normalizeEvents(events) {
+  return events.map(ev => ({
+    ...ev,
+    start: toLocal(ev.start),
+    end: toLocal(ev.end)
+  }));
+}
 
-    if (line === "BEGIN:VEVENT") {
-      evt = { source, summary: "" };
-    } else if (line === "END:VEVENT") {
-      flush();
-    } else if (evt) {
-      if (line.startsWith("DTSTART")) {
-        evt.start = parseICSDate(line.split(":")[1]);
-      } else if (line.startsWith("DTEND")) {
-        evt.end = parseICSDate(line.split(":")[1]);
-      } else if (line.startsWith("SUMMARY")) {
-        evt.summary = line.split(":").slice(1).join(":");
+/* ------------------------------------------------------------------
+   EVENT NORMALISATION
+-------------------------------------------------------------------*/
+
+function isAllDay(ev) {
+  return (
+    ev.allDay ||
+    (ev.start &&
+      ev.end &&
+      ev.start.getHours() === 0 &&
+      ev.end.getHours() === 0)
+  );
+}
+
+function expandMultiDay(events) {
+  const expanded = [];
+
+  for (const ev of events) {
+    const start = new Date(ev.start);
+    const end = new Date(ev.end);
+
+    if (start.toDateString() !== end.toDateString()) {
+      let d = new Date(start);
+      while (d <= end) {
+        expanded.push({
+          ...ev,
+          start: new Date(d),
+          end: new Date(d),
+          multiDay: true
+        });
+        d.setDate(d.getDate() + 1);
       }
+    } else {
+      expanded.push(ev);
     }
   }
 
-  return events;
+  return expanded;
 }
 
-export function parseICSDate(val) {
-  if (!val) return null;
+/* ------------------------------------------------------------------
+   FILTERING
+-------------------------------------------------------------------*/
 
-  if (/^\d{8}T\d{6}Z$/.test(val)) {
-    const y = +val.slice(0, 4);
-    const m = +val.slice(4, 6) - 1;
-    const d = +val.slice(6, 8);
-    const h = +val.slice(9, 11);
-    const min = +val.slice(11, 13);
-    const s = +val.slice(13, 15);
-    return new Date(Date.UTC(y, m, d, h, min, s));
+function isToday(date) {
+  const now = new Date();
+  return date.toDateString() === now.toDateString();
+}
+
+function getTodayEvents(events) {
+  return events.filter(ev => isToday(ev.start));
+}
+
+function getNext7DaysEvents(events) {
+  const today = new Date();
+  const days = [];
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    days.push(d);
   }
 
-  if (/^\d{8}$/.test(val)) {
-    const y = +val.slice(0, 4);
-    const m = +val.slice(4, 6) - 1;
-    const d = +val.slice(6, 8);
-    return new Date(y, m, d);
+  return days.map(day => ({
+    date: day,
+    events: events.filter(ev => ev.start.toDateString() === day.toDateString())
+  }));
+}
+
+/* ------------------------------------------------------------------
+   RENDER: TODAY PANEL
+-------------------------------------------------------------------*/
+
+function renderToday(events) {
+  const container = document.getElementById("today-list");
+  container.innerHTML = "";
+
+  if (events.length === 0) {
+    container.innerHTML = `<div class="today-empty">Nothing scheduled</div>`;
+    return;
   }
 
-  return new Date(val);
+  const allDay = events.filter(isAllDay);
+  const timed = events.filter(ev => !isAllDay(ev));
+
+  allDay.forEach(ev => {
+    const div = document.createElement("div");
+    div.className = "today-all-day";
+    div.textContent = ev.title;
+    container.appendChild(div);
+  });
+
+  if (allDay.length && timed.length) {
+    container.appendChild(document.createElement("br"));
+  }
+
+  timed.forEach(ev => {
+    const div = document.createElement("div");
+    div.className = "today-event";
+    div.textContent = `${format.time(ev.start)} – ${ev.title}`;
+    container.appendChild(div);
+  });
+}
+
+/* ------------------------------------------------------------------
+   RENDER: WEEK PANEL (with weather icon placeholders)
+-------------------------------------------------------------------*/
+
+function renderWeek(days) {
+  const container = document.getElementById("weekly-list");
+  container.innerHTML = "";
+
+  days.forEach(({ date, events }, index) => {
+    const dayDiv = document.createElement("div");
+    dayDiv.className = "week-day-block";
+
+    // Weather icon placeholder for this day
+    const iconDiv = document.createElement("div");
+    iconDiv.className = "week-weather-icon";
+    iconDiv.id = `week-icon-${index}`;
+    dayDiv.appendChild(iconDiv);
+
+    const isTodayFlag = isToday(date);
+    const dayName = format.dayName(date);
+
+    const header = document.createElement("div");
+    header.className = "week-day" + (isTodayFlag ? " week-today" : "");
+    header.textContent = dayName;
+    dayDiv.appendChild(header);
+
+    if (events.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "week-empty";
+      empty.textContent = "No events";
+      dayDiv.appendChild(empty);
+    } else {
+      const allDay = events.filter(isAllDay);
+      const timed = events.filter(ev => !isAllDay(ev));
+
+      allDay.forEach(ev => {
+        const div = document.createElement("div");
+        div.className = "week-all-day";
+        div.textContent = ev.title;
+        dayDiv.appendChild(div);
+      });
+
+      timed.forEach(ev => {
+        const div = document.createElement("div");
+        div.className = "week-event";
+        div.textContent = `${format.time(ev.start)} – ${ev.title}`;
+        dayDiv.appendChild(div);
+      });
+    }
+
+    container.appendChild(dayDiv);
+  });
 }

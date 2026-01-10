@@ -12,18 +12,28 @@
     rel="stylesheet"
   />
 </head>
+
 <body>
-  <!-- Background + tint overlay -->
+  <!-- Background -->
   <div id="background">
     <img id="background-image" alt="Background" />
     <div id="background-tint"></div>
   </div>
 
-  <!-- Top hero row: time + weather -->
+  <!-- ROW 1: Time | Commute (conditional) | Weather -->
   <header id="top-bar">
     <div id="time-panel" class="panel">
       <div id="clock"></div>
       <div id="date"></div>
+    </div>
+
+    <div id="commute-panel" class="panel">
+      <h2>Commute</h2>
+      <div id="commute-times">
+        <div id="commute-greg"></div>
+        <div id="commute-brett"></div>
+      </div>
+      <img id="commute-map" alt="Commute map" />
     </div>
 
     <div id="current-weather-panel" class="panel">
@@ -34,30 +44,17 @@
     </div>
   </header>
 
-  <!-- Middle row: Today, timeline, commute -->
+  <!-- ROW 2–4 GRID -->
   <main id="main-grid">
+
+    <!-- ROW 2: Today panel (normal width) -->
     <section id="today-panel" class="panel">
       <h2>Today</h2>
       <div id="today-date"></div>
       <ul id="today-list"></ul>
     </section>
 
-    <section id="timeline-panel" class="panel">
-      <h2>Week at a glance</h2>
-      <div id="week-range"></div>
-      <ul id="weekly-list"></ul>
-    </section>
-
-    <section id="commute-panel" class="panel">
-      <h2>Commute</h2>
-      <div id="commute-times">
-        <div id="commute-greg"></div>
-        <div id="commute-brett"></div>
-      </div>
-      <img id="commute-map" alt="Commute map" />
-    </section>
-
-    <!-- Bottom row: Reminders/Notes, Server, Logistics -->
+    <!-- ROW 3: Reminders | Server | Logistics -->
     <section id="reminders-panel" class="panel">
       <h2>Reminders</h2>
       <ul id="reminders-list"></ul>
@@ -76,12 +73,20 @@
         <div id="logistics-list"></div>
       </div>
     </section>
+
+    <!-- ROW 4: Week at a glance (full width) -->
+    <section id="timeline-panel" class="panel">
+      <h2>Week at a glance</h2>
+      <div id="week-range"></div>
+      <ul id="weekly-list"></ul>
+    </section>
+
   </main>
 
   <!-- Lottie -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.10.2/lottie.min.js"></script>
 
-  <!-- Main ES module -->
+  <!-- Main entry point (imports everything else) -->
   <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>

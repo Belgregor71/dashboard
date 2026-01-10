@@ -1,3 +1,5 @@
+// main.js
+
 import {
   REFRESH_CALENDAR_MS,
   REFRESH_CLOCK_MS,
@@ -12,12 +14,13 @@ import {
   updateCommuteTimes,
   updateCommuteVisibility
 } from "./modules/commute.js";
-import { fetchAllEvents } from "./modules/calendar.js";
+
+import { refreshCalendar } from "./modules/calendar.js";
 import { renderAgenda } from "./modules/agenda.js";
 
-async function refreshCalendar() {
-  const events = await fetchAllEvents();
-  renderAgenda(events);
+// Calendar refresh now handled entirely inside calendar.js
+async function runCalendar() {
+  await refreshCalendar();
 }
 
 function start() {
@@ -32,8 +35,8 @@ function start() {
   fetchWeather();
   setInterval(fetchWeather, REFRESH_WEATHER_MS);
 
-  refreshCalendar();
-  setInterval(refreshCalendar, REFRESH_CALENDAR_MS);
+  runCalendar();
+  setInterval(runCalendar, REFRESH_CALENDAR_MS);
 
   updateCommuteVisibility();
   setInterval(updateCommuteVisibility, 60 * 1000);
