@@ -17,7 +17,7 @@ body {
 }
 
 /* ============================================================================
-   BACKGROUND IMAGE
+   BACKGROUND IMAGE + TINT
 ============================================================================ */
 
 #background {
@@ -38,6 +38,18 @@ body {
 .bg-visible {
   opacity: 1 !important;
 }
+
+#background-tint {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: background-color 1s ease;
+}
+
+.tint-morning { background-color: rgba(255, 210, 150, 0.18); }
+.tint-day     { background-color: rgba(255, 255, 255, 0.07); }
+.tint-evening { background-color: rgba(255, 150, 80, 0.18); }
+.tint-night   { background-color: rgba(30, 50, 110, 0.30); }
 
 /* ============================================================================
    FROSTED GLASS PANELS
@@ -80,6 +92,10 @@ body {
 }
 
 #current-weather-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
   text-align: right;
 }
 
@@ -99,6 +115,7 @@ body {
   font-size: 1rem;
   opacity: 0.85;
 }
+
 /* Weather Lottie sizing */
 #weather-lottie {
   width: 90px;
@@ -110,13 +127,6 @@ body {
 #weather-lottie canvas {
   width: 100% !important;
   height: 100% !important;
-}
-
-#current-weather-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
 }
 
 /* ============================================================================
@@ -213,7 +223,7 @@ body {
 }
 
 /* ============================================================================
-   TODAY PANEL
+   TODAY PANEL (CALENDAR)
 ============================================================================ */
 
 #today-panel {
@@ -225,25 +235,55 @@ body {
   font-size: 1.6rem;
 }
 
+.today-all-day {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
 .today-event {
-  display: flex;
-  gap: 12px;
-  padding: 8px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-.today-time {
-  width: 70px;
-  opacity: 0.85;
-}
-
-.today-title {
-  flex: 1;
+  margin-bottom: 6px;
 }
 
 .today-empty {
   opacity: 0.7;
   padding: 10px 0;
+  font-style: italic;
+}
+
+/* ============================================================================
+   WEEK AT A GLANCE (CALENDAR)
+============================================================================ */
+
+#weekly-list {
+  margin-top: 10px;
+}
+
+.week-day-block {
+  margin-bottom: 16px;
+}
+
+.week-day {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.week-today {
+  color: #ffd27f;
+}
+
+.week-all-day {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.week-event {
+  margin-bottom: 4px;
+}
+
+.week-empty {
+  opacity: 0.6;
+  font-style: italic;
 }
 
 /* ============================================================================
@@ -329,7 +369,12 @@ body {
 
 .lottie-fade.visible {
   opacity: 1;
-}/* Layout grid for main panels */
+}
+
+/* ============================================================================
+   MAIN GRID LAYOUT
+============================================================================ */
+
 #main-grid {
   display: grid;
   grid-template-columns: 2fr 2fr 1.5fr;
@@ -337,31 +382,3 @@ body {
   gap: 20px;
   padding: 0 40px 40px 40px;
 }
-
-/* Background tint overlay */
-#background {
-  position: fixed;
-  inset: 0;
-  z-index: -2;
-  overflow: hidden;
-}
-
-#background-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0;
-  transition: opacity 1.5s ease;
-}
-
-#background-tint {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  transition: background-color 1s ease;
-}
-
-.tint-morning { background-color: rgba(255, 210, 150, 0.18); }
-.tint-day     { background-color: rgba(255, 255, 255, 0.07); }
-.tint-evening { background-color: rgba(255, 150, 80, 0.18); }
-.tint-night   { background-color: rgba(30, 50, 110, 0.30); }
