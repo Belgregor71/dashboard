@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Family Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/static/css/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap"
+    rel="stylesheet"
+  />
+</head>
+<body>
+  <!-- Background + tint overlay -->
+  <div id="background">
+    <img id="background-image" alt="Background" />
+    <div id="background-tint"></div>
+  </div>
+
+  <!-- Top hero row: time + weather -->
+  <header id="top-bar">
+    <div id="time-panel" class="panel">
+      <div id="clock"></div>
+      <div id="date"></div>
+    </div>
+
+    <div id="current-weather-panel" class="panel">
+      <div id="weather-lottie"></div>
+      <div id="current-temp"></div>
+      <div id="current-conditions"></div>
+      <div id="weather-range"></div>
+    </div>
+  </header>
+
+  <!-- Middle row: Today, timeline, commute -->
+  <main id="main-grid">
+    <section id="today-panel" class="panel">
+      <h2>Today</h2>
+      <div id="today-date"></div>
+      <ul id="today-list"></ul>
+    </section>
+
+    <section id="timeline-panel" class="panel">
+      <h2>Week at a glance</h2>
+      <div id="week-range"></div>
+      <ul id="weekly-list"></ul>
+    </section>
+
+    <section id="commute-panel" class="panel">
+      <h2>Commute</h2>
+      <div id="commute-times">
+        <div id="commute-greg"></div>
+        <div id="commute-brett"></div>
+      </div>
+      <img id="commute-map" alt="Commute map" />
+    </section>
+
+    <!-- Bottom row: Reminders/Notes, Server, Logistics -->
+    <section id="reminders-panel" class="panel">
+      <h2>Reminders</h2>
+      <ul id="reminders-list"></ul>
+      <h2>Shopping</h2>
+      <ul id="shopping-list"></ul>
+    </section>
+
+    <section id="server-status-panel" class="panel">
+      <h2>Server status</h2>
+      <div id="server-status-list"></div>
+    </section>
+
+    <section id="logistics-panel" class="panel">
+      <div class="logistics-column">
+        <h2>Logistics</h2>
+        <div id="logistics-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Lottie -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.10.2/lottie.min.js"></script>
+
+  <!-- Main ES module -->
+  <script type="module" src="/static/js/main.js"></script>
+</body>
+</html>
