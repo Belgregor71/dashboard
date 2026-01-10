@@ -22,7 +22,11 @@ function loadBackgroundImages() {
     .then(res => res.text())
     .then(text => {
       const matches = [...text.matchAll(/href="([^"]+\.(jpg|jpeg|png|gif))"/gi)];
-      backgroundImages = matches.map(m => `/photos/${m[1]}`);
+      backgroundImages = matches.map(m => {
+  const file = m[1].replace(/^\/?photos\//, ""); 
+  return `/photos/${file}`;
+});
+
       if (backgroundImages.length > 0) {
         rotateBackground();
         setInterval(rotateBackground, BACKGROUND_INTERVAL);

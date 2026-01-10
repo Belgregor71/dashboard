@@ -9,6 +9,10 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+import serveIndex from "serve-index";
+
+app.use("/photos", serveIndex(path.join(__dirname, "static", "photos"), { icons: true }));
+
 // Static files
 app.use("/static", express.static(path.join(__dirname, "static")));
 app.use("/photos", express.static(path.join(__dirname, "static", "photos")));
