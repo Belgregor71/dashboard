@@ -32,8 +32,8 @@ async function fetchCalendar(url) {
       if (ev.type === "VEVENT") {
         events.push({
           title: ev.summary || "",
-          start: ev.start ? new Date(ev.start) : null,
-          end: ev.end ? new Date(ev.end) : null,
+          start: ev.start ? new Date(ev.start).toISOString() : null,
+          end: ev.end ? new Date(ev.end).toISOString() : null,
           location: ev.location || "",
           allDay: ev.datetype === "date",
           source: url
@@ -53,13 +53,24 @@ async function fetchCalendar(url) {
 -------------------------------------------------------------------*/
 async function getMergedEvents() {
   try {
-    const all = await Promise.all(
-      Object.values(CALENDAR_URLS).map(url => fetchCalendar(url))
+    console.log("Fetching merged calendars...");
+
+    const urls = Object.values(CALENDAR_URLS);
+
+    const results = await Promise.all(
+      urls.map(async (url) => {
+        console.log("Fetching:", url);
+        const events = await fetchCalendar(url);
+        console.log("Fetched", events.length, "events from", url);
+        return events;
+      })
     );
 
-    const merged = all.flat().filter(ev => ev.start);
+    const merged = results.flat().filter(ev => ev.start);
 
     merged.sort((a, b) => a.start - b.start);
+
+    console.log("Merged total:", merged.length);
 
     return merged;
   } catch (err) {
@@ -71,7 +82,8 @@ async function getMergedEvents() {
 /* ------------------------------------------------------------------
    ENDPOINT: INDIVIDUAL CALENDAR
 -------------------------------------------------------------------*/
-app.get("/calendar/:source", async (req, res) => {
+app.get("/calendar/:source(google|apple|tripit)", async (req, res) => {
+
   const src = req.params.source;
   const url = CALENDAR_URLS[src];
 

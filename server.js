@@ -1,3 +1,5 @@
+console.log(">>> DASHBOARD SERVER LOADED <<<");
+
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -28,7 +30,7 @@ app.get("/", (req, res) => {
 });
 
 /* ============================================================================
-   CALENDAR PROXY — MERGED FEED
+   CALENDAR PROXY — MERGED FEED (STRICT MATCH)
 ============================================================================ */
 
 app.get("/api/calendar/all", async (req, res) => {
@@ -43,7 +45,7 @@ app.get("/api/calendar/all", async (req, res) => {
 });
 
 /* ============================================================================
-   CALENDAR PROXY — INDIVIDUAL SOURCES
+   CALENDAR PROXY — INDIVIDUAL SOURCES (REGEX-PROTECTED)
 ============================================================================ */
 
 const CALENDAR_ENDPOINTS = {
@@ -52,13 +54,10 @@ const CALENDAR_ENDPOINTS = {
   tripit: "http://localhost:5000/calendar/tripit"
 };
 
-app.get("/api/calendar/:source", async (req, res) => {
+// IMPORTANT: prevent ":source" from matching "all"
+app.get("/api/calendar/:source(google|apple|tripit)", async (req, res) => {
   const src = req.params.source;
   const url = CALENDAR_ENDPOINTS[src];
-
-  if (!url) {
-    return res.status(400).json({ error: "Unknown calendar source" });
-  }
 
   try {
     const r = await fetch(url);
