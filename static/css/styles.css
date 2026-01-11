@@ -74,6 +74,19 @@ body {
   gap: 20px;
 }
 
+/* Lock top-bar panels to fixed grid columns */
+#time-panel {
+  grid-column: 1;
+}
+
+#commute-panel {
+  grid-column: 2;
+}
+
+#current-weather-panel {
+  grid-column: 3;
+}
+
 /* TIME PANEL — vertical */
 #time-panel {
   display: flex;
@@ -93,21 +106,27 @@ body {
   line-height: 1.2;
 }
 
-/* WEATHER PANEL — 2-column grid */
+/* ============================================================================
+   WEATHER PANEL — stacked layout with icon + temp
+============================================================================ */
+/* WEATHER PANEL — 2-column grid with icon left, text right */
+
 #current-weather-panel {
   display: grid;
-  grid-template-columns: 70px auto;
-  grid-template-rows: auto auto auto auto;
-  /* 4th row for wind */
+  grid-template-columns: 80px auto;
+  grid-template-rows: auto auto auto;
+  column-gap: 12px;
   align-items: center;
-  column-gap: 16px;
-  row-gap: 4px;
+  padding-right: 5px;
 }
 
+/* Weather icon */
 #weather-lottie {
-  width: 70px;
-  height: 70px;
-  grid-row: 1 / span 4;
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  width: 85px;
+  height: 85px;
+  align-self: center;
 }
 
 #weather-lottie svg,
@@ -116,29 +135,45 @@ body {
   height: 100% !important;
 }
 
+/* Temperature (top right) */
 #current-temp {
-  font-size: 3rem;
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 3.1rem;
   font-weight: 600;
+  text-align: center;
+  line-height: 1;
 }
 
+/* Description under temperature (right) */
 #current-conditions {
-  font-size: 1.4rem;
-  opacity: 0.9;
-}
-
-#weather-range {
-  font-size: 1.2rem;
-  opacity: 0.7;
-}
-
-/* NEW: Wind row inside weather panel */
-.weather-wind {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 1.1rem;
+  grid-column: 2;
+  grid-row: 2;
+  font-size: 1.15rem;
   opacity: 0.85;
-  margin-top: 2px;
+  text-align: center;
+  margin-top: 0;
+}
+
+/* High/Low under description (right) */
+#weather-range {
+  grid-column: 2;
+  grid-row: 3;
+  font-size: 1.1rem;
+  opacity: 0.7;
+  text-align: center;
+}
+
+/* Wind under icon (left bottom) */
+.weather-wind {
+  grid-column: 1;
+  grid-row: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.9rem;
+  opacity: 0.8;
 }
 
 .weather-wind-icon {
@@ -150,6 +185,11 @@ body {
 .weather-wind-icon canvas {
   width: 100% !important;
   height: 100% !important;
+}
+
+#weather-wind-text {
+  font-size: 0.85rem;
+  opacity: 0.8;
 }
 
 /* COMMUTE PANEL — hidden by default */

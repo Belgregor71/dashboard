@@ -25,11 +25,11 @@ export async function fetchWeather() {
       `&daily=temperature_2m_max,temperature_2m_min,weathercode,sunrise,sunset` +
       `&timezone=auto`;
 
-  const res = await fetch(url);
-  const data = await res.json();
+    const res = await fetch(url);
+    const data = await res.json();
 
-  renderWeather(data);
-  renderWeeklyWeatherIcons(data.daily);
+    renderWeather(data);
+    renderWeeklyWeatherIcons(data.daily);
   } catch (err) {
     console.error("Weather error:", err);
   }
@@ -46,23 +46,20 @@ function renderWeather(data) {
   const daily = data.daily;
 
   // Temperature
-  if (tempEl) tempEl.textContent = `${Math.round(current.temperature)}°`;
+  tempEl.textContent = `${Math.round(current.temperature)}°`;
 
   // Main weather animation (uses day/night + full mapping)
   const isDay = isDaytime(data);
-  const mainFilename = getWeatherAnimationFilename(
-    current.weathercode,
-    isDay
-  );
+  const mainFilename = getWeatherAnimationFilename(current.weathercode, isDay);
   loadLottieAnimation("weather-lottie", mainFilename);
 
   // Text description
-  if (descEl) descEl.textContent = describeWeatherCode(current.weathercode);
+  descEl.textContent = describeWeatherCode(current.weathercode);
 
   // Today's high/low
   const max = Math.round(daily.temperature_2m_max[0]);
   const min = Math.round(daily.temperature_2m_min[0]);
-  if (rangeEl) rangeEl.textContent = `H ${max}°  L ${min}°`;
+  rangeEl.textContent = `H ${max}°  L ${min}°`;
 
   // Wind (km/h + Beaufort icon)
   renderWind(current);
@@ -70,7 +67,7 @@ function renderWeather(data) {
 
 /**
  * Render wind speed + Beaufort icon into the main weather panel.
- * No HTML changes required — element is created dynamically if missing.
+ * Element is created dynamically if missing.
  */
 function renderWind(current) {
   const panel = document.getElementById("current-weather-panel");
@@ -95,15 +92,16 @@ function renderWind(current) {
     panel.appendChild(windRow);
   }
 
-  const windKmh = current.windspeed; // Open-Meteo uses km/h
+  const windKmh = current.windspeed; // km/h
   const beaufort = getBeaufortNumber(windKmh);
   const windDirText = describeWindDirection(current.winddirection);
+
   const text = windDirText
     ? `${Math.round(windKmh)} km/h ${windDirText}`
     : `${Math.round(windKmh)} km/h`;
 
   const textEl = document.getElementById("weather-wind-text");
-  if (textEl) textEl.textContent = text;
+  textEl.textContent = text;
 
   const filename = getWindBeaufortFilename(beaufort);
   loadLottieAnimation("weather-wind-icon", filename);
@@ -125,24 +123,53 @@ function describeWeatherCode(code) {
 /* ------------------------------------------------------------------
    WEEKLY WEATHER ICONS FOR WEEK STRIP (uses same mapping)
 -------------------------------------------------------------------*/
-
 export function renderWeeklyWeatherIcons(daily) {
   if (!daily || !daily.weathercode || !daily.weathercode.length) return;
 
+  const weeklyList = document.getElementById("weekly-list");
+  weeklyList.innerHTML = ""; // clear old content
+
   const codes = daily.weathercode;
+  const maxTemps = daily.temperature_2m_max;
+  const minTemps = daily.temperature_2m_min;
+
   const days = Math.min(7, codes.length);
 
   for (let i = 0; i < days; i++) {
-    const code = codes[i];
-    // For the week strip we always show the "day" variant,
-    // since it's a daytime overview of the next 7 days.
-    const filename = getWeatherAnimationFilename(code, true);
+    const li = document.createElement("li");
+    li.className = "week-day-block";
 
-    const iconId = `week-icon-${i}`;
-    try {
-      loadLottieAnimation(iconId, filename);
-    } catch (e) {
-      console.error("Weekly weather icon error:", e);
-    }
+    // Icon container
+    const iconDiv = document.createElement("div");
+    iconDiv.className = "week-weather-icon";
+    iconDiv.id = `week-icon-${i}`;
+
+    // Day label
+    const dayDiv = document.createElement("div");
+    dayDiv.className = "week-day";
+    dayDiv.id = `week-day-${i}`;
+    dayDiv.textContent = formatDayLabel(i);
+
+    // High/low
+    const rangeDiv = document.createElement("div");
+    rangeDiv.className = "week-range";
+    rangeDiv.id = `week-range-${i}`;
+    rangeDiv.textContent = `H ${Math.round(maxTemps[i])}°  L ${Math.round(minTemps[i])}°`;
+
+    li.appendChild(iconDiv);
+    li.appendChild(dayDiv);
+    li.appendChild(rangeDiv);
+
+    weeklyList.appendChild(li);
+
+    // Load icon
+    const filename = getWeatherAnimationFilename(codes[i], true);
+    loadLottieAnimation(`week-icon-${i}`, filename);
   }
+}
+
+function formatDayLabel(offset) {
+  const date = new Date();
+  date.setDate(date.getDate() + offset);
+  return date.toLocaleDateString("en-AU", { weekday: "short" });
 }
