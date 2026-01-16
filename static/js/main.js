@@ -22,6 +22,10 @@ import { renderAgenda } from "./modules/agenda.js";
 async function runCalendar() {
   await refreshCalendar();
 }
+import { refreshSpotify } from "./modules/spotify.js";
+
+setInterval(refreshSpotify, 5000);
+refreshSpotify();
 
 function start() {
   initBackground();

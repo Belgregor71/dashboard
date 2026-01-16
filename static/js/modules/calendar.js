@@ -10,12 +10,25 @@ const CAL_URL = "/api/calendar/all";
 export async function refreshCalendar() {
   try {
     const res = await fetch(CAL_URL);
-    const events = await res.json();
 
-    console.log("Events received:", events);
+    // If backend fails, don’t try to parse/render like normal
+    if (!res.ok) {
+      console.warn(`Calendar HTTP ${res.status}`);
+      safeRenderEmpty();
+      return;
+    }
+
+    const data = await res.json();
+
+    // Backend might return { error: "..." } instead of an array
+    if (!Array.isArray(data)) {
+      console.warn("Calendar returned non-array:", data);
+      safeRenderEmpty();
+      return;
+    }
 
     // Normalize dates to LOCAL TIME
-    const normalized = normalizeEvents(events);
+    const normalized = normalizeEvents(data);
 
     const expanded = expandMultiDay(normalized);
     const todayEvents = getTodayEvents(expanded);
@@ -25,7 +38,17 @@ export async function refreshCalendar() {
     renderWeek(weekEvents);
   } catch (err) {
     console.error("Calendar error:", err);
+    safeRenderEmpty();
   }
+}
+
+/* ------------------------------------------------------------------
+   SAFE EMPTY RENDER (prevents white screen if containers missing)
+-------------------------------------------------------------------*/
+
+function safeRenderEmpty() {
+  renderToday([]);
+  renderWeek(getNext7DaysEvents([]));
 }
 
 /* ------------------------------------------------------------------
@@ -33,16 +56,28 @@ export async function refreshCalendar() {
 -------------------------------------------------------------------*/
 
 function toLocal(date) {
+  if (!date) return null;
   const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return null;
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000);
 }
 
 function normalizeEvents(events) {
-  return events.map(ev => ({
-    ...ev,
-    start: toLocal(ev.start),
-    end: toLocal(ev.end)
-  }));
+  return events
+    .map(ev => {
+      const start = toLocal(ev.start);
+      const end = toLocal(ev.end);
+
+      // Skip events with invalid dates
+      if (!start) return null;
+
+      return {
+        ...ev,
+        start,
+        end: end || start // fallback so multi-day logic doesn’t explode
+      };
+    })
+    .filter(Boolean);
 }
 
 /* ------------------------------------------------------------------
@@ -65,6 +100,12 @@ function expandMultiDay(events) {
   for (const ev of events) {
     const start = new Date(ev.start);
     const end = new Date(ev.end);
+
+    // If end is invalid, treat as single day
+    if (Number.isNaN(end.getTime())) {
+      expanded.push(ev);
+      continue;
+    }
 
     if (start.toDateString() !== end.toDateString()) {
       let d = new Date(start);
@@ -91,11 +132,11 @@ function expandMultiDay(events) {
 
 function isToday(date) {
   const now = new Date();
-  return date.toDateString() === now.toDateString();
+  return date && date.toDateString() === now.toDateString();
 }
 
 function getTodayEvents(events) {
-  return events.filter(ev => isToday(ev.start));
+  return events.filter(ev => ev.start && isToday(ev.start));
 }
 
 function getNext7DaysEvents(events) {
@@ -110,7 +151,9 @@ function getNext7DaysEvents(events) {
 
   return days.map(day => ({
     date: day,
-    events: events.filter(ev => ev.start.toDateString() === day.toDateString())
+    events: events.filter(
+      ev => ev.start && ev.start.toDateString() === day.toDateString()
+    )
   }));
 }
 
@@ -120,9 +163,14 @@ function getNext7DaysEvents(events) {
 
 function renderToday(events) {
   const container = document.getElementById("today-list");
+  if (!container) {
+    console.warn("Calendar UI missing #today-list");
+    return;
+  }
+
   container.innerHTML = "";
 
-  if (events.length === 0) {
+  if (!events || events.length === 0) {
     container.innerHTML = `<div class="today-empty">Nothing scheduled</div>`;
     return;
   }
@@ -133,7 +181,7 @@ function renderToday(events) {
   allDay.forEach(ev => {
     const div = document.createElement("div");
     div.className = "today-all-day";
-    div.textContent = ev.title;
+    div.textContent = ev.title || "(Untitled)";
     container.appendChild(div);
   });
 
@@ -144,7 +192,7 @@ function renderToday(events) {
   timed.forEach(ev => {
     const div = document.createElement("div");
     div.className = "today-event";
-    div.textContent = `${format.time(ev.start)} – ${ev.title}`;
+    div.textContent = `${format.time(ev.start)} – ${ev.title || "(Untitled)"}`;
     container.appendChild(div);
   });
 }
@@ -155,9 +203,14 @@ function renderToday(events) {
 
 function renderWeek(days) {
   const container = document.getElementById("weekly-list");
+  if (!container) {
+    console.warn("Calendar UI missing #weekly-list");
+    return;
+  }
+
   container.innerHTML = "";
 
-  days.forEach(({ date, events }, index) => {
+  (days || []).forEach(({ date, events }, index) => {
     const dayDiv = document.createElement("div");
     dayDiv.className = "week-day-block";
 
@@ -175,7 +228,7 @@ function renderWeek(days) {
     header.textContent = dayName;
     dayDiv.appendChild(header);
 
-    if (events.length === 0) {
+    if (!events || events.length === 0) {
       const empty = document.createElement("div");
       empty.className = "week-empty";
       empty.textContent = "No events";
@@ -187,14 +240,14 @@ function renderWeek(days) {
       allDay.forEach(ev => {
         const div = document.createElement("div");
         div.className = "week-all-day";
-        div.textContent = ev.title;
+        div.textContent = ev.title || "(Untitled)";
         dayDiv.appendChild(div);
       });
 
       timed.forEach(ev => {
         const div = document.createElement("div");
         div.className = "week-event";
-        div.textContent = `${format.time(ev.start)} – ${ev.title}`;
+        div.textContent = `${format.time(ev.start)} – ${ev.title || "(Untitled)"}`;
         dayDiv.appendChild(div);
       });
     }

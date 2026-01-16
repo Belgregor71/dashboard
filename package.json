@@ -7,8 +7,22 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.19.0",
-    "node-fetch": "^3.3.2"
+    "dotenv": "^17.2.3",
+    "express": "^4.22.1",
+    "node-fetch": "^3.3.2",
+    "node-ical": "^0.22.1",
+    "serve-index": "^1.9.1"
   },
-  "type": "module"
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Belgregor71/dashboard.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Belgregor71/dashboard/issues"
+  },
+  "homepage": "https://github.com/Belgregor71/dashboard#readme"
 }

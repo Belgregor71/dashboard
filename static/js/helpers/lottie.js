@@ -13,9 +13,9 @@ export function loadLottieAnimation(containerId, fileName) {
     renderer: "svg",
     loop: true,
     autoplay: true,
-    path: `/static/icons/weather/lottie/${fileName}`
+    path: `/icons/weather/lottie/${fileName}`
   });
-
+  return anim;
   anim.addEventListener("DOMLoaded", () => {
     requestAnimationFrame(() => {
       wrapper.classList.add("visible");

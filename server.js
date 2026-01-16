@@ -16,7 +16,7 @@ const PORT = process.env.PORT || 3000;
    STATIC FILES
 ============================================================================ */
 
-app.use("/static", express.static(path.join(__dirname, "static")));
+app.use(express.static(path.join(__dirname, "static")));
 app.use("/photos", serveIndex(path.join(__dirname, "static", "photos"), { icons: true }));
 app.use("/photos", express.static(path.join(__dirname, "static", "photos")));
 app.use("/icons", express.static(path.join(__dirname, "static", "icons")));
@@ -35,7 +35,8 @@ app.get("/", (req, res) => {
 
 app.get("/api/calendar/all", async (req, res) => {
   try {
-    const r = await fetch("http://localhost:5000/calendar/all");
+    const CAL_SVC = process.env.CALENDAR_SERVICE_URL || "http://localhost:5000";
+    const r = await fetch(`${CAL_SVC}/calendar/all`);
     const data = await r.json();
     res.json(data);
   } catch (err) {

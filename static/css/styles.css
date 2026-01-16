@@ -219,9 +219,9 @@ body {
 }
 
 /* TODAY PANEL — left column */
-#today-panel {
-  grid-column: 1 / 2;
-}
+#today-panel { 
+  grid-column: 1 / 3; 
+  grid-row: 1; }
 
 #today-panel h2 {
   margin-bottom: 10px;
@@ -242,6 +242,56 @@ body {
   padding: 10px 0;
   font-style: italic;
 }
+
+/* Spotify sits in rightmost column on same row as Today */
+#spotify-panel {
+  grid-column: 3 / 4;
+  grid-row: 1;
+  display: grid;
+  grid-template-columns: 110px auto;
+  gap: 16px;
+  align-items: center;
+}
+
+/* Spotify content styling */
+#spotify-art-container {
+  width: 110px;
+  height: 110px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+#spotify-art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#spotify-track {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+#spotify-artist {
+  font-size: 1.1rem;
+  opacity: 0.8;
+}
+
+#spotify-progress {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+#spotify-progress-inner {
+  height: 100%;
+  background: #1db954;
+  width: 0%;
+}
+
 
 /* ============================================================================
    REMINDERS | SERVER | LOGISTICS — row 2
@@ -343,6 +393,12 @@ body {
   opacity: 0.6;
   font-style: italic;
 }
+
+body[data-view="home"] .home-view { display: block; }
+body[data-view="home"] .calendar-view { display: none; }
+
+body[data-view="calendar"] .calendar-view { display: block; }
+body[data-view="calendar"] .home-view { display: none; }
 
 /* ============================================================================
    SERVER STATUS PANEL

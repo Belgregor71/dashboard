@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -87,6 +88,11 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.10.2/lottie.min.js"></script>
 
   <!-- Main entry point (imports everything else) -->
-  <script type="module" src="/static/js/main.js"></script>
+    <!-- Config (feature flags etc) -->
+  <script src="/static/js/config.js"></script>
+
+  <!-- Main entry point (single orchestrator) -->
+  <script type="module" src="/static/js/core/app.js"></script>
+
 </body>
 </html>
