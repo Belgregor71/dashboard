@@ -74,6 +74,14 @@ body {
   gap: 20px;
 }
 
+body.commute-hidden #top-bar {
+  grid-template-columns: 1fr 1fr;
+}
+
+body.commute-hidden #commute-panel {
+  display: none;
+}
+
 /* Lock top-bar panels to fixed grid columns */
 #time-panel {
   grid-column: 1;

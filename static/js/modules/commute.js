@@ -42,7 +42,9 @@ export function updateCommuteVisibility() {
   const panel = document.getElementById("commute-panel");
   if (!panel) return;
 
-  panel.style.display = hour >= 6 && hour < 9 ? "block" : "none";
+  const isVisible = hour >= 6 && hour < 9;
+  panel.style.display = isVisible ? "block" : "none";
+  document.body.classList.toggle("commute-hidden", !isVisible);
 }
 
 export function updateCommuteMap() {

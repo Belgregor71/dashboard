@@ -15,10 +15,10 @@ export function loadLottieAnimation(containerId, fileName) {
     autoplay: true,
     path: `/icons/weather/lottie/${fileName}`
   });
-  return anim;
   anim.addEventListener("DOMLoaded", () => {
     requestAnimationFrame(() => {
       wrapper.classList.add("visible");
     });
   });
+  return anim;
 }

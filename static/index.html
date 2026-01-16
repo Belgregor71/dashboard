@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <title>Family Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="/static/css/styles.css" />
+  <link rel="stylesheet" href="/css/styles.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -42,6 +42,7 @@
       <div id="current-temp"></div>
       <div id="current-conditions"></div>
       <div id="weather-range"></div>
+      <div id="weather-wind" class="weather-wind"></div>
     </div>
   </header>
 
@@ -89,10 +90,10 @@
 
   <!-- Main entry point (imports everything else) -->
     <!-- Config (feature flags etc) -->
-  <script src="/static/js/config.js"></script>
+  <script src="/js/config.js"></script>
 
   <!-- Main entry point (single orchestrator) -->
-  <script type="module" src="/static/js/core/app.js"></script>
+  <script type="module" src="/js/core/app.js"></script>
 
 </body>
 </html>
