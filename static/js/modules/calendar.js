@@ -59,7 +59,7 @@ function toLocal(date) {
   if (!date) return null;
   const d = new Date(date);
   if (Number.isNaN(d.getTime())) return null;
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return d;
 }
 
 function normalizeEvents(events) {
