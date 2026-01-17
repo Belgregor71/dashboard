@@ -58,11 +58,37 @@
   <div class="home-view">
     <main id="main-grid">
 
-    <!-- ROW 2: Today + Media panels -->
+    <!-- ROW 2: Today | To-Do | Shopping -->
     <section id="today-panel" class="panel">
       <h2>Today</h2>
       <div id="today-date"></div>
       <ul id="today-list"></ul>
+    </section>
+
+    <section id="reminders-panel" class="panel">
+      <h2>To-Do List</h2>
+      <div class="todo-table">
+        <div class="todo-row todo-row--header">
+          <span>Task</span>
+          <span>Days left</span>
+        </div>
+        <div id="reminders-list" class="todo-rows"></div>
+      </div>
+    </section>
+
+    <section id="shopping-panel" class="panel">
+      <h2>Shopping</h2>
+      <ul id="shopping-list"></ul>
+    </section>
+
+    <!-- ROW 3: Server | Media 1 | Media 2 -->
+    <section id="server-status-panel" class="panel is-hidden is-collapsed">
+      <h2>Now Playing:</h2>
+      <div id="server-status-list"></div>
+      <div id="plex-status" class="plex-status">
+        <div class="plex-status__grid is-hidden"></div>
+        <div class="plex-status__empty">No active Plex streams</div>
+      </div>
     </section>
 
     <section id="media-panel-1" class="panel media-panel is-hidden is-collapsed">
@@ -91,32 +117,6 @@
           <div class="media-panel__progress-bar"></div>
         </div>
       </div>
-    </section>
-
-    <!-- ROW 3: To-Do | Server | Shopping -->
-    <section id="reminders-panel" class="panel">
-      <h2>To-Do List</h2>
-      <div class="todo-table">
-        <div class="todo-row todo-row--header">
-          <span>Task</span>
-          <span>Days left</span>
-        </div>
-        <div id="reminders-list" class="todo-rows"></div>
-      </div>
-    </section>
-
-    <section id="server-status-panel" class="panel is-hidden is-collapsed">
-      <h2>Now Playing:</h2>
-      <div id="server-status-list"></div>
-      <div id="plex-status" class="plex-status">
-        <div class="plex-status__grid is-hidden"></div>
-        <div class="plex-status__empty">No active Plex streams</div>
-      </div>
-    </section>
-
-    <section id="shopping-panel" class="panel">
-      <h2>Shopping</h2>
-      <ul id="shopping-list"></ul>
     </section>
 
     <!-- ROW 4: Week at a glance (full width) -->
