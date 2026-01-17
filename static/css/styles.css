@@ -328,6 +328,71 @@ body {
   grid-column: 2 / 3;
 }
 
+#server-status-panel h2 {
+  margin-bottom: 12px;
+}
+
+.plex-status {
+  position: relative;
+  height: 100%;
+  min-height: 200px;
+}
+
+.plex-status__grid {
+  display: grid;
+  gap: 12px;
+  height: 100%;
+}
+
+.plex-status__grid--single {
+  grid-template-columns: 1fr;
+}
+
+.plex-status__grid--double {
+  grid-template-columns: 1fr 1fr;
+}
+
+.plex-status__grid.is-hidden {
+  display: none;
+}
+
+.plex-status__tile {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  min-height: 160px;
+  display: flex;
+  align-items: flex-end;
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.35);
+}
+
+.plex-status__tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.7));
+}
+
+.plex-status__title {
+  position: relative;
+  z-index: 1;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 12px;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+.plex-status__empty {
+  font-size: 0.95rem;
+  opacity: 0.7;
+}
+
+.plex-status__empty.is-hidden {
+  display: none;
+}
+
 #shopping-panel {
   grid-column: 3 / 4;
 }

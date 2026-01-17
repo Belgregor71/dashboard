@@ -1,10 +1,13 @@
 console.log(">>> DASHBOARD SERVER LOADED <<<");
 
+import dotenv from "dotenv";
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import fetch from "node-fetch";
 import serveIndex from "serve-index";
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -107,6 +110,113 @@ app.get("/api/commute_map", async (req, res) => {
   } catch (err) {
     console.error("Commute map proxy error:", err);
     res.status(500).json({ error: "Commute map error" });
+  }
+});
+
+/* ============================================================================
+   PLEX SESSIONS PROXY
+============================================================================ */
+
+function buildPlexUrl(baseUrl, pathValue) {
+  if (!pathValue) return null;
+  if (pathValue.startsWith("http")) return pathValue;
+  const trimmedBase = baseUrl.replace(/\/$/, "");
+  const normalizedPath = pathValue.startsWith("/") ? pathValue : `/${pathValue}`;
+  return `${trimmedBase}${normalizedPath}`;
+}
+
+function parsePlexSessions(xmlText) {
+  const sessions = [];
+  const videoTags = xmlText.match(/<Video\b[^>]*>/g) || [];
+
+  for (const tag of videoTags) {
+    const attributes = {};
+    for (const [, key, value] of tag.matchAll(/(\w+)="([^"]*)"/g)) {
+      attributes[key] = value;
+    }
+
+    const thumbPath =
+      attributes.thumb ||
+      attributes.parentThumb ||
+      attributes.grandparentThumb ||
+      attributes.art;
+
+    const title =
+      attributes.title ||
+      attributes.grandparentTitle ||
+      attributes.parentTitle ||
+      "Plex Stream";
+
+    if (!thumbPath) continue;
+
+    sessions.push({
+      title,
+      thumb: thumbPath,
+      sessionKey: attributes.sessionKey
+    });
+  }
+
+  return sessions;
+}
+
+app.get("/api/plex/sessions", async (req, res) => {
+  const plexBaseUrl = process.env.PLEX_BASE_URL;
+  const plexToken = process.env.PLEX_TOKEN;
+
+  if (!plexBaseUrl || !plexToken) {
+    res.json({ sessions: [], configMissing: true });
+    return;
+  }
+
+  try {
+    const url = new URL("/status/sessions", plexBaseUrl);
+    url.searchParams.set("X-Plex-Token", plexToken);
+
+    const plexResponse = await fetch(url.toString());
+    if (!plexResponse.ok) {
+      res
+        .status(plexResponse.status)
+        .json({ error: `Plex HTTP ${plexResponse.status}` });
+      return;
+    }
+
+    const xmlText = await plexResponse.text();
+    const sessions = parsePlexSessions(xmlText);
+    res.json({ sessions });
+  } catch (err) {
+    console.error("Plex proxy error:", err);
+    res.status(500).json({ error: "Plex error" });
+  }
+});
+
+app.get("/api/plex/image", async (req, res) => {
+  const plexBaseUrl = process.env.PLEX_BASE_URL;
+  const plexToken = process.env.PLEX_TOKEN;
+  const imagePath = req.query.path;
+
+  if (!plexBaseUrl || !plexToken || !imagePath) {
+    res.status(400).json({ error: "Missing Plex configuration" });
+    return;
+  }
+
+  try {
+    const url = new URL(buildPlexUrl(plexBaseUrl, imagePath));
+    url.searchParams.set("X-Plex-Token", plexToken);
+
+    const imageResponse = await fetch(url.toString());
+    if (!imageResponse.ok) {
+      res
+        .status(imageResponse.status)
+        .json({ error: `Plex image HTTP ${imageResponse.status}` });
+      return;
+    }
+
+    const buffer = await imageResponse.arrayBuffer();
+    const contentType = imageResponse.headers.get("content-type") || "image/jpeg";
+    res.type(contentType).send(Buffer.from(buffer));
+  } catch (err) {
+    console.error("Plex image proxy error:", err);
+    res.status(500).json({ error: "Plex image error" });
   }
 });
 
