@@ -26,6 +26,7 @@
     <div id="time-panel" class="panel">
       <div id="clock"></div>
       <div id="date"></div>
+      <div id="ha-status" class="ha-status ha-status--disconnected">HA: disconnected</div>
     </div>
 
     <div id="commute-panel" class="panel">
@@ -49,11 +50,39 @@
   <div class="home-view">
     <main id="main-grid">
 
-    <!-- ROW 2: Today panel (normal width) -->
+    <!-- ROW 2: Today + Media panels -->
     <section id="today-panel" class="panel">
       <h2>Today</h2>
       <div id="today-date"></div>
       <ul id="today-list"></ul>
+    </section>
+
+    <section id="media-panel-1" class="panel media-panel is-hidden">
+      <div class="media-panel__art">
+        <img class="media-panel__image" alt="" />
+      </div>
+      <div class="media-panel__info">
+        <div class="media-panel__source"></div>
+        <div class="media-panel__title"></div>
+        <div class="media-panel__subtitle"></div>
+        <div class="media-panel__progress">
+          <div class="media-panel__progress-bar"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="media-panel-2" class="panel media-panel is-hidden">
+      <div class="media-panel__art">
+        <img class="media-panel__image" alt="" />
+      </div>
+      <div class="media-panel__info">
+        <div class="media-panel__source"></div>
+        <div class="media-panel__title"></div>
+        <div class="media-panel__subtitle"></div>
+        <div class="media-panel__progress">
+          <div class="media-panel__progress-bar"></div>
+        </div>
+      </div>
     </section>
 
     <!-- ROW 3: Reminders | Server | Logistics -->
