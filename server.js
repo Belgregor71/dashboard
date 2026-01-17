@@ -120,8 +120,9 @@ app.get("/api/commute_map", async (req, res) => {
 
 function normalizePlexBaseUrl(baseUrl) {
   if (!baseUrl) return baseUrl;
-  if (/^https?:\/\//i.test(baseUrl)) return baseUrl;
-  return `http://${baseUrl}`;
+  const trimmed = baseUrl.trim().replace(/[<>]/g, "");
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `http://${trimmed}`;
 }
 
 function getPlexAgent(baseUrl) {
