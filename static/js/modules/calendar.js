@@ -37,6 +37,7 @@ export async function refreshCalendar() {
     renderToday(todayEvents);
     renderWeek(weekEvents);
     renderMonth(expanded);
+    renderAgenda(expanded);
   } catch (err) {
     console.error("Calendar error:", err);
     safeRenderEmpty();
@@ -51,6 +52,7 @@ function safeRenderEmpty() {
   renderToday([]);
   renderWeek(getNext7DaysEvents([]));
   renderMonth([]);
+  renderAgenda([]);
 }
 
 /* ------------------------------------------------------------------
@@ -352,4 +354,104 @@ function renderMonth(events) {
 
     grid.appendChild(cell);
   }
+}
+
+/* ------------------------------------------------------------------
+   RENDER: AGENDA VIEW
+-------------------------------------------------------------------*/
+
+function renderAgenda(events) {
+  const container = document.getElementById("agenda-list");
+  const todayLabel = document.getElementById("agenda-today-label");
+
+  if (!container) {
+    console.warn("Calendar UI missing #agenda-list");
+    return;
+  }
+
+  const today = new Date();
+  if (todayLabel) {
+    todayLabel.textContent = format.date(today);
+  }
+
+  const daysToShow = 5;
+  const dayBuckets = [];
+
+  for (let i = 0; i < daysToShow; i++) {
+    const date = new Date(today);
+    date.setDate(today.getDate() + i);
+    const label = i === 0 ? "Today" : i === 1 ? "Tomorrow" : format.dayName(date);
+    dayBuckets.push({ date, label, events: [] });
+  }
+
+  (events || []).forEach(ev => {
+    if (!ev.start) return;
+    const evDate = new Date(ev.start);
+    const bucket = dayBuckets.find(
+      item => item.date.toDateString() === evDate.toDateString()
+    );
+    if (bucket) {
+      bucket.events.push(ev);
+    }
+  });
+
+  container.innerHTML = "";
+
+  dayBuckets.forEach(day => {
+    const dayWrap = document.createElement("div");
+    dayWrap.className = "agenda-day";
+
+    const title = document.createElement("div");
+    title.className = "agenda-day-title";
+    title.textContent = `${day.label} · ${format.date(day.date)}`;
+    dayWrap.appendChild(title);
+
+    const dayEvents = day.events
+      .slice()
+      .sort((a, b) => a.start - b.start);
+
+    if (dayEvents.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "agenda-card";
+      empty.textContent = "No events scheduled";
+      dayWrap.appendChild(empty);
+    } else {
+      dayEvents.forEach(ev => {
+        const card = document.createElement("div");
+        card.className = "agenda-card";
+
+        const main = document.createElement("div");
+        main.className = "agenda-card-main";
+
+        const time = document.createElement("div");
+        time.className = "agenda-time";
+        time.textContent = isAllDay(ev)
+          ? "All day"
+          : `${format.time(ev.start)} – ${format.time(ev.end || ev.start)}`;
+        main.appendChild(time);
+
+        const titleEl = document.createElement("div");
+        titleEl.className = "agenda-title";
+        titleEl.textContent = ev.title || "(Untitled)";
+        main.appendChild(titleEl);
+
+        if (ev.location) {
+          const location = document.createElement("div");
+          location.className = "agenda-location";
+          location.textContent = ev.location;
+          main.appendChild(location);
+        }
+
+        const meta = document.createElement("div");
+        meta.className = "agenda-card-meta";
+        meta.textContent = ev.allDay ? "All day" : "Scheduled";
+
+        card.appendChild(main);
+        card.appendChild(meta);
+        dayWrap.appendChild(card);
+      });
+    }
+
+    container.appendChild(dayWrap);
+  });
 }
