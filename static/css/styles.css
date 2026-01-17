@@ -96,9 +96,13 @@ body {
 #top-bar {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  align-items: center;
+  align-items: stretch;
   padding: 20px 40px;
   gap: 20px;
+}
+
+#top-bar .panel {
+  height: 100%;
 }
 
 /* Lock top-bar panels to fixed grid columns */
@@ -176,19 +180,27 @@ body {
 
 #current-weather-panel {
   display: grid;
-  grid-template-columns: 80px auto;
-  grid-template-rows: auto auto auto;
-  column-gap: 12px;
+  grid-template-columns: 90px 1fr 1.4fr;
+  column-gap: 16px;
   align-items: center;
-  padding-right: 5px;
+  padding-right: 8px;
+}
+
+.weather-column {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.weather-column--details {
+  gap: 6px;
+  align-items: flex-start;
 }
 
 /* Weather icon */
 #weather-lottie {
-  grid-column: 1;
-  grid-row: 1 / span 2;
-  width: 85px;
-  height: 85px;
+  width: 84px;
+  height: 84px;
   align-self: center;
 }
 
@@ -200,48 +212,36 @@ body {
 
 /* Temperature (top right) */
 #current-temp {
-  grid-column: 2;
-  grid-row: 1;
-  font-size: 3.1rem;
+  font-size: 4rem;
   font-weight: 600;
-  text-align: center;
   line-height: 1;
 }
 
 /* Description under temperature (right) */
 #current-conditions {
-  grid-column: 2;
-  grid-row: 2;
   font-size: 1.15rem;
   opacity: 0.85;
-  text-align: center;
   margin-top: 0;
 }
 
 /* High/Low under description (right) */
 #weather-range {
-  grid-column: 2;
-  grid-row: 3;
   font-size: 1.1rem;
   opacity: 0.7;
-  text-align: center;
 }
 
 /* Wind under icon (left bottom) */
 .weather-wind {
-  grid-column: 1;
-  grid-row: 3;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
-  font-size: 0.9rem;
-  opacity: 0.8;
+  gap: 8px;
+  font-size: 0.95rem;
+  opacity: 0.85;
 }
 
 .weather-wind-icon {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
 }
 
 .weather-wind-icon svg,
@@ -251,8 +251,8 @@ body {
 }
 
 #weather-wind-text {
-  font-size: 0.85rem;
-  opacity: 0.8;
+  font-size: 0.9rem;
+  opacity: 0.85;
 }
 
 /* COMMUTE PANEL — hidden by default */
@@ -260,12 +260,8 @@ body {
   text-align: center;
 }
 
-#commute-map {
-  width: 260px;
-  height: 160px;
-  border-radius: 12px;
-  object-fit: cover;
-  margin-top: 10px;
+#commute-panel h2 {
+  margin-bottom: 10px;
 }
 
 /* ============================================================================

@@ -4,6 +4,11 @@ import {
   weatherText,
   weatherAnimation
 } from "./mapper.js";
+import {
+  getBeaufortNumber,
+  getWindBeaufortFilename,
+  describeWindDirection
+} from "../../config/weather-animations.js";
 import { loadLottieAnimation } from "../../helpers/lottie.js";
 import { on } from "../../core/eventBus.js";
 
@@ -33,7 +38,7 @@ function renderCurrent(data) {
   const tempEl = document.getElementById("current-temp");
   const descEl = document.getElementById("current-conditions");
   const rangeEl = document.getElementById("weather-range");
-  const windEl = document.getElementById("weather-wind");
+  const windTextEl = document.getElementById("weather-wind-text");
 
   if (tempEl) tempEl.textContent = `${Math.round(current.temperature)}°`;
   if (descEl) descEl.textContent = weatherText(current.weathercode);
@@ -42,8 +47,17 @@ function renderCurrent(data) {
   const min = Math.round(daily.temperature_2m_min[0]);
   if (rangeEl) rangeEl.textContent = `H ${max}°  L ${min}°`;
 
-  if (windEl && current.windspeed != null) {
-    windEl.textContent = `${Math.round(current.windspeed)} km/h`;
+  if (windTextEl && current.windspeed != null) {
+    const windKmh = current.windspeed;
+    const windDirText = describeWindDirection(current.winddirection);
+    windTextEl.textContent = windDirText
+      ? `${Math.round(windKmh)} km/h ${windDirText}`
+      : `${Math.round(windKmh)} km/h`;
+
+    const beaufort = getBeaufortNumber(windKmh);
+    const windIconFile = getWindBeaufortFilename(beaufort);
+    const windAnim = loadLottieAnimation("weather-wind-icon", windIconFile);
+    if (windAnim) activeLotties.push(windAnim);
   }
 
   const isDay = isDaytime(data);

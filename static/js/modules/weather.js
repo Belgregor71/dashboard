@@ -70,27 +70,7 @@ function renderWeather(data) {
  * Element is created dynamically if missing.
  */
 function renderWind(current) {
-  const panel = document.getElementById("current-weather-panel");
-  if (!panel || current.windspeed == null) return;
-
-  let windRow = document.getElementById("weather-wind");
-  if (!windRow) {
-    windRow = document.createElement("div");
-    windRow.id = "weather-wind";
-    windRow.className = "weather-wind";
-
-    const iconDiv = document.createElement("div");
-    iconDiv.id = "weather-wind-icon";
-    iconDiv.className = "weather-wind-icon";
-
-    const textSpan = document.createElement("span");
-    textSpan.id = "weather-wind-text";
-
-    windRow.appendChild(iconDiv);
-    windRow.appendChild(textSpan);
-
-    panel.appendChild(windRow);
-  }
+  if (current.windspeed == null) return;
 
   const windKmh = current.windspeed; // km/h
   const beaufort = getBeaufortNumber(windKmh);
@@ -101,7 +81,7 @@ function renderWind(current) {
     : `${Math.round(windKmh)} km/h`;
 
   const textEl = document.getElementById("weather-wind-text");
-  textEl.textContent = text;
+  if (textEl) textEl.textContent = text;
 
   const filename = getWindBeaufortFilename(beaufort);
   loadLottieAnimation("weather-wind-icon", filename);
