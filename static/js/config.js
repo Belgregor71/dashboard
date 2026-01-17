@@ -31,7 +31,7 @@ window.CONFIG = {
     calendar: true,
 
     // External integrations
-    homeAssistant: !isLocalhost // off on PC by default
+    homeAssistant: true // force enable
   },
 
   /* --------------------------------------------------------------
