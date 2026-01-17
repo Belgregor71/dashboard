@@ -10,7 +10,6 @@ const TODO_ENTITY_IDS = HA_CONFIG?.todoEntities ?? [
 let socket;
 let msgId = 1;
 let getStatesRequestId;
-const todoItemsRequestIds = new Map();
 
 export function connectHA() {
   if (!HA_CONFIG?.enabled) {
@@ -55,15 +54,6 @@ export function connectHA() {
       return;
     }
 
-    if (msg.type === "result" && todoItemsRequestIds.has(msg.id)) {
-      emit("ha:todo-items", {
-        entityId: todoItemsRequestIds.get(msg.id),
-        items: Array.isArray(msg.result) ? msg.result : msg.result?.items ?? []
-      });
-      todoItemsRequestIds.delete(msg.id);
-      return;
-    }
-
     if (msg.type === "event") {
       emit(`ha:event:${msg.event.event_type}`, msg.event.data);
     }
@@ -85,12 +75,27 @@ function subscribe(eventType) {
 }
 
 export function requestTodoItems(entityId) {
-  if (!entityId || !socket) return;
-  const requestId = msgId++;
-  todoItemsRequestIds.set(requestId, entityId);
-  socket.send(JSON.stringify({
-    id: requestId,
-    type: "todo/items",
-    entity_id: entityId
-  }));
+  if (!entityId || !HA_CONFIG?.token) return;
+  fetch(`${HA_CONFIG.url}/api/todo/items/${entityId}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${HA_CONFIG.token}`,
+      "Content-Type": "application/json"
+    }
+  })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`Failed to fetch ${entityId} todo items`);
+      }
+      return response.json();
+    })
+    .then((items) => {
+      emit("ha:todo-items", {
+        entityId,
+        items: Array.isArray(items) ? items : items?.items ?? []
+      });
+    })
+    .catch((error) => {
+      console.warn("HA todo items fetch failed", error);
+    });
 }
