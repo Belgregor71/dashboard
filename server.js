@@ -167,6 +167,8 @@ function parsePlexSessions(xmlText) {
 
     sessions.push({
       title,
+      grandparentTitle: attributes.grandparentTitle || null,
+      parentTitle: attributes.parentTitle || null,
       type: attributes.type,
       thumb: attributes.thumb || null,
       parentThumb: attributes.parentThumb || null,
