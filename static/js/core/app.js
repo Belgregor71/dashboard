@@ -12,7 +12,6 @@ import {
 import { refreshCalendar } from "../modules/calendar.js";
 import { startWeather } from "../services/weather/renderer.js";
 import { initMediaPanels } from "../modules/mediaPanels.js";
-import { initHaStatus } from "../modules/haStatus.js";
 import { initTodoPanels } from "../modules/todo.js";
 import { initPlexStatus } from "../modules/plexStatus.js";
 
@@ -95,7 +94,6 @@ export function startApp() {
   // -----------------------
   initMediaPanels();
   initTodoPanels();
-  initHaStatus({ enabled: isEnabled("homeAssistant", false) });
   initPlexStatus({
     refreshMs: cfg.plex?.refreshMs ?? 30_000,
     enabled: isEnabled("plex", true)
