@@ -8,6 +8,7 @@ import { loadLottieAnimation } from "../../helpers/lottie.js";
 import { on } from "../../core/eventBus.js";
 
 let activeLotties = [];
+let cachedDaily = null;
 
 function clearLotties() {
   activeLotties.forEach(anim => anim.destroy?.());
@@ -17,6 +18,7 @@ function clearLotties() {
 export async function startWeather() {
   try {
     const data = await fetchWeatherData();
+    cachedDaily = data?.daily || null;
     renderCurrent(data);
     renderWeekly(data.daily);
   } catch (e) {
@@ -61,7 +63,16 @@ function renderWeekly(daily) {
   });
 }
 
+function rerenderWeeklyFromCache() {
+  if (!cachedDaily) return;
+  renderWeekly(cachedDaily);
+}
+
 /* 🔁 Cleanup on view change (prevents memory leaks) */
 on("view:changed", () => {
   clearLotties();
+});
+
+on("calendar:weekRendered", () => {
+  rerenderWeeklyFromCache();
 });

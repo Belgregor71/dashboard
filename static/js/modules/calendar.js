@@ -1,5 +1,6 @@
 // calendar.js
 import { format } from "../helpers/dates.js";
+import { emit } from "../core/eventBus.js";
 
 const CAL_URL = "/api/calendar/all";
 
@@ -111,9 +112,26 @@ function expandMultiDay(events) {
       continue;
     }
 
-    if (start.toDateString() !== end.toDateString()) {
+    let adjustedEnd = end;
+
+    if (
+      isAllDay(ev) &&
+      end > start &&
+      end.getHours() === 0 &&
+      end.getMinutes() === 0 &&
+      end.getSeconds() === 0 &&
+      end.getMilliseconds() === 0
+    ) {
+      adjustedEnd = new Date(end);
+      adjustedEnd.setDate(adjustedEnd.getDate() - 1);
+      if (adjustedEnd < start) {
+        adjustedEnd = start;
+      }
+    }
+
+    if (start.toDateString() !== adjustedEnd.toDateString()) {
       let d = new Date(start);
-      while (d <= end) {
+      while (d <= adjustedEnd) {
         expanded.push({
           ...ev,
           start: new Date(d),
@@ -258,6 +276,8 @@ function renderWeek(days) {
 
     container.appendChild(dayDiv);
   });
+
+  emit("calendar:weekRendered");
 }
 
 /* ------------------------------------------------------------------
