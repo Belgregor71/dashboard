@@ -76,7 +76,8 @@ function subscribe(eventType) {
 
 export function requestTodoItems(entityId) {
   if (!entityId || !HA_CONFIG?.token) return;
-  fetch(`${HA_CONFIG.url}/api/todo/items/${entityId}`, {
+
+  fetch(`${HA_CONFIG.url}/api/todo/${entityId}`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${HA_CONFIG.token}`,
@@ -99,3 +100,4 @@ export function requestTodoItems(entityId) {
       console.warn("HA todo items fetch failed", error);
     });
 }
+
