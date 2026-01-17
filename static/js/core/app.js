@@ -5,7 +5,6 @@ import { registerLifecycle } from "./lifecycle.js";
 import { initBackground } from "../modules/background.js";
 import { updateClock } from "../modules/clock.js";
 import {
-  updateCommuteMap,
   updateCommuteTimes,
   updateCommuteVisibility
 } from "../modules/commute.js";
@@ -82,7 +81,6 @@ export function startApp() {
   // Commute
   // -----------------------
   if (isEnabled("commute", true)) {
-    updateCommuteMap();
     updateCommuteVisibility();
     updateCommuteTimes();
 

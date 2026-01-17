@@ -35,14 +35,23 @@
         <div id="commute-greg"></div>
         <div id="commute-brett"></div>
       </div>
-      <img id="commute-map" alt="Commute map" />
     </div>
 
     <div id="current-weather-panel" class="panel">
-      <div id="weather-lottie"></div>
-      <div id="current-temp"></div>
-      <div id="current-conditions"></div>
-      <div id="weather-range"></div>
+      <div class="weather-column weather-column--icon">
+        <div id="weather-lottie"></div>
+      </div>
+      <div class="weather-column weather-column--temp">
+        <div id="current-temp"></div>
+      </div>
+      <div class="weather-column weather-column--details">
+        <div id="current-conditions"></div>
+        <div id="weather-range"></div>
+        <div id="weather-wind" class="weather-wind">
+          <div id="weather-wind-icon" class="weather-wind-icon"></div>
+          <div id="weather-wind-text"></div>
+        </div>
+      </div>
     </div>
   </header>
 

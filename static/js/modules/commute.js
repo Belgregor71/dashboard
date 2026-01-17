@@ -63,12 +63,3 @@ export function updateCommuteVisibility() {
     { once: true }
   );
 }
-
-export function updateCommuteMap() {
-  const mapUrl =
-    `/api/commute_map?origin=${encodeURIComponent(COMMUTE_ORIGIN)}` +
-    `&destination=${encodeURIComponent(COMMUTE_GREG_DEST)}`;
-
-  const img = document.getElementById("commute-map");
-  if (img) img.src = mapUrl;
-}
