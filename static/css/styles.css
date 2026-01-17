@@ -122,55 +122,20 @@ body {
 #time-panel {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  justify-content: center;
+  gap: 8px;
 }
 
 #clock {
-  font-size: 4rem;
+  font-size: 5rem;
   font-weight: 600;
   line-height: 1;
 }
 
 #date {
-  font-size: 1.6rem;
+  font-size: 2rem;
   opacity: 0.85;
   line-height: 1.2;
-}
-
-.ha-status {
-  margin-top: 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 0.85rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.ha-status--connected {
-  background: rgba(46, 204, 113, 0.25);
-  color: #c9f5d9;
-}
-
-.ha-status--disconnected {
-  background: rgba(231, 76, 60, 0.25);
-  color: #ffd5cf;
-}
-
-.ha-status--disabled {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.ha-status__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: currentColor;
 }
 
 /* ============================================================================
@@ -180,8 +145,8 @@ body {
 
 #current-weather-panel {
   display: grid;
-  grid-template-columns: 90px 1fr 1.4fr;
-  column-gap: 16px;
+  grid-template-columns: repeat(3, 1fr);
+  column-gap: 20px;
   align-items: center;
   padding-right: 8px;
 }
@@ -190,17 +155,18 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: center;
+  text-align: center;
 }
 
 .weather-column--details {
-  gap: 6px;
-  align-items: flex-start;
+  gap: 8px;
 }
 
 /* Weather icon */
 #weather-lottie {
-  width: 84px;
-  height: 84px;
+  width: 120px;
+  height: 120px;
   align-self: center;
 }
 
@@ -212,14 +178,14 @@ body {
 
 /* Temperature (top right) */
 #current-temp {
-  font-size: 4rem;
+  font-size: 4.8rem;
   font-weight: 600;
   line-height: 1;
 }
 
 /* Description under temperature (right) */
 #current-conditions {
-  font-size: 1.15rem;
+  font-size: 1.4rem;
   opacity: 0.85;
   margin-top: 0;
 }
@@ -235,7 +201,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.95rem;
+  font-size: 1.1rem;
   opacity: 0.85;
 }
 
@@ -251,7 +217,7 @@ body {
 }
 
 #weather-wind-text {
-  font-size: 0.9rem;
+  font-size: 1.05rem;
   opacity: 0.85;
 }
 
@@ -262,6 +228,16 @@ body {
 
 #commute-panel h2 {
   margin-bottom: 10px;
+  font-size: 1.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#commute-times {
+  display: grid;
+  gap: 12px;
+  font-size: 2rem;
+  font-weight: 600;
 }
 
 /* ============================================================================
