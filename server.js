@@ -127,9 +127,9 @@ function buildPlexUrl(baseUrl, pathValue) {
 
 function parsePlexSessions(xmlText) {
   const sessions = [];
-  const videoTags = xmlText.match(/<Video\b[^>]*>/g) || [];
+  const mediaTags = xmlText.match(/<(Video|Track|Photo)\b[^>]*>/g) || [];
 
-  for (const tag of videoTags) {
+  for (const tag of mediaTags) {
     const attributes = {};
     for (const [, key, value] of tag.matchAll(/(\w+)="([^"]*)"/g)) {
       attributes[key] = value;
