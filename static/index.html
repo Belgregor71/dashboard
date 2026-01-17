@@ -46,7 +46,8 @@
   </header>
 
   <!-- ROW 2–4 GRID -->
-  <main id="main-grid">
+  <div class="home-view">
+    <main id="main-grid">
 
     <!-- ROW 2: Today panel (normal width) -->
     <section id="today-panel" class="panel">
@@ -82,6 +83,30 @@
       <ul id="weekly-list"></ul>
     </section>
 
+    </main>
+  </div>
+
+  <!-- CALENDAR VIEW -->
+  <main id="calendar-view" class="calendar-view">
+    <section class="panel calendar-panel">
+      <div class="calendar-header">
+        <div>
+          <div id="calendar-month-title"></div>
+          <div id="calendar-today-label"></div>
+        </div>
+        <div class="calendar-header-subtitle">Family Calendar</div>
+      </div>
+      <div class="calendar-weekdays">
+        <div>S</div>
+        <div>M</div>
+        <div>T</div>
+        <div>W</div>
+        <div>T</div>
+        <div>F</div>
+        <div>S</div>
+      </div>
+      <div id="calendar-month-grid" class="calendar-month-grid"></div>
+    </section>
   </main>
 
   <!-- Lottie -->

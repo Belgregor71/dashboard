@@ -36,6 +36,7 @@ export async function refreshCalendar() {
 
     renderToday(todayEvents);
     renderWeek(weekEvents);
+    renderMonth(expanded);
   } catch (err) {
     console.error("Calendar error:", err);
     safeRenderEmpty();
@@ -49,6 +50,7 @@ export async function refreshCalendar() {
 function safeRenderEmpty() {
   renderToday([]);
   renderWeek(getNext7DaysEvents([]));
+  renderMonth([]);
 }
 
 /* ------------------------------------------------------------------
@@ -254,4 +256,100 @@ function renderWeek(days) {
 
     container.appendChild(dayDiv);
   });
+}
+
+/* ------------------------------------------------------------------
+   RENDER: MONTH VIEW (CALENDAR PAGE)
+-------------------------------------------------------------------*/
+
+function renderMonth(events) {
+  const grid = document.getElementById("calendar-month-grid");
+  const title = document.getElementById("calendar-month-title");
+  const todayLabel = document.getElementById("calendar-today-label");
+
+  if (!grid || !title) {
+    if (!grid) console.warn("Calendar UI missing #calendar-month-grid");
+    if (!title) console.warn("Calendar UI missing #calendar-month-title");
+    return;
+  }
+
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+
+  title.textContent = today.toLocaleDateString("en-AU", {
+    month: "long",
+    year: "numeric"
+  });
+
+  if (todayLabel) {
+    todayLabel.textContent = format.date(today);
+  }
+
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startIndex = firstDay.getDay();
+  const totalCells = Math.ceil((startIndex + lastDay.getDate()) / 7) * 7;
+
+  const eventsByDay = new Map();
+
+  (events || []).forEach(ev => {
+    if (!ev.start) return;
+    const start = new Date(ev.start);
+    if (start.getFullYear() !== year || start.getMonth() !== month) return;
+    const key = `${start.getFullYear()}-${start.getMonth()}-${start.getDate()}`;
+    if (!eventsByDay.has(key)) eventsByDay.set(key, []);
+    eventsByDay.get(key).push(ev);
+  });
+
+  grid.innerHTML = "";
+
+  for (let i = 0; i < totalCells; i++) {
+    const dayNumber = i - startIndex + 1;
+    const cell = document.createElement("div");
+    cell.className = "calendar-day";
+
+    if (dayNumber < 1 || dayNumber > lastDay.getDate()) {
+      cell.classList.add("calendar-day--outside");
+      grid.appendChild(cell);
+      continue;
+    }
+
+    const cellDate = new Date(year, month, dayNumber);
+    const key = `${year}-${month}-${dayNumber}`;
+    const dayEvents = (eventsByDay.get(key) || []).slice().sort(
+      (a, b) => a.start - b.start
+    );
+
+    if (isToday(cellDate)) {
+      cell.classList.add("calendar-today");
+    }
+
+    const dateEl = document.createElement("div");
+    dateEl.className = "calendar-date";
+    const dateBadge = document.createElement("span");
+    dateBadge.textContent = dayNumber;
+    dateEl.appendChild(dateBadge);
+    cell.appendChild(dateEl);
+
+    const maxEvents = 2;
+    dayEvents.slice(0, maxEvents).forEach(ev => {
+      const eventEl = document.createElement("div");
+      eventEl.className = "calendar-event";
+      const label = isAllDay(ev)
+        ? ev.title || "(Untitled)"
+        : `${format.time(ev.start)} ${ev.title || "(Untitled)"}`;
+      eventEl.textContent = label;
+      cell.appendChild(eventEl);
+    });
+
+    if (dayEvents.length > maxEvents) {
+      const moreEl = document.createElement("div");
+      moreEl.className = "calendar-event calendar-event--more";
+      moreEl.textContent = `+${dayEvents.length - maxEvents} more`;
+      cell.appendChild(moreEl);
+    }
+
+    grid.appendChild(cell);
+  }
 }
