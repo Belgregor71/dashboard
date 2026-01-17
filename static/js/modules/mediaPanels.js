@@ -3,6 +3,28 @@ import { getEntity } from "../services/homeAssistant/state.js";
 
 const PANEL_IDS = ["media-panel-1", "media-panel-2"];
 
+function hidePanel(panel) {
+  if (!panel || panel.classList.contains("is-hidden")) return;
+  panel.classList.add("is-hidden");
+  panel.addEventListener(
+    "transitionend",
+    () => {
+      if (panel.classList.contains("is-hidden")) {
+        panel.classList.add("is-collapsed");
+      }
+    },
+    { once: true }
+  );
+}
+
+function showPanel(panel) {
+  if (!panel) return;
+  panel.classList.remove("is-collapsed");
+  requestAnimationFrame(() => {
+    panel.classList.remove("is-hidden");
+  });
+}
+
 function resolveMediaImage(url) {
   if (!url) return "";
   if (url.startsWith("http")) return url;
@@ -43,7 +65,7 @@ function updateProgress(panel, attributes) {
 function renderPanel(panel, entity, config) {
   if (!panel) return;
   if (!entity || entity.state !== "playing") {
-    panel.classList.add("is-hidden");
+    hidePanel(panel);
     return;
   }
 
@@ -54,7 +76,7 @@ function renderPanel(panel, entity, config) {
   const titleEl = panel.querySelector(".media-panel__title");
   const subtitleEl = panel.querySelector(".media-panel__subtitle");
 
-  panel.classList.remove("is-hidden");
+  showPanel(panel);
   panel.style.setProperty(
     "--media-panel-art",
     imageUrl ? `url("${imageUrl}")` : "rgba(0, 0, 0, 0.35)"
@@ -79,7 +101,7 @@ export function initMediaPanels() {
   panels.forEach((panel, index) => {
     const config = configs[index];
     if (!config?.entityId) {
-      panel.classList.add("is-hidden");
+      panel.classList.add("is-hidden", "is-collapsed");
       return;
     }
 

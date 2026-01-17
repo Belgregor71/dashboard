@@ -48,13 +48,12 @@ function rotateBackground() {
   const img = document.getElementById("background-image");
   if (!img) return;
 
-  img.style.opacity = 0;
+  img.classList.remove("bg-visible", "bg-animate");
 
   setTimeout(() => {
     img.src = backgroundImages[currentBgIndex];
     img.onload = () => {
-      img.classList.add("bg-visible");
-      img.style.opacity = 1;
+      img.classList.add("bg-visible", "bg-animate");
     };
   }, 500);
 }
