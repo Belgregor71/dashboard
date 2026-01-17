@@ -85,10 +85,11 @@ export function initPlexStatus({ refreshMs = 30_000, enabled = true } = {}) {
       const sessions = normalizeSessions(data)
         .map(mapSession)
         .filter(Boolean);
+      const detailSuffix = data.detail ? `: ${data.detail}` : "";
       const emptyMessage = data.configMissing
         ? "Plex not configured"
         : data.error
-          ? data.error
+          ? `${data.error}${detailSuffix}`
           : "No active Plex streams";
       renderSessions(container, sessions, emptyMessage);
     } catch (err) {

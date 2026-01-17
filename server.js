@@ -2,6 +2,7 @@ console.log(">>> DASHBOARD SERVER LOADED <<<");
 
 import dotenv from "dotenv";
 import express from "express";
+import https from "https";
 import path from "path";
 import { fileURLToPath } from "url";
 import fetch from "node-fetch";
@@ -123,6 +124,13 @@ function normalizePlexBaseUrl(baseUrl) {
   return `http://${baseUrl}`;
 }
 
+function getPlexAgent(baseUrl) {
+  const allowInsecure = process.env.PLEX_ALLOW_INSECURE === "true";
+  if (!allowInsecure) return undefined;
+  if (!baseUrl?.startsWith("https://")) return undefined;
+  return new https.Agent({ rejectUnauthorized: false });
+}
+
 function buildPlexUrl(baseUrl, pathValue) {
   if (!pathValue) return null;
   if (pathValue.startsWith("http")) return pathValue;
@@ -178,8 +186,9 @@ app.get("/api/plex/sessions", async (req, res) => {
   try {
     const url = new URL("/status/sessions", plexBaseUrl);
     url.searchParams.set("X-Plex-Token", plexToken);
+    const agent = getPlexAgent(plexBaseUrl);
 
-    const plexResponse = await fetch(url.toString());
+    const plexResponse = await fetch(url.toString(), { agent });
     if (!plexResponse.ok) {
       const errorBody = await plexResponse.text();
       res
@@ -196,7 +205,9 @@ app.get("/api/plex/sessions", async (req, res) => {
     res.json({ sessions });
   } catch (err) {
     console.error("Plex proxy error:", err);
-    res.status(500).json({ error: "Plex error" });
+    res
+      .status(500)
+      .json({ error: "Plex error", detail: err instanceof Error ? err.message : err });
   }
 });
 
@@ -213,8 +224,9 @@ app.get("/api/plex/image", async (req, res) => {
   try {
     const url = new URL(buildPlexUrl(plexBaseUrl, imagePath));
     url.searchParams.set("X-Plex-Token", plexToken);
+    const agent = getPlexAgent(plexBaseUrl);
 
-    const imageResponse = await fetch(url.toString());
+    const imageResponse = await fetch(url.toString(), { agent });
     if (!imageResponse.ok) {
       res
         .status(imageResponse.status)
@@ -227,7 +239,10 @@ app.get("/api/plex/image", async (req, res) => {
     res.type(contentType).send(Buffer.from(buffer));
   } catch (err) {
     console.error("Plex image proxy error:", err);
-    res.status(500).json({ error: "Plex image error" });
+    res.status(500).json({
+      error: "Plex image error",
+      detail: err instanceof Error ? err.message : err
+    });
   }
 });
 
