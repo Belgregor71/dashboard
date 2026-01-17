@@ -32,11 +32,25 @@ body {
   height: 100%;
   object-fit: cover;
   opacity: 0;
-  transition: opacity 1.5s ease;
+  transform: scale(1.02);
+  transition: opacity 2.2s ease;
 }
 
 .bg-visible {
   opacity: 1 !important;
+}
+
+.bg-animate {
+  animation: background-zoom 24s ease-in-out;
+}
+
+@keyframes background-zoom {
+  from {
+    transform: scale(1.02);
+  }
+  to {
+    transform: scale(1.08);
+  }
 }
 
 #background-tint {
@@ -60,6 +74,19 @@ body {
   background: rgba(0, 0, 0, 0.35);
   border-radius: 18px;
   padding: 20px;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.45s ease, transform 0.45s ease;
+}
+
+.panel.is-hidden {
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+}
+
+.panel.is-collapsed {
+  display: none;
 }
 
 /* ============================================================================
@@ -230,7 +257,6 @@ body {
 
 /* COMMUTE PANEL — hidden by default */
 #commute-panel {
-  display: none;
   text-align: center;
 }
 
@@ -328,7 +354,9 @@ body {
 }
 
 .media-panel.is-hidden {
-  display: none;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
 }
 
 .media-panel__art {
@@ -864,9 +892,16 @@ body[data-view="calendar"] #time-panel {
 
 .lottie-fade {
   opacity: 0;
-  transition: opacity 0.8s ease;
+  transform: scale(0.96);
+  transition: opacity 0.8s ease, transform 0.8s ease;
 }
 
 .lottie-fade.visible {
   opacity: 1;
+  transform: scale(1);
+}
+
+.lottie-fade.is-exiting {
+  opacity: 0;
+  transform: scale(0.94);
 }

@@ -2,7 +2,17 @@ export function loadLottieAnimation(containerId, fileName) {
   const container = document.getElementById(containerId);
   if (!container || !window.lottie) return;
 
-  container.innerHTML = "";
+  const previous = container.querySelector(".lottie-fade");
+  if (previous) {
+    previous.classList.add("is-exiting");
+    previous.addEventListener(
+      "transitionend",
+      () => {
+        previous.remove();
+      },
+      { once: true }
+    );
+  }
 
   const wrapper = document.createElement("div");
   wrapper.className = "lottie-fade";
