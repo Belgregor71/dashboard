@@ -15,6 +15,28 @@ function createTile(session) {
   return tile;
 }
 
+function normalizeSessions(data) {
+  if (Array.isArray(data.sessions)) return data.sessions;
+  if (Array.isArray(data.MediaContainer?.Metadata)) return data.MediaContainer.Metadata;
+  if (Array.isArray(data.Metadata)) return data.Metadata;
+  return [];
+}
+
+function mapSession(session) {
+  if (!session) return null;
+  const thumb =
+    session.thumb || session.parentThumb || session.grandparentThumb || session.art;
+  if (!thumb) return null;
+  return {
+    title:
+      session.title ||
+      session.grandparentTitle ||
+      session.parentTitle ||
+      "Plex Stream",
+    thumb
+  };
+}
+
 function renderSessions(container, sessions, emptyMessage) {
   const grid = container.querySelector(".plex-status__grid");
   const empty = container.querySelector(".plex-status__empty");
@@ -42,10 +64,14 @@ function renderSessions(container, sessions, emptyMessage) {
 
 async function fetchSessions() {
   const response = await fetch("/api/plex/sessions");
+  const contentType = response.headers.get("content-type") || "";
+  const data = contentType.includes("application/json")
+    ? await response.json()
+    : { error: `Plex HTTP ${response.status}` };
   if (!response.ok) {
-    throw new Error(`Plex HTTP ${response.status}`);
+    return { ...data, error: data.error || `Plex HTTP ${response.status}` };
   }
-  return response.json();
+  return data;
 }
 
 export function initPlexStatus({ refreshMs = 30_000, enabled = true } = {}) {
@@ -56,10 +82,14 @@ export function initPlexStatus({ refreshMs = 30_000, enabled = true } = {}) {
   const load = async () => {
     try {
       const data = await fetchSessions();
-      const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+      const sessions = normalizeSessions(data)
+        .map(mapSession)
+        .filter(Boolean);
       const emptyMessage = data.configMissing
         ? "Plex not configured"
-        : "No active Plex streams";
+        : data.error
+          ? data.error
+          : "No active Plex streams";
       renderSessions(container, sessions, emptyMessage);
     } catch (err) {
       console.error("Plex sessions error:", err);
