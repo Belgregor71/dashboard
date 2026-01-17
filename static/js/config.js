@@ -31,8 +31,7 @@ window.CONFIG = {
     calendar: true,
 
     // External integrations
-    homeAssistant: !isLocalhost, // off on PC by default
-    spotify: false               // on hold
+    homeAssistant: !isLocalhost // off on PC by default
   },
 
   /* --------------------------------------------------------------
@@ -48,10 +47,6 @@ window.CONFIG = {
 
   calendar: {
     refreshMs: 60 * 1000 // 1 minute
-  },
-
-  spotify: {
-    refreshMs: 10 * 1000 // 10 seconds (unused while disabled)
   },
 
   commute: {
