@@ -396,9 +396,250 @@ body {
 
 body[data-view="home"] .home-view { display: block; }
 body[data-view="home"] .calendar-view { display: none; }
+body[data-view="home"] .agenda-view { display: none; }
 
 body[data-view="calendar"] .calendar-view { display: block; }
 body[data-view="calendar"] .home-view { display: none; }
+body[data-view="calendar"] .agenda-view { display: none; }
+
+body[data-view="agenda"] .agenda-view { display: block; }
+body[data-view="agenda"] .home-view { display: none; }
+body[data-view="agenda"] .calendar-view { display: none; }
+
+body[data-view="calendar"] #commute-panel,
+body[data-view="calendar"] #current-weather-panel {
+  display: none;
+}
+
+body[data-view="calendar"] #top-bar {
+  grid-template-columns: 1fr;
+  justify-items: start;
+  padding: 20px 40px 10px;
+}
+
+body[data-view="calendar"] #time-panel {
+  padding-left: 10px;
+}
+
+body[data-view="agenda"] #commute-panel,
+body[data-view="agenda"] #current-weather-panel {
+  display: none;
+}
+
+body[data-view="agenda"] #top-bar {
+  grid-template-columns: 1fr;
+  justify-items: start;
+  padding: 20px 40px 10px;
+}
+
+body[data-view="agenda"] #time-panel {
+  padding-left: 10px;
+}
+
+/* ============================================================================
+   CALENDAR VIEW
+============================================================================ */
+
+#calendar-view {
+  padding: 10px 40px 40px;
+}
+
+.calendar-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: calc(100vh - 160px);
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 20px;
+}
+
+#calendar-month-title {
+  font-size: 2.4rem;
+  font-weight: 600;
+}
+
+#calendar-today-label {
+  font-size: 1.1rem;
+  opacity: 0.75;
+}
+
+.calendar-header-subtitle {
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 12px;
+  text-align: center;
+  font-size: 0.9rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.calendar-month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 14px;
+  flex: 1;
+}
+
+.calendar-day {
+  min-height: 120px;
+  padding: 12px 12px 10px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.calendar-day--outside {
+  opacity: 0.35;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.calendar-date {
+  font-size: 1.05rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.calendar-date span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+}
+
+.calendar-today .calendar-date span {
+  background: #e74c3c;
+  color: #fff;
+}
+
+.calendar-event {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(231, 76, 60, 0.75);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calendar-event--more {
+  background: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ============================================================================
+   AGENDA VIEW
+============================================================================ */
+
+#agenda-view {
+  padding: 10px 40px 40px;
+}
+
+.agenda-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: calc(100vh - 160px);
+}
+
+.agenda-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 20px;
+}
+
+#agenda-title {
+  font-size: 2.4rem;
+  font-weight: 600;
+}
+
+#agenda-today-label {
+  font-size: 1.1rem;
+  opacity: 0.75;
+}
+
+.agenda-header-subtitle {
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.agenda-list {
+  display: grid;
+  gap: 14px;
+}
+
+.agenda-day {
+  display: grid;
+  gap: 8px;
+}
+
+.agenda-day-title {
+  font-size: 0.95rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  padding-left: 6px;
+}
+
+.agenda-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.agenda-card-main {
+  display: grid;
+  gap: 4px;
+}
+
+.agenda-time {
+  font-size: 0.9rem;
+  opacity: 0.8;
+  font-weight: 500;
+}
+
+.agenda-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.agenda-location {
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+.agenda-card-meta {
+  text-align: right;
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
 
 /* ============================================================================
    SERVER STATUS PANEL
