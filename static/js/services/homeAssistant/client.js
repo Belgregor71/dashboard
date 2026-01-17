@@ -6,6 +6,7 @@ const TODO_ENTITY_IDS = HA_CONFIG?.todoEntities ?? [
   "todo.jobs_to_be_done",
   "todo.shopping_list"
 ];
+const SHOPPING_LIST_ENTITY_ID = HA_CONFIG?.shoppingListEntityId ?? "shopping_list";
 
 let socket;
 let msgId = 1;
@@ -77,7 +78,12 @@ function subscribe(eventType) {
 export function requestTodoItems(entityId) {
   if (!entityId || !HA_CONFIG?.token) return;
 
-  fetch(`${HA_CONFIG.url}/api/todo/${entityId}`, {
+  const isShoppingList = entityId === SHOPPING_LIST_ENTITY_ID;
+  const url = isShoppingList
+    ? `${HA_CONFIG.url}/api/shopping_list`
+    : `${HA_CONFIG.url}/api/todo/${entityId}`;
+
+  fetch(url, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${HA_CONFIG.token}`,
@@ -100,4 +106,3 @@ export function requestTodoItems(entityId) {
       console.warn("HA todo items fetch failed", error);
     });
 }
-

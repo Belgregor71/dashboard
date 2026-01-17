@@ -11,6 +11,7 @@ function normalizeItems(entity) {
 }
 
 function isCompleted(item) {
+  if (item?.complete === true) return true;
   return String(item?.status || "").toLowerCase() === "completed";
 }
 
