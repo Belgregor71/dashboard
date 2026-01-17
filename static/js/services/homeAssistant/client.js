@@ -2,9 +2,14 @@ import { CONFIG } from "../../core/config.js";
 import { emit } from "../../core/eventBus.js";
 
 const HA_CONFIG = CONFIG.homeAssistant;
+const TODO_ENTITY_IDS = HA_CONFIG?.todoEntities ?? [
+  "todo.jobs_to_be_done",
+  "todo.shopping_list"
+];
 
 let socket;
 let msgId = 1;
+let getStatesRequestId;
 
 export function connectHA() {
   if (!HA_CONFIG?.enabled) {
@@ -34,7 +39,18 @@ export function connectHA() {
       console.log("HA authenticated");
       subscribe("state_changed");
       subscribe("dashboard_command");
+      getStatesRequestId = msgId++;
+      socket.send(JSON.stringify({
+        id: getStatesRequestId,
+        type: "get_states"
+      }));
+      TODO_ENTITY_IDS.forEach((entityId) => requestTodoItems(entityId));
       emit("ha:connected");
+      return;
+    }
+
+    if (msg.type === "result" && msg.id === getStatesRequestId) {
+      emit("ha:states", msg.result);
       return;
     }
 
@@ -56,4 +72,30 @@ function subscribe(eventType) {
     type: "subscribe_events",
     event_type: eventType
   }));
+}
+
+export function requestTodoItems(entityId) {
+  if (!entityId || !HA_CONFIG?.token) return;
+  fetch(`${HA_CONFIG.url}/api/todo/items/${entityId}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${HA_CONFIG.token}`,
+      "Content-Type": "application/json"
+    }
+  })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`Failed to fetch ${entityId} todo items`);
+      }
+      return response.json();
+    })
+    .then((items) => {
+      emit("ha:todo-items", {
+        entityId,
+        items: Array.isArray(items) ? items : items?.items ?? []
+      });
+    })
+    .catch((error) => {
+      console.warn("HA todo items fetch failed", error);
+    });
 }

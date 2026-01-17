@@ -1,7 +1,8 @@
+import { CONFIG } from "../core/config.js";
 import { getEntity } from "../services/homeAssistant/state.js";
 
-const TODO_ENTITY_ID = "todo.jobs_to_be_done";
-const SHOPPING_ENTITY_ID = "todo.shopping_list";
+const TODO_ENTITY_ID = CONFIG.homeAssistant?.todoEntities?.[0] ?? "todo.jobs_to_be_done";
+const SHOPPING_ENTITY_ID = CONFIG.homeAssistant?.todoEntities?.[1] ?? "todo.shopping_list";
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 function normalizeItems(entity) {
