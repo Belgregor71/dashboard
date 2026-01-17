@@ -31,7 +31,8 @@ window.CONFIG = {
     calendar: true,
 
     // External integrations
-    homeAssistant: true // force enable
+    homeAssistant: true, // force enable
+    plex: true
   },
 
   /* --------------------------------------------------------------
@@ -52,5 +53,9 @@ window.CONFIG = {
   commute: {
     visibilityCheckMs: 60 * 1000,
     refreshMs: 10 * 60 * 1000
+  },
+
+  plex: {
+    refreshMs: 30 * 1000
   }
 };
