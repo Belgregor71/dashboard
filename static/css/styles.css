@@ -362,7 +362,8 @@ body {
   overflow: hidden;
   background-size: cover;
   background-position: center;
-  min-height: 160px;
+  min-height: 140px;
+  height: 140px;
   display: flex;
   align-items: flex-end;
   box-shadow: 0 12px 20px rgba(0, 0, 0, 0.35);

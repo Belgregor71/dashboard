@@ -151,23 +151,27 @@ function parsePlexSessions(xmlText) {
       attributes[key] = value;
     }
 
-    const thumbPath =
-      attributes.thumb ||
-      attributes.parentThumb ||
-      attributes.grandparentThumb ||
-      attributes.art;
-
     const title =
       attributes.title ||
       attributes.grandparentTitle ||
       attributes.parentTitle ||
       "Plex Stream";
 
+    const thumbPath =
+      attributes.thumb ||
+      attributes.parentThumb ||
+      attributes.grandparentThumb ||
+      attributes.art;
+
     if (!thumbPath) continue;
 
     sessions.push({
       title,
-      thumb: thumbPath,
+      type: attributes.type,
+      thumb: attributes.thumb || null,
+      parentThumb: attributes.parentThumb || null,
+      grandparentThumb: attributes.grandparentThumb || null,
+      art: attributes.art || null,
       sessionKey: attributes.sessionKey
     });
   }

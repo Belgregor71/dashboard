@@ -1,6 +1,28 @@
 const PANEL_ID = "server-status-panel";
 const CONTAINER_ID = "plex-status";
 
+function hidePanel(panel) {
+  if (!panel || panel.classList.contains("is-hidden")) return;
+  panel.classList.add("is-hidden");
+  panel.addEventListener(
+    "transitionend",
+    () => {
+      if (panel.classList.contains("is-hidden")) {
+        panel.classList.add("is-collapsed");
+      }
+    },
+    { once: true }
+  );
+}
+
+function showPanel(panel) {
+  if (!panel) return;
+  panel.classList.remove("is-collapsed");
+  requestAnimationFrame(() => {
+    panel.classList.remove("is-hidden");
+  });
+}
+
 function createTile(session) {
   const tile = document.createElement("div");
   tile.className = "plex-status__tile";
@@ -24,8 +46,17 @@ function normalizeSessions(data) {
 
 function mapSession(session) {
   if (!session) return null;
-  const thumb =
-    session.thumb || session.parentThumb || session.grandparentThumb || session.art;
+  const isSeries =
+    session.type === "episode" || session.type === "show" || session.type === "season";
+  const thumb = isSeries
+    ? session.parentThumb ||
+      session.grandparentThumb ||
+      session.thumb ||
+      session.art
+    : session.thumb ||
+      session.art ||
+      session.parentThumb ||
+      session.grandparentThumb;
   if (!thumb) return null;
   return {
     title:
@@ -92,9 +123,15 @@ export function initPlexStatus({ refreshMs = 30_000, enabled = true } = {}) {
           ? `${data.error}${detailSuffix}`
           : "No active Plex streams";
       renderSessions(container, sessions, emptyMessage);
+      if (sessions.length > 0) {
+        showPanel(panel);
+      } else {
+        hidePanel(panel);
+      }
     } catch (err) {
       console.error("Plex sessions error:", err);
       renderSessions(container, [], "Plex unavailable");
+      hidePanel(panel);
     }
   };
 
