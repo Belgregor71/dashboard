@@ -14,6 +14,8 @@ body {
   background: #000;
   overflow: hidden;
   height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ============================================================================
@@ -247,9 +249,12 @@ body {
 #main-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: auto auto auto;
+  grid-template-rows: auto auto 1fr;
   gap: 20px;
   padding: 0 40px 40px 40px;
+  flex: 1;
+  height: 100%;
+  align-content: stretch;
 }
 
 /* ROW 2 — Today | To-Do | Shopping */
@@ -521,6 +526,17 @@ body {
 #timeline-panel {
   grid-column: 1 / -1;
   grid-row: 3;
+  align-self: end;
+}
+
+.home-view {
+  flex: 1;
+  display: flex;
+}
+
+.calendar-view,
+.agenda-view {
+  flex: 1;
 }
 
 #weekly-list {
@@ -581,7 +597,7 @@ body {
   font-style: italic;
 }
 
-body[data-view="home"] .home-view { display: block; }
+body[data-view="home"] .home-view { display: flex; }
 body[data-view="home"] .calendar-view { display: none; }
 body[data-view="home"] .agenda-view { display: none; }
 
