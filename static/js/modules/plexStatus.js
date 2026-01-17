@@ -48,6 +48,8 @@ function mapSession(session) {
   if (!session) return null;
   const isSeries =
     session.type === "episode" || session.type === "show" || session.type === "season";
+  const seriesTitle = session.grandparentTitle || session.parentTitle;
+  const episodeTitle = session.title;
   const thumb = isSeries
     ? session.parentThumb ||
       session.grandparentThumb ||
@@ -58,13 +60,13 @@ function mapSession(session) {
       session.parentThumb ||
       session.grandparentThumb;
   if (!thumb) return null;
+  const title = isSeries && seriesTitle && episodeTitle
+    ? `${seriesTitle}: ${episodeTitle}`
+    : episodeTitle || seriesTitle || "Plex Stream";
   return {
-    title:
-      session.title ||
-      session.grandparentTitle ||
-      session.parentTitle ||
-      "Plex Stream",
-    thumb
+    title,
+    thumb,
+    sessionKey: session.sessionKey || null
   };
 }
 
@@ -116,14 +118,21 @@ export function initPlexStatus({ refreshMs = 30_000, enabled = true } = {}) {
       const sessions = normalizeSessions(data)
         .map(mapSession)
         .filter(Boolean);
+      const seenSessions = new Set();
+      const uniqueSessions = sessions.filter((session) => {
+        const key = session.sessionKey || `${session.title}|${session.thumb}`;
+        if (seenSessions.has(key)) return false;
+        seenSessions.add(key);
+        return true;
+      });
       const detailSuffix = data.detail ? `: ${data.detail}` : "";
       const emptyMessage = data.configMissing
         ? "Plex not configured"
         : data.error
           ? `${data.error}${detailSuffix}`
           : "No active Plex streams";
-      renderSessions(container, sessions, emptyMessage);
-      if (sessions.length > 0) {
+      renderSessions(container, uniqueSessions, emptyMessage);
+      if (uniqueSessions.length > 0) {
         showPanel(panel);
       } else {
         hidePanel(panel);
