@@ -85,12 +85,16 @@
       </div>
     </section>
 
-    <!-- ROW 3: Reminders | Server | Logistics -->
+    <!-- ROW 3: To-Do | Server | Shopping -->
     <section id="reminders-panel" class="panel">
-      <h2>Reminders</h2>
-      <ul id="reminders-list"></ul>
-      <h2>Shopping</h2>
-      <ul id="shopping-list"></ul>
+      <h2>To-Do List</h2>
+      <div class="todo-table">
+        <div class="todo-row todo-row--header">
+          <span>Task</span>
+          <span>Days left</span>
+        </div>
+        <div id="reminders-list" class="todo-rows"></div>
+      </div>
     </section>
 
     <section id="server-status-panel" class="panel">
@@ -98,11 +102,9 @@
       <div id="server-status-list"></div>
     </section>
 
-    <section id="logistics-panel" class="panel">
-      <div class="logistics-column">
-        <h2>Logistics</h2>
-        <div id="logistics-list"></div>
-      </div>
+    <section id="shopping-panel" class="panel">
+      <h2>Shopping</h2>
+      <ul id="shopping-list"></ul>
     </section>
 
     <!-- ROW 4: Week at a glance (full width) -->
