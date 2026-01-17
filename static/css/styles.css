@@ -106,6 +106,42 @@ body {
   line-height: 1.2;
 }
 
+.ha-status {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.ha-status--connected {
+  background: rgba(46, 204, 113, 0.25);
+  color: #c9f5d9;
+}
+
+.ha-status--disconnected {
+  background: rgba(231, 76, 60, 0.25);
+  color: #ffd5cf;
+}
+
+.ha-status--disabled {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.ha-status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
 /* ============================================================================
    WEATHER PANEL — stacked layout with icon + temp
 ============================================================================ */
