@@ -641,6 +641,132 @@ body[data-view="agenda"] #time-panel {
   opacity: 0.6;
 }
 
+body[data-view="calendar"] #commute-panel,
+body[data-view="calendar"] #current-weather-panel {
+  display: none;
+}
+
+body[data-view="calendar"] #top-bar {
+  grid-template-columns: 1fr;
+  justify-items: start;
+  padding: 20px 40px 10px;
+}
+
+body[data-view="calendar"] #time-panel {
+  padding-left: 10px;
+}
+
+/* ============================================================================
+   CALENDAR VIEW
+============================================================================ */
+
+#calendar-view {
+  padding: 10px 40px 40px;
+}
+
+.calendar-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: calc(100vh - 160px);
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 20px;
+}
+
+#calendar-month-title {
+  font-size: 2.4rem;
+  font-weight: 600;
+}
+
+#calendar-today-label {
+  font-size: 1.1rem;
+  opacity: 0.75;
+}
+
+.calendar-header-subtitle {
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 12px;
+  text-align: center;
+  font-size: 0.9rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.calendar-month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 14px;
+  flex: 1;
+}
+
+.calendar-day {
+  min-height: 120px;
+  padding: 12px 12px 10px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.calendar-day--outside {
+  opacity: 0.35;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.calendar-date {
+  font-size: 1.05rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.calendar-date span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+}
+
+.calendar-today .calendar-date span {
+  background: #e74c3c;
+  color: #fff;
+}
+
+.calendar-event {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(231, 76, 60, 0.75);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calendar-event--more {
+  background: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.8);
+}
+
 /* ============================================================================
    SERVER STATUS PANEL
 ============================================================================ */
