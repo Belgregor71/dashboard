@@ -1,4 +1,4 @@
-import { WEATHER_ANIMATIONS } from "../../config/config.js";
+import { getWeatherAnimationFilename } from "../../config/weather-animations.js";
 
 export function isDaytime(data) {
   const now = new Date();
@@ -20,7 +20,5 @@ export function weatherText(code) {
 }
 
 export function weatherAnimation(code, isDay) {
-  const anim = WEATHER_ANIMATIONS[code];
-  if (!anim) return isDay ? "clear-day.json" : "clear-night.json";
-  return isDay ? anim.day : anim.night;
+  return getWeatherAnimationFilename(code, isDay);
 }

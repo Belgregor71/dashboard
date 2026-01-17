@@ -257,19 +257,22 @@ function renderWeek(days) {
       dayDiv.appendChild(empty);
     } else {
       const allDay = events.filter(isAllDay);
-      const timed = events.filter(ev => !isAllDay(ev));
+      const timed = events.filter(ev => !isAllDay(ev)).sort(
+        (a, b) => a.start - b.start
+      );
+      const maxEvents = 2;
+      const entries = [...allDay, ...timed].slice(0, maxEvents);
 
-      allDay.forEach(ev => {
+      entries.forEach(ev => {
         const div = document.createElement("div");
-        div.className = "week-all-day";
-        div.textContent = ev.title || "(Untitled)";
-        dayDiv.appendChild(div);
-      });
+        if (isAllDay(ev)) {
+          div.className = "week-all-day";
+          div.textContent = ev.title || "(Untitled)";
+        } else {
+          div.className = "week-event";
+          div.textContent = `${format.time(ev.start)} – ${ev.title || "(Untitled)"}`;
+        }
 
-      timed.forEach(ev => {
-        const div = document.createElement("div");
-        div.className = "week-event";
-        div.textContent = `${format.time(ev.start)} – ${ev.title || "(Untitled)"}`;
         dayDiv.appendChild(div);
       });
     }
