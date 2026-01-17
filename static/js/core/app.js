@@ -13,7 +13,6 @@ import {
 import { refreshCalendar } from "../modules/calendar.js";
 import { startWeather } from "../services/weather/renderer.js";
 
-import { initSpotify } from "../modules/spotify.js";
 import { connectHA } from "../services/homeAssistant/client.js";
 import { registerHAEvents } from "../services/homeAssistant/events.js";
 
@@ -87,15 +86,6 @@ export function startApp() {
     setInterval(updateCommuteTimes, 10 * 60 * 1000);
   } else {
     console.info("Commute disabled");
-  }
-
-  // -----------------------
-  // Spotify (on hold)
-  // -----------------------
-  if (isEnabled("spotify", false)) {
-    initSpotify({ intervalMs: cfg.spotify?.refreshMs ?? 10_000 });
-  } else {
-    console.info("Spotify disabled");
   }
 
   // -----------------------
