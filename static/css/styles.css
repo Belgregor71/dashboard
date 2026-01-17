@@ -317,7 +317,7 @@ body {
 }
 
 /* ============================================================================
-   REMINDERS | SERVER | LOGISTICS — row 2
+   TO-DO | SERVER | SHOPPING — row 3
 ============================================================================ */
 
 #reminders-panel {
@@ -328,10 +328,8 @@ body {
   grid-column: 2 / 3;
 }
 
-#logistics-panel {
+#shopping-panel {
   grid-column: 3 / 4;
-  display: flex;
-  gap: 30px;
 }
 
 /* ============================================================================
@@ -416,21 +414,63 @@ body {
   background: rgba(255, 255, 255, 0.8);
 }
 
-.logistics-column {
-  flex: 1;
-  backdrop-filter: blur(18px) brightness(0.8);
-  background: rgba(0, 0, 0, 0.35);
-  padding: 20px;
-  border-radius: 18px;
+/* ============================================================================
+   TO-DO LIST
+============================================================================ */
+
+.todo-table {
+  display: grid;
+  gap: 8px;
 }
 
-.logistics-column h2 {
-  margin-bottom: 10px;
-}
-
-.log-item {
+.todo-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px;
+  gap: 16px;
+  align-items: center;
   padding: 6px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.todo-rows {
+  display: grid;
+  gap: 4px;
+}
+
+.todo-row--header {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  padding-bottom: 8px;
+}
+
+.todo-row--empty {
+  border-bottom: none;
+  opacity: 0.7;
+}
+
+.todo-row span:last-child {
+  text-align: right;
+}
+
+#shopping-list {
+  list-style: none;
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+#shopping-list li {
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+#shopping-list li.is-empty {
+  border-bottom: none;
+  font-style: italic;
+  opacity: 0.7;
 }
 
 /* ============================================================================

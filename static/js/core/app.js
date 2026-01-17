@@ -14,6 +14,7 @@ import { refreshCalendar } from "../modules/calendar.js";
 import { startWeather } from "../services/weather/renderer.js";
 import { initMediaPanels } from "../modules/mediaPanels.js";
 import { initHaStatus } from "../modules/haStatus.js";
+import { initTodoPanels } from "../modules/todo.js";
 
 import { connectHA } from "../services/homeAssistant/client.js";
 import { registerHAEvents } from "../services/homeAssistant/events.js";
@@ -94,6 +95,7 @@ export function startApp() {
   // Home Assistant
   // -----------------------
   initMediaPanels();
+  initTodoPanels();
   initHaStatus({ enabled: isEnabled("homeAssistant", false) });
 
   if (isEnabled("homeAssistant", false)) {
