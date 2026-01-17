@@ -39,10 +39,12 @@ export async function updateCommuteTimes() {
 export function updateCommuteVisibility() {
   const now = new Date();
   const hour = now.getHours();
+  const day = now.getDay();
   const panel = document.getElementById("commute-panel");
   if (!panel) return;
 
-  const shouldShow = hour >= 6 && hour < 9;
+  const isWeekday = day >= 1 && day <= 5;
+  const shouldShow = isWeekday && hour >= 6 && hour < 9;
   if (shouldShow) {
     panel.classList.remove("is-collapsed");
     requestAnimationFrame(() => {
