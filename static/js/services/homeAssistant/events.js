@@ -3,6 +3,19 @@ import { updateEntity } from "./state.js";
 import { switchView } from "../../core/viewManager.js";
 
 export function registerHAEvents() {
+  on("ha:states", (entities) => {
+    if (!Array.isArray(entities)) return;
+
+    entities.forEach((entity) => {
+      updateEntity(entity);
+      document.dispatchEvent(
+        new CustomEvent("ha:state-updated", {
+          detail: entity
+        })
+      );
+    });
+  });
+
   on("ha:event:state_changed", (data) => {
     updateEntity(data.new_state);
 
