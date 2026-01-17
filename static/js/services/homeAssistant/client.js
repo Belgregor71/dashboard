@@ -5,6 +5,7 @@ const HA_CONFIG = CONFIG.homeAssistant;
 
 let socket;
 let msgId = 1;
+let getStatesRequestId;
 
 export function connectHA() {
   if (!HA_CONFIG?.enabled) {
@@ -34,7 +35,17 @@ export function connectHA() {
       console.log("HA authenticated");
       subscribe("state_changed");
       subscribe("dashboard_command");
+      getStatesRequestId = msgId++;
+      socket.send(JSON.stringify({
+        id: getStatesRequestId,
+        type: "get_states"
+      }));
       emit("ha:connected");
+      return;
+    }
+
+    if (msg.type === "result" && msg.id === getStatesRequestId) {
+      emit("ha:states", msg.result);
       return;
     }
 
