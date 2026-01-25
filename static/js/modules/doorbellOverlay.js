@@ -6,8 +6,20 @@ const DEFAULT_TRIGGER_STATES = ["on", "ringing", "detected", "motion"];
 
 function resolveUrl(url) {
   if (!url) return "";
-  if (url.startsWith("http")) return url;
-  if (url.startsWith("/")) return `${CONFIG.homeAssistant?.url ?? ""}${url}`;
+  const baseUrl = CONFIG.homeAssistant?.url ?? "";
+  const token = CONFIG.homeAssistant?.token;
+  const base = baseUrl || "http://localhost";
+  const parsed = new URL(url, base);
+  const baseOrigin = baseUrl ? new URL(baseUrl).origin : null;
+
+  if (token && baseOrigin && parsed.origin === baseOrigin) {
+    if (!parsed.searchParams.has("access_token") && !parsed.searchParams.has("token")) {
+      parsed.searchParams.set("access_token", token);
+    }
+  }
+
+  if (url.startsWith("http")) return parsed.toString();
+  if (url.startsWith("/")) return parsed.toString();
   return url;
 }
 

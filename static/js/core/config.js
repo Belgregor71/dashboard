@@ -17,6 +17,53 @@ export const CONFIG = {
       activeLabel: "Doorbell motion detected",
       autoCloseMs: 45000
     },
+    cameraFeeds: [
+      {
+        entityId: "camera.kitchen",
+        label: "Kitchen",
+        streamPath: "/api/camera_proxy_stream/camera.kitchen"
+      },
+      {
+        entityId: "camera.piano_room",
+        label: "Piano Room",
+        streamPath: "/api/camera_proxy_stream/camera.piano_room"
+      },
+      {
+        entityId: "camera.tilt_pan",
+        label: "Garage (Pan & Tilt)",
+        streamPath: "/api/camera_proxy_stream/camera.tilt_pan"
+      },
+      {
+        entityId: "camera.doorbell",
+        label: "Doorbell",
+        streamPath: "/api/camera_proxy_stream/camera.doorbell"
+      },
+      {
+        entityId: "camera.front_yard",
+        label: "Front Yard",
+        streamPath: "/api/camera_proxy_stream/camera.front_yard"
+      },
+      {
+        entityId: "camera.driveway",
+        label: "Driveway",
+        streamPath: "/api/camera_proxy_stream/camera.driveway"
+      },
+      {
+        entityId: "camera.backyard",
+        label: "Backyard",
+        streamPath: "/api/camera_proxy_stream/camera.backyard"
+      },
+      {
+        entityId: "camera.patio",
+        label: "Patio",
+        streamPath: "/api/camera_proxy_stream/camera.patio"
+      },
+      {
+        entityId: "camera.side_gate",
+        label: "Side Gate",
+        streamPath: "/api/camera_proxy_stream/camera.side_gate"
+      }
+    ],
     cameraMotionView: {
       enabled: true,
       view: "cameras",
