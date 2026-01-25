@@ -15,6 +15,7 @@ import { initMediaPanels } from "../modules/mediaPanels.js";
 import { initTodoPanels } from "../modules/todo.js";
 import { initPlexStatus } from "../modules/plexStatus.js";
 import { initDoorbellOverlay } from "../modules/doorbellOverlay.js";
+import { initCameraMotionView } from "../modules/cameraMotionView.js";
 
 import { connectHA } from "../services/homeAssistant/client.js";
 import { registerHAEvents } from "../services/homeAssistant/events.js";
@@ -100,6 +101,7 @@ export function startApp() {
     enabled: isEnabled("plex", true)
   });
   initDoorbellOverlay();
+  initCameraMotionView();
 
   if (isEnabled("homeAssistant", false)) {
     registerHAEvents();

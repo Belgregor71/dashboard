@@ -16,6 +16,21 @@ export const CONFIG = {
       streamPath: "/api/camera_proxy_stream/camera.doorbell",
       activeLabel: "Doorbell motion detected",
       autoCloseMs: 45000
+    },
+    cameraMotionView: {
+      enabled: true,
+      view: "cameras",
+      returnView: "home",
+      durationMs: 30000,
+      triggerStates: ["on", "ringing", "detected", "motion"],
+      triggerEntityIds: [
+        "binary_sensor.front_doorbell_motion",
+        "binary_sensor.front_yard_motion",
+        "binary_sensor.driveway_motion",
+        "binary_sensor.backyard_motion",
+        "binary_sensor.patio_motion",
+        "binary_sensor.side_gate_motion"
+      ]
     }
   }
 };
