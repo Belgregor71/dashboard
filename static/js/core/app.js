@@ -14,6 +14,7 @@ import { startWeather } from "../services/weather/renderer.js";
 import { initMediaPanels } from "../modules/mediaPanels.js";
 import { initTodoPanels } from "../modules/todo.js";
 import { initPlexStatus } from "../modules/plexStatus.js";
+import { initDoorbellOverlay } from "../modules/doorbellOverlay.js";
 
 import { connectHA } from "../services/homeAssistant/client.js";
 import { registerHAEvents } from "../services/homeAssistant/events.js";
@@ -98,6 +99,7 @@ export function startApp() {
     refreshMs: cfg.plex?.refreshMs ?? 30_000,
     enabled: isEnabled("plex", true)
   });
+  initDoorbellOverlay();
 
   if (isEnabled("homeAssistant", false)) {
     registerHAEvents();
