@@ -152,6 +152,32 @@
     </section>
   </main>
 
+  <section
+    id="doorbell-overlay"
+    class="doorbell-overlay"
+    aria-hidden="true"
+    role="dialog"
+    aria-label="Doorbell camera"
+  >
+    <div class="doorbell-overlay__panel">
+      <header class="doorbell-overlay__header">
+        <div>
+          <div class="doorbell-overlay__label">Doorbell</div>
+          <div class="doorbell-overlay__status">Live view</div>
+        </div>
+        <button class="doorbell-overlay__close" type="button" aria-label="Dismiss">
+          Close
+        </button>
+      </header>
+      <div class="doorbell-overlay__media">
+        <img class="doorbell-overlay__image" alt="Doorbell camera feed" />
+        <div class="doorbell-overlay__empty">
+          Waiting for a camera stream…
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Lottie -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.10.2/lottie.min.js"></script>
 
