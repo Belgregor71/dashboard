@@ -645,7 +645,8 @@ body.is-overlay-active {
 }
 
 .calendar-view,
-.agenda-view {
+.agenda-view,
+.cameras-view {
   flex: 1;
 }
 
@@ -710,14 +711,22 @@ body.is-overlay-active {
 body[data-view="home"] .home-view { display: flex; }
 body[data-view="home"] .calendar-view { display: none; }
 body[data-view="home"] .agenda-view { display: none; }
+body[data-view="home"] .cameras-view { display: none; }
 
 body[data-view="calendar"] .calendar-view { display: block; }
 body[data-view="calendar"] .home-view { display: none; }
 body[data-view="calendar"] .agenda-view { display: none; }
+body[data-view="calendar"] .cameras-view { display: none; }
 
 body[data-view="agenda"] .agenda-view { display: block; }
 body[data-view="agenda"] .home-view { display: none; }
 body[data-view="agenda"] .calendar-view { display: none; }
+body[data-view="agenda"] .cameras-view { display: none; }
+
+body[data-view="cameras"] .cameras-view { display: block; }
+body[data-view="cameras"] .home-view { display: none; }
+body[data-view="cameras"] .calendar-view { display: none; }
+body[data-view="cameras"] .agenda-view { display: none; }
 
 body[data-view="calendar"] #commute-panel,
 body[data-view="calendar"] #current-weather-panel {
@@ -746,6 +755,21 @@ body[data-view="agenda"] #top-bar {
 }
 
 body[data-view="agenda"] #time-panel {
+  padding-left: 10px;
+}
+
+body[data-view="cameras"] #commute-panel,
+body[data-view="cameras"] #current-weather-panel {
+  display: none;
+}
+
+body[data-view="cameras"] #top-bar {
+  grid-template-columns: 1fr;
+  justify-items: start;
+  padding: 20px 40px 10px;
+}
+
+body[data-view="cameras"] #time-panel {
   padding-left: 10px;
 }
 
@@ -953,6 +977,114 @@ body[data-view="agenda"] #time-panel {
   font-size: 0.8rem;
   opacity: 0.6;
 }
+
+/* ============================================================================
+   CAMERAS VIEW
+============================================================================ */
+
+#cameras-view {
+  padding: 10px 40px 40px;
+}
+
+.cameras-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: calc(100vh - 160px);
+}
+
+.cameras-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 20px;
+}
+
+.cameras-title {
+  font-size: 2.4rem;
+  font-weight: 600;
+}
+
+.cameras-header-subtitle {
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.cameras-section {
+  display: grid;
+  gap: 10px;
+}
+
+.cameras-section-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.cameras-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.cameras-grid--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cameras-grid--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.camera-card {
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-height: 150px;
+}
+
+.camera-card__preview {
+  position: relative;
+  background:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.3)),
+    radial-gradient(circle at top left, rgba(0, 0, 0, 0.2), transparent 70%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  padding: 16px;
+}
+
+.camera-card__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(231, 76, 60, 0.85);
+  color: #fff;
+}
+
+.camera-card__badge--auto {
+  background: rgba(255, 210, 127, 0.85);
+  color: #1b1b1b;
+}
+
+.camera-card__body {
+  display: grid;
+  gap: 6px;
+  padding: 12px 16px 14px;
+}
+
+.camera-card__name {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
 
 body[data-view="calendar"] #commute-panel,
 body[data-view="calendar"] #current-weather-panel {
