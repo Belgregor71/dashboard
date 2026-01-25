@@ -7,6 +7,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 import fetch from "node-fetch";
 import serveIndex from "serve-index";
+import { CAMERA_CONFIG } from "./config/cameras.js";
+import { pipeline } from "stream/promises";
+import { Readable } from "stream";
 
 dotenv.config();
 
@@ -15,6 +18,12 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+const HA_HOST = process.env.HA_HOST;
+const GO2RTC_HOST = process.env.GO2RTC_HOST;
+const HOME_ASSISTANT_TOKEN = process.env.HOME_ASSISTANT_TOKEN;
+
+const CAMERA_MAP = new Map(CAMERA_CONFIG.map((camera) => [camera.id, camera]));
 
 /* ============================================================================
    STATIC FILES
@@ -274,6 +283,173 @@ app.get("/api/plex/image", async (req, res) => {
       error: "Plex image error",
       detail: err instanceof Error ? err.message : err
     });
+  }
+});
+
+/* ============================================================================
+   CAMERA PROXIES (HOME ASSISTANT + GO2RTC)
+============================================================================ */
+
+function normalizeBaseUrl(url) {
+  if (!url) return null;
+  const trimmed = url.trim().replace(/[<>]/g, "");
+  if (/^https?:\/\//i.test(trimmed)) return trimmed.replace(/\/$/, "");
+  return `http://${trimmed.replace(/\/$/, "")}`;
+}
+
+function resolveAbsoluteUrl(pathValue, baseUrl) {
+  if (!pathValue) return null;
+  if (/^https?:\/\//i.test(pathValue)) return pathValue;
+  if (!baseUrl) return null;
+  return new URL(pathValue, baseUrl).toString();
+}
+
+function getCameraConfig(id) {
+  return CAMERA_MAP.get(id);
+}
+
+function buildGo2RtcUrl(pathValue) {
+  const base = normalizeBaseUrl(GO2RTC_HOST);
+  return resolveAbsoluteUrl(pathValue, base);
+}
+
+function buildHaUrl(pathValue) {
+  const base = normalizeBaseUrl(HA_HOST);
+  return resolveAbsoluteUrl(pathValue, base);
+}
+
+function resolveSnapshotUrl(camera) {
+  if (camera.snapshotPath) return buildHaUrl(camera.snapshotPath);
+  if (camera.entity) return buildHaUrl(`/api/camera_proxy/${camera.entity}`);
+  return null;
+}
+
+function resolveStreamUrl(camera, streamType) {
+  if (!camera) return null;
+  const type = streamType || camera.streamType;
+  const pathValue = camera.streamPaths?.[type] || camera.go2rtcPath;
+  return buildGo2RtcUrl(pathValue);
+}
+
+function rewriteHlsPlaylist(playlist, cameraId, upstreamUrl) {
+  const lines = playlist.split("\n");
+  const baseUrl = new URL(upstreamUrl);
+  const rewritten = lines.map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) return line;
+    const absolute = new URL(trimmed, baseUrl).toString();
+    const proxied = `/api/camera/${cameraId}/stream?url=${encodeURIComponent(absolute)}`;
+    return proxied;
+  });
+  return rewritten.join("\n");
+}
+
+async function proxyFetchToResponse(upstream, res, options = {}) {
+  res.status(upstream.status);
+  const contentType = upstream.headers.get("content-type");
+  if (contentType) res.set("Content-Type", contentType);
+  if (options.cacheControl) res.set("Cache-Control", options.cacheControl);
+
+  if (!upstream.ok) {
+    const errorBody = await upstream.text();
+    res.send(errorBody);
+    return;
+  }
+
+  if (!upstream.body) {
+    const buffer = await upstream.arrayBuffer();
+    res.send(Buffer.from(buffer));
+    return;
+  }
+
+  const stream = Readable.fromWeb(upstream.body);
+  await pipeline(stream, res);
+}
+
+app.get("/api/cameras", (req, res) => {
+  const cameras = CAMERA_CONFIG.map((camera) => ({
+    id: camera.id,
+    name: camera.name,
+    entity: camera.entity,
+    mode: camera.mode,
+    streamType: camera.streamType,
+    streamFallbacks: camera.streamFallbacks ?? [],
+    snapshotUrl: `/api/camera/${camera.id}/snapshot`,
+    streamUrl: `/api/camera/${camera.id}/stream`
+  }));
+  res.json({ cameras });
+});
+
+app.get("/api/camera/:id/snapshot", async (req, res) => {
+  const camera = getCameraConfig(req.params.id);
+  if (!camera) {
+    res.status(404).json({ error: "Camera not found" });
+    return;
+  }
+
+  const snapshotUrl = resolveSnapshotUrl(camera);
+  if (!snapshotUrl) {
+    res.status(500).json({ error: "Snapshot source not configured" });
+    return;
+  }
+
+  try {
+    const haBase = normalizeBaseUrl(HA_HOST);
+    const needsAuth = haBase && snapshotUrl.startsWith(haBase);
+    if (needsAuth && !HOME_ASSISTANT_TOKEN) {
+      res.status(500).json({ error: "Home Assistant token missing" });
+      return;
+    }
+
+    const upstream = await fetch(snapshotUrl, {
+      headers: needsAuth
+        ? {
+            Authorization: `Bearer ${HOME_ASSISTANT_TOKEN}`
+          }
+        : undefined
+    });
+    res.set("Cache-Control", "no-store, max-age=0");
+    await proxyFetchToResponse(upstream, res);
+  } catch (err) {
+    console.error("Camera snapshot proxy error:", err);
+    res.status(500).json({ error: "Camera snapshot error" });
+  }
+});
+
+app.get("/api/camera/:id/stream", async (req, res) => {
+  const camera = getCameraConfig(req.params.id);
+  if (!camera) {
+    res.status(404).json({ error: "Camera not found" });
+    return;
+  }
+
+  const upstreamUrl = req.query.url || resolveStreamUrl(camera, req.query.type);
+  if (!upstreamUrl) {
+    res.status(500).json({ error: "Stream source not configured" });
+    return;
+  }
+
+  try {
+    const upstream = await fetch(upstreamUrl);
+    const contentType = upstream.headers.get("content-type") || "";
+    const isHls =
+      contentType.includes("application/vnd.apple.mpegurl") ||
+      contentType.includes("application/x-mpegURL") ||
+      upstreamUrl.toString().includes(".m3u8");
+
+    if (upstream.ok && isHls) {
+      const playlist = await upstream.text();
+      res.set("Content-Type", contentType);
+      res.set("Cache-Control", "no-store");
+      res.send(rewriteHlsPlaylist(playlist, camera.id, upstreamUrl));
+      return;
+    }
+
+    res.set("Cache-Control", "no-store");
+    await proxyFetchToResponse(upstream, res);
+  } catch (err) {
+    console.error("Camera stream proxy error:", err);
+    res.status(500).json({ error: "Camera stream error" });
   }
 });
 

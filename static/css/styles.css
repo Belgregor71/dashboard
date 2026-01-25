@@ -1059,6 +1059,62 @@ body[data-view="cameras"] #time-panel {
   height: 100%;
   object-fit: cover;
   opacity: 0.85;
+  z-index: 1;
+}
+
+.camera-card__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+  z-index: 0;
+}
+
+.camera-card__actions {
+  position: absolute;
+  inset: auto 12px 12px 12px;
+  display: flex;
+  gap: 8px;
+  z-index: 2;
+}
+
+.camera-card__action {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: rgba(15, 15, 15, 0.75);
+  color: #fff;
+  cursor: pointer;
+}
+
+.camera-card__action--stop {
+  background: rgba(231, 76, 60, 0.85);
+}
+
+.camera-card__status {
+  position: absolute;
+  inset: 12px 12px auto 12px;
+  z-index: 2;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+}
+
+.camera-card__preview .is-hidden {
+  display: none;
+}
+
+.camera-card.is-streaming .camera-card__badge--auto {
+  background: rgba(39, 174, 96, 0.85);
+  color: #fff;
 }
 
 .camera-card__badge {

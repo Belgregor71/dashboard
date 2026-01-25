@@ -18,6 +18,11 @@ export function connectHA() {
     return;
   }
 
+  if (!HA_CONFIG?.token) {
+    console.warn("Home Assistant token missing; skipping HA connection");
+    return;
+  }
+
   const url = HA_CONFIG.url.replace(/^http/, "ws") + "/api/websocket";
   socket = new WebSocket(url);
 
