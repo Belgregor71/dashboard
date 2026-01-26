@@ -3,6 +3,41 @@ import { format } from "../helpers/dates.js";
 import { emit } from "../core/eventBus.js";
 
 const CAL_URL = "/api/calendar/all";
+const MEAL_PREFIX = /^Meal:\s*/;
+
+function loadMealLottie(container) {
+  if (!container || !window.lottie) return;
+  if (container._lottieInstance) return container._lottieInstance;
+
+  const anim = window.lottie.loadAnimation({
+    container,
+    renderer: "svg",
+    loop: true,
+    autoplay: true,
+    path: "/icons/Food.lottie"
+  });
+
+  container._lottieInstance = anim;
+  return anim;
+}
+
+function appendEventTitle(container, title) {
+  const normalizedTitle = title || "(Untitled)";
+  if (!MEAL_PREFIX.test(normalizedTitle)) {
+    container.append(document.createTextNode(normalizedTitle));
+    return;
+  }
+
+  const mealTitle = normalizedTitle.replace(MEAL_PREFIX, "").trim();
+  const icon = document.createElement("span");
+  icon.className = "meal-lottie";
+  container.appendChild(icon);
+  loadMealLottie(icon);
+
+  if (mealTitle) {
+    container.append(document.createTextNode(` ${mealTitle}`));
+  }
+}
 
 /* ------------------------------------------------------------------
    MAIN REFRESH FUNCTION
@@ -203,7 +238,7 @@ function renderToday(events) {
   allDay.forEach(ev => {
     const div = document.createElement("div");
     div.className = "today-all-day";
-    div.textContent = ev.title || "(Untitled)";
+    appendEventTitle(div, ev.title);
     container.appendChild(div);
   });
 
@@ -214,7 +249,8 @@ function renderToday(events) {
   timed.forEach(ev => {
     const div = document.createElement("div");
     div.className = "today-event";
-    div.textContent = `${format.time(ev.start)} – ${ev.title || "(Untitled)"}`;
+    div.append(document.createTextNode(`${format.time(ev.start)} – `));
+    appendEventTitle(div, ev.title);
     container.appendChild(div);
   });
 }
@@ -267,10 +303,11 @@ function renderWeek(days) {
         const div = document.createElement("div");
         if (isAllDay(ev)) {
           div.className = "week-all-day";
-          div.textContent = ev.title || "(Untitled)";
+          appendEventTitle(div, ev.title);
         } else {
           div.className = "week-event";
-          div.textContent = `${format.time(ev.start)} – ${ev.title || "(Untitled)"}`;
+          div.append(document.createTextNode(`${format.time(ev.start)} – `));
+          appendEventTitle(div, ev.title);
         }
 
         dayDiv.appendChild(div);
