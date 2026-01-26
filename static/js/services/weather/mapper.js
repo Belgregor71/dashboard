@@ -15,6 +15,7 @@ export function weatherText(code) {
   if (code >= 51 && code <= 67) return "Drizzle";
   if (code >= 71 && code <= 77) return "Snow";
   if (code >= 80 && code <= 82) return "Showers";
+  if (code === 85 || code === 86) return "Snow Showers";
   if (code >= 95) return "Storms";
   return "Weather";
 }
