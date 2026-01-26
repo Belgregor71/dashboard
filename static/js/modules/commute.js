@@ -4,6 +4,23 @@ import {
   COMMUTE_BRETT_DEST
 } from "../config/config.js";
 
+function loadCommuteLottie() {
+  const container = document.getElementById("commute-lottie");
+  if (!container || !window.lottie) return;
+  if (container._lottieInstance) return container._lottieInstance;
+
+  const anim = window.lottie.loadAnimation({
+    container,
+    renderer: "svg",
+    loop: true,
+    autoplay: true,
+    path: "/icons/car.lottie"
+  });
+
+  container._lottieInstance = anim;
+  return anim;
+}
+
 async function getDriveTime(origin, destination) {
   const url =
     `/api/commute?origin=${encodeURIComponent(origin)}` +
@@ -46,6 +63,7 @@ export function updateCommuteVisibility() {
   const isWeekday = day >= 1 && day <= 5;
   const shouldShow = isWeekday && hour >= 6 && hour < 9;
   if (shouldShow) {
+    loadCommuteLottie();
     panel.classList.remove("is-collapsed");
     requestAnimationFrame(() => {
       panel.classList.remove("is-hidden");

@@ -335,20 +335,47 @@ body.is-overlay-active {
 
 /* COMMUTE PANEL — hidden by default */
 #commute-panel {
-  text-align: center;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 20px;
+  text-align: left;
 }
 
-#commute-panel h2 {
-  margin-bottom: 10px;
-  font-size: 1.7rem;
-  letter-spacing: 0.04em;
+.commute-column {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.commute-column--icon {
+  align-items: center;
+}
+
+#commute-lottie {
+  width: 96px;
+  height: 96px;
+}
+
+#commute-lottie svg,
+#commute-lottie canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.commute-title {
+  font-size: 1.3rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  opacity: 0.75;
+  margin-bottom: 8px;
 }
 
 #commute-times {
   display: grid;
-  gap: 12px;
-  font-size: 2rem;
+  gap: 10px;
+  font-size: 2.2rem;
   font-weight: 600;
 }
 
