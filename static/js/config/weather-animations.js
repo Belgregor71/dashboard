@@ -16,43 +16,43 @@ export const WEATHER_ANIMATIONS = {
   48: { day: "fog-day.json", night: "fog-night.json" },
 
   // 51–57: Drizzle / freezing drizzle
-  51: { day: "drizzle.json", night: "drizzle.json" },
+  51: { day: "partly-cloudy-day-drizzle.json", night: "partly-cloudy-night-drizzle.json" },
   53: { day: "overcast-day-drizzle.json", night: "overcast-night-drizzle.json" },
-  55: { day: "overcast-day-drizzle.json", night: "overcast-night-drizzle.json" },
-  56: { day: "sleet.json", night: "sleet.json" }, // freezing drizzle
-  57: { day: "sleet.json", night: "sleet.json" },
+  55: { day: "extreme-day-drizzle.json", night: "extreme-night-drizzle.json" },
+  56: { day: "overcast-day-sleet.json", night: "overcast-night-sleet.json" }, // freezing drizzle
+  57: { day: "extreme-day-sleet.json", night: "extreme-night-sleet.json" },
 
   // 61–67: Rain / freezing rain
-  61: { day: "rain.json", night: "rain.json" },
+  61: { day: "partly-cloudy-day-rain.json", night: "partly-cloudy-night-rain.json" },
   63: { day: "overcast-day-rain.json", night: "overcast-night-rain.json" },
-  65: { day: "extreme-rain.json", night: "extreme-night-rain.json" },
-  66: { day: "sleet.json", night: "sleet.json" }, // freezing rain
-  67: { day: "extreme-sleet.json", night: "extreme-night-sleet.json" },
+  65: { day: "extreme-day-rain.json", night: "extreme-night-rain.json" },
+  66: { day: "overcast-day-sleet.json", night: "overcast-night-sleet.json" }, // freezing rain
+  67: { day: "extreme-day-sleet.json", night: "extreme-night-sleet.json" },
 
   // 71–77: Snow
-  71: { day: "snow.json", night: "snow.json" },
-  73: { day: "snow.json", night: "snow.json" },
-  75: { day: "extreme-snow.json", night: "extreme-night-snow.json" },
+  71: { day: "partly-cloudy-day-snow.json", night: "partly-cloudy-night-snow.json" },
+  73: { day: "overcast-day-snow.json", night: "overcast-night-snow.json" },
+  75: { day: "extreme-day-snow.json", night: "extreme-night-snow.json" },
   77: { day: "snow.json", night: "snow.json" }, // snow grains
 
   // 80–82: Rain showers
-  80: { day: "overcast-day-rain.json", night: "overcast-night-rain.json" },
+  80: { day: "partly-cloudy-day-rain.json", night: "partly-cloudy-night-rain.json" },
   81: { day: "overcast-day-rain.json", night: "overcast-night-rain.json" },
-  82: { day: "extreme-rain.json", night: "extreme-night-rain.json" },
+  82: { day: "extreme-day-rain.json", night: "extreme-night-rain.json" },
 
   // 85–86: Snow showers
-  85: { day: "overcast-day-snow.json", night: "overcast-night-snow.json" },
-  86: { day: "extreme-snow.json", night: "extreme-night-snow.json" },
+  85: { day: "partly-cloudy-day-snow.json", night: "partly-cloudy-night-snow.json" },
+  86: { day: "extreme-day-snow.json", night: "extreme-night-snow.json" },
 
   // 95–99: Thunderstorms
   95: { day: "thunderstorms-day.json", night: "thunderstorms-night.json" },
   96: {
-    day: "thunderstorms-day-extreme-rain.json",
-    night: "thunderstorms-night-extreme-rain.json"
+    day: "thunderstorms-day-overcast-rain.json",
+    night: "thunderstorms-night-overcast-rain.json"
   },
   99: {
-    day: "thunderstorms-day-extreme-snow.json",
-    night: "thunderstorms-night-extreme-snow.json"
+    day: "thunderstorms-day-extreme-rain.json",
+    night: "thunderstorms-night-extreme-rain.json"
   }
 };
 
