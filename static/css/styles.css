@@ -397,6 +397,19 @@ body.is-overlay-active {
   margin-bottom: 6px;
 }
 
+.meal-lottie {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+}
+
+.meal-lottie svg,
+.meal-lottie canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
 .today-empty {
   opacity: 0.7;
   padding: 10px 0;
