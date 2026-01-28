@@ -11,17 +11,33 @@ const PORT = 5000;
    ICS FEED URLS (YOUR PRIVATE LINKS)
 -------------------------------------------------------------------*/
 const CALENDAR_URLS = {
-  google: "https://calendar.google.com/calendar/ical/gdee71%40gmail.com/private-df4b1b39a6d1229f7d38d2db53d09299/basic.ics",
-  apple: "https://p109-caldav.icloud.com/published/2/MTA3OTc2NDk1MTA3OTc2NE6mIbLn4WuDJuvs1Iwj_UA-nxv8Fm-57kpX9w8wPtwK",
-  tripit: "https://www.tripit.com/feed/ical/private/1E6AF450-A736DF29289A93225C40E84D378EA141/tripit.ics"
+  google: process.env.CALENDAR_GOOGLE_URL,
+  apple: process.env.CALENDAR_APPLE_URL,
+  tripit: process.env.CALENDAR_TRIPIT_URL
 };
+
+for (const [name, url] of Object.entries(CALENDAR_URLS)) {
+  if (!url) {
+    throw new Error(`Missing calendar URL: ${name}`);
+  }
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /* ------------------------------------------------------------------
    FETCH + PARSE A SINGLE ICS FEED
 -------------------------------------------------------------------*/
 async function fetchCalendar(url) {
   try {
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url);
     const text = await res.text();
     const data = ical.parseICS(text);
 
@@ -68,7 +84,7 @@ async function getMergedEvents() {
 
     const merged = results.flat().filter(ev => ev.start);
 
-    merged.sort((a, b) => a.start - b.start);
+    merged.sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
 
     console.log("Merged total:", merged.length);
 
