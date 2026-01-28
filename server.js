@@ -25,6 +25,16 @@ const HOME_ASSISTANT_TOKEN = process.env.HOME_ASSISTANT_TOKEN;
 
 const CAMERA_MAP = new Map(CAMERA_CONFIG.map((camera) => [camera.id, camera]));
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /* ============================================================================
    STATIC FILES
 ============================================================================ */
@@ -49,7 +59,7 @@ app.get("/", (req, res) => {
 app.get("/api/calendar/all", async (req, res) => {
   try {
     const CAL_SVC = process.env.CALENDAR_SERVICE_URL || "http://localhost:5000";
-    const r = await fetch(`${CAL_SVC}/calendar/all`);
+    const r = await fetchWithTimeout(`${CAL_SVC}/calendar/all`);
     const data = await r.json();
     res.json(data);
   } catch (err) {
@@ -74,7 +84,7 @@ app.get("/api/calendar/:source(google|apple|tripit)", async (req, res) => {
   const url = CALENDAR_ENDPOINTS[src];
 
   try {
-    const r = await fetch(url);
+    const r = await fetchWithTimeout(url);
     const data = await r.json();
     res.json(data);
   } catch (err) {
@@ -97,6 +107,11 @@ app.get("/api/commute", async (req, res) => {
     return;
   }
 
+  if (!origin || !destination) {
+    res.status(400).json({ error: "origin and destination are required" });
+    return;
+  }
+
   const url = new URL("https://maps.googleapis.com/maps/api/distancematrix/json");
   url.searchParams.set("origins", origin);
   url.searchParams.set("destinations", destination);
@@ -105,7 +120,7 @@ app.get("/api/commute", async (req, res) => {
   url.searchParams.set("key", googleMapsApiKey);
 
   try {
-    const r = await fetch(url.toString());
+    const r = await fetchWithTimeout(url.toString());
     const data = await r.json();
     res.json(data);
   } catch (err) {
@@ -124,6 +139,11 @@ app.get("/api/commute_map", async (req, res) => {
     return;
   }
 
+  if (!origin || !destination) {
+    res.status(400).json({ error: "origin and destination are required" });
+    return;
+  }
+
   const url = new URL("https://maps.googleapis.com/maps/api/staticmap");
   url.searchParams.set("size", "600x300");
   url.searchParams.set("scale", "2");
@@ -137,7 +157,7 @@ app.get("/api/commute_map", async (req, res) => {
   url.searchParams.set("key", googleMapsApiKey);
 
   try {
-    const r = await fetch(url.toString());
+    const r = await fetchWithTimeout(url.toString());
     const buffer = await r.arrayBuffer();
     const contentType = r.headers.get("content-type") || "image/png";
     res.type(contentType).send(Buffer.from(buffer));
@@ -228,7 +248,7 @@ app.get("/api/plex/sessions", async (req, res) => {
     url.searchParams.set("X-Plex-Token", plexToken);
     const agent = getPlexAgent(plexBaseUrl);
 
-    const plexResponse = await fetch(url.toString(), { agent });
+  const plexResponse = await fetchWithTimeout(url.toString(), { agent });
     if (!plexResponse.ok) {
       const errorBody = await plexResponse.text();
       res
@@ -262,11 +282,21 @@ app.get("/api/plex/image", async (req, res) => {
   }
 
   try {
-    const url = new URL(buildPlexUrl(plexBaseUrl, imagePath));
+    const builtUrl = buildPlexUrl(plexBaseUrl, imagePath);
+    if (!builtUrl) {
+      res.status(400).json({ error: "Invalid Plex image path" });
+      return;
+    }
+    const url = new URL(builtUrl);
+    const plexHost = new URL(plexBaseUrl).host;
+    if (url.host !== plexHost) {
+      res.status(400).json({ error: "Disallowed Plex image host" });
+      return;
+    }
     url.searchParams.set("X-Plex-Token", plexToken);
     const agent = getPlexAgent(plexBaseUrl);
 
-    const imageResponse = await fetch(url.toString(), { agent });
+    const imageResponse = await fetchWithTimeout(url.toString(), { agent });
     if (!imageResponse.ok) {
       res
         .status(imageResponse.status)
@@ -329,6 +359,17 @@ function resolveStreamUrl(camera, streamType) {
   const type = streamType || camera.streamType;
   const pathValue = camera.streamPaths?.[type] || camera.go2rtcPath;
   return buildGo2RtcUrl(pathValue);
+}
+
+function isAllowedUpstreamUrl(urlValue, allowedHost) {
+  if (!urlValue || !allowedHost) return false;
+  try {
+    const url = new URL(urlValue);
+    if (!["http:", "https:"].includes(url.protocol)) return false;
+    return url.host === allowedHost;
+  } catch (err) {
+    return false;
+  }
 }
 
 function rewriteHlsPlaylist(playlist, cameraId, upstreamUrl) {
@@ -401,7 +442,7 @@ app.get("/api/camera/:id/snapshot", async (req, res) => {
       return;
     }
 
-    const upstream = await fetch(snapshotUrl, {
+    const upstream = await fetchWithTimeout(snapshotUrl, {
       headers: needsAuth
         ? {
             Authorization: `Bearer ${HOME_ASSISTANT_TOKEN}`
@@ -429,8 +470,17 @@ app.get("/api/camera/:id/stream", async (req, res) => {
     return;
   }
 
+  if (req.query.url) {
+    const go2rtcBase = normalizeBaseUrl(GO2RTC_HOST);
+    const allowedHost = go2rtcBase ? new URL(go2rtcBase).host : null;
+    if (!isAllowedUpstreamUrl(upstreamUrl, allowedHost)) {
+      res.status(400).json({ error: "Disallowed stream host" });
+      return;
+    }
+  }
+
   try {
-    const upstream = await fetch(upstreamUrl);
+    const upstream = await fetchWithTimeout(upstreamUrl);
     const contentType = upstream.headers.get("content-type") || "";
     const isHls =
       contentType.includes("application/vnd.apple.mpegurl") ||
