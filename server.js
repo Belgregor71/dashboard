@@ -26,6 +26,10 @@ const HOME_ASSISTANT_TOKEN = process.env.HOME_ASSISTANT_TOKEN;
 const CAMERA_MAP = new Map(CAMERA_CONFIG.map((camera) => [camera.id, camera]));
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+  if (timeoutMs == null || timeoutMs <= 0) {
+    return fetch(url, options);
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -480,7 +484,7 @@ app.get("/api/camera/:id/stream", async (req, res) => {
   }
 
   try {
-    const upstream = await fetchWithTimeout(upstreamUrl);
+    const upstream = await fetchWithTimeout(upstreamUrl, {}, null);
     const contentType = upstream.headers.get("content-type") || "";
     const isHls =
       contentType.includes("application/vnd.apple.mpegurl") ||
