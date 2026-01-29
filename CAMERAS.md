@@ -9,7 +9,7 @@ Copy `.env.example` to `.env` and set the LAN IPs for Home Assistant and go2rtc:
 ```bash
 HA_HOST=http://192.168.1.10:8123
 GO2RTC_HOST=http://192.168.1.10:1984
-HOME_ASSISTANT_TOKEN=your_long_lived_token
+HA_TOKEN=your_long_lived_token
 ```
 
 > **Tip:** Never use `localhost` here unless Home Assistant/go2rtc are running on the same host as the dashboard.
