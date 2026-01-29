@@ -37,6 +37,7 @@ body.is-overlay-active {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  filter: saturate(1.18) contrast(1.06);
   opacity: 0;
   transform: scale(1.02);
   transition: opacity 2.2s ease;
@@ -66,10 +67,10 @@ body.is-overlay-active {
   transition: background-color 1s ease;
 }
 
-.tint-morning { background-color: rgba(255, 210, 150, 0.18); }
-.tint-day     { background-color: rgba(255, 255, 255, 0.07); }
-.tint-evening { background-color: rgba(255, 150, 80, 0.18); }
-.tint-night   { background-color: rgba(30, 50, 110, 0.30); }
+.tint-morning { background-color: rgba(255, 210, 150, 0.12); }
+.tint-day     { background-color: rgba(255, 255, 255, 0.04); }
+.tint-evening { background-color: rgba(255, 150, 80, 0.12); }
+.tint-night   { background-color: rgba(30, 50, 110, 0.24); }
 
 /* ============================================================================
    FROSTED GLASS PANELS
