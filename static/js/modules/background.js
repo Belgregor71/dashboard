@@ -21,11 +21,26 @@ function loadBackgroundImages() {
   fetch("/photos/")
     .then(res => res.text())
     .then(text => {
-      const matches = [...text.matchAll(/href="([^"]+\.(jpg|jpeg|png|gif))"/gi)];
-      backgroundImages = matches.map(m => {
-  const file = m[1].replace(/^\/?photos\//, ""); 
-  return `/photos/${file}`;
-});
+      const doc = new DOMParser().parseFromString(text, "text/html");
+      const links = Array.from(doc.querySelectorAll("a[href]"));
+      const imageExtensions = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif"]);
+      const files = links
+        .map(link => {
+          try {
+            return new URL(link.getAttribute("href"), window.location.origin).pathname;
+          } catch (error) {
+            console.warn("Skipping invalid background link:", link.getAttribute("href"), error);
+            return null;
+          }
+        })
+        .filter(Boolean)
+        .filter(pathname => {
+          const lower = pathname.toLowerCase();
+          return Array.from(imageExtensions).some(ext => lower.endsWith(ext));
+        })
+        .map(pathname => pathname.replace(/^\/?photos\//, ""));
+
+      backgroundImages = Array.from(new Set(files)).map(file => `/photos/${file}`);
 
       if (backgroundImages.length > 0) {
         rotateBackground();
