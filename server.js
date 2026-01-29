@@ -21,7 +21,7 @@ const PORT = process.env.PORT || 3000;
 
 const HA_HOST = process.env.HA_HOST;
 const GO2RTC_HOST = process.env.GO2RTC_HOST;
-const HOME_ASSISTANT_TOKEN = process.env.HOME_ASSISTANT_TOKEN;
+const HOME_ASSISTANT_TOKEN = process.env.HA_TOKEN;
 
 const CAMERA_MAP = new Map(CAMERA_CONFIG.map((camera) => [camera.id, camera]));
 
@@ -248,7 +248,7 @@ app.get("/api/plex/sessions", async (req, res) => {
     url.searchParams.set("X-Plex-Token", plexToken);
     const agent = getPlexAgent(plexBaseUrl);
 
-  const plexResponse = await fetchWithTimeout(url.toString(), { agent });
+    const plexResponse = await fetchWithTimeout(url.toString(), { agent });
     if (!plexResponse.ok) {
       const errorBody = await plexResponse.text();
       res

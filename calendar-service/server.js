@@ -1,8 +1,11 @@
 console.log(">>> RUNNING UPDATED CALENDAR SERVICE <<<");
 
+import dotenv from "dotenv";
 import express from "express";
 import fetch from "node-fetch";
 import ical from "node-ical";
+
+dotenv.config();
 
 const app = express();
 const PORT = 5000;
