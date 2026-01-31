@@ -687,7 +687,8 @@ body.is-overlay-active {
 
 .calendar-view,
 .agenda-view,
-.cameras-view {
+.cameras-view,
+.weather-view {
   flex: 1;
 }
 
@@ -753,21 +754,31 @@ body[data-view="home"] .home-view { display: flex; }
 body[data-view="home"] .calendar-view { display: none; }
 body[data-view="home"] .agenda-view { display: none; }
 body[data-view="home"] .cameras-view { display: none; }
+body[data-view="home"] .weather-view { display: none; }
 
 body[data-view="calendar"] .calendar-view { display: block; }
 body[data-view="calendar"] .home-view { display: none; }
 body[data-view="calendar"] .agenda-view { display: none; }
 body[data-view="calendar"] .cameras-view { display: none; }
+body[data-view="calendar"] .weather-view { display: none; }
 
 body[data-view="agenda"] .agenda-view { display: block; }
 body[data-view="agenda"] .home-view { display: none; }
 body[data-view="agenda"] .calendar-view { display: none; }
 body[data-view="agenda"] .cameras-view { display: none; }
+body[data-view="agenda"] .weather-view { display: none; }
 
 body[data-view="cameras"] .cameras-view { display: block; }
 body[data-view="cameras"] .home-view { display: none; }
 body[data-view="cameras"] .calendar-view { display: none; }
 body[data-view="cameras"] .agenda-view { display: none; }
+body[data-view="cameras"] .weather-view { display: none; }
+
+body[data-view="weather"] .weather-view { display: block; }
+body[data-view="weather"] .home-view { display: none; }
+body[data-view="weather"] .calendar-view { display: none; }
+body[data-view="weather"] .agenda-view { display: none; }
+body[data-view="weather"] .cameras-view { display: none; }
 
 body[data-view="calendar"] #commute-panel,
 body[data-view="calendar"] #current-weather-panel {
@@ -781,6 +792,21 @@ body[data-view="calendar"] #top-bar {
 }
 
 body[data-view="calendar"] #time-panel {
+  padding-left: 10px;
+}
+
+body[data-view="weather"] #commute-panel,
+body[data-view="weather"] #current-weather-panel {
+  display: none;
+}
+
+body[data-view="weather"] #top-bar {
+  grid-template-columns: 1fr;
+  justify-items: start;
+  padding: 20px 40px 10px;
+}
+
+body[data-view="weather"] #time-panel {
   padding-left: 10px;
 }
 
@@ -1192,6 +1218,179 @@ body[data-view="cameras"] #time-panel {
 .camera-card__name {
   font-size: 1.05rem;
   font-weight: 600;
+}
+
+/* ============================================================================
+   WEATHER VIEW
+============================================================================ */
+
+#weather-view {
+  padding: 10px 40px 24px;
+  height: calc(100vh - 120px);
+  box-sizing: border-box;
+}
+
+.weather-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  flex: 1;
+  min-height: 0;
+}
+
+.weather-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+
+.weather-hero__primary {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.weather-hero__icon {
+  width: 120px;
+  height: 120px;
+}
+
+.weather-hero__icon svg,
+.weather-hero__icon canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.weather-hero__condition {
+  font-size: 2.2rem;
+  font-weight: 600;
+}
+
+.weather-hero__location {
+  font-size: 0.95rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin-top: 6px;
+}
+
+.weather-hero__temp {
+  text-align: right;
+  display: grid;
+  gap: 6px;
+}
+
+#weather-overlay-temp {
+  font-size: 3.6rem;
+  font-weight: 600;
+}
+
+.weather-hero__feels {
+  font-size: 1rem;
+  opacity: 0.75;
+}
+
+.weather-hero__range {
+  font-size: 1.1rem;
+  opacity: 0.8;
+}
+
+.weather-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.weather-metric {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  backdrop-filter: blur(18px) brightness(0.8);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.weather-metric__icon {
+  width: 44px;
+  height: 44px;
+}
+
+.weather-metric__icon svg,
+.weather-metric__icon canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.weather-metric__label {
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.weather-metric__value {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.weather-hourly {
+  display: grid;
+  gap: 12px;
+}
+
+.weather-hourly__header {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.weather-hourly__grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.weather-hourly__card {
+  display: grid;
+  gap: 8px;
+  padding: 14px 12px;
+  border-radius: 16px;
+  text-align: center;
+  backdrop-filter: blur(18px) brightness(0.8);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.weather-hourly__time {
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.weather-hourly__icon {
+  width: 42px;
+  height: 42px;
+  margin: 0 auto;
+}
+
+.weather-hourly__icon svg,
+.weather-hourly__icon canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.weather-hourly__temp {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.weather-hourly__empty {
+  opacity: 0.7;
+  font-style: italic;
+  padding: 12px 4px;
 }
 
 
