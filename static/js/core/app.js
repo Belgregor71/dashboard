@@ -17,6 +17,7 @@ import { initPlexStatus } from "../modules/plexStatus.js";
 import { initDoorbellOverlay } from "../modules/doorbellOverlay.js";
 import { initCameraMotionView } from "../modules/cameraMotionView.js";
 import { initCameraTiles } from "../modules/cameraTiles.js";
+import { initHomeAssistantTodayPanel } from "../modules/haToday.js";
 
 import { connectHA } from "../services/homeAssistant/client.js";
 import { registerHAEvents } from "../services/homeAssistant/events.js";
@@ -106,9 +107,12 @@ export function startApp() {
   initCameraMotionView();
 
   if (isEnabled("homeAssistant", false)) {
+    initHomeAssistantTodayPanel();
     registerHAEvents();
     connectHA();
   } else {
+    const haStatus = document.getElementById("ha-status");
+    if (haStatus) haStatus.hidden = true;
     console.info("Home Assistant disabled");
   }
 

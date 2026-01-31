@@ -444,6 +444,48 @@ body.is-overlay-active {
   font-style: italic;
 }
 
+.ha-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.ha-status__label {
+  font-weight: 600;
+}
+
+.ha-connection {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ha-connection__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+}
+
+.ha-connection__dot.is-online {
+  background: #55d67e;
+  box-shadow: 0 0 12px rgba(85, 214, 126, 0.6);
+}
+
+.ha-connection__dot.is-offline {
+  background: #f06a6a;
+  box-shadow: 0 0 12px rgba(240, 106, 106, 0.6);
+}
+
 /* ============================================================================
    ROW 3 — Server | Media 1 | Media 2
 ============================================================================ */
