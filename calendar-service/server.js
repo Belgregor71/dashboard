@@ -41,6 +41,45 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
   }
 }
 
+function getRecurrenceWindow(referenceDate = new Date()) {
+  const rangeStart = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 1);
+  rangeStart.setDate(rangeStart.getDate() - 7);
+
+  const rangeEnd = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 0);
+  rangeEnd.setDate(rangeEnd.getDate() + 7);
+  rangeEnd.setHours(23, 59, 59, 999);
+
+  return { rangeStart, rangeEnd };
+}
+
+function isExcludedDate(date, ev) {
+  if (!ev.exdate) return false;
+  const time = date.getTime();
+  return Object.values(ev.exdate).some(ex => ex instanceof Date && ex.getTime() === time);
+}
+
+function getRecurrenceOverride(date, ev) {
+  if (!ev.recurrences) return null;
+  const iso = date.toISOString();
+  if (ev.recurrences[iso]) return ev.recurrences[iso];
+  const matchKey = Object.keys(ev.recurrences).find(
+    key => new Date(key).getTime() === date.getTime()
+  );
+  return matchKey ? ev.recurrences[matchKey] : null;
+}
+
+function buildEvent(baseEvent, overrideEvent, start, end, sourceName) {
+  const sourceEvent = overrideEvent || baseEvent;
+  return {
+    title: sourceEvent.summary || baseEvent.summary || "",
+    start: start ? new Date(start).toISOString() : null,
+    end: end ? new Date(end).toISOString() : null,
+    location: sourceEvent.location || baseEvent.location || "",
+    allDay: (sourceEvent.datetype || baseEvent.datetype) === "date",
+    source: sourceName
+  };
+}
+
 /* ------------------------------------------------------------------
    FETCH + PARSE A SINGLE ICS FEED
 -------------------------------------------------------------------*/
@@ -55,18 +94,49 @@ async function fetchCalendar(url, sourceName = "") {
 
     const events = [];
 
+    const { rangeStart, rangeEnd } = getRecurrenceWindow();
+
     for (const key in data) {
       const ev = data[key];
-      if (ev.type === "VEVENT") {
-        events.push({
-          title: ev.summary || "",
-          start: ev.start ? new Date(ev.start).toISOString() : null,
-          end: ev.end ? new Date(ev.end).toISOString() : null,
-          location: ev.location || "",
-          allDay: ev.datetype === "date",
-          source: sourceName
-        });
+      if (ev.type !== "VEVENT") continue;
+
+      if (ev.rrule) {
+        const durationMs =
+          ev.end && ev.start ? ev.end.getTime() - ev.start.getTime() : 0;
+        const occurrences = ev.rrule.between(rangeStart, rangeEnd, true);
+        const added = new Set();
+
+        for (const occurrence of occurrences) {
+          if (isExcludedDate(occurrence, ev)) continue;
+          const overrideEvent = getRecurrenceOverride(occurrence, ev);
+          const start = overrideEvent?.start || occurrence;
+          let end = overrideEvent?.end;
+          if (!end && durationMs) {
+            end = new Date(start.getTime() + durationMs);
+          }
+
+          const keyTime = start ? start.getTime() : occurrence.getTime();
+          if (added.has(keyTime)) continue;
+          added.add(keyTime);
+
+          events.push(buildEvent(ev, overrideEvent, start, end, sourceName));
+        }
+
+        if (ev.recurrences) {
+          for (const recurrence of Object.values(ev.recurrences)) {
+            if (!recurrence?.start) continue;
+            if (recurrence.start < rangeStart || recurrence.start > rangeEnd) continue;
+            const keyTime = recurrence.start.getTime();
+            if (added.has(keyTime)) continue;
+            added.add(keyTime);
+            events.push(buildEvent(ev, recurrence, recurrence.start, recurrence.end, sourceName));
+          }
+        }
+
+        continue;
       }
+
+      events.push(buildEvent(ev, null, ev.start, ev.end, sourceName));
     }
 
     return events;
