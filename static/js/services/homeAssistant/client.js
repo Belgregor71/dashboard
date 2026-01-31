@@ -7,7 +7,7 @@ const TODO_ENTITY_IDS = HA_CONFIG?.todoEntities ?? [
   "todo.greg",
   "todo.both"
 ];
-const SHOPPING_LIST_ENTITY_ID = HA_CONFIG?.shoppingListEntityId ?? "shopping_list";
+const SHOPPING_LIST_ENTITY_ID = HA_CONFIG?.shoppingListEntityId ?? "todo.shopping_list";
 
 let socket;
 let msgId = 1;

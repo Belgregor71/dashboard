@@ -9,7 +9,7 @@ const TODO_ENTITY_IDS = CONFIG.homeAssistant?.todoEntities ?? [
   "todo.greg",
   "todo.both"
 ];
-const SHOPPING_LIST_ENTITY_ID = CONFIG.homeAssistant?.shoppingListEntityId ?? "shopping_list";
+const SHOPPING_LIST_ENTITY_ID = CONFIG.homeAssistant?.shoppingListEntityId ?? "todo.shopping_list";
 
 export function registerHAEvents() {
   on("ha:todo-items", ({ entityId, items }) => {

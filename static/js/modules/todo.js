@@ -6,7 +6,7 @@ const TODO_ENTITY_IDS = CONFIG.homeAssistant?.todoEntities ?? [
   "todo.greg",
   "todo.both"
 ];
-const SHOPPING_ENTITY_ID = CONFIG.homeAssistant?.shoppingListEntityId ?? "shopping_list";
+const SHOPPING_ENTITY_ID = CONFIG.homeAssistant?.shoppingListEntityId ?? "todo.shopping_list";
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 function normalizeItems(entity) {
