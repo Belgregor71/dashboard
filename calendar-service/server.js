@@ -44,7 +44,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
 /* ------------------------------------------------------------------
    FETCH + PARSE A SINGLE ICS FEED
 -------------------------------------------------------------------*/
-async function fetchCalendar(url) {
+async function fetchCalendar(url, sourceName = "") {
   try {
     const res = await fetchWithTimeout(url);
     if (!res.ok) {
@@ -64,7 +64,7 @@ async function fetchCalendar(url) {
           end: ev.end ? new Date(ev.end).toISOString() : null,
           location: ev.location || "",
           allDay: ev.datetype === "date",
-          source: url
+          source: sourceName
         });
       }
     }
@@ -92,8 +92,8 @@ async function getMergedEvents() {
 
     const results = await Promise.all(
       urls.map(async ({ name, url }) => {
-        console.log(`Fetching ${name}:`, url);
-        const events = await fetchCalendar(url);
+        console.log(`Fetching ${name} calendar`);
+        const events = await fetchCalendar(url, name);
         console.log("Fetched", events.length, "events from", name);
         return events;
       })
@@ -124,7 +124,7 @@ app.get("/calendar/:source(google|apple|tripit)", async (req, res) => {
     return res.status(400).json({ error: "Unknown or unconfigured calendar source" });
   }
 
-  const events = await fetchCalendar(url);
+  const events = await fetchCalendar(url, src);
   res.json(events);
 });
 

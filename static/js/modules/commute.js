@@ -43,8 +43,10 @@ async function getDriveTime(origin, destination) {
 }
 
 export async function updateCommuteTimes() {
-  const gregTime = await getDriveTime(COMMUTE_ORIGIN, COMMUTE_GREG_DEST);
-  const brettTime = await getDriveTime(COMMUTE_ORIGIN, COMMUTE_BRETT_DEST);
+  const [gregTime, brettTime] = await Promise.all([
+    getDriveTime(COMMUTE_ORIGIN, COMMUTE_GREG_DEST),
+    getDriveTime(COMMUTE_ORIGIN, COMMUTE_BRETT_DEST)
+  ]);
 
   const gregEl = document.getElementById("commute-greg");
   const brettEl = document.getElementById("commute-brett");
