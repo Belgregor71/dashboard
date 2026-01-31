@@ -7,7 +7,6 @@ import path from "path";
 import { fileURLToPath } from "url";
 import fetch from "node-fetch";
 import ical from "node-ical";
-import serveIndex from "serve-index";
 import { CAMERA_CONFIG } from "./config/cameras.js";
 import { pipeline } from "stream/promises";
 import { Readable } from "stream";
@@ -41,7 +40,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
   }
 }
 
-async function fetchCalendar(url) {
+async function fetchCalendar(url, sourceName = "") {
   try {
     const res = await fetchWithTimeout(url);
     if (!res.ok) {
@@ -60,7 +59,7 @@ async function fetchCalendar(url) {
           end: ev.end ? new Date(ev.end).toISOString() : null,
           location: ev.location || "",
           allDay: ev.datetype === "date",
-          source: url
+          source: sourceName
         });
       }
     }
@@ -79,8 +78,7 @@ async function fetchCalendar(url) {
 app.get("/env.js", (req, res) => {
   res.type("application/javascript");
   res.send(`window.__ENV__ = ${JSON.stringify({
-    HA_HOST: HA_HOST || "",
-    HA_TOKEN: HOME_ASSISTANT_TOKEN || ""
+    HA_HOST: HA_HOST || ""
   })};`);
 });
 
@@ -89,7 +87,6 @@ app.get("/env.js", (req, res) => {
 ============================================================================ */
 
 app.use(express.static(path.join(__dirname, "static")));
-app.use("/photos", serveIndex(path.join(__dirname, "static", "photos"), { icons: true }));
 app.use("/photos", express.static(path.join(__dirname, "static", "photos")));
 app.use("/icons", express.static(path.join(__dirname, "static", "icons")));
 
@@ -117,15 +114,15 @@ app.get("/api/calendar/all", async (req, res) => {
       }
     }
 
-    const urls = Object.values(CALENDAR_URLS).filter(Boolean);
+    const urls = Object.entries(CALENDAR_URLS).filter(([, value]) => Boolean(value));
     if (urls.length === 0) {
       res.status(500).json({ error: "Calendar URLs missing" });
       return;
     }
 
     const results = await Promise.all(
-      urls.map(async (url) => {
-        const events = await fetchCalendar(url);
+      urls.map(async ([sourceName, url]) => {
+        const events = await fetchCalendar(url, sourceName);
         return events;
       })
     );
@@ -193,7 +190,7 @@ app.get("/api/calendar/:source(google|apple|tripit)", async (req, res) => {
       return;
     }
 
-    const events = await fetchCalendar(calendarUrl);
+    const events = await fetchCalendar(calendarUrl, src);
     res.json(events);
   } catch (err) {
     console.error("Calendar proxy error:", err);

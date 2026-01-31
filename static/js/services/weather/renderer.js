@@ -54,6 +54,7 @@ function getUvIcon(uvIndex) {
 
 export async function startWeather() {
   try {
+    clearLotties();
     const data = await fetchWeatherData();
     cachedWeather = data;
     cachedDaily = data?.daily || null;
@@ -66,10 +67,13 @@ export async function startWeather() {
 }
 
 function renderCurrent(data) {
-  const current = data.current_weather;
-  const daily = data.daily;
-  const hourly = data.hourly;
+  const current = data?.current_weather;
+  const daily = data?.daily;
+  const hourly = data?.hourly;
   const hourlyIndex = getClosestHourIndex(hourly);
+  if (!current || !daily?.temperature_2m_max?.length || !daily?.temperature_2m_min?.length) {
+    return;
+  }
 
   const tempEl = document.getElementById("current-temp");
   const descEl = document.getElementById("current-conditions");
