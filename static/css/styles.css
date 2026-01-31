@@ -438,6 +438,51 @@ body.is-overlay-active {
   height: 100% !important;
 }
 
+.event-item {
+  --event-accent: #64748B;
+  --event-bg: rgba(100, 116, 139, 0.1);
+  --event-text: #F8FAFC;
+  color: var(--event-text);
+}
+
+.event-item--line {
+  position: relative;
+  padding-left: 12px;
+  border-left: 3px solid var(--event-accent);
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.event-item--line::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 0.7em;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--event-accent);
+  transform: translate(-50%, -50%);
+}
+
+.event-item--pill {
+  background: var(--event-bg);
+  border-left: 3px solid var(--event-accent);
+}
+
+.event-item--card {
+  background: var(--event-bg);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 4px solid var(--event-accent);
+}
+
+.event-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 4px;
+}
+
 .today-empty {
   opacity: 0.7;
   padding: 10px 0;
@@ -987,7 +1032,11 @@ body[data-view="cameras"] #time-panel {
   font-size: 0.7rem;
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(231, 76, 60, 0.75);
+  background: var(--event-bg, rgba(231, 76, 60, 0.75));
+  border-left: 3px solid var(--event-accent, rgba(231, 76, 60, 0.85));
+  display: flex;
+  align-items: center;
+  gap: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1063,6 +1112,12 @@ body[data-view="cameras"] #time-panel {
   border-radius: 14px;
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.agenda-card.event-item--card {
+  background: var(--event-bg);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 4px solid var(--event-accent);
 }
 
 .agenda-card-main {
@@ -1556,7 +1611,11 @@ body[data-view="calendar"] #time-panel {
   font-size: 0.7rem;
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(231, 76, 60, 0.75);
+  background: var(--event-bg, rgba(231, 76, 60, 0.75));
+  border-left: 3px solid var(--event-accent, rgba(231, 76, 60, 0.85));
+  display: flex;
+  align-items: center;
+  gap: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
