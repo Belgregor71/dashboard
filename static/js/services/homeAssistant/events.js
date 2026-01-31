@@ -2,12 +2,14 @@ import { on } from "../../core/eventBus.js";
 import { CONFIG } from "../../core/config.js";
 import { getEntity, updateEntity } from "./state.js";
 import { switchView } from "../../core/viewManager.js";
-import { requestTodoItems } from "./client.js";
+import { requestShoppingList, requestTodoItems } from "./client.js";
 
 const TODO_ENTITY_IDS = CONFIG.homeAssistant?.todoEntities ?? [
-  "todo.jobs_to_be_done",
-  "todo.shopping_list"
+  "todo.brett",
+  "todo.greg",
+  "todo.both"
 ];
+const SHOPPING_LIST_ENTITY_ID = CONFIG.homeAssistant?.shoppingListEntityId ?? "shopping_list";
 
 export function registerHAEvents() {
   on("ha:todo-items", ({ entityId, items }) => {
@@ -46,6 +48,7 @@ export function registerHAEvents() {
     });
 
     TODO_ENTITY_IDS.forEach((entityId) => requestTodoItems(entityId));
+    requestShoppingList();
   });
 
   on("ha:event:state_changed", (data) => {
@@ -60,6 +63,9 @@ export function registerHAEvents() {
     const entityId = data?.new_state?.entity_id;
     if (TODO_ENTITY_IDS.includes(entityId)) {
       requestTodoItems(entityId);
+    }
+    if (entityId === SHOPPING_LIST_ENTITY_ID) {
+      requestShoppingList();
     }
   });
 
