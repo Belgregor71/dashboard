@@ -36,6 +36,18 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
 }
 
 /* ============================================================================
+   ENV CONFIG (INJECTED TO CLIENT)
+============================================================================ */
+
+app.get("/env.js", (req, res) => {
+  res.type("application/javascript");
+  res.send(`window.__ENV__ = ${JSON.stringify({
+    HA_HOST: HA_HOST || "",
+    HA_TOKEN: HOME_ASSISTANT_TOKEN || ""
+  })};`);
+});
+
+/* ============================================================================
    STATIC FILES
 ============================================================================ */
 

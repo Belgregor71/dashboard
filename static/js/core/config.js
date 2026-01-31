@@ -1,8 +1,10 @@
+const ENV = typeof window !== "undefined" ? window.__ENV__ ?? {} : {};
+
 export const CONFIG = {
   homeAssistant: {
     enabled: true,
-    url: "http://192.168.0.179:8123",
-    token: "",
+    url: ENV.HA_HOST || "http://192.168.0.179:8123",
+    token: ENV.HA_TOKEN || "",
     reconnectInterval: 5000,
     mediaPlayers: [
       { entityId: "media_player.living_room", label: "Living Room" },
