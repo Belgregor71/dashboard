@@ -106,7 +106,7 @@ app.get("/api/calendar/all", async (req, res) => {
   try {
     const CAL_SVC = process.env.CALENDAR_SERVICE_URL || "http://localhost:5000";
     if (process.env.CALENDAR_SERVICE_URL) {
-      const calendarUrl = new URL("/calendar/all", CAL_SVC);
+      const calendarUrl = buildCalendarServiceUrl(CAL_SVC, "calendar/all");
       const r = await fetchWithTimeout(calendarUrl.toString());
       const data = await r.json();
       res.json(data);
@@ -139,17 +139,23 @@ app.get("/api/calendar/all", async (req, res) => {
 ============================================================================ */
 
 const CALENDAR_ENDPOINTS = {
-  google: "/calendar/google",
-  apple: "/calendar/apple",
-  tripit: "/calendar/tripit"
+  google: "calendar/google",
+  apple: "calendar/apple",
+  tripit: "calendar/tripit"
 };
+
+function buildCalendarServiceUrl(baseUrl, endpointPath) {
+  const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  const normalizedPath = endpointPath.replace(/^\//, "");
+  return new URL(normalizedPath, normalizedBase);
+}
 
 // IMPORTANT: prevent ":source" from matching "all"
 app.get("/api/calendar/:source(google|apple|tripit)", async (req, res) => {
   const src = req.params.source;
   const pathValue = CALENDAR_ENDPOINTS[src];
   const CAL_SVC = process.env.CALENDAR_SERVICE_URL || "http://localhost:5000";
-  const url = new URL(pathValue, CAL_SVC);
+  const url = buildCalendarServiceUrl(CAL_SVC, pathValue);
   const calendarUrl = CALENDAR_URLS[src];
 
   try {
