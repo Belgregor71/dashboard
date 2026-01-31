@@ -19,9 +19,15 @@ const CALENDAR_URLS = {
   tripit: process.env.CALENDAR_TRIPIT_URL
 };
 
+function getConfiguredCalendarUrls() {
+  return Object.entries(CALENDAR_URLS)
+    .filter(([, url]) => Boolean(url))
+    .map(([name, url]) => ({ name, url }));
+}
+
 for (const [name, url] of Object.entries(CALENDAR_URLS)) {
   if (!url) {
-    throw new Error(`Missing calendar URL: ${name}`);
+    console.warn(`Calendar URL missing for ${name}.`);
   }
 }
 
@@ -41,6 +47,9 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
 async function fetchCalendar(url) {
   try {
     const res = await fetchWithTimeout(url);
+    if (!res.ok) {
+      throw new Error(`Calendar fetch failed (${res.status}) for ${url}`);
+    }
     const text = await res.text();
     const data = ical.parseICS(text);
 
@@ -74,13 +83,18 @@ async function getMergedEvents() {
   try {
     console.log("Fetching merged calendars...");
 
-    const urls = Object.values(CALENDAR_URLS);
+    const urls = getConfiguredCalendarUrls();
+
+    if (urls.length === 0) {
+      console.warn("No calendar URLs configured.");
+      return [];
+    }
 
     const results = await Promise.all(
-      urls.map(async (url) => {
-        console.log("Fetching:", url);
+      urls.map(async ({ name, url }) => {
+        console.log(`Fetching ${name}:`, url);
         const events = await fetchCalendar(url);
-        console.log("Fetched", events.length, "events from", url);
+        console.log("Fetched", events.length, "events from", name);
         return events;
       })
     );
@@ -107,7 +121,7 @@ app.get("/calendar/:source(google|apple|tripit)", async (req, res) => {
   const url = CALENDAR_URLS[src];
 
   if (!url) {
-    return res.status(400).json({ error: "Unknown calendar source" });
+    return res.status(400).json({ error: "Unknown or unconfigured calendar source" });
   }
 
   const events = await fetchCalendar(url);
@@ -118,6 +132,9 @@ app.get("/calendar/:source(google|apple|tripit)", async (req, res) => {
    ENDPOINT: MERGED CALENDAR
 -------------------------------------------------------------------*/
 app.get("/calendar/all", async (req, res) => {
+  if (getConfiguredCalendarUrls().length === 0) {
+    return res.status(500).json({ error: "No calendar URLs configured" });
+  }
   const events = await getMergedEvents();
   res.json(events);
 });

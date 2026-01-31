@@ -44,6 +44,9 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
 async function fetchCalendar(url) {
   try {
     const res = await fetchWithTimeout(url);
+    if (!res.ok) {
+      throw new Error(`Calendar fetch failed (${res.status}) for ${url}`);
+    }
     const text = await res.text();
     const data = ical.parseICS(text);
     const events = [];
@@ -104,13 +107,14 @@ app.get("/", (req, res) => {
 
 app.get("/api/calendar/all", async (req, res) => {
   try {
-    const CAL_SVC = process.env.CALENDAR_SERVICE_URL || "http://localhost:5000";
     if (process.env.CALENDAR_SERVICE_URL) {
-      const calendarUrl = buildCalendarServiceUrl(CAL_SVC, "calendar/all");
-      const r = await fetchWithTimeout(calendarUrl.toString());
-      const data = await r.json();
-      res.json(data);
-      return;
+      try {
+        const data = await fetchCalendarService("calendar/all");
+        res.json(data);
+        return;
+      } catch (err) {
+        console.warn("Calendar service failed, falling back to direct URLs.", err);
+      }
     }
 
     const urls = Object.values(CALENDAR_URLS).filter(Boolean);
@@ -150,20 +154,38 @@ function buildCalendarServiceUrl(baseUrl, endpointPath) {
   return new URL(normalizedPath, normalizedBase);
 }
 
+async function fetchCalendarService(endpointPath) {
+  const CAL_SVC = process.env.CALENDAR_SERVICE_URL || "http://localhost:5000";
+  const url = buildCalendarServiceUrl(CAL_SVC, endpointPath);
+  const r = await fetchWithTimeout(url.toString());
+  if (!r.ok) {
+    throw new Error(`Calendar service returned ${r.status} for ${endpointPath}`);
+  }
+  const data = await r.json();
+  if (!Array.isArray(data)) {
+    throw new Error("Calendar service returned non-array payload");
+  }
+  return data;
+}
+
 // IMPORTANT: prevent ":source" from matching "all"
 app.get("/api/calendar/:source(google|apple|tripit)", async (req, res) => {
   const src = req.params.source;
   const pathValue = CALENDAR_ENDPOINTS[src];
-  const CAL_SVC = process.env.CALENDAR_SERVICE_URL || "http://localhost:5000";
-  const url = buildCalendarServiceUrl(CAL_SVC, pathValue);
   const calendarUrl = CALENDAR_URLS[src];
 
   try {
     if (process.env.CALENDAR_SERVICE_URL) {
-      const r = await fetchWithTimeout(url.toString());
-      const data = await r.json();
-      res.json(data);
-      return;
+      try {
+        const data = await fetchCalendarService(pathValue);
+        res.json(data);
+        return;
+      } catch (err) {
+        console.warn(
+          `Calendar service failed for ${src}, falling back to direct URL.`,
+          err
+        );
+      }
     }
 
     if (!calendarUrl) {
