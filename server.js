@@ -6,6 +6,7 @@ import https from "https";
 import path from "path";
 import { fileURLToPath } from "url";
 import fetch from "node-fetch";
+import ical from "node-ical";
 import serveIndex from "serve-index";
 import { CAMERA_CONFIG } from "./config/cameras.js";
 import { pipeline } from "stream/promises";
@@ -22,6 +23,11 @@ const PORT = process.env.PORT || 3000;
 const HA_HOST = process.env.HA_HOST;
 const GO2RTC_HOST = process.env.GO2RTC_HOST;
 const HOME_ASSISTANT_TOKEN = process.env.HA_TOKEN;
+const CALENDAR_URLS = {
+  google: process.env.CALENDAR_GOOGLE_URL,
+  apple: process.env.CALENDAR_APPLE_URL,
+  tripit: process.env.CALENDAR_TRIPIT_URL
+};
 
 const CAMERA_MAP = new Map(CAMERA_CONFIG.map((camera) => [camera.id, camera]));
 
@@ -32,6 +38,34 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
     return await fetch(url, { ...options, signal: controller.signal });
   } finally {
     clearTimeout(timer);
+  }
+}
+
+async function fetchCalendar(url) {
+  try {
+    const res = await fetchWithTimeout(url);
+    const text = await res.text();
+    const data = ical.parseICS(text);
+    const events = [];
+
+    for (const key in data) {
+      const ev = data[key];
+      if (ev.type === "VEVENT") {
+        events.push({
+          title: ev.summary || "",
+          start: ev.start ? new Date(ev.start).toISOString() : null,
+          end: ev.end ? new Date(ev.end).toISOString() : null,
+          location: ev.location || "",
+          allDay: ev.datetype === "date",
+          source: url
+        });
+      }
+    }
+
+    return events;
+  } catch (err) {
+    console.error("Calendar fetch error:", err);
+    return [];
   }
 }
 
@@ -71,9 +105,29 @@ app.get("/", (req, res) => {
 app.get("/api/calendar/all", async (req, res) => {
   try {
     const CAL_SVC = process.env.CALENDAR_SERVICE_URL || "http://localhost:5000";
-    const r = await fetchWithTimeout(`${CAL_SVC}/calendar/all`);
-    const data = await r.json();
-    res.json(data);
+    if (process.env.CALENDAR_SERVICE_URL) {
+      const calendarUrl = new URL("/calendar/all", CAL_SVC);
+      const r = await fetchWithTimeout(calendarUrl.toString());
+      const data = await r.json();
+      res.json(data);
+      return;
+    }
+
+    const urls = Object.values(CALENDAR_URLS).filter(Boolean);
+    if (urls.length === 0) {
+      res.status(500).json({ error: "Calendar URLs missing" });
+      return;
+    }
+
+    const results = await Promise.all(
+      urls.map(async (url) => {
+        const events = await fetchCalendar(url);
+        return events;
+      })
+    );
+    const merged = results.flat().filter((ev) => ev.start);
+    merged.sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+    res.json(merged);
   } catch (err) {
     console.error("Calendar ALL proxy error:", err);
     res.status(500).json({ error: "Calendar all error" });
@@ -85,20 +139,34 @@ app.get("/api/calendar/all", async (req, res) => {
 ============================================================================ */
 
 const CALENDAR_ENDPOINTS = {
-  google: "http://localhost:5000/calendar/google",
-  apple: "http://localhost:5000/calendar/apple",
-  tripit: "http://localhost:5000/calendar/tripit"
+  google: "/calendar/google",
+  apple: "/calendar/apple",
+  tripit: "/calendar/tripit"
 };
 
 // IMPORTANT: prevent ":source" from matching "all"
 app.get("/api/calendar/:source(google|apple|tripit)", async (req, res) => {
   const src = req.params.source;
-  const url = CALENDAR_ENDPOINTS[src];
+  const pathValue = CALENDAR_ENDPOINTS[src];
+  const CAL_SVC = process.env.CALENDAR_SERVICE_URL || "http://localhost:5000";
+  const url = new URL(pathValue, CAL_SVC);
+  const calendarUrl = CALENDAR_URLS[src];
 
   try {
-    const r = await fetchWithTimeout(url);
-    const data = await r.json();
-    res.json(data);
+    if (process.env.CALENDAR_SERVICE_URL) {
+      const r = await fetchWithTimeout(url.toString());
+      const data = await r.json();
+      res.json(data);
+      return;
+    }
+
+    if (!calendarUrl) {
+      res.status(500).json({ error: "Calendar URL missing" });
+      return;
+    }
+
+    const events = await fetchCalendar(calendarUrl);
+    res.json(events);
   } catch (err) {
     console.error("Calendar proxy error:", err);
     res.status(500).json({ error: "Calendar error" });
