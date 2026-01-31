@@ -1,4 +1,5 @@
 import { CONFIG } from "../core/config.js";
+import { on } from "../core/eventBus.js";
 
 function setConnectionState(state) {
   const connectionText = document.querySelector(".ha-connection__text");
@@ -18,11 +19,11 @@ export function initHomeAssistantTodayPanel() {
 
   setConnectionState("Connecting…");
 
-  document.addEventListener("ha:connected", () => {
+  on("ha:connected", () => {
     setConnectionState("Connected");
   });
 
-  document.addEventListener("ha:disconnected", () => {
+  on("ha:disconnected", () => {
     setConnectionState("Disconnected");
   });
 }
