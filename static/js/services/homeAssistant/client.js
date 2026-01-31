@@ -3,14 +3,16 @@ import { emit } from "../../core/eventBus.js";
 
 const HA_CONFIG = CONFIG.homeAssistant;
 const TODO_ENTITY_IDS = HA_CONFIG?.todoEntities ?? [
-  "todo.jobs_to_be_done",
-  "todo.shopping_list"
+  "todo.brett",
+  "todo.greg",
+  "todo.both"
 ];
 const SHOPPING_LIST_ENTITY_ID = HA_CONFIG?.shoppingListEntityId ?? "shopping_list";
 
 let socket;
 let msgId = 1;
 let getStatesRequestId;
+const pendingRequests = new Map();
 
 export function connectHA() {
   if (!HA_CONFIG?.enabled) {
@@ -51,12 +53,28 @@ export function connectHA() {
         type: "get_states"
       }));
       TODO_ENTITY_IDS.forEach((entityId) => requestTodoItems(entityId));
+      requestShoppingList();
       emit("ha:connected");
       return;
     }
 
-    if (msg.type === "result" && msg.id === getStatesRequestId) {
-      emit("ha:states", msg.result);
+    if (msg.type === "result") {
+      const pending = pendingRequests.get(msg.id);
+      if (pending) {
+        pendingRequests.delete(msg.id);
+        if (msg.success === false) {
+          pending.reject(new Error(msg.error?.message || "HA service call failed"));
+        } else {
+          pending.resolve(msg.result);
+        }
+        return;
+      }
+
+      if (msg.id === getStatesRequestId) {
+        emit("ha:states", msg.result);
+        return;
+      }
+
       return;
     }
 
@@ -83,10 +101,32 @@ function subscribe(eventType) {
 export function requestTodoItems(entityId) {
   if (!entityId || !HA_CONFIG?.token) return;
 
-  const isShoppingList = entityId === SHOPPING_LIST_ENTITY_ID;
-  const url = isShoppingList
-    ? `${HA_CONFIG.url}/api/shopping_list`
-    : `${HA_CONFIG.url}/api/todo/${entityId}`;
+  callHAService({
+    domain: "todo",
+    service: "get_items",
+    serviceData: {
+      entity_id: entityId
+    }
+  })
+    .then((result) => {
+      const items = Array.isArray(result)
+        ? result
+        : result?.items ?? result?.response?.items ?? result?.[0]?.items ?? [];
+
+      emit("ha:todo-items", {
+        entityId,
+        items
+      });
+    })
+    .catch((error) => {
+      console.warn("HA todo items fetch failed", error);
+    });
+}
+
+export function requestShoppingList() {
+  if (!HA_CONFIG?.token) return;
+
+  const url = `${HA_CONFIG.url}/api/shopping_list`;
 
   fetch(url, {
     method: "GET",
@@ -97,17 +137,42 @@ export function requestTodoItems(entityId) {
   })
     .then((response) => {
       if (!response.ok) {
-        throw new Error(`Failed to fetch ${entityId} todo items`);
+        throw new Error("Failed to fetch shopping list items");
       }
       return response.json();
     })
     .then((items) => {
       emit("ha:todo-items", {
-        entityId,
+        entityId: SHOPPING_LIST_ENTITY_ID,
         items: Array.isArray(items) ? items : items?.items ?? []
       });
     })
     .catch((error) => {
-      console.warn("HA todo items fetch failed", error);
+      console.warn("HA shopping list fetch failed", error);
     });
+}
+
+export function callHAService({ domain, service, serviceData = {}, target }) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    return Promise.reject(new Error("HA socket not connected"));
+  }
+
+  const id = msgId++;
+  const payload = {
+    id,
+    type: "call_service",
+    domain,
+    service,
+    service_data: serviceData,
+    return_response: true
+  };
+
+  if (target) {
+    payload.target = target;
+  }
+
+  return new Promise((resolve, reject) => {
+    pendingRequests.set(id, { resolve, reject });
+    socket.send(JSON.stringify(payload));
+  });
 }

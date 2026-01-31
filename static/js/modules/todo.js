@@ -1,8 +1,12 @@
 import { CONFIG } from "../core/config.js";
 import { getEntity } from "../services/homeAssistant/state.js";
 
-const TODO_ENTITY_ID = CONFIG.homeAssistant?.todoEntities?.[0] ?? "todo.jobs_to_be_done";
-const SHOPPING_ENTITY_ID = CONFIG.homeAssistant?.todoEntities?.[1] ?? "todo.shopping_list";
+const TODO_ENTITY_IDS = CONFIG.homeAssistant?.todoEntities ?? [
+  "todo.brett",
+  "todo.greg",
+  "todo.both"
+];
+const SHOPPING_ENTITY_ID = CONFIG.homeAssistant?.shoppingListEntityId ?? "shopping_list";
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 function normalizeItems(entity) {
@@ -59,12 +63,25 @@ function buildTodoRow(task, daysLeft, isEmpty = false) {
   return row;
 }
 
+function resolveListLabel(entityId) {
+  return entityId?.split(".")[1]?.replace(/_/g, " ") ?? "list";
+}
+
+function normalizeTodoItems() {
+  return TODO_ENTITY_IDS.flatMap((entityId) => {
+    const entity = getEntity(entityId);
+    return normalizeItems(entity).map((item) => ({
+      ...item,
+      __entityId: entityId
+    }));
+  });
+}
+
 function renderTodoList() {
   const listEl = document.getElementById("reminders-list");
   if (!listEl) return;
 
-  const entity = getEntity(TODO_ENTITY_ID);
-  const items = normalizeItems(entity).filter(item => !isCompleted(item));
+  const items = normalizeTodoItems().filter(item => !isCompleted(item));
 
   listEl.innerHTML = "";
 
@@ -83,8 +100,12 @@ function renderTodoList() {
     return resolveSummary(a).localeCompare(resolveSummary(b));
   });
 
+  const showListLabel = TODO_ENTITY_IDS.length > 1;
   sorted.forEach(item => {
-    listEl.appendChild(buildTodoRow(resolveSummary(item), formatDaysLeft(item)));
+    const label = showListLabel
+      ? `${resolveSummary(item)} (${resolveListLabel(item.__entityId)})`
+      : resolveSummary(item);
+    listEl.appendChild(buildTodoRow(label, formatDaysLeft(item)));
   });
 }
 
@@ -113,7 +134,7 @@ function renderShoppingList() {
 }
 
 function refresh(entityId) {
-  if (!entityId || entityId === TODO_ENTITY_ID) {
+  if (!entityId || TODO_ENTITY_IDS.includes(entityId)) {
     renderTodoList();
   }
 
