@@ -98,6 +98,18 @@ function subscribe(eventType) {
   }));
 }
 
+function extractTodoItems(result, entityId) {
+  if (Array.isArray(result)) return result;
+
+  const directItems = result?.items ?? result?.response?.items ?? result?.[0]?.items;
+  if (Array.isArray(directItems)) return directItems;
+
+  const keyedItems = result?.response?.[entityId]?.items ?? result?.[entityId]?.items;
+  if (Array.isArray(keyedItems)) return keyedItems;
+
+  return [];
+}
+
 export function requestTodoItems(entityId) {
   if (!entityId || !HA_CONFIG?.token) return;
 
@@ -109,9 +121,7 @@ export function requestTodoItems(entityId) {
     }
   })
     .then((result) => {
-      const items = Array.isArray(result)
-        ? result
-        : result?.items ?? result?.response?.items ?? result?.[0]?.items ?? [];
+      const items = extractTodoItems(result, entityId);
 
       emit("ha:todo-items", {
         entityId,
