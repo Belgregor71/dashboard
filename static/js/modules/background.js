@@ -18,29 +18,17 @@ export function initBackground() {
 }
 
 function loadBackgroundImages() {
-  fetch("/photos/")
-    .then(res => res.text())
-    .then(text => {
-      const doc = new DOMParser().parseFromString(text, "text/html");
-      const links = Array.from(doc.querySelectorAll("a[href]"));
-      const imageExtensions = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif"]);
-      const files = links
-        .map(link => {
-          try {
-            return new URL(link.getAttribute("href"), window.location.origin).pathname;
-          } catch (error) {
-            console.warn("Skipping invalid background link:", link.getAttribute("href"), error);
-            return null;
-          }
-        })
-        .filter(Boolean)
-        .filter(pathname => {
-          const lower = pathname.toLowerCase();
-          return Array.from(imageExtensions).some(ext => lower.endsWith(ext));
-        })
-        .map(pathname => pathname.replace(/^\/?photos\//, ""));
+  fetch("/api/photos")
+    .then(res => res.json())
+    .then(files => {
+      if (!Array.isArray(files)) {
+        throw new Error("Photo API returned non-array payload");
+      }
 
-      backgroundImages = Array.from(new Set(files)).map(file => `/photos/${file}`);
+      backgroundImages = Array.from(new Set(files)).map(file => {
+        const trimmed = String(file).replace(/^\/?photos\//, "");
+        return `/photos/${encodeURIComponent(trimmed)}`;
+      });
 
       if (backgroundImages.length > 0) {
         rotateBackground();

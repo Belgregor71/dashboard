@@ -3,6 +3,7 @@ console.log(">>> DASHBOARD SERVER LOADED <<<");
 import dotenv from "dotenv";
 import express from "express";
 import https from "https";
+import { readdir } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import fetch from "node-fetch";
@@ -78,7 +79,8 @@ async function fetchCalendar(url, sourceName = "") {
 app.get("/env.js", (req, res) => {
   res.type("application/javascript");
   res.send(`window.__ENV__ = ${JSON.stringify({
-    HA_HOST: HA_HOST || ""
+    HA_HOST: HA_HOST || "",
+    HA_TOKEN: HOME_ASSISTANT_TOKEN || ""
   })};`);
 });
 
@@ -89,6 +91,33 @@ app.get("/env.js", (req, res) => {
 app.use(express.static(path.join(__dirname, "static")));
 app.use("/photos", express.static(path.join(__dirname, "static", "photos")));
 app.use("/icons", express.static(path.join(__dirname, "static", "icons")));
+
+/* ============================================================================
+   PHOTOS LISTING
+============================================================================ */
+
+app.get("/api/photos", async (req, res) => {
+  const photosDir = path.join(__dirname, "static", "photos");
+  const imageExtensions = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif"]);
+
+  try {
+    const entries = await readdir(photosDir, { withFileTypes: true });
+    const files = entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name)
+      .filter((name) => imageExtensions.has(path.extname(name).toLowerCase()))
+      .sort((a, b) => a.localeCompare(b));
+
+    res.json(files);
+  } catch (err) {
+    if (err?.code === "ENOENT") {
+      res.json([]);
+      return;
+    }
+    console.error("Photo listing error:", err);
+    res.status(500).json({ error: "Unable to list photos" });
+  }
+});
 
 /* ============================================================================
    ROOT → index.html
