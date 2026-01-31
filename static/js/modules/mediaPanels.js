@@ -1,4 +1,5 @@
 import { CONFIG } from "../core/config.js";
+import { on } from "../core/eventBus.js";
 import { getEntity } from "../services/homeAssistant/state.js";
 
 const PANEL_IDS = ["media-panel-1", "media-panel-2"];
@@ -116,13 +117,18 @@ export function initMediaPanels() {
     renderPanel(entry.panel, entity, entry.config);
   }
 
+  function refreshAll() {
+    panelMap.forEach((_, entityId) => refresh(entityId));
+  }
+
   document.addEventListener("ha:state-updated", (event) => {
     refresh(event.detail?.entity_id);
   });
 
   document.addEventListener("ha:connected", () => {
-    configs.forEach(config => refresh(config.entityId));
+    refreshAll();
   });
 
-  configs.forEach(config => refresh(config.entityId));
+  on("view:changed", () => refreshAll());
+  refreshAll();
 }

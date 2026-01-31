@@ -3,8 +3,15 @@ export function loadLottieAnimation(containerId, fileName) {
   if (!container || !window.lottie) return;
 
   const currentFile = container.dataset.lottieFile;
-  if (currentFile === fileName && container._lottieInstance) {
-    return container._lottieInstance;
+  const currentInstance = container._lottieInstance;
+  if (currentFile === fileName && currentInstance) {
+    const hasRenderer = container.querySelector("svg, canvas");
+    if (currentInstance.isDestroyed || !hasRenderer) {
+      container._lottieInstance = null;
+      container.dataset.lottieFile = "";
+    } else {
+      return currentInstance;
+    }
   }
 
   const previous = container.querySelector(".lottie-fade");
