@@ -1,7 +1,7 @@
 import { emit } from "./eventBus.js";
 
 let currentView = "home";
-const viewOrder = ["home", "cameras", "calendar", "agenda"];
+const viewOrder = ["home", "weather", "cameras", "calendar", "agenda"];
 let clickHandlerRegistered = false;
 
 function getNextView(view) {
