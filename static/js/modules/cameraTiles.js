@@ -1,6 +1,37 @@
+import { emit } from "../core/eventBus.js";
+
 const DEFAULT_SNAPSHOT_REFRESH_MS = 20_000;
 const DEFAULT_STREAM_TIMEOUT_MS = 90_000;
 const MAX_BACKOFF_MS = 10_000;
+
+const cameraStatuses = new Map();
+
+function emitCameraStatus() {
+  const total = cameraStatuses.size;
+  let online = 0;
+  let offline = 0;
+  let unknown = 0;
+  cameraStatuses.forEach((status) => {
+    if (status === "online") online += 1;
+    if (status === "offline") offline += 1;
+    if (status === "unknown") unknown += 1;
+  });
+
+  emit("cameras:status", {
+    total,
+    online,
+    offline,
+    unknown
+  });
+}
+
+function updateCameraStatus(cameraId, status) {
+  if (!cameraId) return;
+  const prev = cameraStatuses.get(cameraId);
+  if (prev === status) return;
+  cameraStatuses.set(cameraId, status);
+  emitCameraStatus();
+}
 
 function buildStreamUrl(camera, streamType) {
   const url = new URL(camera.streamUrl, window.location.origin);
@@ -73,12 +104,21 @@ export async function initCameraTiles() {
   const cards = document.querySelectorAll("[data-camera-id]");
   if (!cards.length) return;
 
+  cards.forEach((card) => {
+    const cameraId = card.dataset.cameraId?.replace("camera.", "");
+    if (cameraId) updateCameraStatus(cameraId, "unknown");
+  });
+
   let cameras = [];
   try {
     cameras = await fetchCameraConfig();
   } catch (error) {
     console.warn("Camera config unavailable", error);
-    cards.forEach((card) => setStatus(card, "Camera config unavailable"));
+    cards.forEach((card) => {
+      setStatus(card, "Camera config unavailable");
+      const cameraId = card.dataset.cameraId?.replace("camera.", "");
+      updateCameraStatus(cameraId, "offline");
+    });
     return;
   }
 
@@ -87,8 +127,10 @@ export async function initCameraTiles() {
   cards.forEach((card) => {
     const cameraId = card.dataset.cameraId?.replace("camera.", "");
     const camera = camerasById.get(cameraId);
+    const statusKey = camera?.id || cameraId;
     if (!camera) {
       setStatus(card, "Camera not configured");
+      updateCameraStatus(statusKey, "offline");
       return;
     }
 
@@ -96,6 +138,17 @@ export async function initCameraTiles() {
     const videoEl = card.querySelector(".camera-card__video");
     const labelEl = card.querySelector(".camera-card__name");
     if (labelEl) labelEl.textContent = camera.name;
+
+    if (imageEl) {
+      imageEl.addEventListener("load", () => updateCameraStatus(statusKey, "online"));
+      imageEl.addEventListener("error", () => updateCameraStatus(statusKey, "offline"));
+    }
+
+    if (videoEl) {
+      videoEl.addEventListener("playing", () => updateCameraStatus(statusKey, "online"));
+      videoEl.addEventListener("error", () => updateCameraStatus(statusKey, "offline"));
+      videoEl.addEventListener("stalled", () => updateCameraStatus(statusKey, "offline"));
+    }
 
     let snapshotTimer;
     let streamTimer;
@@ -116,6 +169,7 @@ export async function initCameraTiles() {
 
     function startSnapshotPolling() {
       if (!imageEl) return;
+      updateCameraStatus(statusKey, "unknown");
       imageEl.src = buildSnapshotUrl(camera);
       if (snapshotTimer) clearInterval(snapshotTimer);
       snapshotTimer = setInterval(() => {
@@ -138,6 +192,7 @@ export async function initCameraTiles() {
 
     function handleStreamFailure(isPersistent) {
       setStatus(card, isPersistent ? "Reconnecting…" : "Stream unavailable");
+      updateCameraStatus(statusKey, "offline");
       cycleStreamType();
       if (!isPersistent) {
         stopStream();
@@ -159,6 +214,7 @@ export async function initCameraTiles() {
       if (!videoEl) return;
       clearTimers();
       setStatus(card, "Connecting…");
+      updateCameraStatus(statusKey, "unknown");
       toggleActionButtons(card, { showStart: false, showStop: camera.mode === "snapshot" });
 
       const streamUrl = buildStreamUrl(camera, activeStreamType);
@@ -174,6 +230,7 @@ export async function initCameraTiles() {
         .then(() => {
           setStatus(card, "");
           backoff = createBackoff();
+          updateCameraStatus(statusKey, "online");
           scheduleStop();
         })
         .catch(() => {

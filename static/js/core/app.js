@@ -18,6 +18,7 @@ import { initDoorbellOverlay } from "../modules/doorbellOverlay.js";
 import { initCameraMotionView } from "../modules/cameraMotionView.js";
 import { initCameraTiles } from "../modules/cameraTiles.js";
 import { initHomeAssistantTodayPanel } from "../modules/haToday.js";
+import { initSystemStatus } from "../modules/systemStatus.js";
 
 import { connectHA } from "../services/homeAssistant/client.js";
 import { registerHAEvents } from "../services/homeAssistant/events.js";
@@ -35,6 +36,7 @@ export function startApp() {
 
   initViews();
   registerLifecycle();
+  initSystemStatus();
 
   const cfg = window.CONFIG || {};
 

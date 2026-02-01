@@ -10,7 +10,7 @@ import {
   describeWindDirection
 } from "../../config/weather-animations.js";
 import { loadLottieAnimation } from "../../helpers/lottie.js";
-import { on } from "../../core/eventBus.js";
+import { emit, on } from "../../core/eventBus.js";
 import { backgroundUrlForWeatherCode } from "../../weatherBackgrounds.js";
 import { startWeatherMotion, stopWeatherMotion } from "../../weatherMotion.js";
 
@@ -89,6 +89,7 @@ export async function startWeather() {
     renderCurrent(data);
     renderWeekly(data.daily);
     renderHourly(data.hourly);
+    emit("weather:refreshed", { timestamp: Date.now() });
   } catch (e) {
     console.error("Weather render error:", e);
   }

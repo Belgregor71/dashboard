@@ -81,5 +81,9 @@ export const CONFIG = {
         "binary_sensor.side_gate_motion"
       ]
     }
+  },
+  systemStatus: {
+    modeLabel: "Normal",
+    modeEntityId: ""
   }
 };
