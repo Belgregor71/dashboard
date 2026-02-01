@@ -898,14 +898,15 @@ body[data-view="calendar"] #time-panel {
 ============================================================================ */
 
 #status-view {
-  padding: 10px 40px 40px;
+  padding: 16px 48px 40px;
 }
 
 .status-panel {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  height: calc(100vh - 160px);
+  height: calc(100vh - 150px);
+  min-height: 0;
 }
 
 .status-header {
@@ -934,9 +935,9 @@ body[data-view="calendar"] #time-panel {
 
 .status-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   grid-auto-flow: dense;
-  gap: 12px;
+  gap: 14px;
   flex: 1;
 }
 
@@ -954,6 +955,17 @@ body[data-view="calendar"] #time-panel {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .status-group:nth-child(4) {
+    grid-column: span 2;
+  }
+}
+
+@media (min-width: 1400px) {
+  .status-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .status-group:nth-child(3),
   .status-group:nth-child(4) {
     grid-column: span 2;
   }
