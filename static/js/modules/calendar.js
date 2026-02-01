@@ -1,19 +1,101 @@
 // calendar.js
 import { format } from "../helpers/dates.js";
-import { emit } from "../core/eventBus.js";
+import { emit, on } from "../core/eventBus.js";
 
 const CAL_URL = "/api/calendar/all";
 const MEAL_PREFIX = /^Meal:\s*/;
 const DEFAULT_CATEGORY = {
-  id: "default",
-  label: "Other",
-  icon: "📌",
-  accent: "#64748B",
-  bg: "rgba(100, 116, 139, 0.1)",
+  id: "personal",
+  label: "Personal",
+  icon: "🌿",
+  accent: "#38BDF8",
+  bg: "rgba(56, 189, 248, 0.12)",
   text: "#F8FAFC"
 };
 
 const EVENT_CATEGORIES = [
+  {
+    id: "work",
+    label: "Work",
+    icon: "💼",
+    accent: "#F59E0B",
+    bg: "rgba(245, 158, 11, 0.12)",
+    keywords: [
+      "meeting",
+      "1:1",
+      "standup",
+      "sync",
+      "review",
+      "call",
+      "teams",
+      "zoom",
+      "workshop"
+    ],
+    prefixes: ["work", "meeting"],
+    tags: ["work", "office"]
+  },
+  {
+    id: "family",
+    label: "Family",
+    icon: "👨‍👩‍👧‍👦",
+    accent: "#60A5FA",
+    bg: "rgba(96, 165, 250, 0.12)",
+    keywords: [
+      "family",
+      "school",
+      "pickup",
+      "drop off",
+      "kids",
+      "child",
+      "parent",
+      "mum",
+      "dad",
+      "anniversary"
+    ],
+    prefixes: ["family", "school"],
+    tags: ["family", "kids"]
+  },
+  {
+    id: "personal",
+    label: "Personal",
+    icon: "🌿",
+    accent: "#38BDF8",
+    bg: "rgba(56, 189, 248, 0.12)",
+    keywords: [
+      "personal",
+      "errand",
+      "errands",
+      "shopping",
+      "groceries",
+      "self care",
+      "me time",
+      "appointment"
+    ],
+    prefixes: ["personal"],
+    tags: ["personal"]
+  },
+  {
+    id: "travel",
+    label: "Travel",
+    icon: "✈️",
+    accent: "#A78BFA",
+    bg: "rgba(167, 139, 250, 0.12)",
+    keywords: [
+      "flight",
+      "airport",
+      "depart",
+      "arrive",
+      "airline",
+      "booking",
+      "check in",
+      "check-in",
+      "hotel",
+      "trip"
+    ],
+    prefixes: ["travel", "flight", "airport"],
+    sources: ["tripit"],
+    tags: ["travel"]
+  },
   {
     id: "birthday",
     label: "Birthday",
@@ -21,11 +103,12 @@ const EVENT_CATEGORIES = [
     accent: "#FF5DA2",
     bg: "rgba(255, 93, 162, 0.12)",
     keywords: ["birthday", "bday", "party"],
-    prefixes: ["birthday", "bday"]
+    prefixes: ["birthday", "bday"],
+    tags: ["birthday"]
   },
   {
-    id: "bills",
-    label: "Bills",
+    id: "bill",
+    label: "Bill",
     icon: "💵",
     accent: "#22C55E",
     bg: "rgba(34, 197, 94, 0.12)",
@@ -45,14 +128,15 @@ const EVENT_CATEGORIES = [
       "vodafone",
       "internet"
     ],
-    prefixes: ["bill", "payment", "invoice"]
+    prefixes: ["bill", "payment", "invoice"],
+    tags: ["bill", "bills"]
   },
   {
-    id: "appointments",
-    label: "Appointments",
+    id: "health",
+    label: "Health",
     icon: "🩺",
-    accent: "#38BDF8",
-    bg: "rgba(56, 189, 248, 0.12)",
+    accent: "#FB7185",
+    bg: "rgba(251, 113, 133, 0.12)",
     keywords: [
       "doctor",
       "gp",
@@ -60,85 +144,18 @@ const EVENT_CATEGORIES = [
       "appointment",
       "physio",
       "specialist",
-      "clinic"
+      "clinic",
+      "health",
+      "therapy",
+      "vaccination"
     ],
-    prefixes: ["appt", "appointment", "doctor", "dentist"]
-  },
-  {
-    id: "travel",
-    label: "Travel",
-    icon: "✈️",
-    accent: "#A78BFA",
-    bg: "rgba(167, 139, 250, 0.12)",
-    keywords: [
-      "flight",
-      "airport",
-      "depart",
-      "arrive",
-      "airline",
-      "booking",
-      "check in",
-      "check-in"
-    ],
-    prefixes: ["travel", "flight", "airport"]
-  },
-  {
-    id: "work",
-    label: "Work",
-    icon: "📅",
-    accent: "#F59E0B",
-    bg: "rgba(245, 158, 11, 0.12)",
-    keywords: [
-      "meeting",
-      "1:1",
-      "standup",
-      "sync",
-      "review",
-      "call",
-      "teams",
-      "zoom"
-    ],
-    prefixes: ["work", "meeting"]
-  },
-  {
-    id: "school",
-    label: "School",
-    icon: "🏫",
-    accent: "#60A5FA",
-    bg: "rgba(96, 165, 250, 0.12)",
-    keywords: [
-      "school",
-      "assembly",
-      "excursion",
-      "pickup",
-      "drop off",
-      "term",
-      "uniform"
-    ],
-    prefixes: ["school"]
-  },
-  {
-    id: "fitness",
-    label: "Fitness",
-    icon: "🏋️",
-    accent: "#FB7185",
-    bg: "rgba(251, 113, 133, 0.12)",
-    keywords: ["gym", "run", "training", "pilates", "yoga", "workout"],
-    prefixes: ["fitness", "gym"]
-  },
-  {
-    id: "reminders",
-    label: "Reminders",
-    icon: "✅",
-    accent: "#EAB308",
-    bg: "rgba(234, 179, 8, 0.12)",
-    keywords: ["todo", "reminder", "task", "buy", "get", "pickup"],
-    prefixes: ["todo", "reminder", "task"]
+    prefixes: ["appt", "appointment", "doctor", "dentist"],
+    tags: ["health", "medical"]
   },
   {
     id: "home",
     label: "Home",
-    icon: "🛠️",
+    icon: "🏡",
     accent: "#94A3B8",
     bg: "rgba(148, 163, 184, 0.12)",
     keywords: [
@@ -148,27 +165,28 @@ const EVENT_CATEGORIES = [
       "service",
       "repair",
       "inspection",
-      "cleaner"
+      "cleaner",
+      "house"
     ],
-    prefixes: ["home", "maintenance", "repair"]
-  },
-  {
-    id: "social",
-    label: "Social",
-    icon: "🎉",
-    accent: "#F472B6",
-    bg: "rgba(244, 114, 182, 0.12)",
-    keywords: [
-      "dinner",
-      "drinks",
-      "bbq",
-      "party",
-      "catch up",
-      "concert"
-    ],
-    prefixes: ["social", "event"]
+    prefixes: ["home", "maintenance", "repair"],
+    tags: ["home", "house"]
   }
 ];
+
+const SOURCE_CATEGORY_MAP = {
+  tripit: "travel"
+};
+
+const AGENDA_SECTION_LIMIT = 3;
+const AGENDA_EVENT_LIMIT = 3;
+const agendaState = {
+  filterCategoryId: null,
+  focusIndex: 0,
+  dateOffsetDays: 0,
+  explicitDate: null
+};
+let agendaEventsCache = [];
+let agendaFocusTargets = [];
 
 function loadMealLottie(container) {
   if (!container || !window.lottie) return;
@@ -232,10 +250,67 @@ function matchKeywords(text, keywords = []) {
   });
 }
 
+function resolveCategoryById(categoryId) {
+  if (!categoryId) return null;
+  return EVENT_CATEGORIES.find(category => category.id === categoryId) || null;
+}
+
+function extractEventTags(event) {
+  const candidates = [
+    event?.category,
+    event?.tag,
+    event?.tags,
+    event?.labels,
+    event?.label,
+    event?.haTags,
+    event?.intent,
+    event?.categories
+  ];
+
+  const tags = [];
+  candidates.forEach(candidate => {
+    if (!candidate) return;
+    if (Array.isArray(candidate)) {
+      candidate.forEach(value => {
+        if (value) tags.push(String(value));
+      });
+      return;
+    }
+    if (typeof candidate === "string") {
+      tags.push(candidate);
+      return;
+    }
+    if (typeof candidate === "object" && candidate.name) {
+      tags.push(String(candidate.name));
+    }
+  });
+
+  return tags;
+}
+
 function resolveEventCategory(event) {
   const rawTitle = event.title || "";
   const normalizedTitle = normalizeEventText(rawTitle);
   const normalizedDescription = normalizeEventText(event.description || "");
+  const sourceKey = normalizeEventText(event.source || "");
+
+  if (sourceKey && SOURCE_CATEGORY_MAP[sourceKey]) {
+    const mapped = resolveCategoryById(SOURCE_CATEGORY_MAP[sourceKey]);
+    if (mapped) {
+      return { category: mapped, displayTitle: rawTitle || "(Untitled)" };
+    }
+  }
+
+  const tags = extractEventTags(event);
+  if (tags.length) {
+    const normalizedTags = normalizeEventText(tags.join(" "));
+    for (const category of EVENT_CATEGORIES) {
+      const tagList = category.tags || [category.id, category.label];
+      if (matchKeywords(normalizedTags, tagList)) {
+        return { category, displayTitle: rawTitle || "(Untitled)" };
+      }
+    }
+  }
 
   for (const category of EVENT_CATEGORIES) {
     const prefixRegex = buildPrefixRegex(category.prefixes);
@@ -275,6 +350,96 @@ function applyEventCategoryStyles(element, category, variant) {
   element.style.setProperty("--event-text", resolved.text || "inherit");
 }
 
+function updateAgendaView() {
+  renderAgenda(agendaEventsCache);
+}
+
+function setAgendaEvents(events) {
+  agendaEventsCache = Array.isArray(events) ? events : [];
+  updateAgendaView();
+}
+
+function resetAgendaState() {
+  agendaState.filterCategoryId = null;
+  agendaState.focusIndex = 0;
+  agendaState.dateOffsetDays = 0;
+  agendaState.explicitDate = null;
+}
+
+function resolveAgendaCategoryId(rawValue) {
+  if (!rawValue) return null;
+  const normalized = normalizeEventText(String(rawValue));
+  if (!normalized) return null;
+  const directMatch = EVENT_CATEGORIES.find(
+    category =>
+      normalizeEventText(category.id) === normalized ||
+      normalizeEventText(category.label) === normalized
+  );
+  return directMatch?.id || null;
+}
+
+function setAgendaFilter(filterValue) {
+  const resolved = resolveAgendaCategoryId(filterValue);
+  agendaState.filterCategoryId = resolved;
+  agendaState.focusIndex = 0;
+  updateAgendaView();
+}
+
+function setAgendaDate({ date, offsetDays } = {}) {
+  if (typeof offsetDays === "number" && Number.isFinite(offsetDays)) {
+    agendaState.dateOffsetDays = offsetDays;
+    agendaState.explicitDate = null;
+    agendaState.focusIndex = 0;
+    updateAgendaView();
+    return;
+  }
+
+  if (typeof date === "string") {
+    const normalized = normalizeEventText(date);
+    if (normalized === "today") {
+      agendaState.dateOffsetDays = 0;
+      agendaState.explicitDate = null;
+    } else if (normalized === "tomorrow") {
+      agendaState.dateOffsetDays = 1;
+      agendaState.explicitDate = null;
+    } else {
+      const parsed = new Date(date);
+      if (!Number.isNaN(parsed.getTime())) {
+        agendaState.explicitDate = parsed;
+      }
+    }
+    agendaState.focusIndex = 0;
+    updateAgendaView();
+    return;
+  }
+}
+
+function focusNextAgendaEvent() {
+  if (!agendaFocusTargets.length) return;
+  agendaState.focusIndex = (agendaState.focusIndex + 1) % agendaFocusTargets.length;
+  agendaFocusTargets.forEach(target =>
+    target.classList.remove("agenda-event--focused")
+  );
+  const nextTarget = agendaFocusTargets[agendaState.focusIndex];
+  if (nextTarget) {
+    nextTarget.classList.add("agenda-event--focused");
+  }
+}
+
+on("agenda:reset", () => {
+  resetAgendaState();
+  updateAgendaView();
+});
+on("agenda:filter", ({ category }) => {
+  setAgendaFilter(category);
+});
+on("agenda:date", ({ date, offsetDays } = {}) => {
+  setAgendaDate({ date, offsetDays });
+});
+on("agenda:focus-next", () => {
+  focusNextAgendaEvent();
+});
+
 /* ------------------------------------------------------------------
    MAIN REFRESH FUNCTION
 -------------------------------------------------------------------*/
@@ -309,7 +474,7 @@ export async function refreshCalendar() {
     renderToday(todayEvents);
     renderWeek(weekEvents);
     renderMonth(expanded);
-    renderAgenda(expanded);
+    setAgendaEvents(expanded);
   } catch (err) {
     console.error("Calendar error:", err);
     safeRenderEmpty();
@@ -324,7 +489,7 @@ function safeRenderEmpty() {
   renderToday([]);
   renderWeek(getNext7DaysEvents([]));
   renderMonth([]);
-  renderAgenda([]);
+  setAgendaEvents([]);
 }
 
 /* ------------------------------------------------------------------
@@ -670,6 +835,7 @@ function renderMonth(events) {
 
 function renderAgenda(events) {
   const container = document.getElementById("agenda-list");
+  const titleEl = document.getElementById("agenda-title");
   const todayLabel = document.getElementById("agenda-today-label");
 
   if (!container) {
@@ -678,89 +844,135 @@ function renderAgenda(events) {
   }
 
   const today = new Date();
+  const selectedDate = agendaState.explicitDate
+    ? new Date(agendaState.explicitDate)
+    : new Date(today);
+  if (!agendaState.explicitDate) {
+    selectedDate.setDate(selectedDate.getDate() + agendaState.dateOffsetDays);
+  }
+  const isTodaySelected = selectedDate.toDateString() === today.toDateString();
+
+  if (titleEl) {
+    titleEl.textContent = isTodaySelected ? "Today" : format.date(selectedDate);
+  }
   if (todayLabel) {
-    todayLabel.textContent = format.date(today);
+    todayLabel.textContent = format.dayName(selectedDate);
   }
-
-  const daysToShow = 5;
-  const dayBuckets = [];
-
-  for (let i = 0; i < daysToShow; i++) {
-    const date = new Date(today);
-    date.setDate(today.getDate() + i);
-    const label = i === 0 ? "Today" : i === 1 ? "Tomorrow" : format.dayName(date);
-    dayBuckets.push({ date, label, events: [] });
-  }
-
-  (events || []).forEach(ev => {
-    if (!ev.start) return;
-    const evDate = new Date(ev.start);
-    const bucket = dayBuckets.find(
-      item => item.date.toDateString() === evDate.toDateString()
-    );
-    if (bucket) {
-      bucket.events.push(ev);
-    }
-  });
 
   container.innerHTML = "";
+  agendaFocusTargets = [];
 
-  dayBuckets.forEach(day => {
-    const dayWrap = document.createElement("div");
-    dayWrap.className = "agenda-day";
+  const dayEvents = (events || [])
+    .filter(ev => ev.start && ev.start.toDateString() === selectedDate.toDateString())
+    .filter(ev => {
+      if (!agendaState.filterCategoryId) return true;
+      return ev.category?.id === agendaState.filterCategoryId;
+    })
+    .sort((a, b) => a.start - b.start);
 
-    const title = document.createElement("div");
-    title.className = "agenda-day-title";
-    title.textContent = `${day.label} · ${format.date(day.date)}`;
-    dayWrap.appendChild(title);
+  if (!dayEvents.length) {
+    const empty = document.createElement("div");
+    empty.className = "agenda-empty";
+    empty.textContent = "No events scheduled";
+    container.appendChild(empty);
+    return;
+  }
 
-    const dayEvents = day.events
-      .slice()
-      .sort((a, b) => a.start - b.start);
-
-    if (dayEvents.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "agenda-card";
-      empty.textContent = "No events scheduled";
-      dayWrap.appendChild(empty);
-    } else {
-      dayEvents.forEach(ev => {
-        const card = document.createElement("div");
-        card.className = "agenda-card";
-        applyEventCategoryStyles(card, ev.category, "card");
-
-        const main = document.createElement("div");
-        main.className = "agenda-card-main";
-
-        const time = document.createElement("div");
-        time.className = "agenda-time";
-        time.textContent = isAllDay(ev)
-          ? "All day"
-          : `${format.time(ev.start)} – ${format.time(ev.end || ev.start)}`;
-        main.appendChild(time);
-
-        const titleEl = document.createElement("div");
-        titleEl.className = "agenda-title";
-        appendEventTitle(titleEl, ev);
-        main.appendChild(titleEl);
-
-        if (ev.location) {
-          const location = document.createElement("div");
-          location.className = "agenda-location";
-          location.textContent = ev.location;
-          main.appendChild(location);
-        }
-
-        const meta = document.createElement("div");
-        meta.className = "agenda-card-meta";
-        meta.textContent = ev.allDay ? "All day" : "Scheduled";
-
-        card.appendChild(main);
-        card.appendChild(meta);
-        dayWrap.appendChild(card);
+  const groupMap = new Map();
+  dayEvents.forEach(ev => {
+    const category = ev.category || DEFAULT_CATEGORY;
+    const categoryId = category.id || DEFAULT_CATEGORY.id;
+    if (!groupMap.has(categoryId)) {
+      groupMap.set(categoryId, {
+        category,
+        events: [],
+        earliest: ev.start ? ev.start.getTime() : Number.POSITIVE_INFINITY
       });
     }
-
-    container.appendChild(dayWrap);
+    const group = groupMap.get(categoryId);
+    group.events.push(ev);
+    if (ev.start) {
+      group.earliest = Math.min(group.earliest, ev.start.getTime());
+    }
   });
+
+  const groups = Array.from(groupMap.values())
+    .map(group => ({
+      ...group,
+      events: group.events.slice().sort((a, b) => a.start - b.start)
+    }))
+    .sort((a, b) => a.earliest - b.earliest)
+    .slice(0, AGENDA_SECTION_LIMIT);
+
+  groups.forEach(group => {
+    const section = document.createElement("div");
+    section.className = "agenda-section";
+
+    const header = document.createElement("div");
+    header.className = "agenda-section-header";
+
+    const sectionTitle = document.createElement("div");
+    sectionTitle.className = "agenda-section-title";
+    sectionTitle.textContent = `${group.category.icon} ${group.category.label}`;
+    header.appendChild(sectionTitle);
+
+    const sectionCount = document.createElement("div");
+    sectionCount.className = "agenda-section-count";
+    sectionCount.textContent = `${group.events.length} event${group.events.length === 1 ? "" : "s"}`;
+    header.appendChild(sectionCount);
+
+    section.appendChild(header);
+
+    const list = document.createElement("div");
+    list.className = "agenda-section-list";
+
+    group.events.slice(0, AGENDA_EVENT_LIMIT).forEach(ev => {
+      const row = document.createElement("div");
+      row.className = "agenda-event";
+      applyEventCategoryStyles(row, group.category);
+
+      const icon = document.createElement("span");
+      icon.className = "agenda-event-icon";
+      icon.textContent = group.category.icon;
+
+      const title = document.createElement("span");
+      title.className = "agenda-event-title";
+      title.textContent = ev.displayTitle || ev.title || "(Untitled)";
+
+      const time = document.createElement("span");
+      time.className = "agenda-event-time";
+      if (isAllDay(ev)) {
+        time.textContent = "All day";
+      } else if (ev.end && ev.end.getTime() !== ev.start.getTime()) {
+        time.textContent = `${format.time(ev.start)} – ${format.time(ev.end)}`;
+      } else {
+        time.textContent = format.time(ev.start);
+      }
+
+      row.appendChild(icon);
+      row.appendChild(title);
+      row.appendChild(time);
+      list.appendChild(row);
+      agendaFocusTargets.push(row);
+    });
+
+    if (group.events.length > AGENDA_EVENT_LIMIT) {
+      const overflow = document.createElement("div");
+      overflow.className = "agenda-overflow";
+      overflow.textContent = `+${group.events.length - AGENDA_EVENT_LIMIT} more in ${group.category.label}`;
+      list.appendChild(overflow);
+    }
+
+    section.appendChild(list);
+    container.appendChild(section);
+  });
+
+  agendaFocusTargets.forEach(target =>
+    target.classList.remove("agenda-event--focused")
+  );
+  if (agendaFocusTargets.length) {
+    agendaState.focusIndex = Math.min(agendaState.focusIndex, agendaFocusTargets.length - 1);
+    const active = agendaFocusTargets[agendaState.focusIndex];
+    if (active) active.classList.add("agenda-event--focused");
+  }
 }
