@@ -767,16 +767,14 @@ body.is-overlay-active {
   align-self: end;
 }
 
-.home-view {
-  flex: 1;
-  display: flex;
-}
-
+.home-view,
 .calendar-view,
 .agenda-view,
 .cameras-view,
 .weather-view {
+  display: none;
   flex: 1;
+  min-height: 0;
 }
 
 #weekly-list {
@@ -843,7 +841,7 @@ body[data-view="home"] .agenda-view { display: none; }
 body[data-view="home"] .cameras-view { display: none; }
 body[data-view="home"] .weather-view { display: none; }
 
-body[data-view="calendar"] .calendar-view { display: flex; flex: 1; min-height: 0; }
+body[data-view="calendar"] .calendar-view { display: flex; }
 body[data-view="calendar"] .home-view { display: none; }
 body[data-view="calendar"] .agenda-view { display: none; }
 body[data-view="calendar"] .cameras-view { display: none; }
@@ -935,7 +933,6 @@ body[data-view="cameras"] #time-panel {
   padding: 10px 40px 24px;
   flex: 1;
   min-height: 0;
-  display: flex;
   box-sizing: border-box;
 }
 
