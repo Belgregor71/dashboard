@@ -11,14 +11,42 @@ import {
 } from "../../config/weather-animations.js";
 import { loadLottieAnimation } from "../../helpers/lottie.js";
 import { on } from "../../core/eventBus.js";
+import { backgroundUrlForWeatherCode } from "../../weatherBackgrounds.js";
+import { startWeatherMotion, stopWeatherMotion } from "../../weatherMotion.js";
 
 let activeLotties = [];
 let cachedDaily = null;
 let cachedWeather = null;
+let lastWeatherCode = null;
 
 function clearLotties() {
   activeLotties.forEach(anim => anim.destroy?.());
   activeLotties = [];
+}
+
+function applyWeatherBackground(code) {
+  if (code == null) return;
+  const screen = document.getElementById("weather-screen");
+  if (!screen) return;
+
+  const url = backgroundUrlForWeatherCode(code);
+  if (screen.dataset.bgUrl === url) return;
+
+  screen.style.backgroundImage = `url("${url}")`;
+  screen.style.backgroundSize = "cover";
+  screen.style.backgroundPosition = "center";
+  screen.dataset.bgUrl = url;
+}
+
+function syncWeatherMotion(code) {
+  if (code == null) return;
+  applyWeatherBackground(code);
+
+  if (document.body?.dataset?.view === "weather") {
+    startWeatherMotion({ code });
+  } else {
+    stopWeatherMotion();
+  }
 }
 
 function getClosestHourIndex(hourly) {
@@ -102,6 +130,9 @@ function renderCurrent(data) {
 
   const isDay = isDaytime(data);
   const animFile = weatherAnimation(current.weathercode, isDay);
+
+  lastWeatherCode = current.weathercode;
+  syncWeatherMotion(lastWeatherCode);
 
   const anim = loadLottieAnimation("weather-lottie", animFile);
   if (anim) activeLotties.push(anim);
@@ -279,6 +310,9 @@ function rerenderWeeklyFromCache() {
 /* 🔁 Cleanup on view change (prevents memory leaks) */
 on("view:changed", () => {
   clearLotties();
+  if (document.body?.dataset?.view !== "weather") {
+    stopWeatherMotion();
+  }
   if (cachedWeather) {
     renderCurrent(cachedWeather);
     renderWeekly(cachedWeather.daily);
