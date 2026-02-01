@@ -159,6 +159,13 @@ app.get("/env.js", (req, res) => {
 ============================================================================ */
 
 app.use(express.static(path.join(__dirname, "static")));
+app.use(
+  "/assets",
+  express.static(path.join(__dirname, "static", "assets"), {
+    maxAge: "30d",
+    immutable: true
+  })
+);
 app.use("/photos", express.static(path.join(__dirname, "static", "photos")));
 app.use("/icons", express.static(path.join(__dirname, "static", "icons")));
 
