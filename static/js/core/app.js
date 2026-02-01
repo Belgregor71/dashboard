@@ -1,6 +1,7 @@
 // static/js/core/app.js
 import { initViews } from "./viewManager.js";
 import { registerLifecycle } from "./lifecycle.js";
+import { initVoiceOverlay } from "./voiceOverlay.js";
 
 import { initBackground } from "../modules/background.js";
 import { updateClock } from "../modules/clock.js";
@@ -37,6 +38,7 @@ export function startApp() {
   initViews();
   registerLifecycle();
   initSystemStatus();
+  initVoiceOverlay();
 
   const cfg = window.CONFIG || {};
 
