@@ -71,26 +71,57 @@ export function registerHAEvents() {
 
   on("ha:event:dashboard_command", (data) => {
     const command = data.command || data.intent || data.action;
+    emit("dashboard_command", data);
+
+    if (!command) {
+      emit("command:unknown", {
+        command: "",
+        ok: false,
+        message: "Unknown command"
+      });
+      return;
+    }
 
     if (command === "switch_view") {
       switchView(data.view);
+      emit("command:executed", {
+        command,
+        ok: true,
+        message: data.view ? `Switched to ${data.view}` : "View switched"
+      });
+      return;
     }
 
     if (["system_status", "status", "system_status_view"].includes(command)) {
       switchView("status");
       emit("status:highlight", { target: data.target });
+      emit("command:executed", {
+        command,
+        ok: true,
+        message: "Showing system status"
+      });
       return;
     }
 
     if (["status_calendar", "calendar_status", "calendar_blank"].includes(command)) {
       switchView("status");
       emit("status:highlight", { target: "calendar" });
+      emit("command:executed", {
+        command,
+        ok: true,
+        message: "Showing calendar status"
+      });
       return;
     }
 
     if (command === "agenda_plus") {
       switchView("agenda");
       emit("agenda:reset");
+      emit("command:executed", {
+        command,
+        ok: true,
+        message: "Showing agenda"
+      });
       return;
     }
 
@@ -99,23 +130,50 @@ export function registerHAEvents() {
       emit("agenda:filter", {
         category: data.category || data.filter || data.intent || data.value
       });
+      emit("command:executed", {
+        command,
+        ok: true,
+        message: "Filtering agenda"
+      });
       return;
     }
 
     if (command === "agenda_date") {
       switchView("agenda");
       emit("agenda:date", { date: data.date || data.value, offsetDays: data.offsetDays });
+      emit("command:executed", {
+        command,
+        ok: true,
+        message: "Updating agenda date"
+      });
       return;
     }
 
     if (command === "agenda_tomorrow") {
       switchView("agenda");
       emit("agenda:date", { date: "tomorrow" });
+      emit("command:executed", {
+        command,
+        ok: true,
+        message: "Showing tomorrow"
+      });
       return;
     }
 
     if (command === "agenda_next") {
       emit("agenda:focus-next");
+      emit("command:executed", {
+        command,
+        ok: true,
+        message: "Next agenda item"
+      });
+      return;
     }
+
+    emit("command:unknown", {
+      command,
+      ok: false,
+      message: "Unknown command"
+    });
   });
 }
