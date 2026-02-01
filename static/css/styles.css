@@ -899,7 +899,6 @@ body[data-view="calendar"] #time-panel {
 
 #status-view {
   position: relative;
-  display: flex;
   flex-direction: column;
   gap: 18px;
   padding: 24px 48px 32px;
