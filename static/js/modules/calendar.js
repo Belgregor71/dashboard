@@ -188,7 +188,7 @@ function loadMealLottie(container) {
 
 function appendEventTitle(container, title) {
   const rawTitle = title?.rawTitle ?? title?.title ?? title ?? "";
-  const displayTitle = title?.displayTitle ?? rawTitle || "(Untitled)";
+  const displayTitle = (title?.displayTitle ?? rawTitle) || "(Untitled)";
   if (MEAL_PREFIX.test(rawTitle)) {
     const mealTitle = displayTitle.replace(MEAL_PREFIX, "").trim();
     const icon = document.createElement("span");
