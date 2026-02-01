@@ -497,25 +497,42 @@
 
   <!-- SYSTEM STATUS VIEW -->
   <main id="status-view" class="status-view">
-    <section class="panel status-panel">
-      <div class="status-header">
-        <div>
-          <div class="status-title">System Status</div>
-          <div class="status-subtitle">Silent Guardian · One glance to debug when things break.</div>
-        </div>
-        <div class="status-header-subtitle">Live Diagnostics</div>
+    <section class="status-header-bar">
+      <div class="status-header-time">
+        <div class="status-header-time__value" id="status-header-time">--:--</div>
+        <div class="status-header-time__date" id="status-header-date">--</div>
       </div>
+      <div class="status-header-metrics">
+        <div class="status-header-metric">
+          <span class="status-indicator" aria-hidden="true"></span>
+          <div>
+            <div class="status-header-metric__label">Home Assistant</div>
+            <div class="status-header-metric__value" id="status-header-ha">Disconnected</div>
+          </div>
+        </div>
+        <div class="status-header-metric">
+          <span class="status-indicator status-indicator--info" aria-hidden="true"></span>
+          <div>
+            <div class="status-header-metric__label">Current mode</div>
+            <div class="status-header-metric__value" id="status-header-mode">--</div>
+          </div>
+        </div>
+      </div>
+    </section>
 
+    <section class="panel status-panel">
       <div class="status-grid">
         <div class="status-group">
           <div class="status-group__title">Connectivity</div>
           <div class="status-list">
             <div class="status-item" data-status-item="internet">
+              <span class="status-indicator" aria-hidden="true"></span>
               <div class="status-item__label">Internet</div>
               <div class="status-item__value" id="status-internet-value">Checking…</div>
               <div class="status-item__meta" id="status-internet-meta">Target: --</div>
             </div>
             <div class="status-item" data-status-item="ha">
+              <span class="status-indicator" aria-hidden="true"></span>
               <div class="status-item__label">HA Websocket</div>
               <div class="status-item__value" id="status-ha-value">Disconnected</div>
               <div class="status-item__meta" id="status-ha-meta">Last message --</div>
@@ -527,16 +544,19 @@
           <div class="status-group__title">Services</div>
           <div class="status-list">
             <div class="status-item" data-status-item="calendar">
+              <span class="status-indicator" aria-hidden="true"></span>
               <div class="status-item__label">Calendar fetch</div>
               <div class="status-item__value" id="status-calendar-value">Waiting</div>
               <div class="status-item__meta" id="status-calendar-meta">Last success --</div>
             </div>
             <div class="status-item" data-status-item="weather">
+              <span class="status-indicator" aria-hidden="true"></span>
               <div class="status-item__label">Weather fetch</div>
               <div class="status-item__value" id="status-weather-value">Waiting</div>
               <div class="status-item__meta" id="status-weather-meta">Last success --</div>
             </div>
             <div class="status-item" data-status-item="cameras">
+              <span class="status-indicator" aria-hidden="true"></span>
               <div class="status-item__label">Cameras</div>
               <div class="status-item__value" id="status-cameras-value">--</div>
               <div class="status-item__meta" id="status-cameras-meta">Checking…</div>
@@ -547,33 +567,28 @@
         <div class="status-group">
           <div class="status-group__title">Device</div>
           <div class="status-list">
-            <div class="status-item">
+            <div class="status-item status-item--metric" data-status-item="temp">
+              <span class="status-indicator status-indicator--info" aria-hidden="true"></span>
               <div class="status-item__label">Pi temp</div>
               <div class="status-item__value" id="status-temp-value">--</div>
             </div>
-            <div class="status-item">
+            <div class="status-item" data-status-item="cpu">
+              <span class="status-indicator status-indicator--info" aria-hidden="true"></span>
               <div class="status-item__label">CPU</div>
               <div class="status-item__value" id="status-cpu-value">--</div>
             </div>
-            <div class="status-item">
+            <div class="status-item" data-status-item="memory">
+              <span class="status-indicator status-indicator--info" aria-hidden="true"></span>
               <div class="status-item__label">Memory</div>
               <div class="status-item__value" id="status-memory-value">--</div>
             </div>
-          </div>
-        </div>
-
-        <div class="status-group">
-          <div class="status-group__title">System</div>
-          <div class="status-list">
             <div class="status-item">
+              <span class="status-indicator status-indicator--info" aria-hidden="true"></span>
               <div class="status-item__label">Uptime</div>
               <div class="status-item__value" id="status-uptime-value">--</div>
             </div>
             <div class="status-item">
-              <div class="status-item__label">Current mode</div>
-              <div class="status-item__value" id="status-mode-value">--</div>
-            </div>
-            <div class="status-item">
+              <span class="status-indicator status-indicator--info" aria-hidden="true"></span>
               <div class="status-item__label">Update frequency</div>
               <div class="status-item__value" id="status-update-frequency">--</div>
             </div>
@@ -581,6 +596,11 @@
         </div>
 
       </div>
+    </section>
+
+    <section id="status-alerts" class="status-alerts" hidden>
+      <div class="status-alerts__title">Alerts / Degraded</div>
+      <div class="status-alerts__list" id="status-alerts-list"></div>
     </section>
   </main>
 

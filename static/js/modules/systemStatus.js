@@ -39,6 +39,15 @@ export function initSystemStatus() {
   const root = document.getElementById("status-view");
   if (!root) return;
 
+  const headerTime = document.getElementById("status-header-time");
+  const headerDate = document.getElementById("status-header-date");
+  const headerHa = document.getElementById("status-header-ha");
+  const headerMode = document.getElementById("status-header-mode");
+  const headerHaIndicator = headerHa?.closest(".status-header-metric")?.querySelector(".status-indicator");
+
+  const alertsPanel = document.getElementById("status-alerts");
+  const alertsList = document.getElementById("status-alerts-list");
+
   const internetValue = document.getElementById("status-internet-value");
   const internetMeta = document.getElementById("status-internet-meta");
   const haValue = document.getElementById("status-ha-value");
@@ -53,7 +62,6 @@ export function initSystemStatus() {
   const cpuValue = document.getElementById("status-cpu-value");
   const memoryValue = document.getElementById("status-memory-value");
   const uptimeValue = document.getElementById("status-uptime-value");
-  const modeValue = document.getElementById("status-mode-value");
   const updateFrequencyValue = document.getElementById("status-update-frequency");
 
   let haConnected = false;
@@ -63,12 +71,52 @@ export function initSystemStatus() {
   let highlightTimer;
   const modeEntityId = CONFIG.systemStatus?.modeEntityId;
 
+  function setIndicator(target, level) {
+    if (!target) return;
+    const indicator = target.querySelector(".status-indicator");
+    if (!indicator) return;
+    indicator.classList.remove(
+      "status-indicator--ok",
+      "status-indicator--warn",
+      "status-indicator--error",
+      "status-indicator--info"
+    );
+    indicator.classList.add(`status-indicator--${level}`);
+    target.dataset.statusLevel = level;
+  }
+
+  function updateHeaderTime() {
+    const now = new Date();
+    if (headerTime) {
+      headerTime.textContent = now.toLocaleTimeString("en-AU", {
+        hour: "numeric",
+        minute: "2-digit"
+      });
+    }
+    if (headerDate) {
+      headerDate.textContent = now.toLocaleDateString("en-AU", {
+        weekday: "long",
+        day: "2-digit",
+        month: "long"
+      });
+    }
+  }
+
   function updateHaDisplay() {
     setText(haValue, haConnected ? "Connected" : "Disconnected");
     const lastMessage = haLastMessage
       ? `Last message ${formatTime(haLastMessage)}`
       : "Waiting for messages";
     setText(haMeta, lastMessage);
+    setText(headerHa, haConnected ? "Connected" : "Disconnected");
+    if (headerHaIndicator) {
+      headerHaIndicator.classList.remove(
+        "status-indicator--ok",
+        "status-indicator--warn",
+        "status-indicator--error"
+      );
+      headerHaIndicator.classList.add(haConnected ? "status-indicator--ok" : "status-indicator--error");
+    }
   }
 
   function updateCalendarDisplay() {
@@ -76,6 +124,10 @@ export function initSystemStatus() {
     setText(
       calendarMeta,
       calendarLastSuccess ? `Last success ${formatTime(calendarLastSuccess)}` : "No successful fetch yet"
+    );
+    setIndicator(
+      root.querySelector('[data-status-item="calendar"]'),
+      calendarLastSuccess ? "ok" : "warn"
     );
   }
 
@@ -85,21 +137,27 @@ export function initSystemStatus() {
       weatherMeta,
       weatherLastSuccess ? `Last success ${formatTime(weatherLastSuccess)}` : "No successful fetch yet"
     );
+    setIndicator(
+      root.querySelector('[data-status-item="weather"]'),
+      weatherLastSuccess ? "ok" : "warn"
+    );
   }
 
   function updateModeDisplay() {
     if (modeEntityId) {
       const entity = getEntity(modeEntityId);
-      setText(modeValue, entity?.state || "Unknown");
+      setText(headerMode, entity?.state || "Unknown");
       return;
     }
-    setText(modeValue, CONFIG.systemStatus?.modeLabel || "Normal");
+    setText(headerMode, CONFIG.systemStatus?.modeLabel || "Normal");
   }
 
   function updateCameraDisplay({ total = 0, online = 0, offline = 0, unknown = 0 } = {}) {
+    const statusItem = root.querySelector('[data-status-item="cameras"]');
     if (!total) {
       setText(camerasValue, "No cameras");
       setText(camerasMeta, "Camera status unavailable");
+      setIndicator(statusItem, "warn");
       return;
     }
     setText(camerasValue, `${online} online / ${offline} offline`);
@@ -107,6 +165,13 @@ export function initSystemStatus() {
       camerasMeta,
       unknown ? `${unknown} checking` : `Total ${total} cameras`
     );
+    if (offline > 0) {
+      setIndicator(statusItem, "warn");
+    } else if (online === 0) {
+      setIndicator(statusItem, "error");
+    } else {
+      setIndicator(statusItem, "ok");
+    }
   }
 
   function highlightItem(target) {
@@ -119,19 +184,26 @@ export function initSystemStatus() {
   }
 
   async function updateConnectivity() {
+    const statusItem = root.querySelector('[data-status-item="internet"]');
     try {
       const response = await fetch("/api/system/ping");
       const data = await response.json();
       if (response.ok && data?.ok) {
         setText(internetValue, `Online · ${Math.round(data.latencyMs)} ms`);
         setText(internetMeta, `Target: ${data.target}`);
+        setIndicator(statusItem, "ok");
+        updateAlerts();
         return;
       }
       setText(internetValue, "Offline");
       setText(internetMeta, `Target: ${data?.target ?? "unknown"}`);
+      setIndicator(statusItem, "error");
+      updateAlerts();
     } catch (error) {
       setText(internetValue, "Offline");
       setText(internetMeta, "Ping failed");
+      setIndicator(statusItem, "error");
+      updateAlerts();
     }
   }
 
@@ -161,12 +233,50 @@ export function initSystemStatus() {
       if (data?.uptimeSeconds != null) {
         setText(uptimeValue, formatUptime(data.uptimeSeconds));
       }
+      setIndicator(root.querySelector('[data-status-item="temp"]'), "info");
+      setIndicator(root.querySelector('[data-status-item="cpu"]'), "info");
+      setIndicator(root.querySelector('[data-status-item="memory"]'), "info");
+      updateAlerts();
     } catch (error) {
       setText(tempValue, "—");
       setText(cpuValue, "—");
       setText(memoryValue, "—");
       setText(uptimeValue, "—");
+      updateAlerts();
     }
+  }
+
+  function updateHaStatusIndicator() {
+    const statusItem = root.querySelector('[data-status-item="ha"]');
+    setIndicator(statusItem, haConnected ? "ok" : "error");
+  }
+
+  function updateAlerts() {
+    if (!alertsPanel || !alertsList) return;
+    const alertItems = [];
+    root.querySelectorAll("[data-status-level]").forEach((item) => {
+      const level = item.dataset.statusLevel;
+      if (level !== "warn" && level !== "error") return;
+      const label = item.querySelector(".status-item__label")?.textContent?.trim();
+      const value = item.querySelector(".status-item__value")?.textContent?.trim();
+      if (label && value) {
+        alertItems.push(`${label}: ${value}`);
+      }
+    });
+
+    if (!alertItems.length) {
+      alertsPanel.hidden = true;
+      alertsList.textContent = "";
+      return;
+    }
+
+    alertsPanel.hidden = false;
+    alertsList.innerHTML = "";
+    alertItems.forEach((text) => {
+      const span = document.createElement("span");
+      span.textContent = text;
+      alertsList.append(span);
+    });
   }
 
   setText(
@@ -174,25 +284,33 @@ export function initSystemStatus() {
     `Connections: ${CONNECTION_REFRESH_MS / 1000}s · Metrics: ${METRICS_REFRESH_MS / 1000}s`
   );
 
+  updateHeaderTime();
   updateHaDisplay();
+  updateHaStatusIndicator();
   updateCalendarDisplay();
   updateWeatherDisplay();
   updateModeDisplay();
   updateCameraDisplay();
   updateConnectivity();
   updateMetrics();
+  updateAlerts();
 
+  setInterval(updateHeaderTime, 1000);
   setInterval(updateConnectivity, CONNECTION_REFRESH_MS);
   setInterval(updateMetrics, METRICS_REFRESH_MS);
 
   on("ha:connected", () => {
     haConnected = true;
     updateHaDisplay();
+    updateHaStatusIndicator();
+    updateAlerts();
   });
 
   on("ha:disconnected", () => {
     haConnected = false;
     updateHaDisplay();
+    updateHaStatusIndicator();
+    updateAlerts();
   });
 
   on("ha:message", ({ receivedAt } = {}) => {
@@ -203,14 +321,19 @@ export function initSystemStatus() {
   on("calendar:refreshed", ({ timestamp } = {}) => {
     calendarLastSuccess = timestamp || Date.now();
     updateCalendarDisplay();
+    updateAlerts();
   });
 
   on("weather:refreshed", ({ timestamp } = {}) => {
     weatherLastSuccess = timestamp || Date.now();
     updateWeatherDisplay();
+    updateAlerts();
   });
 
-  on("cameras:status", (status) => updateCameraDisplay(status));
+  on("cameras:status", (status) => {
+    updateCameraDisplay(status);
+    updateAlerts();
+  });
 
   on("status:highlight", ({ target } = {}) => highlightItem(target));
 
