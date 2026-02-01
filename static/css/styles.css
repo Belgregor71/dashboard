@@ -843,7 +843,7 @@ body[data-view="home"] .agenda-view { display: none; }
 body[data-view="home"] .cameras-view { display: none; }
 body[data-view="home"] .weather-view { display: none; }
 
-body[data-view="calendar"] .calendar-view { display: block; }
+body[data-view="calendar"] .calendar-view { display: flex; flex: 1; min-height: 0; }
 body[data-view="calendar"] .home-view { display: none; }
 body[data-view="calendar"] .agenda-view { display: none; }
 body[data-view="calendar"] .cameras-view { display: none; }
@@ -933,9 +933,12 @@ body[data-view="cameras"] #time-panel {
 
 #calendar-view {
   padding: 10px 40px 24px;
-  height: calc(100vh - 120px);
+  flex: 1;
+  min-height: 0;
+  display: flex;
   box-sizing: border-box;
 }
+
 
 .calendar-panel {
   display: flex;
@@ -981,9 +984,10 @@ body[data-view="cameras"] #time-panel {
 }
 
 .calendar-month-grid {
+  --calendar-rows: 5; /* fallback */
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  grid-auto-rows: minmax(0, 1fr);
+  grid-template-rows: repeat(var(--calendar-rows), minmax(0, 1fr));
   gap: 14px;
   flex: 1;
   min-height: 0;
@@ -1512,9 +1516,12 @@ body[data-view="calendar"] #time-panel {
 
 #calendar-view {
   padding: 10px 40px 24px;
-  height: calc(100vh - 120px);
+  flex: 1;
+  min-height: 0;
+  display: flex;
   box-sizing: border-box;
 }
+
 
 .calendar-panel {
   display: flex;
@@ -1560,13 +1567,15 @@ body[data-view="calendar"] #time-panel {
 }
 
 .calendar-month-grid {
+  --calendar-rows: 5; /* fallback */
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  grid-auto-rows: minmax(0, 1fr);
+  grid-template-rows: repeat(var(--calendar-rows), minmax(0, 1fr));
   gap: 14px;
   flex: 1;
   min-height: 0;
 }
+
 
 .calendar-day {
   min-height: 0;
