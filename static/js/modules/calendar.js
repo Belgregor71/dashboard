@@ -475,6 +475,7 @@ export async function refreshCalendar() {
     renderWeek(weekEvents);
     renderMonth(expanded);
     setAgendaEvents(expanded);
+    emit("calendar:refreshed", { timestamp: Date.now(), count: expanded.length });
   } catch (err) {
     console.error("Calendar error:", err);
     safeRenderEmpty();

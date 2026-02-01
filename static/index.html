@@ -495,6 +495,95 @@
     </div>
   </main>
 
+  <!-- SYSTEM STATUS VIEW -->
+  <main id="status-view" class="status-view">
+    <section class="panel status-panel">
+      <div class="status-header">
+        <div>
+          <div class="status-title">System Status</div>
+          <div class="status-subtitle">Silent Guardian · One glance to debug when things break.</div>
+        </div>
+        <div class="status-header-subtitle">Live Diagnostics</div>
+      </div>
+
+      <div class="status-grid">
+        <div class="status-group">
+          <div class="status-group__title">Connectivity</div>
+          <div class="status-list">
+            <div class="status-item" data-status-item="internet">
+              <div class="status-item__label">Internet</div>
+              <div class="status-item__value" id="status-internet-value">Checking…</div>
+              <div class="status-item__meta" id="status-internet-meta">Target: --</div>
+            </div>
+            <div class="status-item" data-status-item="ha">
+              <div class="status-item__label">HA Websocket</div>
+              <div class="status-item__value" id="status-ha-value">Disconnected</div>
+              <div class="status-item__meta" id="status-ha-meta">Last message --</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-group">
+          <div class="status-group__title">Services</div>
+          <div class="status-list">
+            <div class="status-item" data-status-item="calendar">
+              <div class="status-item__label">Calendar fetch</div>
+              <div class="status-item__value" id="status-calendar-value">Waiting</div>
+              <div class="status-item__meta" id="status-calendar-meta">Last success --</div>
+            </div>
+            <div class="status-item" data-status-item="weather">
+              <div class="status-item__label">Weather fetch</div>
+              <div class="status-item__value" id="status-weather-value">Waiting</div>
+              <div class="status-item__meta" id="status-weather-meta">Last success --</div>
+            </div>
+            <div class="status-item" data-status-item="cameras">
+              <div class="status-item__label">Cameras</div>
+              <div class="status-item__value" id="status-cameras-value">--</div>
+              <div class="status-item__meta" id="status-cameras-meta">Checking…</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-group">
+          <div class="status-group__title">Device</div>
+          <div class="status-list">
+            <div class="status-item">
+              <div class="status-item__label">Pi temp</div>
+              <div class="status-item__value" id="status-temp-value">--</div>
+            </div>
+            <div class="status-item">
+              <div class="status-item__label">CPU</div>
+              <div class="status-item__value" id="status-cpu-value">--</div>
+            </div>
+            <div class="status-item">
+              <div class="status-item__label">Memory</div>
+              <div class="status-item__value" id="status-memory-value">--</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-group">
+          <div class="status-group__title">System</div>
+          <div class="status-list">
+            <div class="status-item">
+              <div class="status-item__label">Uptime</div>
+              <div class="status-item__value" id="status-uptime-value">--</div>
+            </div>
+            <div class="status-item">
+              <div class="status-item__label">Current mode</div>
+              <div class="status-item__value" id="status-mode-value">--</div>
+            </div>
+            <div class="status-item">
+              <div class="status-item__label">Update frequency</div>
+              <div class="status-item__value" id="status-update-frequency">--</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
   <section
     id="doorbell-overlay"
     class="doorbell-overlay"

@@ -70,17 +70,31 @@ export function registerHAEvents() {
   });
 
   on("ha:event:dashboard_command", (data) => {
-    if (data.command === "switch_view") {
+    const command = data.command || data.intent || data.action;
+
+    if (command === "switch_view") {
       switchView(data.view);
     }
 
-    if (data.command === "agenda_plus") {
+    if (["system_status", "status", "system_status_view"].includes(command)) {
+      switchView("status");
+      emit("status:highlight", { target: data.target });
+      return;
+    }
+
+    if (["status_calendar", "calendar_status", "calendar_blank"].includes(command)) {
+      switchView("status");
+      emit("status:highlight", { target: "calendar" });
+      return;
+    }
+
+    if (command === "agenda_plus") {
       switchView("agenda");
       emit("agenda:reset");
       return;
     }
 
-    if (data.command === "agenda_filter") {
+    if (command === "agenda_filter") {
       switchView("agenda");
       emit("agenda:filter", {
         category: data.category || data.filter || data.intent || data.value
@@ -88,19 +102,19 @@ export function registerHAEvents() {
       return;
     }
 
-    if (data.command === "agenda_date") {
+    if (command === "agenda_date") {
       switchView("agenda");
       emit("agenda:date", { date: data.date || data.value, offsetDays: data.offsetDays });
       return;
     }
 
-    if (data.command === "agenda_tomorrow") {
+    if (command === "agenda_tomorrow") {
       switchView("agenda");
       emit("agenda:date", { date: "tomorrow" });
       return;
     }
 
-    if (data.command === "agenda_next") {
+    if (command === "agenda_next") {
       emit("agenda:focus-next");
     }
   });

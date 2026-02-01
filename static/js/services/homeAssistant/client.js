@@ -34,6 +34,7 @@ export function connectHA() {
 
   socket.onmessage = (event) => {
     const msg = JSON.parse(event.data);
+    emit("ha:message", { receivedAt: Date.now(), type: msg.type });
 
     if (msg.type === "auth_required") {
       socket.send(JSON.stringify({

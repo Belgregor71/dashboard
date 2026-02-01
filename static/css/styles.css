@@ -771,7 +771,8 @@ body.is-overlay-active {
 .calendar-view,
 .agenda-view,
 .cameras-view,
-.weather-view {
+.weather-view,
+.status-view {
   display: none;
   flex: 1;
   min-height: 0;
@@ -840,30 +841,42 @@ body[data-view="home"] .calendar-view { display: none; }
 body[data-view="home"] .agenda-view { display: none; }
 body[data-view="home"] .cameras-view { display: none; }
 body[data-view="home"] .weather-view { display: none; }
+body[data-view="home"] .status-view { display: none; }
 
 body[data-view="calendar"] .calendar-view { display: flex; }
 body[data-view="calendar"] .home-view { display: none; }
 body[data-view="calendar"] .agenda-view { display: none; }
 body[data-view="calendar"] .cameras-view { display: none; }
 body[data-view="calendar"] .weather-view { display: none; }
+body[data-view="calendar"] .status-view { display: none; }
 
 body[data-view="agenda"] .agenda-view { display: block; }
 body[data-view="agenda"] .home-view { display: none; }
 body[data-view="agenda"] .calendar-view { display: none; }
 body[data-view="agenda"] .cameras-view { display: none; }
 body[data-view="agenda"] .weather-view { display: none; }
+body[data-view="agenda"] .status-view { display: none; }
 
 body[data-view="cameras"] .cameras-view { display: block; }
 body[data-view="cameras"] .home-view { display: none; }
 body[data-view="cameras"] .calendar-view { display: none; }
 body[data-view="cameras"] .agenda-view { display: none; }
 body[data-view="cameras"] .weather-view { display: none; }
+body[data-view="cameras"] .status-view { display: none; }
 
 body[data-view="weather"] .weather-view { display: block; }
 body[data-view="weather"] .home-view { display: none; }
 body[data-view="weather"] .calendar-view { display: none; }
 body[data-view="weather"] .agenda-view { display: none; }
 body[data-view="weather"] .cameras-view { display: none; }
+body[data-view="weather"] .status-view { display: none; }
+
+body[data-view="status"] .status-view { display: flex; }
+body[data-view="status"] .home-view { display: none; }
+body[data-view="status"] .calendar-view { display: none; }
+body[data-view="status"] .agenda-view { display: none; }
+body[data-view="status"] .cameras-view { display: none; }
+body[data-view="status"] .weather-view { display: none; }
 
 body[data-view="calendar"] #commute-panel,
 body[data-view="calendar"] #current-weather-panel {
@@ -879,6 +892,122 @@ body[data-view="calendar"] #top-bar {
 body[data-view="calendar"] #time-panel {
   padding-left: 10px;
 }
+
+/* ============================================================================
+   SYSTEM STATUS VIEW
+============================================================================ */
+
+#status-view {
+  padding: 10px 40px 40px;
+}
+
+.status-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: calc(100vh - 160px);
+}
+
+.status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 20px;
+}
+
+.status-title {
+  font-size: 2.4rem;
+  font-weight: 600;
+}
+
+.status-subtitle {
+  font-size: 1rem;
+  opacity: 0.7;
+}
+
+.status-header-subtitle {
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-auto-flow: dense;
+  gap: 12px;
+  flex: 1;
+}
+
+.status-group {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@media (min-width: 1200px) {
+  .status-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .status-group:nth-child(4) {
+    grid-column: span 2;
+  }
+}
+
+.status-group__title {
+  font-size: 0.9rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.status-list {
+  display: grid;
+  gap: 8px;
+}
+
+.status-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.status-item__label {
+  font-weight: 500;
+}
+
+.status-item__value {
+  font-weight: 600;
+  text-align: right;
+}
+
+.status-item__meta {
+  grid-column: 1 / -1;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.status-item--highlight {
+  background: rgba(255, 214, 102, 0.18);
+  box-shadow: 0 0 0 1px rgba(255, 214, 102, 0.45);
+  animation: statusPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes statusPulse {
+  0% { box-shadow: 0 0 0 0 rgba(255, 214, 102, 0.5); }
+  70% { box-shadow: 0 0 0 6px rgba(255, 214, 102, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 214, 102, 0); }
+}
+
 
 body[data-view="weather"] #commute-panel,
 body[data-view="weather"] #current-weather-panel {
@@ -922,6 +1051,21 @@ body[data-view="cameras"] #top-bar {
 }
 
 body[data-view="cameras"] #time-panel {
+  padding-left: 10px;
+}
+
+body[data-view="status"] #commute-panel,
+body[data-view="status"] #current-weather-panel {
+  display: none;
+}
+
+body[data-view="status"] #top-bar {
+  grid-template-columns: 1fr;
+  justify-items: start;
+  padding: 20px 40px 10px;
+}
+
+body[data-view="status"] #time-panel {
   padding-left: 10px;
 }
 

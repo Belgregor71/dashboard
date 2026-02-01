@@ -3,7 +3,7 @@ console.log(">>> DASHBOARD SERVER LOADED <<<");
 import dotenv from "dotenv";
 import express from "express";
 import https from "https";
-import { readdir } from "fs/promises";
+import { readdir, readFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import fetch from "node-fetch";
@@ -11,6 +11,7 @@ import ical from "node-ical";
 import { CAMERA_CONFIG } from "./config/cameras.js";
 import { pipeline } from "stream/promises";
 import { Readable } from "stream";
+import os from "os";
 
 dotenv.config();
 
@@ -38,6 +39,23 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
     return await fetch(url, { ...options, signal: controller.signal });
   } finally {
     clearTimeout(timer);
+  }
+}
+
+function normalizePingTarget(target) {
+  if (!target) return "https://1.1.1.1";
+  if (/^https?:\/\//i.test(target)) return target;
+  return `https://${target}`;
+}
+
+async function readPiTemperature() {
+  try {
+    const raw = await readFile("/sys/class/thermal/thermal_zone0/temp", "utf8");
+    const value = Number.parseFloat(raw.trim());
+    if (Number.isNaN(value)) return null;
+    return value / 1000;
+  } catch (err) {
+    return null;
   }
 }
 
@@ -168,6 +186,60 @@ app.use(
 );
 app.use("/photos", express.static(path.join(__dirname, "static", "photos")));
 app.use("/icons", express.static(path.join(__dirname, "static", "icons")));
+
+/* ============================================================================
+   SYSTEM STATUS
+============================================================================ */
+
+app.get("/api/system/ping", async (req, res) => {
+  const target = normalizePingTarget(process.env.STATUS_PING_TARGET || "https://1.1.1.1");
+  const start = Date.now();
+
+  try {
+    const response = await fetchWithTimeout(
+      target,
+      { method: "HEAD" },
+      5000
+    );
+    const latencyMs = Date.now() - start;
+    res.json({
+      ok: response.ok,
+      status: response.status,
+      latencyMs,
+      target
+    });
+  } catch (err) {
+    const latencyMs = Date.now() - start;
+    res.status(502).json({
+      ok: false,
+      error: err instanceof Error ? err.message : "Ping failed",
+      latencyMs,
+      target
+    });
+  }
+});
+
+app.get("/api/system/metrics", async (req, res) => {
+  const cpuCount = os.cpus()?.length || 1;
+  const load = os.loadavg?.()[0] ?? 0;
+  const cpuLoadPercent = Math.round((load / cpuCount) * 100);
+  const totalMem = os.totalmem();
+  const freeMem = os.freemem();
+  const tempC = await readPiTemperature();
+
+  res.json({
+    cpuLoadPercent,
+    cpuCount,
+    memory: {
+      total: totalMem,
+      free: freeMem,
+      used: totalMem - freeMem
+    },
+    uptimeSeconds: os.uptime(),
+    tempC,
+    hostname: os.hostname()
+  });
+});
 
 /* ============================================================================
    PHOTOS LISTING
