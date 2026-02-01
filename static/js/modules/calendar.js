@@ -597,7 +597,7 @@ function renderMonth(events) {
   const lastDay = new Date(year, month + 1, 0);
   const startIndex = firstDay.getDay();
   const totalCells = Math.ceil((startIndex + lastDay.getDate()) / 7) * 7;
-
+  grid.style.setProperty("--calendar-rows", String(totalCells / 7));
   const eventsByDay = new Map();
 
   (events || []).forEach(ev => {
