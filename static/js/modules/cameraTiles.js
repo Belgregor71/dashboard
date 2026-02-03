@@ -1,10 +1,46 @@
-import { emit } from "../core/eventBus.js";
+import { emit, on } from "../core/eventBus.js";
+import { getAllEntities, getEntity } from "../services/homeAssistant/state.js";
+import { buildCameraConfig, buildMediaProxyUrl } from "./cameras/cameraDiscovery.js";
 
-const DEFAULT_SNAPSHOT_REFRESH_MS = 20_000;
-const DEFAULT_STREAM_TIMEOUT_MS = 90_000;
-const MAX_BACKOFF_MS = 10_000;
+const SNAPSHOT_REFRESH_MS = 45_000;
+const MAX_BACKOFF_MS = 120_000;
+const BUCKET_SIZE_MS = 5 * 60 * 1000;
+const BUCKET_COUNT = 12;
+const TIMELINE_WINDOW_MS = 2 * 60 * 60 * 1000;
+const TIMELINE_MAX_EVENTS = 200;
+
+const EVENT_WEIGHTS = {
+  ringing: 3,
+  person: 2,
+  motion: 1,
+  pet: 1,
+  sound: 1,
+  crying: 1
+};
+
+const ACTIVE_STATES = ["on", "ringing", "detected", "motion"];
 
 const cameraStatuses = new Map();
+const cameraRenderState = new Map();
+const heatDataByCamera = new Map();
+const timelineEvents = [];
+const lastEntityStates = new Map();
+
+let cameras = [];
+let camerasById = new Map();
+let eventEntityMap = new Map();
+let viewActive = false;
+let refreshTimer;
+let discoveryTimer;
+let pinnedCameraId = null;
+let focusedCameraId = null;
+
+const heroElements = {};
+let tilesGrid;
+let timelineBand;
+let sectionTitle;
+let haStatusEl;
+let toastEl;
 
 function emitCameraStatus() {
   const total = cameraStatuses.size;
@@ -33,247 +69,525 @@ function updateCameraStatus(cameraId, status) {
   emitCameraStatus();
 }
 
-function buildStreamUrl(camera, streamType) {
-  const url = new URL(camera.streamUrl, window.location.origin);
-  if (streamType) url.searchParams.set("type", streamType);
-  return url.toString();
+function setHaStatus(status) {
+  if (!haStatusEl) return;
+  haStatusEl.textContent = status;
+  haStatusEl.dataset.status = status.toLowerCase();
 }
 
-function buildSnapshotUrl(camera) {
-  const url = new URL(camera.snapshotUrl, window.location.origin);
-  url.searchParams.set("t", Date.now().toString());
-  return url.toString();
-}
-
-function setStatus(card, message = "") {
-  const statusEl = card.querySelector(".camera-card__status");
-  if (!statusEl) return;
-  statusEl.textContent = message;
-  statusEl.classList.toggle("is-hidden", !message);
-}
-
-function setLiveBadge(card, label) {
-  const badge = card.querySelector(".camera-card__badge");
-  if (!badge) return;
-  badge.textContent = label;
-  badge.classList.toggle("camera-card__badge--auto", label !== "Live");
-}
-
-function toggleActionButtons(card, { showStart, showStop }) {
-  const startBtn = card.querySelector(".camera-card__action--start");
-  const stopBtn = card.querySelector(".camera-card__action--stop");
-  if (startBtn) startBtn.classList.toggle("is-hidden", !showStart);
-  if (stopBtn) stopBtn.classList.toggle("is-hidden", !showStop);
-}
-
-function showVideo(card, videoEl, imageEl) {
-  card.classList.add("is-streaming");
-  if (videoEl) videoEl.classList.remove("is-hidden");
-  if (imageEl) imageEl.classList.add("is-hidden");
-}
-
-function showSnapshot(card, videoEl, imageEl) {
-  card.classList.remove("is-streaming");
-  if (videoEl) {
-    videoEl.pause();
-    videoEl.removeAttribute("src");
-    videoEl.load();
-    videoEl.classList.add("is-hidden");
-  }
-  if (imageEl) imageEl.classList.remove("is-hidden");
-}
-
-function createBackoff() {
-  let attempt = 0;
-  return () => {
-    attempt += 1;
-    return Math.min(MAX_BACKOFF_MS, 1000 * Math.pow(2, attempt - 1));
-  };
-}
-
-async function fetchCameraConfig() {
-  const response = await fetch("/api/cameras");
-  if (!response.ok) {
-    throw new Error(`Camera config load failed: ${response.status}`);
-  }
-  const payload = await response.json();
-  return Array.isArray(payload.cameras) ? payload.cameras : [];
-}
-
-export async function initCameraTiles() {
-  const cards = document.querySelectorAll("[data-camera-id]");
-  if (!cards.length) return;
-
-  cards.forEach((card) => {
-    const cameraId = card.dataset.cameraId?.replace("camera.", "");
-    if (cameraId) updateCameraStatus(cameraId, "unknown");
-  });
-
-  let cameras = [];
-  try {
-    cameras = await fetchCameraConfig();
-  } catch (error) {
-    console.warn("Camera config unavailable", error);
-    cards.forEach((card) => {
-      setStatus(card, "Camera config unavailable");
-      const cameraId = card.dataset.cameraId?.replace("camera.", "");
-      updateCameraStatus(cameraId, "offline");
+function ensureHeatData(cameraId) {
+  if (!heatDataByCamera.has(cameraId)) {
+    heatDataByCamera.set(cameraId, {
+      buckets: Array.from({ length: BUCKET_COUNT }, () => 0),
+      lastBucketStart: getBucketStart(Date.now())
     });
-    return;
+  }
+  return heatDataByCamera.get(cameraId);
+}
+
+function getBucketStart(timestamp) {
+  return Math.floor(timestamp / BUCKET_SIZE_MS) * BUCKET_SIZE_MS;
+}
+
+function advanceBuckets(heatData, timestamp) {
+  const bucketStart = getBucketStart(timestamp);
+  const diff = Math.floor((bucketStart - heatData.lastBucketStart) / BUCKET_SIZE_MS);
+  if (diff <= 0) return;
+  const zeros = Array.from({ length: diff }, () => 0);
+  heatData.buckets = zeros.concat(heatData.buckets).slice(0, BUCKET_COUNT);
+  heatData.lastBucketStart = bucketStart;
+}
+
+function addHeat(cameraId, weight, timestamp) {
+  const heatData = ensureHeatData(cameraId);
+  advanceBuckets(heatData, timestamp);
+  heatData.buckets[0] += weight;
+}
+
+function bucketToLevel(weight) {
+  if (!weight) return 0;
+  if (weight >= 4) return 4;
+  if (weight >= 3) return 3;
+  if (weight >= 2) return 2;
+  return 1;
+}
+
+function ensureHeatStrip(container, buckets) {
+  if (!container) return;
+  if (!container.children.length) {
+    container.innerHTML = buckets.map(() => "<span class=\"heat-cell\"></span>").join("");
   }
 
-  const camerasById = new Map(cameras.map((camera) => [camera.id, camera]));
-
-  cards.forEach((card) => {
-    const cameraId = card.dataset.cameraId?.replace("camera.", "");
-    const camera = camerasById.get(cameraId);
-    const statusKey = camera?.id || cameraId;
-    if (!camera) {
-      setStatus(card, "Camera not configured");
-      updateCameraStatus(statusKey, "offline");
-      return;
+  const cells = Array.from(container.children);
+  buckets.forEach((value, index) => {
+    const cell = cells[index];
+    if (!cell) return;
+    const level = bucketToLevel(value);
+    if (cell.dataset.level !== String(level)) {
+      cell.dataset.level = String(level);
     }
+  });
+}
 
-    const imageEl = card.querySelector(".camera-card__image");
-    const videoEl = card.querySelector(".camera-card__video");
-    const labelEl = card.querySelector(".camera-card__name");
-    if (labelEl) labelEl.textContent = camera.name;
+function formatActivityLabel(activity) {
+  if (!activity) return "No recent activity";
+  const time = new Date(activity.timestamp).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+  return `${activity.label} · ${time}`;
+}
 
-    if (imageEl) {
-      imageEl.addEventListener("load", () => updateCameraStatus(statusKey, "online"));
-      imageEl.addEventListener("error", () => updateCameraStatus(statusKey, "offline"));
-    }
+function setToast(message) {
+  if (!toastEl) return;
+  toastEl.textContent = message;
+  toastEl.classList.add("is-visible");
+  setTimeout(() => toastEl.classList.remove("is-visible"), 4000);
+}
 
-    if (videoEl) {
-      videoEl.addEventListener("playing", () => updateCameraStatus(statusKey, "online"));
-      videoEl.addEventListener("error", () => updateCameraStatus(statusKey, "offline"));
-      videoEl.addEventListener("stalled", () => updateCameraStatus(statusKey, "offline"));
-    }
+function buildCameraList() {
+  const statesMap = getAllEntities();
+  const nextCameras = buildCameraConfig(statesMap);
+  cameras = nextCameras;
+  camerasById = new Map(cameras.map((camera) => [camera.id, camera]));
+  eventEntityMap = new Map();
 
-    let snapshotTimer;
-    let streamTimer;
-    let reconnectTimer;
-    let backoff = createBackoff();
-    let activeStreamType = camera.streamType;
+  cameras.forEach((camera) => {
+    const mappings = [
+      [camera.motionEntity, "motion"],
+      [camera.personEntity, "person"],
+      [camera.ringingEntity, "ringing"],
+      [camera.petEntity, "pet"],
+      [camera.soundEntity, "sound"],
+      [camera.cryingEntity, "crying"],
+      [camera.eventImageEntity, "event_image"]
+    ];
 
-    const streamTypes = [camera.streamType, ...(camera.streamFallbacks ?? [])].filter(Boolean);
-
-    function clearTimers() {
-      if (snapshotTimer) clearInterval(snapshotTimer);
-      if (streamTimer) clearTimeout(streamTimer);
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      snapshotTimer = null;
-      streamTimer = null;
-      reconnectTimer = null;
-    }
-
-    function startSnapshotPolling() {
-      if (!imageEl) return;
-      updateCameraStatus(statusKey, "unknown");
-      imageEl.src = buildSnapshotUrl(camera);
-      if (snapshotTimer) clearInterval(snapshotTimer);
-      snapshotTimer = setInterval(() => {
-        imageEl.src = buildSnapshotUrl(camera);
-      }, camera.snapshotRefreshMs ?? DEFAULT_SNAPSHOT_REFRESH_MS);
-    }
-
-    function stopStream() {
-      clearTimers();
-      showSnapshot(card, videoEl, imageEl);
-      toggleActionButtons(card, { showStart: true, showStop: false });
-      startSnapshotPolling();
-    }
-
-    function scheduleStop() {
-      if (camera.mode !== "snapshot") return;
-      if (streamTimer) clearTimeout(streamTimer);
-      streamTimer = setTimeout(stopStream, camera.streamTimeoutMs ?? DEFAULT_STREAM_TIMEOUT_MS);
-    }
-
-    function handleStreamFailure(isPersistent) {
-      setStatus(card, isPersistent ? "Reconnecting…" : "Stream unavailable");
-      updateCameraStatus(statusKey, "offline");
-      cycleStreamType();
-      if (!isPersistent) {
-        stopStream();
-        return;
+    mappings.forEach(([entityId, type]) => {
+      if (entityId) {
+        eventEntityMap.set(entityId, { cameraId: camera.id, type });
       }
-      const delay = backoff();
-      reconnectTimer = setTimeout(() => startStream(true), delay);
+    });
+  });
+
+  renderCameraGrid();
+  updateHero();
+}
+
+function renderCameraGrid() {
+  if (!tilesGrid) return;
+  tilesGrid.innerHTML = "";
+  cameraRenderState.clear();
+
+  cameras.forEach((camera) => {
+    const card = document.createElement("article");
+    card.className = "camera-card";
+    card.dataset.cameraId = camera.id;
+
+    card.innerHTML = `
+      <div class="camera-card__preview">
+        <img class="camera-card__image" alt="${camera.name} snapshot" />
+        <span class="camera-card__badge camera-card__badge--stale is-hidden" data-badge>STALE</span>
+        <div class="camera-card__pill" data-status></div>
+      </div>
+      <div class="camera-card__body">
+        <div class="camera-card__name">${camera.name}</div>
+        <div class="camera-card__meta" data-activity>No recent activity</div>
+        <div class="camera-card__heat" data-heat></div>
+      </div>
+    `;
+
+    card.addEventListener("click", () => focusCamera(camera.id));
+
+    tilesGrid.appendChild(card);
+
+    cameraRenderState.set(camera.id, {
+      card,
+      imageEl: card.querySelector(".camera-card__image"),
+      badgeEl: card.querySelector("[data-badge]"),
+      statusEl: card.querySelector("[data-status]"),
+      activityEl: card.querySelector("[data-activity]"),
+      heatEl: card.querySelector("[data-heat]"),
+      failureCount: 0,
+      nextRetryAt: 0,
+      lastSuccessUrl: null,
+      stale: false,
+      lastActivity: null
+    });
+  });
+
+  if (sectionTitle) {
+    sectionTitle.textContent = `All Cameras (${cameras.length})`;
+  }
+
+  cameraRenderState.forEach((state, cameraId) => {
+    attachImageHandlers(cameraId, state);
+    updateCameraCard(cameraId);
+  });
+}
+
+function updateHero() {
+  if (!heroElements.imageEl) return;
+  const targetId = pinnedCameraId || focusedCameraId || cameras[0]?.id;
+  if (!targetId) return;
+
+  focusedCameraId = targetId;
+  const camera = camerasById.get(targetId);
+  if (!camera) return;
+
+  heroElements.container.dataset.cameraId = targetId;
+  heroElements.nameEl.textContent = camera.name;
+  const state = cameraRenderState.get(targetId);
+  if (state?.activityEl) {
+    heroElements.activityEl.textContent = state.activityEl.textContent;
+  }
+  if (state?.statusEl) {
+    heroElements.statusEl.textContent = state.statusEl.textContent || "Idle";
+  }
+
+  if (state?.heatEl) {
+    heroElements.heatEl.innerHTML = state.heatEl.innerHTML;
+    Array.from(heroElements.heatEl.children).forEach((cell, index) => {
+      const sourceCell = state.heatEl.children[index];
+      if (sourceCell) {
+        cell.dataset.level = sourceCell.dataset.level || "0";
+      }
+    });
+  }
+
+  if (state?.badgeEl) {
+    heroElements.badgeEl.classList.toggle("is-hidden", state.badgeEl.classList.contains("is-hidden"));
+  }
+
+  if (state?.lastSuccessUrl) {
+    heroElements.imageEl.src = state.lastSuccessUrl;
+  } else {
+    refreshCameraImage(camera, state, { force: true });
+  }
+}
+
+function attachImageHandlers(cameraId, state) {
+  if (!state?.imageEl) return;
+
+  state.imageEl.addEventListener("load", () => {
+    state.failureCount = 0;
+    state.nextRetryAt = 0;
+    state.lastSuccessUrl = state.imageEl.src;
+    state.stale = false;
+    state.badgeEl?.classList.add("is-hidden");
+    updateCameraStatus(cameraId, "online");
+    if (cameraId === focusedCameraId && heroElements.imageEl) {
+      heroElements.imageEl.src = state.imageEl.src;
+      heroElements.badgeEl.classList.add("is-hidden");
     }
+  });
 
-    function attachStreamEvents(isPersistent) {
-      if (!videoEl) return;
-      const onFailure = () => handleStreamFailure(isPersistent);
-      videoEl.onerror = onFailure;
-      videoEl.onstalled = onFailure;
-      videoEl.onended = onFailure;
+  state.imageEl.addEventListener("error", () => {
+    state.failureCount += 1;
+    state.stale = true;
+    state.badgeEl?.classList.remove("is-hidden");
+    updateCameraStatus(cameraId, "offline");
+    const delay = Math.min(MAX_BACKOFF_MS, 2000 * Math.pow(2, state.failureCount - 1));
+    state.nextRetryAt = Date.now() + delay;
+    if (state.lastSuccessUrl && state.imageEl.src !== state.lastSuccessUrl) {
+      state.imageEl.src = state.lastSuccessUrl;
     }
-
-    function startStream(isPersistent = false) {
-      if (!videoEl) return;
-      clearTimers();
-      setStatus(card, "Connecting…");
-      updateCameraStatus(statusKey, "unknown");
-      toggleActionButtons(card, { showStart: false, showStop: camera.mode === "snapshot" });
-
-      const streamUrl = buildStreamUrl(camera, activeStreamType);
-      videoEl.src = streamUrl;
-      videoEl.muted = true;
-      videoEl.playsInline = true;
-      videoEl.autoplay = true;
-
-      showVideo(card, videoEl, imageEl);
-
-      videoEl
-        .play()
-        .then(() => {
-          setStatus(card, "");
-          backoff = createBackoff();
-          updateCameraStatus(statusKey, "online");
-          scheduleStop();
-        })
-        .catch(() => {
-          handleStreamFailure(isPersistent);
-        });
-
-      attachStreamEvents(isPersistent);
+    if (cameraId === focusedCameraId) {
+      heroElements.badgeEl.classList.remove("is-hidden");
     }
+  });
+}
 
-    function cycleStreamType() {
-      if (streamTypes.length <= 1) return;
-      const currentIndex = streamTypes.indexOf(activeStreamType);
-      const nextIndex = (currentIndex + 1) % streamTypes.length;
-      activeStreamType = streamTypes[nextIndex];
+function updateCameraCard(cameraId) {
+  const camera = camerasById.get(cameraId);
+  const state = cameraRenderState.get(cameraId);
+  if (!camera || !state) return;
+
+  const enabledEntity = camera.enabledEntity ? getEntity(camera.enabledEntity) : null;
+  const enabled = enabledEntity ? enabledEntity.state !== "off" : true;
+  if (state.statusEl) {
+    state.statusEl.textContent = enabled ? "Active" : "Disabled";
+    state.statusEl.classList.toggle("is-disabled", !enabled);
+  }
+
+  const heatData = ensureHeatData(cameraId);
+  ensureHeatStrip(state.heatEl, heatData.buckets);
+
+  if (state.lastActivity) {
+    const label = formatActivityLabel(state.lastActivity);
+    state.activityEl.textContent = label;
+  }
+}
+
+function refreshCameraImage(camera, state, { force = false } = {}) {
+  if (!camera || !state?.imageEl) return;
+  const now = Date.now();
+  if (!force && state.nextRetryAt && now < state.nextRetryAt) return;
+
+  const sourceEntity = camera.eventImageEntity || camera.entityId;
+  const url = buildMediaProxyUrl(sourceEntity, true);
+  if (!url) return;
+  state.imageEl.src = url;
+}
+
+function refreshAllImages({ force = false } = {}) {
+  cameras.forEach((camera) => {
+    const state = cameraRenderState.get(camera.id);
+    refreshCameraImage(camera, state, { force });
+  });
+}
+
+function focusCamera(cameraId) {
+  if (!cameraId || !camerasById.has(cameraId)) return;
+  focusedCameraId = cameraId;
+  updateHero();
+}
+
+function cycleCamera(direction) {
+  if (!cameras.length) return;
+  const activeId = pinnedCameraId || focusedCameraId || cameras[0].id;
+  const currentIndex = cameras.findIndex((camera) => camera.id === activeId);
+  if (currentIndex === -1) return;
+  const nextIndex = (currentIndex + direction + cameras.length) % cameras.length;
+  focusCamera(cameras[nextIndex].id);
+}
+
+function handleCameraEvent(cameraId, type, timestamp) {
+  const camera = camerasById.get(cameraId);
+  if (!camera) return;
+
+  const weight = EVENT_WEIGHTS[type] ?? 1;
+  addHeat(cameraId, weight, timestamp);
+
+  const activityLabel = type === "person" ? resolvePersonLabel(camera) : titleizeEvent(type);
+  const activity = { label: activityLabel, timestamp };
+
+  const state = cameraRenderState.get(cameraId);
+  if (state) {
+    state.lastActivity = activity;
+    state.activityEl.textContent = formatActivityLabel(activity);
+    ensureHeatStrip(state.heatEl, ensureHeatData(cameraId).buckets);
+  }
+
+  timelineEvents.unshift({ cameraId, type, timestamp, label: activityLabel });
+  pruneTimeline(timestamp);
+  renderTimeline();
+
+  refreshCameraImage(camera, state, { force: true });
+
+  if (cameraId === focusedCameraId) {
+    heroElements.activityEl.textContent = formatActivityLabel(activity);
+    ensureHeatStrip(heroElements.heatEl, ensureHeatData(cameraId).buckets);
+  }
+}
+
+function resolvePersonLabel(camera) {
+  if (!camera?.personNameEntity) return "Person";
+  const personEntity = getEntity(camera.personNameEntity);
+  const name = personEntity?.state && personEntity.state !== "unknown" ? personEntity.state : "Person";
+  return `Person: ${name}`;
+}
+
+function titleizeEvent(type) {
+  return type.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function pruneTimeline(now) {
+  const cutoff = now - TIMELINE_WINDOW_MS;
+  while (timelineEvents.length > TIMELINE_MAX_EVENTS) {
+    timelineEvents.pop();
+  }
+  for (let i = timelineEvents.length - 1; i >= 0; i -= 1) {
+    if (timelineEvents[i].timestamp < cutoff) {
+      timelineEvents.splice(i, 1);
     }
+  }
+}
 
-    if (camera.mode === "live") {
-      setLiveBadge(card, "Live");
-      startStream(true);
+function renderTimeline() {
+  if (!timelineBand) return;
+  const now = Date.now();
+  const cutoff = now - TIMELINE_WINDOW_MS;
+  timelineBand.innerHTML = "";
+
+  timelineEvents.forEach((event) => {
+    if (event.timestamp < cutoff) return;
+    const marker = document.createElement("span");
+    marker.className = "camera-timeline__marker";
+    const pct = ((event.timestamp - cutoff) / TIMELINE_WINDOW_MS) * 100;
+    marker.style.left = `${Math.min(100, Math.max(0, pct))}%`;
+    marker.title = `${event.label} (${new Date(event.timestamp).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit"
+    })})`;
+    timelineBand.appendChild(marker);
+  });
+}
+
+function scheduleDiscoveryRefresh() {
+  if (discoveryTimer) return;
+  discoveryTimer = setTimeout(() => {
+    discoveryTimer = null;
+    buildCameraList();
+  }, 250);
+}
+
+function handleStateUpdated(event) {
+  const entity = event.detail;
+  if (!entity?.entity_id) return;
+
+  const entityId = entity.entity_id;
+  const prevState = lastEntityStates.get(entityId);
+  lastEntityStates.set(entityId, entity.state);
+
+  if (entityId.startsWith("camera.") || entityId.startsWith("image.")) {
+    scheduleDiscoveryRefresh();
+  }
+
+  const mapping = eventEntityMap.get(entityId);
+  if (mapping) {
+    const normalized = String(entity.state).toLowerCase();
+    const wasActive = prevState && ACTIVE_STATES.includes(String(prevState).toLowerCase());
+    const isActive = ACTIVE_STATES.includes(normalized) || mapping.type === "event_image";
+
+    if (isActive && (!wasActive || mapping.type === "event_image")) {
+      if (mapping.type !== "event_image") {
+        handleCameraEvent(mapping.cameraId, mapping.type, Date.now());
+      } else {
+        const camera = camerasById.get(mapping.cameraId);
+        const state = cameraRenderState.get(mapping.cameraId);
+        refreshCameraImage(camera, state, { force: true });
+      }
+    }
+  }
+
+  cameras.forEach((camera) => {
+    if (camera.enabledEntity === entityId) {
+      updateCameraCard(camera.id);
+    }
+    if (camera.personNameEntity === entityId) {
+      const state = cameraRenderState.get(camera.id);
+      if (state?.lastActivity?.label?.startsWith("Person")) {
+        state.lastActivity = {
+          ...state.lastActivity,
+          label: resolvePersonLabel(camera)
+        };
+        state.activityEl.textContent = formatActivityLabel(state.lastActivity);
+      }
+    }
+  });
+}
+
+function startRefreshLoop() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(() => {
+    if (!viewActive) return;
+    refreshAllImages({ force: false });
+  }, SNAPSHOT_REFRESH_MS);
+}
+
+function stopRefreshLoop() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = null;
+}
+
+function registerCommandHandlers() {
+  on("dashboard_command", (data) => {
+    const command = data?.command || data?.intent || data?.action;
+    if (!command) return;
+
+    if (command === "camera_focus") {
+      const cameraId = data.camera_id || data.cameraId || data.value;
+      focusCamera(cameraId);
+      setToast(cameraId ? `Focused ${cameraId}` : "Camera not found");
       return;
     }
 
-    setLiveBadge(card, "Snapshot");
-    startSnapshotPolling();
-    toggleActionButtons(card, { showStart: true, showStop: false });
+    if (command === "camera_cycle_next") {
+      cycleCamera(1);
+      setToast("Cycling to next camera");
+      return;
+    }
 
-    const startBtn = card.querySelector(".camera-card__action--start");
-    const stopBtn = card.querySelector(".camera-card__action--stop");
+    if (command === "camera_cycle_prev") {
+      cycleCamera(-1);
+      setToast("Cycling to previous camera");
+      return;
+    }
 
-    startBtn?.addEventListener("click", (event) => {
-      event.stopPropagation();
-      startStream(false);
-    });
+    if (command === "camera_pin") {
+      const cameraId = data.camera_id || data.cameraId || data.value;
+      if (cameraId && camerasById.has(cameraId)) {
+        pinnedCameraId = cameraId;
+        focusCamera(cameraId);
+        setToast(`Pinned ${cameraId}`);
+      }
+      return;
+    }
 
-    stopBtn?.addEventListener("click", (event) => {
-      event.stopPropagation();
-      stopStream();
-    });
+    if (command === "camera_unpin") {
+      pinnedCameraId = null;
+      setToast("Camera unpinned");
+      return;
+    }
 
-    card.addEventListener("click", () => {
-      if (card.classList.contains("is-streaming")) return;
-      startStream(false);
-    });
+    if (command === "camera_summary") {
+      const cameraId = data.camera_id || data.cameraId || data.value;
+      if (cameraId && camerasById.has(cameraId)) {
+        const state = cameraRenderState.get(cameraId);
+        setToast(state?.activityEl?.textContent || "No recent activity");
+      } else {
+        const summary = `Tracking ${cameras.length} cameras`;
+        setToast(summary);
+      }
+      return;
+    }
 
+    if (command === "camera_live_start" || command === "camera_live_stop") {
+      setToast("Live view not configured");
+    }
   });
+}
+
+function initElements() {
+  heroElements.container = document.getElementById("camera-hero");
+  heroElements.imageEl = document.querySelector(".camera-hero__image");
+  heroElements.nameEl = document.getElementById("camera-hero-name");
+  heroElements.statusEl = document.getElementById("camera-hero-status");
+  heroElements.activityEl = document.getElementById("camera-hero-activity");
+  heroElements.heatEl = document.getElementById("camera-hero-heat");
+  heroElements.badgeEl = document.querySelector(".camera-hero__badge");
+
+  tilesGrid = document.getElementById("camera-tiles-grid");
+  timelineBand = document.getElementById("camera-timeline-band");
+  sectionTitle = document.getElementById("camera-tiles-title");
+  haStatusEl = document.getElementById("cameras-ha-status");
+  toastEl = document.getElementById("camera-toast");
+}
+
+export function initCameraTiles() {
+  initElements();
+  if (!tilesGrid) return;
+
+  viewActive = document.body?.dataset?.view === "cameras";
+
+  buildCameraList();
+  refreshAllImages({ force: true });
+  startRefreshLoop();
+
+  document.addEventListener("ha:state-updated", handleStateUpdated);
+
+  on("view:changed", ({ view }) => {
+    viewActive = view === "cameras";
+    if (viewActive) {
+      refreshAllImages({ force: true });
+      updateHero();
+    }
+  });
+
+  on("ha:connected", () => setHaStatus("Online"));
+  on("ha:disconnected", () => setHaStatus("Offline"));
+
+  registerCommandHandlers();
+  setHaStatus("Offline");
 }
