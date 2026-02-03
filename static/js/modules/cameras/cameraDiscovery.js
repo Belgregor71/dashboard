@@ -33,8 +33,6 @@ export function buildCameraConfig(statesMap) {
 
   prefixes.forEach((prefix) => {
     const overrides = CAMERA_OVERRIDES?.[prefix] ?? {};
-    if (overrides.hidden) return;
-
     const entityId = `camera.${prefix}`;
     const cameraEntity = getState(statesMap, entityId);
     const defaultName = cameraEntity?.attributes?.friendly_name || titleize(prefix);
@@ -46,6 +44,7 @@ export function buildCameraConfig(statesMap) {
       area: overrides.area,
       order: overrides.order,
       hidden: Boolean(overrides.hidden),
+      pinnedHero: Boolean(overrides.pinnedHero),
       eventImageEntity: getState(statesMap, `image.${prefix}_event_image`)
         ? `image.${prefix}_event_image`
         : null,
@@ -96,6 +95,12 @@ export function buildCameraConfig(statesMap) {
   });
 
   return cameras;
+}
+
+export function getPinnedHeroId(cameras) {
+  if (!Array.isArray(cameras)) return "doorbell";
+  const pinned = cameras.find((camera) => camera.pinnedHero);
+  return pinned?.id || "doorbell";
 }
 
 export function buildMediaProxyUrl(entityId, bustCache = true) {

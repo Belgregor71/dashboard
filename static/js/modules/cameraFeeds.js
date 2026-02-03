@@ -26,7 +26,7 @@ function resolveStreamUrl(config, cameraEntity) {
   const entityPicture = cameraEntity?.attributes?.entity_picture;
   if (entityPicture) return resolveUrl(entityPicture);
   if (config?.entityId) {
-    return resolveUrl(`/api/camera_proxy_stream/${config.entityId}`);
+    return resolveUrl(`/api/camera_proxy/${config.entityId}`);
   }
   return "";
 }
