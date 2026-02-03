@@ -15,7 +15,7 @@ export const CONFIG = {
       triggerEntityId: "binary_sensor.front_doorbell_motion",
       triggerStates: ["on", "ringing"],
       cameraEntityId: "camera.doorbell",
-      streamPath: "/api/camera_proxy_stream/camera.doorbell",
+      streamPath: "/api/camera_proxy/camera.doorbell",
       activeLabel: "Doorbell motion detected",
       autoCloseMs: 45000
     },
@@ -23,47 +23,47 @@ export const CONFIG = {
       {
         entityId: "camera.kitchen",
         label: "Kitchen",
-        streamPath: "/api/camera_proxy_stream/camera.kitchen"
+        streamPath: "/api/camera_proxy/camera.kitchen"
       },
       {
         entityId: "camera.piano_room",
         label: "Piano Room",
-        streamPath: "/api/camera_proxy_stream/camera.piano_room"
+        streamPath: "/api/camera_proxy/camera.piano_room"
       },
       {
         entityId: "camera.tilt_pan",
         label: "Garage (Pan & Tilt)",
-        streamPath: "/api/camera_proxy_stream/camera.tilt_pan"
+        streamPath: "/api/camera_proxy/camera.tilt_pan"
       },
       {
         entityId: "camera.doorbell",
         label: "Doorbell",
-        streamPath: "/api/camera_proxy_stream/camera.doorbell"
+        streamPath: "/api/camera_proxy/camera.doorbell"
       },
       {
         entityId: "camera.front_yard",
         label: "Front Yard",
-        streamPath: "/api/camera_proxy_stream/camera.front_yard"
+        streamPath: "/api/camera_proxy/camera.front_yard"
       },
       {
         entityId: "camera.driveway",
         label: "Driveway",
-        streamPath: "/api/camera_proxy_stream/camera.driveway"
+        streamPath: "/api/camera_proxy/camera.driveway"
       },
       {
         entityId: "camera.backyard",
         label: "Backyard",
-        streamPath: "/api/camera_proxy_stream/camera.backyard"
+        streamPath: "/api/camera_proxy/camera.backyard"
       },
       {
         entityId: "camera.patio",
         label: "Patio",
-        streamPath: "/api/camera_proxy_stream/camera.patio"
+        streamPath: "/api/camera_proxy/camera.patio"
       },
       {
         entityId: "camera.side_gate",
         label: "Side Gate",
-        streamPath: "/api/camera_proxy_stream/camera.side_gate"
+        streamPath: "/api/camera_proxy/camera.side_gate"
       }
     ],
     cameraMotionView: {
