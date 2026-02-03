@@ -2,6 +2,7 @@ console.log(">>> DASHBOARD SERVER LOADED <<<");
 
 import dotenv from "dotenv";
 import express from "express";
+import { createProxyMiddleware } from "http-proxy-middleware";
 import https from "https";
 import { readdir, readFile } from "fs/promises";
 import path from "path";
@@ -31,6 +32,9 @@ const CALENDAR_URLS = {
 };
 
 const CAMERA_MAP = new Map(CAMERA_CONFIG.map((camera) => [camera.id, camera]));
+const HA_TARGET = normalizeBaseUrl(HA_HOST);
+
+attachHaProxy(app);
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
   const controller = new AbortController();
@@ -46,6 +50,31 @@ function normalizePingTarget(target) {
   if (!target) return "https://1.1.1.1";
   if (/^https?:\/\//i.test(target)) return target;
   return `https://${target}`;
+}
+
+function attachHaProxy(appInstance) {
+  if (!HA_TARGET) {
+    console.warn("HA_HOST is not configured; skipping Home Assistant proxy.");
+    return;
+  }
+
+  const addAuthHeader = (proxyReq) => {
+    if (HOME_ASSISTANT_TOKEN) {
+      proxyReq.setHeader("Authorization", `Bearer ${HOME_ASSISTANT_TOKEN}`);
+    }
+  };
+
+  const proxyOptions = {
+    target: HA_TARGET,
+    changeOrigin: true,
+    ws: true,
+    onProxyReq: addAuthHeader,
+    onProxyReqWs: addAuthHeader
+  };
+
+  appInstance.use("/api/image_proxy", createProxyMiddleware(proxyOptions));
+  appInstance.use("/api/camera_proxy", createProxyMiddleware(proxyOptions));
+  appInstance.use("/api/websocket", createProxyMiddleware(proxyOptions));
 }
 
 async function readPiTemperature() {
