@@ -64,3 +64,7 @@ From the Pi browser, check:
 * `http://<dashboard-host>:3000/api/camera/kitchen/stream?type=hls`
 
 If those work, the dashboard tiles should render without CORS or mixed-content errors.
+
+### Troubleshooting
+
+* **`/api/image_proxy/...` or `/api/camera_proxy/...` returns 503**: the dashboard server did not load `HA_HOST` (and optionally `HA_TOKEN`). Confirm `.env` exists, restart the server, and avoid `localhost` in `HA_HOST` unless Home Assistant is running on the same host.
