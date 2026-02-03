@@ -3,43 +3,22 @@ export const CAMERA_CONFIG = [
     id: "kitchen",
     name: "Kitchen",
     entity: "camera.kitchen",
-    mode: "live",
-    streamType: "webrtc",
-    streamFallbacks: ["hls", "mjpeg"],
-    streamPaths: {
-      webrtc: "/api/webrtc?src=kitchen",
-      hls: "/api/hls?src=kitchen",
-      mjpeg: "/api/mjpeg?src=kitchen"
-    },
-    snapshotPath: "/api/camera_proxy/camera.kitchen"
+    mode: "snapshot",
+    snapshotPath: "/api/image_proxy/image.kitchen_event_image"
   },
   {
     id: "piano_room",
     name: "Piano Room",
     entity: "camera.piano_room",
-    mode: "live",
-    streamType: "webrtc",
-    streamFallbacks: ["hls", "mjpeg"],
-    streamPaths: {
-      webrtc: "/api/webrtc?src=piano_room",
-      hls: "/api/hls?src=piano_room",
-      mjpeg: "/api/mjpeg?src=piano_room"
-    },
-    snapshotPath: "/api/camera_proxy/camera.piano_room"
+    mode: "snapshot",
+    snapshotPath: "/api/image_proxy/image.piano_room_event_image"
   },
   {
     id: "tilt_pan",
     name: "Garage (Pan & Tilt)",
     entity: "camera.tilt_pan",
-    mode: "live",
-    streamType: "webrtc",
-    streamFallbacks: ["hls", "mjpeg"],
-    streamPaths: {
-      webrtc: "/api/webrtc?src=tilt_pan",
-      hls: "/api/hls?src=tilt_pan",
-      mjpeg: "/api/mjpeg?src=tilt_pan"
-    },
-    snapshotPath: "/api/camera_proxy/camera.tilt_pan"
+    mode: "snapshot",
+    snapshotPath: "/api/image_proxy/image.tilt_pan_event_image"
   },
   {
     id: "doorbell",
