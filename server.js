@@ -55,6 +55,16 @@ function normalizePingTarget(target) {
 function attachHaProxy(appInstance) {
   if (!HA_TARGET) {
     console.warn("HA_HOST is not configured; skipping Home Assistant proxy.");
+    const missingHaHandler = (req, res) => {
+      res.status(503).json({
+        error: "Home Assistant proxy unavailable",
+        detail:
+          "Set HA_HOST (and HA_TOKEN if required) in the dashboard environment to enable /api/image_proxy and /api/camera_proxy."
+      });
+    };
+    appInstance.use("/api/image_proxy", missingHaHandler);
+    appInstance.use("/api/camera_proxy", missingHaHandler);
+    appInstance.use("/api/websocket", missingHaHandler);
     return;
   }
 
