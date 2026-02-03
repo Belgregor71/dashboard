@@ -184,226 +184,38 @@
       <div class="cameras-header">
         <div>
           <div class="cameras-title">Cameras</div>
+          <div class="cameras-header-subtitle">Home Security</div>
         </div>
-        <div class="cameras-header-subtitle">Home Security</div>
-      </div>
-
-      <div class="cameras-section">
-        <div class="cameras-section-title">Live Cameras</div>
-        <div class="cameras-grid cameras-grid--three">
-          <article class="camera-card camera-card--live" data-camera-id="camera.kitchen">
-            <div class="camera-card__preview">
-              <img class="camera-card__image" alt="Kitchen camera feed" />
-              <video class="camera-card__video is-hidden" muted playsinline></video>
-              <span class="camera-card__badge">Live</span>
-              <div class="camera-card__actions">
-                <button class="camera-card__action camera-card__action--start" type="button">
-                  Tap to live
-                </button>
-                <button
-                  class="camera-card__action camera-card__action--stop is-hidden"
-                  type="button"
-                >
-                  Close
-                </button>
-              </div>
-              <div class="camera-card__status is-hidden"></div>
-            </div>
-            <div class="camera-card__body">
-              <div class="camera-card__name">Kitchen</div>
-            </div>
-          </article>
-          <article class="camera-card camera-card--live" data-camera-id="camera.piano_room">
-            <div class="camera-card__preview">
-              <img class="camera-card__image" alt="Piano Room camera feed" />
-              <video class="camera-card__video is-hidden" muted playsinline></video>
-              <span class="camera-card__badge">Live</span>
-              <div class="camera-card__actions">
-                <button class="camera-card__action camera-card__action--start" type="button">
-                  Tap to live
-                </button>
-                <button
-                  class="camera-card__action camera-card__action--stop is-hidden"
-                  type="button"
-                >
-                  Close
-                </button>
-              </div>
-              <div class="camera-card__status is-hidden"></div>
-            </div>
-            <div class="camera-card__body">
-              <div class="camera-card__name">Piano Room</div>
-            </div>
-          </article>
-          <article class="camera-card camera-card--live" data-camera-id="camera.tilt_pan">
-            <div class="camera-card__preview">
-              <img class="camera-card__image" alt="Garage (Pan &amp; Tilt) camera feed" />
-              <video class="camera-card__video is-hidden" muted playsinline></video>
-              <span class="camera-card__badge">Live</span>
-              <div class="camera-card__actions">
-                <button class="camera-card__action camera-card__action--start" type="button">
-                  Tap to live
-                </button>
-                <button
-                  class="camera-card__action camera-card__action--stop is-hidden"
-                  type="button"
-                >
-                  Close
-                </button>
-              </div>
-              <div class="camera-card__status is-hidden"></div>
-            </div>
-            <div class="camera-card__body">
-              <div class="camera-card__name">Garage (Pan &amp; Tilt)</div>
-            </div>
-          </article>
+        <div class="cameras-status">
+          <span class="cameras-status__label">HA</span>
+          <span id="cameras-ha-status" class="cameras-status__value" data-status="offline">Offline</span>
         </div>
       </div>
 
-      <div class="cameras-section">
-        <div class="cameras-section-title">Outdoor Cameras</div>
-        <div class="cameras-grid cameras-grid--three">
-          <article class="camera-card camera-card--auto" data-camera-id="camera.doorbell">
-            <div class="camera-card__preview">
-              <img class="camera-card__image" alt="Doorbell camera feed" />
-              <video class="camera-card__video is-hidden" muted playsinline></video>
-              <span class="camera-card__badge camera-card__badge--auto">Auto</span>
-              <div class="camera-card__actions">
-                <button class="camera-card__action camera-card__action--start" type="button">
-                  Tap to live
-                </button>
-                <button
-                  class="camera-card__action camera-card__action--stop is-hidden"
-                  type="button"
-                >
-                  Close
-                </button>
-              </div>
-              <div class="camera-card__status is-hidden"></div>
-            </div>
-            <div class="camera-card__body">
-              <div class="camera-card__name">Doorbell</div>
-            </div>
-          </article>
-          <article class="camera-card camera-card--auto" data-camera-id="camera.front_yard">
-            <div class="camera-card__preview">
-              <img class="camera-card__image" alt="Front Yard camera feed" />
-              <video class="camera-card__video is-hidden" muted playsinline></video>
-              <span class="camera-card__badge camera-card__badge--auto">Auto</span>
-              <div class="camera-card__actions">
-                <button class="camera-card__action camera-card__action--start" type="button">
-                  Tap to live
-                </button>
-                <button
-                  class="camera-card__action camera-card__action--stop is-hidden"
-                  type="button"
-                >
-                  Close
-                </button>
-              </div>
-              <div class="camera-card__status is-hidden"></div>
-            </div>
-            <div class="camera-card__body">
-              <div class="camera-card__name">Front Yard</div>
-            </div>
-          </article>
-          <article class="camera-card camera-card--auto" data-camera-id="camera.driveway">
-            <div class="camera-card__preview">
-              <img class="camera-card__image" alt="Driveway camera feed" />
-              <video class="camera-card__video is-hidden" muted playsinline></video>
-              <span class="camera-card__badge camera-card__badge--auto">Auto</span>
-              <div class="camera-card__actions">
-                <button class="camera-card__action camera-card__action--start" type="button">
-                  Tap to live
-                </button>
-                <button
-                  class="camera-card__action camera-card__action--stop is-hidden"
-                  type="button"
-                >
-                  Close
-                </button>
-              </div>
-              <div class="camera-card__status is-hidden"></div>
-            </div>
-            <div class="camera-card__body">
-              <div class="camera-card__name">Driveway</div>
-            </div>
-          </article>
+      <section id="camera-hero" class="camera-hero">
+        <div class="camera-hero__media">
+          <img class="camera-hero__image" alt="Camera hero snapshot" />
+          <span class="camera-hero__badge is-hidden">STALE</span>
         </div>
-      </div>
+        <div class="camera-hero__meta">
+          <div class="camera-hero__name" id="camera-hero-name">Loading…</div>
+          <div class="camera-hero__status" id="camera-hero-status">Idle</div>
+          <div class="camera-hero__activity" id="camera-hero-activity">No recent activity</div>
+          <div class="camera-hero__heat" id="camera-hero-heat"></div>
+        </div>
+      </section>
 
-      <div class="cameras-section">
-        <div class="cameras-section-title">Event Cameras</div>
-        <div class="cameras-grid cameras-grid--three">
-          <article class="camera-card camera-card--auto" data-camera-id="camera.backyard">
-            <div class="camera-card__preview">
-              <img class="camera-card__image" alt="Backyard camera feed" />
-              <video class="camera-card__video is-hidden" muted playsinline></video>
-              <span class="camera-card__badge camera-card__badge--auto">Auto</span>
-              <div class="camera-card__actions">
-                <button class="camera-card__action camera-card__action--start" type="button">
-                  Tap to live
-                </button>
-                <button
-                  class="camera-card__action camera-card__action--stop is-hidden"
-                  type="button"
-                >
-                  Close
-                </button>
-              </div>
-              <div class="camera-card__status is-hidden"></div>
-            </div>
-            <div class="camera-card__body">
-              <div class="camera-card__name">Backyard</div>
-            </div>
-          </article>
-          <article class="camera-card camera-card--auto" data-camera-id="camera.patio">
-            <div class="camera-card__preview">
-              <img class="camera-card__image" alt="Patio camera feed" />
-              <video class="camera-card__video is-hidden" muted playsinline></video>
-              <span class="camera-card__badge camera-card__badge--auto">Auto</span>
-              <div class="camera-card__actions">
-                <button class="camera-card__action camera-card__action--start" type="button">
-                  Tap to live
-                </button>
-                <button
-                  class="camera-card__action camera-card__action--stop is-hidden"
-                  type="button"
-                >
-                  Close
-                </button>
-              </div>
-              <div class="camera-card__status is-hidden"></div>
-            </div>
-            <div class="camera-card__body">
-              <div class="camera-card__name">Patio</div>
-            </div>
-          </article>
-          <article class="camera-card camera-card--auto" data-camera-id="camera.side_gate">
-            <div class="camera-card__preview">
-              <img class="camera-card__image" alt="Side Gate camera feed" />
-              <video class="camera-card__video is-hidden" muted playsinline></video>
-              <span class="camera-card__badge camera-card__badge--auto">Auto</span>
-              <div class="camera-card__actions">
-                <button class="camera-card__action camera-card__action--start" type="button">
-                  Tap to live
-                </button>
-                <button
-                  class="camera-card__action camera-card__action--stop is-hidden"
-                  type="button"
-                >
-                  Close
-                </button>
-              </div>
-              <div class="camera-card__status is-hidden"></div>
-            </div>
-            <div class="camera-card__body">
-              <div class="camera-card__name">Side Gate</div>
-            </div>
-          </article>
-        </div>
-      </div>
+      <section class="cameras-section">
+        <div class="cameras-section-title" id="camera-tiles-title">All Cameras</div>
+        <div class="cameras-grid cameras-grid--tiles" id="camera-tiles-grid"></div>
+      </section>
+
+      <section class="camera-timeline">
+        <div class="camera-timeline__title">Last 2 hours</div>
+        <div class="camera-timeline__band" id="camera-timeline-band"></div>
+      </section>
     </section>
+    <div id="camera-toast" class="camera-toast"></div>
   </main>
 
   <!-- WEATHER VIEW -->
