@@ -1931,6 +1931,23 @@ body[data-view="status"] #time-panel {
   display: none;
 }
 
+.camera-card__debug {
+  position: absolute;
+  inset: auto 10px 10px 10px;
+  z-index: 2;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: clamp(0.58rem, 0.75vw, 0.7rem);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+}
+
+.camera-card__debug.is-hidden {
+  display: none;
+}
+
 .camera-card__actions {
   position: absolute;
   inset: auto 12px 12px 12px;

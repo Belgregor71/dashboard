@@ -2,12 +2,13 @@ import { emit, on } from "../core/eventBus.js";
 import { getAllEntities, getEntity } from "../services/homeAssistant/state.js";
 import {
   buildCameraConfig,
-  buildMediaProxyUrl,
   getPinnedHeroId
 } from "./cameras/cameraDiscovery.js";
 
-const SNAPSHOT_REFRESH_MS = 60_000;
-const MAX_BACKOFF_MS = 120_000;
+const DEFAULT_SNAPSHOT_REFRESH_MS = 15_000;
+const STATUS_REFRESH_MS = 60_000;
+const BACKOFF_AFTER_FAILURE_MS = 60_000;
+const STAGGER_MS = 250;
 const BUCKET_SIZE_MS = 5 * 60 * 1000;
 const BUCKET_COUNT = 12;
 const TIMELINE_WINDOW_MS = 2 * 60 * 60 * 1000;
@@ -16,6 +17,7 @@ const RECENT_WINDOW_MS = 15 * 60 * 1000;
 const SPOTLIGHT_DURATION_MS = 30_000;
 const SUMMARY_VISIBLE_MS = 9_000;
 const PINNED_STORAGE_KEY = "dashboard:pinned-hero-camera";
+const DEBUG_MODE = new URLSearchParams(window.location.search).get("debug") === "1";
 
 const EVENT_WEIGHTS = {
   ringing: 3,
@@ -33,19 +35,20 @@ let cameraRenderState = new Map();
 const heatDataByCamera = new Map();
 const timelineEvents = [];
 const lastEntityStates = new Map();
+let serverCameraConfig = new Map();
 
 let cameras = [];
 let tileCameras = [];
 let camerasById = new Map();
 let eventEntityMap = new Map();
 let viewActive = false;
-let refreshTimer;
 let discoveryTimer;
 let pinnedCameraId = null;
 let focusedCameraId = null;
 let heroSpotlightId = null;
 let spotlightTimer;
 let summaryTimer;
+let haHealthTimer;
 
 const heroElements = {};
 let tilesGrid;
@@ -86,6 +89,50 @@ function setHaStatus(status) {
   if (!haStatusEl) return;
   haStatusEl.textContent = status;
   haStatusEl.dataset.status = status.toLowerCase();
+}
+
+async function loadServerCameraConfig() {
+  try {
+    const response = await fetch("/api/cameras");
+    if (!response.ok) return;
+    const data = await response.json();
+    if (!Array.isArray(data?.cameras)) return;
+    serverCameraConfig = new Map(
+      data.cameras.map((camera) => [camera.id, camera])
+    );
+    buildCameraList();
+    if (viewActive) {
+      refreshVisibleSnapshots({ force: true });
+    }
+  } catch (err) {
+    console.warn("Camera config fetch failed", err);
+  }
+}
+
+async function fetchHaHealth() {
+  try {
+    const response = await fetch("/api/ha/health");
+    if (!response.ok) {
+      setHaStatus("Offline");
+      return;
+    }
+    const data = await response.json();
+    setHaStatus(data?.ok ? "Online" : "Offline");
+  } catch (err) {
+    setHaStatus("Offline");
+  }
+}
+
+function scheduleHaHealth() {
+  if (!viewActive) return;
+  if (haHealthTimer) clearTimeout(haHealthTimer);
+  fetchHaHealth();
+  haHealthTimer = setTimeout(scheduleHaHealth, STATUS_REFRESH_MS);
+}
+
+function stopHaHealth() {
+  if (haHealthTimer) clearTimeout(haHealthTimer);
+  haHealthTimer = null;
 }
 
 function ensureHeatData(cameraId) {
@@ -185,10 +232,22 @@ function getCameraState(cameraId) {
       statusEl: null,
       activityEl: null,
       heatEl: null,
+      debugEl: null,
       failureCount: 0,
       nextRetryAt: 0,
       lastSuccessUrl: null,
+      lastObjectUrl: null,
+      pendingObjectUrl: null,
+      previousObjectUrl: null,
+      pendingStale: false,
       stale: false,
+      offlineReason: null,
+      lastErrorCode: null,
+      lastErrorMsg: null,
+      refreshTimer: null,
+      statusTimer: null,
+      abortController: null,
+      statusAbortController: null,
       lastActivity: null
     });
   }
@@ -232,7 +291,15 @@ function resolvePinnedCamera(camerasList) {
 function buildCameraList() {
   const statesMap = getAllEntities();
   const nextCameras = buildCameraConfig(statesMap);
-  cameras = nextCameras;
+  cameras = nextCameras.map((camera) => {
+    const serverConfig = serverCameraConfig.get(camera.id);
+    return {
+      ...camera,
+      snapshotRefreshMs: serverConfig?.snapshotRefreshMs ?? DEFAULT_SNAPSHOT_REFRESH_MS,
+      preferredSnapshot: serverConfig?.preferredSnapshot || camera.preferredSnapshot || null,
+      serverEventImageEntity: serverConfig?.eventImageEntity || null
+    };
+  });
   camerasById = new Map(cameras.map((camera) => [camera.id, camera]));
   tileCameras = cameras.filter((camera) => camera.hidden === false).slice(0, 6);
   eventEntityMap = new Map();
@@ -265,10 +332,22 @@ function buildCameraList() {
       statusEl: null,
       activityEl: null,
       heatEl: null,
+      debugEl: null,
       failureCount: prev?.failureCount ?? 0,
       nextRetryAt: prev?.nextRetryAt ?? 0,
       lastSuccessUrl: prev?.lastSuccessUrl ?? null,
+      lastObjectUrl: prev?.lastObjectUrl ?? null,
+      pendingObjectUrl: prev?.pendingObjectUrl ?? null,
+      previousObjectUrl: prev?.previousObjectUrl ?? null,
+      pendingStale: prev?.pendingStale ?? false,
       stale: prev?.stale ?? false,
+      offlineReason: prev?.offlineReason ?? null,
+      lastErrorCode: prev?.lastErrorCode ?? null,
+      lastErrorMsg: prev?.lastErrorMsg ?? null,
+      refreshTimer: prev?.refreshTimer ?? null,
+      statusTimer: prev?.statusTimer ?? null,
+      abortController: prev?.abortController ?? null,
+      statusAbortController: prev?.statusAbortController ?? null,
       lastActivity: prev?.lastActivity ?? null
     });
   });
@@ -296,6 +375,7 @@ function renderCameraGrid() {
         <img class="camera-card__image" alt="${camera.name} snapshot" />
         <span class="camera-card__badge camera-card__badge--stale is-hidden" data-badge>STALE</span>
         <div class="camera-card__pill" data-status></div>
+        <div class="camera-card__debug is-hidden" data-debug></div>
       </div>
       <div class="camera-card__body">
         <div class="camera-card__name">${camera.name}</div>
@@ -313,6 +393,7 @@ function renderCameraGrid() {
     state.imageEl = card.querySelector(".camera-card__image");
     state.badgeEl = card.querySelector("[data-badge]");
     state.statusEl = card.querySelector("[data-status]");
+    state.debugEl = card.querySelector("[data-debug]");
     state.activityEl = card.querySelector("[data-activity]");
     state.heatEl = card.querySelector("[data-heat]");
     cameraRenderState.set(camera.id, state);
@@ -342,7 +423,11 @@ function updateHero() {
   heroElements.container.dataset.cameraId = targetId;
   heroElements.nameEl.textContent = camera.name;
   const state = getCameraState(targetId);
-  const activityLabel = state?.lastActivity ? formatActivityLabel(state.lastActivity) : "No recent activity";
+  const activityLabel = state?.offlineReason
+    ? state.offlineReason
+    : state?.lastActivity
+      ? formatActivityLabel(state.lastActivity)
+      : "No recent activity";
   heroElements.activityEl.textContent = activityLabel;
 
   const statusLabel = getStatusLabel(camera, state);
@@ -357,19 +442,17 @@ function updateHero() {
     heroElements.imageEl.dataset.cameraId = targetId;
     heroElements.imageEl.src = state.lastSuccessUrl;
   } else {
-    refreshCameraImage(camera, { force: true, target: "hero" });
+    scheduleSnapshot(camera, { force: true, target: "hero" });
   }
 }
 
 function attachImageHandlers(cameraId, state) {
   if (!state?.imageEl) return;
-
   state.imageEl.addEventListener("load", () => {
     handleImageLoad(cameraId, state.imageEl.src);
   });
-
   state.imageEl.addEventListener("error", () => {
-    handleImageError(cameraId, state.imageEl);
+    handleImageRenderError(cameraId);
   });
 }
 
@@ -383,44 +466,61 @@ function attachHeroImageHandlers() {
   heroElements.imageEl.addEventListener("error", () => {
     const cameraId = heroElements.imageEl.dataset.cameraId;
     if (!cameraId) return;
-    handleImageError(cameraId, heroElements.imageEl);
+    handleImageRenderError(cameraId);
   });
 }
 
 function handleImageLoad(cameraId, src) {
   const state = getCameraState(cameraId);
+  if (state.pendingObjectUrl && src !== state.pendingObjectUrl) {
+    return;
+  }
+  if (state.previousObjectUrl && state.previousObjectUrl !== state.pendingObjectUrl) {
+    revokeObjectUrl(state.previousObjectUrl);
+  }
+  state.lastObjectUrl = state.pendingObjectUrl || src;
+  state.lastSuccessUrl = state.pendingObjectUrl || src;
+  state.pendingObjectUrl = null;
+  state.previousObjectUrl = null;
+  state.stale = state.pendingStale;
+  state.pendingStale = false;
   state.failureCount = 0;
   state.nextRetryAt = 0;
-  state.lastSuccessUrl = src;
-  state.stale = false;
-  state.badgeEl?.classList.add("is-hidden");
-  updateCameraStatus(cameraId, "online");
+  state.offlineReason = null;
+  state.lastErrorCode = null;
+  state.lastErrorMsg = null;
+  state.badgeEl?.classList.toggle("is-hidden", !state.stale);
+  updateCameraStatus(cameraId, state.stale ? "offline" : "online");
+  updateCameraCard(cameraId);
   if (cameraId === getHeroCameraId()) {
-    heroElements.badgeEl?.classList.add("is-hidden");
-    if (heroElements.imageEl && heroElements.imageEl.src !== src) {
-      heroElements.imageEl.dataset.cameraId = cameraId;
-      heroElements.imageEl.src = src;
-    }
+    heroElements.badgeEl?.classList.toggle("is-hidden", !state.stale);
   }
 }
 
-function handleImageError(cameraId, imageEl) {
+function handleImageRenderError(cameraId) {
   const state = getCameraState(cameraId);
-  state.failureCount += 1;
+  if (!state.lastSuccessUrl) return;
+  if (state.pendingObjectUrl) {
+    revokeObjectUrl(state.pendingObjectUrl);
+    state.pendingObjectUrl = null;
+    state.pendingStale = false;
+    if (state.previousObjectUrl) {
+      state.lastObjectUrl = state.previousObjectUrl;
+      state.lastSuccessUrl = state.previousObjectUrl;
+      state.previousObjectUrl = null;
+    }
+  }
+  state.failureCount = Math.max(state.failureCount, 1);
   state.stale = true;
   state.badgeEl?.classList.remove("is-hidden");
   updateCameraStatus(cameraId, "offline");
-  const delay = Math.min(MAX_BACKOFF_MS, 2000 * Math.pow(2, state.failureCount - 1));
-  state.nextRetryAt = Date.now() + delay;
-  if (state.lastSuccessUrl && imageEl.src !== state.lastSuccessUrl) {
-    imageEl.src = state.lastSuccessUrl;
-  }
   if (cameraId === getHeroCameraId()) {
     heroElements.badgeEl?.classList.remove("is-hidden");
   }
 }
 
 function getStatusLabel(camera, state) {
+  if (state?.offlineReason) return "OFFLINE";
   if (isCameraOffline(camera)) return "OFFLINE";
   if (isRecentActivity(state?.lastActivity)) return "RECENT";
   return "CLEAR";
@@ -440,43 +540,211 @@ function updateCameraCard(cameraId) {
   const heatData = ensureHeatData(cameraId);
   ensureHeatStrip(state.heatEl, heatData.buckets);
 
-  if (state.lastActivity && state.activityEl) {
-    const label = formatActivityLabel(state.lastActivity);
-    state.activityEl.textContent = label;
-  }
-}
-
-function refreshCameraImage(camera, { force = false, target = "tile" } = {}) {
-  if (!camera) return;
-  const state = getCameraState(camera.id);
-  const now = Date.now();
-  if (!force && state.nextRetryAt && now < state.nextRetryAt) return;
-
-  const sourceEntity = camera.eventImageEntity || camera.entityId;
-  const url = buildMediaProxyUrl(sourceEntity, true);
-  if (!url) return;
-
-  if ((target === "tile" || target === "both") && state.imageEl) {
-    state.imageEl.src = url;
-  }
-  if ((target === "hero" || target === "both") && heroElements.imageEl && getHeroCameraId() === camera.id) {
-    heroElements.imageEl.dataset.cameraId = camera.id;
-    heroElements.imageEl.src = url;
-  }
-}
-
-function refreshAllImages({ force = false } = {}) {
-  tileCameras.forEach((camera) => {
-    refreshCameraImage(camera, { force, target: "tile" });
-  });
-
-  const heroId = getHeroCameraId();
-  if (heroId) {
-    const heroCamera = camerasById.get(heroId);
-    if (heroCamera) {
-      refreshCameraImage(heroCamera, { force, target: "hero" });
+  if (state.activityEl) {
+    if (state.offlineReason) {
+      state.activityEl.textContent = state.offlineReason;
+    } else if (state.lastActivity) {
+      const label = formatActivityLabel(state.lastActivity);
+      state.activityEl.textContent = label;
     }
   }
+
+  if (state.debugEl) {
+    const debugMessage = state.lastErrorCode
+      ? `${state.lastErrorCode}${state.lastErrorMsg ? `: ${state.lastErrorMsg}` : ""}`
+      : "";
+    state.debugEl.textContent = debugMessage;
+    state.debugEl.classList.toggle("is-hidden", !DEBUG_MODE || !debugMessage);
+  }
+}
+
+function revokeObjectUrl(url) {
+  if (!url) return;
+  URL.revokeObjectURL(url);
+}
+
+async function fetchCameraStatus(camera, { signal } = {}) {
+  if (!camera) return;
+  const state = getCameraState(camera.id);
+  if (state.statusAbortController) {
+    state.statusAbortController.abort();
+  }
+  const controller = new AbortController();
+  state.statusAbortController = controller;
+
+  try {
+    const response = await fetch(`/api/camera/${camera.id}/status`, {
+      signal: signal || controller.signal
+    });
+    if (!response.ok) return;
+    const status = await response.json();
+    state.lastErrorCode = status.lastErrorCode || null;
+    state.lastErrorMsg = status.lastErrorMsg || null;
+    if (status.ok) {
+      state.offlineReason = null;
+      updateCameraStatus(camera.id, "online");
+    } else if (status.lastErrorMsg && state.failureCount >= 3) {
+      state.offlineReason = status.lastErrorMsg;
+      updateCameraStatus(camera.id, "offline");
+    }
+    updateCameraCard(camera.id);
+  } catch (err) {
+    if (err?.name !== "AbortError") {
+      console.warn("Camera status fetch failed", err);
+    }
+  }
+}
+
+function applySnapshotSuccess(cameraId, objectUrl, { stale = false, target = "tile" } = {}) {
+  const state = getCameraState(cameraId);
+  state.stale = stale;
+  state.pendingStale = stale;
+  state.badgeEl?.classList.toggle("is-hidden", !stale);
+  state.previousObjectUrl = state.lastObjectUrl;
+  state.pendingObjectUrl = objectUrl;
+
+  if ((target === "tile" || target === "both") && state.imageEl) {
+    state.imageEl.src = objectUrl;
+  }
+  if (heroElements.imageEl && getHeroCameraId() === cameraId) {
+    heroElements.imageEl.dataset.cameraId = cameraId;
+    heroElements.imageEl.src = objectUrl;
+    heroElements.badgeEl?.classList.toggle("is-hidden", !stale);
+  }
+}
+
+function applySnapshotFailure(cameraId, errorMessage, errorCode) {
+  const state = getCameraState(cameraId);
+  state.failureCount += 1;
+  state.lastErrorMsg = errorMessage || "Snapshot failed";
+  state.lastErrorCode = errorCode || "snapshot_failed";
+  if (state.failureCount >= 3) {
+    state.offlineReason = state.lastErrorMsg;
+    state.nextRetryAt = Date.now() + BACKOFF_AFTER_FAILURE_MS;
+  } else {
+    state.nextRetryAt = Date.now() + DEFAULT_SNAPSHOT_REFRESH_MS;
+  }
+  state.stale = true;
+  state.badgeEl?.classList.remove("is-hidden");
+  updateCameraStatus(cameraId, "offline");
+  updateCameraCard(cameraId);
+  if (cameraId === getHeroCameraId()) {
+    heroElements.badgeEl?.classList.remove("is-hidden");
+  }
+}
+
+async function fetchCameraSnapshot(camera, { target = "tile" } = {}) {
+  if (!camera) return;
+  const state = getCameraState(camera.id);
+  if (state.abortController) {
+    state.abortController.abort();
+  }
+  const controller = new AbortController();
+  state.abortController = controller;
+
+  const url = `/api/camera/${camera.id}/snapshot?ts=${Date.now()}`;
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      const contentType = response.headers.get("content-type") || "";
+      let payload = {};
+      if (contentType.includes("application/json")) {
+        payload = await response.json();
+      }
+      applySnapshotFailure(camera.id, payload.error, payload.code);
+      return;
+    }
+
+    const stale = response.headers.get("x-dashboard-stale") === "1";
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    applySnapshotSuccess(camera.id, objectUrl, { stale, target });
+    if (stale) {
+      fetchCameraStatus(camera);
+    }
+  } catch (err) {
+    if (err?.name === "AbortError") return;
+    applySnapshotFailure(camera.id, err?.message, "network");
+  }
+}
+
+function scheduleSnapshot(camera, { force = false, target = "tile", delayMs = 0 } = {}) {
+  if (!camera) return;
+  const state = getCameraState(camera.id);
+  if (state.refreshTimer) clearTimeout(state.refreshTimer);
+
+  state.refreshTimer = setTimeout(async () => {
+    if (!viewActive) return;
+    const now = Date.now();
+    if (!force && state.nextRetryAt && now < state.nextRetryAt) {
+      scheduleSnapshot(camera, {
+        force: false,
+        target,
+        delayMs: state.nextRetryAt - now
+      });
+      return;
+    }
+
+    await fetchCameraSnapshot(camera, { target });
+    const refreshMs = camera.snapshotRefreshMs ?? DEFAULT_SNAPSHOT_REFRESH_MS;
+    const nextDelay = state.nextRetryAt && state.nextRetryAt > Date.now()
+      ? state.nextRetryAt - Date.now()
+      : refreshMs;
+    scheduleSnapshot(camera, { force: false, target, delayMs: nextDelay });
+  }, delayMs);
+}
+
+function scheduleStatus(camera, delayMs = STATUS_REFRESH_MS) {
+  if (!camera) return;
+  const state = getCameraState(camera.id);
+  if (state.statusTimer) clearTimeout(state.statusTimer);
+  state.statusTimer = setTimeout(async () => {
+    if (!viewActive) return;
+    await fetchCameraStatus(camera);
+    scheduleStatus(camera, STATUS_REFRESH_MS);
+  }, delayMs);
+}
+
+function refreshVisibleSnapshots({ force = false } = {}) {
+  const heroId = getHeroCameraId();
+  const hasHeroInTiles = tileCameras.some((camera) => camera.id === heroId);
+
+  tileCameras.forEach((camera, index) => {
+    scheduleSnapshot(camera, {
+      force,
+      target: heroId === camera.id ? "both" : "tile",
+      delayMs: index * STAGGER_MS
+    });
+    scheduleStatus(camera, index * STAGGER_MS);
+  });
+
+  if (heroId && !hasHeroInTiles) {
+    const heroCamera = camerasById.get(heroId);
+    if (heroCamera) {
+      scheduleSnapshot(heroCamera, {
+        force,
+        target: "hero",
+        delayMs: tileCameras.length * STAGGER_MS
+      });
+      scheduleStatus(heroCamera, tileCameras.length * STAGGER_MS);
+    }
+  }
+}
+
+function stopAllCameraTimers() {
+  cameras.forEach((camera) => {
+    const state = getCameraState(camera.id);
+    if (state.refreshTimer) clearTimeout(state.refreshTimer);
+    if (state.statusTimer) clearTimeout(state.statusTimer);
+    state.refreshTimer = null;
+    state.statusTimer = null;
+    state.abortController?.abort();
+    state.statusAbortController?.abort();
+    state.abortController = null;
+    state.statusAbortController = null;
+  });
 }
 
 function focusCamera(cameraId) {
@@ -516,7 +784,7 @@ function handleCameraEvent(cameraId, type, timestamp) {
   pruneTimeline(timestamp);
   renderTimeline();
 
-  refreshCameraImage(camera, { force: true, target: "both" });
+  scheduleSnapshot(camera, { force: true, target: "both" });
 
   if (cameraId === getHeroCameraId()) {
     heroElements.activityEl.textContent = formatActivityLabel(activity);
@@ -686,7 +954,7 @@ function handleStateUpdated(event) {
         handleCameraEvent(mapping.cameraId, mapping.type, Date.now());
       } else {
         const camera = camerasById.get(mapping.cameraId);
-        refreshCameraImage(camera, { force: true, target: "both" });
+        scheduleSnapshot(camera, { force: true, target: "both" });
       }
     }
   }
@@ -714,19 +982,6 @@ function handleStateUpdated(event) {
       }
     }
   });
-}
-
-function startRefreshLoop() {
-  if (refreshTimer) clearInterval(refreshTimer);
-  refreshTimer = setInterval(() => {
-    if (!viewActive) return;
-    refreshAllImages({ force: false });
-  }, SNAPSHOT_REFRESH_MS);
-}
-
-function stopRefreshLoop() {
-  if (refreshTimer) clearInterval(refreshTimer);
-  refreshTimer = null;
 }
 
 function registerCommandHandlers() {
@@ -819,16 +1074,21 @@ export function initCameraTiles() {
   viewActive = document.body?.dataset?.view === "cameras";
 
   buildCameraList();
-  refreshAllImages({ force: true });
-  startRefreshLoop();
+  loadServerCameraConfig();
+  refreshVisibleSnapshots({ force: true });
+  scheduleHaHealth();
 
   document.addEventListener("ha:state-updated", handleStateUpdated);
 
   on("view:changed", ({ view }) => {
     viewActive = view === "cameras";
     if (viewActive) {
-      refreshAllImages({ force: true });
+      refreshVisibleSnapshots({ force: true });
       updateHero();
+      scheduleHaHealth();
+    } else {
+      stopAllCameraTimers();
+      stopHaHealth();
     }
   });
 
