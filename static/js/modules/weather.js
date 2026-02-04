@@ -9,6 +9,8 @@ import {
 } from "../config/weather-animations.js";
 import { loadLottieAnimation } from "../helpers/lottie.js";
 
+const WX_DEBUG = false;
+
 function isDaytime(data) {
   const now = new Date();
   const sunrise = new Date(data.daily.sunrise[0]);
@@ -124,17 +126,41 @@ function renderTemperatureCurve(data) {
     ? new Date(data.current_weather.time)
     : new Date();
 
-  let startIndex = times.findIndex((time) => new Date(time) >= now);
+  const nowMs = now.getTime();
+  const thresholdMs = nowMs - 30 * 60 * 1000;
+  let startIndex = times.findIndex((time) => {
+    const tMs = new Date(time).getTime();
+    return Number.isFinite(tMs) && tMs >= thresholdMs;
+  });
   if (startIndex === -1) startIndex = 0;
 
   const windowSize = 12;
+  if (startIndex + windowSize > times.length) {
+    startIndex = Math.max(0, times.length - windowSize);
+  }
+
   const windowTimes = times.slice(startIndex, startIndex + windowSize);
-  const windowTemps = temps.slice(startIndex, startIndex + windowSize);
+  const windowTempsRaw = temps.slice(startIndex, startIndex + windowSize);
+  const windowData = windowTempsRaw
+    .map((temp, index) => ({
+      temp,
+      time: windowTimes[index]
+    }))
+    .filter((entry) => Number.isFinite(entry.temp));
+
+  const windowTemps = windowData.map((entry) => entry.temp);
 
   if (windowTemps.length < 2) {
     wrapEl.classList.add("is-hidden");
     curveEl.innerHTML = "";
     if (rangeEl) rangeEl.textContent = "";
+    if (WX_DEBUG) {
+      console.log("WX curve hidden", {
+        startIndex,
+        windowTemps,
+        hidden: true
+      });
+    }
     return;
   }
 
@@ -158,7 +184,7 @@ function renderTemperatureCurve(data) {
       paddingX + (plotWidth / (windowTemps.length - 1)) * index;
     const y =
       paddingY + ((paddedMax - temp) / tempRange) * plotHeight;
-    return { x, y, temp, time: windowTimes[index] };
+    return { x, y, temp, time: windowData[index]?.time };
   });
 
   const linePath = buildSmoothPath(points);
@@ -188,8 +214,8 @@ function renderTemperatureCurve(data) {
     <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Temperature curve for the next 12 hours">
       <defs>
         <linearGradient id="temp-curve-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="rgba(255,255,255,0.35)" />
-          <stop offset="100%" stop-color="rgba(255,255,255,0)" />
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35" />
+          <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
         </linearGradient>
       </defs>
       <line x1="${points[0].x}" y1="${paddingY}" x2="${points[0].x}" y2="${
@@ -206,6 +232,16 @@ function renderTemperatureCurve(data) {
     rangeEl.textContent = `Min ${Math.round(minTemp)}° / Max ${Math.round(
       maxTemp
     )}°`;
+  }
+
+  if (WX_DEBUG) {
+    console.log("WX curve rendered", {
+      startIndex,
+      windowTemps,
+      minTemp,
+      maxTemp,
+      hidden: false
+    });
   }
 }
 
