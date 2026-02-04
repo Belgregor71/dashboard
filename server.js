@@ -34,6 +34,13 @@ const CALENDAR_URLS = {
 const CAMERA_MAP = new Map(CAMERA_CONFIG.map((camera) => [camera.id, camera]));
 const HA_TARGET = normalizeBaseUrl(HA_HOST);
 
+const SNAPSHOT_TIMEOUT_MS = 6000;
+const SNAPSHOT_RETRY_DELAY_MS = 300;
+const SNAPSHOT_MAX_RETRIES = 1;
+const SNAPSHOT_STALE_WINDOW_MS = 10 * 60 * 1000;
+const snapshotCache = new Map();
+const cameraStatusCache = new Map();
+
 attachHaProxy(app);
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
@@ -278,6 +285,62 @@ app.get("/api/system/metrics", async (req, res) => {
     tempC,
     hostname: os.hostname()
   });
+});
+
+app.get("/api/ha/health", async (req, res) => {
+  if (!HA_TARGET) {
+    res.status(503).json({ ok: false, error: "HA_HOST not configured" });
+    return;
+  }
+
+  if (!HOME_ASSISTANT_TOKEN) {
+    res.status(500).json({ ok: false, error: "Home Assistant token missing" });
+    return;
+  }
+
+  const start = Date.now();
+  try {
+    const response = await fetchHaWithRetry(
+      buildHaUrl("/api/"),
+      {
+        headers: {
+          Authorization: `Bearer ${HOME_ASSISTANT_TOKEN}`,
+          Accept: "application/json"
+        }
+      },
+      {
+        timeoutMs: SNAPSHOT_TIMEOUT_MS,
+        retries: SNAPSHOT_MAX_RETRIES,
+        retryDelayMs: SNAPSHOT_RETRY_DELAY_MS
+      }
+    );
+
+    const latencyMs = Date.now() - start;
+    if (!response.ok) {
+      const mapped = mapHaError(response.status);
+      res.status(mapped.status || 502).json({
+        ok: false,
+        error: mapped.message,
+        latencyMs
+      });
+      return;
+    }
+
+    const data = await response.json();
+    res.json({
+      ok: true,
+      latencyMs,
+      version: data?.version || null
+    });
+  } catch (err) {
+    const latencyMs = Date.now() - start;
+    const mapped = mapHaError(err?.status, err);
+    res.status(mapped.status || 502).json({
+      ok: false,
+      error: mapped.message,
+      latencyMs
+    });
+  }
 });
 
 /* ============================================================================
@@ -660,6 +723,32 @@ function getCameraConfig(id) {
   return CAMERA_MAP.get(id);
 }
 
+function getCameraEntity(camera) {
+  return camera?.cameraEntity || camera?.entity || null;
+}
+
+function getCameraStatus(id) {
+  const current = cameraStatusCache.get(id);
+  if (current) return current;
+  return {
+    id,
+    name: getCameraConfig(id)?.name || id,
+    ok: false,
+    sourceUsed: null,
+    lastSuccessTs: null,
+    lastErrorTs: null,
+    lastErrorCode: null,
+    lastErrorMsg: null
+  };
+}
+
+function setCameraStatus(id, updates) {
+  const current = getCameraStatus(id);
+  const next = { ...current, ...updates };
+  cameraStatusCache.set(id, next);
+  return next;
+}
+
 function buildGo2RtcUrl(pathValue) {
   const base = normalizeBaseUrl(GO2RTC_HOST);
   return resolveAbsoluteUrl(pathValue, base);
@@ -670,10 +759,58 @@ function buildHaUrl(pathValue) {
   return resolveAbsoluteUrl(pathValue, base);
 }
 
-function resolveSnapshotUrl(camera) {
-  if (camera.snapshotPath) return buildHaUrl(camera.snapshotPath);
-  if (camera.entity) return buildHaUrl(`/api/camera_proxy/${camera.entity}`);
+function resolveEventImageSource(camera) {
+  if (camera.eventImagePath) {
+    return {
+      type: "eventImage",
+      url: buildHaUrl(camera.eventImagePath)
+    };
+  }
+  if (camera.eventImageEntity) {
+    return {
+      type: "eventImage",
+      url: buildHaUrl(`/api/image_proxy/${encodeURIComponent(camera.eventImageEntity)}`)
+    };
+  }
   return null;
+}
+
+function resolveCameraProxySource(camera) {
+  const entity = getCameraEntity(camera);
+  if (!entity) return null;
+  return {
+    type: "cameraProxy",
+    url: buildHaUrl(`/api/camera_proxy/${encodeURIComponent(entity)}`)
+  };
+}
+
+function resolveLegacySnapshotSource(camera) {
+  if (!camera.snapshotPath) return null;
+  return {
+    type: "legacySnapshot",
+    url: buildHaUrl(camera.snapshotPath)
+  };
+}
+
+function buildSnapshotSources(camera) {
+  const sources = [];
+  const eventSource = resolveEventImageSource(camera);
+  const cameraSource = resolveCameraProxySource(camera);
+  const legacySource = resolveLegacySnapshotSource(camera);
+
+  if (camera.preferredSnapshot === "cameraProxy") {
+    if (cameraSource) sources.push(cameraSource);
+    if (eventSource) sources.push(eventSource);
+  } else {
+    if (eventSource) sources.push(eventSource);
+    if (cameraSource) sources.push(cameraSource);
+  }
+
+  if (legacySource && !sources.some((source) => source.url === legacySource.url)) {
+    sources.push(legacySource);
+  }
+
+  return sources;
 }
 
 function resolveStreamUrl(camera, streamType) {
@@ -707,6 +844,123 @@ function rewriteHlsPlaylist(playlist, cameraId, upstreamUrl) {
   return rewritten.join("\n");
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function shouldRetryStatus(status) {
+  if (!status) return true;
+  if (status >= 500) return true;
+  if (status === 408) return true;
+  return false;
+}
+
+function mapHaError(status, error) {
+  if (status === 401 || status === 403) {
+    return { status, code: "auth", message: "Home Assistant authentication failed" };
+  }
+  if (status === 404) {
+    return { status, code: "missing_entity", message: "Camera entity not found" };
+  }
+  if (status >= 500) {
+    return { status, code: "ha_error", message: "Home Assistant error" };
+  }
+  if (status === 408) {
+    return { status: 504, code: "timeout", message: "Home Assistant timeout" };
+  }
+  if (error?.name === "AbortError") {
+    return { status: 504, code: "timeout", message: "Home Assistant timeout" };
+  }
+  return { status: status || 502, code: "network", message: error?.message || "Home Assistant unreachable" };
+}
+
+async function fetchHaWithRetry(url, options = {}, { timeoutMs, retries, retryDelayMs } = {}) {
+  let attempt = 0;
+  let lastError;
+  while (attempt <= retries) {
+    try {
+      const response = await fetchWithTimeout(url, options, timeoutMs);
+      if (response.ok || !shouldRetryStatus(response.status) || attempt === retries) {
+        return response;
+      }
+      lastError = new Error(`HA returned ${response.status}`);
+    } catch (err) {
+      lastError = err;
+      if (attempt === retries) throw err;
+    }
+    attempt += 1;
+    await sleep(retryDelayMs);
+  }
+  throw lastError;
+}
+
+async function fetchHaImage(url, { timeoutMs = SNAPSHOT_TIMEOUT_MS } = {}) {
+  if (!HOME_ASSISTANT_TOKEN) {
+    throw Object.assign(new Error("Home Assistant token missing"), { status: 500, code: "auth" });
+  }
+
+  const response = await fetchHaWithRetry(
+    url,
+    {
+      headers: {
+        Authorization: `Bearer ${HOME_ASSISTANT_TOKEN}`,
+        Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"
+      }
+    },
+    {
+      timeoutMs,
+      retries: SNAPSHOT_MAX_RETRIES,
+      retryDelayMs: SNAPSHOT_RETRY_DELAY_MS
+    }
+  );
+  return response;
+}
+
+async function fetchCameraSnapshot(camera) {
+  const sources = buildSnapshotSources(camera);
+  if (!sources.length) {
+    throw Object.assign(new Error("Snapshot source not configured"), {
+      status: 500,
+      code: "missing_config"
+    });
+  }
+
+  let lastFailure = null;
+  for (const source of sources) {
+    try {
+      const response = await fetchHaImage(source.url);
+      if (!response.ok) {
+        const mapped = mapHaError(response.status);
+        lastFailure = {
+          ...mapped,
+          sourceUsed: source.type
+        };
+        if ([401, 403].includes(response.status)) break;
+        if (response.status === 404 && source.type === "eventImage") {
+          continue;
+        }
+        if (!shouldRetryStatus(response.status) && response.status !== 404) {
+          break;
+        }
+        continue;
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const contentType = response.headers.get("content-type") || "image/jpeg";
+      return { buffer, contentType, sourceUsed: source.type };
+    } catch (err) {
+      const mapped = mapHaError(err?.status, err);
+      lastFailure = {
+        ...mapped,
+        sourceUsed: source.type
+      };
+      if (mapped.code === "auth") break;
+    }
+  }
+
+  throw Object.assign(new Error(lastFailure?.message || "Camera snapshot failed"), lastFailure || {});
+}
+
 async function proxyFetchToResponse(upstream, res, options = {}) {
   res.status(upstream.status);
   const contentType = upstream.headers.get("content-type");
@@ -734,6 +988,11 @@ app.get("/api/cameras", (req, res) => {
     id: camera.id,
     name: camera.name,
     entity: camera.entity,
+    cameraEntity: camera.cameraEntity,
+    eventImageEntity: camera.eventImageEntity,
+    eventImagePath: camera.eventImagePath,
+    preferredSnapshot: camera.preferredSnapshot,
+    snapshotRefreshMs: camera.snapshotRefreshMs,
     mode: camera.mode,
     streamType: camera.streamType,
     streamFallbacks: camera.streamFallbacks ?? [],
@@ -750,33 +1009,76 @@ app.get("/api/camera/:id/snapshot", async (req, res) => {
     return;
   }
 
-  const snapshotUrl = resolveSnapshotUrl(camera);
-  if (!snapshotUrl) {
-    res.status(500).json({ error: "Snapshot source not configured" });
+  if (!HOME_ASSISTANT_TOKEN) {
+    res.status(500).json({ error: "Home Assistant token missing" });
     return;
   }
 
+  const cameraId = camera.id;
+  const now = Date.now();
   try {
-    const haBase = normalizeBaseUrl(HA_HOST);
-    const needsAuth = haBase && snapshotUrl.startsWith(haBase);
-    if (needsAuth && !HOME_ASSISTANT_TOKEN) {
-      res.status(500).json({ error: "Home Assistant token missing" });
+    const snapshot = await fetchCameraSnapshot(camera);
+    snapshotCache.set(cameraId, {
+      buffer: snapshot.buffer,
+      contentType: snapshot.contentType,
+      ts: now
+    });
+
+    setCameraStatus(cameraId, {
+      ok: true,
+      sourceUsed: snapshot.sourceUsed,
+      lastSuccessTs: now,
+      lastErrorTs: null,
+      lastErrorCode: null,
+      lastErrorMsg: null
+    });
+
+    res.set("Cache-Control", "no-store, max-age=0");
+    res.type(snapshot.contentType).send(snapshot.buffer);
+  } catch (err) {
+    const errorInfo = err?.code
+      ? {
+          status: err?.status || 500,
+          code: err.code,
+          message: err.message
+        }
+      : mapHaError(err?.status, err);
+    const statusCode = errorInfo.status || 502;
+    const cached = snapshotCache.get(cameraId);
+    const canServeStale =
+      cached && cached.ts && now - cached.ts <= SNAPSHOT_STALE_WINDOW_MS;
+
+    setCameraStatus(cameraId, {
+      ok: false,
+      sourceUsed: err?.sourceUsed || null,
+      lastErrorTs: now,
+      lastErrorCode: errorInfo.code,
+      lastErrorMsg: errorInfo.message
+    });
+
+    if (canServeStale) {
+      res.set("Cache-Control", "no-store, max-age=0");
+      res.set("X-Dashboard-Stale", "1");
+      res.type(cached.contentType).send(cached.buffer);
       return;
     }
 
-    const upstream = await fetchWithTimeout(snapshotUrl, {
-      headers: needsAuth
-        ? {
-            Authorization: `Bearer ${HOME_ASSISTANT_TOKEN}`
-          }
-        : undefined
-    });
-    res.set("Cache-Control", "no-store, max-age=0");
-    await proxyFetchToResponse(upstream, res);
-  } catch (err) {
     console.error("Camera snapshot proxy error:", err);
-    res.status(500).json({ error: "Camera snapshot error" });
+    res.status(statusCode).json({
+      error: errorInfo.message || "Camera snapshot error",
+      code: errorInfo.code || "snapshot_failed"
+    });
   }
+});
+
+app.get("/api/camera/:id/status", (req, res) => {
+  const camera = getCameraConfig(req.params.id);
+  if (!camera) {
+    res.status(404).json({ error: "Camera not found" });
+    return;
+  }
+
+  res.json(getCameraStatus(camera.id));
 });
 
 app.get("/api/camera/:id/stream", async (req, res) => {
