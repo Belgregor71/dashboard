@@ -1843,8 +1843,8 @@ body[data-view="status"] #time-panel {
 }
 
 .cameras-section {
-  display: grid;
-  gap: clamp(8px, 1vh, 12px);
+  display: block;
+  position: relative;
   height: 100%;
   min-height: 0;
 }
@@ -1861,6 +1861,7 @@ body[data-view="status"] #time-panel {
   display: grid;
   gap: clamp(10px, 1.1vw, 18px);
   min-height: 0;
+  height: 100%;
 }
 
 .cameras-grid--three {
