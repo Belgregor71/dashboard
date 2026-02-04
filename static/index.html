@@ -226,97 +226,52 @@
   <!-- WEATHER VIEW -->
   <main id="weather-view" class="weather-view">
     <div id="weather-screen" class="weather-screen">
+      <div class="weather-background" id="weather-background">
+        <video
+          id="weather-bg-video"
+          class="weather-bg-video"
+          muted
+          loop
+          autoplay
+          playsinline
+          preload="auto"
+        >
+          <source id="weather-bg-webm" type="video/webm" />
+          <source id="weather-bg-mp4" type="video/mp4" />
+        </video>
+        <div id="weather-bg-image" class="weather-bg-image" aria-hidden="true"></div>
+        <div class="weather-bg-tint" aria-hidden="true"></div>
+      </div>
+
       <canvas id="wx-particles" class="wx-layer"></canvas>
       <div id="wx-flash" class="wx-flash"></div>
 
-      <section class="panel weather-panel weather-ui">
-        <header class="weather-hero">
-          <div class="weather-hero__primary">
-            <div class="weather-hero__icon" id="weather-overlay-lottie"></div>
-            <div class="weather-hero__info">
-              <div id="weather-overlay-condition" class="weather-hero__condition"></div>
-              <div class="weather-hero__location">Local Forecast</div>
-            </div>
-          </div>
-          <div class="weather-hero__temp">
-            <div id="weather-overlay-temp"></div>
-            <div id="weather-overlay-feels" class="weather-hero__feels"></div>
-            <div id="weather-overlay-range" class="weather-hero__range"></div>
-          </div>
-        </header>
+      <div class="weather-anchor weather-glass">
+        <div id="weather-cine-condition" class="weather-anchor__condition">--</div>
+        <div id="weather-cine-temp" class="weather-anchor__temp">--°</div>
+        <div id="weather-cine-meta" class="weather-anchor__meta">--</div>
+      </div>
 
-        <div class="weather-metrics">
-          <div class="weather-metric">
-            <div class="weather-metric__icon" id="weather-overlay-humidity-icon"></div>
-            <div class="weather-metric__body">
-              <div class="weather-metric__label">Humidity</div>
-              <div class="weather-metric__value" id="weather-overlay-humidity">--</div>
-            </div>
-          </div>
-          <div class="weather-metric">
-            <div class="weather-metric__icon" id="weather-overlay-pressure-icon"></div>
-            <div class="weather-metric__body">
-              <div class="weather-metric__label">Air pressure</div>
-              <div class="weather-metric__value" id="weather-overlay-pressure">--</div>
-            </div>
-          </div>
-          <div class="weather-metric">
-            <div class="weather-metric__icon" id="weather-overlay-rain-icon"></div>
-            <div class="weather-metric__body">
-              <div class="weather-metric__label">Chance of rain</div>
-              <div class="weather-metric__value" id="weather-overlay-rain">--</div>
-            </div>
-          </div>
-          <div class="weather-metric">
-            <div class="weather-metric__icon" id="weather-overlay-wind-icon"></div>
-            <div class="weather-metric__body">
-              <div class="weather-metric__label">Wind speed</div>
-              <div class="weather-metric__value" id="weather-overlay-wind">--</div>
-            </div>
-          </div>
-          <div class="weather-metric">
-            <div class="weather-metric__icon" id="weather-overlay-uv-icon"></div>
-            <div class="weather-metric__body">
-              <div class="weather-metric__label">UV index</div>
-              <div class="weather-metric__value" id="weather-overlay-uv">--</div>
-            </div>
-          </div>
-          <div class="weather-metric">
-            <div class="weather-metric__icon" id="weather-overlay-visibility-icon"></div>
-            <div class="weather-metric__body">
-              <div class="weather-metric__label">Visibility</div>
-              <div class="weather-metric__value" id="weather-overlay-visibility">--</div>
-            </div>
-          </div>
-          <div class="weather-metric">
-            <div class="weather-metric__icon" id="weather-overlay-dew-icon"></div>
-            <div class="weather-metric__body">
-              <div class="weather-metric__label">Dew point</div>
-              <div class="weather-metric__value" id="weather-overlay-dew">--</div>
-            </div>
-          </div>
-          <div class="weather-metric">
-            <div class="weather-metric__icon" id="weather-overlay-cloud-icon"></div>
-            <div class="weather-metric__body">
-              <div class="weather-metric__label">Cloud cover</div>
-              <div class="weather-metric__value" id="weather-overlay-cloud">--</div>
-            </div>
-          </div>
-        </div>
+      <div id="weather-narrative" class="weather-narrative"></div>
 
-        <div id="temp-curve-wrap" class="temp-curve-wrap">
-          <div class="temp-curve-header">
-            <div class="temp-curve-title">Next 12 hours</div>
-            <div class="temp-curve-range" id="temp-curve-range"></div>
-          </div>
-          <div id="temp-curve" class="temp-curve"></div>
+      <div class="weather-pills" id="weather-pills">
+        <div class="weather-pill weather-glass" id="weather-pill-wind">
+          <span class="weather-pill__label">Wind</span>
+          <span class="weather-pill__value" id="weather-pill-wind-value">--</span>
         </div>
+        <div class="weather-pill weather-glass" id="weather-pill-uv">
+          <span class="weather-pill__label">UV</span>
+          <span class="weather-pill__value" id="weather-pill-uv-value">--</span>
+        </div>
+        <div class="weather-pill weather-glass" id="weather-pill-visibility">
+          <span class="weather-pill__label">Visibility</span>
+          <span class="weather-pill__value" id="weather-pill-visibility-value">--</span>
+        </div>
+      </div>
 
-        <div class="weather-hourly">
-          <div class="weather-hourly__header">Next 8 hours</div>
-          <div class="weather-hourly__grid" id="weather-hourly-grid"></div>
-        </div>
-      </section>
+      <div class="weather-timeline" id="weather-timeline">
+        <div class="weather-timeline__track" id="weather-timeline-track"></div>
+      </div>
     </div>
   </main>
 
