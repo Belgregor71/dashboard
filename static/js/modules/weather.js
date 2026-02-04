@@ -22,6 +22,7 @@ export async function fetchWeather() {
       `https://api.open-meteo.com/v1/forecast?latitude=${WEATHER_LAT}` +
       `&longitude=${WEATHER_LON}` +
       `&current_weather=true` +
+      `&hourly=temperature_2m` +
       `&daily=temperature_2m_max,temperature_2m_min,weathercode,sunrise,sunset` +
       `&timezone=auto`;
 
@@ -63,6 +64,8 @@ function renderWeather(data) {
 
   // Wind (km/h + Beaufort icon)
   renderWind(current);
+
+  renderTemperatureCurve(data);
 }
 
 /**
@@ -98,6 +101,154 @@ function describeWeatherCode(code) {
   if (code >= 80 && code <= 82) return "Showers";
   if (code >= 95) return "Storms";
   return "Weather";
+}
+
+function renderTemperatureCurve(data) {
+  const wrapEl = document.getElementById("temp-curve-wrap");
+  const curveEl = document.getElementById("temp-curve");
+  const rangeEl = document.getElementById("temp-curve-range");
+
+  if (!wrapEl || !curveEl) return;
+
+  const hourly = data?.hourly;
+  if (!hourly?.temperature_2m || !hourly?.time) {
+    wrapEl.classList.add("is-hidden");
+    curveEl.innerHTML = "";
+    if (rangeEl) rangeEl.textContent = "";
+    return;
+  }
+
+  const times = hourly.time;
+  const temps = hourly.temperature_2m;
+  const now = data?.current_weather?.time
+    ? new Date(data.current_weather.time)
+    : new Date();
+
+  let startIndex = times.findIndex((time) => new Date(time) >= now);
+  if (startIndex === -1) startIndex = 0;
+
+  const windowSize = 12;
+  const windowTimes = times.slice(startIndex, startIndex + windowSize);
+  const windowTemps = temps.slice(startIndex, startIndex + windowSize);
+
+  if (windowTemps.length < 2) {
+    wrapEl.classList.add("is-hidden");
+    curveEl.innerHTML = "";
+    if (rangeEl) rangeEl.textContent = "";
+    return;
+  }
+
+  wrapEl.classList.remove("is-hidden");
+
+  const minTemp = Math.min(...windowTemps);
+  const maxTemp = Math.max(...windowTemps);
+  const paddedMin = minTemp - 1;
+  const paddedMax = maxTemp + 1;
+  const tempRange = Math.max(1, paddedMax - paddedMin);
+
+  const width = 720;
+  const height = 180;
+  const paddingX = 32;
+  const paddingY = 24;
+  const plotWidth = width - paddingX * 2;
+  const plotHeight = height - paddingY * 2;
+
+  const points = windowTemps.map((temp, index) => {
+    const x =
+      paddingX + (plotWidth / (windowTemps.length - 1)) * index;
+    const y =
+      paddingY + ((paddedMax - temp) / tempRange) * plotHeight;
+    return { x, y, temp, time: windowTimes[index] };
+  });
+
+  const linePath = buildSmoothPath(points);
+  const areaPath = `${linePath} L ${points[points.length - 1].x},${
+    height - paddingY
+  } L ${points[0].x},${height - paddingY} Z`;
+
+  const minIndex = windowTemps.indexOf(minTemp);
+  const maxIndex = windowTemps.indexOf(maxTemp);
+
+  const labelMarkup = [
+    renderLabel(points[0], "NOW", "label-now"),
+    renderLabel(points[minIndex], "MIN", "label-min"),
+    renderLabel(points[maxIndex], "MAX", "label-max")
+  ].join("");
+
+  const dotsMarkup = points
+    .map(
+      (point) =>
+        `<circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(
+          1
+        )}" r="2.2" class="temp-curve__dot" />`
+    )
+    .join("");
+
+  curveEl.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Temperature curve for the next 12 hours">
+      <defs>
+        <linearGradient id="temp-curve-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="rgba(255,255,255,0.35)" />
+          <stop offset="100%" stop-color="rgba(255,255,255,0)" />
+        </linearGradient>
+      </defs>
+      <line x1="${points[0].x}" y1="${paddingY}" x2="${points[0].x}" y2="${
+    height - paddingY
+  }" class="temp-curve__now-line" />
+      <path d="${areaPath}" class="temp-curve__area" />
+      <path d="${linePath}" class="temp-curve__line" />
+      ${dotsMarkup}
+      ${labelMarkup}
+    </svg>
+  `;
+
+  if (rangeEl) {
+    rangeEl.textContent = `Min ${Math.round(minTemp)}° / Max ${Math.round(
+      maxTemp
+    )}°`;
+  }
+}
+
+function buildSmoothPath(points) {
+  if (!points.length) return "";
+
+  const path = [`M ${points[0].x},${points[0].y}`];
+
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const p0 = points[i - 1] || points[i];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2] || p2;
+
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+    path.push(
+      `C ${cp1x.toFixed(2)},${cp1y.toFixed(2)} ${cp2x.toFixed(
+        2
+      )},${cp2y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)}`
+    );
+  }
+
+  return path.join(" ");
+}
+
+function renderLabel(point, text, className) {
+  if (!point) return "";
+  const labelOffsetY = 12;
+  const labelOffsetX = text === "NOW" ? 0 : 4;
+  const anchor = text === "NOW" ? "start" : "middle";
+  return `
+    <text x="${(point.x + labelOffsetX).toFixed(
+      1
+    )}" y="${(point.y - labelOffsetY).toFixed(
+    1
+  )}" text-anchor="${anchor}" class="temp-curve__label ${className}">
+      ${text}
+    </text>
+  `;
 }
 
 /* ------------------------------------------------------------------
