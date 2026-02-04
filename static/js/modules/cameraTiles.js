@@ -205,8 +205,63 @@ function setToast(message) {
   setTimeout(() => toastEl.classList.remove("is-visible"), 4000);
 }
 
+function isEntityActive(entity) {
+  if (!entity) return false;
+  const state = String(entity.state || "").toLowerCase();
+  return !["off", "idle", "unavailable", "unknown"].includes(state);
+}
+
+function getActiveEventCameraId() {
+  const priority = [
+    { key: "ringingEntity", type: "ringing" },
+    { key: "personEntity", type: "person" },
+    { key: "motionEntity", type: "motion" }
+  ];
+
+  let best = null;
+  let bestPriority = Infinity;
+  let bestTimestamp = 0;
+
+  cameras.forEach((camera) => {
+    priority.forEach((entry, index) => {
+      const entityId = camera?.[entry.key];
+      if (!entityId) return;
+      const entity = getEntity(entityId);
+      if (!isEntityActive(entity)) return;
+      const changedAt = Date.parse(entity?.last_changed || entity?.last_updated || "");
+      const timestamp = Number.isNaN(changedAt) ? Date.now() : changedAt;
+      if (index < bestPriority || (index === bestPriority && timestamp > bestTimestamp)) {
+        best = camera.id;
+        bestPriority = index;
+        bestTimestamp = timestamp;
+      }
+    });
+  });
+
+  return best;
+}
+
+function getRecentActivityCameraId() {
+  let best = null;
+  let bestTimestamp = 0;
+  cameras.forEach((camera) => {
+    const state = getCameraState(camera.id);
+    if (!isRecentActivity(state?.lastActivity)) return;
+    if (state.lastActivity.timestamp > bestTimestamp) {
+      bestTimestamp = state.lastActivity.timestamp;
+      best = camera.id;
+    }
+  });
+  return best;
+}
+
 function getHeroCameraId() {
-  return heroSpotlightId || pinnedCameraId || cameras[0]?.id || null;
+  if (heroSpotlightId && camerasById.has(heroSpotlightId)) return heroSpotlightId;
+  const activeId = getActiveEventCameraId();
+  if (activeId) return activeId;
+  const recentId = getRecentActivityCameraId();
+  if (recentId) return recentId;
+  return pinnedCameraId || cameras[0]?.id || null;
 }
 
 function isRecentActivity(activity) {
@@ -301,7 +356,13 @@ function buildCameraList() {
     };
   });
   camerasById = new Map(cameras.map((camera) => [camera.id, camera]));
-  tileCameras = cameras.filter((camera) => camera.hidden === false).slice(0, 6);
+  const visibleCameras = cameras.filter((camera) => camera.hidden === false);
+  const pinnedHero = cameras.find((camera) => camera.pinnedHero);
+  const tileCandidates =
+    pinnedHero && !visibleCameras.some((camera) => camera.id === pinnedHero.id)
+      ? [pinnedHero, ...visibleCameras]
+      : visibleCameras;
+  tileCameras = tileCandidates.slice(0, 6);
   eventEntityMap = new Map();
 
   cameras.forEach((camera) => {
@@ -400,7 +461,7 @@ function renderCameraGrid() {
   });
 
   if (sectionTitle) {
-    sectionTitle.textContent = `Camera Tiles (${tileCameras.length})`;
+    sectionTitle.textContent = `Cameras (${tileCameras.length})`;
   }
 
   tileCameras.forEach((camera) => {
@@ -416,6 +477,12 @@ function updateHero() {
   const targetId = getHeroCameraId();
   if (!targetId) return;
 
+  const previousId = heroElements.imageEl.dataset.cameraId;
+  if (previousId && previousId !== targetId) {
+    heroElements.imageEl.classList.add("is-fading");
+    setTimeout(() => heroElements.imageEl.classList.remove("is-fading"), 220);
+  }
+
   focusedCameraId = targetId;
   const camera = camerasById.get(targetId);
   if (!camera) return;
@@ -423,15 +490,26 @@ function updateHero() {
   heroElements.container.dataset.cameraId = targetId;
   heroElements.nameEl.textContent = camera.name;
   const state = getCameraState(targetId);
+  const hasRecent = isRecentActivity(state?.lastActivity);
   const activityLabel = state?.offlineReason
     ? state.offlineReason
-    : state?.lastActivity
+    : hasRecent
       ? formatActivityLabel(state.lastActivity)
-      : "No recent activity";
+      : "";
   heroElements.activityEl.textContent = activityLabel;
+  heroElements.activityEl.classList.toggle(
+    "is-hidden",
+    !Boolean(state?.offlineReason || hasRecent)
+  );
+  heroElements.heatEl?.classList.toggle("is-hidden", !hasRecent);
+  heroElements.container.classList.toggle(
+    "is-idle",
+    !Boolean(hasRecent || state?.offlineReason)
+  );
 
   const statusLabel = getStatusLabel(camera, state);
   heroElements.statusEl.textContent = statusLabel;
+  heroElements.statusEl.dataset.status = statusLabel.toLowerCase();
 
   const heatData = ensureHeatData(targetId);
   ensureHeatStrip(heroElements.heatEl, heatData.buckets);
@@ -522,7 +600,7 @@ function handleImageRenderError(cameraId) {
 function getStatusLabel(camera, state) {
   if (state?.offlineReason) return "OFFLINE";
   if (isCameraOffline(camera)) return "OFFLINE";
-  if (isRecentActivity(state?.lastActivity)) return "RECENT";
+  if (state?.stale) return "STALE";
   return "CLEAR";
 }
 
@@ -541,12 +619,20 @@ function updateCameraCard(cameraId) {
   ensureHeatStrip(state.heatEl, heatData.buckets);
 
   if (state.activityEl) {
+    const hasRecent = isRecentActivity(state?.lastActivity);
     if (state.offlineReason) {
       state.activityEl.textContent = state.offlineReason;
-    } else if (state.lastActivity) {
+    } else if (hasRecent) {
       const label = formatActivityLabel(state.lastActivity);
       state.activityEl.textContent = label;
+    } else if (DEBUG_MODE) {
+      state.activityEl.textContent = "No recent activity";
+    } else {
+      state.activityEl.textContent = "";
     }
+    const showActivity = Boolean(state.offlineReason || hasRecent || DEBUG_MODE);
+    state.activityEl.classList.toggle("is-hidden", !showActivity);
+    state.heatEl?.classList.toggle("is-hidden", !hasRecent);
   }
 
   if (state.debugEl) {
