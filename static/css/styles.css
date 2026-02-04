@@ -1605,36 +1605,42 @@ body[data-view="status"] #time-panel {
 
 #cameras-view {
   position: relative;
-  padding: 10px 40px 40px;
+  --cam-gap: clamp(12px, 1.4vw, 22px);
+  --cam-radius: clamp(16px, 2vw, 20px);
+  --cam-pad: clamp(16px, 1.6vw, 24px);
+  --cam-header-h: clamp(48px, 6vh, 64px);
+  --cam-safe-top: clamp(12px, 1.5vh, 24px);
+  padding: calc(var(--cam-safe-top) + clamp(6px, 0.8vh, 12px)) clamp(24px, 3vw, 40px)
+    clamp(20px, 2.5vw, 36px);
+  height: calc(100vh - 120px);
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .cameras-panel {
   display: grid;
-  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
-  grid-template-areas:
-    "header header"
-    "hero tiles"
-    "timeline timeline";
-  gap: 20px;
-  min-height: calc(100vh - 160px);
+  grid-template-rows: var(--cam-header-h) minmax(0, 1fr) auto;
+  gap: var(--cam-gap);
+  height: 100%;
+  min-height: 0;
 }
 
 .cameras-header {
-  grid-area: header;
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
-  gap: 20px;
+  align-items: center;
+  gap: var(--cam-gap);
+  min-height: var(--cam-header-h);
 }
 
 .cameras-title {
-  font-size: 2.4rem;
-  font-weight: 600;
+  font-size: clamp(1.9rem, 2.4vw, 2.8rem);
+  font-weight: 700;
 }
 
 .cameras-header-subtitle {
-  font-size: 1rem;
-  letter-spacing: 0.12em;
+  font-size: clamp(0.75rem, 0.95vw, 1rem);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   opacity: 0.6;
 }
@@ -1642,12 +1648,12 @@ body[data-view="status"] #time-panel {
 .cameras-status {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
+  gap: 8px;
+  padding: 6px 10px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(0, 0, 0, 0.35);
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -1668,21 +1674,57 @@ body[data-view="status"] #time-panel {
   color: #fda4af;
 }
 
-.camera-hero {
-  grid-area: hero;
+.cam-layout {
   display: grid;
-  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
-  gap: 16px;
-  align-items: stretch;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--cam-gap);
+  height: 100%;
+  min-height: 0;
+}
+
+.cam-hero {
+  grid-column: 1 / span 7;
+  min-height: 0;
+  height: 100%;
+}
+
+.cam-focus {
+  grid-column: 8 / span 3;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.cam-tiles {
+  grid-column: 11 / span 2;
+  min-height: 0;
+  height: 100%;
+}
+
+.camera-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cam-gap);
+  height: 100%;
 }
 
 .camera-hero__media {
   position: relative;
-  border-radius: 18px;
+  border-radius: var(--cam-radius);
   overflow: hidden;
-  min-height: 320px;
+  min-height: 0;
+  height: 100%;
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.camera-hero__media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, rgba(0, 0, 0, 0.15) 15%, rgba(0, 0, 0, 0.6) 100%);
+  z-index: 1;
 }
 
 .camera-hero__image {
@@ -1691,15 +1733,15 @@ body[data-view="status"] #time-panel {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.9;
+  opacity: 0.92;
 }
 
 .camera-hero__badge {
   position: absolute;
-  inset: 16px auto auto 16px;
-  padding: 6px 12px;
+  inset: 12px auto auto 12px;
+  padding: 4px 10px;
   border-radius: 999px;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   background: rgba(255, 213, 145, 0.85);
@@ -1713,26 +1755,27 @@ body[data-view="status"] #time-panel {
 
 .camera-hero__meta {
   display: grid;
-  gap: 12px;
-  padding: 16px;
-  border-radius: 18px;
+  gap: clamp(10px, 1.2vh, 16px);
+  padding: var(--cam-pad);
+  border-radius: var(--cam-radius);
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(255, 255, 255, 0.08);
+  height: 100%;
 }
 
 .camera-hero__name {
-  font-size: 1.8rem;
-  font-weight: 600;
+  font-size: clamp(1.6rem, 2vw, 2.2rem);
+  font-weight: 700;
 }
 
 .camera-hero__status {
-  font-size: 0.9rem;
+  font-size: clamp(0.85rem, 1vw, 1rem);
   opacity: 0.75;
 }
 
 .camera-hero__activity {
-  font-size: 1rem;
-  font-weight: 500;
+  font-size: clamp(0.95rem, 1.2vw, 1.15rem);
+  font-weight: 600;
 }
 
 .camera-hero__heat {
@@ -1743,19 +1786,24 @@ body[data-view="status"] #time-panel {
 }
 
 .cameras-section {
-  grid-area: tiles;
   display: grid;
-  gap: 10px;
+  gap: clamp(8px, 1vh, 12px);
+  height: 100%;
+  min-height: 0;
 }
 
 .cameras-section-title {
-  font-size: 1.1rem;
+  font-size: clamp(0.95rem, 1.1vw, 1.15rem);
   font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
 }
 
 .cameras-grid {
   display: grid;
-  gap: 12px;
+  gap: clamp(10px, 1.1vw, 18px);
+  min-height: 0;
 }
 
 .cameras-grid--three {
@@ -1764,28 +1812,37 @@ body[data-view="status"] #time-panel {
 
 .cameras-grid--tiles {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  height: 100%;
 }
 
 .camera-card {
-  border-radius: 18px;
+  border-radius: var(--cam-radius);
   overflow: hidden;
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(255, 255, 255, 0.08);
   display: grid;
   grid-template-rows: 1fr auto;
-  min-height: 150px;
+  min-height: 0;
+  height: 100%;
 }
 
 .camera-card__preview {
   position: relative;
-  background:
-    linear-gradient(140deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.3)),
-    radial-gradient(circle at top left, rgba(0, 0, 0, 0.2), transparent 70%);
+  background: rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: flex-end;
   justify-content: flex-start;
-  padding: 16px;
-  min-height: 140px;
+  padding: var(--cam-pad);
+  min-height: 0;
+}
+
+.camera-card__preview::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, rgba(0, 0, 0, 0.1) 20%, rgba(0, 0, 0, 0.55) 100%);
+  z-index: 1;
 }
 
 .camera-card__image {
@@ -1794,8 +1851,8 @@ body[data-view="status"] #time-panel {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.85;
-  z-index: 1;
+  opacity: 0.92;
+  z-index: 0;
 }
 
 .camera-card__video {
@@ -1809,11 +1866,12 @@ body[data-view="status"] #time-panel {
 }
 
 .camera-card__pill {
-  position: relative;
+  position: absolute;
+  inset: 10px 10px auto auto;
   z-index: 2;
-  padding: 6px 10px;
+  padding: 4px 8px;
   border-radius: 999px;
-  font-size: 0.7rem;
+  font-size: 0.62rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   background: rgba(0, 0, 0, 0.6);
@@ -1835,11 +1893,11 @@ body[data-view="status"] #time-panel {
 
 .camera-card__badge--stale {
   position: absolute;
-  inset: 12px auto auto 12px;
+  inset: 10px auto auto 10px;
   z-index: 2;
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 999px;
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   background: rgba(255, 213, 145, 0.85);
@@ -1916,7 +1974,8 @@ body[data-view="status"] #time-panel {
 }
 
 .camera-timeline {
-  grid-area: timeline;
+  display: grid;
+  gap: 6px;
 }
 
 .camera-summary {
@@ -1982,16 +2041,16 @@ body[data-view="status"] #time-panel {
 .camera-card__body {
   display: grid;
   gap: 6px;
-  padding: 12px 16px 14px;
+  padding: 10px 14px 12px;
 }
 
 .camera-card__name {
-  font-size: 1.05rem;
+  font-size: clamp(0.95rem, 1.1vw, 1.15rem);
   font-weight: 600;
 }
 
 .camera-card__meta {
-  font-size: 0.85rem;
+  font-size: clamp(0.75rem, 0.9vw, 0.9rem);
   opacity: 0.75;
 }
 
@@ -2024,13 +2083,8 @@ body[data-view="status"] #time-panel {
   background: rgba(96, 165, 250, 0.95);
 }
 
-.camera-timeline {
-  display: grid;
-  gap: 8px;
-}
-
 .camera-timeline__title {
-  font-size: 0.9rem;
+  font-size: clamp(0.7rem, 0.85vw, 0.85rem);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   opacity: 0.6;
@@ -2038,7 +2092,7 @@ body[data-view="status"] #time-panel {
 
 .camera-timeline__band {
   position: relative;
-  height: 28px;
+  height: clamp(14px, 1.6vh, 20px);
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(255, 255, 255, 0.1);
