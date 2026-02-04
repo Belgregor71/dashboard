@@ -1676,7 +1676,7 @@ body[data-view="status"] #time-panel {
 
 .cam-layout {
   display: grid;
-  grid-template-columns: 6fr 4fr;
+  grid-template-columns: 7fr 3fr;
   gap: var(--cam-gap);
   height: 100%;
   min-height: 0;
@@ -1850,16 +1850,11 @@ body[data-view="status"] #time-panel {
 }
 
 .cameras-section-title {
-  position: absolute;
-  top: clamp(6px, 0.9vh, 10px);
-  left: clamp(10px, 1.1vw, 16px);
-  font-size: clamp(0.6rem, 0.85vw, 0.85rem);
+  font-size: clamp(0.65rem, 0.9vw, 0.9rem);
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  opacity: 0.4;
-  pointer-events: none;
-  z-index: 3;
+  opacity: 0.45;
 }
 
 .cameras-grid {
