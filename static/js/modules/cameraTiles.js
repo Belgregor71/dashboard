@@ -237,6 +237,9 @@ function getCameraState(cameraId) {
       nextRetryAt: 0,
       lastSuccessUrl: null,
       lastObjectUrl: null,
+      pendingObjectUrl: null,
+      previousObjectUrl: null,
+      pendingStale: false,
       stale: false,
       offlineReason: null,
       lastErrorCode: null,
@@ -334,6 +337,9 @@ function buildCameraList() {
       nextRetryAt: prev?.nextRetryAt ?? 0,
       lastSuccessUrl: prev?.lastSuccessUrl ?? null,
       lastObjectUrl: prev?.lastObjectUrl ?? null,
+      pendingObjectUrl: prev?.pendingObjectUrl ?? null,
+      previousObjectUrl: prev?.previousObjectUrl ?? null,
+      pendingStale: prev?.pendingStale ?? false,
       stale: prev?.stale ?? false,
       offlineReason: prev?.offlineReason ?? null,
       lastErrorCode: prev?.lastErrorCode ?? null,
@@ -442,6 +448,9 @@ function updateHero() {
 
 function attachImageHandlers(cameraId, state) {
   if (!state?.imageEl) return;
+  state.imageEl.addEventListener("load", () => {
+    handleImageLoad(cameraId, state.imageEl.src);
+  });
   state.imageEl.addEventListener("error", () => {
     handleImageRenderError(cameraId);
   });
@@ -449,6 +458,11 @@ function attachImageHandlers(cameraId, state) {
 
 function attachHeroImageHandlers() {
   if (!heroElements.imageEl) return;
+  heroElements.imageEl.addEventListener("load", () => {
+    const cameraId = heroElements.imageEl.dataset.cameraId;
+    if (!cameraId) return;
+    handleImageLoad(cameraId, heroElements.imageEl.src);
+  });
   heroElements.imageEl.addEventListener("error", () => {
     const cameraId = heroElements.imageEl.dataset.cameraId;
     if (!cameraId) return;
@@ -456,9 +470,46 @@ function attachHeroImageHandlers() {
   });
 }
 
+function handleImageLoad(cameraId, src) {
+  const state = getCameraState(cameraId);
+  if (state.pendingObjectUrl && src !== state.pendingObjectUrl) {
+    return;
+  }
+  if (state.previousObjectUrl && state.previousObjectUrl !== state.pendingObjectUrl) {
+    revokeObjectUrl(state.previousObjectUrl);
+  }
+  state.lastObjectUrl = state.pendingObjectUrl || src;
+  state.lastSuccessUrl = state.pendingObjectUrl || src;
+  state.pendingObjectUrl = null;
+  state.previousObjectUrl = null;
+  state.stale = state.pendingStale;
+  state.pendingStale = false;
+  state.failureCount = 0;
+  state.nextRetryAt = 0;
+  state.offlineReason = null;
+  state.lastErrorCode = null;
+  state.lastErrorMsg = null;
+  state.badgeEl?.classList.toggle("is-hidden", !state.stale);
+  updateCameraStatus(cameraId, state.stale ? "offline" : "online");
+  updateCameraCard(cameraId);
+  if (cameraId === getHeroCameraId()) {
+    heroElements.badgeEl?.classList.toggle("is-hidden", !state.stale);
+  }
+}
+
 function handleImageRenderError(cameraId) {
   const state = getCameraState(cameraId);
   if (!state.lastSuccessUrl) return;
+  if (state.pendingObjectUrl) {
+    revokeObjectUrl(state.pendingObjectUrl);
+    state.pendingObjectUrl = null;
+    state.pendingStale = false;
+    if (state.previousObjectUrl) {
+      state.lastObjectUrl = state.previousObjectUrl;
+      state.lastSuccessUrl = state.previousObjectUrl;
+      state.previousObjectUrl = null;
+    }
+  }
   state.failureCount = Math.max(state.failureCount, 1);
   state.stale = true;
   state.badgeEl?.classList.remove("is-hidden");
@@ -546,19 +597,11 @@ async function fetchCameraStatus(camera, { signal } = {}) {
 
 function applySnapshotSuccess(cameraId, objectUrl, { stale = false, target = "tile" } = {}) {
   const state = getCameraState(cameraId);
-  state.failureCount = 0;
-  state.nextRetryAt = 0;
   state.stale = stale;
-  state.offlineReason = null;
-  state.lastErrorCode = null;
-  state.lastErrorMsg = null;
+  state.pendingStale = stale;
   state.badgeEl?.classList.toggle("is-hidden", !stale);
-
-  if (state.lastObjectUrl && state.lastObjectUrl !== objectUrl) {
-    revokeObjectUrl(state.lastObjectUrl);
-  }
-  state.lastObjectUrl = objectUrl;
-  state.lastSuccessUrl = objectUrl;
+  state.previousObjectUrl = state.lastObjectUrl;
+  state.pendingObjectUrl = objectUrl;
 
   if ((target === "tile" || target === "both") && state.imageEl) {
     state.imageEl.src = objectUrl;
@@ -568,9 +611,6 @@ function applySnapshotSuccess(cameraId, objectUrl, { stale = false, target = "ti
     heroElements.imageEl.src = objectUrl;
     heroElements.badgeEl?.classList.toggle("is-hidden", !stale);
   }
-
-  updateCameraStatus(cameraId, stale ? "offline" : "online");
-  updateCameraCard(cameraId);
 }
 
 function applySnapshotFailure(cameraId, errorMessage, errorCode) {
