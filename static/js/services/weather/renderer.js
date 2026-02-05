@@ -80,6 +80,12 @@ function applyCinematicBackground(code) {
 
   const category = cinematicCategoryForCode(code);
   const asset = BACKGROUND_ASSETS[category] || BACKGROUND_ASSETS.cloudy;
+  const weatherRoot = document.getElementById("weather-screen");
+  if (weatherRoot) {
+    const classes = ["is-clear", "is-cloudy", "is-rain", "is-storm", "is-fog"];
+    weatherRoot.classList.remove(...classes);
+    weatherRoot.classList.add(`is-${category}`);
+  }
 
   if (video.dataset.category === category) return;
 
