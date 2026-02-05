@@ -281,25 +281,21 @@ function renderNarrative({ current, hourly, hourlyIndex }) {
   const pop = hourly?.precipitation_probability?.[hourlyIndex] ?? 0;
   const uvIndex = hourly?.uv_index?.[hourlyIndex];
   const wind = hourly?.windspeed_10m?.[hourlyIndex] ?? current?.windspeed ?? 0;
-  const visibility = hourly?.visibility?.[hourlyIndex];
   const category = cinematicCategoryForCode(current?.weathercode);
   const hour = new Date().getHours();
+  const temp = current?.temperature ?? null;
 
   let text = "";
   if (category === "storm") {
-    text = "Thunderstorms in the area.";
-  } else if (category === "fog" || (visibility != null && visibility < 6000)) {
-    text = "Low visibility. Keep lights on.";
-  } else if (pop >= 60) {
-    text = "Rain likely later. Plan indoor time.";
-  } else if (pop >= 30) {
-    text = "Showers possible later.";
-  } else if (uvIndex != null && uvIndex >= 7 && hour >= 9 && hour <= 16) {
-    text = "Bright daylight. UV is high.";
+    text = "Storm risk. Stay alert.";
+  } else if (pop >= 50) {
+    text = "Rain likely later.";
+  } else if (pop >= 20) {
+    text = "Chance of rain later.";
+  } else if (uvIndex != null && uvIndex >= 6 && temp != null && temp >= 28 && hour >= 11 && hour <= 16) {
+    text = "High UV this afternoon.";
   } else if (wind >= 25) {
-    text = "Breezy air moving through.";
-  } else if (category === "clear" && hour >= 18) {
-    text = "Calm evening. No rain expected.";
+    text = "Breezy conditions.";
   }
 
   if (!text) {
@@ -376,6 +372,11 @@ function renderTimeline({ hourly, hourlyIndex }) {
     const item = document.createElement("div");
     item.className = "weather-timeline__item";
     if (index === timelineIndex) item.classList.add("is-active");
+    if (pop >= 50) {
+      item.classList.add("has-rain-strong");
+    } else if (pop >= 20) {
+      item.classList.add("has-rain");
+    }
 
     const phase = document.createElement("div");
     phase.className = "weather-timeline__phase";
@@ -430,28 +431,41 @@ function startTimelineAutoAdvance(count) {
 function renderPills({ current, hourly, hourlyIndex }) {
   const windValue = document.getElementById("weather-pill-wind-value");
   const uvValue = document.getElementById("weather-pill-uv-value");
+  const rainValue = document.getElementById("weather-pill-rain-value");
+  const stormValue = document.getElementById("weather-pill-storm-value");
   const visValue = document.getElementById("weather-pill-visibility-value");
 
   const windSpeed = hourly?.windspeed_10m?.[hourlyIndex] ?? current?.windspeed ?? 0;
   const uvIndex = hourly?.uv_index?.[hourlyIndex];
+  const pop = hourly?.precipitation_probability?.[hourlyIndex] ?? 0;
   const visibility = hourly?.visibility?.[hourlyIndex];
   const visibilityKm = visibility != null ? visibility / 1000 : null;
   const category = cinematicCategoryForCode(current?.weathercode);
 
   if (windValue) windValue.textContent = `${Math.round(windSpeed)} km/h`;
   if (uvValue) uvValue.textContent = uvIndex != null ? `${Math.round(uvIndex)}` : "--";
+  if (rainValue) rainValue.textContent = `${Math.round(pop)}%`;
+  if (stormValue) stormValue.textContent = category === "storm" ? "Alert" : "--";
   if (visValue) visValue.textContent = visibilityKm != null ? `${visibilityKm.toFixed(1)} km` : "--";
 
   const windShow = windSpeed >= 25;
-  const windHide = windSpeed <= 20;
+  const windHide = windSpeed < 20;
   setPillVisibility("weather-pill-wind", windShow, windHide);
 
   const uvShow = uvIndex != null && uvIndex >= 6;
-  const uvHide = uvIndex != null && uvIndex <= 4;
+  const uvHide = uvIndex != null && uvIndex < 5;
   setPillVisibility("weather-pill-uv", uvShow, uvHide);
 
-  const visShow = category === "fog" || (visibilityKm != null && visibilityKm <= 5);
-  const visHide = category !== "fog" && (visibilityKm == null || visibilityKm >= 7);
+  const rainShow = pop >= 20;
+  const rainHide = pop < 15;
+  setPillVisibility("weather-pill-rain", rainShow, rainHide);
+
+  const stormShow = category === "storm";
+  const stormHide = category !== "storm";
+  setPillVisibility("weather-pill-storm", stormShow, stormHide);
+
+  const visShow = category === "fog" || (visibilityKm != null && visibilityKm <= 8);
+  const visHide = category !== "fog" && (visibilityKm == null || visibilityKm > 8);
   setPillVisibility("weather-pill-visibility", visShow, visHide);
 }
 
@@ -460,7 +474,15 @@ function setPillVisibility(id, shouldShow, shouldHide) {
   if (!pill) return;
 
   const now = Date.now();
-  const state = pillState[id] || { visible: false, lastShown: 0 };
+  const state = pillState[id] || { visible: false, lastShown: 0, belowCount: 0 };
+
+  if (shouldShow) {
+    state.belowCount = 0;
+  } else if (shouldHide) {
+    state.belowCount += 1;
+  } else {
+    state.belowCount = 0;
+  }
 
   if (shouldShow && !state.visible) {
     state.visible = true;
@@ -468,7 +490,13 @@ function setPillVisibility(id, shouldShow, shouldHide) {
     pill.classList.add("is-visible");
   }
 
-  if (!shouldShow && state.visible && shouldHide && now - state.lastShown > PILL_MIN_VISIBLE_MS) {
+  if (
+    !shouldShow &&
+    state.visible &&
+    shouldHide &&
+    state.belowCount >= 2 &&
+    now - state.lastShown > PILL_MIN_VISIBLE_MS
+  ) {
     state.visible = false;
     pill.classList.remove("is-visible");
   }
