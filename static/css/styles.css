@@ -1247,6 +1247,11 @@ body[data-view="weather"] #top-bar {
   padding: 20px 40px 10px;
 }
 
+body[data-view="weather"] #top-bar .panel {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.28));
+  backdrop-filter: blur(4px) brightness(0.9);
+}
+
 body[data-view="weather"] #time-panel {
   padding-left: 10px;
 }
