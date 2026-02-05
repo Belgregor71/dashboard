@@ -225,7 +225,7 @@
 
   <!-- WEATHER VIEW -->
   <main id="weather-view" class="weather-view">
-    <div id="weather-screen" class="weather-screen">
+    <div id="weather-screen" class="weather-screen weather-root">
       <div class="weather-background" id="weather-background">
         <video
           id="weather-bg-video"
@@ -240,6 +240,7 @@
           <source id="weather-bg-mp4" type="video/mp4" />
         </video>
         <div id="weather-bg-image" class="weather-bg-image" aria-hidden="true"></div>
+        <div class="mist-layer" aria-hidden="true"></div>
         <div class="weather-bg-tint" aria-hidden="true"></div>
       </div>
 
