@@ -69,8 +69,31 @@ function cinematicCategoryForCode(code) {
   return "cloudy";
 }
 
+function isWeatherViewActive() {
+  return document.body?.dataset?.view === "weather";
+}
+
+function stopCinematicBackground({ resetSources = false } = {}) {
+  const video = document.getElementById("weather-bg-video");
+  if (!video) return;
+
+  video.pause();
+  video.classList.remove("is-active");
+
+  if (!resetSources) return;
+
+  const webmSource = document.getElementById("weather-bg-webm");
+  const mp4Source = document.getElementById("weather-bg-mp4");
+
+  video.dataset.category = "";
+  webmSource?.removeAttribute("src");
+  mp4Source?.removeAttribute("src");
+  video.removeAttribute("src");
+  video.load();
+}
+
 function applyCinematicBackground(code) {
-  if (code == null) return;
+  if (code == null || !isWeatherViewActive()) return;
   const video = document.getElementById("weather-bg-video");
   const webmSource = document.getElementById("weather-bg-webm");
   const mp4Source = document.getElementById("weather-bg-mp4");
@@ -115,9 +138,11 @@ function applyCinematicBackground(code) {
 
 function syncWeatherMotion(code) {
   if (code == null) return;
-  applyCinematicBackground(code);
+  if (isWeatherViewActive()) {
+    applyCinematicBackground(code);
+  }
 
-  if (document.body?.dataset?.view === "weather") {
+  if (isWeatherViewActive()) {
     const category = cinematicCategoryForCode(code);
     if (category === "storm") {
       startWeatherMotion({ code });
@@ -512,14 +537,13 @@ function rerenderWeeklyFromCache() {
 /* 🔁 Cleanup on view change (prevents memory leaks) */
 on("view:changed", () => {
   clearLotties();
-  if (document.body?.dataset?.view !== "weather") {
+  if (!isWeatherViewActive()) {
     stopWeatherMotion();
     if (timelineInterval) clearInterval(timelineInterval);
     timelineInterval = null;
     if (narrativeTimer) clearTimeout(narrativeTimer);
     narrativeTimer = null;
-    const video = document.getElementById("weather-bg-video");
-    video?.pause();
+    stopCinematicBackground({ resetSources: true });
   }
   if (cachedWeather) {
     renderCurrent(cachedWeather);
