@@ -424,6 +424,40 @@
     </div>
   </section>
 
+  <section
+    id="camera-popup-overlay"
+    class="camera-popup-overlay"
+    aria-hidden="true"
+    role="dialog"
+    aria-label="Camera motion popup"
+  >
+    <div class="camera-popup-overlay__card">
+      <header class="camera-popup-overlay__header">
+        <h2 id="camera-popup-title" class="camera-popup-overlay__title">Camera</h2>
+        <div class="camera-popup-overlay__actions">
+          <span id="camera-popup-badge" class="camera-popup-overlay__badge">Motion detected</span>
+          <button
+            id="camera-popup-close"
+            class="camera-popup-overlay__close"
+            type="button"
+            aria-label="Close camera popup"
+          >
+            ×
+          </button>
+        </div>
+      </header>
+      <div class="camera-popup-overlay__body">
+        <iframe
+          id="camera-popup-frame"
+          class="camera-popup-overlay__frame"
+          title="Camera popup stream"
+          src="about:blank"
+          allow="autoplay; fullscreen"
+        ></iframe>
+      </div>
+    </div>
+  </section>
+
   <!-- Lottie -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.10.2/lottie.min.js"></script>
 

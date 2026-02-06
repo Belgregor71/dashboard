@@ -11,7 +11,21 @@ const TODO_ENTITY_IDS = CONFIG.homeAssistant?.todoEntities ?? [
 ];
 const SHOPPING_LIST_ENTITY_ID = CONFIG.homeAssistant?.shoppingListEntityId ?? "todo.shopping_list";
 
+let dashboardCommandBridgeRegistered = false;
+
+function registerWindowDashboardCommandBridge() {
+  if (dashboardCommandBridgeRegistered) return;
+  dashboardCommandBridgeRegistered = true;
+
+  window.addEventListener("dashboard_command", (event) => {
+    const detail = event?.detail || {};
+    emit("dashboard_command", detail);
+  });
+}
+
+
 export function registerHAEvents() {
+  registerWindowDashboardCommandBridge();
   on("ha:todo-items", ({ entityId, items }) => {
     if (!entityId || !Array.isArray(items)) return;
 
