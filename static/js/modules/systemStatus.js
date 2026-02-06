@@ -39,14 +39,14 @@ export function initSystemStatus() {
   const root = document.getElementById("status-view");
   if (!root) return;
 
-  const headerTime = document.getElementById("status-header-time");
-  const headerDate = document.getElementById("status-header-date");
   const headerHa = document.getElementById("status-header-ha");
   const headerMode = document.getElementById("status-header-mode");
-  const headerHaIndicator = headerHa?.closest(".status-header-metric")?.querySelector(".status-indicator");
+  const headerHaIndicator = headerHa?.closest(".status-header-pill")?.querySelector(".status-indicator");
 
   const alertsPanel = document.getElementById("status-alerts");
   const alertsList = document.getElementById("status-alerts-list");
+  const headerAlertBadge = document.getElementById("status-header-alert-badge");
+  const headerAlertCount = document.getElementById("status-header-alert-count");
 
   const internetValue = document.getElementById("status-internet-value");
   const internetMeta = document.getElementById("status-internet-meta");
@@ -83,23 +83,6 @@ export function initSystemStatus() {
     );
     indicator.classList.add(`status-indicator--${level}`);
     target.dataset.statusLevel = level;
-  }
-
-  function updateHeaderTime() {
-    const now = new Date();
-    if (headerTime) {
-      headerTime.textContent = now.toLocaleTimeString("en-AU", {
-        hour: "numeric",
-        minute: "2-digit"
-      });
-    }
-    if (headerDate) {
-      headerDate.textContent = now.toLocaleDateString("en-AU", {
-        weekday: "long",
-        day: "2-digit",
-        month: "long"
-      });
-    }
   }
 
   function updateHaDisplay() {
@@ -265,12 +248,21 @@ export function initSystemStatus() {
     });
 
     if (!alertItems.length) {
-      alertsPanel.hidden = true;
+      alertsPanel.classList.remove("is-visible");
+      alertsPanel.setAttribute("aria-hidden", "true");
+      if (headerAlertBadge) headerAlertBadge.hidden = true;
+      if (headerAlertCount) headerAlertCount.textContent = "0 issues";
       alertsList.textContent = "";
       return;
     }
 
-    alertsPanel.hidden = false;
+    alertsPanel.classList.add("is-visible");
+    alertsPanel.setAttribute("aria-hidden", "false");
+    if (headerAlertBadge) headerAlertBadge.hidden = false;
+    if (headerAlertCount) {
+      const issueLabel = alertItems.length === 1 ? "issue" : "issues";
+      headerAlertCount.textContent = `${alertItems.length} ${issueLabel}`;
+    }
     alertsList.innerHTML = "";
     alertItems.forEach((text) => {
       const span = document.createElement("span");
@@ -284,7 +276,6 @@ export function initSystemStatus() {
     `Connections: ${CONNECTION_REFRESH_MS / 1000}s · Metrics: ${METRICS_REFRESH_MS / 1000}s`
   );
 
-  updateHeaderTime();
   updateHaDisplay();
   updateHaStatusIndicator();
   updateCalendarDisplay();
@@ -295,7 +286,6 @@ export function initSystemStatus() {
   updateMetrics();
   updateAlerts();
 
-  setInterval(updateHeaderTime, 1000);
   setInterval(updateConnectivity, CONNECTION_REFRESH_MS);
   setInterval(updateMetrics, METRICS_REFRESH_MS);
 
