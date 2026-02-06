@@ -26,13 +26,6 @@
     <div id="time-panel" class="panel">
       <div id="clock"></div>
       <div id="date"></div>
-      <div class="ha-status" id="ha-status">
-        <span class="ha-status__label">Home Assistant</span>
-        <span class="ha-connection" aria-live="polite">
-          <span class="ha-connection__dot" aria-hidden="true"></span>
-          <span class="ha-connection__text">Connecting…</span>
-        </span>
-      </div>
     </div>
 
     <div id="commute-panel" class="panel is-hidden is-collapsed">
@@ -292,23 +285,30 @@
   <!-- SYSTEM STATUS VIEW -->
   <main id="status-view" class="status-view">
     <section class="status-header-bar">
-      <div class="status-header-time">
-        <div class="status-header-time__value" id="status-header-time">--:--</div>
-        <div class="status-header-time__date" id="status-header-date">--</div>
+      <div class="status-header-title-wrap">
+        <div class="status-header-label">System diagnostics</div>
+        <h1 class="status-header-title">Status</h1>
       </div>
       <div class="status-header-metrics">
-        <div class="status-header-metric">
+        <div class="status-header-pill status-header-pill--ha">
           <span class="status-indicator" aria-hidden="true"></span>
           <div>
-            <div class="status-header-metric__label">Home Assistant</div>
-            <div class="status-header-metric__value" id="status-header-ha">Disconnected</div>
+            <div class="status-header-pill__label">Home Assistant</div>
+            <div class="status-header-pill__value" id="status-header-ha">Disconnected</div>
           </div>
         </div>
-        <div class="status-header-metric">
+        <div class="status-header-pill">
           <span class="status-indicator status-indicator--info" aria-hidden="true"></span>
           <div>
-            <div class="status-header-metric__label">Current mode</div>
-            <div class="status-header-metric__value" id="status-header-mode">--</div>
+            <div class="status-header-pill__label">Current mode</div>
+            <div class="status-header-pill__value" id="status-header-mode">--</div>
+          </div>
+        </div>
+        <div class="status-header-pill status-header-pill--alert" id="status-header-alert-badge" hidden>
+          <span class="status-indicator status-indicator--warn" aria-hidden="true"></span>
+          <div>
+            <div class="status-header-pill__label">Degraded</div>
+            <div class="status-header-pill__value" id="status-header-alert-count">0 issues</div>
           </div>
         </div>
       </div>
@@ -392,7 +392,7 @@
       </div>
     </section>
 
-    <section id="status-alerts" class="status-alerts" hidden>
+    <section id="status-alerts" class="status-alerts" aria-hidden="true">
       <div class="status-alerts__title">Alerts / Degraded</div>
       <div class="status-alerts__list" id="status-alerts-list"></div>
     </section>
