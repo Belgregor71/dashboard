@@ -40,6 +40,13 @@ function normalizeTriggerStates(config) {
   return DEFAULT_TRIGGER_STATES;
 }
 
+function normalizeTriggerEntityIds(config) {
+  const entityIds = config?.triggerEntityIds;
+  if (Array.isArray(entityIds) && entityIds.length) return entityIds.filter(Boolean);
+  if (config?.triggerEntityId) return [config.triggerEntityId];
+  return [];
+}
+
 function isTriggerActive(config, state) {
   if (!state) return false;
   const normalized = String(state).toLowerCase();
@@ -105,11 +112,13 @@ export function initDoorbellOverlay() {
     if (event.target === overlayEl) hideOverlay();
   });
 
+  const triggerEntityIds = normalizeTriggerEntityIds(overlayConfig);
+
   document.addEventListener("ha:state-updated", (event) => {
     const entityId = event.detail?.entity_id;
     if (!entityId) return;
 
-    if (entityId === overlayConfig?.triggerEntityId) {
+    if (triggerEntityIds.includes(entityId)) {
       if (isTriggerActive(overlayConfig, event.detail?.state)) {
         showOverlay({
           status: overlayConfig?.activeLabel || "Doorbell activated"

@@ -1,6 +1,8 @@
 import { on } from "../core/eventBus.js";
 
-const GO2RTC_BASE_URL = "http://192.168.0.179:1984";
+const ENV = typeof window !== "undefined" ? window.__ENV__ ?? {} : {};
+
+const GO2RTC_BASE_URL = ENV.GO2RTC_HOST || "http://192.168.0.144:1984";
 const DEFAULT_DURATION_SECONDS = 30;
 
 function toPositiveSeconds(value, fallback = DEFAULT_DURATION_SECONDS) {
