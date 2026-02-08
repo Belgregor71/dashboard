@@ -3,7 +3,7 @@ const ENV = typeof window !== "undefined" ? window.__ENV__ ?? {} : {};
 export const CONFIG = {
   homeAssistant: {
     enabled: true,
-    url: ENV.HA_HOST || "http://192.168.0.179:8123",
+    url: ENV.HA_HOST || "http://192.168.0.144:8123",
     token: ENV.HA_TOKEN || "",
     reconnectInterval: 5000,
     mediaPlayers: [
@@ -12,7 +12,11 @@ export const CONFIG = {
     ],
     doorbellOverlay: {
       enabled: true,
-      triggerEntityId: "binary_sensor.front_doorbell_motion",
+      triggerEntityId: "binary_sensor.doorbell_motion_detected",
+      triggerEntityIds: [
+        "binary_sensor.doorbell_motion_detected",
+        "binary_sensor.front_doorbell_motion"
+      ],
       triggerStates: ["on", "ringing"],
       cameraEntityId: "camera.doorbell",
       streamPath: "/api/camera_proxy/camera.doorbell",
@@ -73,9 +77,11 @@ export const CONFIG = {
       durationMs: 30000,
       triggerStates: ["on", "ringing", "detected", "motion"],
       triggerEntityIds: [
+        "binary_sensor.doorbell_motion_detected",
         "binary_sensor.front_doorbell_motion",
         "binary_sensor.front_yard_motion",
         "binary_sensor.driveway_motion",
+        "binary_sensor.backyard_motion_detected",
         "binary_sensor.backyard_motion",
         "binary_sensor.patio_motion",
         "binary_sensor.side_gate_motion"
