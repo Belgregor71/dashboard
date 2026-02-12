@@ -13,11 +13,12 @@ import { loadLottieAnimation } from "../../helpers/lottie.js";
 import { emit, on } from "../../core/eventBus.js";
 import { startWeatherMotion, stopWeatherMotion } from "../../weatherMotion.js";
 import { categoryForWeatherCode } from "../../weatherPrompts.js";
+import { WEATHER_LAT, WEATHER_LON } from "../../config/config.js";
+import { getTimes as getSunTimesFromCalc } from "../../vendor/suncalc.js";
 
 let activeLotties = [];
 let cachedDaily = null;
 let cachedWeather = null;
-let lastWeatherCode = null;
 let narrativeTimer = null;
 let timelineInterval = null;
 let timelineIndex = 0;
@@ -48,17 +49,39 @@ const BACKGROUND_ASSETS = {
     mp4: "/assets/weather_bg/fog.mp4",
     webm: "/assets/weather_bg/fog.webm",
     image: "/assets/weather_bg/fog.svg"
+  },
+  golden_hour: {
+    mp4: "/assets/weather_bg/golden_hour.mp4",
+    webm: "/assets/weather_bg/golden_hour.webm",
+    image: "/assets/weather_bg/golden_hour.svg"
+  },
+  heat_haze: {
+    mp4: "/assets/weather_bg/heat_haze.mp4",
+    webm: "/assets/weather_bg/heat_haze.webm",
+    image: "/assets/weather_bg/heat_haze.svg"
   }
 };
 
 const PILL_MIN_VISIBLE_MS = 5 * 60 * 1000;
+const GOLDEN_HOUR_WINDOW_MS = 45 * 60 * 1000;
+const HEAT_HAZE_TEMP_C = 32;
+const HEAT_HAZE_FEELS_LIKE_C = 34;
+const HEAT_HAZE_UV_INDEX = 7;
+
+let cachedSunTimes = {
+  dayKey: "",
+  lat: null,
+  lon: null,
+  sunrise: null,
+  sunset: null
+};
 
 function clearLotties() {
   activeLotties.forEach(anim => anim.destroy?.());
   activeLotties = [];
 }
 
-function cinematicCategoryForCode(code) {
+export function getBaseCategory(code) {
   const category = categoryForWeatherCode(code);
   if (category === "mostly_clear" || category === "clear") return "clear";
   if (category === "cloudy") return "cloudy";
@@ -67,6 +90,78 @@ function cinematicCategoryForCode(code) {
   if (category === "fog") return "fog";
   if (category === "snow") return "cloudy";
   return "cloudy";
+}
+
+function dayKeyForDate(date = new Date()) {
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+}
+
+export function getSunTimes(lat, lon, date = new Date()) {
+  const dayKey = dayKeyForDate(date);
+  if (
+    cachedSunTimes.dayKey === dayKey &&
+    cachedSunTimes.lat === lat &&
+    cachedSunTimes.lon === lon &&
+    cachedSunTimes.sunrise &&
+    cachedSunTimes.sunset
+  ) {
+    return cachedSunTimes;
+  }
+
+  const times = getSunTimesFromCalc(date, lat, lon);
+  cachedSunTimes = {
+    dayKey,
+    lat,
+    lon,
+    sunrise: times?.sunrise ?? null,
+    sunset: times?.sunset ?? null
+  };
+
+  return cachedSunTimes;
+}
+
+function withinGoldenHourWindow(now, targetTime) {
+  if (!(targetTime instanceof Date) || Number.isNaN(targetTime.getTime())) return false;
+  return Math.abs(now.getTime() - targetTime.getTime()) <= GOLDEN_HOUR_WINDOW_MS;
+}
+
+function resolveWeatherCoordinates(data) {
+  const lat = data?.latitude ?? WEATHER_LAT;
+  const lon = data?.longitude ?? WEATHER_LON;
+  return { lat, lon };
+}
+
+export function getBackgroundVariant(baseCategory, currentWeatherData, nowDate = new Date()) {
+  if (["storm", "rain", "fog"].includes(baseCategory)) return baseCategory;
+
+  const now = nowDate instanceof Date ? nowDate : new Date(nowDate);
+  const current = currentWeatherData?.current_weather || {};
+  const hourly = currentWeatherData?.hourly || {};
+  const hourlyIndex = getClosestHourIndex(hourly);
+  const uvIndex = hourlyIndex != null ? hourly?.uv_index?.[hourlyIndex] : null;
+  const feelsLikeC = hourlyIndex != null ? hourly?.apparent_temperature?.[hourlyIndex] : null;
+  const currentTempC = current?.temperature;
+  const { lat, lon } = resolveWeatherCoordinates(currentWeatherData);
+  const { sunrise, sunset } = getSunTimes(lat, lon, now);
+
+  const isGoldenHourEligible = baseCategory === "clear" || baseCategory === "cloudy";
+  const isGoldenHour =
+    isGoldenHourEligible &&
+    (withinGoldenHourWindow(now, sunrise) || withinGoldenHourWindow(now, sunset));
+  if (isGoldenHour) return "golden_hour";
+
+  const isHeatHazeEligible = baseCategory === "clear";
+  const uvGatePasses =
+    uvIndex == null ||
+    uvIndex >= HEAT_HAZE_UV_INDEX ||
+    (feelsLikeC != null && feelsLikeC >= HEAT_HAZE_FEELS_LIKE_C);
+  const isHeatHaze =
+    isHeatHazeEligible &&
+    currentTempC != null &&
+    currentTempC >= HEAT_HAZE_TEMP_C &&
+    uvGatePasses;
+
+  return isHeatHaze ? "heat_haze" : baseCategory;
 }
 
 function isWeatherViewActive() {
@@ -86,13 +181,15 @@ function stopCinematicBackground({ resetSources = false } = {}) {
   const mp4Source = document.getElementById("weather-bg-mp4");
 
   video.dataset.category = "";
+  video.dataset.variant = "";
   webmSource?.removeAttribute("src");
   mp4Source?.removeAttribute("src");
   video.removeAttribute("src");
   video.load();
 }
 
-function applyCinematicBackground(code) {
+function applyCinematicBackground(weatherData) {
+  const code = weatherData?.current_weather?.weathercode;
   if (code == null || !isWeatherViewActive()) return;
   const video = document.getElementById("weather-bg-video");
   const webmSource = document.getElementById("weather-bg-webm");
@@ -101,18 +198,20 @@ function applyCinematicBackground(code) {
 
   if (!video || !webmSource || !mp4Source || !image) return;
 
-  const category = cinematicCategoryForCode(code);
-  const asset = BACKGROUND_ASSETS[category] || BACKGROUND_ASSETS.cloudy;
+  const baseCategory = getBaseCategory(code);
+  const variant = getBackgroundVariant(baseCategory, weatherData, new Date());
+  const asset = BACKGROUND_ASSETS[variant] || BACKGROUND_ASSETS[baseCategory] || BACKGROUND_ASSETS.cloudy;
   const weatherRoot = document.getElementById("weather-screen");
   if (weatherRoot) {
     const classes = ["is-clear", "is-cloudy", "is-rain", "is-storm", "is-fog"];
     weatherRoot.classList.remove(...classes);
-    weatherRoot.classList.add(`is-${category}`);
+    weatherRoot.classList.add(`is-${baseCategory}`);
   }
 
-  if (video.dataset.category === category) return;
+  if (video.dataset.variant === variant) return;
 
-  video.dataset.category = category;
+  video.dataset.category = baseCategory;
+  video.dataset.variant = variant;
   webmSource.src = asset.webm;
   mp4Source.src = asset.mp4;
   image.style.backgroundImage = `url("${asset.image}")`;
@@ -136,14 +235,15 @@ function applyCinematicBackground(code) {
   });
 }
 
-function syncWeatherMotion(code) {
+function syncWeatherMotion(weatherData) {
+  const code = weatherData?.current_weather?.weathercode;
   if (code == null) return;
   if (isWeatherViewActive()) {
-    applyCinematicBackground(code);
+    applyCinematicBackground(weatherData);
   }
 
   if (isWeatherViewActive()) {
-    const category = cinematicCategoryForCode(code);
+    const category = getBaseCategory(code);
     if (category === "storm") {
       startWeatherMotion({ code });
     } else {
@@ -186,7 +286,7 @@ function pickDescriptor(code, maxPop) {
   if (maxPop >= 50) return "Rain later";
   if (maxPop >= 20) return "Showers";
 
-  const category = cinematicCategoryForCode(code);
+  const category = getBaseCategory(code);
   const map = {
     clear: "Clear",
     cloudy: "Cloudy",
@@ -199,7 +299,7 @@ function pickDescriptor(code, maxPop) {
 
 function pickIcon(code, maxPop) {
   if (maxPop >= 50) return "☔";
-  const category = cinematicCategoryForCode(code);
+  const category = getBaseCategory(code);
   if (category === "storm") return "⚡";
   if (category === "rain" && maxPop >= 20) return "☔";
   return "";
@@ -256,8 +356,7 @@ function renderCurrent(data) {
   const isDay = isDaytime(data);
   const animFile = weatherAnimation(current.weathercode, isDay);
 
-  lastWeatherCode = current.weathercode;
-  syncWeatherMotion(lastWeatherCode);
+  syncWeatherMotion(data);
 
   const anim = loadLottieAnimation("weather-lottie", animFile);
   if (anim) activeLotties.push(anim);
@@ -306,7 +405,7 @@ function renderNarrative({ current, hourly, hourlyIndex }) {
   const pop = hourly?.precipitation_probability?.[hourlyIndex] ?? 0;
   const uvIndex = hourly?.uv_index?.[hourlyIndex];
   const wind = hourly?.windspeed_10m?.[hourlyIndex] ?? current?.windspeed ?? 0;
-  const category = cinematicCategoryForCode(current?.weathercode);
+  const category = getBaseCategory(current?.weathercode);
   const hour = new Date().getHours();
   const temp = current?.temperature ?? null;
 
@@ -465,7 +564,7 @@ function renderPills({ current, hourly, hourlyIndex }) {
   const pop = hourly?.precipitation_probability?.[hourlyIndex] ?? 0;
   const visibility = hourly?.visibility?.[hourlyIndex];
   const visibilityKm = visibility != null ? visibility / 1000 : null;
-  const category = cinematicCategoryForCode(current?.weathercode);
+  const category = getBaseCategory(current?.weathercode);
 
   if (windValue) windValue.textContent = `${Math.round(windSpeed)} km/h`;
   if (uvValue) uvValue.textContent = uvIndex != null ? `${Math.round(uvIndex)}` : "--";
