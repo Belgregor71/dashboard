@@ -1,3 +1,17 @@
+
+:root {
+  --fs-display: clamp(2rem, 4.8vw, 4rem);
+  --fs-title: clamp(1.25rem, 2.2vw, 2rem);
+  --fs-body: 1rem;
+  --fs-small: 0.85rem;
+
+  --space-xs: 0.35rem;
+  --space-sm: 0.6rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+}
+
 /* ============================================================================
    GLOBAL RESET + BASE
 ============================================================================ */
@@ -83,13 +97,22 @@ body[data-view="weather"] #background-tint {
 ============================================================================ */
 
 .panel {
-  backdrop-filter: blur(18px) brightness(0.8);
-  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(16px) brightness(0.85);
+  background: linear-gradient(180deg, rgba(20, 24, 34, 0.5), rgba(9, 11, 17, 0.4));
   border-radius: 18px;
   padding: 20px;
   opacity: 1;
   transform: translateY(0);
   transition: opacity 0.45s ease, transform 0.45s ease;
+}
+
+.panel-glass {
+  background: linear-gradient(180deg, rgba(32, 36, 48, 0.44), rgba(12, 14, 20, 0.32));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.panel-elevated {
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.32);
 }
 
 .panel.is-hidden {
@@ -984,7 +1007,8 @@ body[data-view="weather"] #background-tint {
 .agenda-view,
 .cameras-view,
 .weather-view,
-.status-view {
+.status-view,
+.briefing-view {
   display: none;
   flex: 1;
   min-height: 0;
@@ -1051,46 +1075,60 @@ body[data-view="weather"] #background-tint {
 }
 
 body[data-view="home"] .home-view { display: flex; }
-body[data-view="home"] .calendar-view { display: none; }
-body[data-view="home"] .agenda-view { display: none; }
-body[data-view="home"] .cameras-view { display: none; }
-body[data-view="home"] .weather-view { display: none; }
-body[data-view="home"] .status-view { display: none; }
+body[data-view="home"] .calendar-view,
+body[data-view="home"] .agenda-view,
+body[data-view="home"] .cameras-view,
+body[data-view="home"] .weather-view,
+body[data-view="home"] .status-view,
+body[data-view="home"] .briefing-view { display: none; }
 
 body[data-view="calendar"] .calendar-view { display: flex; }
-body[data-view="calendar"] .home-view { display: none; }
-body[data-view="calendar"] .agenda-view { display: none; }
-body[data-view="calendar"] .cameras-view { display: none; }
-body[data-view="calendar"] .weather-view { display: none; }
-body[data-view="calendar"] .status-view { display: none; }
+body[data-view="calendar"] .home-view,
+body[data-view="calendar"] .agenda-view,
+body[data-view="calendar"] .cameras-view,
+body[data-view="calendar"] .weather-view,
+body[data-view="calendar"] .status-view,
+body[data-view="calendar"] .briefing-view { display: none; }
 
 body[data-view="agenda"] .agenda-view { display: block; }
-body[data-view="agenda"] .home-view { display: none; }
-body[data-view="agenda"] .calendar-view { display: none; }
-body[data-view="agenda"] .cameras-view { display: none; }
-body[data-view="agenda"] .weather-view { display: none; }
-body[data-view="agenda"] .status-view { display: none; }
+body[data-view="agenda"] .home-view,
+body[data-view="agenda"] .calendar-view,
+body[data-view="agenda"] .cameras-view,
+body[data-view="agenda"] .weather-view,
+body[data-view="agenda"] .status-view,
+body[data-view="agenda"] .briefing-view { display: none; }
 
 body[data-view="cameras"] .cameras-view { display: block; }
-body[data-view="cameras"] .home-view { display: none; }
-body[data-view="cameras"] .calendar-view { display: none; }
-body[data-view="cameras"] .agenda-view { display: none; }
-body[data-view="cameras"] .weather-view { display: none; }
-body[data-view="cameras"] .status-view { display: none; }
+body[data-view="cameras"] .home-view,
+body[data-view="cameras"] .calendar-view,
+body[data-view="cameras"] .agenda-view,
+body[data-view="cameras"] .weather-view,
+body[data-view="cameras"] .status-view,
+body[data-view="cameras"] .briefing-view { display: none; }
 
 body[data-view="weather"] .weather-view { display: block; }
-body[data-view="weather"] .home-view { display: none; }
-body[data-view="weather"] .calendar-view { display: none; }
-body[data-view="weather"] .agenda-view { display: none; }
-body[data-view="weather"] .cameras-view { display: none; }
-body[data-view="weather"] .status-view { display: none; }
+body[data-view="weather"] .home-view,
+body[data-view="weather"] .calendar-view,
+body[data-view="weather"] .agenda-view,
+body[data-view="weather"] .cameras-view,
+body[data-view="weather"] .status-view,
+body[data-view="weather"] .briefing-view { display: none; }
 
 body[data-view="status"] .status-view { display: flex; }
-body[data-view="status"] .home-view { display: none; }
-body[data-view="status"] .calendar-view { display: none; }
-body[data-view="status"] .agenda-view { display: none; }
-body[data-view="status"] .cameras-view { display: none; }
-body[data-view="status"] .weather-view { display: none; }
+body[data-view="status"] .home-view,
+body[data-view="status"] .calendar-view,
+body[data-view="status"] .agenda-view,
+body[data-view="status"] .cameras-view,
+body[data-view="status"] .weather-view,
+body[data-view="status"] .briefing-view { display: none; }
+
+body[data-view="briefing"] .briefing-view { display: grid; }
+body[data-view="briefing"] .home-view,
+body[data-view="briefing"] .calendar-view,
+body[data-view="briefing"] .agenda-view,
+body[data-view="briefing"] .cameras-view,
+body[data-view="briefing"] .weather-view,
+body[data-view="briefing"] .status-view { display: none; }
 
 body[data-view="calendar"] #commute-panel,
 body[data-view="calendar"] #current-weather-panel {
@@ -2815,3 +2853,79 @@ body[data-view="calendar"] #time-panel {
   opacity: 0;
   transform: scale(0.94);
 }
+
+
+body[data-view="briefing"] #commute-panel,
+body[data-view="briefing"] #current-weather-panel { display: none; }
+body[data-view="briefing"] #top-bar { justify-content: flex-start; }
+
+#briefing-view {
+  height: calc(100vh - 110px);
+  padding: 20px 28px 24px;
+  display: none;
+  grid-template-rows: auto minmax(120px, 1fr) 2fr;
+  gap: var(--space-md);
+}
+
+.briefing-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--fs-small);
+}
+
+.briefing-headline h1 {
+  font-size: var(--fs-display);
+  line-height: 1.08;
+  font-weight: 600;
+}
+
+.briefing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.briefing-card h3 {
+  font-size: var(--fs-title);
+  margin-bottom: var(--space-sm);
+}
+
+.briefing-card p {
+  font-size: var(--fs-body);
+  line-height: 1.4;
+}
+
+.briefing-skeleton-line {
+  height: 16px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.14);
+  margin-bottom: var(--space-sm);
+}
+
+.briefing-skeleton-line--headline {
+  height: 40px;
+  width: 70%;
+}
+
+.status-ai-panel {
+  margin-top: var(--space-md);
+}
+
+.status-ai-panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-sm);
+}
+
+.status-ai-button {
+  border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+
+.status-ai-text { font-size: var(--fs-body); }
+.status-ai-action { font-size: var(--fs-small); opacity: 0.85; margin-top: var(--space-xs); }

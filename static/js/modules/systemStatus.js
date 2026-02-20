@@ -36,8 +36,21 @@ function setText(el, value) {
 }
 
 export function initSystemStatus() {
+  const view = createStatusView();
+  view.render();
+  view.onEnter();
+  return view;
+}
+
+export function createStatusView() {
   const root = document.getElementById("status-view");
-  if (!root) return;
+  if (!root) {
+    return {
+      render: () => {},
+      onEnter: () => {},
+      onLeave: () => {}
+    };
+  }
 
   const headerHa = document.getElementById("status-header-ha");
   const headerMode = document.getElementById("status-header-mode");
@@ -63,12 +76,22 @@ export function initSystemStatus() {
   const memoryValue = document.getElementById("status-memory-value");
   const uptimeValue = document.getElementById("status-uptime-value");
   const updateFrequencyValue = document.getElementById("status-update-frequency");
+  const aiPanel = document.getElementById("status-ai-panel");
+  const aiText = document.getElementById("status-ai-text");
+  const aiAction = document.getElementById("status-ai-action");
+  const aiRefreshButton = document.getElementById("status-ai-refresh");
+  const explainTriggerButton = document.getElementById("status-explain-trigger");
 
   let haConnected = false;
   let haLastMessage = null;
   let calendarLastSuccess = null;
   let weatherLastSuccess = null;
   let highlightTimer;
+  let connectivityInterval = null;
+  let metricsInterval = null;
+  let rendered = false;
+  let latestAlertCount = 0;
+  let aiLoading = false;
   const modeEntityId = CONFIG.systemStatus?.modeEntityId;
 
   function setIndicator(target, level) {
@@ -154,6 +177,33 @@ export function initSystemStatus() {
       setIndicator(statusItem, "error");
     } else {
       setIndicator(statusItem, "ok");
+    }
+  }
+
+
+
+  async function explainStatus() {
+    if (!aiPanel || aiLoading || latestAlertCount <= 0) return;
+    aiLoading = true;
+    aiPanel.hidden = false;
+    setText(aiText, "Analyzing system status…");
+    setText(aiAction, "");
+
+    try {
+      const response = await fetch("/api/ai/route", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "Explain current dashboard system status and suggest one action." })
+      });
+      if (!response.ok) throw new Error("ai route failed");
+      const data = await response.json();
+      setText(aiText, data?.response || "System needs attention.");
+      setText(aiAction, data?.intent === "status_explain" ? "Suggested action: review highlighted warning rows." : "Suggested action: verify internet and Home Assistant connectivity.");
+    } catch (error) {
+      setText(aiText, "Unable to generate AI explanation right now.");
+      setText(aiAction, "Suggested action: check network and retry.");
+    } finally {
+      aiLoading = false;
     }
   }
 
@@ -247,12 +297,15 @@ export function initSystemStatus() {
       }
     });
 
+    latestAlertCount = alertItems.length;
+
     if (!alertItems.length) {
       alertsPanel.classList.remove("is-visible");
       alertsPanel.setAttribute("aria-hidden", "true");
       if (headerAlertBadge) headerAlertBadge.hidden = true;
       if (headerAlertCount) headerAlertCount.textContent = "0 issues";
       alertsList.textContent = "";
+      if (aiPanel) aiPanel.hidden = true;
       return;
     }
 
@@ -271,65 +324,113 @@ export function initSystemStatus() {
     });
   }
 
-  setText(
-    updateFrequencyValue,
-    `Connections: ${CONNECTION_REFRESH_MS / 1000}s · Metrics: ${METRICS_REFRESH_MS / 1000}s`
-  );
+  function startPolling() {
+    if (!connectivityInterval) {
+      connectivityInterval = setInterval(updateConnectivity, CONNECTION_REFRESH_MS);
+    }
+    if (!metricsInterval) {
+      metricsInterval = setInterval(updateMetrics, METRICS_REFRESH_MS);
+    }
+  }
 
-  updateHaDisplay();
-  updateHaStatusIndicator();
-  updateCalendarDisplay();
-  updateWeatherDisplay();
-  updateModeDisplay();
-  updateCameraDisplay();
-  updateConnectivity();
-  updateMetrics();
-  updateAlerts();
+  function stopPolling() {
+    if (connectivityInterval) {
+      clearInterval(connectivityInterval);
+      connectivityInterval = null;
+    }
+    if (metricsInterval) {
+      clearInterval(metricsInterval);
+      metricsInterval = null;
+    }
+    if (highlightTimer) {
+      clearTimeout(highlightTimer);
+      highlightTimer = null;
+    }
+  }
 
-  setInterval(updateConnectivity, CONNECTION_REFRESH_MS);
-  setInterval(updateMetrics, METRICS_REFRESH_MS);
+  function render() {
+    if (rendered) return;
+    rendered = true;
 
-  on("ha:connected", () => {
-    haConnected = true;
+    setText(
+      updateFrequencyValue,
+      `Connections: ${CONNECTION_REFRESH_MS / 1000}s · Metrics: ${METRICS_REFRESH_MS / 1000}s`
+    );
+
     updateHaDisplay();
     updateHaStatusIndicator();
-    updateAlerts();
-  });
-
-  on("ha:disconnected", () => {
-    haConnected = false;
-    updateHaDisplay();
-    updateHaStatusIndicator();
-    updateAlerts();
-  });
-
-  on("ha:message", ({ receivedAt } = {}) => {
-    haLastMessage = receivedAt || Date.now();
-    updateHaDisplay();
-  });
-
-  on("calendar:refreshed", ({ timestamp } = {}) => {
-    calendarLastSuccess = timestamp || Date.now();
     updateCalendarDisplay();
-    updateAlerts();
-  });
-
-  on("weather:refreshed", ({ timestamp } = {}) => {
-    weatherLastSuccess = timestamp || Date.now();
     updateWeatherDisplay();
-    updateAlerts();
-  });
-
-  on("cameras:status", (status) => {
-    updateCameraDisplay(status);
-    updateAlerts();
-  });
-
-  on("status:highlight", ({ target } = {}) => highlightItem(target));
-
-  document.addEventListener("ha:state-updated", (event) => {
-    if (!modeEntityId) return;
-    if (event.detail?.entity_id !== modeEntityId) return;
     updateModeDisplay();
-  });
+    updateCameraDisplay();
+    updateAlerts();
+
+    on("ha:connected", () => {
+      haConnected = true;
+      updateHaDisplay();
+      updateHaStatusIndicator();
+      updateAlerts();
+    });
+
+    on("ha:disconnected", () => {
+      haConnected = false;
+      updateHaDisplay();
+      updateHaStatusIndicator();
+      updateAlerts();
+    });
+
+    on("ha:message", ({ receivedAt } = {}) => {
+      haLastMessage = receivedAt || Date.now();
+      updateHaDisplay();
+    });
+
+    on("calendar:refreshed", ({ timestamp } = {}) => {
+      calendarLastSuccess = timestamp || Date.now();
+      updateCalendarDisplay();
+      updateAlerts();
+    });
+
+    on("weather:refreshed", ({ timestamp } = {}) => {
+      weatherLastSuccess = timestamp || Date.now();
+      updateWeatherDisplay();
+      updateAlerts();
+    });
+
+    on("cameras:status", (status) => {
+      updateCameraDisplay(status);
+      updateAlerts();
+    });
+
+    on("status:highlight", ({ target } = {}) => highlightItem(target));
+    on("status:explain-requested", () => explainStatus());
+
+    aiRefreshButton?.addEventListener("click", () => {
+      explainStatus();
+    });
+    explainTriggerButton?.addEventListener("click", () => {
+      explainStatus();
+    });
+
+    document.addEventListener("ha:state-updated", (event) => {
+      if (!modeEntityId) return;
+      if (event.detail?.entity_id !== modeEntityId) return;
+      updateModeDisplay();
+    });
+  }
+
+  function onEnter() {
+    updateConnectivity();
+    updateMetrics();
+    startPolling();
+  }
+
+  function onLeave() {
+    stopPolling();
+  }
+
+  return {
+    render,
+    onEnter,
+    onLeave
+  };
 }

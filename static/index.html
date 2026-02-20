@@ -282,6 +282,37 @@
     </div>
   </main>
 
+  <!-- BRIEFING VIEW -->
+  <main id="briefing-view" class="briefing-view">
+    <section class="briefing-strip panel panel-glass">
+      <div class="briefing-strip__label">Daily Briefing</div>
+      <div id="briefing-generated-at" class="briefing-strip__time"></div>
+    </section>
+
+    <section class="briefing-headline panel panel-elevated">
+      <h1 id="briefing-headline">Loading briefing…</h1>
+    </section>
+
+    <section class="briefing-grid">
+      <article class="panel panel-glass briefing-card">
+        <h3>Weather</h3>
+        <p id="briefing-weather">--</p>
+      </article>
+      <article class="panel panel-glass briefing-card">
+        <h3>Calendar</h3>
+        <p id="briefing-calendar">--</p>
+      </article>
+      <article class="panel panel-glass briefing-card">
+        <h3>Home Status</h3>
+        <p id="briefing-home">--</p>
+      </article>
+      <article class="panel panel-glass briefing-card">
+        <h3>Tasks</h3>
+        <p id="briefing-tasks">--</p>
+      </article>
+    </section>
+  </main>
+
   <!-- SYSTEM STATUS VIEW -->
   <main id="status-view" class="status-view">
     <section class="status-header-bar">
@@ -289,6 +320,7 @@
         <div class="status-header-label">System diagnostics</div>
         <h1 class="status-header-title">Status</h1>
       </div>
+      <button id="status-explain-trigger" class="status-ai-button" type="button">Explain Status</button>
       <div class="status-header-metrics">
         <div class="status-header-pill status-header-pill--ha">
           <span class="status-indicator" aria-hidden="true"></span>
@@ -395,6 +427,15 @@
     <section id="status-alerts" class="status-alerts" aria-hidden="true">
       <div class="status-alerts__title">Alerts / Degraded</div>
       <div class="status-alerts__list" id="status-alerts-list"></div>
+    </section>
+
+    <section id="status-ai-panel" class="status-ai-panel panel panel-glass" hidden>
+      <div class="status-ai-panel__header">
+        <div class="status-ai-panel__title">AI Status Explanation</div>
+        <button id="status-ai-refresh" type="button" class="status-ai-button">Explain Status</button>
+      </div>
+      <p id="status-ai-text" class="status-ai-text"></p>
+      <p id="status-ai-action" class="status-ai-action"></p>
     </section>
   </main>
 
