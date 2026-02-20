@@ -628,6 +628,16 @@ function setPillVisibility(id, shouldShow, shouldHide) {
   pillState[id] = state;
 }
 
+export function stopWeatherView() {
+  clearLotties();
+  stopWeatherMotion();
+  if (timelineInterval) clearInterval(timelineInterval);
+  timelineInterval = null;
+  if (narrativeTimer) clearTimeout(narrativeTimer);
+  narrativeTimer = null;
+  stopCinematicBackground({ resetSources: true });
+}
+
 function rerenderWeeklyFromCache() {
   if (!cachedDaily) return;
   renderWeekly(cachedDaily);
@@ -637,12 +647,7 @@ function rerenderWeeklyFromCache() {
 on("view:changed", () => {
   clearLotties();
   if (!isWeatherViewActive()) {
-    stopWeatherMotion();
-    if (timelineInterval) clearInterval(timelineInterval);
-    timelineInterval = null;
-    if (narrativeTimer) clearTimeout(narrativeTimer);
-    narrativeTimer = null;
-    stopCinematicBackground({ resetSources: true });
+    stopWeatherView();
   }
   if (cachedWeather) {
     renderCurrent(cachedWeather);

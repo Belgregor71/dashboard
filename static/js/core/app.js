@@ -1,5 +1,5 @@
 // static/js/core/app.js
-import { initViews } from "./viewManager.js";
+import { initViews, registerView } from "./viewManager.js";
 import { registerLifecycle } from "./lifecycle.js";
 import { initVoiceOverlay } from "./voiceOverlay.js";
 
@@ -20,7 +20,9 @@ import { initCameraPopupOverlay } from "../modules/cameraPopupOverlay.js";
 import { initCameraMotionView } from "../modules/cameraMotionView.js";
 import { initCameraTiles } from "../modules/cameraTiles.js";
 import { initHomeAssistantTodayPanel } from "../modules/haToday.js";
-import { initSystemStatus } from "../modules/systemStatus.js";
+import { createStatusView } from "../modules/systemStatus.js";
+import { createBriefingView } from "../views/briefingView.js";
+import { createWeatherView } from "../views/weatherView.js";
 
 import { connectHA } from "../services/homeAssistant/client.js";
 import { registerHAEvents } from "../services/homeAssistant/events.js";
@@ -36,9 +38,16 @@ function isEnabled(featureName, defaultValue = true) {
 export function startApp() {
   console.log("Dashboard starting…");
 
+  registerView("home", {});
+  registerView("calendar", {});
+  registerView("agenda", {});
+  registerView("cameras", {});
+  registerView("weather", createWeatherView());
+  registerView("status", createStatusView());
+  registerView("briefing", createBriefingView());
+
   initViews();
   registerLifecycle();
-  initSystemStatus();
   initVoiceOverlay();
 
   const cfg = window.CONFIG || {};
