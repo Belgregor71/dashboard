@@ -14,30 +14,32 @@ let msgId = 1;
 let getStatesRequestId;
 const pendingRequests = new Map();
 
-export function connectHA() {
-  if (!HA_CONFIG?.enabled) {
-    console.warn("Home Assistant integration disabled");
-    return;
+function buildSocketUrls() {
+  const urls = [];
+
+  if (typeof window !== "undefined" && window.location?.origin) {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    urls.push(`${protocol}//${window.location.host}/api/websocket`);
   }
 
-  if (!HA_CONFIG?.token) {
-    console.warn("Home Assistant token missing; skipping HA connection");
-    return;
+  if (HA_CONFIG?.url) {
+    urls.push(`${HA_CONFIG.url.replace(/^http/, "ws")}/api/websocket`);
   }
 
-  const url = HA_CONFIG.url.replace(/^http/, "ws") + "/api/websocket";
-  socket = new WebSocket(url);
+  return [...new Set(urls)];
+}
 
-  socket.onopen = () => {
-    console.log("HA socket opened");
+function attachSocketHandlers(ws, reconnectUrl) {
+  ws.onopen = () => {
+    console.log("HA socket opened", reconnectUrl);
   };
 
-  socket.onmessage = (event) => {
+  ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
     emit("ha:message", { receivedAt: Date.now(), type: msg.type });
 
     if (msg.type === "auth_required") {
-      socket.send(JSON.stringify({
+      ws.send(JSON.stringify({
         type: "auth",
         access_token: HA_CONFIG.token
       }));
@@ -49,7 +51,7 @@ export function connectHA() {
       subscribe("state_changed");
       subscribe("dashboard_command");
       getStatesRequestId = msgId++;
-      socket.send(JSON.stringify({
+      ws.send(JSON.stringify({
         id: getStatesRequestId,
         type: "get_states"
       }));
@@ -84,11 +86,40 @@ export function connectHA() {
     }
   };
 
-  socket.onclose = () => {
-    console.warn("HA disconnected — retrying in 5s");
-    emit("ha:disconnected");
-    setTimeout(connectHA, HA_CONFIG.reconnectInterval || 5000);
+  ws.onerror = (error) => {
+    console.warn("HA socket error", reconnectUrl, error);
   };
+
+  ws.onclose = () => {
+    if (socket === ws) {
+      console.warn("HA disconnected — retrying in 5s", reconnectUrl);
+      emit("ha:disconnected");
+      setTimeout(connectHA, HA_CONFIG.reconnectInterval || 5000);
+    }
+  };
+}
+
+export function connectHA() {
+  if (!HA_CONFIG?.enabled) {
+    console.warn("Home Assistant integration disabled");
+    return;
+  }
+
+  if (!HA_CONFIG?.token) {
+    console.warn("Home Assistant token missing; skipping HA connection");
+    return;
+  }
+
+  const socketUrls = buildSocketUrls();
+  const reconnectUrl = socketUrls[0];
+
+  if (!reconnectUrl) {
+    console.warn("Home Assistant URL missing; skipping HA connection");
+    return;
+  }
+
+  socket = new WebSocket(reconnectUrl);
+  attachSocketHandlers(socket, reconnectUrl);
 }
 
 function subscribe(eventType) {
