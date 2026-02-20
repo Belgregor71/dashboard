@@ -23,6 +23,7 @@ import {
   weatherFallbackForecast,
   weatherFallbackNow
 } from "./server/services/weatherService.js";
+import arrRoutes from "./server/routes/arr.js";
 
 dotenv.config();
 
@@ -31,6 +32,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json({ limit: "256kb" }));
+app.use("/api", arrRoutes);
 const PORT = process.env.PORT || 3000;
 
 const HA_HOST = process.env.HA_HOST;

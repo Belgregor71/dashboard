@@ -15,6 +15,7 @@ import { startWeather } from "../services/weather/renderer.js";
 import { initMediaPanels } from "../modules/mediaPanels.js";
 import { initTodoPanels } from "../modules/todo.js";
 import { initPlexStatus } from "../modules/plexStatus.js";
+import { initArrActivity } from "../modules/arrActivity.js";
 import { initDoorbellOverlay } from "../modules/doorbellOverlay.js";
 import { initCameraPopupOverlay } from "../modules/cameraPopupOverlay.js";
 import { initCameraMotionView } from "../modules/cameraMotionView.js";
@@ -117,6 +118,7 @@ export function startApp() {
     enabled: isEnabled("plex", true)
   });
   initCameraTiles();
+  initArrActivity();
   initDoorbellOverlay();
   initCameraPopupOverlay();
   initCameraMotionView();
