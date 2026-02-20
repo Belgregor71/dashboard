@@ -13,6 +13,16 @@ import { CAMERA_CONFIG } from "./config/cameras.js";
 import { pipeline } from "stream/promises";
 import { Readable } from "stream";
 import os from "os";
+import { compileSchema, validateBody, validateData } from "./server/middleware/validate.js";
+import { aiBriefBodySchema, aiRouteBodySchema, aiRouteResultSchema } from "./server/schemas/ai.js";
+import { haSnapshotSchema } from "./server/schemas/ha.js";
+import { weatherForecastSchema, weatherNowSchema } from "./server/schemas/weather.js";
+import { getHaSnapshot } from "./server/services/haService.js";
+import {
+  getWeatherNormalized,
+  weatherFallbackForecast,
+  weatherFallbackNow
+} from "./server/services/weatherService.js";
 
 dotenv.config();
 
@@ -61,6 +71,34 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
 const aiRouteCache = new Map();
 const aiBriefCache = new Map();
 
+// Compile schemas once at startup (Pi-friendly).
+const validateAiRouteBody = compileSchema(aiRouteBodySchema);
+const validateAiBriefBody = compileSchema(aiBriefBodySchema);
+const validateAiRouteResult = compileSchema(aiRouteResultSchema);
+const validateHaSnapshot = compileSchema(haSnapshotSchema);
+const validateWeatherNow = compileSchema(weatherNowSchema);
+const validateWeatherForecast = compileSchema(weatherForecastSchema);
+
+function normalizeAiRouteBody(req, _res, next) {
+  if (req.body?.input) return next();
+  if (typeof req.body?.text === "string") {
+    req.body = { input: { text: req.body.text } };
+  }
+  next();
+}
+
+function normalizeAiBriefBody(req, _res, next) {
+  if (req.body?.input) return next();
+  if (typeof req.body?.context === "object" && req.body.context) {
+    req.body = { input: { context: req.body.context } };
+  } else if (typeof req.body?.context === "string") {
+    req.body = { input: { context: { mode: req.body.context } } };
+  } else {
+    req.body = { input: {} };
+  }
+  next();
+}
+
 function getCached(cache, key) {
   const item = cache.get(key);
   if (!item) return null;
@@ -78,9 +116,8 @@ function setCached(cache, key, value, ttlMs) {
 function fallbackAiRoute() {
   return {
     intent: "unknown",
-    view: "home",
     confidence: 0,
-    response: "I couldn't confidently route that command."
+    response: "Sorry, I didn’t get that."
   };
 }
 
@@ -95,7 +132,7 @@ function coerceAiRoute(payload = {}) {
   ]);
   const validViews = new Set(["home", "weather", "cameras", "calendar", "agenda", "status", "briefing"]);
   const intent = validIntents.has(payload.intent) ? payload.intent : "unknown";
-  const view = validViews.has(payload.view) ? payload.view : "home";
+  const view = validViews.has(payload.view) ? payload.view : undefined;
   const confidence = Number.isFinite(payload.confidence)
     ? Math.max(0, Math.min(1, payload.confidence))
     : 0;
@@ -103,7 +140,7 @@ function coerceAiRoute(payload = {}) {
     ? payload.response.trim().slice(0, 180)
     : "Okay.";
 
-  return { intent, view, confidence, response };
+  return view ? { intent, view, confidence, response } : { intent, confidence, response };
 }
 
 function parseModelJson(rawText) {
@@ -449,21 +486,83 @@ app.get("/api/ha/health", async (req, res) => {
   }
 });
 
+
+app.get("/api/ha/snapshot", async (req, res) => {
+  if (!HA_TARGET || !HOME_ASSISTANT_TOKEN) {
+    res.status(502).json({ ok: false, error: { code: "HA_UNAVAILABLE", message: "Home Assistant unavailable" } });
+    return;
+  }
+
+  try {
+    const snapshot = await getHaSnapshot({
+      haHost: HA_TARGET,
+      token: HOME_ASSISTANT_TOKEN,
+      validateSnapshot: validateHaSnapshot
+    });
+    res.json(snapshot);
+  } catch (error) {
+    console.error("HA snapshot upstream error:", error?.message || error);
+    res.status(502).json({ ok: false, error: { code: "HA_UNAVAILABLE", message: "Home Assistant unavailable" } });
+  }
+});
+
+app.get("/api/weather/now", async (req, res) => {
+  const lat = Number(process.env.WEATHER_LAT);
+  const lon = Number(process.env.WEATHER_LON);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    res.json(weatherFallbackNow());
+    return;
+  }
+
+  try {
+    const { now } = await getWeatherNormalized({
+      lat,
+      lon,
+      validateNow: validateWeatherNow,
+      validateForecast: validateWeatherForecast
+    });
+    res.json(now);
+  } catch (error) {
+    console.error("Weather now upstream error:", error?.message || error);
+    res.status(502).json(weatherFallbackNow());
+  }
+});
+
+app.get("/api/weather/forecast", async (req, res) => {
+  const lat = Number(process.env.WEATHER_LAT);
+  const lon = Number(process.env.WEATHER_LON);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    res.json(weatherFallbackForecast());
+    return;
+  }
+
+  try {
+    const { forecast } = await getWeatherNormalized({
+      lat,
+      lon,
+      validateNow: validateWeatherNow,
+      validateForecast: validateWeatherForecast
+    });
+    res.json(forecast);
+  } catch (error) {
+    console.error("Weather forecast upstream error:", error?.message || error);
+    res.status(502).json(weatherFallbackForecast());
+  }
+});
+
 /* ============================================================================
    AI ROUTING + BRIEFING
 ============================================================================ */
 
-app.post("/api/ai/route", async (req, res) => {
+app.post("/api/ai/route", normalizeAiRouteBody, validateBody(validateAiRouteBody), async (req, res) => {
   if (!GEMINI_API_KEY) {
     res.status(501).json({ error: "AI not configured" });
     return;
   }
 
-  const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
-  if (!text) {
-    res.status(400).json({ error: "text is required" });
-    return;
-  }
+  const text = req.body.input.text.trim();
 
   const cacheKey = text.toLowerCase();
   const cached = getCached(aiRouteCache, cacheKey);
@@ -488,8 +587,11 @@ app.post("/api/ai/route", async (req, res) => {
     });
 
     const payload = parsed ? coerceAiRoute(parsed) : fallbackAiRoute();
-    setCached(aiRouteCache, cacheKey, payload, 30_000);
-    res.json(payload);
+    const validated = validateData(validateAiRouteResult, payload);
+    const safePayload = validated.ok ? payload : fallbackAiRoute();
+    if (!validated.ok) console.error("AI route outbound validation failed:", validated.errors);
+    setCached(aiRouteCache, cacheKey, safePayload, 30_000);
+    res.json(safePayload);
   } catch (error) {
     console.error("AI route error:", error?.message || error, error?.detail || "");
     res.json(fallbackAiRoute());
@@ -508,13 +610,13 @@ async function fetchInternalContext(endpointPath) {
   }
 }
 
-app.post("/api/ai/brief", async (req, res) => {
+app.post("/api/ai/brief", normalizeAiBriefBody, validateBody(validateAiBriefBody), async (req, res) => {
   if (!GEMINI_API_KEY) {
     res.status(501).json({ error: "AI not configured" });
     return;
   }
 
-  const mode = typeof req.body?.context === "string" ? req.body.context : "default";
+  const mode = typeof req.body?.input?.context?.mode === "string" ? req.body.input.context.mode : "default";
   const cacheKey = mode.toLowerCase();
   const cached = getCached(aiBriefCache, cacheKey);
   if (cached) {
