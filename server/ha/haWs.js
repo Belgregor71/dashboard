@@ -1,9 +1,20 @@
 import { EventEmitter } from "events";
+import WebSocket from "ws";
 import { readHaConfig } from "./haConfig.js";
 import { haGet } from "./haRest.js";
 
 const MAX_BACKOFF_MS = 30_000;
 const BASE_BACKOFF_MS = 1_000;
+
+function toWsUrl(haHost) {
+  // haHost examples: http://192.168.0.179:8123 or https://ha.local:8123
+  const u = new URL(haHost);
+  u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
+  u.pathname = "/api/websocket";
+  u.search = "";
+  u.hash = "";
+  return u.toString();
+}
 
 class HaWsManager extends EventEmitter {
   constructor() {
@@ -28,7 +39,9 @@ class HaWsManager extends EventEmitter {
   stop() {
     this.started = false;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
     if (this.socket) this.socket.close();
+    this.socket = null;
   }
 
   getStatus() {
@@ -57,42 +70,47 @@ class HaWsManager extends EventEmitter {
         });
       }
     } catch (error) {
-      this.lastError = error.message;
+      this.lastError = error?.message || String(error);
     }
   }
 
   scheduleReconnect(reason = "connection_lost") {
     if (!this.started || this.reconnectTimer) return;
     this.connected = false;
+    this.lastError = reason;
     this.emit("status", this.getStatus());
+
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect();
     }, this.backoffMs);
+
     this.backoffMs = Math.min(this.backoffMs * 2, MAX_BACKOFF_MS);
-    this.lastError = reason;
   }
 
   connect() {
     if (!this.started) return;
 
     const { haHost, haToken } = readHaConfig();
-    if (typeof WebSocket === "undefined") {
-      throw new Error("Global WebSocket is unavailable in this Node runtime");
+
+    let wsUrl;
+    try {
+      wsUrl = toWsUrl(haHost);
+    } catch (e) {
+      throw new Error(`Invalid HA_HOST: ${haHost}`);
     }
 
-    const wsUrl = haHost.replace(/^http/i, "ws") + "/api/websocket";
     const ws = new WebSocket(wsUrl);
     this.socket = ws;
 
-    ws.addEventListener("open", () => {
+    ws.on("open", () => {
       this.lastError = null;
     });
 
-    ws.addEventListener("message", (event) => {
+    ws.on("message", (data) => {
       let msg;
       try {
-        msg = JSON.parse(event.data.toString());
+        msg = JSON.parse(data.toString());
       } catch {
         return;
       }
@@ -106,7 +124,9 @@ class HaWsManager extends EventEmitter {
         this.connected = true;
         this.backoffMs = BASE_BACKOFF_MS;
         this.lastConnectedAt = new Date().toISOString();
+        this.lastError = null;
         this.emit("status", this.getStatus());
+
         this.send({ id: this.requestId++, type: "subscribe_events", event_type: "state_changed" });
         this.send({ id: this.requestId++, type: "subscribe_events", event_type: "dashboard_command" });
         this.send({ id: this.requestId++, type: "get_states" });
@@ -123,24 +143,27 @@ class HaWsManager extends EventEmitter {
 
       if (msg.type === "event") {
         const eventType = msg?.event?.event_type;
-        const data = msg?.event?.data || {};
-        if (eventType === "state_changed" && data?.new_state?.entity_id) {
-          this.states.set(data.new_state.entity_id, data.new_state);
+        const eventData = msg?.event?.data || {};
+        if (eventType === "state_changed" && eventData?.new_state?.entity_id) {
+          this.states.set(eventData.new_state.entity_id, eventData.new_state);
         }
-        this.emit("event", { eventType, data });
+        this.emit("event", { eventType, data: eventData });
       }
     });
 
-    ws.addEventListener("close", (event) => {
+    ws.on("close", (code, reasonBuf) => {
       if (this.socket !== ws) return;
-      this.lastError = event.reason || `socket_closed_${event.code}`;
+      const reason = reasonBuf ? reasonBuf.toString() : "";
+      this.lastError = reason || `socket_closed_${code}`;
       this.socket = null;
       this.scheduleReconnect(this.lastError);
     });
 
-    ws.addEventListener("error", () => {
-      this.lastError = "websocket_error";
+    ws.on("error", (err) => {
+      if (this.socket !== ws) return;
+      this.lastError = err?.message || "websocket_error";
       this.emit("status", this.getStatus());
+      // close will trigger reconnect
     });
   }
 
