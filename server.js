@@ -204,6 +204,13 @@ function normalizePingTarget(target) {
 }
 
 function attachHaProxy(appInstance) {
+  const HA_PROXY_DEBUG = process.env.DEBUG_HA_PROXY === "1";
+  const debugHaProxy = (...args) => {
+    if (HA_PROXY_DEBUG) {
+      console.log("[ha-proxy]", ...args);
+    }
+  };
+
   if (!HA_TARGET) {
     console.warn("HA_HOST is not configured; skipping Home Assistant proxy.");
     const missingHaHandler = (req, res) => {
@@ -225,17 +232,59 @@ function attachHaProxy(appInstance) {
     }
   };
 
-  const proxyOptions = {
+  const baseProxyOptions = {
     target: HA_TARGET,
     changeOrigin: true,
     ws: true,
-    onProxyReq: addAuthHeader,
-    onProxyReqWs: addAuthHeader
+    on: {
+      proxyReq: addAuthHeader,
+      error: (error, req) => {
+        console.error("[ha-proxy] Proxy error", {
+          route: req?.originalUrl || req?.url,
+          code: error?.code,
+          message: error?.message
+        });
+      }
+    }
   };
 
-  appInstance.use("/api/image_proxy", createProxyMiddleware(proxyOptions));
-  appInstance.use("/api/camera_proxy", createProxyMiddleware(proxyOptions));
-  appInstance.use("/api/websocket", createProxyMiddleware(proxyOptions));
+  appInstance.use("/api/image_proxy", createProxyMiddleware(baseProxyOptions));
+  appInstance.use("/api/camera_proxy", createProxyMiddleware(baseProxyOptions));
+
+  const wsProxyOptions = {
+    ...baseProxyOptions,
+    ws: true,
+    timeout: 0,
+    proxyTimeout: 0,
+    xfwd: true,
+    pathRewrite: () => "/api/websocket",
+    on: {
+      ...baseProxyOptions.on,
+      proxyReqWs: (proxyReq, req) => {
+        addAuthHeader(proxyReq);
+        if (req?.headers?.upgrade) {
+          proxyReq.setHeader("Upgrade", req.headers.upgrade);
+        }
+        proxyReq.setHeader("Connection", "Upgrade");
+        debugHaProxy("WS upgrade requested", {
+          route: req?.originalUrl || req?.url,
+          upstreamPath: "/api/websocket"
+        });
+      },
+      open: (proxySocket) => {
+        debugHaProxy("WS upstream socket open");
+        proxySocket.on("close", (...closeArgs) => {
+          const [code, reason] = closeArgs;
+          debugHaProxy("WS upstream socket close", {
+            code: Number.isFinite(code) ? code : "n/a",
+            reason: typeof reason === "string" ? reason : ""
+          });
+        });
+      }
+    }
+  };
+
+  appInstance.use("/api/websocket", createProxyMiddleware(wsProxyOptions));
 }
 
 async function readPiTemperature() {
@@ -359,7 +408,8 @@ app.get("/env.js", (req, res) => {
   res.send(`window.__ENV__ = ${JSON.stringify({
     HA_HOST: HA_HOST || "",
     GO2RTC_HOST: GO2RTC_HOST || "",
-    HA_TOKEN: HOME_ASSISTANT_TOKEN || ""
+    HA_TOKEN: HOME_ASSISTANT_TOKEN || "",
+    HA_DEBUG: process.env.HA_DEBUG === "1" ? "1" : ""
   })};`);
 });
 

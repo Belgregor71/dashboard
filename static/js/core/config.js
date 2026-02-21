@@ -5,6 +5,7 @@ export const CONFIG = {
     enabled: true,
     url: ENV.HA_HOST || "http://192.168.0.179:8123",
     token: ENV.HA_TOKEN || "",
+    debug: ENV.HA_DEBUG === "1",
     reconnectInterval: 5000,
     mediaPlayers: [
       { entityId: "media_player.living_room", label: "Living Room" },
