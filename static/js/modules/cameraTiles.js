@@ -88,7 +88,7 @@ function updateCameraStatus(cameraId, status) {
 function setHaStatus(status) {
   if (!haStatusEl) return;
   haStatusEl.textContent = status;
-  haStatusEl.dataset.status = status.toLowerCase();
+  haStatusEl.dataset.status = status.toLowerCase().replace(/\s+/g, "-");
 }
 
 async function loadServerCameraConfig() {
@@ -1179,7 +1179,13 @@ export function initCameraTiles() {
   });
 
   on("ha:connected", () => setHaStatus("Online"));
-  on("ha:disconnected", () => setHaStatus("Offline"));
+  on("ha:disconnected", ({ reason } = {}) => {
+    if (reason === "token_missing") {
+      setHaStatus("Token Missing");
+      return;
+    }
+    setHaStatus("Offline");
+  });
 
   registerCommandHandlers();
   setHaStatus("Offline");
