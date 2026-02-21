@@ -1,6 +1,6 @@
 console.log(">>> DASHBOARD SERVER LOADED <<<");
 
-import dotenv from "dotenv";
+import "dotenv/config";
 import express from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import https from "https";
@@ -25,8 +25,6 @@ import {
 } from "./server/services/weatherService.js";
 import arrRoutes from "./server/routes/arr.js";
 
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -38,6 +36,7 @@ const PORT = process.env.PORT || 3000;
 const HA_HOST = process.env.HA_HOST;
 const GO2RTC_HOST = process.env.GO2RTC_HOST;
 const HOME_ASSISTANT_TOKEN = process.env.HA_TOKEN;
+const EXPOSE_HA_TOKEN_TO_CLIENT = process.env.EXPOSE_HA_TOKEN_TO_CLIENT === "1";
 const CALENDAR_URLS = {
   google: process.env.CALENDAR_GOOGLE_URL,
   apple: process.env.CALENDAR_APPLE_URL,
@@ -404,13 +403,34 @@ async function fetchCalendar(url, sourceName = "") {
 ============================================================================ */
 
 app.get("/env.js", (req, res) => {
-  res.type("application/javascript");
-  res.send(`window.__ENV__ = ${JSON.stringify({
+  const publicEnv = {
     HA_HOST: HA_HOST || "",
     GO2RTC_HOST: GO2RTC_HOST || "",
-    HA_TOKEN: HOME_ASSISTANT_TOKEN || "",
-    HA_DEBUG: process.env.HA_DEBUG === "1" ? "1" : ""
+    HA_TOKEN: EXPOSE_HA_TOKEN_TO_CLIENT ? HOME_ASSISTANT_TOKEN || "" : "",
+    HA_DEBUG: process.env.HA_DEBUG === "1" ? "1" : "",
+    EXPOSE_HA_TOKEN_TO_CLIENT: EXPOSE_HA_TOKEN_TO_CLIENT ? "1" : ""
+  };
+
+  res.type("application/javascript");
+  res.send(`window.__ENV__ = ${JSON.stringify(publicEnv)};window.__DASH_CONFIG__ = ${JSON.stringify({
+    homeAssistant: {
+      enabled: true,
+      url: publicEnv.HA_HOST,
+      token: publicEnv.HA_TOKEN,
+      debug: publicEnv.HA_DEBUG === "1"
+    }
   })};`);
+});
+
+app.get("/api/config", (_req, res) => {
+  res.json({
+    homeAssistant: {
+      enabled: true,
+      url: HA_HOST || "",
+      token: EXPOSE_HA_TOKEN_TO_CLIENT ? HOME_ASSISTANT_TOKEN || "" : "",
+      debug: process.env.HA_DEBUG === "1"
+    }
+  });
 });
 
 /* ============================================================================

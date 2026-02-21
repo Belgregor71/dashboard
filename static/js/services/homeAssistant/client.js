@@ -17,9 +17,16 @@ let reconnectTimer = null;
 let reconnectAttempt = 0;
 let preferredUrlIndex = 0;
 let connectionStart = 0;
+let authAttemptsByUrl = new Map();
 
 const HA_DEBUG = HA_CONFIG?.debug === true;
 const PROXY_FAILURE_THRESHOLD = 2;
+const TOKEN_MISSING_RETRY_MS = 30000;
+
+function getToken() {
+  return typeof HA_CONFIG?.token === "string" ? HA_CONFIG.token.trim() : "";
+}
+
 
 function logHaDebug(message, details = null) {
   if (!HA_DEBUG) return;
@@ -57,12 +64,12 @@ function getReconnectDelayMs() {
   return baseDelay * (cappedStep + 1);
 }
 
-function scheduleReconnect() {
+function scheduleReconnect({ reason = "socket_closed", delayMs } = {}) {
   clearReconnectTimer();
-  const delayMs = getReconnectDelayMs();
+  const resolvedDelayMs = Number.isFinite(delayMs) ? delayMs : getReconnectDelayMs();
   reconnectAttempt += 1;
-  reconnectTimer = setTimeout(connectHA, delayMs);
-  logHaDebug("Reconnecting after backoff", { reconnectAttempt, delayMs });
+  reconnectTimer = setTimeout(connectHA, resolvedDelayMs);
+  logHaDebug("Reconnecting after backoff", { reconnectAttempt, delayMs: resolvedDelayMs, reason });
 }
 
 function attachSocketHandlers(ws, reconnectUrl) {
@@ -77,18 +84,42 @@ function attachSocketHandlers(ws, reconnectUrl) {
     emit("ha:message", { receivedAt: Date.now(), type: msg.type });
 
     if (msg.type === "auth_required") {
-      logHaDebug("Sending auth", {
-        reconnectUrl,
-        tokenLength: HA_CONFIG?.token?.length || 0
-      });
+      const token = getToken();
+      logHaDebug("Auth required", { reconnectUrl, tokenLength: token.length });
+
+      if (!token) {
+        console.warn("Home Assistant token missing; skipping websocket auth");
+        emit("ha:disconnected", { reason: "token_missing" });
+        ws.close(1000, "token_missing");
+        scheduleReconnect({ reason: "token_missing", delayMs: TOKEN_MISSING_RETRY_MS });
+        return;
+      }
+
+      logHaDebug("Sending auth", { reconnectUrl, tokenLength: token.length });
       ws.send(JSON.stringify({
         type: "auth",
-        access_token: HA_CONFIG.token
+        access_token: token
       }));
       return;
     }
 
+    if (msg.type === "auth_invalid") {
+      const failures = (authAttemptsByUrl.get(reconnectUrl) || 0) + 1;
+      authAttemptsByUrl.set(reconnectUrl, failures);
+
+      if (preferredUrlIndex === 0 && failures >= PROXY_FAILURE_THRESHOLD) {
+        preferredUrlIndex = 1;
+      }
+
+      console.warn("HA auth invalid; scheduling reconnect", reconnectUrl);
+      emit("ha:disconnected", { reason: "auth_invalid" });
+      ws.close(1000, "auth_invalid");
+      scheduleReconnect({ reason: "auth_invalid" });
+      return;
+    }
+
     if (msg.type === "auth_ok") {
+      authAttemptsByUrl.delete(reconnectUrl);
       console.log("HA authenticated");
       reconnectAttempt = 0;
       subscribe("state_changed");
@@ -157,8 +188,12 @@ function attachSocketHandlers(ws, reconnectUrl) {
         connectedMs,
         preferredUrlIndex
       });
-      emit("ha:disconnected");
-      scheduleReconnect();
+      const closeReason = event?.reason || "socket_closed";
+      emit("ha:disconnected", { reason: closeReason });
+      if (closeReason === "token_missing" || closeReason === "auth_invalid") {
+        return;
+      }
+      scheduleReconnect({ reason: "socket_closed" });
     }
   };
 }
@@ -169,8 +204,11 @@ export function connectHA() {
     return;
   }
 
-  if (!HA_CONFIG?.token) {
+  const token = getToken();
+  if (!token) {
     console.warn("Home Assistant token missing; skipping HA connection");
+    emit("ha:disconnected", { reason: "token_missing" });
+    scheduleReconnect({ reason: "token_missing", delayMs: TOKEN_MISSING_RETRY_MS });
     return;
   }
 
@@ -184,7 +222,12 @@ export function connectHA() {
 
   clearReconnectTimer();
   socket = new WebSocket(reconnectUrl);
-  logHaDebug("Connecting", { reconnectUrl, socketUrls, preferredUrlIndex });
+  logHaDebug("Connecting", {
+    reconnectUrl,
+    socketUrls,
+    preferredUrlIndex,
+    tokenLength: token.length
+  });
   attachSocketHandlers(socket, reconnectUrl);
 }
 

@@ -10,9 +10,22 @@ Copy `.env.example` to `.env` and set the LAN IPs for Home Assistant and go2rtc:
 HA_HOST=http://192.168.0.179:8123
 GO2RTC_HOST=http://192.168.0.179:1984
 HA_TOKEN=your_long_lived_token
+EXPOSE_HA_TOKEN_TO_CLIENT=1
 ```
 
 > **Tip:** Never use `localhost` here unless Home Assistant/go2rtc are running on the same host as the dashboard.
+
+### Home Assistant websocket auth in browser
+
+The dashboard Home Assistant websocket client authenticates from browser config (`window.__ENV__` / `window.__DASH_CONFIG__`). By default, the server **does not** expose `HA_TOKEN` to the client for safety.
+
+For trusted LAN kiosk deployments, explicitly opt in:
+
+```bash
+EXPOSE_HA_TOKEN_TO_CLIENT=1
+```
+
+When enabled, `/env.js` and `/api/config` include the HA token for websocket auth. When disabled (default), the UI reports `Token Missing` and backs off reconnect attempts instead of spamming unauthenticated auth requests.
 
 ## 2) Camera configuration
 

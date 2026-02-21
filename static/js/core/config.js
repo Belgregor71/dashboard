@@ -1,11 +1,13 @@
 const ENV = typeof window !== "undefined" ? window.__ENV__ ?? {} : {};
+const DASH_CONFIG = typeof window !== "undefined" ? window.__DASH_CONFIG__ ?? {} : {};
+const HA_DASH_CONFIG = DASH_CONFIG.homeAssistant ?? {};
 
 export const CONFIG = {
   homeAssistant: {
     enabled: true,
-    url: ENV.HA_HOST || "http://192.168.0.179:8123",
-    token: ENV.HA_TOKEN || "",
-    debug: ENV.HA_DEBUG === "1",
+    url: HA_DASH_CONFIG.url || ENV.HA_HOST || "http://192.168.0.179:8123",
+    token: HA_DASH_CONFIG.token || ENV.HA_TOKEN || "",
+    debug: HA_DASH_CONFIG.debug === true || ENV.HA_DEBUG === "1",
     reconnectInterval: 5000,
     mediaPlayers: [
       { entityId: "media_player.living_room", label: "Living Room" },
