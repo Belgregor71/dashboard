@@ -13,6 +13,22 @@ let socket;
 let msgId = 1;
 let getStatesRequestId;
 const pendingRequests = new Map();
+let reconnectTimer = null;
+let reconnectAttempt = 0;
+let preferredUrlIndex = 0;
+let connectionStart = 0;
+
+const HA_DEBUG = HA_CONFIG?.debug === true;
+const PROXY_FAILURE_THRESHOLD = 2;
+
+function logHaDebug(message, details = null) {
+  if (!HA_DEBUG) return;
+  if (details) {
+    console.log(`[HA WS] ${message}`, details);
+    return;
+  }
+  console.log(`[HA WS] ${message}`);
+}
 
 function buildSocketUrls() {
   const urls = [];
@@ -29,9 +45,31 @@ function buildSocketUrls() {
   return [...new Set(urls)];
 }
 
+function clearReconnectTimer() {
+  if (!reconnectTimer) return;
+  clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+}
+
+function getReconnectDelayMs() {
+  const baseDelay = HA_CONFIG.reconnectInterval || 5000;
+  const cappedStep = Math.min(reconnectAttempt, 5);
+  return baseDelay * (cappedStep + 1);
+}
+
+function scheduleReconnect() {
+  clearReconnectTimer();
+  const delayMs = getReconnectDelayMs();
+  reconnectAttempt += 1;
+  reconnectTimer = setTimeout(connectHA, delayMs);
+  logHaDebug("Reconnecting after backoff", { reconnectAttempt, delayMs });
+}
+
 function attachSocketHandlers(ws, reconnectUrl) {
   ws.onopen = () => {
-    console.log("HA socket opened", reconnectUrl);
+    connectionStart = Date.now();
+    reconnectAttempt = 0;
+    logHaDebug("Socket opened", { reconnectUrl });
   };
 
   ws.onmessage = (event) => {
@@ -39,6 +77,10 @@ function attachSocketHandlers(ws, reconnectUrl) {
     emit("ha:message", { receivedAt: Date.now(), type: msg.type });
 
     if (msg.type === "auth_required") {
+      logHaDebug("Sending auth", {
+        reconnectUrl,
+        tokenLength: HA_CONFIG?.token?.length || 0
+      });
       ws.send(JSON.stringify({
         type: "auth",
         access_token: HA_CONFIG.token
@@ -48,6 +90,7 @@ function attachSocketHandlers(ws, reconnectUrl) {
 
     if (msg.type === "auth_ok") {
       console.log("HA authenticated");
+      reconnectAttempt = 0;
       subscribe("state_changed");
       subscribe("dashboard_command");
       getStatesRequestId = msgId++;
@@ -88,13 +131,34 @@ function attachSocketHandlers(ws, reconnectUrl) {
 
   ws.onerror = (error) => {
     console.warn("HA socket error", reconnectUrl, error);
+    logHaDebug("Socket error", {
+      reconnectUrl,
+      message: error?.message || "unknown"
+    });
   };
 
-  ws.onclose = () => {
+  ws.onclose = (event) => {
     if (socket === ws) {
-      console.warn("HA disconnected — retrying in 5s", reconnectUrl);
+      const connectedMs = connectionStart ? Date.now() - connectionStart : 0;
+      const disconnectedQuickly = connectedMs > 0 && connectedMs < 3000;
+      if (disconnectedQuickly && preferredUrlIndex === 0) {
+        reconnectAttempt += 1;
+        if (reconnectAttempt >= PROXY_FAILURE_THRESHOLD) {
+          preferredUrlIndex = 1;
+        }
+      }
+
+      console.warn("HA disconnected — scheduling reconnect", reconnectUrl);
+      logHaDebug("Socket closed", {
+        reconnectUrl,
+        code: event?.code,
+        reason: event?.reason || "",
+        wasClean: event?.wasClean,
+        connectedMs,
+        preferredUrlIndex
+      });
       emit("ha:disconnected");
-      setTimeout(connectHA, HA_CONFIG.reconnectInterval || 5000);
+      scheduleReconnect();
     }
   };
 }
@@ -111,14 +175,16 @@ export function connectHA() {
   }
 
   const socketUrls = buildSocketUrls();
-  const reconnectUrl = socketUrls[0];
+  const reconnectUrl = socketUrls[preferredUrlIndex] || socketUrls[0];
 
   if (!reconnectUrl) {
     console.warn("Home Assistant URL missing; skipping HA connection");
     return;
   }
 
+  clearReconnectTimer();
   socket = new WebSocket(reconnectUrl);
+  logHaDebug("Connecting", { reconnectUrl, socketUrls, preferredUrlIndex });
   attachSocketHandlers(socket, reconnectUrl);
 }
 

@@ -4,7 +4,8 @@
   "description": "Raspberry Pi smart home dashboard",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test:ha-ws-proxy": "node scripts/test-ha-ws-proxy.js"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
