@@ -24,6 +24,8 @@ import {
   weatherFallbackNow
 } from "./server/services/weatherService.js";
 import arrRoutes from "./server/routes/arr.js";
+import { createHaRouter } from "./server/ha/haRoutes.js";
+import { readHaConfig } from "./server/ha/haConfig.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,7 +38,6 @@ const PORT = process.env.PORT || 3000;
 const HA_HOST = process.env.HA_HOST;
 const GO2RTC_HOST = process.env.GO2RTC_HOST;
 const HOME_ASSISTANT_TOKEN = process.env.HA_TOKEN;
-const EXPOSE_HA_TOKEN_TO_CLIENT = process.env.EXPOSE_HA_TOKEN_TO_CLIENT === "1";
 const CALENDAR_URLS = {
   google: process.env.CALENDAR_GOOGLE_URL,
   apple: process.env.CALENDAR_APPLE_URL,
@@ -52,6 +53,24 @@ const SNAPSHOT_MAX_RETRIES = 1;
 const SNAPSHOT_STALE_WINDOW_MS = 10 * 60 * 1000;
 const snapshotCache = new Map();
 const cameraStatusCache = new Map();
+
+const haRouteLogger = (req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    const durationMs = Date.now() - start;
+    console.log(`[ha-api] ${req.method} ${req.originalUrl} -> ${res.statusCode} (${durationMs}ms)`);
+  });
+  next();
+};
+
+try {
+  readHaConfig();
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
+
+app.use("/api/ha", haRouteLogger, createHaRouter());
 
 attachHaProxy(app);
 
@@ -221,7 +240,6 @@ function attachHaProxy(appInstance) {
     };
     appInstance.use("/api/image_proxy", missingHaHandler);
     appInstance.use("/api/camera_proxy", missingHaHandler);
-    appInstance.use("/api/websocket", missingHaHandler);
     return;
   }
 
@@ -250,40 +268,6 @@ function attachHaProxy(appInstance) {
   appInstance.use("/api/image_proxy", createProxyMiddleware(baseProxyOptions));
   appInstance.use("/api/camera_proxy", createProxyMiddleware(baseProxyOptions));
 
-  const wsProxyOptions = {
-    ...baseProxyOptions,
-    ws: true,
-    timeout: 0,
-    proxyTimeout: 0,
-    xfwd: true,
-    pathRewrite: () => "/api/websocket",
-    on: {
-      ...baseProxyOptions.on,
-      proxyReqWs: (proxyReq, req) => {
-        addAuthHeader(proxyReq);
-        if (req?.headers?.upgrade) {
-          proxyReq.setHeader("Upgrade", req.headers.upgrade);
-        }
-        proxyReq.setHeader("Connection", "Upgrade");
-        debugHaProxy("WS upgrade requested", {
-          route: req?.originalUrl || req?.url,
-          upstreamPath: "/api/websocket"
-        });
-      },
-      open: (proxySocket) => {
-        debugHaProxy("WS upstream socket open");
-        proxySocket.on("close", (...closeArgs) => {
-          const [code, reason] = closeArgs;
-          debugHaProxy("WS upstream socket close", {
-            code: Number.isFinite(code) ? code : "n/a",
-            reason: typeof reason === "string" ? reason : ""
-          });
-        });
-      }
-    }
-  };
-
-  appInstance.use("/api/websocket", createProxyMiddleware(wsProxyOptions));
 }
 
 async function readPiTemperature() {
@@ -406,17 +390,14 @@ app.get("/env.js", (req, res) => {
   const publicEnv = {
     HA_HOST: HA_HOST || "",
     GO2RTC_HOST: GO2RTC_HOST || "",
-    HA_TOKEN: EXPOSE_HA_TOKEN_TO_CLIENT ? HOME_ASSISTANT_TOKEN || "" : "",
-    HA_DEBUG: process.env.HA_DEBUG === "1" ? "1" : "",
-    EXPOSE_HA_TOKEN_TO_CLIENT: EXPOSE_HA_TOKEN_TO_CLIENT ? "1" : ""
+    HA_DEBUG: process.env.HA_DEBUG === "1" ? "1" : ""
   };
 
   res.type("application/javascript");
   res.send(`window.__ENV__ = ${JSON.stringify(publicEnv)};window.__DASH_CONFIG__ = ${JSON.stringify({
     homeAssistant: {
       enabled: true,
-      url: publicEnv.HA_HOST,
-      token: publicEnv.HA_TOKEN,
+      url: "",
       debug: publicEnv.HA_DEBUG === "1"
     }
   })};`);
@@ -426,8 +407,7 @@ app.get("/api/config", (_req, res) => {
   res.json({
     homeAssistant: {
       enabled: true,
-      url: HA_HOST || "",
-      token: EXPOSE_HA_TOKEN_TO_CLIENT ? HOME_ASSISTANT_TOKEN || "" : "",
+      url: "",
       debug: process.env.HA_DEBUG === "1"
     }
   });
@@ -501,63 +481,6 @@ app.get("/api/system/metrics", async (req, res) => {
     hostname: os.hostname()
   });
 });
-
-app.get("/api/ha/health", async (req, res) => {
-  if (!HA_TARGET) {
-    res.status(503).json({ ok: false, error: "HA_HOST not configured" });
-    return;
-  }
-
-  if (!HOME_ASSISTANT_TOKEN) {
-    res.status(500).json({ ok: false, error: "Home Assistant token missing" });
-    return;
-  }
-
-  const start = Date.now();
-  try {
-    const response = await fetchHaWithRetry(
-      buildHaUrl("/api/"),
-      {
-        headers: {
-          Authorization: `Bearer ${HOME_ASSISTANT_TOKEN}`,
-          Accept: "application/json"
-        }
-      },
-      {
-        timeoutMs: SNAPSHOT_TIMEOUT_MS,
-        retries: SNAPSHOT_MAX_RETRIES,
-        retryDelayMs: SNAPSHOT_RETRY_DELAY_MS
-      }
-    );
-
-    const latencyMs = Date.now() - start;
-    if (!response.ok) {
-      const mapped = mapHaError(response.status);
-      res.status(mapped.status || 502).json({
-        ok: false,
-        error: mapped.message,
-        latencyMs
-      });
-      return;
-    }
-
-    const data = await response.json();
-    res.json({
-      ok: true,
-      latencyMs,
-      version: data?.version || null
-    });
-  } catch (err) {
-    const latencyMs = Date.now() - start;
-    const mapped = mapHaError(err?.status, err);
-    res.status(mapped.status || 502).json({
-      ok: false,
-      error: mapped.message,
-      latencyMs
-    });
-  }
-});
-
 
 app.get("/api/ha/snapshot", async (req, res) => {
   if (!HA_TARGET || !HOME_ASSISTANT_TOKEN) {
