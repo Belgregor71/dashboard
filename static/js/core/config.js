@@ -5,8 +5,7 @@ const HA_DASH_CONFIG = DASH_CONFIG.homeAssistant ?? {};
 export const CONFIG = {
   homeAssistant: {
     enabled: true,
-    url: HA_DASH_CONFIG.url || ENV.HA_HOST || "http://192.168.0.179:8123",
-    token: HA_DASH_CONFIG.token || ENV.HA_TOKEN || "",
+    url: "",
     debug: HA_DASH_CONFIG.debug === true || ENV.HA_DEBUG === "1",
     reconnectInterval: 5000,
     mediaPlayers: [
