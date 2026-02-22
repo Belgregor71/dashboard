@@ -1,11 +1,7 @@
 import { CONFIG } from "../core/config.js";
 import { getEntity } from "../services/homeAssistant/state.js";
+import { getTodoEntityIds } from "../services/homeAssistant/todoEntities.js";
 
-const TODO_ENTITY_IDS = CONFIG.homeAssistant?.todoEntities ?? [
-  "todo.brett",
-  "todo.greg",
-  "todo.both"
-];
 const SHOPPING_ENTITY_ID = CONFIG.homeAssistant?.shoppingListEntityId ?? "todo.shopping_list";
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
@@ -67,8 +63,8 @@ function resolveListLabel(entityId) {
   return entityId?.split(".")[1]?.replace(/_/g, " ") ?? "list";
 }
 
-function normalizeTodoItems() {
-  return TODO_ENTITY_IDS.flatMap((entityId) => {
+function normalizeTodoItems(todoEntityIds) {
+  return todoEntityIds.flatMap((entityId) => {
     const entity = getEntity(entityId);
     return normalizeItems(entity).map((item) => ({
       ...item,
@@ -81,7 +77,8 @@ function renderTodoList() {
   const listEl = document.getElementById("reminders-list");
   if (!listEl) return;
 
-  const items = normalizeTodoItems().filter(item => !isCompleted(item));
+  const todoEntityIds = getTodoEntityIds();
+  const items = normalizeTodoItems(todoEntityIds).filter(item => !isCompleted(item));
 
   listEl.innerHTML = "";
 
@@ -100,7 +97,7 @@ function renderTodoList() {
     return resolveSummary(a).localeCompare(resolveSummary(b));
   });
 
-  const showListLabel = TODO_ENTITY_IDS.length > 1;
+  const showListLabel = todoEntityIds.length > 1;
   sorted.forEach(item => {
     const label = showListLabel
       ? `${resolveSummary(item)} (${resolveListLabel(item.__entityId)})`
@@ -134,7 +131,13 @@ function renderShoppingList() {
 }
 
 function refresh(entityId) {
-  if (!entityId || TODO_ENTITY_IDS.includes(entityId)) {
+  const todoEntityIds = getTodoEntityIds();
+
+  if (
+    !entityId ||
+    todoEntityIds.includes(entityId) ||
+    (entityId.startsWith("todo.") && entityId !== SHOPPING_ENTITY_ID)
+  ) {
     renderTodoList();
   }
 

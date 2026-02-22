@@ -29,8 +29,13 @@ function showPanel(panel) {
 function resolveMediaImage(url) {
   if (!url) return "";
   if (url.startsWith("http")) return url;
-  if (url.startsWith("/")) return `${CONFIG.homeAssistant?.url ?? ""}${url}`;
-  return url;
+  if (!url.startsWith("/")) return url;
+
+  if (url.startsWith("/api/image_proxy")) {
+    return url;
+  }
+
+  return `/api/image_proxy${url}`;
 }
 
 function getMediaConfigs() {
