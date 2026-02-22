@@ -1,14 +1,10 @@
 import { emit, on } from "../../core/eventBus.js";
 import { CONFIG } from "../../core/config.js";
 import { getEntity, updateEntity } from "./state.js";
+import { getTodoEntityIds } from "./todoEntities.js";
 import { switchView } from "../../core/viewManager.js";
 import { requestShoppingList, requestTodoItems } from "./client.js";
 
-const TODO_ENTITY_IDS = CONFIG.homeAssistant?.todoEntities ?? [
-  "todo.brett",
-  "todo.greg",
-  "todo.both"
-];
 const SHOPPING_LIST_ENTITY_ID = CONFIG.homeAssistant?.shoppingListEntityId ?? "todo.shopping_list";
 
 let dashboardCommandBridgeRegistered = false;
@@ -119,7 +115,7 @@ export function registerHAEvents() {
       );
     });
 
-    TODO_ENTITY_IDS.forEach((entityId) => requestTodoItems(entityId));
+    getTodoEntityIds().forEach((entityId) => requestTodoItems(entityId));
     requestShoppingList();
   });
 
@@ -133,7 +129,7 @@ export function registerHAEvents() {
     );
 
     const entityId = data?.new_state?.entity_id;
-    if (TODO_ENTITY_IDS.includes(entityId)) {
+    if (getTodoEntityIds().includes(entityId)) {
       requestTodoItems(entityId);
     }
     if (entityId === SHOPPING_LIST_ENTITY_ID) {
