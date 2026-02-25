@@ -1489,6 +1489,62 @@ body[data-view="status"] #time-panel {
   gap: 18px;
   flex: 1;
   min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ===== Calendar Cinematic Gradient Scrim ===== */
+body[data-view="calendar"] #calendar-view .calendar-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(10, 12, 18, 0.78) 0%,
+      rgba(10, 12, 18, 0.55) 18%,
+      rgba(10, 12, 18, 0.28) 42%,
+      rgba(10, 12, 18, 0.18) 60%,
+      rgba(10, 12, 18, 0.4) 78%,
+      rgba(10, 12, 18, 0.7) 100%
+    );
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Optional vignette edge shadow for bright backgrounds */
+body[data-view="calendar"] #calendar-view .calendar-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(0, 0, 0, 0) 35%,
+    rgba(0, 0, 0, 0.2) 100%
+  );
+}
+
+body[data-view="calendar"] #calendar-view .calendar-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ===== Optional high contrast mode ===== */
+body[data-view="calendar"] #calendar-view .calendar-panel.high-contrast::before {
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(8, 10, 16, 0.86) 0%,
+      rgba(8, 10, 16, 0.62) 20%,
+      rgba(8, 10, 16, 0.34) 45%,
+      rgba(8, 10, 16, 0.24) 60%,
+      rgba(8, 10, 16, 0.5) 80%,
+      rgba(8, 10, 16, 0.8) 100%
+    );
 }
 
 .calendar-header {
@@ -1579,8 +1635,13 @@ body[data-view="status"] #time-panel {
   font-size: 0.85rem;
   padding: 3px 10px;
   border-radius: 999px;
-  background: var(--event-bg, rgba(231, 76, 60, 0.75));
+  background:
+    linear-gradient(rgba(12, 16, 24, 0.22), rgba(12, 16, 24, 0.22)),
+    var(--event-bg, rgba(231, 76, 60, 0.92));
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-left: 3px solid var(--event-accent, rgba(231, 76, 60, 0.85));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  font-weight: 500;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1589,9 +1650,23 @@ body[data-view="status"] #time-panel {
   text-overflow: ellipsis;
 }
 
+.calendar-event[data-color] {
+  opacity: 0.98;
+}
+
 .calendar-event--more {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(25, 30, 40, 0.92);
   color: rgba(255, 255, 255, 0.8);
+}
+
+/* ===== Text clarity ===== */
+body[data-view="calendar"] #calendar-month-title,
+body[data-view="calendar"] #calendar-today-label,
+body[data-view="calendar"] .calendar-header-subtitle,
+body[data-view="calendar"] .calendar-weekdays,
+body[data-view="calendar"] .calendar-date,
+body[data-view="calendar"] .calendar-event {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
 }
 
 /* ============================================================================
