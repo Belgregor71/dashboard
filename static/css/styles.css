@@ -2992,3 +2992,16 @@ body[data-view="briefing"] #top-bar { justify-content: flex-start; }
   font-size: 0.9rem;
   opacity: 0.8;
 }
+
+
+body.dashboard-sleeping {
+  background: #000;
+}
+
+body.dashboard-sleeping .dashboard-shell,
+body.dashboard-sleeping #calendar-view,
+body.dashboard-sleeping #agenda-view,
+body.dashboard-sleeping #cameras-view,
+body.dashboard-sleeping #weather-view {
+  visibility: hidden;
+}

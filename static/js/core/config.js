@@ -88,6 +88,12 @@ export const CONFIG = {
         "binary_sensor.patio_motion",
         "binary_sensor.side_gate_motion"
       ]
+    },
+    energySaver: {
+      enabled: true,
+      wakeTime: "05:00",
+      sleepTime: "21:00",
+      monitorEntityId: ""
     }
   },
   systemStatus: {
