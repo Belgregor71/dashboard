@@ -7,8 +7,7 @@
 }
 
 .weather-content {
-  position: absolute;
-  inset: 0;
+  position: relative;
   z-index: 2;
 }
 
