@@ -4,6 +4,7 @@ import { getEntity, updateEntity } from "./state.js";
 import { getTodoEntityIds } from "./todoEntities.js";
 import { switchView } from "../../core/viewManager.js";
 import { requestShoppingList, requestTodoItems } from "./client.js";
+import { handleCalendarCommand } from "../calendar/commands.js";
 
 const SHOPPING_LIST_ENTITY_ID = CONFIG.homeAssistant?.shoppingListEntityId ?? "todo.shopping_list";
 
@@ -235,6 +236,15 @@ export function registerHAEvents() {
           command,
           ok: true,
           message: "Next agenda item"
+        });
+        return;
+      }
+
+      if (handleCalendarCommand(command, data)) {
+        emit("command:executed", {
+          command,
+          ok: true,
+          message: "Calendar command executed"
         });
         return;
       }
