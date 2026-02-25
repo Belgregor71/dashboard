@@ -6,6 +6,7 @@
   <title>Family Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="/css/styles.css" />
+  <link rel="stylesheet" href="/css/weather-fx-overlay.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -243,45 +244,48 @@
 
       <canvas id="wx-particles" class="wx-layer"></canvas>
       <div id="wx-flash" class="wx-flash"></div>
+      <div id="weather-fx-overlay" class="weather-fx-overlay" aria-hidden="true"></div>
 
-      <div class="weather-anchor weather-glass">
-        <div id="weather-cine-condition" class="weather-anchor__condition">--</div>
-        <div id="weather-cine-temp" class="weather-anchor__temp">--°</div>
-        <div id="weather-cine-meta" class="weather-anchor__meta">--</div>
-      </div>
+      <div class="weather-content">
+        <div class="weather-anchor weather-glass">
+          <div id="weather-cine-condition" class="weather-anchor__condition">--</div>
+          <div id="weather-cine-temp" class="weather-anchor__temp">--°</div>
+          <div id="weather-cine-meta" class="weather-anchor__meta">--</div>
+        </div>
 
-      <div id="weather-narrative" class="weather-narrative"></div>
+        <div id="weather-narrative" class="weather-narrative"></div>
 
-      <div class="weather-pills" id="weather-pills">
-        <div class="weather-pill weather-glass" id="weather-pill-wind">
-          <span class="weather-pill__icon" aria-hidden="true">💨</span>
-          <span class="weather-pill__label">Wind</span>
-          <span class="weather-pill__value" id="weather-pill-wind-value">--</span>
+        <div class="weather-pills" id="weather-pills">
+          <div class="weather-pill weather-glass" id="weather-pill-wind">
+            <span class="weather-pill__icon" aria-hidden="true">💨</span>
+            <span class="weather-pill__label">Wind</span>
+            <span class="weather-pill__value" id="weather-pill-wind-value">--</span>
+          </div>
+          <div class="weather-pill weather-glass" id="weather-pill-uv">
+            <span class="weather-pill__icon" aria-hidden="true">☀️</span>
+            <span class="weather-pill__label">UV</span>
+            <span class="weather-pill__value" id="weather-pill-uv-value">--</span>
+          </div>
+          <div class="weather-pill weather-glass" id="weather-pill-rain">
+            <span class="weather-pill__icon" aria-hidden="true">☔</span>
+            <span class="weather-pill__label">Rain</span>
+            <span class="weather-pill__value" id="weather-pill-rain-value">--</span>
+          </div>
+          <div class="weather-pill weather-glass" id="weather-pill-storm">
+            <span class="weather-pill__icon" aria-hidden="true">⚡</span>
+            <span class="weather-pill__label">Storm</span>
+            <span class="weather-pill__value" id="weather-pill-storm-value">--</span>
+          </div>
+          <div class="weather-pill weather-glass" id="weather-pill-visibility">
+            <span class="weather-pill__icon" aria-hidden="true">🌫️</span>
+            <span class="weather-pill__label">Visibility</span>
+            <span class="weather-pill__value" id="weather-pill-visibility-value">--</span>
+          </div>
         </div>
-        <div class="weather-pill weather-glass" id="weather-pill-uv">
-          <span class="weather-pill__icon" aria-hidden="true">☀️</span>
-          <span class="weather-pill__label">UV</span>
-          <span class="weather-pill__value" id="weather-pill-uv-value">--</span>
-        </div>
-        <div class="weather-pill weather-glass" id="weather-pill-rain">
-          <span class="weather-pill__icon" aria-hidden="true">☔</span>
-          <span class="weather-pill__label">Rain</span>
-          <span class="weather-pill__value" id="weather-pill-rain-value">--</span>
-        </div>
-        <div class="weather-pill weather-glass" id="weather-pill-storm">
-          <span class="weather-pill__icon" aria-hidden="true">⚡</span>
-          <span class="weather-pill__label">Storm</span>
-          <span class="weather-pill__value" id="weather-pill-storm-value">--</span>
-        </div>
-        <div class="weather-pill weather-glass" id="weather-pill-visibility">
-          <span class="weather-pill__icon" aria-hidden="true">🌫️</span>
-          <span class="weather-pill__label">Visibility</span>
-          <span class="weather-pill__value" id="weather-pill-visibility-value">--</span>
-        </div>
-      </div>
 
-      <div class="weather-timeline" id="weather-timeline">
-        <div class="weather-timeline__track" id="weather-timeline-track"></div>
+        <div class="weather-timeline" id="weather-timeline">
+          <div class="weather-timeline__track" id="weather-timeline-track"></div>
+        </div>
       </div>
     </div>
   </main>

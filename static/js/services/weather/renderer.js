@@ -15,6 +15,7 @@ import { startWeatherMotion, stopWeatherMotion } from "../../weatherMotion.js";
 import { categoryForWeatherCode } from "../../weatherPrompts.js";
 import { WEATHER_LAT, WEATHER_LON } from "../../config/config.js";
 import { getTimes as getSunTimesFromCalc } from "../../vendor/suncalc.js";
+import { clearWeatherFxOverlay, setWeatherFxOverlay } from "./fxOverlay.js";
 
 let activeLotties = [];
 let cachedDaily = null;
@@ -240,6 +241,7 @@ function syncWeatherMotion(weatherData) {
   if (code == null) return;
   if (isWeatherViewActive()) {
     applyCinematicBackground(weatherData);
+    setWeatherFxOverlay(weatherText(code));
   }
 
   if (isWeatherViewActive()) {
@@ -251,6 +253,7 @@ function syncWeatherMotion(weatherData) {
     }
   } else {
     stopWeatherMotion();
+    clearWeatherFxOverlay();
   }
 }
 
@@ -636,6 +639,7 @@ export function stopWeatherView() {
   if (narrativeTimer) clearTimeout(narrativeTimer);
   narrativeTimer = null;
   stopCinematicBackground({ resetSources: true });
+  clearWeatherFxOverlay();
 }
 
 function rerenderWeeklyFromCache() {
