@@ -1,0 +1,13 @@
+[
+  {"date":"2027-01-01","name":"New Year's Day"},
+  {"date":"2027-01-26","name":"Australia Day"},
+  {"date":"2027-03-26","name":"Good Friday"},
+  {"date":"2027-03-27","name":"The day after Good Friday"},
+  {"date":"2027-03-29","name":"Easter Monday"},
+  {"date":"2027-04-26","name":"ANZAC Day (Observed)"},
+  {"date":"2027-05-03","name":"Labour Day"},
+  {"date":"2027-08-11","name":"Royal Queensland Show (Brisbane area)"},
+  {"date":"2027-10-04","name":"King's Birthday"},
+  {"date":"2027-12-27","name":"Christmas Day (Additional day)"},
+  {"date":"2027-12-28","name":"Boxing Day (Additional day)"}
+]

@@ -1,6 +1,9 @@
 // calendar.js
 import { format } from "../helpers/dates.js";
 import { emit, on } from "../core/eventBus.js";
+import { initDetailsPopover } from "../services/calendar/detailsPopover.js";
+import { fetchHolidaysForMonthContext } from "../services/calendar/holidays.js";
+import { registerCalendarCommandHandlers } from "../services/calendar/commands.js";
 
 const CAL_URL = "/api/calendar/all";
 const MEAL_PREFIX = /^Meal:\s*/;
@@ -187,6 +190,22 @@ const agendaState = {
 };
 let agendaEventsCache = [];
 let agendaFocusTargets = [];
+const calendarState = {
+  focusedEventId: null,
+  eventsCache: [],
+  selectedDate: new Date(),
+  lastInteractionSource: "ui",
+  birthdaysOnly: false,
+  detailsPopover: null
+};
+const CALENDAR_DEBUG =
+  typeof window !== "undefined" &&
+  (window.__ENV__?.CALENDAR_DEBUG === "1" || window.__DASH_CONFIG__?.calendar?.debug === true);
+
+function calendarDebug(...args) {
+  if (!CALENDAR_DEBUG) return;
+  console.debug("[calendar]", ...args);
+}
 
 function loadMealLottie(container) {
   if (!container || !window.lottie) return;
@@ -440,15 +459,56 @@ on("agenda:focus-next", () => {
   focusNextAgendaEvent();
 });
 
+function shiftMonth(offset) {
+  const next = new Date(calendarState.selectedDate);
+  next.setMonth(next.getMonth() + offset, 1);
+  calendarState.selectedDate = next;
+  calendarState.lastInteractionSource = "voice";
+  calendarDebug("shiftMonth", offset, next.toISOString());
+  void refreshCalendar();
+}
+
+function goToToday() {
+  calendarState.selectedDate = new Date();
+  calendarState.lastInteractionSource = "voice";
+  calendarDebug("goToToday");
+  void refreshCalendar();
+}
+
+function toggleBirthdaysOnly() {
+  calendarState.birthdaysOnly = !calendarState.birthdaysOnly;
+  calendarState.lastInteractionSource = "voice";
+  calendarDebug("birthdaysOnly", calendarState.birthdaysOnly);
+  void refreshCalendar();
+}
+
+registerCalendarCommandHandlers({
+  nextMonth: () => shiftMonth(1),
+  previousMonth: () => shiftMonth(-1),
+  goToday: () => goToToday(),
+  showAgenda: () => emit("agenda:reset"),
+  showBirthdays: () => toggleBirthdaysOnly(),
+  showDetails: () => openFocusedDetails(),
+  closeDetails: () => closeDetailsPopover(),
+  detailsForNextEvent: () => openFocusedDetails({ forceNext: true })
+});
+
+on("calendar:next-month", () => shiftMonth(1));
+on("calendar:previous-month", () => shiftMonth(-1));
+on("calendar:go-today", () => goToToday());
+on("calendar:show-details", () => openFocusedDetails());
+on("calendar:close-details", () => closeDetailsPopover());
+
+
 /* ------------------------------------------------------------------
    MAIN REFRESH FUNCTION
 -------------------------------------------------------------------*/
 
 export async function refreshCalendar() {
   try {
+    ensureDetailsPopover();
     const res = await fetch(CAL_URL);
 
-    // If backend fails, don’t try to parse/render like normal
     if (!res.ok) {
       console.warn(`Calendar HTTP ${res.status}`);
       safeRenderEmpty();
@@ -456,26 +516,27 @@ export async function refreshCalendar() {
     }
 
     const data = await res.json();
-
-    // Backend might return { error: "..." } instead of an array
     if (!Array.isArray(data)) {
       console.warn("Calendar returned non-array:", data);
       safeRenderEmpty();
       return;
     }
 
-    // Normalize dates to LOCAL TIME
-    const normalized = normalizeEvents(data);
+    const holidays = await fetchHolidaysForMonthContext(calendarState.selectedDate);
+    const normalized = normalizeEvents(mergeHolidayEvents(data, holidays));
+    calendarState.eventsCache = normalized;
 
-    const expanded = expandMultiDay(normalized);
+    const filtered = applyCalendarFilters(normalized);
+    const expanded = expandMultiDay(filtered);
     const todayEvents = getTodayEvents(expanded);
     const weekEvents = getNext7DaysEvents(expanded);
 
+    updateFocusedEvent(filtered);
     renderToday(todayEvents);
     renderWeek(weekEvents);
-    renderMonth(expanded);
-    setAgendaEvents(expanded);
-    emit("calendar:refreshed", { timestamp: Date.now(), count: expanded.length });
+    renderMonth(expanded, calendarState.selectedDate);
+    setAgendaEvents(filtered);
+    emit("calendar:refreshed", { timestamp: Date.now(), count: filtered.length });
   } catch (err) {
     console.error("Calendar error:", err);
     safeRenderEmpty();
@@ -486,10 +547,107 @@ export async function refreshCalendar() {
    SAFE EMPTY RENDER (prevents white screen if containers missing)
 -------------------------------------------------------------------*/
 
+
+function ensureDetailsPopover() {
+  if (calendarState.detailsPopover) return;
+  const root = document.getElementById("calendar-view");
+  calendarState.detailsPopover = initDetailsPopover(root);
+}
+
+function mergeHolidayEvents(events, holidays) {
+  const merged = [...(Array.isArray(events) ? events : [])];
+  const seen = new Set(
+    merged.map(ev => `${String(ev.title || "").toLowerCase()}|${String(ev.start || "")}|${String(ev.source || "")}`)
+  );
+
+  (holidays || []).forEach(holiday => {
+    const key = `${String(holiday.title || "").toLowerCase()}|${holiday.start}|holidays`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    merged.push(holiday);
+  });
+  return merged;
+}
+
+function isBirthdayEvent(ev) {
+  const text = `${ev?.title || ""} ${ev?.displayTitle || ""}`.toLowerCase();
+  return ev?.category?.id === "birthday" || text.includes("birthday") || (ev?.tags || []).includes("birthday");
+}
+
+function applyCalendarFilters(events) {
+  if (!calendarState.birthdaysOnly) return events;
+  return (events || []).filter(isBirthdayEvent);
+}
+
+function getNextUpcomingEvent(events, options = {}) {
+  const now = options.fromDate instanceof Date ? options.fromDate : new Date();
+  const onlyBirthdays = options.onlyBirthdays === true;
+  const candidates = (events || [])
+    .filter(ev => ev?.start)
+    .filter(ev => !onlyBirthdays || isBirthdayEvent(ev))
+    .filter(ev => ev.end >= now)
+    .sort((a, b) => a.start - b.start);
+  return candidates[0] || null;
+}
+
+function updateFocusedEvent(events) {
+  const activeEvents = Array.isArray(events) ? events : [];
+  if (calendarState.focusedEventId) {
+    const existing = activeEvents.find(ev => ev.id === calendarState.focusedEventId);
+    if (existing) return;
+  }
+  const next = getNextUpcomingEvent(activeEvents, {
+    fromDate: new Date(),
+    onlyBirthdays: calendarState.birthdaysOnly
+  });
+  calendarState.focusedEventId = next?.id || null;
+}
+
+function getFocusedEvent() {
+  if (!calendarState.focusedEventId) {
+    return getNextUpcomingEvent(calendarState.eventsCache, {
+      fromDate: new Date(),
+      onlyBirthdays: calendarState.birthdaysOnly
+    });
+  }
+  return calendarState.eventsCache.find(ev => ev.id === calendarState.focusedEventId) || null;
+}
+
+function resolveTravelTimeText(_eventObj) {
+  const hasHomeBase =
+    typeof window !== "undefined" &&
+    typeof window.__ENV__?.HOME_BASE === "string" &&
+    window.__ENV__.HOME_BASE.trim().length > 0;
+  if (!hasHomeBase) return null;
+  return null;
+}
+
+function openFocusedDetails({ forceNext = false } = {}) {
+  ensureDetailsPopover();
+  if (!calendarState.detailsPopover) return;
+  const focused = forceNext
+    ? getNextUpcomingEvent(calendarState.eventsCache, {
+      fromDate: new Date(),
+      onlyBirthdays: calendarState.birthdaysOnly
+    })
+    : getFocusedEvent();
+  if (!focused) return;
+  calendarState.focusedEventId = focused.id;
+  calendarState.detailsPopover.openDetails({
+    ...focused,
+    travelTimeText: resolveTravelTimeText(focused)
+  });
+}
+
+function closeDetailsPopover() {
+  if (!calendarState.detailsPopover) return;
+  calendarState.detailsPopover.closeDetails();
+}
+
 function safeRenderEmpty() {
   renderToday([]);
   renderWeek(getNext7DaysEvents([]));
-  renderMonth([]);
+  renderMonth([], calendarState.selectedDate);
   setAgendaEvents([]);
 }
 
@@ -514,11 +672,47 @@ function normalizeEvents(events) {
       if (!start) return null;
 
       const categoryData = resolveEventCategory(ev);
+      const stableId =
+        ev.id ||
+        [ev.source || "calendar", ev.title || "untitled", ev.start || "", ev.end || ""]
+          .join("|")
+          .toLowerCase();
+      const isAllDayEvent = Boolean(
+        ev.allDay ||
+          (start && end && start.getHours() === 0 && end.getHours() === 0)
+      );
+
+      const normalizedEnd = end || start;
+      const rangeEnd = new Date(normalizedEnd);
+      if (
+        isAllDayEvent &&
+        rangeEnd > start &&
+        rangeEnd.getHours() === 0 &&
+        rangeEnd.getMinutes() === 0
+      ) {
+        rangeEnd.setDate(rangeEnd.getDate() - 1);
+      }
+
+      const daySpanDates = [];
+      let cursor = new Date(start);
+      cursor.setHours(0, 0, 0, 0);
+      const endCursor = new Date(rangeEnd);
+      endCursor.setHours(0, 0, 0, 0);
+      while (cursor <= endCursor) {
+        daySpanDates.push(formatYmd(cursor));
+        cursor.setDate(cursor.getDate() + 1);
+      }
 
       return {
         ...ev,
+        id: stableId,
         start,
-        end: end || start, // fallback so multi-day logic doesn’t explode
+        end: normalizedEnd,
+        isAllDay: isAllDayEvent,
+        startDate: formatYmd(start),
+        endDate: formatYmd(endCursor),
+        spansMultipleDays: daySpanDates.length > 1,
+        daySpanDates,
         category: categoryData.category,
         displayTitle: categoryData.displayTitle,
         rawTitle: ev.title || ""
@@ -531,14 +725,18 @@ function normalizeEvents(events) {
    EVENT NORMALISATION
 -------------------------------------------------------------------*/
 
+function formatYmd(dateValue) {
+  if (!dateValue) return "";
+  const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return "";
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 function isAllDay(ev) {
-  return (
-    ev.allDay ||
-    (ev.start &&
-      ev.end &&
-      ev.start.getHours() === 0 &&
-      ev.end.getHours() === 0)
-  );
+  return Boolean(ev?.isAllDay);
 }
 
 function expandMultiDay(events) {
@@ -572,18 +770,25 @@ function expandMultiDay(events) {
     }
 
     if (start.toDateString() !== adjustedEnd.toDateString()) {
+      const totalSpanDays = Math.floor((adjustedEnd - start) / (24 * 60 * 60 * 1000)) + 1;
+      let index = 0;
       let d = new Date(start);
       while (d <= adjustedEnd) {
         expanded.push({
           ...ev,
           start: new Date(d),
           end: new Date(d),
-          multiDay: true
+          multiDay: true,
+          spanPosition: index === 0 ? "start" : index === totalSpanDays - 1 ? "end" : "mid"
         });
+        index += 1;
         d.setDate(d.getDate() + 1);
       }
     } else {
-      expanded.push(ev);
+      expanded.push({
+        ...ev,
+        spanPosition: "single"
+      });
     }
   }
 
@@ -735,7 +940,7 @@ function renderWeek(days) {
    RENDER: MONTH VIEW (CALENDAR PAGE)
 -------------------------------------------------------------------*/
 
-function renderMonth(events) {
+function renderMonth(events, selectedDate = new Date()) {
   const grid = document.getElementById("calendar-month-grid");
   const title = document.getElementById("calendar-month-title");
   const todayLabel = document.getElementById("calendar-today-label");
@@ -746,11 +951,12 @@ function renderMonth(events) {
     return;
   }
 
+  const viewDate = selectedDate instanceof Date ? new Date(selectedDate) : new Date();
   const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
 
-  title.textContent = today.toLocaleDateString("en-AU", {
+  title.textContent = viewDate.toLocaleDateString("en-AU", {
     month: "long",
     year: "numeric"
   });
@@ -790,9 +996,9 @@ function renderMonth(events) {
 
     const cellDate = new Date(year, month, dayNumber);
     const key = `${year}-${month}-${dayNumber}`;
-    const dayEvents = (eventsByDay.get(key) || []).slice().sort(
-      (a, b) => a.start - b.start
-    );
+    const dayEvents = (eventsByDay.get(key) || []).slice().sort((a, b) => a.start - b.start);
+    const allDayEvents = dayEvents.filter(ev => isAllDay(ev));
+    const timedEvents = dayEvents.filter(ev => !isAllDay(ev));
 
     if (isToday(cellDate)) {
       cell.classList.add("calendar-today");
@@ -805,30 +1011,49 @@ function renderMonth(events) {
     dateEl.appendChild(dateBadge);
     cell.appendChild(dateEl);
 
-    const maxEvents = 2;
-    dayEvents.slice(0, maxEvents).forEach(ev => {
+    const allDayStrip = document.createElement("div");
+    allDayStrip.className = "day-allday-strip";
+    const maxAllDay = 2;
+    allDayEvents.slice(0, maxAllDay).forEach(ev => {
+      const banner = document.createElement("div");
+      const pos = ev.spanPosition === "start" ? "cont-start" : ev.spanPosition === "end" ? "cont-end" : ev.spanPosition === "mid" ? "cont-mid" : "cont-single";
+      banner.className = `allday-banner ${pos}`;
+      if (ev.source === "holidays") banner.classList.add("allday-banner--holiday");
+      banner.textContent = `${ev.source === "holidays" ? "🎉 " : ""}${ev.displayTitle || ev.title || "(Untitled)"}`;
+      allDayStrip.appendChild(banner);
+    });
+    if (allDayEvents.length > maxAllDay) {
+      const overflow = document.createElement("div");
+      overflow.className = "allday-more";
+      overflow.textContent = `+${allDayEvents.length - maxAllDay} more`;
+      allDayStrip.appendChild(overflow);
+    }
+    cell.appendChild(allDayStrip);
+
+    const timedWrap = document.createElement("div");
+    timedWrap.className = "day-timed-events";
+    const maxTimed = 2;
+    timedEvents.slice(0, maxTimed).forEach(ev => {
       const eventEl = document.createElement("div");
       eventEl.className = "calendar-event";
       applyEventCategoryStyles(eventEl, ev.category, "pill");
-      if (isAllDay(ev)) {
-        appendEventTitle(eventEl, ev);
-      } else {
-        eventEl.append(document.createTextNode(`${format.time(ev.start)} `));
-        appendEventTitle(eventEl, ev);
-      }
-      cell.appendChild(eventEl);
+      eventEl.append(document.createTextNode(`${format.time(ev.start)} `));
+      appendEventTitle(eventEl, ev);
+      timedWrap.appendChild(eventEl);
     });
 
-    if (dayEvents.length > maxEvents) {
+    if (timedEvents.length > maxTimed) {
       const moreEl = document.createElement("div");
       moreEl.className = "calendar-event calendar-event--more";
-      moreEl.textContent = `+${dayEvents.length - maxEvents} more`;
-      cell.appendChild(moreEl);
+      moreEl.textContent = `+${timedEvents.length - maxTimed} more`;
+      timedWrap.appendChild(moreEl);
     }
 
+    cell.appendChild(timedWrap);
     grid.appendChild(cell);
   }
 }
+
 
 /* ------------------------------------------------------------------
    RENDER: AGENDA VIEW

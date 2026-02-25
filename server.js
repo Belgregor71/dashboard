@@ -4,7 +4,7 @@ import "dotenv/config";
 import express from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import https from "https";
-import { readdir, readFile } from "fs/promises";
+import { readdir, readFile, stat, writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import fetch from "node-fetch";
@@ -43,6 +43,10 @@ const CALENDAR_URLS = {
   apple: process.env.CALENDAR_APPLE_URL,
   tripit: process.env.CALENDAR_TRIPIT_URL
 };
+const HOLIDAY_REGION_DEFAULT = "QLD";
+const HOLIDAY_COUNTRY = "AU";
+const HOLIDAY_CACHE_DIR = path.join(__dirname, "data", "holiday-cache");
+const HOLIDAY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 const CAMERA_MAP = new Map(CAMERA_CONFIG.map((camera) => [camera.id, camera]));
 const HA_TARGET = normalizeBaseUrl(HA_HOST);
@@ -382,6 +386,85 @@ async function fetchCalendar(url, sourceName = "") {
   }
 }
 
+async function readHolidayFallback(region, year) {
+  const fallbackPath = path.join(__dirname, "static", "data", `holidays_${String(region).toLowerCase()}_${year}.json`);
+  try {
+    const raw = await readFile(fallbackPath, "utf8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function normalizeHolidayRows(rows = [], region = HOLIDAY_REGION_DEFAULT) {
+  return rows
+    .map(row => {
+      const date = row.date || row.start;
+      const title = row.localName || row.name || row.title;
+      if (!date || !title) return null;
+      return {
+        id: `holiday:${region}:${date}:${title}`,
+        title,
+        start: date,
+        end: date,
+        allDay: true,
+        source: "holidays",
+        location: "Queensland, AU"
+      };
+    })
+    .filter(Boolean);
+}
+
+function isHolidayForRegion(row, region) {
+  if (!row || !region) return false;
+  if (row.global === true) return true;
+  if (!Array.isArray(row.counties)) return false;
+  return row.counties.includes(`AU-${region}`);
+}
+
+async function readHolidayCache(region, year) {
+  try {
+    const filePath = path.join(HOLIDAY_CACHE_DIR, `${String(region).toLowerCase()}_${year}.json`);
+    const fileStats = await stat(filePath);
+    if (Date.now() - fileStats.mtimeMs > HOLIDAY_CACHE_TTL_MS) return null;
+    const raw = await readFile(filePath, "utf8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+async function writeHolidayCache(region, year, rows) {
+  try {
+    await mkdir(HOLIDAY_CACHE_DIR, { recursive: true });
+    const filePath = path.join(HOLIDAY_CACHE_DIR, `${String(region).toLowerCase()}_${year}.json`);
+    await writeFile(filePath, JSON.stringify(rows), "utf8");
+  } catch (error) {
+    console.warn("Unable to write holiday cache", error.message);
+  }
+}
+
+async function fetchPublicHolidays(region, year) {
+  const cached = await readHolidayCache(region, year);
+  if (cached) return normalizeHolidayRows(cached, region);
+
+  try {
+    const url = `https://date.nager.at/api/v3/PublicHolidays/${year}/${HOLIDAY_COUNTRY}`;
+    const response = await fetchWithTimeout(url, {}, 6000);
+    if (!response.ok) throw new Error(`holiday api ${response.status}`);
+    const rows = await response.json();
+    const filtered = Array.isArray(rows) ? rows.filter(row => isHolidayForRegion(row, region)) : [];
+    await writeHolidayCache(region, year, filtered);
+    return normalizeHolidayRows(filtered, region);
+  } catch (error) {
+    console.warn("Holiday API unavailable, using local fallback", error.message);
+    const fallbackRows = await readHolidayFallback(region, year);
+    return normalizeHolidayRows(fallbackRows, region);
+  }
+}
+
 /* ============================================================================
    ENV CONFIG (INJECTED TO CLIENT)
 ============================================================================ */
@@ -390,7 +473,9 @@ app.get("/env.js", (req, res) => {
   const publicEnv = {
     HA_HOST: HA_HOST || "",
     GO2RTC_HOST: GO2RTC_HOST || "",
-    HA_DEBUG: process.env.HA_DEBUG === "1" ? "1" : ""
+    HA_DEBUG: process.env.HA_DEBUG === "1" ? "1" : "",
+    CALENDAR_DEBUG: process.env.CALENDAR_DEBUG === "1" ? "1" : "",
+    HOME_BASE: process.env.HOME_BASE || ""
   };
 
   res.type("application/javascript");
@@ -399,6 +484,9 @@ app.get("/env.js", (req, res) => {
       enabled: true,
       url: "",
       debug: publicEnv.HA_DEBUG === "1"
+    },
+    calendar: {
+      debug: publicEnv.CALENDAR_DEBUG === "1"
     }
   })};`);
 });
@@ -409,6 +497,9 @@ app.get("/api/config", (_req, res) => {
       enabled: true,
       url: "",
       debug: process.env.HA_DEBUG === "1"
+    },
+    calendar: {
+      debug: process.env.CALENDAR_DEBUG === "1"
     }
   });
 });
@@ -715,6 +806,27 @@ app.get("/api/photos", async (req, res) => {
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "static", "index.html"));
+});
+
+/* ============================================================================
+   CALENDAR HOLIDAYS
+============================================================================ */
+
+app.get("/api/calendar/holidays", async (req, res) => {
+  const region = String(req.query.region || HOLIDAY_REGION_DEFAULT).toUpperCase();
+  const year = Number.parseInt(String(req.query.year || new Date().getFullYear()), 10);
+  if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+    res.status(400).json({ error: "Invalid year" });
+    return;
+  }
+
+  try {
+    const holidays = await fetchPublicHolidays(region, year);
+    res.json(holidays);
+  } catch (error) {
+    console.error("Holiday endpoint failed", error);
+    res.json([]);
+  }
 });
 
 /* ============================================================================
