@@ -2479,7 +2479,7 @@ body[data-view="calendar"] .calendar-event {
 
 #weather-view {
   padding: 0;
-  height: 100vh;
+  height: 100%;
   box-sizing: border-box;
 }
 
