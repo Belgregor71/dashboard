@@ -1,0 +1,155 @@
+.weather-fx-overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+
+.weather-fx-layer,
+.weather-fx-rain,
+.weather-fx-glass,
+.fx-cloud-drift,
+.fx-sun-flare {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.weather-fx-layer--rain {
+  background: linear-gradient(180deg, rgba(76, 115, 150, 0.14) 0%, rgba(28, 40, 56, 0.24) 100%);
+}
+
+.weather-fx-layer--sun {
+  background:
+    radial-gradient(circle at 82% 10%, rgba(255, 214, 132, 0.2), transparent 45%),
+    linear-gradient(180deg, rgba(255, 208, 130, 0.1) 0%, rgba(40, 24, 8, 0.08) 100%);
+}
+
+.weather-fx-layer--cloud {
+  background: linear-gradient(180deg, rgba(120, 137, 156, 0.12) 0%, rgba(45, 53, 67, 0.16) 100%);
+}
+
+.weather-fx-layer--default {
+  background: linear-gradient(180deg, rgba(12, 16, 23, 0.08) 0%, rgba(10, 14, 20, 0.18) 100%);
+}
+
+.fx-rain-drop {
+  position: absolute;
+  top: -20vh;
+  width: 1px;
+  height: 15vh;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(195, 223, 255, 0.95));
+  animation-name: fx-rain-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.weather-fx-glass {
+  backdrop-filter: blur(1.5px);
+}
+
+.fx-glass-droplet {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.5), rgba(170, 205, 240, 0.1) 70%);
+  box-shadow: 0 0 6px rgba(160, 195, 225, 0.28);
+  animation: fx-glass-pulse ease-in-out infinite;
+}
+
+.fx-sun-flare {
+  border-radius: 50%;
+  transform-origin: center;
+  animation: fx-sun-flare 8s ease-in-out infinite;
+}
+
+.fx-sun-flare--a {
+  inset: auto auto -20% 60%;
+  width: 52vh;
+  height: 52vh;
+  background: radial-gradient(circle, rgba(255, 210, 112, 0.15), rgba(255, 210, 112, 0) 70%);
+}
+
+.fx-sun-flare--b {
+  inset: -18% 52% auto auto;
+  width: 36vh;
+  height: 36vh;
+  opacity: 0.7;
+  animation-delay: -2.8s;
+  background: radial-gradient(circle, rgba(255, 236, 176, 0.18), rgba(255, 236, 176, 0) 70%);
+}
+
+.fx-cloud-drift {
+  border-radius: 50%;
+  filter: blur(3px);
+  animation: fx-drift 16s ease-in-out infinite;
+}
+
+.fx-cloud-drift--a {
+  inset: 14% auto auto -12%;
+  width: 52vw;
+  height: 24vh;
+  background: radial-gradient(circle at 50% 50%, rgba(225, 236, 250, 0.12), rgba(225, 236, 250, 0) 72%);
+}
+
+.fx-cloud-drift--b {
+  inset: auto -10% 12% auto;
+  width: 48vw;
+  height: 22vh;
+  opacity: 0.8;
+  animation-delay: -7s;
+  background: radial-gradient(circle at 50% 50%, rgba(205, 221, 241, 0.1), rgba(205, 221, 241, 0) 72%);
+}
+
+@keyframes fx-rain-fall {
+  from {
+    transform: translateY(-20vh);
+  }
+  to {
+    transform: translateY(140vh);
+  }
+}
+
+@keyframes fx-glass-pulse {
+  0%,
+  100% {
+    opacity: 0.18;
+  }
+  50% {
+    opacity: 0.42;
+  }
+}
+
+@keyframes fx-sun-flare {
+  0%,
+  100% {
+    transform: scale(0.95);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+}
+
+@keyframes fx-drift {
+  0%,
+  100% {
+    transform: translateX(-2%);
+  }
+  50% {
+    transform: translateX(2%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-rain-drop,
+  .fx-glass-droplet,
+  .fx-sun-flare,
+  .fx-cloud-drift {
+    animation: none;
+  }
+}
