@@ -1106,7 +1106,7 @@ body[data-view="cameras"] .weather-view,
 body[data-view="cameras"] .status-view,
 body[data-view="cameras"] .briefing-view { display: none; }
 
-body[data-view="weather"] .weather-view { display: block; }
+body[data-view="weather"] .weather-view { display: flex; }
 body[data-view="weather"] .home-view,
 body[data-view="weather"] .calendar-view,
 body[data-view="weather"] .agenda-view,
@@ -3190,4 +3190,36 @@ body.dashboard-sleeping #weather-view {
 
 .is-hidden {
   display: none !important;
+}
+
+
+/* === Weather view sizing fix: keep timeline visible === */
+body[data-view="weather"] .weather-view {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+body[data-view="weather"] #weather-view {
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+}
+
+body[data-view="weather"] .weather-screen {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding-bottom: 160px; /* safe area for timeline + pills */
+}
+
+body[data-view="weather"] .weather-content {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  z-index: 7; /* ensure above background/fx layers */
 }
