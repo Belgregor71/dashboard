@@ -6,6 +6,10 @@
   z-index: 1;
 }
 
+.weather-content {
+  position: relative;
+  z-index: 2;
+}
 
 .weather-fx-layer,
 .weather-fx-rain,
