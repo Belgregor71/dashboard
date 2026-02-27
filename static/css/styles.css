@@ -2722,7 +2722,7 @@ body[data-view="calendar"] .calendar-event {
   position: absolute;
   left: 48px;
   right: 48px;
-  top: 210px;
+  top: 258px;
   z-index: 6;
   min-height: 36px;
   display: flex;
@@ -3316,4 +3316,38 @@ body[data-view="weather"] .weather-content {
   height: 100%;
   min-height: 0;
   z-index: 7; /* ensure above background/fx layers */
+}
+
+@media (max-height: 860px) {
+  .weather-anchor {
+    top: 28px;
+    left: 28px;
+    padding: 20px 24px;
+    max-width: 360px;
+  }
+
+  .weather-risk-strip {
+    left: 28px;
+    right: 28px;
+    top: 188px;
+  }
+
+  .weather-side-cards,
+  .weather-pills {
+    bottom: 112px;
+  }
+
+  .weather-side-cards {
+    left: 28px;
+    width: min(520px, calc(100% - 420px));
+  }
+
+  .weather-pills {
+    right: 28px;
+  }
+
+  .weather-timeline {
+    left: 28px;
+    right: 28px;
+  }
 }
