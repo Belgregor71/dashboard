@@ -829,6 +829,9 @@ function rerenderWeeklyFromCache() {
 /* 🔁 Cleanup on view change (prevents memory leaks) */
 on("view:changed", ({ view } = {}) => {
   clearLotties();
+  if (cachedWeather) {
+    renderCurrent(cachedWeather);
+  }
   if (!isWeatherViewActive()) {
     stopWeatherMotion();
     clearWeatherFxOverlay();
@@ -837,7 +840,6 @@ on("view:changed", ({ view } = {}) => {
     return;
   }
   if (cachedWeather) {
-    renderCurrent(cachedWeather);
     renderWeekly(cachedWeather.daily);
   }
 });
