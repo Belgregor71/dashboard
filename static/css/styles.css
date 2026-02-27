@@ -2718,6 +2718,100 @@ body[data-view="calendar"] .calendar-event {
   transform: translate(-50%, -48%);
 }
 
+.weather-risk-strip {
+  position: absolute;
+  left: 48px;
+  right: 48px;
+  top: 210px;
+  z-index: 6;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.weather-risk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  white-space: nowrap;
+}
+
+.weather-risk-badge--warning {
+  background: rgba(255, 160, 120, 0.26);
+}
+
+.weather-risk-empty {
+  opacity: 0.65;
+  font-size: 0.78rem;
+}
+
+.weather-side-cards {
+  position: absolute;
+  left: 48px;
+  bottom: 140px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  width: min(520px, calc(100% - 560px));
+  z-index: 6;
+}
+
+.weather-uv-card,
+.weather-rain-card {
+  padding: 12px;
+}
+
+.weather-side-card__title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  opacity: 0.68;
+}
+
+.weather-side-card__value {
+  margin-top: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.weather-side-card__meta {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  opacity: 0.78;
+}
+
+.weather-uv-dial {
+  margin-top: 8px;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: conic-gradient(rgba(255, 196, 90, 0.95) var(--uv-deg, 0deg), rgba(255, 255, 255, 0.14) 0deg);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.weather-rain-hourly {
+  margin-top: 8px;
+  height: 40px;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.weather-rain-hourly__bar {
+  width: 6px;
+  border-radius: 4px 4px 0 0;
+  background: rgba(120, 190, 255, 0.78);
+}
+
 .weather-pills {
   position: absolute;
   right: 48px;

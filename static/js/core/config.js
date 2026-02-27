@@ -3,6 +3,21 @@ const DASH_CONFIG = typeof window !== "undefined" ? window.__DASH_CONFIG__ ?? {}
 const HA_DASH_CONFIG = DASH_CONFIG.homeAssistant ?? {};
 
 export const CONFIG = {
+  weather: {
+    debugBom: ENV.WEATHER_DEBUG_BOM === "1",
+    // Optional Home Assistant BOM mapping.
+    // Set sourceEntityId per day (5/6/7 supported), warningsEntityId, and hourlyEntityId to enable richer panels.
+    bom: {
+      locationName: "",
+      warningsEntityId: "",
+      hourlyEntityId: "",
+      daily: {
+        5: { sourceEntityId: "" },
+        6: { sourceEntityId: "" },
+        7: { sourceEntityId: "" }
+      }
+    }
+  },
   homeAssistant: {
     enabled: true,
     url: "",
