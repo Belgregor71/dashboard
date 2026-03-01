@@ -3,6 +3,7 @@ import {
   COMMUTE_GREG_DEST,
   COMMUTE_BRETT_DEST
 } from "../config/config.js";
+import { setCommuteActive } from "./middleSlot.js";
 
 function loadCommuteLottie() {
   const container = document.getElementById("commute-lottie");
@@ -59,29 +60,11 @@ export function updateCommuteVisibility() {
   const now = new Date();
   const hour = now.getHours();
   const day = now.getDay();
-  const panel = document.getElementById("commute-panel");
-  if (!panel) return;
 
   const isWeekday = day >= 1 && day <= 5;
   const shouldShow = isWeekday && hour >= 6 && hour < 9;
   if (shouldShow) {
     loadCommuteLottie();
-    panel.classList.remove("is-collapsed");
-    requestAnimationFrame(() => {
-      panel.classList.remove("is-hidden");
-    });
-    return;
   }
-
-  if (panel.classList.contains("is-hidden")) return;
-  panel.classList.add("is-hidden");
-  panel.addEventListener(
-    "transitionend",
-    () => {
-      if (panel.classList.contains("is-hidden")) {
-        panel.classList.add("is-collapsed");
-      }
-    },
-    { once: true }
-  );
+  setCommuteActive(shouldShow);
 }
