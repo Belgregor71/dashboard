@@ -739,7 +739,6 @@ function renderBomPanels() {
   if (summaryHash === lastBomRenderHash) return;
   lastBomRenderHash = summaryHash;
 
-  const riskStrip = document.getElementById("weather-risk-strip");
   const uvDial = document.getElementById("weather-uv-dial");
   const uvValue = document.getElementById("weather-uv-dial-value");
   const uvMeta = document.getElementById("weather-uv-dial-meta");
@@ -754,32 +753,6 @@ function renderBomPanels() {
   const nextRainValue = document.getElementById("weather-next-rain");
   const nextRainMeta = document.getElementById("weather-next-rain-meta");
   const nextRainSpark = document.getElementById("weather-next-rain-spark");
-  const fireValue = document.getElementById("weather-fire-value");
-  const fireMeta = document.getElementById("weather-fire-meta");
-
-  if (riskStrip) {
-    const badges = [];
-    if (warnings.summary) badges.push(`<span class="weather-risk-badge weather-risk-badge--warning">⚠ ${warnings.summary}</span>`);
-    if (todayBundle.fireDanger) badges.push(`<span class="weather-risk-badge">🔥 ${todayBundle.fireDanger}</span>`);
-    if (todayBundle.uvMaxIndex != null || todayBundle.uvCategory) {
-      const uvText = todayBundle.uvMaxIndex != null ? `${todayBundle.uvCategory || "UV"} ${Math.round(todayBundle.uvMaxIndex)}` : todayBundle.uvCategory;
-      badges.push(`<span class="weather-risk-badge">☀ ${uvText}</span>`);
-    }
-    if (todayBundle.rainChance != null || todayBundle.rainRange) {
-      const chance = todayBundle.rainChance != null ? `${Math.round(todayBundle.rainChance)}%` : "Rain";
-      const range = todayBundle.rainRange ? ` ${todayBundle.rainRange}` : "";
-      badges.push(`<span class="weather-risk-badge">☔ ${chance}${range}</span>`);
-    }
-
-    const visibleBadges = badges.slice(0, 4);
-    if (visibleBadges.length) {
-      riskStrip.classList.remove("is-hidden");
-      riskStrip.innerHTML = visibleBadges.join("");
-    } else {
-      riskStrip.classList.add("is-hidden");
-      riskStrip.innerHTML = "";
-    }
-  }
 
   const uvDialData = normalizeUvDial(todayBundle.uvMaxIndex, todayBundle.uvCategory);
   if (uvDial) uvDial.style.setProperty("--uv-deg", `${uvDialData.degrees}deg`);
@@ -787,7 +760,7 @@ function renderBomPanels() {
   setTextIfChanged(uvMeta, uvDialData.label);
 
   setTextIfChanged(rainCard, todayBundle.rainChance != null ? `${Math.round(todayBundle.rainChance)}% chance` : "--");
-  setTextIfChanged(rainMeta, todayBundle.rainRange || "--");
+  setTextIfChanged(rainMeta, "");
   renderBarSparkline(rainSpark, rainfallSeries, 36);
 
   setTextIfChanged(humidityLarge, humidity != null ? `${Math.round(humidity)}%` : "--");
@@ -812,9 +785,6 @@ function renderBomPanels() {
     setTextIfChanged(nextRainMeta, "");
     renderBarSparkline(nextRainSpark, [], 28);
   }
-
-  setTextIfChanged(fireValue, todayBundle.fireDanger || "--");
-  setTextIfChanged(fireMeta, "");
 
   bomLog("summary", {
     warning: warnings.summary,
