@@ -77,14 +77,25 @@ function autoDetectEntityId(haStates, pattern) {
 
 function dayConfigFor(dayIndex, bomConfig, haStates) {
   const dayConfig = bomConfig?.daily ?? {};
-  const configForDay = dayConfig[dayIndex] || (dayIndex === 0 ? dayConfig[5] || {} : {});
+  const mappedDay = dayIndex === 0 ? 5 : dayIndex === 1 ? 6 : dayIndex === 2 ? 7 : dayIndex;
+  const configForDay = dayConfig[mappedDay] || dayConfig[dayIndex] || (dayIndex === 0 ? dayConfig[5] || {} : {});
   const suffix = dayIndex === 0 ? "" : `_${dayIndex}`;
   const explicitSource = normalizeEntityId(configForDay.sourceEntityId);
-  return {
+  const resolvedConfig = {
     ...BOM_DEFAULT_DAY_MAP,
     ...configForDay,
     sourceEntityId: explicitSource || autoDetectEntityId(haStates, `bom.*forecast.*${dayIndex}|forecast${suffix}`)
   };
+  bomLog("day mapping", {
+    dayIndex,
+    mappedDay,
+    sourceEntityId: resolvedConfig.sourceEntityId || "(auto-detect-miss)",
+    rainChance: resolvedConfig.rainChance || "",
+    rainRange: resolvedConfig.rainRange || "",
+    uvCategory: resolvedConfig.uvCategory || "",
+    uvMaxIndex: resolvedConfig.uvMaxIndex || ""
+  });
+  return resolvedConfig;
 }
 
 function readField(haStates, sourceEntityId, mappingValue) {
@@ -122,6 +133,15 @@ export function getBomForecastBundle(locationKey, dayIndex = 0, haStatesInput = 
   const bomConfig = CONFIG.weather?.bom || {};
   const dayConfig = dayConfigFor(dayIndex, bomConfig, haStates);
   const sourceEntityId = dayConfig.sourceEntityId;
+
+  bomLog("configured entity ids", {
+    dayIndex,
+    sourceEntityId: sourceEntityId || "",
+    rainChance: normalizeEntityId(dayConfig.rainChance),
+    rainRange: normalizeEntityId(dayConfig.rainRange),
+    uvCategory: normalizeEntityId(dayConfig.uvCategory),
+    uvMaxIndex: normalizeEntityId(dayConfig.uvMaxIndex)
+  });
 
   const tempMin = parseNumberSafe(readField(haStates, sourceEntityId, dayConfig.tempMin), null);
   const tempMax = parseNumberSafe(readField(haStates, sourceEntityId, dayConfig.tempMax), null);

@@ -719,7 +719,15 @@ function renderBomPanels() {
       const range = todayBundle.rainRange ? ` ${todayBundle.rainRange}` : "";
       badges.push(`<span class="weather-risk-badge">☔ ${chance}${range}</span>`);
     }
-    riskStrip.innerHTML = badges.slice(0, 4).join("") || `<span class="weather-risk-empty">No active weather risks</span>`;
+
+    const visibleBadges = badges.slice(0, 4);
+    if (visibleBadges.length) {
+      riskStrip.classList.remove("is-hidden");
+      riskStrip.innerHTML = visibleBadges.join("");
+    } else {
+      riskStrip.classList.add("is-hidden");
+      riskStrip.innerHTML = "";
+    }
   }
 
   const uvDialData = normalizeUvDial(todayBundle.uvMaxIndex, todayBundle.uvCategory);

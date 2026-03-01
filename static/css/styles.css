@@ -2733,6 +2733,11 @@ body[data-view="calendar"] .calendar-event {
   overflow: hidden;
 }
 
+
+.weather-risk-strip.is-hidden {
+  display: none !important;
+}
+
 .weather-risk-strip:has(.weather-risk-empty) {
   opacity: 0.45;
 }

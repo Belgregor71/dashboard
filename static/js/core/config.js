@@ -22,11 +22,28 @@ export const CONFIG = {
     debugBom: ENV.WEATHER_DEBUG_BOM === "1",
     // Optional Home Assistant BOM mapping.
     // Set sourceEntityId per day (5/6/7 supported), warningsEntityId, and hourlyEntityId to enable richer panels.
+    // Env example:
+    // WEATHER_DEBUG_BOM=1
+    // BOM_LOCATION_NAME=Nudgee
+    // BOM_WARNINGS_ENTITY_ID=sensor.nudgee_warnings
+    // BOM_HOURLY_ENTITY_ID=weather.nudgee_hourly
+    // BOM_RAIN_CHANCE_5=sensor.nudgee_rain_chance_5
+    // BOM_RAIN_RANGE_5=sensor.nudgee_rain_amount_range_5
+    // BOM_UV_CATEGORY_5=sensor.nudgee_uv_category_5
+    // BOM_UV_MAX_5=sensor.nudgee_uv_max_index_5
+    // BOM_RAIN_CHANCE_6=sensor.nudgee_rain_chance_6
+    // BOM_RAIN_RANGE_6=sensor.nudgee_rain_amount_range_6
+    // BOM_UV_CATEGORY_6=sensor.nudgee_uv_category_6
+    // BOM_UV_MAX_6=sensor.nudgee_uv_max_index_6
+    // BOM_RAIN_CHANCE_7=sensor.nudgee_rain_chance_7
+    // BOM_RAIN_RANGE_7=sensor.nudgee_rain_amount_range_7
+    // BOM_UV_CATEGORY_7=sensor.nudgee_uv_category_7
+    // BOM_UV_MAX_7=sensor.nudgee_uv_max_index_7
     bom: {
       locationName: "",
       warningsEntityId: "",
       hourlyEntityId: "",
-      daily: BOM_DAILY,
+      daily: DEFAULT_BOM_DAILY,
       ...DASH_BOM,
       daily: BOM_DAILY
     }
