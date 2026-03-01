@@ -525,6 +525,8 @@ export async function refreshCalendar() {
     const holidays = await fetchHolidaysForMonthContext(calendarState.selectedDate);
     const normalized = normalizeEvents(mergeHolidayEvents(data, holidays));
     calendarState.eventsCache = normalized;
+    const expandedAll = expandMultiDay(normalized);
+    window.__CAL_EVENTS__ = expandedAll;
 
     const filtered = applyCalendarFilters(normalized);
     const expanded = expandMultiDay(filtered);

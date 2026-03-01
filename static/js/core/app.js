@@ -9,6 +9,8 @@ import {
   updateCommuteTimes,
   updateCommuteVisibility
 } from "../modules/commute.js";
+import { initMiddleSlot } from "../modules/middleSlot.js";
+import { initNextEventPanel } from "../modules/nextEventPanel.js";
 
 import { refreshCalendar } from "../modules/calendar.js";
 import { startWeather } from "../services/weather/renderer.js";
@@ -39,6 +41,7 @@ function isEnabled(featureName, defaultValue = true) {
 
 export function startApp() {
   console.log("Dashboard starting…");
+  initMiddleSlot();
 
   registerView("home", {});
   registerView("calendar", {});
@@ -92,6 +95,7 @@ export function startApp() {
     refreshCalendar();
     const calendarMs = cfg.calendar?.refreshMs ?? 60_000;
     setInterval(refreshCalendar, calendarMs);
+    initNextEventPanel();
   } else {
     console.info("Calendar disabled");
   }
