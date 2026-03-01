@@ -1415,6 +1415,8 @@ body[data-view="weather"] #top-bar {
   grid-template-columns: 1fr;
   justify-items: start;
   padding: 20px 40px 10px;
+  position: relative;
+  z-index: 30;
 }
 
 body[data-view="weather"] #top-bar .panel {
@@ -1424,6 +1426,24 @@ body[data-view="weather"] #top-bar .panel {
 
 body[data-view="weather"] #time-panel {
   padding-left: 10px;
+}
+
+body[data-view="weather"] .weather-background,
+body[data-view="weather"] .weather-screen .wx-layer,
+body[data-view="weather"] .weather-screen .wx-flash,
+body[data-view="weather"] .weather-fx-overlay {
+  position: fixed;
+  inset: 0;
+}
+
+body[data-view="weather"] .weather-background {
+  z-index: 0;
+}
+
+body[data-view="weather"] .weather-fx-overlay,
+body[data-view="weather"] .weather-screen .wx-layer,
+body[data-view="weather"] .weather-screen .wx-flash {
+  z-index: 1;
 }
 
 body[data-view="agenda"] #commute-panel,
