@@ -2674,7 +2674,7 @@ body[data-view="calendar"] .calendar-event {
   position: relative;
   height: 100%;
   display: grid;
-  grid-template-rows: auto auto auto auto 1fr;
+  grid-template-rows: auto auto auto 1fr;
   gap: 18px;
   padding: 28px 48px;
   z-index: 7;
@@ -2739,58 +2739,20 @@ body[data-view="calendar"] .calendar-event {
   transform: translate(-50%, -48%);
 }
 
-.weather-risk-strip {
-  border-radius: 999px;
-  padding: 12px 16px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  min-height: 46px;
-  overflow: hidden;
-}
-
-.weather-risk-strip.is-hidden {
-  display: none !important;
-}
-
-.weather-risk-strip:has(.weather-risk-empty) {
-  opacity: 0.45;
-}
-
-.weather-risk-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.78rem;
-  letter-spacing: 0.04em;
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  white-space: nowrap;
-}
-
-.weather-risk-badge--warning {
-  background: rgba(255, 160, 120, 0.26);
-}
-
-.weather-risk-empty {
-  opacity: 0.65;
-  font-size: 0.78rem;
-}
-
 .weather-metrics {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px;
 }
 
 .metric-card {
   border-radius: 22px;
-  padding: 18px;
-  min-height: 138px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  padding: 16px 18px;
+  min-height: 128px;
+  display: grid;
+  grid-template-rows: auto auto auto 1fr;
+  align-items: start;
+  row-gap: 6px;
 }
 
 .metric-label {
@@ -2801,19 +2763,21 @@ body[data-view="calendar"] .calendar-event {
 }
 
 .metric-value {
-  margin-top: 10px;
+  margin-top: 0;
   font-size: clamp(2.4rem, 3.4vw, 3.4rem);
   font-weight: 700;
 }
 
 .metric-meta {
-  margin-top: 6px;
+  margin-top: 0;
+  min-height: 1.2em;
   font-size: clamp(1.05rem, 1.2vw, 1.2rem);
   opacity: 0.75;
 }
 
 .metric-uv-dial {
   margin-top: 8px;
+  align-self: end;
   width: 64px;
   height: 64px;
   border-radius: 50%;
@@ -2823,6 +2787,7 @@ body[data-view="calendar"] .calendar-event {
 
 .metric-spark {
   margin-top: 10px;
+  align-self: end;
   height: 44px;
   display: flex;
   align-items: flex-end;
