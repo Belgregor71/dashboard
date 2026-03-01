@@ -246,64 +246,78 @@
       <div id="wx-flash" class="wx-flash"></div>
       <div id="weather-fx-overlay" class="weather-fx-overlay" aria-hidden="true"></div>
 
-      <div class="weather-content">
-        <div class="weather-anchor weather-glass">
-          <div id="weather-cine-condition" class="weather-anchor__condition">--</div>
-          <div id="weather-cine-temp" class="weather-anchor__temp">--°</div>
-          <div id="weather-cine-meta" class="weather-anchor__meta">--</div>
+      <div id="weather-content" class="weather-content">
+        <div id="weather-overlay" class="weather-overlay">
+          <div class="weather-hero weather-glass" id="weather-hero">
+            <div class="weather-hero__header">
+              <span class="weather-hero__eyebrow">
+                TODAY • <span id="weather-location-label">NUDGEE</span>
+              </span>
+              <div class="weather-hero__divider"></div>
+            </div>
+
+            <div class="weather-hero__main">
+              <div class="weather-hero__condition" id="weather-cine-condition">--</div>
+              <div class="weather-hero__temp" id="weather-cine-temp">--°</div>
+              <div class="weather-hero__meta" id="weather-cine-meta">--</div>
+            </div>
+          </div>
+
+          <div class="weather-risk-row">
+            <div id="weather-risk-strip" class="weather-risk-strip weather-glass is-hidden"></div>
+          </div>
+
+          <div class="weather-metrics" id="weather-metrics">
+            <div class="metric-card weather-glass metric-uv">
+              <div class="metric-label">UV Index</div>
+              <div class="metric-value" id="weather-uv-dial-value">--</div>
+              <div class="metric-meta" id="weather-uv-dial-meta"></div>
+              <div id="weather-uv-dial" class="metric-uv-dial" aria-hidden="true"></div>
+            </div>
+
+            <div class="metric-card weather-glass metric-rain">
+              <div class="metric-label">Rain</div>
+              <div class="metric-value" id="weather-rain-range-card">--</div>
+              <div class="metric-meta" id="weather-rain-range-meta"></div>
+              <div id="weather-rain-hourly" class="metric-spark" aria-hidden="true"></div>
+            </div>
+
+            <div class="metric-card weather-glass metric-humidity">
+              <div class="metric-label">Humidity</div>
+              <div class="metric-value" id="weather-humidity-large">--</div>
+              <div class="metric-meta" id="weather-humidity-meta"></div>
+            </div>
+
+            <div class="metric-card weather-glass metric-feels">
+              <div class="metric-label">Feels Like</div>
+              <div class="metric-value" id="weather-feels-like-large">--</div>
+              <div class="metric-meta" id="weather-feels-like-meta"></div>
+            </div>
+
+            <div class="metric-card weather-glass metric-next-rain">
+              <div class="metric-label">Next Rain Window</div>
+              <div class="metric-value" id="weather-next-rain">--</div>
+              <div class="metric-meta" id="weather-next-rain-meta"></div>
+              <div id="weather-next-rain-graph" class="metric-spark" aria-hidden="true"></div>
+            </div>
+
+            <div class="metric-card weather-glass metric-fire">
+              <div class="metric-label">Fire Danger</div>
+              <div class="metric-value" id="weather-fire-value">--</div>
+              <div class="metric-meta" id="weather-fire-meta"></div>
+            </div>
+          </div>
+
+          <div class="weather-dayparts" id="weather-dayparts"></div>
+
+          <div class="weather-timeline-wrap">
+            <div class="weather-timeline" id="weather-timeline">
+              <div class="weather-timeline__track" id="weather-timeline-track"></div>
+            </div>
+          </div>
         </div>
 
         <div id="weather-narrative" class="weather-narrative"></div>
-
-        <div id="weather-risk-strip" class="weather-risk-strip weather-glass"></div>
-
-        <div class="weather-side-cards">
-          <div class="weather-uv-card weather-glass">
-            <div class="weather-side-card__title">UV</div>
-            <div id="weather-uv-dial" class="weather-uv-dial" aria-hidden="true"></div>
-            <div id="weather-uv-dial-value" class="weather-side-card__value">--</div>
-            <div id="weather-uv-dial-meta" class="weather-side-card__meta">--</div>
-          </div>
-
-          <div class="weather-rain-card weather-glass">
-            <div class="weather-side-card__title">Rain Range</div>
-            <div id="weather-rain-range-card" class="weather-side-card__value">Chance unavailable</div>
-            <div id="weather-rain-range-meta" class="weather-side-card__meta">Range unavailable</div>
-            <div id="weather-rain-hourly" class="weather-rain-hourly" aria-hidden="true"></div>
-          </div>
-        </div>
-
-        <div class="weather-pills" id="weather-pills">
-          <div class="weather-pill weather-glass" id="weather-pill-wind">
-            <span class="weather-pill__icon" aria-hidden="true">💨</span>
-            <span class="weather-pill__label">Wind</span>
-            <span class="weather-pill__value" id="weather-pill-wind-value">--</span>
-          </div>
-          <div class="weather-pill weather-glass" id="weather-pill-uv">
-            <span class="weather-pill__icon" aria-hidden="true">☀️</span>
-            <span class="weather-pill__label">UV</span>
-            <span class="weather-pill__value" id="weather-pill-uv-value">--</span>
-          </div>
-          <div class="weather-pill weather-glass" id="weather-pill-rain">
-            <span class="weather-pill__icon" aria-hidden="true">☔</span>
-            <span class="weather-pill__label">Rain</span>
-            <span class="weather-pill__value" id="weather-pill-rain-value">--</span>
-          </div>
-          <div class="weather-pill weather-glass" id="weather-pill-storm">
-            <span class="weather-pill__icon" aria-hidden="true">⚡</span>
-            <span class="weather-pill__label">Storm</span>
-            <span class="weather-pill__value" id="weather-pill-storm-value">--</span>
-          </div>
-          <div class="weather-pill weather-glass" id="weather-pill-visibility">
-            <span class="weather-pill__icon" aria-hidden="true">🌫️</span>
-            <span class="weather-pill__label">Visibility</span>
-            <span class="weather-pill__value" id="weather-pill-visibility-value">--</span>
-          </div>
-        </div>
-
-        <div class="weather-timeline" id="weather-timeline">
-          <div class="weather-timeline__track" id="weather-timeline-track"></div>
-        </div>
       </div>
     </div>
   </main>

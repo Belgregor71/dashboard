@@ -75,9 +75,11 @@ function autoDetectEntityId(haStates, pattern) {
   return Object.keys(haStates).find((id) => regex.test(id)) || "";
 }
 
+const DAY_SLOT_MAP = { 0: 5, 1: 6, 2: 7 };
+
 function dayConfigFor(dayIndex, bomConfig, haStates) {
   const dayConfig = bomConfig?.daily ?? {};
-  const mappedDay = dayIndex === 0 ? 5 : dayIndex === 1 ? 6 : dayIndex === 2 ? 7 : dayIndex;
+  const mappedDay = DAY_SLOT_MAP[dayIndex] ?? dayIndex;
   const configForDay = dayConfig[mappedDay] || dayConfig[dayIndex] || (dayIndex === 0 ? dayConfig[5] || {} : {});
   const suffix = dayIndex === 0 ? "" : `_${dayIndex}`;
   const explicitSource = normalizeEntityId(configForDay.sourceEntityId);

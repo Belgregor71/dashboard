@@ -31,7 +31,6 @@ let cachedWeather = null;
 let narrativeTimer = null;
 let timelineInterval = null;
 let timelineIndex = 0;
-const pillState = {};
 let lastAppliedCinematicCode = null;
 let lastAppliedView = "";
 let cinematicPaused = false;
@@ -80,7 +79,6 @@ const BACKGROUND_ASSETS = {
   }
 };
 
-const PILL_MIN_VISIBLE_MS = 5 * 60 * 1000;
 const GOLDEN_HOUR_WINDOW_MS = 45 * 60 * 1000;
 const HEAT_HAZE_TEMP_C = 32;
 const HEAT_HAZE_FEELS_LIKE_C = 34;
@@ -457,9 +455,11 @@ function renderCinematic(data, hourlyIndex) {
   const anchorCondition = document.getElementById("weather-cine-condition");
   const anchorTemp = document.getElementById("weather-cine-temp");
   const anchorMeta = document.getElementById("weather-cine-meta");
+  const locationLabel = document.getElementById("weather-location-label");
 
   if (anchorCondition) anchorCondition.textContent = weatherText(current.weathercode);
   if (anchorTemp) anchorTemp.textContent = `${Math.round(current.temperature)}°`;
+  if (locationLabel) locationLabel.textContent = (CONFIG.weather?.bom?.locationName || "Nudgee").toUpperCase();
 
   const max = Math.round(daily.temperature_2m_max[0]);
   const min = Math.round(daily.temperature_2m_min[0]);
@@ -471,7 +471,6 @@ function renderCinematic(data, hourlyIndex) {
 
   renderNarrative({ current, hourly, hourlyIndex });
   renderTimeline({ current, hourly, hourlyIndex });
-  renderPills({ current, hourly, hourlyIndex });
   scheduleBomPanelUpdate({ immediate: true });
 }
 
@@ -517,20 +516,22 @@ function renderNarrative({ current, hourly, hourlyIndex }) {
 function renderTimeline({ hourly, hourlyIndex }) {
   const track = document.getElementById("weather-timeline-track");
   const timeline = document.getElementById("weather-timeline");
+  const dayparts = document.getElementById("weather-dayparts");
   if (!track || !timeline) return;
 
   if (!hourly?.time?.length) {
     track.innerHTML = "<div class=\"weather-timeline__item\">Hourly data unavailable.</div>";
+    if (dayparts) dayparts.innerHTML = "";
     return;
   }
 
   const now = new Date();
   const endWindow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  const indicesForRange = (start, end) =>
+  const indicesForRange = (startHour, endHour) =>
     hourly.time.reduce((acc, time, idx) => {
       const t = new Date(time);
       if (t < now || t > endWindow) return acc;
-      if (withinHourRange(t.getHours(), start, end)) acc.push(idx);
+      if (withinHourRange(t.getHours(), startHour, endHour)) acc.push(idx);
       return acc;
     }, []);
 
@@ -551,19 +552,14 @@ function renderTimeline({ hourly, hourlyIndex }) {
   };
 
   track.innerHTML = "";
+  if (dayparts) dayparts.innerHTML = "";
   let maxPop = 0;
 
   buckets.forEach((bucket, index) => {
-    const temps = bucket.indices
-      .map(i => hourly.temperature_2m?.[i])
-      .filter(v => v != null);
+    const temps = bucket.indices.map(i => hourly.temperature_2m?.[i]).filter(v => v != null);
     const avgTemp = mean(temps);
-    const codes = bucket.indices
-      .map(i => hourly.weathercode?.[i])
-      .filter(v => v != null);
-    const popValues = bucket.indices
-      .map(i => hourly.precipitation_probability?.[i])
-      .filter(v => v != null);
+    const codes = bucket.indices.map(i => hourly.weathercode?.[i]).filter(v => v != null);
+    const popValues = bucket.indices.map(i => hourly.precipitation_probability?.[i]).filter(v => v != null);
     const pop = popValues.length ? Math.max(...popValues) : 0;
     maxPop = Math.max(maxPop, pop);
     const reprCode = mostCommon(codes);
@@ -603,6 +599,17 @@ function renderTimeline({ hourly, hourlyIndex }) {
     item.appendChild(temp);
     item.appendChild(desc);
     track.appendChild(item);
+
+    if (dayparts) {
+      const daypart = document.createElement("div");
+      daypart.className = "weather-daypart weather-glass";
+      daypart.innerHTML = `
+        <div class="weather-daypart__label">${bucket.label}</div>
+        <div class="weather-daypart__value">${icon ? `${icon} ` : ""}${avgTemp != null ? `${Math.round(avgTemp)}°` : "--"}</div>
+        <div class="weather-daypart__meta">${descriptor}</div>
+      `;
+      dayparts.appendChild(daypart);
+    }
   });
 
   timeline.classList.toggle("has-rain", maxPop >= 20);
@@ -629,45 +636,28 @@ function startTimelineAutoAdvance(count) {
   }, 20000);
 }
 
-function renderPills({ current, hourly, hourlyIndex }) {
-  const windValue = document.getElementById("weather-pill-wind-value");
-  const uvValue = document.getElementById("weather-pill-uv-value");
-  const rainValue = document.getElementById("weather-pill-rain-value");
-  const stormValue = document.getElementById("weather-pill-storm-value");
-  const visValue = document.getElementById("weather-pill-visibility-value");
+function renderSparkline(target, series, maxHeight = 36) {
+  if (!target) return;
+  if (!series?.length) {
+    target.innerHTML = "";
+    return;
+  }
+  const maxValue = Math.max(...series.map(item => item.value), 1);
+  target.innerHTML = series
+    .map((item) => {
+      const height = Math.max(6, Math.round((item.value / maxValue) * maxHeight));
+      return `<span class="bar" style="height:${height}px" title="${item.label}: ${item.value}mm"></span>`;
+    })
+    .join("");
+}
 
-  const windSpeed = hourly?.windspeed_10m?.[hourlyIndex] ?? current?.windspeed ?? 0;
-  const uvIndex = hourly?.uv_index?.[hourlyIndex];
-  const pop = hourly?.precipitation_probability?.[hourlyIndex] ?? 0;
-  const visibility = hourly?.visibility?.[hourlyIndex];
-  const visibilityKm = visibility != null ? visibility / 1000 : null;
-  const category = getBaseCategory(current?.weathercode);
-
-  if (windValue) windValue.textContent = `${Math.round(windSpeed)} km/h`;
-  if (uvValue) uvValue.textContent = uvIndex != null ? `${Math.round(uvIndex)}` : "--";
-  if (rainValue) rainValue.textContent = `${Math.round(pop)}%`;
-  if (stormValue) stormValue.textContent = category === "storm" ? "Alert" : "--";
-  if (visValue) visValue.textContent = visibilityKm != null ? `${visibilityKm.toFixed(1)} km` : "--";
-
-  const windShow = windSpeed >= 25;
-  const windHide = windSpeed < 20;
-  setPillVisibility("weather-pill-wind", windShow, windHide);
-
-  const uvShow = uvIndex != null && uvIndex >= 6;
-  const uvHide = uvIndex != null && uvIndex < 5;
-  setPillVisibility("weather-pill-uv", uvShow, uvHide);
-
-  const rainShow = pop >= 20;
-  const rainHide = pop < 15;
-  setPillVisibility("weather-pill-rain", rainShow, rainHide);
-
-  const stormShow = category === "storm";
-  const stormHide = category !== "storm";
-  setPillVisibility("weather-pill-storm", stormShow, stormHide);
-
-  const visShow = category === "fog" || (visibilityKm != null && visibilityKm <= 8);
-  const visHide = category !== "fog" && (visibilityKm == null || visibilityKm > 8);
-  setPillVisibility("weather-pill-visibility", visShow, visHide);
+function formatNextRainMeta(deltaMs, amount) {
+  const mins = Math.max(0, Math.round(deltaMs / 60000));
+  if (mins < 60) return `in ${mins} mins • ${amount.toFixed(1)}mm`;
+  const hours = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  if (!remMins) return `in ${hours} hrs • ${amount.toFixed(1)}mm`;
+  return `in ${hours}h ${remMins}m • ${amount.toFixed(1)}mm`;
 }
 
 function normalizeUvDial(index, category) {
@@ -683,7 +673,11 @@ function renderBomPanels() {
   const haStates = getAllEntities();
   const todayBundle = getBomForecastBundle(CONFIG.weather?.bom?.locationName || "", 0, haStates);
   const warnings = getBomWarnings(haStates);
-  const hourly = getBomHourlySeries(haStates);
+  const bomHourly = getBomHourlySeries(haStates);
+  const hourly = cachedWeather?.hourly || {};
+  const hourlyIndex = getClosestHourIndex(hourly);
+  const humidity = hourlyIndex != null ? hourly?.relativehumidity_2m?.[hourlyIndex] : null;
+  const apparent = hourlyIndex != null ? hourly?.apparent_temperature?.[hourlyIndex] : null;
 
   const summaryHash = JSON.stringify({
     warning: warnings.summary,
@@ -692,7 +686,9 @@ function renderBomPanels() {
     uvCategory: todayBundle.uvCategory,
     rainChance: todayBundle.rainChance,
     rainRange: todayBundle.rainRange,
-    hourly: hourly.map((item) => item.value)
+    hourly: bomHourly.map((item) => item.value),
+    humidity,
+    apparent
   });
 
   if (summaryHash === lastBomRenderHash) return;
@@ -705,6 +701,15 @@ function renderBomPanels() {
   const rainCard = document.getElementById("weather-rain-range-card");
   const rainMeta = document.getElementById("weather-rain-range-meta");
   const rainSparkline = document.getElementById("weather-rain-hourly");
+  const humidityLarge = document.getElementById("weather-humidity-large");
+  const humidityMeta = document.getElementById("weather-humidity-meta");
+  const feelsLarge = document.getElementById("weather-feels-like-large");
+  const feelsMeta = document.getElementById("weather-feels-like-meta");
+  const nextRainValue = document.getElementById("weather-next-rain");
+  const nextRainMeta = document.getElementById("weather-next-rain-meta");
+  const nextRainGraph = document.getElementById("weather-next-rain-graph");
+  const fireValue = document.getElementById("weather-fire-value");
+  const fireMeta = document.getElementById("weather-fire-meta");
 
   if (riskStrip) {
     const badges = [];
@@ -737,24 +742,35 @@ function renderBomPanels() {
   setTextIfChanged(uvValue, uvDialData.uvIndex != null ? `${uvDialData.uvIndex}` : "--");
   setTextIfChanged(uvMeta, uvDialData.label);
 
-  const rainChanceText = todayBundle.rainChance != null ? `${Math.round(todayBundle.rainChance)}% chance` : "Chance unavailable";
-  const rainRangeText = todayBundle.rainRange || "Range unavailable";
+  const rainChanceText = todayBundle.rainChance != null ? `${Math.round(todayBundle.rainChance)}% chance` : "--";
+  const rainRangeText = todayBundle.rainRange || "--";
   setTextIfChanged(rainCard, rainChanceText);
   setTextIfChanged(rainMeta, rainRangeText);
+  renderSparkline(rainSparkline, bomHourly, 36);
 
-  if (rainSparkline) {
-    if (hourly.length) {
-      const maxValue = Math.max(...hourly.map((item) => item.value), 1);
-      rainSparkline.innerHTML = hourly
-        .map((item) => {
-          const height = Math.max(6, Math.round((item.value / maxValue) * 36));
-          return `<span class="weather-rain-hourly__bar" style="height:${height}px" title="${item.label}: ${item.value}mm"></span>`;
-        })
-        .join("");
-    } else {
-      rainSparkline.innerHTML = "";
-    }
+  setTextIfChanged(humidityLarge, humidity != null ? `${Math.round(humidity)}%` : "--");
+  setTextIfChanged(humidityMeta, humidity != null ? "Relative humidity" : "");
+  setTextIfChanged(feelsLarge, apparent != null ? `${Math.round(apparent)}°` : "--");
+  setTextIfChanged(feelsMeta, apparent != null ? "Apparent temperature" : "");
+
+  const nextRainIndex = bomHourly.findIndex((item) => item.value > 0.1);
+  if (nextRainIndex >= 0) {
+    const nextRainPoint = bomHourly[nextRainIndex];
+    const nextRainAt = new Date(Date.now() + nextRainIndex * 60 * 60 * 1000);
+    const timeLabel = nextRainAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).toLowerCase();
+    setTextIfChanged(nextRainValue, timeLabel);
+
+    const deltaMs = nextRainIndex * 60 * 60 * 1000;
+    setTextIfChanged(nextRainMeta, formatNextRainMeta(deltaMs, nextRainPoint.value));
+  } else {
+    setTextIfChanged(nextRainValue, "No rain expected");
+    setTextIfChanged(nextRainMeta, "");
   }
+
+  renderSparkline(nextRainGraph, bomHourly.slice(0, 12), 28);
+
+  setTextIfChanged(fireValue, todayBundle.fireDanger || "--");
+  setTextIfChanged(fireMeta, todayBundle.fireDanger ? "Today" : "");
 
   bomLog("summary", {
     warning: warnings.summary,
@@ -762,7 +778,9 @@ function renderBomPanels() {
     uvCategory: todayBundle.uvCategory,
     uvMaxIndex: todayBundle.uvMaxIndex,
     rainChance: todayBundle.rainChance,
-    rainRange: todayBundle.rainRange
+    rainRange: todayBundle.rainRange,
+    humidity,
+    apparent
   });
 }
 
@@ -779,41 +797,6 @@ function scheduleBomPanelUpdate({ immediate = false } = {}) {
     pendingBomTimer = null;
     renderBomPanels();
   }, WEATHER_DEBOUNCE_MS);
-}
-
-function setPillVisibility(id, shouldShow, shouldHide) {
-  const pill = document.getElementById(id);
-  if (!pill) return;
-
-  const now = Date.now();
-  const state = pillState[id] || { visible: false, lastShown: 0, belowCount: 0 };
-
-  if (shouldShow) {
-    state.belowCount = 0;
-  } else if (shouldHide) {
-    state.belowCount += 1;
-  } else {
-    state.belowCount = 0;
-  }
-
-  if (shouldShow && !state.visible) {
-    state.visible = true;
-    state.lastShown = now;
-    pill.classList.add("is-visible");
-  }
-
-  if (
-    !shouldShow &&
-    state.visible &&
-    shouldHide &&
-    state.belowCount >= 2 &&
-    now - state.lastShown > PILL_MIN_VISIBLE_MS
-  ) {
-    state.visible = false;
-    pill.classList.remove("is-visible");
-  }
-
-  pillState[id] = state;
 }
 
 export function stopWeatherView() {

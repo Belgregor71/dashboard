@@ -12,9 +12,9 @@ const DEFAULT_BOM_DAILY = {
 const DASH_BOM = DASH_WEATHER.bom ?? {};
 const DASH_BOM_DAILY = DASH_BOM.daily ?? {};
 const BOM_DAILY = {
-  5: { ...DEFAULT_BOM_DAILY[5], ...(DASH_BOM_DAILY[5] ?? {}) },
-  6: { ...DEFAULT_BOM_DAILY[6], ...(DASH_BOM_DAILY[6] ?? {}) },
-  7: { ...DEFAULT_BOM_DAILY[7], ...(DASH_BOM_DAILY[7] ?? {}) }
+  5: { ...DEFAULT_BOM_DAILY[5], ...(DASH_BOM_DAILY[5] ?? DASH_BOM_DAILY["5"] ?? {}) },
+  6: { ...DEFAULT_BOM_DAILY[6], ...(DASH_BOM_DAILY[6] ?? DASH_BOM_DAILY["6"] ?? {}) },
+  7: { ...DEFAULT_BOM_DAILY[7], ...(DASH_BOM_DAILY[7] ?? DASH_BOM_DAILY["7"] ?? {}) }
 };
 
 export const CONFIG = {
