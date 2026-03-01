@@ -2,8 +2,20 @@ import { emit } from "./eventBus.js";
 
 let currentView = "home";
 const viewOrder = ["home", "weather", "cameras", "calendar", "agenda", "status", "briefing"];
+const viewAliasMap = new Map([
+  ["briefing-view", "briefing"],
+  ["status-view", "status"],
+  ["weather-view", "weather"],
+  ["camera", "cameras"]
+]);
 const viewHandlers = new Map();
 let clickHandlerRegistered = false;
+
+function normalizeViewId(view) {
+  if (typeof view !== "string") return "";
+  const normalized = view.trim().toLowerCase();
+  return viewAliasMap.get(normalized) || normalized;
+}
 
 function normalizeViewModule(module = {}) {
   return {
@@ -52,18 +64,23 @@ export function getCurrentView() {
 }
 
 export function switchView(view) {
-  if (!view || view === currentView) return;
+  const normalizedView = normalizeViewId(view);
+  if (!normalizedView || normalizedView === currentView) return;
+  if (!viewOrder.includes(normalizedView)) {
+    console.warn("Ignoring unknown view:", view);
+    return;
+  }
 
   const previousView = currentView;
   const previousModule = getViewModule(previousView);
-  const nextModule = getViewModule(view);
+  const nextModule = getViewModule(normalizedView);
 
   previousModule.onLeave();
 
-  currentView = view;
-  document.body.dataset.view = view;
+  currentView = normalizedView;
+  document.body.dataset.view = normalizedView;
   nextModule.render();
   nextModule.onEnter();
 
-  emit("view:changed", { view, previousView });
+  emit("view:changed", { view: normalizedView, previousView });
 }
