@@ -251,7 +251,7 @@
           <div class="weather-hero weather-glass" id="weather-hero">
             <div class="weather-hero__header">
               <span class="weather-hero__eyebrow">
-                TODAY • <span id="weather-location-label">NUDGEE</span>
+                <span id="weather-location-label">NUDGEE</span> • <span id="weather-day-label">TODAY</span>
               </span>
               <div class="weather-hero__divider"></div>
             </div>
@@ -279,7 +279,7 @@
               <div class="metric-label">Rain</div>
               <div class="metric-value" id="weather-rain-range-card">--</div>
               <div class="metric-meta" id="weather-rain-range-meta"></div>
-              <div id="weather-rain-hourly" class="metric-spark" aria-hidden="true"></div>
+              <div id="weather-rain-spark" class="metric-spark" aria-hidden="true"></div>
             </div>
 
             <div class="metric-card weather-glass metric-humidity">
@@ -292,13 +292,14 @@
               <div class="metric-label">Feels Like</div>
               <div class="metric-value" id="weather-feels-like-large">--</div>
               <div class="metric-meta" id="weather-feels-like-meta"></div>
+              <div id="weather-feels-spark" class="metric-spark" aria-hidden="true"></div>
             </div>
 
             <div class="metric-card weather-glass metric-next-rain">
               <div class="metric-label">Next Rain Window</div>
               <div class="metric-value" id="weather-next-rain">--</div>
               <div class="metric-meta" id="weather-next-rain-meta"></div>
-              <div id="weather-next-rain-graph" class="metric-spark" aria-hidden="true"></div>
+              <div id="weather-next-rain-spark" class="metric-spark" aria-hidden="true"></div>
             </div>
 
             <div class="metric-card weather-glass metric-fire">
@@ -309,12 +310,7 @@
           </div>
 
           <div class="weather-dayparts" id="weather-dayparts"></div>
-
-          <div class="weather-timeline-wrap">
-            <div class="weather-timeline" id="weather-timeline">
-              <div class="weather-timeline__track" id="weather-timeline-track"></div>
-            </div>
-          </div>
+          <div id="weather-hourly-strip" class="weather-hourly-strip weather-glass"></div>
         </div>
 
         <div id="weather-narrative" class="weather-narrative"></div>

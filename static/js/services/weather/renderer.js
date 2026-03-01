@@ -29,8 +29,6 @@ let activeLotties = [];
 let cachedDaily = null;
 let cachedWeather = null;
 let narrativeTimer = null;
-let timelineInterval = null;
-let timelineIndex = 0;
 let lastAppliedCinematicCode = null;
 let lastAppliedView = "";
 let cinematicPaused = false;
@@ -456,10 +454,12 @@ function renderCinematic(data, hourlyIndex) {
   const anchorTemp = document.getElementById("weather-cine-temp");
   const anchorMeta = document.getElementById("weather-cine-meta");
   const locationLabel = document.getElementById("weather-location-label");
+  const dayLabel = document.getElementById("weather-day-label");
 
   if (anchorCondition) anchorCondition.textContent = weatherText(current.weathercode);
   if (anchorTemp) anchorTemp.textContent = `${Math.round(current.temperature)}°`;
   if (locationLabel) locationLabel.textContent = (CONFIG.weather?.bom?.locationName || "Nudgee").toUpperCase();
+  if (dayLabel) dayLabel.textContent = "TODAY";
 
   const max = Math.round(daily.temperature_2m_max[0]);
   const min = Math.round(daily.temperature_2m_min[0]);
@@ -470,7 +470,8 @@ function renderCinematic(data, hourlyIndex) {
   }
 
   renderNarrative({ current, hourly, hourlyIndex });
-  renderTimeline({ current, hourly, hourlyIndex });
+  renderDayparts({ hourly, hourlyIndex });
+  renderHourlyStrip({ hourly, hourlyIndex });
   scheduleBomPanelUpdate({ immediate: true });
 }
 
@@ -513,15 +514,41 @@ function renderNarrative({ current, hourly, hourlyIndex }) {
   }, 10000);
 }
 
-function renderTimeline({ hourly, hourlyIndex }) {
-  const track = document.getElementById("weather-timeline-track");
-  const timeline = document.getElementById("weather-timeline");
+function getNextHourlySlice(hourly, hourlyIndex, count = 12) {
+  if (!hourly?.time?.length) return [];
+  const start = hourlyIndex == null ? 0 : Math.max(0, hourlyIndex);
+  const end = Math.min(hourly.time.length, start + count);
+  const rows = [];
+  for (let idx = start; idx < end; idx += 1) {
+    rows.push({
+      index: idx,
+      time: hourly.time[idx],
+      temp: hourly.temperature_2m?.[idx],
+      apparent: hourly.apparent_temperature?.[idx],
+      code: hourly.weathercode?.[idx],
+      precipProb: hourly.precipitation_probability?.[idx],
+      precipMm: hourly.precipitation?.[idx],
+      isDay: hourly.is_day?.[idx]
+    });
+  }
+  return rows;
+}
+
+function formatHourLabel(time) {
+  const date = new Date(time);
+  if (Number.isNaN(date.getTime())) return "--";
+  return date
+    .toLocaleTimeString([], { hour: "numeric", hour12: true })
+    .replace(/\s/g, "")
+    .toLowerCase();
+}
+
+function renderDayparts({ hourly, hourlyIndex }) {
   const dayparts = document.getElementById("weather-dayparts");
-  if (!track || !timeline) return;
+  if (!dayparts) return;
 
   if (!hourly?.time?.length) {
-    track.innerHTML = "<div class=\"weather-timeline__item\">Hourly data unavailable.</div>";
-    if (dayparts) dayparts.innerHTML = "";
+    dayparts.innerHTML = "";
     return;
   }
 
@@ -542,7 +569,7 @@ function renderTimeline({ hourly, hourlyIndex }) {
     { key: "morning", label: "Morning", indices: indicesForRange(5, 11) }
   ];
 
-  const mostCommon = values => {
+  const mostCommon = (values) => {
     if (!values?.length) return null;
     const counts = values.reduce((acc, v) => {
       acc[v] = (acc[v] || 0) + 1;
@@ -551,104 +578,103 @@ function renderTimeline({ hourly, hourlyIndex }) {
     return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
   };
 
-  track.innerHTML = "";
-  if (dayparts) dayparts.innerHTML = "";
-  let maxPop = 0;
-
-  buckets.forEach((bucket, index) => {
+  dayparts.innerHTML = "";
+  buckets.forEach((bucket) => {
     const temps = bucket.indices.map(i => hourly.temperature_2m?.[i]).filter(v => v != null);
     const avgTemp = mean(temps);
     const codes = bucket.indices.map(i => hourly.weathercode?.[i]).filter(v => v != null);
     const popValues = bucket.indices.map(i => hourly.precipitation_probability?.[i]).filter(v => v != null);
     const pop = popValues.length ? Math.max(...popValues) : 0;
-    maxPop = Math.max(maxPop, pop);
     const reprCode = mostCommon(codes);
     const descriptor = pickDescriptor(reprCode, pop);
     const icon = pickIcon(reprCode, pop);
 
-    const item = document.createElement("div");
-    item.className = "weather-timeline__item";
-    if (index === timelineIndex) item.classList.add("is-active");
-    if (pop >= 50) {
-      item.classList.add("has-rain-strong");
-    } else if (pop >= 20) {
-      item.classList.add("has-rain");
-    }
-
-    const phase = document.createElement("div");
-    phase.className = "weather-timeline__phase";
-    phase.textContent = bucket.label;
-
-    const temp = document.createElement("div");
-    temp.className = "weather-timeline__temp";
-    temp.textContent = avgTemp != null ? `${Math.round(avgTemp)}°` : "--";
-
-    const desc = document.createElement("div");
-    desc.className = "weather-timeline__desc";
-    if (icon) {
-      const iconEl = document.createElement("span");
-      iconEl.className = "weather-timeline__icon";
-      iconEl.textContent = icon;
-      desc.appendChild(iconEl);
-    }
-    const textEl = document.createElement("span");
-    textEl.textContent = descriptor;
-    desc.appendChild(textEl);
-
-    item.appendChild(phase);
-    item.appendChild(temp);
-    item.appendChild(desc);
-    track.appendChild(item);
-
-    if (dayparts) {
-      const daypart = document.createElement("div");
-      daypart.className = "weather-daypart weather-glass";
-      daypart.innerHTML = `
-        <div class="weather-daypart__label">${bucket.label}</div>
-        <div class="weather-daypart__value">${icon ? `${icon} ` : ""}${avgTemp != null ? `${Math.round(avgTemp)}°` : "--"}</div>
-        <div class="weather-daypart__meta">${descriptor}</div>
-      `;
-      dayparts.appendChild(daypart);
-    }
+    const daypart = document.createElement("div");
+    daypart.className = "weather-daypart weather-glass";
+    daypart.innerHTML = `
+      <div class="weather-daypart__label">${bucket.label}</div>
+      <div class="weather-daypart__value">${icon ? `${icon} ` : ""}${avgTemp != null ? `${Math.round(avgTemp)}°` : "--"}</div>
+      <div class="weather-daypart__meta">${descriptor}</div>
+    `;
+    dayparts.appendChild(daypart);
   });
-
-  timeline.classList.toggle("has-rain", maxPop >= 20);
-  timeline.classList.toggle("has-rain-strong", maxPop >= 50);
-
-  startTimelineAutoAdvance(buckets.length);
 }
 
-function startTimelineAutoAdvance(count) {
-  if (timelineInterval) clearInterval(timelineInterval);
-  if (count <= 1) return;
-  if (document.body?.dataset?.view !== "weather") return;
+function renderHourlyStrip({ hourly, hourlyIndex }) {
+  const strip = document.getElementById("weather-hourly-strip");
+  if (!strip) return;
 
-  timelineIndex = 0;
-  timelineInterval = setInterval(() => {
-    const track = document.getElementById("weather-timeline-track");
-    if (!track) return;
-    const items = Array.from(track.children);
-    if (!items.length) return;
-    timelineIndex = (timelineIndex + 1) % items.length;
-    items.forEach((item, idx) => {
-      item.classList.toggle("is-active", idx === timelineIndex);
-    });
-  }, 20000);
-}
-
-function renderSparkline(target, series, maxHeight = 36) {
-  if (!target) return;
-  if (!series?.length) {
-    target.innerHTML = "";
+  const rows = getNextHourlySlice(hourly, hourlyIndex, 12);
+  if (!rows.length) {
+    strip.innerHTML = "";
+    strip.classList.add("is-hidden");
     return;
   }
-  const maxValue = Math.max(...series.map(item => item.value), 1);
+
+  strip.classList.remove("is-hidden");
+  strip.innerHTML = rows.map((row, idx) => `
+    <div class="hourly-item">
+      <div class="hourly-time">${formatHourLabel(row.time)}</div>
+      <div class="hourly-lottie" id="weather-hourly-lottie-${idx}"></div>
+      <div class="hourly-temp">${row.temp != null ? `${Math.round(row.temp)}°` : "--"}</div>
+    </div>
+  `).join("");
+
+  rows.forEach((row, idx) => {
+    if (row.code == null) return;
+    const animFile = weatherAnimation(row.code, row.isDay !== 0);
+    const anim = loadLottieAnimation(`weather-hourly-lottie-${idx}`, animFile);
+    if (anim) activeLotties.push(anim);
+  });
+}
+
+function toggleSparkVisibility(target, isVisible) {
+  if (!target) return;
+  target.style.display = isVisible ? "" : "none";
+}
+
+function renderBarSparkline(target, series = [], maxHeight = 36) {
+  if (!target) return;
+  if (!series.length) {
+    target.innerHTML = "";
+    toggleSparkVisibility(target, false);
+    return;
+  }
+  const maxValue = Math.max(...series.map(item => item.value ?? 0), 0);
+  const divisor = maxValue > 0 ? maxValue : 1;
   target.innerHTML = series
     .map((item) => {
-      const height = Math.max(6, Math.round((item.value / maxValue) * maxHeight));
-      return `<span class="bar" style="height:${height}px" title="${item.label}: ${item.value}mm"></span>`;
+      const normalized = (item.value ?? 0) / divisor;
+      const height = Math.max(4, Math.round(normalized * maxHeight));
+      return `<span class="bar" style="height:${height}px" title="${item.label}: ${(item.value ?? 0).toFixed(1)}mm"></span>`;
     })
     .join("");
+  toggleSparkVisibility(target, true);
+}
+
+function renderLineSparkline(target, values = []) {
+  if (!target) return;
+  const numeric = values.filter(value => Number.isFinite(value));
+  if (!numeric.length) {
+    target.innerHTML = "";
+    toggleSparkVisibility(target, false);
+    return;
+  }
+
+  const minValue = Math.min(...numeric);
+  const maxValue = Math.max(...numeric);
+  const range = Math.max(maxValue - minValue, 1);
+  const width = 100;
+  const height = 44;
+  const points = values.map((value, idx) => {
+    const x = values.length <= 1 ? 0 : (idx / (values.length - 1)) * width;
+    const safeValue = Number.isFinite(value) ? value : minValue;
+    const y = height - ((safeValue - minValue) / range) * (height - 4) - 2;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+
+  target.innerHTML = `<svg class="metric-line" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${points.join(" ")}" /></svg>`;
+  toggleSparkVisibility(target, true);
 }
 
 function formatNextRainMeta(deltaMs, amount) {
@@ -676,8 +702,27 @@ function renderBomPanels() {
   const bomHourly = getBomHourlySeries(haStates);
   const hourly = cachedWeather?.hourly || {};
   const hourlyIndex = getClosestHourIndex(hourly);
+  const hourlySlice = getNextHourlySlice(hourly, hourlyIndex, 12);
   const humidity = hourlyIndex != null ? hourly?.relativehumidity_2m?.[hourlyIndex] : null;
   const apparent = hourlyIndex != null ? hourly?.apparent_temperature?.[hourlyIndex] : null;
+  const rainfallSeries = (bomHourly.length ? bomHourly : hourlySlice.map((row) => ({
+    value: Number.isFinite(row.precipMm) ? row.precipMm : 0,
+    label: formatHourLabel(row.time)
+  })));
+
+  if (BOM_DEBUG) {
+    bomLog("resolved BOM ids", {
+      warningsEntityId: CONFIG.weather?.bom?.warningsEntityId || "(auto)",
+      hourlyEntityId: CONFIG.weather?.bom?.hourlyEntityId || "(auto)",
+      locationName: CONFIG.weather?.bom?.locationName || "(unset)"
+    });
+    bomLog("hourly array lengths", {
+      temperature: hourly?.temperature_2m?.length || 0,
+      apparent: hourly?.apparent_temperature?.length || 0,
+      precipitation: hourly?.precipitation?.length || 0,
+      bomHourly: bomHourly.length
+    });
+  }
 
   const summaryHash = JSON.stringify({
     warning: warnings.summary,
@@ -686,7 +731,7 @@ function renderBomPanels() {
     uvCategory: todayBundle.uvCategory,
     rainChance: todayBundle.rainChance,
     rainRange: todayBundle.rainRange,
-    hourly: bomHourly.map((item) => item.value),
+    rainfall: rainfallSeries.map((item) => item.value),
     humidity,
     apparent
   });
@@ -700,14 +745,15 @@ function renderBomPanels() {
   const uvMeta = document.getElementById("weather-uv-dial-meta");
   const rainCard = document.getElementById("weather-rain-range-card");
   const rainMeta = document.getElementById("weather-rain-range-meta");
-  const rainSparkline = document.getElementById("weather-rain-hourly");
+  const rainSpark = document.getElementById("weather-rain-spark");
   const humidityLarge = document.getElementById("weather-humidity-large");
   const humidityMeta = document.getElementById("weather-humidity-meta");
   const feelsLarge = document.getElementById("weather-feels-like-large");
   const feelsMeta = document.getElementById("weather-feels-like-meta");
+  const feelsSpark = document.getElementById("weather-feels-spark");
   const nextRainValue = document.getElementById("weather-next-rain");
   const nextRainMeta = document.getElementById("weather-next-rain-meta");
-  const nextRainGraph = document.getElementById("weather-next-rain-graph");
+  const nextRainSpark = document.getElementById("weather-next-rain-spark");
   const fireValue = document.getElementById("weather-fire-value");
   const fireMeta = document.getElementById("weather-fire-meta");
 
@@ -736,41 +782,39 @@ function renderBomPanels() {
   }
 
   const uvDialData = normalizeUvDial(todayBundle.uvMaxIndex, todayBundle.uvCategory);
-  if (uvDial) {
-    uvDial.style.setProperty("--uv-deg", `${uvDialData.degrees}deg`);
-  }
+  if (uvDial) uvDial.style.setProperty("--uv-deg", `${uvDialData.degrees}deg`);
   setTextIfChanged(uvValue, uvDialData.uvIndex != null ? `${uvDialData.uvIndex}` : "--");
   setTextIfChanged(uvMeta, uvDialData.label);
 
-  const rainChanceText = todayBundle.rainChance != null ? `${Math.round(todayBundle.rainChance)}% chance` : "--";
-  const rainRangeText = todayBundle.rainRange || "--";
-  setTextIfChanged(rainCard, rainChanceText);
-  setTextIfChanged(rainMeta, rainRangeText);
-  renderSparkline(rainSparkline, bomHourly, 36);
+  setTextIfChanged(rainCard, todayBundle.rainChance != null ? `${Math.round(todayBundle.rainChance)}% chance` : "--");
+  setTextIfChanged(rainMeta, todayBundle.rainRange || "--");
+  renderBarSparkline(rainSpark, rainfallSeries, 36);
 
   setTextIfChanged(humidityLarge, humidity != null ? `${Math.round(humidity)}%` : "--");
-  setTextIfChanged(humidityMeta, humidity != null ? "Relative humidity" : "");
+  setTextIfChanged(humidityMeta, "");
+
   setTextIfChanged(feelsLarge, apparent != null ? `${Math.round(apparent)}°` : "--");
-  setTextIfChanged(feelsMeta, apparent != null ? "Apparent temperature" : "");
+  setTextIfChanged(feelsMeta, "");
+  renderLineSparkline(feelsSpark, hourlySlice.map((row) => row.apparent));
 
-  const nextRainIndex = bomHourly.findIndex((item) => item.value > 0.1);
+  const nextRainIndex = rainfallSeries.findIndex((item) => item.value > 0.1);
   if (nextRainIndex >= 0) {
-    const nextRainPoint = bomHourly[nextRainIndex];
-    const nextRainAt = new Date(Date.now() + nextRainIndex * 60 * 60 * 1000);
-    const timeLabel = nextRainAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).toLowerCase();
+    const nextRainPoint = rainfallSeries[nextRainIndex];
+    const hourlyPoint = hourlySlice[nextRainIndex];
+    const timestamp = hourlyPoint?.time ? new Date(hourlyPoint.time) : new Date(Date.now() + nextRainIndex * 3600000);
+    const timeLabel = timestamp.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).toLowerCase();
+    const deltaMs = Math.max(0, timestamp.getTime() - Date.now());
     setTextIfChanged(nextRainValue, timeLabel);
-
-    const deltaMs = nextRainIndex * 60 * 60 * 1000;
     setTextIfChanged(nextRainMeta, formatNextRainMeta(deltaMs, nextRainPoint.value));
+    renderBarSparkline(nextRainSpark, rainfallSeries, 28);
   } else {
     setTextIfChanged(nextRainValue, "No rain expected");
     setTextIfChanged(nextRainMeta, "");
+    renderBarSparkline(nextRainSpark, [], 28);
   }
 
-  renderSparkline(nextRainGraph, bomHourly.slice(0, 12), 28);
-
   setTextIfChanged(fireValue, todayBundle.fireDanger || "--");
-  setTextIfChanged(fireMeta, todayBundle.fireDanger ? "Today" : "");
+  setTextIfChanged(fireMeta, "");
 
   bomLog("summary", {
     warning: warnings.summary,
@@ -802,8 +846,6 @@ function scheduleBomPanelUpdate({ immediate = false } = {}) {
 export function stopWeatherView() {
   clearLotties();
   stopWeatherMotion();
-  if (timelineInterval) clearInterval(timelineInterval);
-  timelineInterval = null;
   if (narrativeTimer) clearTimeout(narrativeTimer);
   narrativeTimer = null;
   if (pendingBomTimer) clearTimeout(pendingBomTimer);
