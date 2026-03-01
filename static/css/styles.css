@@ -2722,7 +2722,7 @@ body[data-view="calendar"] .calendar-event {
   position: absolute;
   left: 48px;
   right: 48px;
-  top: 258px;
+  top: clamp(150px, 18vh, 258px);
   z-index: 6;
   min-height: 36px;
   display: flex;
@@ -2731,6 +2731,10 @@ body[data-view="calendar"] .calendar-event {
   padding: 8px 12px;
   border-radius: 999px;
   overflow: hidden;
+}
+
+.weather-risk-strip:has(.weather-risk-empty) {
+  opacity: 0.45;
 }
 
 .weather-risk-badge {
@@ -2757,7 +2761,7 @@ body[data-view="calendar"] .calendar-event {
 .weather-side-cards {
   position: absolute;
   left: 48px;
-  bottom: 140px;
+  bottom: clamp(80px, 12vh, 140px);
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
@@ -2815,7 +2819,7 @@ body[data-view="calendar"] .calendar-event {
 .weather-pills {
   position: absolute;
   right: 48px;
-  bottom: 140px;
+  bottom: clamp(80px, 12vh, 140px);
   display: grid;
   gap: 12px;
   z-index: 6;
@@ -3335,12 +3339,11 @@ body[data-view="weather"] .weather-content {
   .weather-risk-strip {
     left: 28px;
     right: 28px;
-    top: 188px;
   }
 
   .weather-side-cards,
   .weather-pills {
-    bottom: 112px;
+    bottom: clamp(72px, 10vh, 112px);
   }
 
   .weather-side-cards {
