@@ -1011,24 +1011,36 @@ function renderMonth(events, selectedDate = new Date()) {
     dateEl.appendChild(dateBadge);
     cell.appendChild(dateEl);
 
-    const allDayStrip = document.createElement("div");
-    allDayStrip.className = "day-allday-strip";
     const maxAllDay = 2;
-    allDayEvents.slice(0, maxAllDay).forEach(ev => {
-      const banner = document.createElement("div");
-      const pos = ev.spanPosition === "start" ? "cont-start" : ev.spanPosition === "end" ? "cont-end" : ev.spanPosition === "mid" ? "cont-mid" : "cont-single";
-      banner.className = `allday-banner ${pos}`;
-      if (ev.source === "holidays") banner.classList.add("allday-banner--holiday");
-      banner.textContent = `${ev.source === "holidays" ? "🎉 " : ""}${ev.displayTitle || ev.title || "(Untitled)"}`;
-      allDayStrip.appendChild(banner);
-    });
-    if (allDayEvents.length > maxAllDay) {
-      const overflow = document.createElement("div");
-      overflow.className = "allday-more";
-      overflow.textContent = `+${allDayEvents.length - maxAllDay} more`;
-      allDayStrip.appendChild(overflow);
+    if (allDayEvents.length) {
+      const allDayStrip = document.createElement("div");
+      allDayStrip.className = "day-allday-strip";
+
+      allDayEvents.slice(0, maxAllDay).forEach(ev => {
+        const banner = document.createElement("div");
+        const pos = ev.spanPosition === "start" ? "cont-start" : ev.spanPosition === "end" ? "cont-end" : ev.spanPosition === "mid" ? "cont-mid" : "cont-single";
+        banner.className = `allday-banner ${pos}`;
+        if (ev.source === "holidays") banner.classList.add("allday-banner--holiday");
+
+        if (ev.source === "holidays") {
+          const holidayIcon = document.createElement("span");
+          holidayIcon.className = "event-icon";
+          holidayIcon.textContent = "🎉";
+          banner.appendChild(holidayIcon);
+        }
+        appendEventTitle(banner, ev);
+        allDayStrip.appendChild(banner);
+      });
+
+      if (allDayEvents.length > maxAllDay) {
+        const overflow = document.createElement("div");
+        overflow.className = "allday-more";
+        overflow.textContent = `+${allDayEvents.length - maxAllDay} more`;
+        allDayStrip.appendChild(overflow);
+      }
+
+      cell.appendChild(allDayStrip);
     }
-    cell.appendChild(allDayStrip);
 
     const timedWrap = document.createElement("div");
     timedWrap.className = "day-timed-events";

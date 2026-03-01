@@ -3179,7 +3179,6 @@ body.dashboard-sleeping #weather-view {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-height: 40px;
 }
 
 .day-timed-events {
@@ -3193,11 +3192,18 @@ body.dashboard-sleeping #weather-view {
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   background: rgba(71, 85, 105, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.15);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.allday-banner .event-icon {
+  margin-right: 0;
 }
 
 .allday-banner.cont-start {
