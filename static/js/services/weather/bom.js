@@ -23,19 +23,37 @@ function normalizeEntityId(value) {
   return typeof value === "string" && value.trim() ? value.trim() : "";
 }
 
+function isUnavailableValue(value) {
+  if (value == null) return true;
+  if (typeof value !== "string") return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === "" || normalized === "unknown" || normalized === "unavailable" || normalized === "none" || normalized === "null";
+}
+
+function bomLog(message, details = null) {
+  if (CONFIG.weather?.debugBom !== true) return;
+  if (details != null) {
+    console.log(`[Weather BOM] ${message}`, details);
+    return;
+  }
+  console.log(`[Weather BOM] ${message}`);
+}
+
 export function getEntityState(haStates, entityId, fallback = null) {
   const id = normalizeEntityId(entityId);
   if (!id) return fallback;
   const state = haStates?.[id]?.state;
-  if (state == null || state === "unknown" || state === "unavailable") return fallback;
+  if (isUnavailableValue(state)) return fallback;
   return state;
 }
 
 export function getEntityAttr(haStates, entityId, attr, fallback = null) {
   const id = normalizeEntityId(entityId);
   if (!id || !attr) return fallback;
-  const value = haStates?.[id]?.attributes?.[attr];
-  return value ?? fallback;
+  const entity = haStates?.[id];
+  if (!entity || isUnavailableValue(entity.state)) return fallback;
+  const value = entity.attributes?.[attr];
+  return isUnavailableValue(value) ? fallback : (value ?? fallback);
 }
 
 export function parseNumberSafe(value, fallback = null) {
@@ -58,20 +76,20 @@ function autoDetectEntityId(haStates, pattern) {
 }
 
 function dayConfigFor(dayIndex, bomConfig, haStates) {
-  const configForDay = bomConfig?.daily?.[dayIndex] || {};
+  const dayConfig = bomConfig?.daily ?? {};
+  const configForDay = dayConfig[dayIndex] || (dayIndex === 0 ? dayConfig[5] || {} : {});
   const suffix = dayIndex === 0 ? "" : `_${dayIndex}`;
+  const explicitSource = normalizeEntityId(configForDay.sourceEntityId);
   return {
     ...BOM_DEFAULT_DAY_MAP,
     ...configForDay,
-    sourceEntityId:
-      normalizeEntityId(configForDay.sourceEntityId) ||
-      autoDetectEntityId(haStates, `bom.*forecast.*${dayIndex}|forecast${suffix}`)
+    sourceEntityId: explicitSource || autoDetectEntityId(haStates, `bom.*forecast.*${dayIndex}|forecast${suffix}`)
   };
 }
 
 function readField(haStates, sourceEntityId, mappingValue) {
   if (!mappingValue) return null;
-  if (mappingValue.startsWith("attribute:")) {
+  if (typeof mappingValue === "string" && mappingValue.startsWith("attribute:")) {
     return getEntityAttr(haStates, sourceEntityId, mappingValue.replace("attribute:", ""), null);
   }
   const explicitEntityId = normalizeEntityId(mappingValue);
@@ -112,6 +130,16 @@ export function getBomForecastBundle(locationKey, dayIndex = 0, haStatesInput = 
   const rainMax = parseNumberSafe(readField(haStates, sourceEntityId, dayConfig.rainMax), null);
   const uvMaxIndex = parseNumberSafe(readField(haStates, sourceEntityId, dayConfig.uvMaxIndex), null);
 
+  bomLog("forecast bundle", {
+    locationKey: locationKey || bomConfig.locationName || "",
+    dayIndex,
+    sourceEntityId: sourceEntityId || "(auto-detect-miss)",
+    rainChance,
+    rainMin,
+    rainMax,
+    uvMaxIndex
+  });
+
   return {
     locationKey: locationKey || bomConfig.locationName || "",
     dayIndex,
@@ -138,6 +166,7 @@ export function getBomWarnings(haStatesInput = null) {
   const haStates = haStatesInput || {};
   const configured = normalizeEntityId(CONFIG.weather?.bom?.warningsEntityId);
   const warningsEntityId = configured || autoDetectEntityId(haStates, "warning|alert|bom");
+  bomLog("warnings entity", { configured, resolved: warningsEntityId || "(none)" });
   const state = getEntityState(haStates, warningsEntityId, "");
   const attrWarnings = getEntityAttr(haStates, warningsEntityId, "warnings", []);
   const messages = Array.isArray(attrWarnings)
@@ -151,6 +180,7 @@ export function getBomHourlySeries(haStatesInput = null) {
   const haStates = haStatesInput || {};
   const configured = normalizeEntityId(CONFIG.weather?.bom?.hourlyEntityId);
   const hourlyEntityId = configured || autoDetectEntityId(haStates, "hourly.*rain|rain.*hourly");
+  bomLog("hourly entity", { configured, resolved: hourlyEntityId || "(none)" });
   const values = getEntityAttr(haStates, hourlyEntityId, "rainfall", []) || getEntityAttr(haStates, hourlyEntityId, "values", []);
   const hours = getEntityAttr(haStates, hourlyEntityId, "hours", []);
   if (!Array.isArray(values)) return [];
@@ -167,6 +197,11 @@ export function getBomRelatedEntityIds(haStatesInput = null) {
   Object.values(bomConfig.daily || {}).forEach((dayCfg) => {
     const id = normalizeEntityId(dayCfg?.sourceEntityId);
     if (id) ids.add(id);
+
+    Object.values(dayCfg || {}).forEach((mappedValue) => {
+      const mappedEntityId = normalizeEntityId(mappedValue);
+      if (mappedEntityId.includes(".")) ids.add(mappedEntityId);
+    });
   });
   if (bomConfig.warningsEntityId) ids.add(bomConfig.warningsEntityId);
   if (bomConfig.hourlyEntityId) ids.add(bomConfig.hourlyEntityId);

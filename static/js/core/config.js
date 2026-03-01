@@ -1,6 +1,21 @@
 const ENV = typeof window !== "undefined" ? window.__ENV__ ?? {} : {};
 const DASH_CONFIG = typeof window !== "undefined" ? window.__DASH_CONFIG__ ?? {} : {};
 const HA_DASH_CONFIG = DASH_CONFIG.homeAssistant ?? {};
+const DASH_WEATHER = DASH_CONFIG.weather ?? {};
+
+const DEFAULT_BOM_DAILY = {
+  5: { sourceEntityId: "" },
+  6: { sourceEntityId: "" },
+  7: { sourceEntityId: "" }
+};
+
+const DASH_BOM = DASH_WEATHER.bom ?? {};
+const DASH_BOM_DAILY = DASH_BOM.daily ?? {};
+const BOM_DAILY = {
+  5: { ...DEFAULT_BOM_DAILY[5], ...(DASH_BOM_DAILY[5] ?? {}) },
+  6: { ...DEFAULT_BOM_DAILY[6], ...(DASH_BOM_DAILY[6] ?? {}) },
+  7: { ...DEFAULT_BOM_DAILY[7], ...(DASH_BOM_DAILY[7] ?? {}) }
+};
 
 export const CONFIG = {
   weather: {
@@ -11,11 +26,9 @@ export const CONFIG = {
       locationName: "",
       warningsEntityId: "",
       hourlyEntityId: "",
-      daily: {
-        5: { sourceEntityId: "" },
-        6: { sourceEntityId: "" },
-        7: { sourceEntityId: "" }
-      }
+      daily: BOM_DAILY,
+      ...DASH_BOM,
+      daily: BOM_DAILY
     }
   },
   homeAssistant: {

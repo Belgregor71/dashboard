@@ -470,11 +470,36 @@ async function fetchPublicHolidays(region, year) {
 ============================================================================ */
 
 app.get("/env.js", (req, res) => {
+  const bomDailyConfig = {
+    5: {
+      sourceEntityId: process.env.BOM_D5_ENTITY_ID || "",
+      rainChance: process.env.BOM_RAIN_CHANCE_5 || "",
+      rainRange: process.env.BOM_RAIN_RANGE_5 || "",
+      uvCategory: process.env.BOM_UV_CATEGORY_5 || "",
+      uvMaxIndex: process.env.BOM_UV_MAX_5 || ""
+    },
+    6: {
+      sourceEntityId: process.env.BOM_D6_ENTITY_ID || "",
+      rainChance: process.env.BOM_RAIN_CHANCE_6 || "",
+      rainRange: process.env.BOM_RAIN_RANGE_6 || "",
+      uvCategory: process.env.BOM_UV_CATEGORY_6 || "",
+      uvMaxIndex: process.env.BOM_UV_MAX_6 || ""
+    },
+    7: {
+      sourceEntityId: process.env.BOM_D7_ENTITY_ID || "",
+      rainChance: process.env.BOM_RAIN_CHANCE_7 || "",
+      rainRange: process.env.BOM_RAIN_RANGE_7 || "",
+      uvCategory: process.env.BOM_UV_CATEGORY_7 || "",
+      uvMaxIndex: process.env.BOM_UV_MAX_7 || ""
+    }
+  };
+
   const publicEnv = {
     HA_HOST: HA_HOST || "",
     GO2RTC_HOST: GO2RTC_HOST || "",
     HA_DEBUG: process.env.HA_DEBUG === "1" ? "1" : "",
     CALENDAR_DEBUG: process.env.CALENDAR_DEBUG === "1" ? "1" : "",
+    WEATHER_DEBUG_BOM: process.env.WEATHER_DEBUG_BOM === "1" ? "1" : "",
     HOME_BASE: process.env.HOME_BASE || ""
   };
 
@@ -487,6 +512,14 @@ app.get("/env.js", (req, res) => {
     },
     calendar: {
       debug: publicEnv.CALENDAR_DEBUG === "1"
+    },
+    weather: {
+      bom: {
+        locationName: process.env.BOM_LOCATION_NAME || "",
+        warningsEntityId: process.env.BOM_WARNINGS_ENTITY_ID || "",
+        hourlyEntityId: process.env.BOM_HOURLY_ENTITY_ID || "",
+        daily: bomDailyConfig
+      }
     }
   })};`);
 });
