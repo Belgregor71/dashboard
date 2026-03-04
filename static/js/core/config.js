@@ -58,7 +58,7 @@ export const CONFIG = {
       { entityId: "media_player.piano_room", label: "Piano Room" }
     ],
     doorbellOverlay: {
-      enabled: true,
+      enabled: false,
       triggerEntityId: "binary_sensor.doorbell_motion_detected",
       triggerEntityIds: [
         "binary_sensor.doorbell_motion_detected",
@@ -69,6 +69,100 @@ export const CONFIG = {
       streamPath: "/api/camera_proxy/camera.doorbell",
       activeLabel: "Doorbell motion detected",
       autoCloseMs: 45000
+    },
+    cameraPopupOverlay: {
+      enabled: true,
+      triggerStates: ["on", "ringing", "detected", "motion"],
+      triggerCameraMap: [
+        {
+          entityId: "binary_sensor.doorbell_motion_detected",
+          camera: "doorbell",
+          title: "Doorbell",
+          detection: "Doorbell motion",
+          priority: 100,
+          duration: 45
+        },
+        {
+          entityId: "binary_sensor.front_doorbell_motion",
+          camera: "doorbell",
+          title: "Doorbell",
+          detection: "Doorbell motion",
+          priority: 100,
+          duration: 45
+        },
+        {
+          entityId: "binary_sensor.front_yard_motion",
+          camera: "front_yard",
+          title: "Front Yard",
+          detection: "Motion",
+          priority: 20,
+          duration: 30
+        },
+        {
+          entityId: "binary_sensor.driveway_motion",
+          camera: "driveway",
+          title: "Driveway",
+          detection: "Motion",
+          priority: 20,
+          duration: 30
+        },
+        {
+          entityId: "binary_sensor.backyard_motion_detected",
+          camera: "backyard",
+          title: "Backyard",
+          detection: "Motion",
+          priority: 20,
+          duration: 30
+        },
+        {
+          entityId: "binary_sensor.backyard_motion",
+          camera: "backyard",
+          title: "Backyard",
+          detection: "Motion",
+          priority: 20,
+          duration: 30
+        },
+        {
+          entityId: "binary_sensor.patio_motion",
+          camera: "patio",
+          title: "Patio",
+          detection: "Motion",
+          priority: 20,
+          duration: 30
+        },
+        {
+          entityId: "binary_sensor.side_gate_motion",
+          camera: "side_gate",
+          title: "Side Gate",
+          detection: "Motion",
+          priority: 20,
+          duration: 30
+        },
+        {
+          entityId: "binary_sensor.kitchen_motion_detected",
+          camera: "kitchen",
+          title: "Kitchen",
+          detection: "Motion",
+          priority: 10,
+          duration: 30
+        },
+        {
+          entityId: "binary_sensor.piano_room_motion_detected",
+          camera: "piano_room",
+          title: "Piano Room",
+          detection: "Motion",
+          priority: 10,
+          duration: 30
+        },
+        {
+          entityId: "binary_sensor.tilt_pan_motion_detected",
+          camera: "tilt_pan",
+          title: "Garage (Pan & Tilt)",
+          detection: "Motion",
+          priority: 10,
+          duration: 30
+        }
+      ]
     },
     cameraFeeds: [
       {
@@ -118,7 +212,7 @@ export const CONFIG = {
       }
     ],
     cameraMotionView: {
-      enabled: true,
+      enabled: false,
       view: "cameras",
       returnView: "home",
       durationMs: 30000,
