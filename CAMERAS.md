@@ -50,6 +50,27 @@ export const CAMERA_CONFIG = [
 ];
 ```
 
+## 2a) Motion popup snapshot behavior
+
+The motion popup overlay now renders a **still snapshot image** (not a live iframe stream) from:
+
+* `/api/camera/<camera_id>/snapshot?ts=<cachebuster>`
+
+The server prefers each camera's `eventImageEntity` (for example `image.<camera>_event_image`) and automatically falls back to `cameraEntity` via Home Assistant camera proxy when the event image is missing/unavailable.
+
+To improve near-real-time updates from Home Assistant entity changes in the UI, keep websocket auth enabled for trusted kiosks:
+
+```bash
+EXPOSE_HA_TOKEN_TO_CLIENT=1
+```
+
+Current assumptions in `config/cameras.js` include:
+
+* `doorbell` uses `image.doorbell_event_image`
+* `backyard` uses `image.backyard_event_image`
+
+If those entities don't exist in your HA instance, snapshot fallback still uses camera proxy.
+
 ## 3) go2rtc mapping
 
 Make sure go2rtc knows about each stream name referenced above. Example `go2rtc.yaml`:

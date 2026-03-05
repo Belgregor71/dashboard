@@ -1419,10 +1419,14 @@ async function fetchCameraSnapshot(camera) {
           ...mapped,
           sourceUsed: source.type
         };
-        if ([401, 403].includes(response.status)) break;
-        if (response.status === 404 && source.type === "eventImage") {
+
+        if (
+          source.type === "eventImage" &&
+          [401, 403, 404, 408].includes(response.status)
+        ) {
           continue;
         }
+
         if (!shouldRetryStatus(response.status) && response.status !== 404) {
           break;
         }
@@ -1438,6 +1442,9 @@ async function fetchCameraSnapshot(camera) {
         ...mapped,
         sourceUsed: source.type
       };
+      if (source.type === "eventImage" && ["auth", "timeout", "network"].includes(mapped.code)) {
+        continue;
+      }
       if (mapped.code === "auth") break;
     }
   }
@@ -1465,6 +1472,12 @@ async function proxyFetchToResponse(upstream, res, options = {}) {
 
   const stream = Readable.fromWeb(upstream.body);
   await pipeline(stream, res);
+}
+
+function setNoCacheHeaders(res) {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
 }
 
 app.get("/api/cameras", (req, res) => {
@@ -1517,7 +1530,7 @@ app.get("/api/camera/:id/snapshot", async (req, res) => {
       lastErrorMsg: null
     });
 
-    res.set("Cache-Control", "no-store, max-age=0");
+    setNoCacheHeaders(res);
     res.type(snapshot.contentType).send(snapshot.buffer);
   } catch (err) {
     const errorInfo = err?.code
@@ -1541,7 +1554,7 @@ app.get("/api/camera/:id/snapshot", async (req, res) => {
     });
 
     if (canServeStale) {
-      res.set("Cache-Control", "no-store, max-age=0");
+      setNoCacheHeaders(res);
       res.set("X-Dashboard-Stale", "1");
       res.type(cached.contentType).send(cached.buffer);
       return;

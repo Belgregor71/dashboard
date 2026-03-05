@@ -2,11 +2,10 @@ import { CONFIG } from "../core/config.js";
 import { on } from "../core/eventBus.js";
 import { switchView } from "../core/viewManager.js";
 
-const ENV = typeof window !== "undefined" ? window.__ENV__ ?? {} : {};
 
-const GO2RTC_BASE_URL = ENV.GO2RTC_HOST || "http://192.168.0.179:1984";
 const DEFAULT_DURATION_SECONDS = 30;
 const DEFAULT_TRIGGER_STATES = ["on", "ringing", "detected", "motion"];
+const SNAPSHOT_DEBOUNCE_MS = 700;
 
 function toPositiveSeconds(value, fallback = DEFAULT_DURATION_SECONDS) {
   const parsed = Number(value);
@@ -19,11 +18,8 @@ function normalizeText(value, fallback) {
   return text || fallback;
 }
 
-function buildMseStreamUrl(cameraKey) {
-  const url = new URL("/stream.html", GO2RTC_BASE_URL);
-  url.searchParams.set("src", cameraKey);
-  url.searchParams.set("mode", "mse");
-  return url.toString();
+function buildSnapshotUrl(cameraKey) {
+  return `/api/camera/${encodeURIComponent(cameraKey)}/snapshot?ts=${Date.now()}`;
 }
 
 function normalizeTriggerStates(config) {
@@ -36,6 +32,16 @@ function isTriggerActive(config, state) {
   if (!state) return false;
   const normalized = String(state).toLowerCase();
   return normalizeTriggerStates(config).includes(normalized);
+}
+
+function isImageEntity(entityId) {
+  return String(entityId || "").trim().startsWith("image.");
+}
+
+function formatUpdatedLabel(snapshotTs) {
+  const deltaSeconds = Math.max(0, Math.floor((Date.now() - snapshotTs) / 1000));
+  if (deltaSeconds <= 0) return "Updated just now";
+  return `Updated ${deltaSeconds}s ago`;
 }
 
 function normalizeTriggerMap(config) {
@@ -66,14 +72,20 @@ export function initCameraPopupOverlay() {
 
   const titleEl = document.getElementById("camera-popup-title");
   const badgeEl = document.getElementById("camera-popup-badge");
+  const updatedEl = document.getElementById("camera-popup-updated");
   const frameEl = document.getElementById("camera-popup-frame");
   const closeBtn = document.getElementById("camera-popup-close");
 
-  if (!titleEl || !badgeEl || !frameEl) return;
+  if (!titleEl || !badgeEl || !updatedEl || !frameEl) return;
 
   let autoCloseTimer = null;
+  let refreshTimers = [];
+  let updatedInterval = null;
   let activeCameraKey = "";
   let activePriority = Number.NEGATIVE_INFINITY;
+  let activeSnapshotTimestamp = 0;
+  let lastRefreshAt = 0;
+  const lastPopupSnapshotAt = {};
 
   const triggerMap = normalizeTriggerMap(popupConfig);
   const triggerMapByEntity = new Map(triggerMap.map((entry) => [entry.entityId, entry]));
@@ -84,14 +96,44 @@ export function initCameraPopupOverlay() {
     autoCloseTimer = null;
   }
 
+  function clearRefreshTimers() {
+    refreshTimers.forEach((timer) => clearTimeout(timer));
+    refreshTimers = [];
+  }
+
+  function stopUpdatedTicker() {
+    if (!updatedInterval) return;
+    clearInterval(updatedInterval);
+    updatedInterval = null;
+  }
+
+  function refreshSnapshot(cameraKey) {
+    if (!cameraKey) return;
+    if (activeCameraKey && activeCameraKey !== cameraKey) return;
+    frameEl.src = buildSnapshotUrl(cameraKey);
+    lastRefreshAt = Date.now();
+  }
+
+  function updateUpdatedBadge() {
+    if (!activeSnapshotTimestamp) {
+      updatedEl.textContent = "";
+      return;
+    }
+    updatedEl.textContent = formatUpdatedLabel(activeSnapshotTimestamp);
+  }
+
   function hideCameraPopup() {
     clearAutoCloseTimer();
+    clearRefreshTimers();
+    stopUpdatedTicker();
     activeCameraKey = "";
     activePriority = Number.NEGATIVE_INFINITY;
+    activeSnapshotTimestamp = 0;
+    lastRefreshAt = 0;
     overlayEl.classList.remove("is-active");
     overlayEl.setAttribute("aria-hidden", "true");
-    // Important for Raspberry Pi performance: unload stream iframe when hidden.
-    frameEl.src = "about:blank";
+    frameEl.src = "";
+    updatedEl.textContent = "";
   }
 
   function showCameraPopup(payload = {}, options = {}) {
@@ -115,17 +157,41 @@ export function initCameraPopupOverlay() {
     titleEl.textContent = title;
     badgeEl.textContent = `${detection} detected`;
 
-    const streamUrl = buildMseStreamUrl(cameraKey);
-    // Use go2rtc MSE stream.html so this works even when HA camera_proxy returns 403 in Chromium kiosk.
-    if (activeCameraKey !== cameraKey || frameEl.src !== streamUrl) {
-      frameEl.src = streamUrl;
+    const now = Date.now();
+    const isSameCamera = activeCameraKey === cameraKey;
+    const shouldDebounce = isSameCamera && now - lastRefreshAt < SNAPSHOT_DEBOUNCE_MS;
+
+    if (!shouldDebounce) {
+      activeSnapshotTimestamp = now;
+      lastPopupSnapshotAt[cameraKey] = now;
+      refreshSnapshot(cameraKey);
     }
+
+    clearRefreshTimers();
+    [800, 1800].forEach((delayMs) => {
+      const timer = setTimeout(() => {
+        const ts = Date.now();
+        activeSnapshotTimestamp = ts;
+        lastPopupSnapshotAt[cameraKey] = ts;
+        refreshSnapshot(cameraKey);
+        updateUpdatedBadge();
+      }, delayMs);
+      refreshTimers.push(timer);
+    });
+
+    if (!isSameCamera && !activeSnapshotTimestamp && lastPopupSnapshotAt[cameraKey]) {
+      activeSnapshotTimestamp = lastPopupSnapshotAt[cameraKey];
+    }
+    updateUpdatedBadge();
 
     activeCameraKey = cameraKey;
     activePriority = incomingPriority;
 
     overlayEl.classList.add("is-active");
     overlayEl.setAttribute("aria-hidden", "false");
+
+    stopUpdatedTicker();
+    updatedInterval = setInterval(updateUpdatedBadge, 1000);
 
     clearAutoCloseTimer();
     autoCloseTimer = setTimeout(() => {
@@ -145,7 +211,7 @@ export function initCameraPopupOverlay() {
     const trigger = triggerMapByEntity.get(entityId);
     if (!trigger) return;
 
-    if (!isTriggerActive(popupConfig, event.detail?.state)) return;
+    if (!isImageEntity(entityId) && !isTriggerActive(popupConfig, event.detail?.state)) return;
 
     showCameraPopup(
       {

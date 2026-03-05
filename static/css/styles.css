@@ -393,7 +393,9 @@ body[data-view="weather"] #background-tint {
 .camera-popup-overlay__actions {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .camera-popup-overlay__badge {
@@ -408,6 +410,19 @@ body[data-view="weather"] #background-tint {
   color: rgba(255, 234, 234, 0.96);
 }
 
+
+.camera-popup-overlay__updated {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: clamp(0.72rem, 0.35vw + 0.58rem, 0.9rem);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  color: rgba(250, 252, 255, 0.92);
+}
 .camera-popup-overlay__close {
   width: 38px;
   height: 38px;
@@ -435,6 +450,7 @@ body[data-view="weather"] #background-tint {
   border: 0;
   display: block;
   background: #060708;
+  object-fit: cover;
 }
 
 /* ============================================================================
