@@ -142,6 +142,40 @@
       <span id="arr-summary-text"></span>
     </div>
 
+    <section id="media-pulse" class="panel media-pulse hidden" aria-live="polite">
+      <div id="media-pulse-text" class="media-pulse__text">Media active</div>
+      <div class="media-pulse__badges">
+        <span id="media-badge-sonarr" class="media-pulse__badge" hidden></span>
+        <span id="media-badge-radarr" class="media-pulse__badge" hidden></span>
+        <span id="media-badge-qbit" class="media-pulse__badge" hidden></span>
+      </div>
+    </section>
+
+    <section id="media-downloads-pop" class="panel media-downloads-pop" aria-live="polite" aria-hidden="true">
+      <div class="media-downloads-pop__top">
+        <div class="media-downloads-pop__metric">
+          <div class="media-downloads-pop__label">Download</div>
+          <div id="media-pop-down" class="media-downloads-pop__value">0B/s</div>
+        </div>
+        <div class="media-downloads-pop__metric">
+          <div class="media-downloads-pop__label">Upload</div>
+          <div id="media-pop-up" class="media-downloads-pop__value">0B/s</div>
+        </div>
+        <div class="media-downloads-pop__metric">
+          <div class="media-downloads-pop__label">Active</div>
+          <div id="media-pop-active" class="media-downloads-pop__value">0</div>
+        </div>
+      </div>
+      <div class="media-downloads-pop__meta">
+        <span id="media-pop-sonarr"></span>
+        <span id="media-pop-radarr"></span>
+      </div>
+      <div id="media-pop-errors-wrap" class="media-downloads-pop__errors" hidden>
+        <span id="media-pop-errors"></span>
+      </div>
+      <button id="media-pop-turtle-toggle" class="status-ai-button" type="button" hidden></button>
+    </section>
+
     <!-- ROW 4: Week at a glance (full width) -->
     <section id="timeline-panel" class="panel">
       <h2>Week at a glance</h2>
@@ -482,7 +516,72 @@
       <p id="status-ai-text" class="status-ai-text"></p>
       <p id="status-ai-action" class="status-ai-action"></p>
     </section>
+
+    <section id="media-automation-section" class="panel status-panel media-status-section">
+      <div class="status-group__title">Media Automation</div>
+      <div class="media-status-grid">
+        <article id="media-card-qbit" class="status-group media-status-card" role="button" tabindex="0">
+          <div class="status-group__title">qBittorrent Throughput</div>
+          <div class="media-status-kpi-row">
+            <div><div class="status-item__meta">Download</div><div id="media-status-qb-down" class="status-item__value">0B/s</div></div>
+            <div><div class="status-item__meta">Upload</div><div id="media-status-qb-up" class="status-item__value">0B/s</div></div>
+          </div>
+          <div class="media-status-pill-row">
+            <span id="media-status-qb-status" class="status-header-pill__value"></span>
+            <span id="media-status-qb-connection" class="status-header-pill__value"></span>
+          </div>
+          <div class="status-item"><div class="status-item__label">Torrents</div><div id="media-status-qb-counts" class="status-item__value"></div></div>
+          <div class="status-item"><div class="status-item__label">Ratio</div><div id="media-status-qb-ratio" class="status-item__value"></div></div>
+          <div id="media-status-qb-limits" class="status-item__meta"></div>
+          <button id="media-status-qb-toggle" type="button" class="status-ai-button" hidden></button>
+        </article>
+
+        <article id="media-card-sonarr" class="status-group media-status-card" role="button" tabindex="0">
+          <div class="status-group__title">Sonarr Summary</div>
+          <div class="status-item"><div class="status-item__label">Queue</div><div id="media-status-sonarr-queue" class="status-item__value">0</div></div>
+          <div class="status-item"><div class="status-item__label">Wanted</div><div id="media-status-sonarr-wanted" class="status-item__value">0</div></div>
+          <div class="status-item"><div class="status-item__label">Shows</div><div id="media-status-sonarr-shows" class="status-item__value">0</div></div>
+          <div class="status-item"><div class="status-item__label">Upcoming</div><div id="media-status-sonarr-upcoming" class="status-item__value">No upcoming</div></div>
+          <div class="status-item"><div class="status-item__label">Commands</div><div id="media-status-sonarr-commands" class="status-item__value">--</div><div id="media-status-sonarr-updated" class="status-item__meta"></div></div>
+        </article>
+
+        <article id="media-card-radarr" class="status-group media-status-card" role="button" tabindex="0">
+          <div class="status-group__title">Radarr Summary</div>
+          <div class="media-status-pill-row"><span id="media-status-radarr-health" class="status-header-pill__value">--</span></div>
+          <div class="status-item"><div class="status-item__label">Queue</div><div id="media-status-radarr-queue" class="status-item__value">0</div></div>
+          <div class="status-item"><div class="status-item__label">Movies</div><div id="media-status-radarr-movies" class="status-item__value">0</div></div>
+          <div class="media-disk-row"><div id="media-status-radarr-disk-a" class="status-item__meta"></div><div class="media-disk-bar"><span id="media-status-radarr-disk-a-bar"></span></div></div>
+          <div id="media-status-radarr-disk-b-wrap" class="media-disk-row" hidden><div id="media-status-radarr-disk-b" class="status-item__meta"></div><div class="media-disk-bar"><span id="media-status-radarr-disk-b-bar"></span></div></div>
+          <div class="status-item"><div class="status-item__label">Start time</div><div id="media-status-radarr-start" class="status-item__value">—</div></div>
+        </article>
+
+        <article id="media-card-health" class="status-group media-status-card" role="button" tabindex="0">
+          <div class="status-group__title">Health + Disk</div>
+          <div class="status-item"><div class="status-item__label">Overall</div><div id="media-status-health-overall" class="status-item__value">OK</div></div>
+          <div id="media-status-health-summary" class="status-item__meta">No active media automation issues</div>
+        </article>
+      </div>
+    </section>
   </main>
+
+  <section id="media-details-modal" class="camera-popup-overlay" aria-hidden="true" role="dialog" aria-label="Media details">
+    <div class="camera-popup-overlay__card media-details-card">
+      <header class="camera-popup-overlay__header">
+        <h2 id="media-details-title" class="camera-popup-overlay__title">Media details</h2>
+        <div class="camera-popup-overlay__actions">
+          <button id="media-details-close" class="camera-popup-overlay__close" type="button" aria-label="Close media details">×</button>
+        </div>
+      </header>
+      <div class="camera-popup-overlay__body media-details-body">
+        <p id="media-details-body"></p>
+        <div class="media-details-links">
+          <a id="media-link-qbit" class="status-ai-button" target="_blank" rel="noopener noreferrer" hidden>Open qBittorrent</a>
+          <a id="media-link-sonarr" class="status-ai-button" target="_blank" rel="noopener noreferrer" hidden>Open Sonarr</a>
+          <a id="media-link-radarr" class="status-ai-button" target="_blank" rel="noopener noreferrer" hidden>Open Radarr</a>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <section
     id="doorbell-overlay"
