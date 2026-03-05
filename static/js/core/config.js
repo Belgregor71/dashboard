@@ -233,6 +233,19 @@ export const CONFIG = {
       wakeTime: "05:00",
       sleepTime: "21:00",
       monitorEntityId: ""
+    },
+    mediaAutomation: {
+      activeRefreshMs: 3000,
+      idleRefreshMs: 20000,
+      homeCooldownMs: 90000,
+      diskWarnPct: 15,
+      diskErrorPct: 8,
+      entities: {},
+      urls: {
+        qbittorrent: "",
+        sonarr: "",
+        radarr: ""
+      }
     }
   },
   systemStatus: {

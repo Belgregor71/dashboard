@@ -416,6 +416,10 @@ export function createStatusView() {
       if (event.detail?.entity_id !== modeEntityId) return;
       updateModeDisplay();
     });
+
+    document.addEventListener("status:refresh-alerts", () => {
+      updateAlerts();
+    });
   }
 
   function onEnter() {
