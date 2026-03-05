@@ -29,8 +29,7 @@ export const CAMERA_CONFIG = [
     mode: "snapshot",
     eventImageEntity: "image.tilt_pan_event_image",
     preferredSnapshot: "eventImage",
-    snapshotRefreshMs: 15000,
-    snapshotPath: "/api/image_proxy/image.tilt_pan_event_image"
+    snapshotRefreshMs: 15000
   },
   {
     id: "doorbell",
@@ -44,7 +43,8 @@ export const CAMERA_CONFIG = [
       hls: "/api/hls?src=doorbell",
       mjpeg: "/api/mjpeg?src=doorbell"
     },
-    preferredSnapshot: "cameraProxy",
+    eventImageEntity: "image.doorbell_event_image",
+    preferredSnapshot: "eventImage",
     snapshotRefreshMs: 15000,
     snapshotPath: "/api/camera_proxy/camera.doorbell"
   },
@@ -94,7 +94,8 @@ export const CAMERA_CONFIG = [
       hls: "/api/hls?src=backyard",
       mjpeg: "/api/mjpeg?src=backyard"
     },
-    preferredSnapshot: "cameraProxy",
+    eventImageEntity: "image.backyard_event_image",
+    preferredSnapshot: "eventImage",
     snapshotRefreshMs: 15000,
     snapshotPath: "/api/camera_proxy/camera.backyard"
   },
