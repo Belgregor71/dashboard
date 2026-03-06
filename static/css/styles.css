@@ -3234,72 +3234,56 @@ body[data-view="briefing"] #top-bar { justify-content: flex-start; }
   border: 1px solid rgba(114, 255, 159, 0.2);
 }
 
-.media-pulse {
+.media-activity-ticker {
   grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 10px 16px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-}
-
-.media-pulse__text {
-  font-size: 1rem;
-  opacity: 0.84;
-}
-
-.media-pulse__badges {
-  display: flex;
-  gap: 8px;
-}
-
-.media-pulse__badge {
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 0.86rem;
-  border: 1px solid rgba(127, 205, 255, 0.28);
-  background: rgba(8, 22, 38, 0.56);
-}
-
-.media-downloads-pop {
-  grid-column: 1 / -1;
-  display: grid;
-  gap: 10px;
-  opacity: 0;
-  max-height: 0;
+  padding: 10px 0;
+  border-radius: 16px;
+  border: 1px solid rgba(114, 255, 159, 0.24);
+  background: rgba(0, 0, 0, 0.34);
   overflow: hidden;
-  transform: translateY(8px);
-  transition: opacity 220ms ease, transform 220ms ease, max-height 220ms ease, padding 220ms ease;
-  padding-top: 0;
-  padding-bottom: 0;
 }
 
-.media-downloads-pop.is-visible {
-  opacity: 1;
-  transform: translateY(0);
-  max-height: 340px;
-  padding-top: 14px;
-  padding-bottom: 14px;
+.media-activity-ticker__viewport {
+  overflow: hidden;
+  width: 100%;
 }
 
-.media-downloads-pop__top {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.media-activity-ticker__track {
+  display: flex;
+  width: max-content;
+  animation: media-ticker-scroll 24s linear infinite;
+}
+
+.media-activity-ticker__row {
+  display: inline-flex;
+  align-items: center;
   gap: 10px;
+  padding-right: 28px;
+  white-space: nowrap;
 }
 
-.media-downloads-pop__metric {
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.18);
+.media-activity-ticker__item {
+  font-size: 0.96rem;
+  opacity: 0.9;
 }
 
-.media-downloads-pop__label { font-size: 0.78rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.1em; }
-.media-downloads-pop__value { font-size: 1.45rem; font-weight: 600; }
-.media-downloads-pop__meta { display: flex; gap: 16px; font-size: 0.95rem; opacity: 0.86; flex-wrap: wrap; }
-.media-downloads-pop__errors { color: #ffadad; font-size: 0.9rem; }
+.media-activity-ticker__divider {
+  opacity: 0.4;
+}
+
+.media-activity-ticker.is-offline .media-activity-ticker__track {
+  animation-play-state: paused;
+}
+
+@keyframes media-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
 
 .media-status-section {
   margin-top: 16px;

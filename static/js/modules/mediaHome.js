@@ -1,12 +1,10 @@
 import { on } from "../core/eventBus.js";
 import { CONFIG } from "../core/config.js";
 import { getEntity } from "../services/homeAssistant/state.js";
-import { callHAService } from "../services/homeAssistant/client.js";
 import {
   createCooldownController,
   formatSpeed,
-  parseEntityNumber,
-  setTextIfChanged
+  parseEntityNumber
 } from "../helpers/media.js";
 
 const IDS = {
@@ -16,28 +14,38 @@ const IDS = {
   qbUp: "sensor.qbittorrent_upload_speed",
   sonarrQueue: "sensor.sonarr_queue",
   sonarrWanted: "sensor.sonarr_wanted",
-  radarrQueue: "sensor.radarr_queue",
-  altSpeedSwitch: "switch.qbittorrent_alternative_speed"
+  radarrQueue: "sensor.radarr_queue"
 };
 
+function buildTickerItems(state) {
+  const items = [];
+
+  if (state.sonarrQueue > 0 || state.sonarrWanted > 0) {
+    items.push(`Sonarr queue ${state.sonarrQueue}`);
+    items.push(`Sonarr wanted ${state.sonarrWanted}`);
+  }
+
+  if (state.radarrQueue > 0) {
+    items.push(`Radarr queue ${state.radarrQueue}`);
+  }
+
+  if (state.qbActive > 0) {
+    items.push(`qBittorrent active ${state.qbActive}`);
+    items.push(`Down ${formatSpeed(state.qbDown)}`);
+    items.push(`Up ${formatSpeed(state.qbUp)}`);
+  }
+
+  if (state.qbErrors > 0) {
+    items.push(`qBittorrent errors ${state.qbErrors}`);
+  }
+
+  return items;
+}
+
 export function initMediaHome() {
-  const pulse = document.getElementById("media-pulse");
-  const pulseText = document.getElementById("media-pulse-text");
-  const badgeSonarr = document.getElementById("media-badge-sonarr");
-  const badgeRadarr = document.getElementById("media-badge-radarr");
-  const badgeQbit = document.getElementById("media-badge-qbit");
-
-  const pop = document.getElementById("media-downloads-pop");
-  if (!pulse || !pop) return;
-
-  const down = document.getElementById("media-pop-down");
-  const up = document.getElementById("media-pop-up");
-  const active = document.getElementById("media-pop-active");
-  const sonarr = document.getElementById("media-pop-sonarr");
-  const radarr = document.getElementById("media-pop-radarr");
-  const errors = document.getElementById("media-pop-errors");
-  const errorsWrap = document.getElementById("media-pop-errors-wrap");
-  const turtle = document.getElementById("media-pop-turtle-toggle");
+  const ticker = document.getElementById("media-activity-ticker");
+  const tickerTrack = document.getElementById("media-activity-ticker-track");
+  if (!ticker || !tickerTrack) return;
 
   const cfg = CONFIG.homeAssistant?.mediaAutomation || {};
   const activeRefreshMs = cfg.activeRefreshMs ?? 3000;
@@ -50,6 +58,7 @@ export function initMediaHome() {
   let pendingFrame = 0;
   let latestState = null;
   let currentRefreshMs = 0;
+  let lastTickerSignature = "";
 
   const schedule = (ms) => {
     if (currentRefreshMs === ms && timer) return;
@@ -71,7 +80,6 @@ export function initMediaHome() {
       sonarrQueue,
       sonarrWanted: parseEntityNumber(getEntity(IDS.sonarrWanted)),
       radarrQueue,
-      altSpeedOn: getEntity(IDS.altSpeedSwitch)?.state === "on",
       active: qbActive > 0 || sonarrQueue > 0 || radarrQueue > 0
     };
 
@@ -79,59 +87,39 @@ export function initMediaHome() {
     return state;
   }
 
-  function updatePulse(state) {
-    const showSonarr = state.sonarrQueue > 0 || state.sonarrWanted > 0;
-    const showRadarr = state.radarrQueue > 0;
-    const showQbit = state.qbActive > 0;
-    const any = showSonarr || showRadarr || showQbit;
+  function setTickerRows(items) {
+    const signature = items.join("|");
+    if (signature === lastTickerSignature) return;
+    lastTickerSignature = signature;
 
-    pulse.classList.toggle("hidden", !any);
-    setTextIfChanged(pulseText, "Media active");
+    const content = items
+      .map((item) => `<span class="media-activity-ticker__item">${item}</span>`)
+      .join('<span class="media-activity-ticker__divider" aria-hidden="true">•</span>');
 
-    badgeSonarr.hidden = !showSonarr;
-    badgeRadarr.hidden = !showRadarr;
-    badgeQbit.hidden = !showQbit;
-
-    if (showSonarr) {
-      const parts = [];
-      if (state.sonarrQueue > 0) parts.push(`Q${state.sonarrQueue}`);
-      if (state.sonarrWanted > 0) parts.push(`W${state.sonarrWanted}`);
-      setTextIfChanged(badgeSonarr, `S:${parts.join(" ")}`);
-    }
-    if (showRadarr) {
-      setTextIfChanged(badgeRadarr, `R:Q${state.radarrQueue}`);
-    }
-    if (showQbit) {
-      setTextIfChanged(badgeQbit, `↓ ${formatSpeed(state.qbDown)} • ${state.qbActive}`);
-    }
+    tickerTrack.innerHTML = `<div class="media-activity-ticker__row">${content}</div><div class="media-activity-ticker__row" aria-hidden="true">${content}</div>`;
   }
 
-  function updatePop(state) {
+  function updateTicker(state) {
     const shouldShow = cooldown.shouldShow(state.active);
-    pop.classList.toggle("is-visible", shouldShow);
-    pop.setAttribute("aria-hidden", String(!shouldShow));
+    const tickerItems = buildTickerItems(state);
+    const showTicker = shouldShow && tickerItems.length > 0;
 
-    setTextIfChanged(down, formatSpeed(state.qbDown));
-    setTextIfChanged(up, formatSpeed(state.qbUp));
-    setTextIfChanged(active, `${state.qbActive}`);
-    setTextIfChanged(sonarr, `Sonarr: ${state.sonarrQueue} queue • ${state.sonarrWanted} wanted`);
-    setTextIfChanged(radarr, `Radarr: ${state.radarrQueue} queue`);
+    ticker.classList.toggle("hidden", !showTicker);
+    ticker.setAttribute("aria-hidden", String(!showTicker));
 
-    errorsWrap.hidden = state.qbErrors <= 0;
-    if (state.qbErrors > 0) {
-      setTextIfChanged(errors, `qBittorrent errors: ${state.qbErrors}`);
+    if (!showTicker) {
+      tickerTrack.innerHTML = "";
+      lastTickerSignature = "";
+      return;
     }
 
-    const showToggle = state.qbActive > 0;
-    turtle.hidden = !showToggle;
-    turtle.disabled = !haConnected;
-    turtle.dataset.active = state.altSpeedOn ? "true" : "false";
-    setTextIfChanged(turtle, state.altSpeedOn ? "Turtle mode: ON" : "Turtle mode: OFF");
+    setTickerRows(tickerItems);
+    ticker.classList.toggle("is-offline", !haConnected);
   }
+
 
   function applyState(state) {
-    updatePulse(state);
-    updatePop(state);
+    updateTicker(state);
     schedule(state.active ? activeRefreshMs : idleRefreshMs);
     latestState = state;
   }
@@ -144,34 +132,14 @@ export function initMediaHome() {
     });
   }
 
-  turtle?.addEventListener("click", async (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!haConnected) return;
-    turtle.disabled = true;
-    try {
-      await callHAService({
-        domain: "switch",
-        service: "toggle",
-        serviceData: { entity_id: IDS.altSpeedSwitch }
-      });
-    } catch (error) {
-      console.warn("Failed to toggle qBittorrent alt speed", error);
-    } finally {
-      setTimeout(() => {
-        turtle.disabled = !haConnected;
-        queueRender();
-      }, 300);
-    }
-  });
 
   on("ha:connected", () => {
     haConnected = true;
-    if (latestState) updatePop(latestState);
+    if (latestState) applyState(latestState);
   });
   on("ha:disconnected", () => {
     haConnected = false;
-    if (latestState) updatePop(latestState);
+    if (latestState) applyState(latestState);
   });
 
   document.addEventListener("ha:state-updated", (event) => {
