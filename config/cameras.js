@@ -7,8 +7,7 @@ export const CAMERA_CONFIG = [
     mode: "snapshot",
     eventImageEntity: "image.kitchen_event_image",
     preferredSnapshot: "eventImage",
-    snapshotRefreshMs: 15000,
-    snapshotPath: "/api/image_proxy/image.kitchen_event_image"
+    snapshotRefreshMs: 15000
   },
   {
     id: "piano_room",
@@ -18,8 +17,7 @@ export const CAMERA_CONFIG = [
     mode: "snapshot",
     eventImageEntity: "image.piano_room_event_image",
     preferredSnapshot: "eventImage",
-    snapshotRefreshMs: 15000,
-    snapshotPath: "/api/image_proxy/image.piano_room_event_image"
+    snapshotRefreshMs: 15000
   },
   {
     id: "tilt_pan",
@@ -45,8 +43,7 @@ export const CAMERA_CONFIG = [
     },
     eventImageEntity: "image.doorbell_event_image",
     preferredSnapshot: "eventImage",
-    snapshotRefreshMs: 15000,
-    snapshotPath: "/api/camera_proxy/camera.doorbell"
+    snapshotRefreshMs: 15000
   },
   {
     id: "front_yard",
@@ -62,8 +59,7 @@ export const CAMERA_CONFIG = [
     },
     eventImageEntity: "image.front_yard_event_image",
     preferredSnapshot: "eventImage",
-    snapshotRefreshMs: 15000,
-    snapshotPath: "/api/camera_proxy/camera.front_yard"
+    snapshotRefreshMs: 15000
   },
   {
     id: "driveway",
@@ -79,8 +75,7 @@ export const CAMERA_CONFIG = [
     },
     eventImageEntity: "image.driveway_event_image",
     preferredSnapshot: "eventImage",
-    snapshotRefreshMs: 15000,
-    snapshotPath: "/api/camera_proxy/camera.driveway"
+    snapshotRefreshMs: 15000
   },
   {
     id: "backyard",
@@ -96,8 +91,7 @@ export const CAMERA_CONFIG = [
     },
     eventImageEntity: "image.backyard_event_image",
     preferredSnapshot: "eventImage",
-    snapshotRefreshMs: 15000,
-    snapshotPath: "/api/camera_proxy/camera.backyard"
+    snapshotRefreshMs: 15000
   },
   {
     id: "patio",
@@ -113,8 +107,7 @@ export const CAMERA_CONFIG = [
     },
     eventImageEntity: "image.patio_event_image",
     preferredSnapshot: "eventImage",
-    snapshotRefreshMs: 15000,
-    snapshotPath: "/api/camera_proxy/camera.patio"
+    snapshotRefreshMs: 15000
   },
   {
     id: "side_gate",
@@ -130,7 +123,6 @@ export const CAMERA_CONFIG = [
     },
     eventImageEntity: "image.side_gate_event_image",
     preferredSnapshot: "eventImage",
-    snapshotRefreshMs: 15000,
-    snapshotPath: "/api/camera_proxy/camera.side_gate"
+    snapshotRefreshMs: 15000
   }
 ];
