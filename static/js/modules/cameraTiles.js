@@ -57,6 +57,8 @@ let sectionTitle;
 let haStatusEl;
 let toastEl;
 let summaryEl;
+let lastTriggerPillEl;
+let lastTriggered = null;
 
 function emitCameraStatus() {
   const total = cameraStatuses.size;
@@ -196,6 +198,28 @@ function formatActivityLabel(activity) {
     minute: "2-digit"
   });
   return `${activity.label} · ${time}`;
+}
+
+
+function formatTriggerTime(timestamp) {
+  if (!timestamp) return "--";
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
+function updateLastTriggerPill() {
+  if (!lastTriggerPillEl) return;
+  const isHomeView = document.body?.dataset?.view === "home";
+  if (!isHomeView || !lastTriggered?.cameraName || !lastTriggered?.timestamp) {
+    lastTriggerPillEl.classList.add("hidden");
+    lastTriggerPillEl.textContent = "";
+    return;
+  }
+
+  lastTriggerPillEl.textContent = `${lastTriggered.cameraName} · Last triggered ${formatTriggerTime(lastTriggered.timestamp)}`;
+  lastTriggerPillEl.classList.remove("hidden");
 }
 
 function setToast(message) {
@@ -859,6 +883,13 @@ function handleCameraEvent(cameraId, type, timestamp) {
 
   const state = getCameraState(cameraId);
   state.lastActivity = activity;
+  lastTriggered = {
+    cameraId,
+    cameraName: camera.name,
+    timestamp,
+    type
+  };
+  updateLastTriggerPill();
   if (state.activityEl) {
     state.activityEl.textContent = formatActivityLabel(activity);
   }
@@ -1150,6 +1181,7 @@ function initElements() {
   haStatusEl = document.getElementById("cameras-ha-status");
   toastEl = document.getElementById("camera-toast");
   summaryEl = document.getElementById("camera-summary");
+  lastTriggerPillEl = document.getElementById("camera-last-trigger-pill");
 }
 
 export function initCameraTiles() {
@@ -1176,6 +1208,7 @@ export function initCameraTiles() {
       stopAllCameraTimers();
       stopHaHealth();
     }
+    updateLastTriggerPill();
   });
 
   on("ha:connected", () => setHaStatus("Online"));
@@ -1188,5 +1221,6 @@ export function initCameraTiles() {
   });
 
   registerCommandHandlers();
+  updateLastTriggerPill();
   setHaStatus("Offline");
 }
