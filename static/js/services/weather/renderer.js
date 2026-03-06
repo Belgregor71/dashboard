@@ -432,18 +432,37 @@ function renderWeekly(daily) {
 
   const haStates = getAllEntities();
   daily.weathercode.slice(0, 7).forEach((code, i) => {
+    const iconId = `week-icon-${i}`;
+    const iconContainer = ensureWeekIconContainer(i, iconId);
+    if (!iconContainer) return;
+
     const file = weatherAnimation(code, true);
-    const anim = loadLottieAnimation(`week-icon-${i}`, file);
+    const anim = loadLottieAnimation(iconId, file);
     if (anim) activeLotties.push(anim);
 
     if (i >= 4) {
       const bundle = getBomForecastBundle(CONFIG.weather?.bom?.locationName || "", i + 1, haStates);
-      const iconRoot = document.getElementById(`week-icon-${i}`);
-      if (iconRoot && (bundle.shortText || bundle.rainRange || bundle.uvCategory)) {
-        iconRoot.title = [bundle.shortText, bundle.rainRange, bundle.uvCategory].filter(Boolean).join(" • ");
+      if (iconContainer && (bundle.shortText || bundle.rainRange || bundle.uvCategory)) {
+        iconContainer.title = [bundle.shortText, bundle.rainRange, bundle.uvCategory].filter(Boolean).join(" • ");
       }
     }
   });
+}
+
+function ensureWeekIconContainer(index, iconId) {
+  const existing = document.getElementById(iconId);
+  if (existing) return existing;
+
+  const weekBlocks = document.querySelectorAll("#weekly-list .week-day-block");
+  const parent = weekBlocks[index];
+  if (!parent) return null;
+
+  const iconDiv = document.createElement("div");
+  iconDiv.className = "week-weather-icon";
+  iconDiv.id = iconId;
+
+  parent.prepend(iconDiv);
+  return iconDiv;
 }
 
 function renderCinematic(data, hourlyIndex) {
