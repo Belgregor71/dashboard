@@ -2563,6 +2563,29 @@ body[data-view="calendar"] .calendar-event {
   opacity: 1;
 }
 
+
+.camera-last-trigger-pill {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  color: rgba(241, 245, 249, 0.96);
+  font-size: 0.85rem;
+  line-height: 1.2;
+  z-index: 45;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+  max-width: calc(100vw - 24px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ============================================================================
    WEATHER VIEW
 ============================================================================ */
@@ -3232,57 +3255,6 @@ body[data-view="briefing"] #top-bar { justify-content: flex-start; }
   border-radius: 16px;
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(114, 255, 159, 0.2);
-}
-
-.media-activity-ticker {
-  grid-column: 1 / -1;
-  padding: 10px 0;
-  border-radius: 16px;
-  border: 1px solid rgba(114, 255, 159, 0.24);
-  background: rgba(0, 0, 0, 0.34);
-  overflow: hidden;
-}
-
-.media-activity-ticker__viewport {
-  overflow: hidden;
-  width: 100%;
-}
-
-.media-activity-ticker__track {
-  display: flex;
-  width: max-content;
-  animation: media-ticker-scroll 24s linear infinite;
-}
-
-.media-activity-ticker__row {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding-right: 28px;
-  white-space: nowrap;
-}
-
-.media-activity-ticker__item {
-  font-size: 0.96rem;
-  opacity: 0.9;
-}
-
-.media-activity-ticker__divider {
-  opacity: 0.4;
-}
-
-.media-activity-ticker.is-offline .media-activity-ticker__track {
-  animation-play-state: paused;
-}
-
-@keyframes media-ticker-scroll {
-  from {
-    transform: translateX(0);
-  }
-
-  to {
-    transform: translateX(-50%);
-  }
 }
 
 .media-status-section {

@@ -18,7 +18,6 @@ import { initMediaPanels } from "../modules/mediaPanels.js";
 import { initTodoPanels } from "../modules/todo.js";
 import { initPlexStatus } from "../modules/plexStatus.js";
 import { initArrActivity } from "../modules/arrActivity.js";
-import { initMediaHome } from "../modules/mediaHome.js";
 import { initMediaStatus } from "../modules/mediaStatus.js";
 import { initDoorbellOverlay } from "../modules/doorbellOverlay.js";
 import { initCameraPopupOverlay } from "../modules/cameraPopupOverlay.js";
@@ -126,7 +125,6 @@ export function startApp() {
   });
   initCameraTiles();
   initArrActivity();
-  initMediaHome();
   initMediaStatus();
   initDoorbellOverlay();
   initCameraPopupOverlay();
