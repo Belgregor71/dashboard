@@ -1420,10 +1420,7 @@ async function fetchCameraSnapshot(camera) {
           sourceUsed: source.type
         };
 
-        if (
-          source.type === "eventImage" &&
-          [401, 403, 404, 408].includes(response.status)
-        ) {
+        if (source.type === "eventImage" && [401, 403, 404, 408].includes(response.status)) {
           continue;
         }
 
@@ -1561,6 +1558,7 @@ app.get("/api/camera/:id/snapshot", async (req, res) => {
     }
 
     console.error("Camera snapshot proxy error:", err);
+    setNoCacheHeaders(res);
     res.status(statusCode).json({
       error: errorInfo.message || "Camera snapshot error",
       code: errorInfo.code || "snapshot_failed"
