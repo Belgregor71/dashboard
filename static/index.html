@@ -142,38 +142,10 @@
       <span id="arr-summary-text"></span>
     </div>
 
-    <section id="media-pulse" class="panel media-pulse hidden" aria-live="polite">
-      <div id="media-pulse-text" class="media-pulse__text">Media active</div>
-      <div class="media-pulse__badges">
-        <span id="media-badge-sonarr" class="media-pulse__badge" hidden></span>
-        <span id="media-badge-radarr" class="media-pulse__badge" hidden></span>
-        <span id="media-badge-qbit" class="media-pulse__badge" hidden></span>
+    <section id="media-activity-ticker" class="panel media-activity-ticker hidden" aria-live="polite" aria-hidden="true">
+      <div class="media-activity-ticker__viewport">
+        <div id="media-activity-ticker-track" class="media-activity-ticker__track"></div>
       </div>
-    </section>
-
-    <section id="media-downloads-pop" class="panel media-downloads-pop" aria-live="polite" aria-hidden="true">
-      <div class="media-downloads-pop__top">
-        <div class="media-downloads-pop__metric">
-          <div class="media-downloads-pop__label">Download</div>
-          <div id="media-pop-down" class="media-downloads-pop__value">0B/s</div>
-        </div>
-        <div class="media-downloads-pop__metric">
-          <div class="media-downloads-pop__label">Upload</div>
-          <div id="media-pop-up" class="media-downloads-pop__value">0B/s</div>
-        </div>
-        <div class="media-downloads-pop__metric">
-          <div class="media-downloads-pop__label">Active</div>
-          <div id="media-pop-active" class="media-downloads-pop__value">0</div>
-        </div>
-      </div>
-      <div class="media-downloads-pop__meta">
-        <span id="media-pop-sonarr"></span>
-        <span id="media-pop-radarr"></span>
-      </div>
-      <div id="media-pop-errors-wrap" class="media-downloads-pop__errors" hidden>
-        <span id="media-pop-errors"></span>
-      </div>
-      <button id="media-pop-turtle-toggle" class="status-ai-button" type="button" hidden></button>
     </section>
 
     <!-- ROW 4: Week at a glance (full width) -->
