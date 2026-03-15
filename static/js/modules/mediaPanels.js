@@ -38,8 +38,25 @@ function resolveMediaImage(url) {
   return `/api/image_proxy${url}`;
 }
 
+function normalizeEntityIds(config) {
+  if (!config) return [];
+
+  if (Array.isArray(config.entityIds)) {
+    return config.entityIds.filter(id => typeof id === "string" && id.trim());
+  }
+
+  if (typeof config.entityId === "string" && config.entityId.trim()) {
+    return [config.entityId];
+  }
+
+  return [];
+}
+
 function getMediaConfigs() {
-  return CONFIG.homeAssistant?.mediaPlayers ?? [];
+  return (CONFIG.homeAssistant?.mediaPlayers ?? []).map(config => ({
+    ...config,
+    entityIds: normalizeEntityIds(config)
+  }));
 }
 
 function formatSubtitle(attributes) {
@@ -106,24 +123,46 @@ export function initMediaPanels() {
 
   panels.forEach((panel, index) => {
     const config = configs[index];
-    if (!config?.entityId) {
+    const entityIds = config?.entityIds ?? [];
+    if (!entityIds.length) {
       panel.classList.add("is-hidden", "is-collapsed");
       return;
     }
 
-    panel.dataset.entityId = config.entityId;
-    panelMap.set(config.entityId, { panel, config });
+    panel.dataset.entityId = entityIds[0];
+    entityIds.forEach(entityId => {
+      panelMap.set(entityId, { panel, config });
+    });
   });
+
+  function getPreferredEntity(config) {
+    if (!config?.entityIds?.length) return null;
+
+    let fallback = null;
+    for (const entityId of config.entityIds) {
+      const entity = getEntity(entityId);
+      if (!entity) continue;
+      if (entity.state === "playing") return entity;
+      if (!fallback) fallback = entity;
+    }
+
+    return fallback;
+  }
 
   function refresh(entityId) {
     if (!entityId || !panelMap.has(entityId)) return;
     const entry = panelMap.get(entityId);
-    const entity = getEntity(entityId);
+    const entity = getPreferredEntity(entry.config);
     renderPanel(entry.panel, entity, entry.config);
   }
 
   function refreshAll() {
-    panelMap.forEach((_, entityId) => refresh(entityId));
+    const uniquePanels = new Set();
+    panelMap.forEach(entry => uniquePanels.add(entry));
+    uniquePanels.forEach(entry => {
+      const entity = getPreferredEntity(entry.config);
+      renderPanel(entry.panel, entity, entry.config);
+    });
   }
 
   document.addEventListener("ha:state-updated", (event) => {

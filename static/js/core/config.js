@@ -54,8 +54,14 @@ export const CONFIG = {
     debug: HA_DASH_CONFIG.debug === true || ENV.HA_DEBUG === "1",
     reconnectInterval: 5000,
     mediaPlayers: [
-      { entityId: "media_player.living_room", label: "Living Room" },
-      { entityId: "media_player.piano_room", label: "Piano Room" }
+      {
+        entityIds: ["media_player.lounge_room", "media_player.living_room"],
+        label: "Lounge Room"
+      },
+      {
+        entityIds: ["media_player.piano_room", "media_player.piano"],
+        label: "Piano Room"
+      }
     ],
     doorbellOverlay: {
       enabled: false,
