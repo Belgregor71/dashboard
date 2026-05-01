@@ -2,9 +2,9 @@
   "name": "family-dashboard",
   "version": "1.0.0",
   "description": "Raspberry Pi smart home dashboard",
-  "main": "apps/backend/index.js",
+  "main": "backend/index.js",
   "scripts": {
-    "start": "node apps/backend/index.js"
+    "start": "node backend/index.js"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
