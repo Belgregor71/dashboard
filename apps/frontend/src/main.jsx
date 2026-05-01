@@ -6,28 +6,7 @@ import { connectWebSocket } from './services/ws-client.js';
 import { panelRegistry } from './panel-registry.js';
 
 const activePanels = ['camera'];
-
-function App() {
-  return (
-    <GridLayout>
-      <Suspense fallback={<div>Loading panels…</div>}>
-        {activePanels.map((panelKey) => {
-          const Panel = panelRegistry[panelKey];
-          return Panel ? <Panel key={panelKey} /> : null;
-        })}
-      </Suspense>
-    </GridLayout>
-  );
-}
-
-const { setLatestCameraEvent, clearStaleCameraImages } = useDashboardStore.getState();
-connectWebSocket({
-  onEvent: ({ type, payload }) => {
-    if (type === 'camera.motionDetected' || type === 'camera.imageCaptured') {
-      setLatestCameraEvent(payload);
-      clearStaleCameraImages();
-    }
-  }
-});
-
+function App() { return <GridLayout><Suspense fallback={<div>Loading panels…</div>}>{activePanels.map((k) => { const P = panelRegistry[k]; return P ? <P key={k} /> : null; })}</Suspense></GridLayout>; }
+const { handleEvent } = useDashboardStore.getState();
+connectWebSocket({ onEvent: handleEvent });
 render(<App />, document.getElementById('app'));
