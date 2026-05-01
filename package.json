@@ -2,10 +2,9 @@
   "name": "family-dashboard",
   "version": "1.0.0",
   "description": "Raspberry Pi smart home dashboard",
-  "main": "server.js",
+  "main": "apps/backend/index.js",
   "scripts": {
-    "start": "node server.js",
-    "test:ha-ws-proxy": "node scripts/test-ha-ws-proxy.js"
+    "start": "node apps/backend/index.js"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
@@ -13,7 +12,10 @@
     "http-proxy-middleware": "^3.0.0",
     "node-fetch": "^3.3.2",
     "node-ical": "^0.22.1",
-    "ajv": "^8.17.1"
+    "ajv": "^8.17.1",
+    "ws": "^8.18.0",
+    "preact": "^10.26.4",
+    "zustand": "^5.0.8"
   },
   "type": "module",
   "repository": {
