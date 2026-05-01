@@ -11,7 +11,7 @@ export class CameraService {
   async poll() {
     const cameraId = 'front-door';
     const timestamp = Date.now();
-    this.eventBus.publish({ type: 'CAMERA_MOTION_DETECTED', source: 'camera-service', timestamp, payload: { id: crypto.randomUUID(), cameraId, zone: 'default' } });
-    this.eventBus.publish({ type: 'CAMERA_IMAGE_CAPTURED', source: 'camera-service', timestamp, payload: { id: crypto.randomUUID(), cameraId, imageUrl: `/assets/cameras/${cameraId}/latest.webp` } });
+    this.eventBus.emit({ type: 'CAMERA_MOTION_DETECTED', timestamp, payload: { id: crypto.randomUUID(), cameraId, zone: 'default' } });
+    this.eventBus.emit({ type: 'CAMERA_IMAGE_CAPTURED', timestamp, payload: { id: crypto.randomUUID(), cameraId, imageUrl: `/assets/cameras/${cameraId}/latest.webp` } });
   }
 }

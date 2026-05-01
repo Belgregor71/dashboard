@@ -26,7 +26,7 @@ const serviceManager = new ServiceManager([
 ]);
 
 app.use(express.json({ limit: '256kb' }));
-app.use(express.static('public'));
+app.use(express.static('apps/frontend/dist'));
 app.get('/api/health', (_req, res) => res.json(systemService.health()));
 const server = http.createServer(app);
 attachWebSocketGateway(server, { eventBus, stateAggregator, wsPath: appConfig.wsPath });

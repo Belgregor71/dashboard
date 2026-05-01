@@ -7,6 +7,6 @@ import { panelRegistry } from './panel-registry.js';
 
 const activePanels = ['camera'];
 function App() { return <GridLayout><Suspense fallback={<div>Loading panels…</div>}>{activePanels.map((k) => { const P = panelRegistry[k]; return P ? <P key={k} /> : null; })}</Suspense></GridLayout>; }
-const { handleEvent } = useDashboardStore.getState();
-connectWebSocket({ onEvent: handleEvent });
+
+connectWebSocket({ store: useDashboardStore.getState() });
 render(<App />, document.getElementById('app'));

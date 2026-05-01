@@ -1,16 +1,23 @@
-export function createEvent({ type, source, payload = {}, timestamp = Date.now() }) {
-  if (!type || !source) throw new Error('Event requires type and source');
-  return { type, source, timestamp, payload };
+export function validateEvent(event) {
+  if (!event || typeof event !== 'object') {
+    return { valid: false, error: 'Event must be an object' };
+  }
+
+  if (typeof event.type !== 'string' || event.type.length === 0) {
+    return { valid: false, error: 'Event type must be a non-empty string' };
+  }
+
+  if (!event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) {
+    return { valid: false, error: 'Event payload must be an object' };
+  }
+
+  if (typeof event.timestamp !== 'number' || !Number.isFinite(event.timestamp)) {
+    return { valid: false, error: 'Event timestamp must be a finite number' };
+  }
+
+  return { valid: true };
 }
 
-export function isDashboardEvent(value) {
-  return Boolean(
-    value &&
-      typeof value === 'object' &&
-      typeof value.type === 'string' &&
-      typeof value.source === 'string' &&
-      typeof value.timestamp === 'number' &&
-      value.payload &&
-      typeof value.payload === 'object'
-  );
+export function createEvent({ type, payload = {}, timestamp = Date.now() }) {
+  return { type, payload, timestamp };
 }

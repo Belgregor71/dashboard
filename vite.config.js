@@ -5,7 +5,7 @@ export default defineConfig({
   root: resolve(process.cwd(), 'apps/frontend'),
   publicDir: resolve(process.cwd(), 'public'),
   build: {
-    outDir: resolve(process.cwd(), 'dist'),
+    outDir: resolve(process.cwd(), 'apps/frontend/dist'),
     emptyOutDir: true
   }
 });

@@ -1,19 +1,28 @@
 import { EventEmitter } from 'events';
-import { createEvent, isDashboardEvent } from '../types/events.js';
-import { throttle } from '../utils/throttle.js';
+import { createEvent, validateEvent } from '../types/events.js';
 
 class DashboardEventBus {
-  constructor({ throttleMs = 0, devLogging = false } = {}) {
+  constructor({ devLogging = false } = {}) {
     this.emitter = new EventEmitter();
     this.emitter.setMaxListeners(100);
     this.devLogging = devLogging;
-    this.dispatch = throttleMs > 0 ? throttle((event) => this.#dispatch(event), throttleMs) : (event) => this.#dispatch(event);
   }
 
-  publish(eventLike) {
-    const event = isDashboardEvent(eventLike) ? eventLike : createEvent(eventLike);
-    if (this.devLogging) console.debug('[event-bus]', event.type, event.source, event.payload);
-    this.dispatch(event);
+  emit(eventLike) {
+    const event = createEvent(eventLike);
+    const validation = validateEvent(event);
+
+    if (!validation.valid) {
+      console.error('[event-bus] Rejected invalid event:', validation.error, eventLike);
+      return null;
+    }
+
+    if (this.devLogging) {
+      console.debug('[event-bus] Event emitted:', event.type, event.payload);
+    }
+
+    this.emitter.emit(event.type, event);
+    this.emitter.emit('*', event);
     return event;
   }
 
@@ -22,14 +31,18 @@ class DashboardEventBus {
     this.emitter.on(type, wrapped);
     return () => this.emitter.off(type, wrapped);
   }
-
-  #dispatch(event) {
-    this.emitter.emit(event.type, event);
-    this.emitter.emit('*', event);
-  }
 }
 
-export const eventBus = new DashboardEventBus({
-  throttleMs: Number(process.env.EVENT_BUS_THROTTLE_MS || 0),
-  devLogging: process.env.NODE_ENV !== 'production'
-});
+let singletonEventBus;
+
+export function getEventBus() {
+  if (!singletonEventBus) {
+    singletonEventBus = new DashboardEventBus({
+      devLogging: process.env.NODE_ENV !== 'production'
+    });
+  }
+
+  return singletonEventBus;
+}
+
+export const eventBus = getEventBus();

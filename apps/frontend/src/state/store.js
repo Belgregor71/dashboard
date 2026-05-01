@@ -1,17 +1,33 @@
 import { create } from 'zustand';
 
-function setByPath(target, path, value) {
-  const next = structuredClone(target);
-  let ptr = next;
-  for (let i = 0; i < path.length - 1; i += 1) ptr = ptr[path[i]] ||= {};
-  ptr[path[path.length - 1]] = value;
-  return next;
+function applyDomainEvent(state, event) {
+  switch (event.type) {
+    case 'CAMERA_MOTION_DETECTED':
+    case 'CAMERA_IMAGE_CAPTURED': {
+      const { cameraId, ...rest } = event.payload;
+      if (!cameraId) return state;
+      return {
+        ...state,
+        cameras: {
+          ...state.cameras,
+          [cameraId]: {
+            ...(state.cameras[cameraId] || {}),
+            ...rest
+          }
+        }
+      };
+    }
+    case 'CALENDAR_UPDATED':
+      return { ...state, calendar: { ...state.calendar, ...event.payload } };
+    case 'SYSTEM_HEALTH':
+      return { ...state, system: { ...event.payload } };
+    default:
+      return state;
+  }
 }
 
 export const useDashboardStore = create((set) => ({
   state: { cameras: {}, weather: {}, system: {}, calendar: {} },
-  handleEvent: (event) => {
-    if (event.type === 'INIT_STATE') set({ state: event.payload });
-    if (event.type === 'STATE_UPDATE') set((curr) => ({ state: setByPath(curr.state, event.payload.path, event.payload.value) }));
-  }
+  applySnapshot: (state) => set({ state }),
+  applyEvent: (event) => set((curr) => ({ state: applyDomainEvent(curr.state, event) }))
 }));
