@@ -41,37 +41,30 @@ const BOM_DEBUG = CONFIG.weather?.debugBom === true;
 
 const BACKGROUND_ASSETS = {
   clear: {
-    mp4: "/assets/weather_bg/clear.mp4",
     webm: "/assets/weather_bg/clear.webm",
     image: "/assets/weather_bg/clear.svg"
   },
   cloudy: {
-    mp4: "/assets/weather_bg/cloudy.mp4",
     webm: "/assets/weather_bg/cloudy.webm",
     image: "/assets/weather_bg/cloudy.svg"
   },
   rain: {
-    mp4: "/assets/weather_bg/rain.mp4",
     webm: "/assets/weather_bg/rain.webm",
     image: "/assets/weather_bg/rain.svg"
   },
   storm: {
-    mp4: "/assets/weather_bg/storm.mp4",
     webm: "/assets/weather_bg/storm.webm",
     image: "/assets/weather_bg/storm.svg"
   },
   fog: {
-    mp4: "/assets/weather_bg/fog.mp4",
     webm: "/assets/weather_bg/fog.webm",
     image: "/assets/weather_bg/fog.svg"
   },
   golden_hour: {
-    mp4: "/assets/weather_bg/golden_hour.mp4",
     webm: "/assets/weather_bg/golden_hour.webm",
     image: "/assets/weather_bg/golden_hour.svg"
   },
   heat_haze: {
-    mp4: "/assets/weather_bg/heat_haze.mp4",
     webm: "/assets/weather_bg/heat_haze.webm",
     image: "/assets/weather_bg/heat_haze.svg"
   }
@@ -211,12 +204,10 @@ function stopCinematicBackground({ resetSources = false } = {}) {
   if (!resetSources) return;
 
   const webmSource = document.getElementById("weather-bg-webm");
-  const mp4Source = document.getElementById("weather-bg-mp4");
 
   video.dataset.category = "";
   video.dataset.variant = "";
   webmSource?.removeAttribute("src");
-  mp4Source?.removeAttribute("src");
   video.removeAttribute("src");
   video.load();
 }
@@ -236,10 +227,9 @@ function applyCinematicBackground(weatherData) {
 
   const video = document.getElementById("weather-bg-video");
   const webmSource = document.getElementById("weather-bg-webm");
-  const mp4Source = document.getElementById("weather-bg-mp4");
   const image = document.getElementById("weather-bg-image");
 
-  if (!video || !webmSource || !mp4Source || !image) return false;
+  if (!video || !webmSource || !image) return false;
 
   const baseCategory = getBaseCategory(code);
   const variant = getBackgroundVariant(baseCategory, weatherData, new Date());
@@ -262,7 +252,6 @@ function applyCinematicBackground(weatherData) {
   video.dataset.category = baseCategory;
   video.dataset.variant = variant;
   webmSource.src = asset.webm;
-  mp4Source.src = asset.mp4;
   image.style.backgroundImage = `url("${asset.image}")`;
 
   const activateVideo = () => {

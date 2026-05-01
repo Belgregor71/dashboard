@@ -4,7 +4,9 @@
   "description": "Raspberry Pi smart home dashboard",
   "main": "backend/index.js",
   "scripts": {
-    "start": "node backend/index.js"
+    "start": "node backend/index.js",
+    "dev": "concurrently \"node backend/index.js\" \"vite\"",
+    "build": "vite build"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
@@ -28,5 +30,9 @@
   "bugs": {
     "url": "https://github.com/Belgregor71/dashboard/issues"
   },
-  "homepage": "https://github.com/Belgregor71/dashboard#readme"
+  "homepage": "https://github.com/Belgregor71/dashboard#readme",
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "concurrently": "^9.0.0"
+  }
 }

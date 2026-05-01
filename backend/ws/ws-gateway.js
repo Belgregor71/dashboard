@@ -4,15 +4,35 @@ import { eventBus } from '../core/event-bus.js';
 export function attachWebSocketGateway(httpServer) {
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
-  const eventTypes = ['camera.motionDetected', 'camera.imageCaptured', 'calendar.updated', 'system.status'];
+  wss.on('connection', (ws) => {
+    ws.isAlive = true;
+    ws.on('pong', () => {
+      ws.isAlive = true;
+    });
+  });
 
-  const unsubscribers = eventTypes.map((type) => eventBus.onEvent(type, (payload) => {
-    const message = JSON.stringify({ type, payload });
+  const heartbeat = setInterval(() => {
+    for (const client of wss.clients) {
+      if (client.isAlive === false) {
+        client.terminate();
+        continue;
+      }
+      client.isAlive = false;
+      client.ping();
+    }
+  }, 15000);
+
+  const unsubscribeAll = eventBus.onEvent('*', (event) => {
+    const message = JSON.stringify(event);
     for (const client of wss.clients) {
       if (client.readyState === 1) client.send(message);
     }
-  }));
+  });
 
-  wss.on('close', () => unsubscribers.forEach((unsubscribe) => unsubscribe()));
+  wss.on('close', () => {
+    clearInterval(heartbeat);
+    unsubscribeAll();
+  });
+
   return wss;
 }
