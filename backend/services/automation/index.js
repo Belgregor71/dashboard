@@ -1,11 +1,10 @@
-import { eventBus } from '../../packages/event-bus/index.js';
+import { eventBus } from '../../core/event-bus.js';
 
 export class AutomationService {
   trigger(ruleId, context = {}) {
     eventBus.emitEvent('automation.ruleTriggered', {
       ruleId,
-      context,
-      timestamp: new Date().toISOString()
-    });
+      context
+    }, 'automation-service');
   }
 }
