@@ -57,5 +57,8 @@ window.CONFIG = {
 
   plex: {
     refreshMs: 30 * 1000
-  }
+  },
+
+  performanceMode: "balanced",
+  tvMode: true
 };

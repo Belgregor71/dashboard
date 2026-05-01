@@ -28,6 +28,7 @@ import { initEnergySaver } from "../modules/energySaver.js";
 import { createStatusView } from "../modules/systemStatus.js";
 import { createBriefingView } from "../views/briefingView.js";
 import { createWeatherView } from "../views/weatherView.js";
+import { initConnectionHealth, markConnectorStatus } from "../modules/connectionHealth.js";
 
 import { connectHA } from "../services/homeAssistant/client.js";
 import { registerHAEvents } from "../services/homeAssistant/events.js";
@@ -57,6 +58,10 @@ export function startApp() {
   initVoiceOverlay();
 
   const cfg = window.CONFIG || {};
+  const performanceMode = cfg.performanceMode || "balanced";
+  document.body.dataset.performanceMode = performanceMode;
+  document.body.dataset.tvMode = cfg.tvMode ? "true" : "false";
+  initConnectionHealth();
 
   // -----------------------
   // Background (rotating photos + tint)
@@ -82,9 +87,15 @@ export function startApp() {
   // Weather (new services renderer)
   // -----------------------
   if (isEnabled("weather", true)) {
-    startWeather();
+    Promise.resolve(startWeather())
+      .then(() => markConnectorStatus("weather", "ok"))
+      .catch(() => markConnectorStatus("weather", "down"));
     const weatherMs = cfg.weather?.refreshMs ?? 10 * 60 * 1000;
-    setInterval(startWeather, weatherMs);
+    setInterval(() => {
+      Promise.resolve(startWeather())
+        .then(() => markConnectorStatus("weather", "ok"))
+        .catch(() => markConnectorStatus("weather", "down"));
+    }, weatherMs);
   } else {
     console.info("Weather disabled");
   }
@@ -93,9 +104,15 @@ export function startApp() {
   // Calendar
   // -----------------------
   if (isEnabled("calendar", true)) {
-    refreshCalendar();
+    Promise.resolve(refreshCalendar())
+      .then(() => markConnectorStatus("calendar", "ok"))
+      .catch(() => markConnectorStatus("calendar", "down"));
     const calendarMs = cfg.calendar?.refreshMs ?? 60_000;
-    setInterval(refreshCalendar, calendarMs);
+    setInterval(() => {
+      Promise.resolve(refreshCalendar())
+        .then(() => markConnectorStatus("calendar", "ok"))
+        .catch(() => markConnectorStatus("calendar", "down"));
+    }, calendarMs);
     initNextEventPanel();
   } else {
     console.info("Calendar disabled");
@@ -106,10 +123,16 @@ export function startApp() {
   // -----------------------
   if (isEnabled("commute", true)) {
     updateCommuteVisibility();
-    updateCommuteTimes();
+    Promise.resolve(updateCommuteTimes())
+      .then(() => markConnectorStatus("commute", "ok"))
+      .catch(() => markConnectorStatus("commute", "down"));
 
     setInterval(updateCommuteVisibility, 60 * 1000);
-    setInterval(updateCommuteTimes, 10 * 60 * 1000);
+    setInterval(() => {
+      Promise.resolve(updateCommuteTimes())
+        .then(() => markConnectorStatus("commute", "ok"))
+        .catch(() => markConnectorStatus("commute", "down"));
+    }, 10 * 60 * 1000);
   } else {
     console.info("Commute disabled");
   }
