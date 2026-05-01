@@ -1,26 +1,17 @@
 import { create } from 'zustand';
 
-const CAMERA_STALE_TIMEOUT_MS = 30_000;
+function setByPath(target, path, value) {
+  const next = structuredClone(target);
+  let ptr = next;
+  for (let i = 0; i < path.length - 1; i += 1) ptr = ptr[path[i]] ||= {};
+  ptr[path[path.length - 1]] = value;
+  return next;
+}
 
-export const useDashboardStore = create((set, get) => ({
-  latestCameraEvents: {},
-  setLatestCameraEvent: (event) =>
-    set((state) => {
-      const previous = state.latestCameraEvents[event.cameraId];
-      if (previous && Date.parse(previous.timestamp) >= Date.parse(event.timestamp)) return state;
-      return {
-        latestCameraEvents: {
-          ...state.latestCameraEvents,
-          [event.cameraId]: event
-        }
-      };
-    }),
-  clearStaleCameraImages: () => {
-    const now = Date.now();
-    const latest = get().latestCameraEvents;
-    const next = Object.fromEntries(
-      Object.entries(latest).filter(([, event]) => now - Date.parse(event.timestamp) <= CAMERA_STALE_TIMEOUT_MS)
-    );
-    set({ latestCameraEvents: next });
+export const useDashboardStore = create((set) => ({
+  state: { cameras: {}, weather: {}, system: {}, calendar: {} },
+  handleEvent: (event) => {
+    if (event.type === 'INIT_STATE') set({ state: event.payload });
+    if (event.type === 'STATE_UPDATE') set((curr) => ({ state: setByPath(curr.state, event.payload.path, event.payload.value) }));
   }
 }));
