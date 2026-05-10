@@ -10,22 +10,15 @@ Copy `.env.example` to `.env` and set the LAN IPs for Home Assistant and go2rtc:
 HA_HOST=http://192.168.0.179:8123
 GO2RTC_HOST=http://192.168.0.179:1984
 HA_TOKEN=your_long_lived_token
-EXPOSE_HA_TOKEN_TO_CLIENT=1
 ```
 
 > **Tip:** Never use `localhost` here unless Home Assistant/go2rtc are running on the same host as the dashboard.
 
-### Home Assistant websocket auth in browser
+### Home Assistant websocket auth
 
-The dashboard Home Assistant websocket client authenticates from browser config (`window.__ENV__` / `window.__DASH_CONFIG__`). By default, the server **does not** expose `HA_TOKEN` to the client for safety.
+The dashboard server owns the Home Assistant websocket connection and authenticates with `HA_TOKEN`. Browser clients subscribe to `/api/ha/stream`, so the long-lived token is not exposed to the kiosk browser.
 
-For trusted LAN kiosk deployments, explicitly opt in:
-
-```bash
-EXPOSE_HA_TOKEN_TO_CLIENT=1
-```
-
-When enabled, `/env.js` and `/api/config` include the HA token for websocket auth. When disabled (default), the UI reports `Token Missing` and backs off reconnect attempts instead of spamming unauthenticated auth requests.
+If Home Assistant logs repeated invalid authentication for `/api/websocket` from the dashboard host, check that `HA_TOKEN` is a current long-lived access token for an enabled Home Assistant user. Restart the dashboard after changing the token. The server stops retrying after Home Assistant returns `auth_invalid` to avoid repeated failed-login events and possible HTTP bans.
 
 ## 2) Camera configuration
 
@@ -58,11 +51,7 @@ The motion popup overlay now renders a **still snapshot image** (not a live ifra
 
 The server prefers each camera's `eventImageEntity` (for example `image.<camera>_event_image`) and automatically falls back to `cameraEntity` via Home Assistant camera proxy when the event image is missing/unavailable.
 
-To improve near-real-time updates from Home Assistant entity changes in the UI, keep websocket auth enabled for trusted kiosks:
-
-```bash
-EXPOSE_HA_TOKEN_TO_CLIENT=1
-```
+Near-real-time Home Assistant entity changes are delivered through the server-side websocket bridge and `/api/ha/stream`.
 
 Current assumptions in `config/cameras.js` include:
 
