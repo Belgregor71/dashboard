@@ -120,6 +120,16 @@ class HaWsManager extends EventEmitter {
         return;
       }
 
+      if (msg.type === "auth_invalid") {
+        this.started = false;
+        this.connected = false;
+        this.lastError = msg.message || "auth_invalid";
+        this.emit("status", this.getStatus());
+        this.socket = null;
+        ws.close();
+        return;
+      }
+
       if (msg.type === "auth_ok") {
         this.connected = true;
         this.backoffMs = BASE_BACKOFF_MS;
