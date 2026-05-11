@@ -1,6 +1,6 @@
 console.log(">>> DASHBOARD SERVER LOADED <<<");
 
-import "dotenv/config";
+import dotenv from "dotenv";
 import express from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import https from "https";
@@ -29,6 +29,11 @@ import { readHaConfig } from "./server/ha/haConfig.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const dotenvResult = dotenv.config({ path: path.join(__dirname, ".env"), quiet: true });
+if (dotenvResult.error && dotenvResult.error.code !== "ENOENT") {
+  console.warn("Unable to load dashboard .env file:", dotenvResult.error.message);
+}
 
 const app = express();
 app.use(express.json({ limit: "256kb" }));
