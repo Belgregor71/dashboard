@@ -30,14 +30,57 @@ function mapError(error) {
 
 export function createHaRouter() {
   const router = express.Router();
+  const { haHost, enabled } = readHaConfig({ requireConfig: false });
+
+  if (!enabled) {
+    router.get("/health", (_req, res) => {
+      res.json({
+        ok: true,
+        enabled: false,
+        haHost,
+        connected: false,
+        lastError: null,
+        lastConnectedAt: null
+      });
+    });
+
+    router.get("/stream", (req, res) => {
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
+      res.setHeader("Connection", "keep-alive");
+      res.flushHeaders?.();
+      res.write(toSse("ha_status", {
+        enabled: false,
+        connected: false,
+        lastError: null,
+        lastConnectedAt: null
+      }));
+      res.end();
+    });
+
+    router.use((_req, res) => {
+      res.status(503).json({
+        error: "Home Assistant integration disabled",
+        detail: "Set HA_ENABLED=1 with HA_HOST and HA_TOKEN to enable /api/ha routes."
+      });
+    });
+
+    return router;
+  }
+
   const manager = getHaWsManager();
 
   manager.start();
   void manager.ensureInitialStates();
 
   router.get("/health", (_req, res) => {
-    const { haHost } = readHaConfig({ requireConfig: false });
-    res.json({ ok: true, haHost, ...manager.getStatus() });
+    const { haHost: currentHaHost, enabled: currentEnabled } = readHaConfig({ requireConfig: false });
+    res.json({
+      ok: true,
+      enabled: currentEnabled,
+      haHost: currentHaHost,
+      ...manager.getStatus()
+    });
   });
 
   router.get("/stream", async (req, res) => {
