@@ -6,3 +6,7 @@ dist/
 .claude/
 *.env.local
 screenshot*.png
+.reference/
+CLAUDE_CODE_PROMPT.md
+server/package.json
+server/package-lock.json

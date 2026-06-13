@@ -8,7 +8,7 @@ const router = express.Router();
 const validateHaSnapshot = compileSchema(haSnapshotSchema);
 
 router.get("/api/ha/snapshot", async (_req, res) => {
-  const haTarget = normalizeBaseUrl(process.env.HA_HOST);
+  const haTarget = normalizeBaseUrl(process.env.HA_HOST || process.env.HA_URL);
   const token = process.env.HA_TOKEN;
 
   if (!haTarget || !token) {

@@ -24,9 +24,7 @@ import { initTodoPanels } from "../modules/todo.js";
 import { initPlexStatus } from "../modules/plexStatus.js";
 import { initArrActivity } from "../modules/arrActivity.js";
 import { initMediaStatus } from "../modules/mediaStatus.js";
-import { initDoorbellOverlay } from "../modules/doorbellOverlay.js";
 import { initCameraPopupOverlay } from "../modules/cameraPopupOverlay.js";
-import { initCameraMotionView } from "../modules/cameraMotionView.js";
 import { initCameraTiles } from "../modules/cameraTiles.js";
 import { initHomeAssistantTodayPanel } from "../modules/haToday.js";
 import { initEnergySaver } from "../modules/energySaver.js";
@@ -135,9 +133,7 @@ export function startApp() {
   initCameraTiles();
   initArrActivity();
   initMediaStatus();
-  initDoorbellOverlay();
   initCameraPopupOverlay();
-  initCameraMotionView();
   initEnergySaver();
 
   if (isEnabled("homeAssistant", false)) {

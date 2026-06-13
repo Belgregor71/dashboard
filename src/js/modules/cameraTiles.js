@@ -19,6 +19,14 @@ const SUMMARY_VISIBLE_MS = 9_000;
 const PINNED_STORAGE_KEY = "dashboard:pinned-hero-camera";
 const DEBUG_MODE = new URLSearchParams(window.location.search).get("debug") === "1";
 
+function escHtml(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 const EVENT_WEIGHTS = {
   ringing: 3,
   person: 2,
@@ -457,17 +465,19 @@ function renderCameraGrid() {
 
     card.innerHTML = `
       <div class="camera-card__preview">
-        <img class="camera-card__image" alt="${camera.name} snapshot" />
+        <img class="camera-card__image" alt="" />
         <span class="camera-card__badge camera-card__badge--stale is-hidden" data-badge>STALE</span>
         <div class="camera-card__pill" data-status></div>
         <div class="camera-card__debug is-hidden" data-debug></div>
       </div>
       <div class="camera-card__body">
-        <div class="camera-card__name">${camera.name}</div>
+        <div class="camera-card__name" data-name></div>
         <div class="camera-card__meta" data-activity>No recent activity</div>
         <div class="camera-card__heat" data-heat></div>
       </div>
     `;
+    card.querySelector(".camera-card__image").alt = `${camera.name} snapshot`;
+    card.querySelector("[data-name]").textContent = camera.name;
 
     card.addEventListener("click", () => focusCamera(camera.id));
 
@@ -1005,25 +1015,25 @@ function showSummaryOverlay(options = {}) {
 
   if (summary.body) {
     summaryEl.innerHTML = `
-      <div class="camera-summary__title">${summary.title}</div>
-      <div class="camera-summary__status">${summary.status}</div>
-      <div class="camera-summary__body">${summary.body}</div>
+      <div class="camera-summary__title">${escHtml(summary.title)}</div>
+      <div class="camera-summary__status">${escHtml(summary.status)}</div>
+      <div class="camera-summary__body">${escHtml(summary.body)}</div>
     `;
   } else {
     const activeItems = summary.active.length
       ? summary.active
           .map(({ camera, state }) => {
             const label = getSummaryActivityLabel(state?.lastActivity);
-            return `<li>${camera.name}${label ? ` · ${label}` : ""}</li>`;
+            return `<li>${escHtml(camera.name)}${label ? ` · ${escHtml(label)}` : ""}</li>`;
           })
           .join("")
       : "<li>No recent activity</li>";
     const offlineItems = summary.offline.length
-      ? summary.offline.map((camera) => `<li>${camera.name}</li>`).join("")
+      ? summary.offline.map((camera) => `<li>${escHtml(camera.name)}</li>`).join("")
       : "<li>All cameras online</li>";
 
     summaryEl.innerHTML = `
-      <div class="camera-summary__title">${summary.title}</div>
+      <div class="camera-summary__title">${escHtml(summary.title)}</div>
       <div class="camera-summary__section">
         <div class="camera-summary__label">Recent</div>
         <ul>${activeItems}</ul>
