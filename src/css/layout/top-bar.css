@@ -1,0 +1,56 @@
+#top-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: stretch;
+  padding: 20px 40px;
+  gap: 20px;
+}
+
+@media (max-height: 820px) {
+  #top-bar {
+    padding: 10px 40px;
+    gap: 12px;
+  }
+}
+
+#top-bar .panel {
+  height: 100%;
+}
+
+#time-panel {
+  grid-column: 1;
+}
+
+#middle-slot {
+  grid-column: 2;
+  position: relative;
+  min-height: 0;
+}
+
+#middle-slot > .panel {
+  width: 100%;
+  height: 100%;
+}
+
+#current-weather-panel {
+  grid-column: 3;
+}
+
+#time-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+
+#clock {
+  font-size: 5rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+#date {
+  font-size: 2rem;
+  opacity: 0.85;
+  line-height: 1.2;
+}

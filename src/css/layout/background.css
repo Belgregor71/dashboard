@@ -1,0 +1,51 @@
+#background {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+}
+
+#background-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(1.18) contrast(1.06);
+  opacity: 0;
+  transform: scale(1.02);
+  transition: opacity 2.2s ease;
+}
+
+.bg-visible {
+  opacity: 1 !important;
+}
+
+.bg-animate {
+  animation: background-zoom 24s ease-in-out;
+}
+
+@keyframes background-zoom {
+  from {
+    transform: scale(1.02);
+  }
+  to {
+    transform: scale(1.08);
+  }
+}
+
+#background-tint {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: background-color 1s ease;
+}
+
+.tint-morning { background-color: rgba(255, 210, 150, 0.12); }
+.tint-day     { background-color: rgba(255, 255, 255, 0.04); }
+.tint-evening { background-color: rgba(255, 150, 80, 0.12); }
+.tint-night   { background-color: rgba(30, 50, 110, 0.24); }
+
+body[data-view="weather"] #background,
+body[data-view="weather"] #background-image,
+body[data-view="weather"] #background-tint {
+  display: none;
+}

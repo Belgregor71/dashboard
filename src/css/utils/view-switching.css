@@ -1,0 +1,179 @@
+/* Default: all views hidden */
+.home-view,
+.calendar-view,
+.agenda-view,
+.cameras-view,
+.weather-view,
+.status-view,
+.briefing-view {
+  display: none;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Home view */
+body[data-view="home"] .home-view { display: flex; }
+body[data-view="home"] .calendar-view,
+body[data-view="home"] .agenda-view,
+body[data-view="home"] .cameras-view,
+body[data-view="home"] .weather-view,
+body[data-view="home"] .status-view,
+body[data-view="home"] .briefing-view { display: none; }
+
+/* Calendar view */
+body[data-view="calendar"] .calendar-view { display: flex; }
+body[data-view="calendar"] .home-view,
+body[data-view="calendar"] .agenda-view,
+body[data-view="calendar"] .cameras-view,
+body[data-view="calendar"] .weather-view,
+body[data-view="calendar"] .status-view,
+body[data-view="calendar"] .briefing-view { display: none; }
+
+body[data-view="calendar"] #middle-slot,
+body[data-view="calendar"] #current-weather-panel {
+  display: none;
+}
+
+body[data-view="calendar"] #top-bar {
+  grid-template-columns: 1fr;
+  justify-items: start;
+  padding: 20px 40px 10px;
+}
+
+body[data-view="calendar"] #time-panel {
+  padding-left: 10px;
+}
+
+/* Agenda view */
+body[data-view="agenda"] .agenda-view { display: block; }
+body[data-view="agenda"] .home-view,
+body[data-view="agenda"] .calendar-view,
+body[data-view="agenda"] .cameras-view,
+body[data-view="agenda"] .weather-view,
+body[data-view="agenda"] .status-view,
+body[data-view="agenda"] .briefing-view { display: none; }
+
+body[data-view="agenda"] #middle-slot,
+body[data-view="agenda"] #current-weather-panel {
+  display: none;
+}
+
+body[data-view="agenda"] #top-bar {
+  grid-template-columns: 1fr;
+  justify-items: start;
+  padding: 20px 40px 10px;
+}
+
+body[data-view="agenda"] #time-panel {
+  padding-left: 10px;
+}
+
+/* Cameras view */
+body[data-view="cameras"] .cameras-view { display: block; }
+body[data-view="cameras"] .home-view,
+body[data-view="cameras"] .calendar-view,
+body[data-view="cameras"] .agenda-view,
+body[data-view="cameras"] .weather-view,
+body[data-view="cameras"] .status-view,
+body[data-view="cameras"] .briefing-view { display: none; }
+
+body[data-view="cameras"] #middle-slot,
+body[data-view="cameras"] #current-weather-panel {
+  display: none;
+}
+
+body[data-view="cameras"] #top-bar {
+  grid-template-columns: 1fr;
+  justify-items: start;
+  padding: 20px 40px 10px;
+}
+
+body[data-view="cameras"] #time-panel {
+  padding-left: 10px;
+}
+
+/* Weather view */
+body[data-view="weather"] .weather-view { display: flex; }
+body[data-view="weather"] .home-view,
+body[data-view="weather"] .calendar-view,
+body[data-view="weather"] .agenda-view,
+body[data-view="weather"] .cameras-view,
+body[data-view="weather"] .status-view,
+body[data-view="weather"] .briefing-view { display: none; }
+
+body[data-view="weather"] #middle-slot,
+body[data-view="weather"] #current-weather-panel {
+  display: none;
+}
+
+body[data-view="weather"] #top-bar {
+  grid-template-columns: 1fr;
+  justify-items: start;
+  padding: 20px 40px 10px;
+  position: relative;
+  z-index: 30;
+}
+
+body[data-view="weather"] #top-bar .panel {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.28));
+  backdrop-filter: blur(4px) brightness(0.9);
+}
+
+body[data-view="weather"] #time-panel {
+  padding-left: 10px;
+}
+
+body[data-view="weather"] .weather-background,
+body[data-view="weather"] .weather-screen .wx-layer,
+body[data-view="weather"] .weather-screen .wx-flash,
+body[data-view="weather"] .weather-fx-overlay {
+  position: fixed;
+  inset: 0;
+}
+
+body[data-view="weather"] .weather-background {
+  z-index: 0;
+}
+
+body[data-view="weather"] .weather-fx-overlay,
+body[data-view="weather"] .weather-screen .wx-layer,
+body[data-view="weather"] .weather-screen .wx-flash {
+  z-index: 1;
+}
+
+/* Status view */
+body[data-view="status"] .status-view { display: flex; }
+body[data-view="status"] .home-view,
+body[data-view="status"] .calendar-view,
+body[data-view="status"] .agenda-view,
+body[data-view="status"] .cameras-view,
+body[data-view="status"] .weather-view,
+body[data-view="status"] .briefing-view { display: none; }
+
+body[data-view="status"] #middle-slot,
+body[data-view="status"] #current-weather-panel {
+  display: none;
+}
+
+body[data-view="status"] #top-bar {
+  grid-template-columns: 1fr;
+  justify-items: start;
+  padding: 20px 40px 10px;
+}
+
+body[data-view="status"] #time-panel {
+  padding-left: 10px;
+}
+
+/* Briefing view */
+body[data-view="briefing"] .briefing-view { display: grid; }
+body[data-view="briefing"] .home-view,
+body[data-view="briefing"] .calendar-view,
+body[data-view="briefing"] .agenda-view,
+body[data-view="briefing"] .cameras-view,
+body[data-view="briefing"] .weather-view,
+body[data-view="briefing"] .status-view { display: none; }
+
+body[data-view="briefing"] #middle-slot,
+body[data-view="briefing"] #current-weather-panel { display: none; }
+body[data-view="briefing"] #top-bar { justify-content: flex-start; }

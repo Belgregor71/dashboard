@@ -1,0 +1,54 @@
+#main-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: auto auto 1fr;
+  gap: 20px;
+  padding: 0 40px 44px 40px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  align-content: stretch;
+}
+
+@media (max-height: 820px) {
+  #main-grid {
+    gap: 12px;
+    padding: 0 20px 40px 20px;
+  }
+}
+
+#today-panel {
+  grid-column: 1 / 2;
+  grid-row: 1;
+}
+
+#reminders-panel {
+  grid-column: 2 / 3;
+  grid-row: 1;
+}
+
+#shopping-panel {
+  grid-column: 3 / 4;
+  grid-row: 1;
+}
+
+#server-status-panel {
+  grid-column: 1 / 2;
+  grid-row: 2;
+}
+
+#media-panel-1 {
+  grid-column: 2 / 3;
+  grid-row: 2;
+}
+
+#media-panel-2 {
+  grid-column: 3 / 4;
+  grid-row: 2;
+}
+
+#timeline-panel {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  align-self: end;
+}

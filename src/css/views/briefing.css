@@ -1,0 +1,48 @@
+#briefing-view {
+  height: calc(100vh - 110px);
+  padding: 20px 28px 24px;
+  display: none;
+  grid-template-rows: auto minmax(120px, 1fr) 2fr;
+  gap: var(--space-md);
+}
+
+.briefing-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--fs-small);
+}
+
+.briefing-headline h1 {
+  font-size: var(--fs-display);
+  line-height: 1.08;
+  font-weight: 600;
+}
+
+.briefing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.briefing-card h3 {
+  font-size: var(--fs-title);
+  margin-bottom: var(--space-sm);
+}
+
+.briefing-card p {
+  font-size: var(--fs-body);
+  line-height: 1.4;
+}
+
+.briefing-skeleton-line {
+  height: 16px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.14);
+  margin-bottom: var(--space-sm);
+}
+
+.briefing-skeleton-line--headline {
+  height: 40px;
+  width: 70%;
+}

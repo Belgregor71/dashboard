@@ -1,0 +1,12 @@
+:root {
+  --fs-display: clamp(2rem, 4.8vw, 4rem);
+  --fs-title: clamp(1.25rem, 2.2vw, 2rem);
+  --fs-body: 1rem;
+  --fs-small: 0.85rem;
+
+  --space-xs: 0.35rem;
+  --space-sm: 0.6rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+}

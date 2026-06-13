@@ -5,15 +5,22 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "test:ha-ws-proxy": "node scripts/test-ha-ws-proxy.js"
   },
+  "devDependencies": {
+    "vite": "^6.4.3"
+  },
   "dependencies": {
+    "ajv": "^8.17.1",
     "dotenv": "^17.2.3",
     "express": "^4.22.1",
     "http-proxy-middleware": "^3.0.0",
+    "lottie-web": "^5.13.0",
     "node-fetch": "^3.3.2",
     "node-ical": "^0.22.1",
-    "ajv": "^8.17.1",
     "ws": "^8.18.0"
   },
   "type": "module",
@@ -27,5 +34,8 @@
   "bugs": {
     "url": "https://github.com/Belgregor71/dashboard/issues"
   },
-  "homepage": "https://github.com/Belgregor71/dashboard#readme"
+  "homepage": "https://github.com/Belgregor71/dashboard#readme",
+  "allowScripts": {
+    "esbuild@0.25.12": true
+  }
 }

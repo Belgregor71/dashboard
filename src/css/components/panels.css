@@ -1,0 +1,35 @@
+.panel {
+  backdrop-filter: blur(16px) brightness(0.85);
+  background: linear-gradient(180deg, rgba(20, 24, 34, 0.5), rgba(9, 11, 17, 0.4));
+  border-radius: 18px;
+  padding: 20px;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.45s ease, transform 0.45s ease;
+}
+
+.panel-glass {
+  background: linear-gradient(180deg, rgba(32, 36, 48, 0.44), rgba(12, 14, 20, 0.32));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.panel-elevated {
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.32);
+}
+
+.panel.is-hidden {
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+}
+
+.panel.is-collapsed {
+  display: none;
+}
+
+@media (max-height: 820px) {
+  .panel {
+    padding: 12px;
+    border-radius: 14px;
+  }
+}

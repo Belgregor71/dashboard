@@ -1,0 +1,128 @@
+.arr-strip {
+  grid-column: 1 / -1;
+  padding: 14px 24px;
+  margin: 4px 0 0;
+  border-radius: 16px;
+  backdrop-filter: blur(20px);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(114, 255, 159, 0.24);
+  font-size: 1.1rem;
+}
+
+.status-arr-panel {
+  margin-top: 14px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(114, 255, 159, 0.2);
+}
+
+.media-status-section {
+  margin-top: 16px;
+  gap: 12px;
+}
+
+.media-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.media-status-card {
+  cursor: pointer;
+}
+
+.media-status-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.media-status-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.media-status-pill-row .status-header-pill__value {
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 0.84rem;
+}
+
+.media-disk-row {
+  display: grid;
+  gap: 6px;
+}
+
+.media-disk-bar {
+  height: 7px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.media-disk-bar span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, rgba(255, 181, 94, 0.9), rgba(255, 102, 102, 0.9));
+  transition: width 180ms ease;
+}
+
+.media-details-card {
+  max-width: 700px;
+}
+
+.media-details-body {
+  display: grid;
+  gap: 14px;
+}
+
+.media-details-links {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+#arr-content {
+  margin-top: 10px;
+}
+
+.arr-service-label {
+  margin: 14px 0 6px;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.arr-row {
+  margin-bottom: 14px;
+}
+
+.arr-title {
+  font-weight: 500;
+}
+
+.arr-progress {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.arr-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #4ade80, #22c55e);
+  transition: width 0.5s ease;
+}
+
+.arr-meta {
+  margin-top: 6px;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}

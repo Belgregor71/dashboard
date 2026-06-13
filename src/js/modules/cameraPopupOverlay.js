@@ -1,0 +1,439 @@
+import { CONFIG } from "../core/config.js";
+import { on } from "../core/eventBus.js";
+import { switchView } from "../core/viewManager.js";
+
+
+const DEFAULT_DURATION_SECONDS = 30;
+const DEFAULT_TRIGGER_STATES = ["on", "ringing", "detected", "motion"];
+const SNAPSHOT_DEBOUNCE_MS = 700;
+const PENDING_TRIGGER_WINDOW_MS = 8000;
+const EVENT_IMAGE_FALLBACK_MS = 2500;
+const MOTION_REFRESH_DELAYS_MS = [700, 1500, 2500];
+
+function toPositiveSeconds(value, fallback = DEFAULT_DURATION_SECONDS) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
+}
+
+function normalizeText(value, fallback) {
+  const text = String(value ?? "").trim();
+  return text || fallback;
+}
+
+function buildSnapshotUrl(cameraKey) {
+  return `/api/camera/${encodeURIComponent(cameraKey)}/snapshot?ts=${Date.now()}`;
+}
+
+function normalizeTriggerStates(config) {
+  const states = config?.triggerStates;
+  if (Array.isArray(states) && states.length) return states.map((state) => String(state).toLowerCase());
+  return DEFAULT_TRIGGER_STATES;
+}
+
+function isTriggerActive(config, state) {
+  if (!state) return false;
+  const normalized = String(state).toLowerCase();
+  return normalizeTriggerStates(config).includes(normalized);
+}
+
+function isImageEntity(entityId) {
+  return String(entityId || "").trim().startsWith("image.");
+}
+
+function formatUpdatedLabel(snapshotTs) {
+  const deltaSeconds = Math.max(0, Math.floor((Date.now() - snapshotTs) / 1000));
+  if (deltaSeconds <= 0) return "Updated just now";
+  return `Updated ${deltaSeconds}s ago`;
+}
+
+function normalizeTriggerMap(config) {
+  const entries = config?.triggerCameraMap;
+  if (!Array.isArray(entries)) return [];
+
+  return entries
+    .map((entry) => {
+      if (!entry || !entry.entityId || !entry.camera) return null;
+      return {
+        entityId: String(entry.entityId).trim(),
+        camera: String(entry.camera).trim(),
+        title: normalizeText(entry.title, String(entry.camera).trim()),
+        detection: normalizeText(entry.detection, "Motion"),
+        priority: Number.isFinite(Number(entry.priority)) ? Number(entry.priority) : 0,
+        duration: toPositiveSeconds(entry.duration, DEFAULT_DURATION_SECONDS)
+      };
+    })
+    .filter(Boolean);
+}
+
+function cameraTitleFromId(cameraId) {
+  return String(cameraId || "")
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function normalizeTriggerEntityId(entityId) {
+  return String(entityId || "").trim().toLowerCase();
+}
+
+function normalizeCameraTriggerRegistry(config) {
+  const popupConfig = config?.homeAssistant?.cameraPopupOverlay || {};
+  const explicitEntries = normalizeTriggerMap(popupConfig);
+  const cameraIds = (config?.homeAssistant?.cameraFeeds || [])
+    .map((feed) => String(feed?.entityId || "").trim())
+    .filter((entityId) => entityId.startsWith("camera."))
+    .map((entityId) => entityId.slice("camera.".length));
+
+  const triggerByEntity = new Map();
+  const metaByCamera = new Map();
+
+  explicitEntries.forEach((entry) => {
+    const camera = String(entry.camera || "").trim();
+    if (!camera) return;
+
+    if (!metaByCamera.has(camera)) {
+      metaByCamera.set(camera, {
+        camera,
+        title: entry.title,
+        detection: entry.detection,
+        priority: entry.priority,
+        duration: entry.duration
+      });
+    }
+
+    triggerByEntity.set(normalizeTriggerEntityId(entry.entityId), {
+      camera,
+      title: entry.title,
+      detection: entry.detection,
+      priority: entry.priority,
+      duration: entry.duration,
+      motionEntityId: normalizeTriggerEntityId(entry.entityId)
+    });
+  });
+
+  const knownCameras = new Set([...cameraIds, ...metaByCamera.keys()]);
+  knownCameras.forEach((camera) => {
+    const meta = metaByCamera.get(camera) || {
+      camera,
+      title: cameraTitleFromId(camera),
+      detection: "Motion",
+      priority: 10,
+      duration: DEFAULT_DURATION_SECONDS
+    };
+
+    const register = (entityId, detection = meta.detection) => {
+      const normalizedId = normalizeTriggerEntityId(entityId);
+      if (!normalizedId) return;
+      const existing = triggerByEntity.get(normalizedId);
+      triggerByEntity.set(normalizedId, {
+        camera,
+        title: existing?.title || meta.title,
+        detection: existing?.detection || detection,
+        priority: existing?.priority ?? meta.priority,
+        duration: existing?.duration ?? meta.duration,
+        motionEntityId: existing?.motionEntityId || normalizedId
+      });
+    };
+
+    register(`binary_sensor.${camera}_motion_detected`, "Motion");
+    register(`binary_sensor.${camera}_motion`, "Motion");
+    register(`binary_sensor.${camera}_person_detected`, "Person");
+    register(`binary_sensor.${camera}_pet_detected`, "Pet");
+    register(`binary_sensor.${camera}_ringing`, "Doorbell");
+    register(`image.${camera}_event_image`, "Event image");
+  });
+
+  return triggerByEntity;
+}
+
+function isEventImageEntityForCamera(entityId, cameraKey) {
+  return normalizeTriggerEntityId(entityId) === `image.${cameraKey}_event_image`;
+}
+
+export function initCameraPopupOverlay() {
+  const popupConfig = CONFIG.homeAssistant?.cameraPopupOverlay;
+  if (popupConfig?.enabled === false) return;
+
+  const overlayEl = document.getElementById("camera-popup-overlay");
+  if (!overlayEl) return;
+
+  const titleEl = document.getElementById("camera-popup-title");
+  const badgeEl = document.getElementById("camera-popup-badge");
+  const updatedEl = document.getElementById("camera-popup-updated");
+  const frameEl = document.getElementById("camera-popup-frame");
+  const closeBtn = document.getElementById("camera-popup-close");
+
+  if (!titleEl || !badgeEl || !updatedEl || !frameEl) return;
+
+  let autoCloseTimer = null;
+  let updatedInterval = null;
+  let activeCameraKey = "";
+  let activePriority = Number.NEGATIVE_INFINITY;
+  let activeSnapshotTimestamp = 0;
+  let lastRefreshAt = 0;
+  const lastPopupSnapshotAt = {};
+  const pendingTriggers = new Map();
+  const perCameraTimers = new Map();
+  const debugEnabled = popupConfig?.debug === true || CONFIG.homeAssistant?.debug === true;
+
+  const triggerRegistry = normalizeCameraTriggerRegistry(CONFIG);
+
+  function logDebug(message, details = undefined) {
+    if (!debugEnabled) return;
+    if (typeof details === "undefined") {
+      console.debug(`[camera-popup] ${message}`);
+      return;
+    }
+    console.debug(`[camera-popup] ${message}`, details);
+  }
+
+  function clearAutoCloseTimer() {
+    if (!autoCloseTimer) return;
+    clearTimeout(autoCloseTimer);
+    autoCloseTimer = null;
+  }
+
+  function clearPerCameraTimers(cameraKey) {
+    const timers = perCameraTimers.get(cameraKey);
+    if (!timers) return;
+    timers.forEach((timer) => clearTimeout(timer));
+    perCameraTimers.delete(cameraKey);
+  }
+
+  function clearAllPerCameraTimers() {
+    perCameraTimers.forEach((timers) => timers.forEach((timer) => clearTimeout(timer)));
+    perCameraTimers.clear();
+  }
+
+  function stopUpdatedTicker() {
+    if (!updatedInterval) return;
+    clearInterval(updatedInterval);
+    updatedInterval = null;
+  }
+
+  function refreshSnapshot(cameraKey) {
+    if (!cameraKey) return;
+    if (activeCameraKey && activeCameraKey !== cameraKey) return;
+    frameEl.src = buildSnapshotUrl(cameraKey);
+    lastRefreshAt = Date.now();
+    logDebug("snapshot refresh fired", { camera: cameraKey });
+  }
+
+  function updateUpdatedBadge() {
+    if (!activeSnapshotTimestamp) {
+      updatedEl.textContent = "";
+      return;
+    }
+    updatedEl.textContent = formatUpdatedLabel(activeSnapshotTimestamp);
+  }
+
+  function hideCameraPopup() {
+    clearAutoCloseTimer();
+    stopUpdatedTicker();
+    clearAllPerCameraTimers();
+    pendingTriggers.clear();
+    activeCameraKey = "";
+    activePriority = Number.NEGATIVE_INFINITY;
+    activeSnapshotTimestamp = 0;
+    lastRefreshAt = 0;
+    overlayEl.classList.remove("is-active");
+    overlayEl.setAttribute("aria-hidden", "true");
+    frameEl.src = "";
+    updatedEl.textContent = "";
+  }
+
+  function showCameraPopup(payload = {}, options = {}) {
+    const cameraKey = normalizeText(payload.camera, "");
+    if (!cameraKey) return;
+
+    const incomingPriority = Number.isFinite(Number(options.priority))
+      ? Number(options.priority)
+      : Number.NEGATIVE_INFINITY;
+
+    if (overlayEl.classList.contains("is-active") && incomingPriority < activePriority) {
+      return;
+    }
+
+    const title = normalizeText(payload.title, cameraKey);
+    const detection = normalizeText(payload.detection, "Motion");
+    const durationSeconds = toPositiveSeconds(payload.duration, DEFAULT_DURATION_SECONDS);
+
+    switchView("home");
+
+    titleEl.textContent = title;
+    badgeEl.textContent = `${detection} detected`;
+
+    const now = Date.now();
+    const isSameCamera = activeCameraKey === cameraKey;
+    const shouldDebounce = isSameCamera && now - lastRefreshAt < SNAPSHOT_DEBOUNCE_MS;
+
+    if (!shouldDebounce) {
+      activeSnapshotTimestamp = now;
+      lastPopupSnapshotAt[cameraKey] = now;
+      refreshSnapshot(cameraKey);
+    }
+
+    if (!isSameCamera && !activeSnapshotTimestamp && lastPopupSnapshotAt[cameraKey]) {
+      activeSnapshotTimestamp = lastPopupSnapshotAt[cameraKey];
+    }
+    updateUpdatedBadge();
+
+    activeCameraKey = cameraKey;
+    activePriority = incomingPriority;
+
+    overlayEl.classList.add("is-active");
+    overlayEl.setAttribute("aria-hidden", "false");
+
+    stopUpdatedTicker();
+    updatedInterval = setInterval(updateUpdatedBadge, 1000);
+
+    clearAutoCloseTimer();
+    autoCloseTimer = setTimeout(() => {
+      hideCameraPopup();
+    }, durationSeconds * 1000);
+  }
+
+  function schedulePendingTriggerRefreshes(cameraKey) {
+    if (!cameraKey) return;
+
+    clearPerCameraTimers(cameraKey);
+    const timers = [];
+
+    MOTION_REFRESH_DELAYS_MS.forEach((delayMs) => {
+      timers.push(
+        setTimeout(() => {
+          if (activeCameraKey !== cameraKey) return;
+          activeSnapshotTimestamp = Date.now();
+          lastPopupSnapshotAt[cameraKey] = activeSnapshotTimestamp;
+          refreshSnapshot(cameraKey);
+          updateUpdatedBadge();
+        }, delayMs)
+      );
+    });
+
+    timers.push(
+      setTimeout(() => {
+        const pending = pendingTriggers.get(cameraKey);
+        if (!pending || pending.fulfilled) return;
+        if (Date.now() - pending.triggeredAt > PENDING_TRIGGER_WINDOW_MS) {
+          pendingTriggers.delete(cameraKey);
+          return;
+        }
+
+        if (activeCameraKey === cameraKey) {
+          activeSnapshotTimestamp = Date.now();
+          lastPopupSnapshotAt[cameraKey] = activeSnapshotTimestamp;
+          refreshSnapshot(cameraKey);
+          updateUpdatedBadge();
+        }
+        pending.fulfilled = true;
+        logDebug("fallback refresh fired", { camera: cameraKey });
+      }, EVENT_IMAGE_FALLBACK_MS)
+    );
+
+    perCameraTimers.set(cameraKey, timers);
+  }
+
+  function createPendingTrigger(cameraKey, trigger, entityId) {
+    const pending = {
+      triggeredAt: Date.now(),
+      title: trigger.title,
+      detection: trigger.detection,
+      duration: trigger.duration,
+      priority: trigger.priority,
+      motionEntityId: normalizeTriggerEntityId(entityId),
+      waitingForEventImage: true,
+      fulfilled: false
+    };
+    pendingTriggers.set(cameraKey, pending);
+    logDebug("pending trigger created", { camera: cameraKey, entityId });
+  }
+
+  function handleEventImageRefresh(entityId, trigger) {
+    const cameraKey = trigger.camera;
+    const pending = pendingTriggers.get(cameraKey);
+    if (!pending) return;
+    if (Date.now() - pending.triggeredAt > PENDING_TRIGGER_WINDOW_MS) {
+      pendingTriggers.delete(cameraKey);
+      return;
+    }
+
+    pending.fulfilled = true;
+    pending.waitingForEventImage = false;
+    clearPerCameraTimers(cameraKey);
+    logDebug("event image update received", { camera: cameraKey, entityId });
+
+    showCameraPopup(
+      {
+        camera: cameraKey,
+        title: pending.title,
+        detection: pending.detection,
+        duration: pending.duration
+      },
+      { priority: pending.priority }
+    );
+
+    activeSnapshotTimestamp = Date.now();
+    lastPopupSnapshotAt[cameraKey] = activeSnapshotTimestamp;
+    refreshSnapshot(cameraKey);
+    updateUpdatedBadge();
+  }
+
+  closeBtn?.addEventListener("click", hideCameraPopup);
+  overlayEl.addEventListener("click", (event) => {
+    if (event.target === overlayEl) hideCameraPopup();
+  });
+
+  document.addEventListener("ha:state-updated", (event) => {
+    const entityId = normalizeTriggerEntityId(event.detail?.entity_id);
+    if (!entityId) return;
+    logDebug("trigger received", { entityId, state: event.detail?.state });
+
+    const trigger = triggerRegistry.get(entityId);
+    if (!trigger) return;
+
+    if (isImageEntity(entityId)) {
+      if (!isEventImageEntityForCamera(entityId, trigger.camera)) return;
+      handleEventImageRefresh(entityId, trigger);
+      return;
+    }
+
+    if (!isTriggerActive(popupConfig, event.detail?.state)) return;
+
+    logDebug("resolved camera id", { entityId, camera: trigger.camera });
+    createPendingTrigger(trigger.camera, trigger, entityId);
+
+    showCameraPopup(
+      {
+        camera: trigger.camera,
+        title: trigger.title,
+        detection: trigger.detection,
+        duration: trigger.duration
+      },
+      { priority: trigger.priority }
+    );
+
+    schedulePendingTriggerRefreshes(trigger.camera);
+  });
+
+  on("dashboard_command", (data) => {
+    if (data?.command !== "show_camera_popup") return;
+    showCameraPopup(data, {
+      priority: Number.POSITIVE_INFINITY
+    });
+  });
+
+  // Also handle direct browser debug dispatches used in validation:
+  // window.dispatchEvent(new CustomEvent("dashboard_command", { detail: {...} }))
+  window.addEventListener("dashboard_command", (event) => {
+    const detail = event?.detail;
+    if (detail?.command !== "show_camera_popup") return;
+    showCameraPopup(detail, {
+      priority: Number.POSITIVE_INFINITY
+    });
+  });
+
+  window.dashboardHideCameraPopup = hideCameraPopup;
+}

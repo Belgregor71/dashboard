@@ -1,0 +1,632 @@
+﻿
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Family Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/css/main.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap"
+    rel="stylesheet"
+  />
+</head>
+
+<body data-view="home">
+  <!-- Background -->
+  <div id="background">
+    <img id="background-image" alt="Background" />
+    <div id="background-tint"></div>
+  </div>
+
+  <!-- ROW 1: Time | Commute (conditional) | Weather -->
+  <header id="top-bar">
+    <div id="time-panel" class="panel">
+      <div id="clock"></div>
+      <div id="date"></div>
+    </div>
+
+    <div id="middle-slot">
+      <div id="commute-panel" class="panel is-hidden is-collapsed">
+        <div class="commute-column commute-column--icon">
+          <div id="commute-lottie"></div>
+        </div>
+        <div class="commute-column commute-column--details">
+          <div class="commute-title">Commute</div>
+          <div id="commute-times">
+            <div id="commute-greg"></div>
+            <div id="commute-brett"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="next-event-panel" class="panel is-hidden is-collapsed">
+        <div class="next-event-header">
+          <div class="next-event-title">Next Event</div>
+          <div id="next-event-name"></div>
+        </div>
+        <div id="next-event-meta"></div>
+        <div class="next-event-progress-track">
+          <div id="next-event-progress"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="current-weather-panel" class="panel">
+      <div class="weather-column weather-column--icon">
+        <div id="weather-lottie"></div>
+      </div>
+      <div class="weather-column weather-column--temp">
+        <div id="current-temp"></div>
+      </div>
+      <div class="weather-column weather-column--details">
+        <div id="current-conditions"></div>
+        <div id="weather-range"></div>
+        <div id="weather-wind" class="weather-wind">
+          <div id="weather-wind-icon" class="weather-wind-icon"></div>
+          <div id="weather-wind-text"></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ROW 2–4 GRID -->
+  <div class="home-view">
+    <main id="main-grid">
+
+    <!-- ROW 2: Today | To-Do | Shopping -->
+    <section id="today-panel" class="panel">
+      <h2>Today</h2>
+      <div id="today-date"></div>
+      <ul id="today-list"></ul>
+    </section>
+
+    <section id="reminders-panel" class="panel">
+      <h2>To-Do List</h2>
+      <div class="todo-table">
+        <div class="todo-row todo-row--header">
+          <span>Task</span>
+          <span>Days left</span>
+        </div>
+        <div id="reminders-list" class="todo-rows"></div>
+      </div>
+    </section>
+
+    <section id="shopping-panel" class="panel">
+      <h2>Shopping</h2>
+      <ul id="shopping-list"></ul>
+    </section>
+
+    <!-- ROW 3: Server | Media 1 | Media 2 -->
+    <section id="server-status-panel" class="panel is-hidden is-collapsed">
+      <h2>Now Playing:</h2>
+      <div id="server-status-list"></div>
+      <div id="plex-status" class="plex-status">
+        <div class="plex-status__grid is-hidden"></div>
+        <div class="plex-status__empty">No active Plex streams</div>
+      </div>
+    </section>
+
+    <section id="media-panel-1" class="panel media-panel is-hidden is-collapsed">
+      <div class="media-panel__art">
+        <img class="media-panel__image" alt="" />
+      </div>
+      <div class="media-panel__info">
+        <div class="media-panel__source"></div>
+        <div class="media-panel__title"></div>
+        <div class="media-panel__subtitle"></div>
+        <div class="media-panel__progress">
+          <div class="media-panel__progress-bar"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="media-panel-2" class="panel media-panel is-hidden is-collapsed">
+      <div class="media-panel__art">
+        <img class="media-panel__image" alt="" />
+      </div>
+      <div class="media-panel__info">
+        <div class="media-panel__source"></div>
+        <div class="media-panel__title"></div>
+        <div class="media-panel__subtitle"></div>
+        <div class="media-panel__progress">
+          <div class="media-panel__progress-bar"></div>
+        </div>
+      </div>
+    </section>
+
+    <div id="arr-summary-strip" class="arr-strip hidden" aria-live="polite">
+      <span id="arr-summary-text"></span>
+    </div>
+
+
+    <!-- ROW 4: Week at a glance (full width) -->
+    <section id="timeline-panel" class="panel">
+      <h2>Week at a glance</h2>
+      <div id="week-range"></div>
+      <ul id="weekly-list"></ul>
+    </section>
+
+    <div id="camera-last-trigger-pill" class="camera-last-trigger-pill hidden" aria-live="polite"></div>
+    </main>
+  </div>
+
+  <!-- CALENDAR VIEW -->
+  <main id="calendar-view" class="calendar-view">
+    <section class="panel calendar-panel">
+      <div class="calendar-header">
+        <div>
+          <div id="calendar-month-title"></div>
+          <div id="calendar-today-label"></div>
+        </div>
+        <div class="calendar-header-subtitle">Family Calendar</div>
+      </div>
+      <div class="calendar-weekdays">
+        <div>S</div>
+        <div>M</div>
+        <div>T</div>
+        <div>W</div>
+        <div>T</div>
+        <div>F</div>
+        <div>S</div>
+      </div>
+      <div id="calendar-month-grid" class="calendar-month-grid"></div>
+    </section>
+  </main>
+
+  <!-- AGENDA VIEW -->
+  <main id="agenda-view" class="agenda-view">
+    <section class="panel agenda-panel">
+      <div class="agenda-header">
+        <div>
+          <div id="agenda-title">Today</div>
+          <div id="agenda-today-label"></div>
+        </div>
+        <div class="agenda-header-subtitle">Agenda</div>
+      </div>
+      <div id="agenda-list" class="agenda-list"></div>
+    </section>
+  </main>
+
+  <!-- CAMERAS VIEW -->
+  <main id="cameras-view" class="cameras-view">
+    <section class="panel cameras-panel">
+      <div class="cameras-header">
+        <div>
+          <div class="cameras-title">Cameras</div>
+          <div class="cameras-header-subtitle">Home Security</div>
+        </div>
+        <div class="cameras-status">
+          <span class="cameras-status__label">HA</span>
+          <span id="cameras-ha-status" class="cameras-status__value" data-status="offline">Offline</span>
+        </div>
+      </div>
+
+      <section class="cam-layout">
+        <section id="camera-hero" class="camera-hero cam-hero">
+          <div class="camera-hero__media">
+            <img class="camera-hero__image" alt="Camera hero snapshot" />
+            <span class="camera-hero__badge is-hidden">STALE</span>
+            <section class="camera-focus cam-focus">
+              <div class="camera-hero__meta">
+                <div class="camera-hero__name" id="camera-hero-name">Loading…</div>
+                <div class="camera-hero__status" id="camera-hero-status">Idle</div>
+                <div class="camera-hero__activity" id="camera-hero-activity">No recent activity</div>
+                <div class="camera-hero__heat" id="camera-hero-heat"></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="cameras-section cam-tiles">
+          <div class="cameras-section-title" id="camera-tiles-title">All Cameras</div>
+          <div class="cameras-grid cameras-grid--tiles" id="camera-tiles-grid"></div>
+        </section>
+      </section>
+
+      <section class="camera-timeline">
+        <div class="camera-timeline__title">Last 2 hours</div>
+        <div class="camera-timeline__band" id="camera-timeline-band"></div>
+      </section>
+    </section>
+    <div id="camera-toast" class="camera-toast"></div>
+    <div id="camera-summary" class="camera-summary"></div>
+  </main>
+
+  <!-- WEATHER VIEW -->
+  <main id="weather-view" class="weather-view">
+    <div id="weather-screen" class="weather-screen weather-root">
+      <div class="weather-background" id="weather-background">
+        <video
+          id="weather-bg-video"
+          class="weather-bg-video"
+          muted
+          loop
+          autoplay
+          playsinline
+          preload="auto"
+        >
+          <source id="weather-bg-webm" type="video/webm" />
+          <source id="weather-bg-mp4" type="video/mp4" />
+        </video>
+        <div id="weather-bg-image" class="weather-bg-image" aria-hidden="true"></div>
+        <div class="mist-layer" aria-hidden="true"></div>
+        <div class="weather-bg-tint" aria-hidden="true"></div>
+      </div>
+
+      <canvas id="wx-particles" class="wx-layer"></canvas>
+      <div id="wx-flash" class="wx-flash"></div>
+      <div id="weather-fx-overlay" class="weather-fx-overlay" aria-hidden="true"></div>
+
+      <div id="weather-content" class="weather-content">
+        <div id="weather-overlay" class="weather-overlay">
+          <div class="weather-hero weather-glass" id="weather-hero">
+            <div class="weather-hero__header">
+              <span class="weather-hero__eyebrow">
+                <span id="weather-location-label">NUDGEE</span> • <span id="weather-day-label">TODAY</span>
+              </span>
+              <div class="weather-hero__divider"></div>
+            </div>
+
+            <div class="weather-hero__main">
+              <div class="weather-hero__condition" id="weather-cine-condition">--</div>
+              <div class="weather-hero__temp" id="weather-cine-temp">--°</div>
+              <div class="weather-hero__meta" id="weather-cine-meta">--</div>
+            </div>
+          </div>
+
+          <div class="weather-metrics" id="weather-metrics">
+            <div class="metric-card weather-glass metric-uv">
+              <div class="metric-label">UV Index</div>
+              <div class="metric-value" id="weather-uv-dial-value">--</div>
+              <div class="metric-meta" id="weather-uv-dial-meta"></div>
+              <div id="weather-uv-dial" class="metric-uv-dial" aria-hidden="true"></div>
+            </div>
+
+            <div class="metric-card weather-glass metric-rain">
+              <div class="metric-label">Rain</div>
+              <div class="metric-value" id="weather-rain-range-card">--</div>
+              <div class="metric-meta" id="weather-rain-range-meta"></div>
+              <div id="weather-rain-spark" class="metric-spark" aria-hidden="true"></div>
+            </div>
+
+            <div class="metric-card weather-glass metric-humidity">
+              <div class="metric-label">Humidity</div>
+              <div class="metric-value" id="weather-humidity-large">--</div>
+              <div class="metric-meta" id="weather-humidity-meta"></div>
+            </div>
+
+            <div class="metric-card weather-glass metric-feels">
+              <div class="metric-label">Feels Like</div>
+              <div class="metric-value" id="weather-feels-like-large">--</div>
+              <div class="metric-meta" id="weather-feels-like-meta"></div>
+              <div id="weather-feels-spark" class="metric-spark" aria-hidden="true"></div>
+            </div>
+
+            <div class="metric-card weather-glass metric-next-rain">
+              <div class="metric-label">Next Rain Window</div>
+              <div class="metric-value" id="weather-next-rain">--</div>
+              <div class="metric-meta" id="weather-next-rain-meta"></div>
+              <div id="weather-next-rain-spark" class="metric-spark" aria-hidden="true"></div>
+            </div>
+
+          </div>
+
+          <div class="weather-dayparts" id="weather-dayparts"></div>
+          <div id="weather-hourly-strip" class="weather-hourly-strip weather-glass"></div>
+        </div>
+
+        <div id="weather-narrative" class="weather-narrative"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- BRIEFING VIEW -->
+  <main id="briefing-view" class="briefing-view">
+    <section class="briefing-strip panel panel-glass">
+      <div class="briefing-strip__label">Daily Briefing</div>
+      <div id="briefing-generated-at" class="briefing-strip__time"></div>
+    </section>
+
+    <section class="briefing-headline panel panel-elevated">
+      <h1 id="briefing-headline">Loading briefing…</h1>
+    </section>
+
+    <section class="briefing-grid">
+      <article class="panel panel-glass briefing-card">
+        <h3>Weather</h3>
+        <p id="briefing-weather">--</p>
+      </article>
+      <article class="panel panel-glass briefing-card">
+        <h3>Calendar</h3>
+        <p id="briefing-calendar">--</p>
+      </article>
+      <article class="panel panel-glass briefing-card">
+        <h3>Home Status</h3>
+        <p id="briefing-home">--</p>
+      </article>
+      <article class="panel panel-glass briefing-card">
+        <h3>Tasks</h3>
+        <p id="briefing-tasks">--</p>
+      </article>
+    </section>
+  </main>
+
+  <!-- SYSTEM STATUS VIEW -->
+  <main id="status-view" class="status-view">
+    <section class="status-header-bar">
+      <div class="status-header-title-wrap">
+        <div class="status-header-label">System diagnostics</div>
+        <h1 class="status-header-title">Status</h1>
+      </div>
+      <button id="status-explain-trigger" class="status-ai-button" type="button">Explain Status</button>
+      <div class="status-header-metrics">
+        <div class="status-header-pill status-header-pill--ha">
+          <span class="status-indicator" aria-hidden="true"></span>
+          <div>
+            <div class="status-header-pill__label">Home Assistant</div>
+            <div class="status-header-pill__value" id="status-header-ha">Disconnected</div>
+          </div>
+        </div>
+        <div class="status-header-pill">
+          <span class="status-indicator status-indicator--info" aria-hidden="true"></span>
+          <div>
+            <div class="status-header-pill__label">Current mode</div>
+            <div class="status-header-pill__value" id="status-header-mode">--</div>
+          </div>
+        </div>
+        <div class="status-header-pill status-header-pill--alert" id="status-header-alert-badge" hidden>
+          <span class="status-indicator status-indicator--warn" aria-hidden="true"></span>
+          <div>
+            <div class="status-header-pill__label">Degraded</div>
+            <div class="status-header-pill__value" id="status-header-alert-count">0 issues</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel status-panel">
+      <div class="status-grid">
+        <div class="status-group">
+          <div class="status-group__title">Connectivity</div>
+          <div class="status-list">
+            <div class="status-item" data-status-item="internet">
+              <span class="status-indicator" aria-hidden="true"></span>
+              <div class="status-item__label">Internet</div>
+              <div class="status-item__value" id="status-internet-value">Checking…</div>
+              <div class="status-item__meta" id="status-internet-meta">Target: --</div>
+            </div>
+            <div class="status-item" data-status-item="ha">
+              <span class="status-indicator" aria-hidden="true"></span>
+              <div class="status-item__label">HA Websocket</div>
+              <div class="status-item__value" id="status-ha-value">Disconnected</div>
+              <div class="status-item__meta" id="status-ha-meta">Last message --</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-group">
+          <div class="status-group__title">Services</div>
+          <div class="status-list">
+            <div class="status-item" data-status-item="calendar">
+              <span class="status-indicator" aria-hidden="true"></span>
+              <div class="status-item__label">Calendar fetch</div>
+              <div class="status-item__value" id="status-calendar-value">Waiting</div>
+              <div class="status-item__meta" id="status-calendar-meta">Last success --</div>
+            </div>
+            <div class="status-item" data-status-item="weather">
+              <span class="status-indicator" aria-hidden="true"></span>
+              <div class="status-item__label">Weather fetch</div>
+              <div class="status-item__value" id="status-weather-value">Waiting</div>
+              <div class="status-item__meta" id="status-weather-meta">Last success --</div>
+            </div>
+            <div class="status-item" data-status-item="cameras">
+              <span class="status-indicator" aria-hidden="true"></span>
+              <div class="status-item__label">Cameras</div>
+              <div class="status-item__value" id="status-cameras-value">--</div>
+              <div class="status-item__meta" id="status-cameras-meta">Checking…</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-group">
+          <div class="status-group__title">Device</div>
+          <div class="status-list">
+            <div class="status-item status-item--metric" data-status-item="temp">
+              <span class="status-indicator status-indicator--info" aria-hidden="true"></span>
+              <div class="status-item__label">Pi temp</div>
+              <div class="status-item__value" id="status-temp-value">--</div>
+            </div>
+            <div class="status-item" data-status-item="cpu">
+              <span class="status-indicator status-indicator--info" aria-hidden="true"></span>
+              <div class="status-item__label">CPU</div>
+              <div class="status-item__value" id="status-cpu-value">--</div>
+            </div>
+            <div class="status-item" data-status-item="memory">
+              <span class="status-indicator status-indicator--info" aria-hidden="true"></span>
+              <div class="status-item__label">Memory</div>
+              <div class="status-item__value" id="status-memory-value">--</div>
+            </div>
+            <div class="status-item">
+              <span class="status-indicator status-indicator--info" aria-hidden="true"></span>
+              <div class="status-item__label">Uptime</div>
+              <div class="status-item__value" id="status-uptime-value">--</div>
+            </div>
+            <div class="status-item">
+              <span class="status-indicator status-indicator--info" aria-hidden="true"></span>
+              <div class="status-item__label">Update frequency</div>
+              <div class="status-item__value" id="status-update-frequency">--</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div id="arr-download-panel" class="status-arr-panel hidden">
+        <h2>Download Activity</h2>
+        <div id="arr-content"></div>
+      </div>
+    </section>
+
+    <section id="status-alerts" class="status-alerts" aria-hidden="true">
+      <div class="status-alerts__title">Alerts / Degraded</div>
+      <div class="status-alerts__list" id="status-alerts-list"></div>
+    </section>
+
+    <section id="status-ai-panel" class="status-ai-panel panel panel-glass" hidden>
+      <div class="status-ai-panel__header">
+        <div class="status-ai-panel__title">AI Status Explanation</div>
+        <button id="status-ai-refresh" type="button" class="status-ai-button">Explain Status</button>
+      </div>
+      <p id="status-ai-text" class="status-ai-text"></p>
+      <p id="status-ai-action" class="status-ai-action"></p>
+    </section>
+
+    <section id="media-automation-section" class="panel status-panel media-status-section">
+      <div class="status-group__title">Media Automation</div>
+      <div class="media-status-grid">
+        <article id="media-card-qbit" class="status-group media-status-card" role="button" tabindex="0">
+          <div class="status-group__title">qBittorrent Throughput</div>
+          <div class="media-status-kpi-row">
+            <div><div class="status-item__meta">Download</div><div id="media-status-qb-down" class="status-item__value">0B/s</div></div>
+            <div><div class="status-item__meta">Upload</div><div id="media-status-qb-up" class="status-item__value">0B/s</div></div>
+          </div>
+          <div class="media-status-pill-row">
+            <span id="media-status-qb-status" class="status-header-pill__value"></span>
+            <span id="media-status-qb-connection" class="status-header-pill__value"></span>
+          </div>
+          <div class="status-item"><div class="status-item__label">Torrents</div><div id="media-status-qb-counts" class="status-item__value"></div></div>
+          <div class="status-item"><div class="status-item__label">Ratio</div><div id="media-status-qb-ratio" class="status-item__value"></div></div>
+          <div id="media-status-qb-limits" class="status-item__meta"></div>
+          <button id="media-status-qb-toggle" type="button" class="status-ai-button" hidden></button>
+        </article>
+
+        <article id="media-card-sonarr" class="status-group media-status-card" role="button" tabindex="0">
+          <div class="status-group__title">Sonarr Summary</div>
+          <div class="status-item"><div class="status-item__label">Queue</div><div id="media-status-sonarr-queue" class="status-item__value">0</div></div>
+          <div class="status-item"><div class="status-item__label">Wanted</div><div id="media-status-sonarr-wanted" class="status-item__value">0</div></div>
+          <div class="status-item"><div class="status-item__label">Shows</div><div id="media-status-sonarr-shows" class="status-item__value">0</div></div>
+          <div class="status-item"><div class="status-item__label">Upcoming</div><div id="media-status-sonarr-upcoming" class="status-item__value">No upcoming</div></div>
+          <div class="status-item"><div class="status-item__label">Commands</div><div id="media-status-sonarr-commands" class="status-item__value">--</div><div id="media-status-sonarr-updated" class="status-item__meta"></div></div>
+        </article>
+
+        <article id="media-card-radarr" class="status-group media-status-card" role="button" tabindex="0">
+          <div class="status-group__title">Radarr Summary</div>
+          <div class="media-status-pill-row"><span id="media-status-radarr-health" class="status-header-pill__value">--</span></div>
+          <div class="status-item"><div class="status-item__label">Queue</div><div id="media-status-radarr-queue" class="status-item__value">0</div></div>
+          <div class="status-item"><div class="status-item__label">Movies</div><div id="media-status-radarr-movies" class="status-item__value">0</div></div>
+          <div class="media-disk-row"><div id="media-status-radarr-disk-a" class="status-item__meta"></div><div class="media-disk-bar"><span id="media-status-radarr-disk-a-bar"></span></div></div>
+          <div id="media-status-radarr-disk-b-wrap" class="media-disk-row" hidden><div id="media-status-radarr-disk-b" class="status-item__meta"></div><div class="media-disk-bar"><span id="media-status-radarr-disk-b-bar"></span></div></div>
+          <div class="status-item"><div class="status-item__label">Start time</div><div id="media-status-radarr-start" class="status-item__value">—</div></div>
+        </article>
+
+        <article id="media-card-health" class="status-group media-status-card" role="button" tabindex="0">
+          <div class="status-group__title">Health + Disk</div>
+          <div class="status-item"><div class="status-item__label">Overall</div><div id="media-status-health-overall" class="status-item__value">OK</div></div>
+          <div id="media-status-health-summary" class="status-item__meta">No active media automation issues</div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <section id="media-details-modal" class="camera-popup-overlay" aria-hidden="true" role="dialog" aria-label="Media details">
+    <div class="camera-popup-overlay__card media-details-card">
+      <header class="camera-popup-overlay__header">
+        <h2 id="media-details-title" class="camera-popup-overlay__title">Media details</h2>
+        <div class="camera-popup-overlay__actions">
+          <button id="media-details-close" class="camera-popup-overlay__close" type="button" aria-label="Close media details">×</button>
+        </div>
+      </header>
+      <div class="camera-popup-overlay__body media-details-body">
+        <p id="media-details-body"></p>
+        <div class="media-details-links">
+          <a id="media-link-qbit" class="status-ai-button" target="_blank" rel="noopener noreferrer" hidden>Open qBittorrent</a>
+          <a id="media-link-sonarr" class="status-ai-button" target="_blank" rel="noopener noreferrer" hidden>Open Sonarr</a>
+          <a id="media-link-radarr" class="status-ai-button" target="_blank" rel="noopener noreferrer" hidden>Open Radarr</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section
+    id="doorbell-overlay"
+    class="doorbell-overlay"
+    aria-hidden="true"
+    role="dialog"
+    aria-label="Doorbell camera"
+  >
+    <div class="doorbell-overlay__panel">
+      <header class="doorbell-overlay__header">
+        <div>
+          <div class="doorbell-overlay__label">Doorbell</div>
+          <div class="doorbell-overlay__status">Live view</div>
+        </div>
+        <button class="doorbell-overlay__close" type="button" aria-label="Dismiss">
+          Close
+        </button>
+      </header>
+      <div class="doorbell-overlay__media">
+        <img class="doorbell-overlay__image" alt="Doorbell camera feed" />
+        <div class="doorbell-overlay__empty">
+          Waiting for a camera stream…
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section
+    id="camera-popup-overlay"
+    class="camera-popup-overlay"
+    aria-hidden="true"
+    role="dialog"
+    aria-label="Camera motion popup"
+  >
+    <div class="camera-popup-overlay__card">
+      <header class="camera-popup-overlay__header">
+        <h2 id="camera-popup-title" class="camera-popup-overlay__title">Camera</h2>
+        <div class="camera-popup-overlay__actions">
+          <span id="camera-popup-badge" class="camera-popup-overlay__badge">Motion detected</span>
+          <span id="camera-popup-updated" class="camera-popup-overlay__updated" aria-live="polite"></span>
+          <button
+            id="camera-popup-close"
+            class="camera-popup-overlay__close"
+            type="button"
+            aria-label="Close camera popup"
+          >
+            ×
+          </button>
+        </div>
+      </header>
+      <div class="camera-popup-overlay__body">
+        <img
+          id="camera-popup-frame"
+          class="camera-popup-overlay__frame"
+          alt="Camera popup snapshot"
+          src=""
+          loading="eager"
+          decoding="async"
+        />
+      </div>
+    </div>
+  </section>
+
+  <!-- News ticker -->
+  <div id="news-ticker">
+    <div id="news-ticker-label">ABC</div>
+    <div id="news-ticker-track">
+      <div id="news-ticker-content"></div>
+    </div>
+  </div>
+
+  <!-- Main entry point (imports everything else) -->
+    <!-- Config (feature flags etc) -->
+  <script src="/env.js"></script>
+  <script src="/js/config.js"></script>
+
+  <!-- Main entry point (single orchestrator) -->
+  <script type="module" src="/js/core/app.js"></script>
+
+</body>
+</html>

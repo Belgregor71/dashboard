@@ -1,0 +1,72 @@
+#current-weather-panel {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  column-gap: 20px;
+  align-items: center;
+  padding-right: 8px;
+}
+
+.weather-column {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.weather-column--details {
+  gap: 8px;
+}
+
+#weather-lottie {
+  width: 120px;
+  height: 120px;
+  align-self: center;
+}
+
+#weather-lottie svg,
+#weather-lottie canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+#current-temp {
+  font-size: 4.8rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+#current-conditions {
+  font-size: 1.4rem;
+  opacity: 0.85;
+  margin-top: 0;
+}
+
+#weather-range {
+  font-size: 1.1rem;
+  opacity: 0.7;
+}
+
+.weather-wind {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.1rem;
+  opacity: 0.85;
+}
+
+.weather-wind-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.weather-wind-icon svg,
+.weather-wind-icon canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+#weather-wind-text {
+  font-size: 1.05rem;
+  opacity: 0.85;
+}

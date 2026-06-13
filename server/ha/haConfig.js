@@ -4,7 +4,7 @@ function normalizeBaseUrl(url) {
 }
 
 export function readHaConfig({ requireConfig = true } = {}) {
-  const haHost = normalizeBaseUrl(process.env.HA_HOST);
+  const haHost = normalizeBaseUrl(process.env.HA_HOST || process.env.HA_URL);
   const haToken = (process.env.HA_TOKEN || "").trim();
   const enabled = process.env.HA_ENABLED === "0" ? false : true;
 

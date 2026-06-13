@@ -1,0 +1,59 @@
+.event-details-popover {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 70;
+}
+
+.event-details-popover.is-open {
+  display: flex;
+}
+
+.event-details-popover__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.event-details-popover__card {
+  position: relative;
+  width: min(760px, calc(100vw - 80px));
+  max-height: calc(100vh - 120px);
+  overflow: auto;
+  border-radius: 18px;
+  padding: 18px 20px;
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.event-details-popover__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.event-details-popover__title {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.event-details-popover__close {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  border: 0;
+  border-radius: 999px;
+  width: 34px;
+  height: 34px;
+}
+
+.event-details-popover__meta,
+.event-details-popover__notes,
+.event-details-popover__attendees {
+  margin-top: 10px;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}

@@ -1,0 +1,119 @@
+#today-panel h2 {
+  margin-bottom: 10px;
+  font-size: 1.6rem;
+}
+
+.today-all-day {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.today-event {
+  margin-bottom: 6px;
+}
+
+.meal-lottie {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+}
+
+.meal-lottie svg,
+.meal-lottie canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.event-item {
+  --event-accent: #64748B;
+  --event-bg: rgba(100, 116, 139, 0.1);
+  --event-text: #F8FAFC;
+  color: var(--event-text);
+}
+
+.event-item--line {
+  position: relative;
+  padding-left: 12px;
+  border-left: 3px solid var(--event-accent);
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.event-item--line::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 0.7em;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--event-accent);
+  transform: translate(-50%, -50%);
+}
+
+.event-item--pill {
+  background: var(--event-bg);
+  border-left: 3px solid var(--event-accent);
+}
+
+.event-item--card {
+  background: var(--event-bg);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 4px solid var(--event-accent);
+}
+
+.event-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 4px;
+}
+
+.today-empty {
+  opacity: 0.7;
+  padding: 10px 0;
+  font-style: italic;
+}
+
+.ha-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.ha-status__label {
+  font-weight: 600;
+}
+
+.ha-connection {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ha-connection__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+}
+
+.ha-connection__dot.is-online {
+  background: #55d67e;
+  box-shadow: 0 0 12px rgba(85, 214, 126, 0.6);
+}
+
+.ha-connection__dot.is-offline {
+  background: #f06a6a;
+  box-shadow: 0 0 12px rgba(240, 106, 106, 0.6);
+}
