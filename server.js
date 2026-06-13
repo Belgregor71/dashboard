@@ -20,6 +20,7 @@ import plexRoutes from "./server/routes/plex.js";
 import newsRoutes from "./server/routes/news.js";
 import cameraRoutes from "./server/routes/camera.js";
 import photosRoutes from "./server/routes/photos.js";
+import adminRoutes from "./server/routes/admin.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -69,6 +70,7 @@ app.use(plexRoutes);
 app.use(newsRoutes);
 app.use(cameraRoutes);
 app.use(photosRoutes);
+app.use(adminRoutes);
 
 // Home Assistant image/camera proxy
 attachHaProxy(app);
