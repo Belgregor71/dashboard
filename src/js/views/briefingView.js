@@ -1,4 +1,5 @@
 import { getAllEntities } from "../services/homeAssistant/state.js";
+import { generateBriefing } from "../modules/aiBriefing.js";
 
 const REFRESH_MS = 10 * 60 * 1000;
 
@@ -168,6 +169,7 @@ export function createBriefingView() {
 
   function setLoading() {
     headlineEl.textContent = "Loading briefing…";
+    headlineEl.className   = "";
     const placeholder = '<p class="bl-empty">Loading…</p>';
     weatherEl.innerHTML  = placeholder;
     calendarEl.innerHTML = placeholder;
@@ -183,8 +185,8 @@ export function createBriefingView() {
       fetchBins()
     ]);
 
-    headlineEl.textContent        = buildHeadline();
-    generatedAtEl.textContent     = `Updated ${new Date().toLocaleTimeString("en-AU", {
+    // Render local cards immediately — no AI needed for these
+    generatedAtEl.textContent = `Updated ${new Date().toLocaleTimeString("en-AU", {
       hour: "numeric", minute: "2-digit", hour12: true
     })}`;
 
@@ -196,6 +198,19 @@ export function createBriefingView() {
     tasksEl.innerHTML    = renderTasks(
       binsResult.status === "fulfilled" ? binsResult.value : null
     );
+
+    // Show time-based fallback while AI generates
+    headlineEl.textContent = buildHeadline();
+    headlineEl.className   = "is-generating";
+
+    // AI summary — fades in when ready, falls back gracefully on error
+    generateBriefing()
+      .then(summary => {
+        if (!summary) { headlineEl.className = ""; return; }
+        headlineEl.textContent = summary;
+        headlineEl.className   = "is-ai-summary";
+      })
+      .catch(() => { headlineEl.className = ""; });
   }
 
   function render() {

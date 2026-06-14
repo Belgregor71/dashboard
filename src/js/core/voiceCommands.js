@@ -3,6 +3,7 @@ import { setVoiceState } from "./voiceOverlay.js";
 import { speak } from "./tts.js";
 import { resetIdleTimer } from "../modules/screensaver.js";
 import { triggerGoodnight } from "../modules/goodnightRoutine.js";
+import { generateBriefing } from "../modules/aiBriefing.js";
 
 const VIEW_ORDER = ["home", "weather", "cameras", "calendar", "agenda", "status", "briefing"];
 
@@ -110,6 +111,17 @@ function answerNextEvent() {
   return meta ? `Next up: ${name}. ${meta}.` : `Next up: ${name}.`;
 }
 
+async function answerBriefing() {
+  switchView("briefing");
+  await speak("Generating your briefing, one moment.");
+  try {
+    const summary = await generateBriefing();
+    return summary ?? "I couldn't generate a briefing right now.";
+  } catch {
+    return "I couldn't reach the AI server right now.";
+  }
+}
+
 async function answerBins() {
   try {
     const res  = await fetch("/api/bins");
@@ -174,6 +186,11 @@ const QUESTION_MAP = [
     patterns: [/\bbin(s)?\b|recycling|rubbish|trash|garbage.*day|bin.*day|what.*bin/],
     handler: answerBins,
     overlay: "Bins",
+  },
+  {
+    patterns: [/\bbrief\s+me\b|read\s+(my\s+)?brief(ing)?\b|give\s+me\s+(a\s+)?brief/i],
+    handler: answerBriefing,
+    overlay: "Briefing",
   },
 ];
 

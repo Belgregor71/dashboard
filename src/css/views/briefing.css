@@ -19,6 +19,30 @@
   font-weight: 300;
   line-height: 1.08;
   letter-spacing: -0.01em;
+  transition: opacity 0.5s ease;
+}
+
+/* Subtle pulse while Ollama is generating */
+.briefing-headline h1.is-generating {
+  opacity: 0.45;
+  animation: bl-generating 1.8s ease-in-out infinite;
+}
+
+/* AI summary is slightly smaller and fades in */
+.briefing-headline h1.is-ai-summary {
+  font-size: clamp(1.5rem, 3vw, 3.6rem);
+  font-weight: 300;
+  animation: bl-fade-in 0.7s ease forwards;
+}
+
+@keyframes bl-generating {
+  0%, 100% { opacity: 0.45; }
+  50%       { opacity: 0.22; }
+}
+
+@keyframes bl-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0);   }
 }
 
 .briefing-grid {
