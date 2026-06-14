@@ -34,6 +34,7 @@ import { initBinReminder } from "../modules/binReminder.js";
 import { initTimeContext } from "../modules/timeContext.js";
 import { initArrivalGreeting } from "../modules/arrivalGreeting.js";
 import { initNrlScores } from "../modules/nrlScores.js";
+import { initFuelPrices } from "../modules/fuelPrices.js";
 import { initMorningBriefing } from "../modules/morningBriefing.js";
 import { createStatusView } from "../modules/systemStatus.js";
 import { createBriefingView } from "../views/briefingView.js";
@@ -146,6 +147,7 @@ export function startApp() {
   initTimeContext();
   initArrivalGreeting();
   initNrlScores();
+  initFuelPrices();
   initMorningBriefing();
   initEnergySaver();
   initScreensaver();

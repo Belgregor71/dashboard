@@ -25,6 +25,7 @@
 @import './components/news-ticker.css';
 @import './components/bin-reminder.css';
 @import './components/nrl-scores.css';
+@import './components/fuel-prices.css';
 @import './components/arrival-greeting.css';
 @import './views/screensaver.css';
 @import './utils/time-context.css';

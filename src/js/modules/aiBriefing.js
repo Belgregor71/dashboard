@@ -21,10 +21,21 @@ export async function generateBriefing({ type = "morning" } = {}) {
   const allEvents = calData.events ?? calData ?? [];
 
   // ── Weather (already rendered in DOM) ─────────────────────────
-  const temp  = document.getElementById("current-temp")?.textContent?.trim() ?? "";
-  const cond  = document.getElementById("current-conditions")?.textContent?.trim() ?? "";
-  const range = document.getElementById("weather-range")?.textContent?.trim() ?? "";
-  const weather = [temp && cond ? `${temp}, ${cond}` : "", range].filter(Boolean).join(". ") || null;
+  const temp    = document.getElementById("current-temp")?.textContent?.trim() ?? "";
+  const cond    = document.getElementById("current-conditions")?.textContent?.trim() ?? "";
+  const range   = document.getElementById("weather-range")?.textContent?.trim() ?? "";
+  const feels   = document.getElementById("weather-feels-like-large")?.textContent?.trim().replace(/^--$/, "") ?? "";
+  const rain    = document.getElementById("weather-rain-range-card")?.textContent?.trim().replace(/^--$/, "") ?? "";
+  const uvNum   = document.getElementById("weather-uv-dial-value")?.textContent?.trim().replace(/^--$/, "") ?? "";
+  const uvCat   = document.getElementById("weather-uv-dial-meta")?.textContent?.trim() ?? "";
+
+  const weatherParts = [];
+  if (temp && cond) weatherParts.push(`${temp}, ${cond}`);
+  if (range)        weatherParts.push(range);
+  if (feels)        weatherParts.push(`feels like ${feels}`);
+  if (rain)         weatherParts.push(`rain ${rain}`);
+  if (uvNum)        weatherParts.push(uvCat ? `UV ${uvNum} (${uvCat})` : `UV ${uvNum}`);
+  const weather = weatherParts.join(". ") || null;
 
   // ── Calendar ───────────────────────────────────────────────────
   function fmtEvent(ev) {

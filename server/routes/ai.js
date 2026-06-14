@@ -8,12 +8,14 @@ const SYSTEM_PROMPTS = {
     "Always respond in exactly 2-3 complete sentences.",
     "Use plain conversational English — no bullet points, no markdown, no lists.",
     "Focus on the most time-sensitive or important information. Be warm and direct.",
+    "If the weather is notable (rain likely, high UV, unusually hot or cold), end with a brief practical tip — e.g. 'Bring an umbrella' or 'Slip, slop, slap today'.",
   ].join(" "),
   evening: [
     "You are a concise home assistant for an Australian family's wall dashboard.",
     "Always respond in exactly 2-3 complete sentences.",
     "Use plain conversational English — no bullet points, no markdown, no lists.",
     "Summarise what's left of the evening and preview tomorrow. Be warm and relaxed in tone.",
+    "If tomorrow's weather is notable, include a brief practical tip.",
   ].join(" "),
 };
 
@@ -43,7 +45,7 @@ router.post("/api/ai/brief", async (req, res) => {
         system,
         prompt:  buildPrompt(body),
         stream:  false,
-        options: { temperature: 0.72, num_predict: 120 },
+        options: { temperature: 0.72, num_predict: 150 },
       }),
       signal: AbortSignal.timeout(30_000),
     });

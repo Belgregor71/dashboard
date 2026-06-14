@@ -1,0 +1,55 @@
+#fuel-overlay {
+  position: fixed;
+  bottom: 54px;
+  left: 28px;
+  z-index: 75;
+  padding: 10px 16px;
+  border-radius: var(--glass-radius-sm);
+  backdrop-filter: var(--glass-blur);
+  background: var(--glass-bg);
+  border: var(--glass-border);
+  box-shadow: var(--glass-sheen);
+  display: grid;
+  gap: 5px;
+  min-width: 170px;
+}
+
+#fuel-overlay[hidden] {
+  display: none;
+}
+
+.fuel-row {
+  display: grid;
+  grid-template-columns: 2.8rem 5rem 1fr;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.fuel-type {
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.fuel-price {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+
+.fuel-unit {
+  font-size: 0.75rem;
+  font-weight: 400;
+  margin-left: 1px;
+  opacity: 0.75;
+}
+
+.fuel-name {
+  font-size: 0.7rem;
+  opacity: 0.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
