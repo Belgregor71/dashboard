@@ -3,44 +3,42 @@ import { speak } from "../core/tts.js";
 import { generateBriefing } from "./aiBriefing.js";
 import { switchView } from "../core/viewManager.js";
 
-// 5:35am Mon–Fri, 7:30am Sat–Sun
-const SCHEDULE = {
-  weekday: { hour: 5,  minute: 35 },
-  weekend: { hour: 7,  minute: 30 },
-};
+// Add or change entries here to adjust schedule
+const SCHEDULES = [
+  { name: "morning-weekday", days: [1, 2, 3, 4, 5], hour: 5,  minute: 35, type: "morning", rate: 0.90 },
+  { name: "morning-weekend", days: [0, 6],           hour: 7,  minute: 30, type: "morning", rate: 0.90 },
+  { name: "evening",         days: [0, 1, 2, 3, 4, 5, 6], hour: 18, minute: 0,  type: "evening", rate: 0.92 },
+];
 
-let firedDate = null; // date string of last trigger — prevents double-fire
+const firedDates = {}; // { scheduleName → dateString } prevents double-fire
 
-function targetTime() {
-  const day = new Date().getDay(); // 0 = Sun, 6 = Sat
-  return (day === 0 || day === 6) ? SCHEDULE.weekend : SCHEDULE.weekday;
-}
-
-async function triggerMorningBriefing() {
+async function trigger(schedule) {
   wakeScreensaver();
   resetIdleTimer();
   switchView("briefing");
 
   try {
-    const summary = await generateBriefing();
-    if (summary) await speak(summary, { rate: 0.90 });
+    const summary = await generateBriefing({ type: schedule.type });
+    if (summary) await speak(summary, { rate: schedule.rate });
   } catch { /**/ }
 }
 
 function tick() {
   const now     = new Date();
+  const day     = now.getDay(); // 0 = Sun, 6 = Sat
   const dateStr = now.toDateString();
 
-  if (firedDate === dateStr) return; // already fired today
+  for (const schedule of SCHEDULES) {
+    if (!schedule.days.includes(day)) continue;
+    if (firedDates[schedule.name] === dateStr) continue;
+    if (now.getHours() !== schedule.hour || now.getMinutes() !== schedule.minute) continue;
 
-  const { hour, minute } = targetTime();
-  if (now.getHours() !== hour || now.getMinutes() !== minute) return;
-
-  firedDate = dateStr;
-  triggerMorningBriefing();
+    firedDates[schedule.name] = dateStr;
+    trigger(schedule);
+  }
 }
 
 export function initMorningBriefing() {
-  setInterval(tick, 30_000); // check every 30s — never misses a minute
-  tick();                     // also check on boot
+  setInterval(tick, 30_000);
+  tick();
 }

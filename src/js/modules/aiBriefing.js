@@ -1,9 +1,14 @@
 import { getAllEntities } from "../services/homeAssistant/state.js";
 
-// Shared context builder + Ollama caller used by briefingView and voiceCommands.
+// Shared context builder + Ollama caller.
+// type: "morning" (day ahead) | "evening" (tonight + tomorrow)
 
-export async function generateBriefing() {
-  const now = new Date();
+export async function generateBriefing({ type = "morning" } = {}) {
+  const now       = new Date();
+  const todayStr  = now.toDateString();
+  const tomorrow  = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toDateString();
 
   // Parallel fetches
   const [calResult, binsResult] = await Promise.allSettled([
@@ -13,6 +18,7 @@ export async function generateBriefing() {
 
   const calData  = calResult.status  === "fulfilled" ? calResult.value  : {};
   const binsData = binsResult.status === "fulfilled" ? binsResult.value : {};
+  const allEvents = calData.events ?? calData ?? [];
 
   // ── Weather (already rendered in DOM) ─────────────────────────
   const temp  = document.getElementById("current-temp")?.textContent?.trim() ?? "";
@@ -21,22 +27,52 @@ export async function generateBriefing() {
   const weather = [temp && cond ? `${temp}, ${cond}` : "", range].filter(Boolean).join(". ") || null;
 
   // ── Calendar ───────────────────────────────────────────────────
-  const todayStr = now.toDateString();
-  const events = (calData.events ?? calData ?? [])
-    .filter(ev => {
-      const raw = ev.start ?? ev.startDate ?? ev.date;
-      return raw && new Date(raw).toDateString() === todayStr;
-    })
-    .slice(0, 4)
-    .map(ev => {
-      const title = String(ev.title ?? ev.summary ?? "Event");
-      const raw   = ev.start ?? ev.startDate;
-      if (!raw) return title;
-      const d = new Date(raw);
-      if (d.getHours() === 0 && d.getMinutes() === 0) return title;
-      const t = d.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", hour12: true });
-      return `${title} at ${t}`;
-    });
+  function fmtEvent(ev) {
+    const title = String(ev.title ?? ev.summary ?? "Event");
+    const raw   = ev.start ?? ev.startDate;
+    if (!raw) return title;
+    const d = new Date(raw);
+    if (d.getHours() === 0 && d.getMinutes() === 0) return title;
+    const t = d.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", hour12: true });
+    return `${title} at ${t}`;
+  }
+
+  let eventContext;
+
+  if (type === "evening") {
+    const todayLeft = allEvents
+      .filter(ev => {
+        const raw = ev.start ?? ev.startDate ?? ev.date;
+        if (!raw) return false;
+        const d = new Date(raw);
+        if (d.toDateString() !== todayStr) return false;
+        return d.getHours() === 0 || d > now; // all-day or still upcoming
+      })
+      .slice(0, 2)
+      .map(fmtEvent);
+
+    const tomorrowEvents = allEvents
+      .filter(ev => {
+        const raw = ev.start ?? ev.startDate ?? ev.date;
+        return raw && new Date(raw).toDateString() === tomorrowStr;
+      })
+      .slice(0, 3)
+      .map(fmtEvent);
+
+    const parts = [];
+    if (todayLeft.length)    parts.push(`Tonight: ${todayLeft.join("; ")}`);
+    if (tomorrowEvents.length) parts.push(`Tomorrow: ${tomorrowEvents.join("; ")}`);
+    eventContext = parts.length ? parts.join(". ") : "Nothing on tonight or tomorrow";
+  } else {
+    const todayEvents = allEvents
+      .filter(ev => {
+        const raw = ev.start ?? ev.startDate ?? ev.date;
+        return raw && new Date(raw).toDateString() === todayStr;
+      })
+      .slice(0, 4)
+      .map(fmtEvent);
+    eventContext = todayEvents.length ? todayEvents.join("; ") : "Nothing scheduled today";
+  }
 
   // ── Bins ───────────────────────────────────────────────────────
   let binsText = null;
@@ -68,11 +104,12 @@ export async function generateBriefing() {
     method:  "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      type,
       time,
       weather,
-      events:  events.length ? events.join("; ") : "Nothing scheduled today",
-      bins:    binsText,
-      home:    people.length ? people.join(", ") : null,
+      events: eventContext,
+      bins:   binsText,
+      home:   people.length ? people.join(", ") : null,
     }),
     signal: AbortSignal.timeout(28_000),
   });
