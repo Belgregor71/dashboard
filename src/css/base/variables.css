@@ -9,4 +9,18 @@
   --space-md: 1rem;
   --space-lg: 1.5rem;
   --space-xl: 2rem;
+
+  /* ── Glass surface tokens ───────────────────────────────────
+     Single source of truth for the frosted-glass look.
+     All panel/card glass styling should reference these.
+     Weather view (.weather-glass) intentionally differs — brighter
+     glass for its cinematic video background. Do not change it.
+  ──────────────────────────────────────────────────────────── */
+  --glass-blur:      blur(18px) brightness(0.87);
+  --glass-bg:        linear-gradient(180deg, rgba(24, 28, 40, 0.48), rgba(10, 12, 18, 0.34));
+  --glass-border:    1px solid rgba(255, 255, 255, 0.10);
+  --glass-radius:    18px;
+  --glass-radius-sm: 14px;
+  --glass-shadow:    0 8px 28px rgba(0, 0, 0, 0.30);
+  --glass-sheen:     inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }

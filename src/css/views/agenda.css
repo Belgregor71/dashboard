@@ -42,9 +42,11 @@
   display: grid;
   gap: 10px;
   padding: 16px;
-  border-radius: 16px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--glass-radius);
+  backdrop-filter: var(--glass-blur);
+  background: var(--glass-bg);
+  border: var(--glass-border);
+  box-shadow: var(--glass-sheen);
 }
 
 .agenda-section-header {
@@ -80,8 +82,8 @@
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.28);
+  border-radius: var(--glass-radius-sm);
+  background: rgba(14, 18, 28, 0.38);
   border-left: 4px solid var(--event-accent);
   color: var(--event-text);
 }
@@ -117,9 +119,9 @@
 
 .agenda-empty {
   padding: 16px;
-  border-radius: 14px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: var(--glass-radius-sm);
+  background: rgba(14, 18, 28, 0.30);
+  border: 1px dashed rgba(255, 255, 255, 0.18);
   opacity: 0.75;
   text-align: center;
 }
@@ -142,14 +144,15 @@
   grid-template-columns: 1fr auto;
   gap: 12px;
   padding: 14px 16px;
-  border-radius: 14px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--glass-radius-sm);
+  background: rgba(18, 22, 34, 0.44);
+  border: var(--glass-border);
+  box-shadow: var(--glass-sheen);
 }
 
 .agenda-card.event-item--card {
   background: var(--event-bg);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: var(--glass-border);
   border-left: 4px solid var(--event-accent);
 }
 

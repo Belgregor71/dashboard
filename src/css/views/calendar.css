@@ -115,8 +115,9 @@ body[data-view="calendar"] #calendar-view .calendar-panel.high-contrast::before 
   min-height: 0;
   padding: 14px 14px 12px;
   border-radius: 16px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(18, 22, 34, 0.44);
+  border: var(--glass-border);
+  box-shadow: var(--glass-sheen);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -125,7 +126,7 @@ body[data-view="calendar"] #calendar-view .calendar-panel.high-contrast::before 
 
 .calendar-day--outside {
   opacity: 0.35;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(10, 12, 18, 0.22);
 }
 
 .calendar-date {

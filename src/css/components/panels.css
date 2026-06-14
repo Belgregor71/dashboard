@@ -1,7 +1,7 @@
 .panel {
-  backdrop-filter: blur(16px) brightness(0.85);
-  background: linear-gradient(180deg, rgba(20, 24, 34, 0.5), rgba(9, 11, 17, 0.4));
-  border-radius: 18px;
+  backdrop-filter: var(--glass-blur);
+  background: var(--glass-bg);
+  border-radius: var(--glass-radius);
   padding: 20px;
   opacity: 1;
   transform: translateY(0);
@@ -9,12 +9,12 @@
 }
 
 .panel-glass {
-  background: linear-gradient(180deg, rgba(32, 36, 48, 0.44), rgba(12, 14, 20, 0.32));
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: var(--glass-border);
+  box-shadow: var(--glass-sheen);
 }
 
 .panel-elevated {
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.32);
+  box-shadow: var(--glass-shadow), var(--glass-sheen);
 }
 
 .panel.is-hidden {
@@ -30,6 +30,6 @@
 @media (max-height: 820px) {
   .panel {
     padding: 12px;
-    border-radius: 14px;
+    border-radius: var(--glass-radius-sm);
   }
 }

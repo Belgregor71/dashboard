@@ -13,10 +13,11 @@
   justify-content: space-between;
   gap: 24px;
   padding: 16px 20px;
-  border-radius: 18px;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(20px) brightness(0.75);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--glass-radius);
+  backdrop-filter: var(--glass-blur);
+  background: var(--glass-bg);
+  border: var(--glass-border);
+  box-shadow: var(--glass-sheen);
 }
 
 .status-header-title-wrap {
@@ -91,10 +92,11 @@
   align-content: start;
   gap: 10px;
   padding: 18px;
-  border-radius: 18px;
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(18px) brightness(0.8);
+  border-radius: var(--glass-radius);
+  backdrop-filter: var(--glass-blur);
+  background: var(--glass-bg);
+  border: var(--glass-border);
+  box-shadow: var(--glass-sheen);
 }
 
 .status-item--highlight {
