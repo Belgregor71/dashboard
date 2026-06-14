@@ -5,6 +5,7 @@ import { readHaConfig } from "./haConfig.js";
 
 const SAFE_SERVICES = new Set([
   "script.turn_on",
+  "scene.turn_on",
   "input_select.select_option",
   "light.turn_on",
   "light.turn_off",

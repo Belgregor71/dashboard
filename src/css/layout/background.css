@@ -39,10 +39,23 @@
   transition: background-color 1s ease;
 }
 
-.tint-morning { background-color: rgba(255, 210, 150, 0.12); }
-.tint-day     { background-color: rgba(255, 255, 255, 0.04); }
-.tint-evening { background-color: rgba(255, 150, 80, 0.12); }
-.tint-night   { background-color: rgba(30, 50, 110, 0.24); }
+.tint-morning { background-color: rgba(255, 200, 120, 0.18); }
+.tint-day     { background-color: rgba(255, 255, 255, 0.05); }
+.tint-evening { background-color: rgba(255, 130, 60,  0.20); }
+.tint-night   { background-color: rgba(2,   6,  20,  0.62); }
+
+/* Night mode: deepen panel backgrounds and add a cool-blue atmosphere */
+body.tint-night .panel {
+  background: linear-gradient(180deg, rgba(6, 10, 26, 0.70), rgba(2, 4, 14, 0.60));
+}
+
+/* Morning / evening: warm the panel glass slightly */
+body.tint-morning .panel {
+  background: linear-gradient(180deg, rgba(28, 22, 14, 0.52), rgba(12, 10, 6, 0.42));
+}
+body.tint-evening .panel {
+  background: linear-gradient(180deg, rgba(28, 18, 10, 0.52), rgba(14, 8, 4, 0.42));
+}
 
 body[data-view="weather"] #background,
 body[data-view="weather"] #background-image,

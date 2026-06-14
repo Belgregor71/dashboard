@@ -1,21 +1,26 @@
 export function updateClock() {
-  const now = new Date();
+  const now    = new Date();
   const clockEl = document.getElementById("clock");
-  const dateEl = document.getElementById("date");
+  const dateEl  = document.getElementById("date");
   if (!clockEl || !dateEl) return;
 
-  let time = now.toLocaleTimeString([], {
-    hour: "numeric",
+  // Build time string with en-AU locale
+  let time = now.toLocaleTimeString("en-AU", {
+    hour:   "numeric",
     minute: "2-digit",
-    hour12: true
+    hour12: true,
   });
 
-  time = time.replace(" AM", "\u202FAM").replace(" PM", "\u202FPM");
-  clockEl.textContent = time;
+  // Wrap AM/PM in its own span for separate font-size / opacity styling
+  time = time.replace(
+    /\s*(AM|PM)$/i,
+    (_, ap) => `<span class="clock-ampm"> ${ap}</span>`
+  );
+  clockEl.innerHTML = time;
 
-  dateEl.textContent = now.toLocaleDateString(undefined, {
+  dateEl.textContent = now.toLocaleDateString("en-AU", {
     weekday: "long",
-    month: "long",
-    day: "numeric"
+    month:   "long",
+    day:     "numeric",
   });
 }

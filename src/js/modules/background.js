@@ -61,10 +61,17 @@ function rotateBackground() {
   }, 500);
 }
 
+const TINT_CLASSES = ["tint-morning", "tint-day", "tint-evening", "tint-night"];
+
 function updateTint() {
   const tint = document.getElementById("background-tint");
-  if (!tint) return;
+  const tintClass = getTintClassForNow();
 
-  tint.classList.remove("tint-morning", "tint-day", "tint-evening", "tint-night");
-  tint.classList.add(getTintClassForNow());
+  // Apply to the overlay element (controls background wash colour)
+  tint?.classList.remove(...TINT_CLASSES);
+  tint?.classList.add(tintClass);
+
+  // Apply to body so CSS can target body.tint-* for accent colours
+  document.body.classList.remove(...TINT_CLASSES);
+  document.body.classList.add(tintClass);
 }

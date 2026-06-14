@@ -28,6 +28,12 @@ import { initCameraPopupOverlay } from "../modules/cameraPopupOverlay.js";
 import { initCameraTiles } from "../modules/cameraTiles.js";
 import { initHomeAssistantTodayPanel } from "../modules/haToday.js";
 import { initEnergySaver } from "../modules/energySaver.js";
+import { initScreensaver } from "../modules/screensaver.js";
+import { initDoorbellAlert } from "../modules/doorbellAlert.js";
+import { initBinReminder } from "../modules/binReminder.js";
+import { initTimeContext } from "../modules/timeContext.js";
+import { initArrivalGreeting } from "../modules/arrivalGreeting.js";
+import { initNrlScores } from "../modules/nrlScores.js";
 import { createStatusView } from "../modules/systemStatus.js";
 import { createBriefingView } from "../views/briefingView.js";
 import { initNewsTicker } from "../modules/newsTicker.js";
@@ -134,7 +140,13 @@ export function startApp() {
   initArrActivity();
   initMediaStatus();
   initCameraPopupOverlay();
+  initDoorbellAlert();    // must be after initCameraPopupOverlay so cameras view wins
+  initBinReminder();
+  initTimeContext();
+  initArrivalGreeting();
+  initNrlScores();
   initEnergySaver();
+  initScreensaver();
 
   if (isEnabled("homeAssistant", false)) {
     initHomeAssistantTodayPanel();

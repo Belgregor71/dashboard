@@ -21,6 +21,8 @@ import newsRoutes from "./server/routes/news.js";
 import cameraRoutes from "./server/routes/camera.js";
 import photosRoutes from "./server/routes/photos.js";
 import adminRoutes from "./server/routes/admin.js";
+import binsRoutes from "./server/routes/bins.js";
+import nrlRoutes from "./server/routes/nrl.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -71,6 +73,8 @@ app.use(newsRoutes);
 app.use(cameraRoutes);
 app.use(photosRoutes);
 app.use(adminRoutes);
+app.use(binsRoutes);
+app.use(nrlRoutes);
 
 // Home Assistant image/camera proxy
 attachHaProxy(app);

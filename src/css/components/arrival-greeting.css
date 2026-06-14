@@ -1,0 +1,109 @@
+/* ============================================================
+   ARRIVAL GREETING
+   Slides down from top when a person.* entity arrives home.
+   ============================================================ */
+
+.arrival-greeting {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%) translateY(-120%);
+  z-index: 90;
+  width: min(720px, 90vw);
+  pointer-events: none;
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.arrival-greeting.is-active {
+  transform: translateX(-50%) translateY(20px);
+}
+
+/* ── Card ──────────────────────────────────────────────────── */
+
+.arrival-greeting__card {
+  background: linear-gradient(145deg, rgba(16, 22, 40, 0.88), rgba(8, 12, 24, 0.80));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 22px;
+  padding: 28px 32px 0;
+  backdrop-filter: blur(24px) brightness(0.9);
+  box-shadow:
+    0 4px 6px rgba(0, 0, 0, 0.2),
+    0 20px 60px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(120, 180, 255, 0.08) inset;
+  overflow: hidden;
+}
+
+/* ── Welcome headline ──────────────────────────────────────── */
+
+.arrival-greeting__welcome {
+  font-family: "Barlow Condensed", "Inter", sans-serif;
+  font-size: clamp(2rem, 4vw, 3.6rem);
+  font-weight: 300;
+  letter-spacing: -0.01em;
+  color: rgba(255, 255, 255, 0.97);
+  line-height: 1.1;
+  margin-bottom: 6px;
+}
+
+/* ── Status line ───────────────────────────────────────────── */
+
+.arrival-greeting__status {
+  font-size: clamp(0.9rem, 1.4vw, 1.2rem);
+  font-weight: 400;
+  color: rgba(120, 200, 255, 0.85);
+  letter-spacing: 0.02em;
+  margin-bottom: 16px;
+}
+
+/* ── Remaining events list ─────────────────────────────────── */
+
+.arrival-greeting__events {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+.arrival-greeting__events li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: clamp(0.85rem, 1.3vw, 1.1rem);
+  color: rgba(255, 255, 255, 0.80);
+}
+
+.arrival-greeting__time {
+  font-family: "Barlow Condensed", "Inter", sans-serif;
+  font-weight: 300;
+  font-size: 1.05em;
+  color: rgba(255, 255, 255, 0.50);
+  min-width: 4.5em;
+  flex-shrink: 0;
+}
+
+.arrival-greeting__event-title {
+  flex: 1;
+}
+
+.arrival-greeting__empty {
+  font-size: clamp(0.85rem, 1.3vw, 1.1rem);
+  color: rgba(255, 255, 255, 0.40);
+  font-style: italic;
+  margin-bottom: 20px;
+}
+
+/* ── Countdown drain bar ───────────────────────────────────── */
+
+.arrival-greeting__track {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 0 -32px; /* bleed to card edges */
+}
+
+.arrival-greeting__bar {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(to left, rgba(80, 160, 255, 0.6), rgba(120, 200, 255, 0.9));
+  transition: width 0.08s linear;
+}

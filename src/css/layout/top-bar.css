@@ -40,17 +40,62 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
 }
+
+/* ── Clock ─────────────────────────────────────────────────── */
 
 #clock {
-  font-size: 5rem;
-  font-weight: 600;
+  font-family: "Barlow Condensed", "Inter", sans-serif;
+  font-size: clamp(3.5rem, 6vw, 7rem);
+  font-weight: 200;
+  letter-spacing: -0.01em;
   line-height: 1;
+  color: rgba(255, 255, 255, 0.95);
+  transition: color 2s ease, text-shadow 2s ease;
 }
 
-#date {
-  font-size: 2rem;
-  opacity: 0.85;
-  line-height: 1.2;
+.clock-ampm {
+  font-size: 0.32em;
+  font-weight: 300;
+  letter-spacing: 0.06em;
+  vertical-align: middle;
+  opacity: 0.65;
 }
+
+/* ── Date ──────────────────────────────────────────────────── */
+
+#date {
+  font-family: "Barlow Condensed", "Inter", sans-serif;
+  font-size: clamp(0.85rem, 1.5vw, 1.6rem);
+  font-weight: 300;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  line-height: 1.2;
+  transition: color 2s ease;
+}
+
+/* ── Time-of-day accent colours ────────────────────────────── */
+/* These kick in once background.js adds the tint class to body */
+
+body.tint-morning #clock {
+  color: rgba(255, 205, 140, 0.96);
+}
+
+body.tint-day #clock {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+body.tint-evening #clock {
+  color: rgba(255, 185, 130, 0.94);
+}
+
+body.tint-night #clock {
+  color: rgba(130, 215, 255, 0.92);
+  text-shadow: 0 0 80px rgba(60, 160, 255, 0.20);
+}
+
+body.tint-morning #date { color: rgba(255, 210, 160, 0.85); }
+body.tint-evening #date { color: rgba(255, 200, 150, 0.80); }
+body.tint-night   #date { color: rgba(120, 200, 255, 0.72); }
