@@ -450,7 +450,7 @@ body[data-view="weather"] #background-tint {
   border: 0;
   display: block;
   background: #060708;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 /* ============================================================================
