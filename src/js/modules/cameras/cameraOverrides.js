@@ -1,8 +1,10 @@
 export const CAMERA_OVERRIDES = {
   // Default hero (pinned), hidden from tiles
-  doorbell: { name: "Front Door", area: "Entrance", order: 1, pinnedHero: true, hidden: true },
+  front_door: { name: "Front Door", area: "Entrance", order: 1, pinnedHero: true, hidden: true },
+  // Legacy entity name — kept hidden in case both exist in HA
+  doorbell: { name: "Front Door", area: "Entrance", order: 1, pinnedHero: false, hidden: true },
 
-  // EXACTLY 6 tile cameras (visible, ordered)
+  // Tile cameras (visible, ordered)
   patio: { name: "Patio", area: "Patio", order: 10, hidden: false },
   backyard: { name: "Backyard", area: "Backyard", order: 20, hidden: false },
   front_yard: { name: "Front Yard", area: "Front Yard", order: 30, hidden: false },
