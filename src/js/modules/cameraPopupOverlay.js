@@ -353,6 +353,21 @@ export function initCameraPopupOverlay() {
 
   function handleEventImageRefresh(entityId, trigger) {
     const cameraKey = trigger.camera;
+
+    // If the popup is already showing this camera, refresh the snapshot immediately.
+    // Event images can arrive from HA long after PENDING_TRIGGER_WINDOW_MS expires —
+    // we still want to update the displayed image while the popup is visible.
+    if (activeCameraKey === cameraKey && overlayEl.classList.contains("is-active")) {
+      clearPerCameraTimers(cameraKey);
+      pendingTriggers.delete(cameraKey);
+      logDebug("event image updated while popup active", { camera: cameraKey, entityId });
+      activeSnapshotTimestamp = Date.now();
+      lastPopupSnapshotAt[cameraKey] = activeSnapshotTimestamp;
+      refreshSnapshot(cameraKey);
+      updateUpdatedBadge();
+      return;
+    }
+
     const pending = pendingTriggers.get(cameraKey);
     if (!pending) return;
     if (Date.now() - pending.triggeredAt > PENDING_TRIGGER_WINDOW_MS) {
