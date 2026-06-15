@@ -143,7 +143,10 @@ export function createHaRouter() {
   router.get("/todo/:entityId/items", async (req, res) => {
     try {
       const entityId = decodeURIComponent(req.params.entityId);
-      const result = await haGet(`/api/todo/${encodeURIComponent(entityId)}/items`);
+      const result = await haPost(
+        "/api/services/todo/get_items?return_response=true",
+        { entity_id: entityId }
+      );
       res.json(result);
     } catch (error) {
       const mapped = mapError(error);
