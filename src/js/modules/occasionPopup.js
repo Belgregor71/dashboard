@@ -1,9 +1,9 @@
-import { CONFIG } from "../core/config.js";
+import { on } from "../core/eventBus.js";
 
 const AUTO_DISMISS_MS = 60_000;
 const STORAGE_KEY = "dashboard:occasion-shown";
 
-// ── Date helpers ───────────────────────────────────────────────
+// ── Fixed-date helpers ─────────────────────────────────────────
 
 function calcEaster(year) {
   const a = year % 19;
@@ -33,43 +33,71 @@ function nthWeekday(year, month, nth, weekday) {
 
 // ── Occasion detection ─────────────────────────────────────────
 
-function detectOccasion(now) {
+function detectFixedOccasion(now) {
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
   const day = now.getDate();
 
-  const cfg = CONFIG.occasions || {};
-  const birthdays = cfg.birthdays || [];
-  const schoolHolidays = cfg.schoolHolidays || [];
-
   const easter = calcEaster(year);
   const goodFriday = addDays(year, easter.month, easter.day, -2);
   const easterSat = addDays(year, easter.month, easter.day, -1);
-  const mothersDay = nthWeekday(year, 5, 2, 0);  // AU: 2nd Sunday May
-  const fathersDay = nthWeekday(year, 9, 1, 0);  // AU: 1st Sunday September
+  const mothersDay = nthWeekday(year, 5, 2, 0);   // AU: 2nd Sunday May
+  const fathersDay = nthWeekday(year, 9, 1, 0);   // AU: 1st Sunday September
 
-  const matchingBirthdays = birthdays.filter(b => b.month === month && b.day === day);
-  const matchingHoliday = schoolHolidays.find(h => {
-    const d = new Date(h.date);
-    return d.getFullYear() === year && d.getMonth() + 1 === month && d.getDate() === day;
-  });
+  if (month === 12 && day === 25) return { type: "christmas" };
+  if (month === 1  && day === 1)  return { type: "newyear" };
+  if (month === easter.month && day === easter.day) return { type: "easter" };
+  if (month === 10 && day === 31) return { type: "halloween" };
+  if (month === 12 && day === 24) return { type: "christmaseve" };
+  if (month === 12 && day === 31) return { type: "newyeareve" };
+  if (month === goodFriday.month && day === goodFriday.day) return { type: "goodfriday" };
+  if (month === easterSat.month  && day === easterSat.day)  return { type: "eastersaturday" };
+  if (month === 5 && day === mothersDay) return { type: "mothers" };
+  if (month === 9 && day === fathersDay) return { type: "fathers" };
+  if (month === 2 && day === 14) return { type: "valentine" };
+  if (month === 4 && day === 25) return { type: "anzac" };
+  return null;
+}
 
-  if (matchingBirthdays.length)                                         return { type: "birthday",       names: matchingBirthdays.map(b => b.name) };
-  if (month === 12 && day === 25)                                       return { type: "christmas" };
-  if (month === 1  && day === 1)                                        return { type: "newyear" };
-  if (month === easter.month && day === easter.day)                     return { type: "easter" };
-  if (month === 10 && day === 31)                                       return { type: "halloween" };
-  if (month === 12 && day === 24)                                       return { type: "christmaseve" };
-  if (month === 12 && day === 31)                                       return { type: "newyeareve" };
-  if (month === goodFriday.month && day === goodFriday.day)             return { type: "goodfriday" };
-  if (month === easterSat.month && day === easterSat.day)               return { type: "eastersaturday" };
-  if (month === 5  && day === mothersDay)                               return { type: "mothers" };
-  if (month === 9  && day === fathersDay)                               return { type: "fathers" };
-  if (month === 2  && day === 14)                                       return { type: "valentine" };
-  if (month === 4  && day === 25)                                       return { type: "anzac" };
-  if (matchingHoliday)                                                  return { type: "holidays", label: matchingHoliday.label };
+const SCHOOL_HOLIDAY_RE = /school.{0,4}holida|term.{0,12}break|term.{0,12}holida/i;
+
+function detectCalendarOccasion(now) {
+  const events = window.__CAL_EVENTS__;
+  if (!Array.isArray(events)) return null;
+
+  const todayStr = now.toDateString();
+  const todayEvents = events.filter(ev => ev.start && ev.start.toDateString() === todayStr);
+
+  // Birthdays — highest priority
+  const birthdays = todayEvents.filter(ev => ev.category?.id === "birthday");
+  if (birthdays.length) {
+    const names = birthdays
+      .map(ev => extractBirthdayName(ev.rawTitle || ev.title || ""))
+      .filter(Boolean);
+    return { type: "birthday", names };
+  }
+
+  // School holidays — all-day events from user calendars (not public holiday source)
+  const schoolHoliday = todayEvents.find(
+    ev => ev.isAllDay && ev.source !== "holidays" && SCHOOL_HOLIDAY_RE.test(ev.rawTitle || ev.title || "")
+  );
+  if (schoolHoliday) {
+    return { type: "holidays", label: schoolHoliday.displayTitle || schoolHoliday.rawTitle || schoolHoliday.title || "School Holidays" };
+  }
 
   return null;
+}
+
+function extractBirthdayName(title) {
+  const name = title
+    .replace(/[''`]s\b/gi, "")
+    .replace(/\bhappy\b/gi, "")
+    .replace(/\bbirthday\b/gi, "")
+    .replace(/\bbday\b/gi, "")
+    .replace(/[-:!,]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return name || null;
 }
 
 // ── Scene element helpers ──────────────────────────────────────
@@ -248,20 +276,20 @@ function buildANZACScene(scene) {
 }
 
 const SCENE_BUILDERS = {
-  birthday:      buildBirthdayScene,
-  christmas:     buildChristmasScene,
-  christmaseve:  buildChristmasScene,
-  easter:        buildEasterScene,
+  birthday:       buildBirthdayScene,
+  christmas:      buildChristmasScene,
+  christmaseve:   buildChristmasScene,
+  easter:         buildEasterScene,
   eastersaturday: buildEasterScene,
-  goodfriday:    buildEasterScene,
-  newyear:       buildNewYearScene,
-  newyeareve:    buildNewYearScene,
-  halloween:     buildHalloweenScene,
-  holidays:      buildHolidaysScene,
-  valentine:     buildValentineScene,
-  mothers:       buildMothersScene,
-  fathers:       buildFathersScene,
-  anzac:         buildANZACScene,
+  goodfriday:     buildEasterScene,
+  newyear:        buildNewYearScene,
+  newyeareve:     buildNewYearScene,
+  halloween:      buildHalloweenScene,
+  holidays:       buildHolidaysScene,
+  valentine:      buildValentineScene,
+  mothers:        buildMothersScene,
+  fathers:        buildFathersScene,
+  anzac:          buildANZACScene,
 };
 
 // ── Occasion metadata ──────────────────────────────────────────
@@ -277,19 +305,19 @@ function getOccasionMeta(detected) {
         subtitle: "Wishing you a wonderful day filled with joy 🎉",
       };
     }
-    case "christmas":      return { theme: "christmas",  title: "Merry Christmas!",      subtitle: "Wishing your family a magical day ✨" };
-    case "christmaseve":   return { theme: "christmas",  title: "Christmas Eve!",         subtitle: "Santa is on his way tonight 🎅" };
-    case "easter":         return { theme: "easter",     title: "Happy Easter!",          subtitle: "Hope your day is egg-stra special 🐣" };
-    case "eastersaturday": return { theme: "easter",     title: "Easter Saturday",        subtitle: "The egg hunt begins tomorrow 🥚" };
-    case "goodfriday":     return { theme: "easter",     title: "Good Friday",            subtitle: "Easter weekend is here 🌺" };
-    case "newyear":        return { theme: "newyear",    title: "Happy New Year!",        subtitle: "Here's to a fantastic year ahead 🥂" };
-    case "newyeareve":     return { theme: "newyear",    title: "New Year's Eve!",        subtitle: "Tonight we ring in the new year 🎆" };
-    case "halloween":      return { theme: "halloween",  title: "Happy Halloween!",       subtitle: "Trick or treat? 👻" };
+    case "christmas":      return { theme: "christmas",  title: "Merry Christmas!",       subtitle: "Wishing your family a magical day ✨" };
+    case "christmaseve":   return { theme: "christmas",  title: "Christmas Eve!",          subtitle: "Santa is on his way tonight 🎅" };
+    case "easter":         return { theme: "easter",     title: "Happy Easter!",           subtitle: "Hope your day is egg-stra special 🐣" };
+    case "eastersaturday": return { theme: "easter",     title: "Easter Saturday",         subtitle: "The egg hunt begins tomorrow 🥚" };
+    case "goodfriday":     return { theme: "easter",     title: "Good Friday",             subtitle: "Easter weekend is here 🌺" };
+    case "newyear":        return { theme: "newyear",    title: "Happy New Year!",         subtitle: "Here's to a fantastic year ahead 🥂" };
+    case "newyeareve":     return { theme: "newyear",    title: "New Year's Eve!",         subtitle: "Tonight we ring in the new year 🎆" };
+    case "halloween":      return { theme: "halloween",  title: "Happy Halloween!",        subtitle: "Trick or treat? 👻" };
     case "holidays":       return { theme: "holidays",   title: label || "School Holidays!", subtitle: "Time to relax and have fun! 🌞" };
-    case "valentine":      return { theme: "valentine",  title: "Happy Valentine's Day!", subtitle: "Love is in the air 💕" };
-    case "mothers":        return { theme: "mothers",    title: "Happy Mother's Day!",    subtitle: "Celebrating the incredible mums in our lives 💐" };
-    case "fathers":        return { theme: "fathers",    title: "Happy Father's Day!",    subtitle: "Celebrating the amazing dads 🏆" };
-    case "anzac":          return { theme: "anzac",      title: "ANZAC Day",              subtitle: "Lest We Forget 🌺" };
+    case "valentine":      return { theme: "valentine",  title: "Happy Valentine's Day!",  subtitle: "Love is in the air 💕" };
+    case "mothers":        return { theme: "mothers",    title: "Happy Mother's Day!",     subtitle: "Celebrating the incredible mums in our lives 💐" };
+    case "fathers":        return { theme: "fathers",    title: "Happy Father's Day!",     subtitle: "Celebrating the amazing dads 🏆" };
+    case "anzac":          return { theme: "anzac",      title: "ANZAC Day",               subtitle: "Lest We Forget 🌺" };
     default:               return null;
   }
 }
@@ -381,12 +409,12 @@ function dismissPopup() {
   setTimeout(() => el.remove(), 450);
 }
 
-// ── Storage helpers ────────────────────────────────────────────
+// ── Storage ────────────────────────────────────────────────────
 
-function wasShownToday(type) {
+function wasShownToday() {
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    return stored.date === new Date().toDateString() && stored.type === type;
+    return stored.date === new Date().toDateString();
   } catch { return false; }
 }
 
@@ -399,34 +427,53 @@ function markShownToday(type) {
 // ── Entry point ────────────────────────────────────────────────
 
 export function initOccasionPopup() {
-  function check() {
-    const params = new URLSearchParams(window.location.search);
-    const forceType = params.get("occasion");
+  // URL param override — ?occasion=TYPE[&name=Alice] for testing any scene
+  const params = new URLSearchParams(window.location.search);
+  const forceType = params.get("occasion");
+  if (forceType) {
     const forceName = params.get("name");
-
-    let detected;
-    if (forceType) {
-      detected = { type: forceType, names: forceName ? [forceName] : ["Test"], label: "Test Holidays" };
-    } else {
-      detected = detectOccasion(new Date());
-    }
-
-    if (!detected) return;
-    if (!forceType && wasShownToday(detected.type)) return;
-
-    setTimeout(() => {
-      if (!forceType) markShownToday(detected.type);
-      showPopup(detected);
-    }, forceType ? 500 : 3000);
+    const detected = { type: forceType, names: forceName ? [forceName] : ["Test"], label: "Test Holidays" };
+    setTimeout(() => showPopup(detected), 500);
+    return;
   }
 
-  check();
+  function tryShow() {
+    if (wasShownToday()) return;
 
-  // Re-check just after midnight for dashboards that run continuously
+    // Calendar-based occasions take highest priority (birthdays beat fixed dates)
+    const calOccasion = detectCalendarOccasion(new Date());
+    if (calOccasion) {
+      markShownToday(calOccasion.type);
+      showPopup(calOccasion);
+      return;
+    }
+
+    const fixedOccasion = detectFixedOccasion(new Date());
+    if (fixedOccasion) {
+      markShownToday(fixedOccasion.type);
+      showPopup(fixedOccasion);
+    }
+  }
+
+  // Attempt fixed occasions after a short polite delay on load
+  setTimeout(() => {
+    if (!wasShownToday()) {
+      const fixed = detectFixedOccasion(new Date());
+      if (fixed) {
+        markShownToday(fixed.type);
+        showPopup(fixed);
+      }
+    }
+  }, 3000);
+
+  // Wait for calendar data for birthday / school holiday detection
+  on("calendar:refreshed", () => tryShow());
+
+  // Re-check just after midnight for always-on displays
   const now = new Date();
   const msToMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - now.getTime() + 5000;
   setTimeout(() => {
-    check();
-    setInterval(check, 24 * 60 * 60 * 1000);
+    tryShow();
+    setInterval(tryShow, 24 * 60 * 60 * 1000);
   }, msToMidnight);
 }

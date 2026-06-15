@@ -288,18 +288,4 @@ export const CONFIG = {
     modeLabel: "Normal",
     modeEntityId: ""
   },
-  occasions: {
-    // Family birthdays — popup appears once on the morning of the birthday
-    birthdays: [
-      // { name: "Alice", month: 3, day: 15 },
-      // { name: "Bob",   month: 8, day: 22 },
-    ],
-    // School holiday start dates — popup appears on the first day of each break
-    schoolHolidays: [
-      // { date: "2026-04-11", label: "Autumn School Holidays" },
-      // { date: "2026-07-04", label: "Winter School Holidays" },
-      // { date: "2026-09-19", label: "Spring School Holidays" },
-      // { date: "2026-12-19", label: "Summer School Holidays" },
-    ]
-  }
 };
