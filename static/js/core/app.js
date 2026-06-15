@@ -25,6 +25,8 @@ import { initCameraMotionView } from "../modules/cameraMotionView.js";
 import { initCameraTiles } from "../modules/cameraTiles.js";
 import { initHomeAssistantTodayPanel } from "../modules/haToday.js";
 import { initEnergySaver } from "../modules/energySaver.js";
+import { initScreensaver } from "../modules/screensaver.js";
+import { initMorningBriefing } from "../modules/morningBriefing.js";
 import { createStatusView } from "../modules/systemStatus.js";
 import { createBriefingView } from "../views/briefingView.js";
 import { createWeatherView } from "../views/weatherView.js";
@@ -131,7 +133,9 @@ export function startApp() {
   initCameraPopupOverlay();
   initCameraMotionView();
   initOccasionPopup();
+  initMorningBriefing();
   initEnergySaver();
+  initScreensaver();
 
   if (isEnabled("homeAssistant", false)) {
     initHomeAssistantTodayPanel();

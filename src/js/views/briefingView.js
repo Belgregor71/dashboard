@@ -1,7 +1,9 @@
 import { getAllEntities } from "../services/homeAssistant/state.js";
 import { generateBriefing } from "../modules/aiBriefing.js";
+import { switchView } from "../core/viewManager.js";
 
-const REFRESH_MS = 10 * 60 * 1000;
+const REFRESH_MS    = 10 * 60 * 1000;
+const AUTO_CLOSE_MS = 5 * 60 * 1000;  // return to home if no interaction
 
 // ── DOM helpers ────────────────────────────────────────────────
 
@@ -165,7 +167,8 @@ export function createBriefingView() {
     return { render: () => {}, onEnter: () => {}, onLeave: () => {} };
   }
 
-  let refreshTimer = null;
+  let refreshTimer  = null;
+  let autoCloseTimer = null;
 
   function setLoading() {
     headlineEl.textContent = "Loading briefing…";
@@ -221,6 +224,8 @@ export function createBriefingView() {
   function onEnter() {
     loadBrief();
     if (!refreshTimer) refreshTimer = setInterval(loadBrief, REFRESH_MS);
+    clearTimeout(autoCloseTimer);
+    autoCloseTimer = setTimeout(() => switchView("home"), AUTO_CLOSE_MS);
   }
 
   function onLeave() {
@@ -228,6 +233,8 @@ export function createBriefingView() {
       clearInterval(refreshTimer);
       refreshTimer = null;
     }
+    clearTimeout(autoCloseTimer);
+    autoCloseTimer = null;
   }
 
   return { render, onEnter, onLeave };

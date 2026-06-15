@@ -1,104 +1,231 @@
-const REFRESH_MS = 10 * 60 * 1000;
+import { getAllEntities } from "../services/homeAssistant/state.js";
+import { generateBriefing } from "../modules/aiBriefing.js";
+import { switchView } from "../core/viewManager.js";
 
-function skeletonMarkup() {
-  return `
-    <div class="briefing-skeleton-line briefing-skeleton-line--headline"></div>
-    <div class="briefing-skeleton-grid">
-      <div class="briefing-skeleton-line"></div>
-      <div class="briefing-skeleton-line"></div>
-      <div class="briefing-skeleton-line"></div>
-      <div class="briefing-skeleton-line"></div>
-    </div>
-  `;
+const REFRESH_MS    = 10 * 60 * 1000;
+const AUTO_CLOSE_MS = 5 * 60 * 1000;  // return to home if no interaction
+
+// ── DOM helpers ────────────────────────────────────────────────
+
+function listHtml(items, emptyText = "Nothing to show.") {
+  if (!items.length) return `<p class="bl-empty">${emptyText}</p>`;
+  return `<ul>${items.map(it =>
+    it.divider
+      ? `<li class="bl-divider">${it.label}</li>`
+      : `<li><span class="bl-label">${it.label}</span><span${it.dim ? ' class="bl-val--dim"' : ""}>${it.value}</span></li>`
+  ).join("")}</ul>`;
 }
 
-export function createBriefingView() {
-  const root = document.getElementById("briefing-view");
-  const generatedAtEl = document.getElementById("briefing-generated-at");
-  const headlineEl = document.getElementById("briefing-headline");
-  const weatherEl = document.getElementById("briefing-weather");
-  const calendarEl = document.getElementById("briefing-calendar");
-  const homeEl = document.getElementById("briefing-home");
-  const tasksEl = document.getElementById("briefing-tasks");
+// ── Headline ───────────────────────────────────────────────────
 
-  if (!root || !headlineEl) {
-    return {
-      render: () => {},
-      onEnter: () => {},
-      onLeave: () => {}
-    };
+function buildHeadline() {
+  const hour = new Date().getHours();
+  const day  = new Date().toLocaleDateString("en-AU", { weekday: "long" });
+  if (hour >= 5  && hour < 12) return `Good morning. Here's your ${day}.`;
+  if (hour >= 12 && hour < 17) return "Good afternoon. Here's where things stand.";
+  if (hour >= 17 && hour < 21) return "Good evening. Here's tonight.";
+  return "Here's the overnight rundown.";
+}
+
+// ── Weather: read already-rendered DOM strip ───────────────────
+
+function renderWeather() {
+  const temp  = document.getElementById("current-temp")?.textContent?.trim() ?? "";
+  const cond  = document.getElementById("current-conditions")?.textContent?.trim() ?? "";
+  const range = document.getElementById("weather-range")?.textContent?.trim() ?? "";
+  const wind  = document.getElementById("weather-wind-text")?.textContent?.trim() ?? "";
+
+  const items = [];
+  if (temp || cond) items.push({ label: "Now",   value: [temp, cond].filter(Boolean).join(" — ") });
+  if (range)        items.push({ label: "Range",  value: range });
+  if (wind)         items.push({ label: "Wind",   value: wind });
+
+  return listHtml(items, "Weather data not available.");
+}
+
+// ── Calendar ───────────────────────────────────────────────────
+
+function fmtTime(ev) {
+  const raw = ev.start ?? ev.startDate ?? ev.startTime ?? ev.date;
+  if (!raw) return "";
+  const d = new Date(raw);
+  if (d.getHours() === 0 && d.getMinutes() === 0) return "All day";
+  return d.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", hour12: true });
+}
+
+async function fetchCalendar() {
+  const res    = await fetch("/api/calendar/all");
+  const data   = await res.json();
+  const events = data.events ?? data ?? [];
+
+  const now         = new Date();
+  const todayStr    = now.toDateString();
+  const tomorrow    = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toDateString();
+
+  const pickDay = (str) =>
+    events
+      .filter(ev => {
+        const raw = ev.start ?? ev.startDate ?? ev.date ?? ev.startTime;
+        return raw && new Date(raw).toDateString() === str;
+      })
+      .slice(0, 4)
+      .map(ev => ({ time: fmtTime(ev), title: String(ev.title ?? ev.summary ?? "Event") }));
+
+  return { today: pickDay(todayStr), tomorrow: pickDay(tomorrowStr) };
+}
+
+function renderCalendar({ today, tomorrow }) {
+  const items = [];
+  today.forEach(ev => items.push({ label: ev.time || "All day", value: ev.title }));
+  if (tomorrow.length) {
+    if (items.length) items.push({ divider: true, label: "Tomorrow" });
+    tomorrow.slice(0, 2).forEach(ev => items.push({ label: ev.time || "All day", value: ev.title }));
   }
+  return listHtml(items, "Nothing on the calendar.");
+}
 
-  let refreshTimer = null;
-  let keyHandler = null;
-  let rendered = false;
+// ── Home status ────────────────────────────────────────────────
 
-  function setSkeleton() {
-    headlineEl.innerHTML = skeletonMarkup();
-    weatherEl.textContent = "Loading…";
-    calendarEl.textContent = "Loading…";
-    homeEl.textContent = "Loading…";
-    tasksEl.textContent = "Loading…";
-  }
+function renderHome() {
+  let entities = {};
+  try { entities = getAllEntities() ?? {}; } catch { /**/ }
 
-  function renderBrief(brief) {
-    headlineEl.textContent = brief?.headline || "Good morning.";
-    generatedAtEl.textContent = brief?.generated_at
-      ? `Updated ${new Date(brief.generated_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-      : "Updated just now";
+  const people = Object.values(entities)
+    .filter(e => e?.entity_id?.startsWith("person."))
+    .map(e => {
+      const name = (e.attributes?.friendly_name ?? e.entity_id.replace(/^person\./, ""))
+        .split(/[\s_]+/)[0];
+      const home = e.state === "home";
+      return { label: name, value: home ? "Home" : "Away", dim: !home };
+    });
 
-    const sections = brief?.sections || {};
-    weatherEl.textContent = sections.weather || "Weather summary unavailable.";
-    calendarEl.textContent = sections.calendar || "Calendar summary unavailable.";
-    homeEl.textContent = sections.home || "Home status summary unavailable.";
-    tasksEl.textContent = sections.tasks || "Task summary unavailable.";
-  }
+  const playing = Object.values(entities)
+    .filter(e => e?.entity_id?.startsWith("media_player.") && e.state === "playing")
+    .map(e => ({
+      label: (e.attributes?.friendly_name ?? "Media").split(" ")[0],
+      value: e.attributes?.media_title ?? "Playing"
+    }));
 
-  async function loadBrief() {
-    setSkeleton();
-    try {
-      const response = await fetch("/api/ai/brief", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({})
-      });
-      if (!response.ok) throw new Error("brief fetch failed");
-      const data = await response.json();
-      renderBrief(data);
-    } catch (error) {
-      renderBrief({
-        generated_at: new Date().toISOString(),
-        headline: "Briefing unavailable right now.",
-        sections: {
-          weather: "Unable to fetch weather context.",
-          calendar: "Unable to fetch calendar context.",
-          home: "Unable to fetch home context.",
-          tasks: "Unable to fetch tasks context."
-        }
-      });
+  return listHtml([...people, ...playing], "No home status available.");
+}
+
+// ── Tasks + Bins ───────────────────────────────────────────────
+
+async function fetchBins() {
+  const res = await fetch("/api/bins");
+  return await res.json();
+}
+
+function renderTasks(bins) {
+  const items = [];
+
+  if (bins?.configured) {
+    if (bins.due || bins.eve) {
+      const when    = bins.eve ? "Tonight" : "Today";
+      const colours = (bins.bins ?? [])
+        .map(b => b.charAt(0).toUpperCase() + b.slice(1))
+        .join(" + ");
+      items.push({ label: "Bins", value: `${when}: ${colours}` });
+    } else {
+      items.push({ label: "Bins", value: "Not due", dim: true });
     }
   }
 
+  let entities = {};
+  try { entities = getAllEntities() ?? {}; } catch { /**/ }
+
+  Object.values(entities)
+    .filter(e => e?.entity_id?.startsWith("todo."))
+    .forEach(e => {
+      const count = parseInt(e.state, 10);
+      if (isNaN(count)) return;
+      const name = e.attributes?.friendly_name ?? e.entity_id.replace(/^todo\./, "");
+      items.push({
+        label: name,
+        value: `${count} item${count !== 1 ? "s" : ""}`,
+        dim:   count === 0
+      });
+    });
+
+  return listHtml(items, "No tasks or reminders.");
+}
+
+// ── View factory ───────────────────────────────────────────────
+
+export function createBriefingView() {
+  const root          = document.getElementById("briefing-view");
+  const generatedAtEl = document.getElementById("briefing-generated-at");
+  const headlineEl    = document.getElementById("briefing-headline");
+  const weatherEl     = document.getElementById("briefing-weather");
+  const calendarEl    = document.getElementById("briefing-calendar");
+  const homeEl        = document.getElementById("briefing-home");
+  const tasksEl       = document.getElementById("briefing-tasks");
+
+  if (!root || !headlineEl) {
+    return { render: () => {}, onEnter: () => {}, onLeave: () => {} };
+  }
+
+  let refreshTimer  = null;
+  let autoCloseTimer = null;
+
+  function setLoading() {
+    headlineEl.textContent = "Loading briefing…";
+    headlineEl.className   = "";
+    const placeholder = '<p class="bl-empty">Loading…</p>';
+    weatherEl.innerHTML  = placeholder;
+    calendarEl.innerHTML = placeholder;
+    homeEl.innerHTML     = placeholder;
+    tasksEl.innerHTML    = placeholder;
+  }
+
+  async function loadBrief() {
+    setLoading();
+
+    const [calResult, binsResult] = await Promise.allSettled([
+      fetchCalendar(),
+      fetchBins()
+    ]);
+
+    // Render local cards immediately — no AI needed for these
+    generatedAtEl.textContent = `Updated ${new Date().toLocaleTimeString("en-AU", {
+      hour: "numeric", minute: "2-digit", hour12: true
+    })}`;
+
+    weatherEl.innerHTML  = renderWeather();
+    calendarEl.innerHTML = calResult.status === "fulfilled"
+      ? renderCalendar(calResult.value)
+      : '<p class="bl-empty">Calendar unavailable.</p>';
+    homeEl.innerHTML     = renderHome();
+    tasksEl.innerHTML    = renderTasks(
+      binsResult.status === "fulfilled" ? binsResult.value : null
+    );
+
+    // Show time-based fallback while AI generates
+    headlineEl.textContent = buildHeadline();
+    headlineEl.className   = "is-generating";
+
+    // AI summary — fades in when ready, falls back gracefully on error
+    generateBriefing()
+      .then(summary => {
+        if (!summary) { headlineEl.className = ""; return; }
+        headlineEl.textContent = summary;
+        headlineEl.className   = "is-ai-summary";
+      })
+      .catch(() => { headlineEl.className = ""; });
+  }
+
   function render() {
-    if (rendered) return;
-    rendered = true;
     generatedAtEl.textContent = "";
-    setSkeleton();
+    setLoading();
   }
 
   function onEnter() {
     loadBrief();
-    if (!refreshTimer) {
-      refreshTimer = setInterval(loadBrief, REFRESH_MS);
-    }
-    if (!keyHandler) {
-      keyHandler = (event) => {
-        if (document.body?.dataset?.view !== "briefing") return;
-        if (event.key?.toLowerCase() !== "r") return;
-        loadBrief();
-      };
-      window.addEventListener("keydown", keyHandler);
-    }
+    if (!refreshTimer) refreshTimer = setInterval(loadBrief, REFRESH_MS);
+    clearTimeout(autoCloseTimer);
+    autoCloseTimer = setTimeout(() => switchView("home"), AUTO_CLOSE_MS);
   }
 
   function onLeave() {
@@ -106,10 +233,8 @@ export function createBriefingView() {
       clearInterval(refreshTimer);
       refreshTimer = null;
     }
-    if (keyHandler) {
-      window.removeEventListener("keydown", keyHandler);
-      keyHandler = null;
-    }
+    clearTimeout(autoCloseTimer);
+    autoCloseTimer = null;
   }
 
   return { render, onEnter, onLeave };
