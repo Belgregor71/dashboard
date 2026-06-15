@@ -31,6 +31,7 @@ import { createWeatherView } from "../views/weatherView.js";
 
 import { connectHA } from "../services/homeAssistant/client.js";
 import { registerHAEvents } from "../services/homeAssistant/events.js";
+import { initOccasionPopup } from "../modules/occasionPopup.js";
 
 // Small helper: feature flags with sensible defaults
 function isEnabled(featureName, defaultValue = true) {
@@ -129,6 +130,7 @@ export function startApp() {
   initDoorbellOverlay();
   initCameraPopupOverlay();
   initCameraMotionView();
+  initOccasionPopup();
   initEnergySaver();
 
   if (isEnabled("homeAssistant", false)) {

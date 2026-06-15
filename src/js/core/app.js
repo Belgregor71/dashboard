@@ -36,6 +36,7 @@ import { initArrivalGreeting } from "../modules/arrivalGreeting.js";
 import { initNrlScores } from "../modules/nrlScores.js";
 import { initFuelPrices } from "../modules/fuelPrices.js";
 import { initMorningBriefing } from "../modules/morningBriefing.js";
+import { initOccasionPopup } from "../modules/occasionPopup.js";
 import { createStatusView } from "../modules/systemStatus.js";
 import { createBriefingView } from "../views/briefingView.js";
 import { initNewsTicker } from "../modules/newsTicker.js";
@@ -149,6 +150,7 @@ export function startApp() {
   initNrlScores();
   initFuelPrices();
   initMorningBriefing();
+  initOccasionPopup();
   initEnergySaver();
   initScreensaver();
 

@@ -402,5 +402,17 @@ export const CONFIG = {
   systemStatus: {
     modeLabel: "Normal",
     modeEntityId: ""
+  },
+  occasions: {
+    birthdays: [
+      // { name: "Alice", month: 3, day: 15 },
+      // { name: "Bob",   month: 8, day: 22 },
+    ],
+    schoolHolidays: [
+      // { date: "2026-04-11", label: "Autumn School Holidays" },
+      // { date: "2026-07-04", label: "Winter School Holidays" },
+      // { date: "2026-09-19", label: "Spring School Holidays" },
+      // { date: "2026-12-19", label: "Summer School Holidays" },
+    ]
   }
 };
