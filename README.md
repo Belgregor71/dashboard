@@ -109,8 +109,8 @@ Environment=PORT=3000
 WantedBy=multi-user.target
 ```
 
-`/etc/systemd/system/dashboard-kiosk.service` — Chromium kiosk (runs as `pi`
-so it can attach to the X session on `:0`):
+`/etc/systemd/system/dashboard-kiosk.service` — Chromium kiosk (runs as
+`dashboard`, the same user lightdm auto-logs into seat0 on `:0`):
 
 ```ini
 [Unit]
@@ -118,8 +118,8 @@ Description=Dashboard Kiosk
 After=network-online.target
 
 [Service]
-User=pi
-Environment=XAUTHORITY=/home/pi/.Xauthority
+User=dashboard
+Environment=XAUTHORITY=/home/dashboard/.Xauthority
 Environment=DISPLAY=:0
 ExecStart=/usr/bin/chromium-browser \
   --noerrdialogs \
