@@ -1,6 +1,7 @@
 import { CONFIG } from "../core/config.js";
 import { on } from "../core/eventBus.js";
 import { switchView } from "../core/viewManager.js";
+import { wakeScreensaver, resetIdleTimer } from "./screensaver.js";
 
 
 const DEFAULT_DURATION_SECONDS = 30;
@@ -260,6 +261,8 @@ export function initCameraPopupOverlay() {
     const detection = normalizeText(payload.detection, "Motion");
     const durationSeconds = toPositiveSeconds(payload.duration, DEFAULT_DURATION_SECONDS);
 
+    wakeScreensaver();
+    resetIdleTimer();
     switchView("home");
 
     titleEl.textContent = title;
