@@ -44,27 +44,14 @@ async function trigger(schedule) {
   } catch { /**/ }
 }
 
-// ── Tick (called every 30s) ────────────────────────────────────
+// ── Tick (called every 30s, and once on init) ───────────────────
+// Fires a schedule any time within CATCHUP_MS *after* its target time,
+// rather than requiring an exact hour:minute match. A busy main thread
+// (screensaver, camera tiles, ticker, etc.) can stall the 30s interval
+// long enough to skip a single exact-minute window, so this also
+// covers a briefing missed while the page was unloaded/reloaded.
 
 function tick() {
-  const now     = new Date();
-  const day     = now.getDay();
-
-  for (const schedule of SCHEDULES) {
-    if (!schedule.days.includes(day)) continue;
-    if (hasFiredToday(schedule.name)) continue;
-    if (now.getHours() !== schedule.hour || now.getMinutes() !== schedule.minute) continue;
-
-    markFired(schedule.name);
-    trigger(schedule);
-  }
-}
-
-// ── Catch-up (runs once on init) ──────────────────────────────
-// Fires a briefing that was missed while the page was unloaded,
-// but only if the scheduled time was within the last 30 minutes.
-
-function catchUp() {
   const now      = new Date();
   const day      = now.getDay();
   const nowMs    = now.getHours() * 3_600_000 + now.getMinutes() * 60_000 + now.getSeconds() * 1000;
@@ -76,10 +63,10 @@ function catchUp() {
     const schedMs  = schedule.hour * 3_600_000 + schedule.minute * 60_000;
     const deltaMs  = nowMs - schedMs;
 
-    if (deltaMs > 0 && deltaMs <= CATCHUP_MS) {
+    if (deltaMs >= 0 && deltaMs <= CATCHUP_MS) {
       markFired(schedule.name);
       trigger(schedule);
-      return; // only catch up one at a time
+      return; // fire one at a time
     }
   }
 }
@@ -87,6 +74,6 @@ function catchUp() {
 // ── Init ───────────────────────────────────────────────────────
 
 export function initMorningBriefing() {
-  catchUp();
+  tick();
   setInterval(tick, 30_000);
 }
