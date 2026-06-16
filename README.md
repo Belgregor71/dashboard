@@ -75,31 +75,74 @@ GO2RTC_HOST=http://192.168.0.x:1984
 
 ## Pi deployment
 
-Dashboard lives at `~/dashboard` on the Pi.
+Dashboard lives at `/home/dashboard/dashboard` on the Pi, run as two separate
+systemd services — never start it under PM2 as well; a second process fighting
+over port 3000 will crash-loop forever (`EADDRINUSE`) without ever actually
+restarting the live server.
 
 ```bash
 git pull
 npm install
 npm run build      # vite is a local devDependency — use npm run build, not vite directly
-npm start
+sudo systemctl restart dashboard
 ```
 
-Chromium kiosk — `/etc/systemd/system/dashboard.service`:
+`/etc/systemd/system/dashboard.service` — the Node server (runs as the
+dedicated `dashboard` user):
 
 ```ini
 [Unit]
-Description=Family Dashboard
+Description=Dashboard Web Server
+After=network-online.target calendar.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dashboard
+WorkingDirectory=/home/dashboard/dashboard
+ExecStart=/usr/bin/node /home/dashboard/dashboard/server.js
+Restart=on-failure
+Environment=NODE_ENV=production
+Environment=PORT=3000
+
+[Install]
+WantedBy=multi-user.target
+```
+
+`/etc/systemd/system/dashboard-kiosk.service` — Chromium kiosk (runs as `pi`
+so it can attach to the X session on `:0`):
+
+```ini
+[Unit]
+Description=Dashboard Kiosk
 After=network-online.target
 
 [Service]
 User=pi
-WorkingDirectory=/home/pi/dashboard
-ExecStartPre=/usr/bin/node server.js &
-ExecStart=/usr/bin/chromium-browser --kiosk --noerrdialogs --disable-infobars http://localhost:3000
+Environment=XAUTHORITY=/home/pi/.Xauthority
+Environment=DISPLAY=:0
+ExecStart=/usr/bin/chromium-browser \
+  --noerrdialogs \
+  --disable-infobars \
+  --kiosk http://localhost:3000 \
+  --incognito \
+  --check-for-update-interval=31536000 \
+  --disable-session-crashed-bubble \
+  --overscroll-history-navigation=0
+
 Restart=always
+RestartSec=10
 
 [Install]
 WantedBy=graphical.target
+```
+
+Useful checks after deploying:
+
+```bash
+systemctl status dashboard --no-pager
+systemctl status dashboard-kiosk --no-pager
+journalctl -u dashboard -n 100 --no-pager
 ```
 
 ## Adding a widget
