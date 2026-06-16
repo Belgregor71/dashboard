@@ -2,6 +2,7 @@
 import { initViews, registerView } from "./viewManager.js";
 import { registerLifecycle } from "./lifecycle.js";
 import { initVoiceOverlay } from "./voiceOverlay.js";
+import { initMotionTrigger } from "./motionTrigger.js";
 
 import { initBackground } from "../modules/background.js";
 import { updateClock } from "../modules/clock.js";
@@ -58,6 +59,7 @@ export function startApp() {
   initViews();
   registerLifecycle();
   initVoiceOverlay();
+  initMotionTrigger();
 
   const cfg = window.CONFIG || {};
 
