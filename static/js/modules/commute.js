@@ -30,13 +30,10 @@ async function getDriveTime(origin, destination) {
   try {
     const res = await fetch(url);
     const data = await res.json();
+    if (!res.ok || typeof data.seconds !== "number") return "Unavailable";
 
-    const element = data.rows[0].elements[0];
-    if (element.status !== "OK") return "Unavailable";
-
-    return element.duration_in_traffic
-      ? element.duration_in_traffic.text
-      : element.duration.text;
+    const minutes = Math.round(data.seconds / 60);
+    return `${minutes} min`;
   } catch (err) {
     console.error("Commute API error:", err);
     return "Error";
