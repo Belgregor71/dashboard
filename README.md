@@ -110,7 +110,9 @@ WantedBy=multi-user.target
 ```
 
 `/etc/systemd/system/dashboard-kiosk.service` — Chromium kiosk (runs as
-`dashboard`, the same user lightdm auto-logs into seat0 on `:0`):
+`dashboard`, the same user lightdm auto-logs into seat0 on `:0`). Note the
+binary is `/usr/bin/chromium`, not `chromium-browser` — current Debian/
+Raspberry Pi OS (trixie) dropped the `chromium-browser` package name:
 
 ```ini
 [Unit]
@@ -121,7 +123,7 @@ After=network-online.target
 User=dashboard
 Environment=XAUTHORITY=/home/dashboard/.Xauthority
 Environment=DISPLAY=:0
-ExecStart=/usr/bin/chromium-browser \
+ExecStart=/usr/bin/chromium \
   --noerrdialogs \
   --disable-infobars \
   --kiosk http://localhost:3000 \
@@ -135,6 +137,19 @@ RestartSec=10
 
 [Install]
 WantedBy=graphical.target
+```
+
+This must be the **only** thing launching the kiosk Chromium. Raspberry Pi
+OS can leave behind a separate per-user `~/.config/systemd/user/kiosk.service`
+(check with `systemctl --user list-units --all | grep -i kiosk`) that points
+Chromium at the same URL — if that's also enabled, both instances fight over
+the single Chromium profile lock at every boot, restart-looping forever with
+"Opening in existing browser session" and a gray/blank kiosk screen. Disable
+it if present:
+
+```bash
+systemctl --user disable --now kiosk.service
+rm -f ~/.config/systemd/user/kiosk.service
 ```
 
 Useful checks after deploying:
