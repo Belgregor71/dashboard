@@ -2,60 +2,75 @@ import express from "express";
 
 const router = express.Router();
 
-// QLD Fuel Prices — fuelpricesqld.com.au (FPDAPI)
-// Register at https://www.fuelpricesqld.com.au to obtain a SubscriberToken.
-// Set FUEL_API_KEY in .env. Location is read from WEATHER_LAT / WEATHER_LON.
-
-const BASE     = "https://fppdirectapi-prod.fuelpricesqld.com.au";
-const CACHE_MS = 2 * 60 * 60 * 1000; // 2 hours — prices don't change often
+const BASE         = "https://fppdirectapi-prod.fuelpricesqld.com.au";
+const CACHE_MS     = 2 * 60 * 60 * 1000;
+const COUNTRY_ID   = 21;
+const REGION_LEVEL = 2;
+const REGION_ID    = 1; // Brisbane
+const FUEL_ID      = 2; // Unleaded (ULP)
+const TOP_N        = 5;
 
 let cache   = null;
 let cacheAt = 0;
 
-function normalisePrice(raw) {
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  // API returns tenths-of-cents (e.g. 1899 → 189.9 c/L)
-  return n > 999 ? +(n / 10).toFixed(1) : +n.toFixed(1);
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R    = 6371;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a    = Math.sin(dLat / 2) ** 2
+             + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180)
+             * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 async function queryFuelPrices() {
-  const key    = process.env.FUEL_API_KEY ?? "";
-  const lat    = process.env.WEATHER_LAT ?? process.env.LAT ?? "";
-  const lon    = process.env.WEATHER_LON ?? process.env.LON ?? "";
-  const radius = process.env.FUEL_RADIUS_KM ?? "5";
-  const types  = (process.env.FUEL_TYPES ?? "E10,U91").split(",").map(t => t.trim()).filter(Boolean);
+  const key      = process.env.FUEL_API_KEY ?? "";
+  const lat      = parseFloat(process.env.WEATHER_LAT ?? process.env.LAT ?? "-27.4705");
+  const lon      = parseFloat(process.env.WEATHER_LON ?? process.env.LON ?? "153.0260");
+  const radiusKm = parseFloat(process.env.FUEL_RADIUS_KM ?? "10");
 
-  const results = await Promise.allSettled(
-    types.map(type =>
-      fetch(
-        `${BASE}/Prices/GetSitesByRadius?Latitude=${lat}&Longitude=${lon}&Radius=${radius}&FuelTypeCode=${type}`,
-        {
-          headers: { Authorization: `FPDAPI SubscriberToken=${key}` },
-          signal:  AbortSignal.timeout(10_000),
-        }
-      ).then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-    )
-  );
+  const headers = {
+    Authorization:  `FPDAPI SubscriberToken=${key}`,
+    "Content-Type": "application/json",
+  };
+  const qs = `countryId=${COUNTRY_ID}&geoRegionLevel=${REGION_LEVEL}&geoRegionId=${REGION_ID}`;
 
-  const sites = [];
-  results.forEach((r, i) => {
-    if (r.status !== "fulfilled" || !Array.isArray(r.value?.S)) return;
-    const type   = types[i];
-    const sorted = [...r.value.S].sort((a, b) => Number(a.P) - Number(b.P));
-    const best   = sorted[0];
-    if (!best) return;
-    const price = normalisePrice(best.P);
-    if (price == null) return;
-    sites.push({
-      type,
-      price,
-      name:    (best.N ?? "").substring(0, 24).trim() || (best.A ?? "").substring(0, 24).trim(),
-      address: (best.A ?? "").trim(),
+  const [priceRes, siteRes] = await Promise.all([
+    fetch(`${BASE}/Price/GetSitesPrices?${qs}`,           { headers, signal: AbortSignal.timeout(15_000) }),
+    fetch(`${BASE}/Subscriber/GetFullSiteDetails?${qs}`,  { headers, signal: AbortSignal.timeout(15_000) }),
+  ]);
+
+  if (!priceRes.ok) throw new Error(`Prices HTTP ${priceRes.status}`);
+  if (!siteRes.ok)  throw new Error(`Sites HTTP ${siteRes.status}`);
+
+  const [{ SitePrices = [] }, { S: siteList = [] }] = await Promise.all([
+    priceRes.json(),
+    siteRes.json(),
+  ]);
+
+  const siteMap = new Map(siteList.map(s => [s.S, s]));
+
+  // Sort cheapest first, then walk until we have TOP_N within radius
+  const ulpPrices = SitePrices
+    .filter(p => p.FuelId === FUEL_ID)
+    .sort((a, b) => a.Price - b.Price);
+
+  const results = [];
+  for (const p of ulpPrices) {
+    if (results.length >= TOP_N) break;
+    const site = siteMap.get(p.SiteId);
+    if (!site?.Lat || !site?.Lng) continue;
+    const dist = haversineKm(lat, lon, site.Lat, site.Lng);
+    if (dist > radiusKm) continue;
+    results.push({
+      price:      +(p.Price / 10).toFixed(1),
+      name:       (site.N ?? "").trim(),
+      address:    (site.A ?? "").trim(),
+      distanceKm: +dist.toFixed(1),
     });
-  });
+  }
 
-  return { sites, updated: new Date().toISOString() };
+  return { sites: results, updated: new Date().toISOString() };
 }
 
 router.get("/api/fuel", async (_req, res) => {

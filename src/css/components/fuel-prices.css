@@ -10,46 +10,54 @@
   border: var(--glass-border);
   box-shadow: var(--glass-sheen);
   display: grid;
-  gap: 5px;
-  min-width: 170px;
+  gap: 4px;
+  min-width: 280px;
 }
 
 #fuel-overlay[hidden] {
   display: none;
 }
 
-.fuel-row {
-  display: grid;
-  grid-template-columns: 2.8rem 5rem 1fr;
-  align-items: baseline;
-  gap: 4px;
+.fuel-header {
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.4;
+  margin-bottom: 2px;
 }
 
-.fuel-type {
-  font-size: 0.68rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  opacity: 0.55;
+.fuel-row {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr 3rem;
+  align-items: baseline;
+  gap: 6px;
 }
 
 .fuel-price {
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   font-weight: 600;
   letter-spacing: -0.01em;
   color: #fff;
 }
 
 .fuel-unit {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 400;
   margin-left: 1px;
   opacity: 0.75;
 }
 
 .fuel-name {
-  font-size: 0.7rem;
-  opacity: 0.5;
+  font-size: 0.68rem;
+  opacity: 0.6;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.fuel-dist {
+  font-size: 0.6rem;
+  opacity: 0.4;
+  text-align: right;
+  white-space: nowrap;
 }

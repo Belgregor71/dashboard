@@ -1,4 +1,4 @@
-const REFRESH_MS = 2 * 60 * 60 * 1000; // 2 hours
+const REFRESH_MS = 2 * 60 * 60 * 1000;
 
 function renderWidget(el, sites) {
   if (!sites?.length) {
@@ -6,14 +6,14 @@ function renderWidget(el, sites) {
     return;
   }
   el.hidden = false;
-  el.innerHTML = sites
-    .map(s => `
+  el.innerHTML = `
+    <div class="fuel-header">Unleaded</div>
+    ${sites.map(s => `
       <div class="fuel-row">
-        <span class="fuel-type">${s.type}</span>
         <span class="fuel-price">${s.price.toFixed(1)}<span class="fuel-unit">¢</span></span>
         <span class="fuel-name">${s.name}</span>
-      </div>`)
-    .join("");
+        <span class="fuel-dist">${s.distanceKm}km</span>
+      </div>`).join("")}`;
 }
 
 export function initFuelPrices() {
