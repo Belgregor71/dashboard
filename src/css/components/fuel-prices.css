@@ -1,29 +1,17 @@
-#fuel-overlay {
-  position: fixed;
-  bottom: 54px;
-  left: 28px;
-  z-index: 75;
-  padding: 10px 16px;
-  border-radius: var(--glass-radius-sm);
-  backdrop-filter: var(--glass-blur);
-  background: var(--glass-bg);
-  border: var(--glass-border);
-  box-shadow: var(--glass-sheen);
-  display: grid;
-  gap: 4px;
-  min-width: 280px;
+#fuel-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
 }
 
-#fuel-overlay[hidden] {
-  display: none;
-}
-
-.fuel-header {
-  font-size: 0.6rem;
-  letter-spacing: 0.2em;
+.fuel-panel__title {
+  font-size: 1.3rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  opacity: 0.4;
-  margin-bottom: 2px;
+  opacity: 0.75;
+  margin-bottom: 4px;
 }
 
 .fuel-row {

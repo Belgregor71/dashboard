@@ -1,7 +1,8 @@
 const STATE = {
-  commuteActive: false,
+  commuteActive:   false,
   nextEventActive: false,
-  current: null
+  fuelActive:      false,
+  current:         null,
 };
 
 function hidePanel(panel) {
@@ -26,16 +27,19 @@ function showPanel(panel) {
   });
 }
 
+// Priority: commute > next-event > fuel
 function choosePanel() {
-  if (STATE.commuteActive) return "commute";
+  if (STATE.commuteActive)   return "commute";
   if (STATE.nextEventActive) return "next-event";
+  if (STATE.fuelActive)      return "fuel";
   return null;
 }
 
 function apply() {
-  const commutePanel = document.getElementById("commute-panel");
+  const commutePanel   = document.getElementById("commute-panel");
   const nextEventPanel = document.getElementById("next-event-panel");
-  const target = choosePanel();
+  const fuelPanel      = document.getElementById("fuel-panel");
+  const target         = choosePanel();
 
   if (target === STATE.current) return;
   STATE.current = target;
@@ -43,17 +47,27 @@ function apply() {
   if (target === "commute") {
     showPanel(commutePanel);
     hidePanel(nextEventPanel);
+    hidePanel(fuelPanel);
     return;
   }
 
   if (target === "next-event") {
     hidePanel(commutePanel);
     showPanel(nextEventPanel);
+    hidePanel(fuelPanel);
+    return;
+  }
+
+  if (target === "fuel") {
+    hidePanel(commutePanel);
+    hidePanel(nextEventPanel);
+    showPanel(fuelPanel);
     return;
   }
 
   hidePanel(commutePanel);
   hidePanel(nextEventPanel);
+  hidePanel(fuelPanel);
 }
 
 export function setCommuteActive(active) {
@@ -63,6 +77,11 @@ export function setCommuteActive(active) {
 
 export function setNextEventActive(active) {
   STATE.nextEventActive = active === true;
+  apply();
+}
+
+export function setFuelActive(active) {
+  STATE.fuelActive = active === true;
   apply();
 }
 
