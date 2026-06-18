@@ -152,7 +152,7 @@ export function startApp() {
   initMorningBriefing();
   initOccasionPopup();
   initEnergySaver();
-  initScreensaver();
+  // initScreensaver();
 
   if (isEnabled("homeAssistant", false)) {
     initHomeAssistantTodayPanel();
