@@ -37,7 +37,7 @@
 }
 
 .agenda-section-title {
-  font-size: 0.95rem;
+  font-size: clamp(0.9rem, 0.95vw, 1.05rem);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   opacity: 0.8;
@@ -47,7 +47,7 @@
 }
 
 .agenda-section-count {
-  font-size: 0.85rem;
+  font-size: clamp(0.8rem, 0.85vw, 0.95rem);
   opacity: 0.6;
 }
 
@@ -60,8 +60,8 @@
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 12px 14px;
   border-radius: var(--glass-radius-sm);
   background: rgba(14, 18, 28, 0.38);
   border-left: 4px solid var(--event-accent);
@@ -69,11 +69,11 @@
 }
 
 .agenda-event-icon {
-  font-size: 1.1rem;
+  font-size: clamp(1.1rem, 1.2vw, 1.35rem);
 }
 
 .agenda-event-title {
-  font-size: 1rem;
+  font-size: clamp(1.05rem, 1.15vw, 1.3rem);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -81,7 +81,7 @@
 }
 
 .agenda-event-time {
-  font-size: 0.85rem;
+  font-size: clamp(0.85rem, 0.95vw, 1.05rem);
   opacity: 0.75;
   white-space: nowrap;
 }
