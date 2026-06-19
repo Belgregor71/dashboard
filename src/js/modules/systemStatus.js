@@ -1,6 +1,7 @@
 import { CONFIG } from "../core/config.js";
 import { on } from "../core/eventBus.js";
 import { getEntity } from "../services/homeAssistant/state.js";
+import { isHAConnected } from "../services/homeAssistant/client.js";
 
 const CONNECTION_REFRESH_MS = 10_000;
 const METRICS_REFRESH_MS = 60_000;
@@ -351,6 +352,12 @@ export function createStatusView() {
   function render() {
     if (rendered) return;
     rendered = true;
+
+    // connectHA() runs at app startup, well before this view is ever
+    // entered, so its "connected" event has already fired by the time
+    // we get here - read the current state directly instead of relying
+    // on having caught the original event.
+    haConnected = isHAConnected();
 
     setText(
       updateFrequencyValue,

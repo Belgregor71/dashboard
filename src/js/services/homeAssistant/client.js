@@ -7,6 +7,11 @@ const SHOPPING_LIST_ENTITY_ID = HA_CONFIG?.shoppingListEntityId ?? "todo.shoppin
 let eventSource;
 let reconnectTimer;
 let reconnectAttempt = 0;
+let connected = false;
+
+export function isHAConnected() {
+  return connected;
+}
 
 const HA_DEBUG = HA_CONFIG?.debug === true;
 
@@ -72,11 +77,13 @@ export function connectHA() {
 
   eventSource.onopen = () => {
     reconnectAttempt = 0;
+    connected = true;
     emit("ha:connected");
     logHaDebug("Connected to /api/ha/stream");
   };
 
   eventSource.onerror = () => {
+    connected = false;
     emit("ha:disconnected", { reason: "stream_error" });
     logHaDebug("Stream disconnected; scheduling reconnect");
     scheduleReconnect();
@@ -86,8 +93,10 @@ export function connectHA() {
     try {
       const payload = JSON.parse(event.data);
       if (payload?.connected) {
+        connected = true;
         emit("ha:connected");
       } else {
+        connected = false;
         emit("ha:disconnected", { reason: payload?.lastError || "disconnected" });
       }
     } catch {
