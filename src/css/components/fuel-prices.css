@@ -14,10 +14,10 @@
 
 .fuel-station {
   display: grid;
-  grid-template-columns: 56px 1fr;
+  grid-template-columns: 40px 1fr auto;
   align-items: center;
-  gap: 16px;
-  padding: 10px 0;
+  gap: 12px;
+  padding: 6px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
@@ -27,61 +27,64 @@
 /* ── Brand badge ─────────────────────────────────────────────── */
 
 .fuel-badge {
-  width: 52px;
-  height: 52px;
-  border-radius: 10px;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--glass-radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
+  font-size: 0.6rem;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   text-align: center;
   line-height: 1.1;
   flex-shrink: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
-/* ── Price + meta ────────────────────────────────────────────── */
+/* ── Name + meta ─────────────────────────────────────────────── */
 
 .fuel-details {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-}
-
-.fuel-price-line {
-  display: flex;
-  align-items: baseline;
   gap: 2px;
-  line-height: 1;
-}
-
-.fuel-price {
-  font-size: clamp(2rem, 3.2vw, 2.8rem);
-  font-weight: 700;
-  color: #fff;
-  letter-spacing: -0.03em;
-  line-height: 1;
-}
-
-.fuel-cents {
-  font-size: clamp(0.85rem, 1.2vw, 1.1rem);
-  font-weight: 400;
-  opacity: 0.7;
-  margin-left: 1px;
+  min-width: 0;
 }
 
 .fuel-station-name {
-  font-size: clamp(0.75rem, 1vw, 0.9rem);
-  opacity: 0.6;
+  font-size: 0.95rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .fuel-dist {
-  font-size: clamp(0.65rem, 0.85vw, 0.75rem);
-  opacity: 0.35;
+  font-size: 0.78rem;
+  opacity: 0.55;
   letter-spacing: 0.02em;
+}
+
+/* ── Price (right-aligned, like a todo-row value) ─────────────── */
+
+.fuel-price-line {
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+  line-height: 1;
+  justify-self: end;
+}
+
+.fuel-price {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.fuel-cents {
+  font-size: 0.85rem;
+  font-weight: 400;
+  opacity: 0.7;
+  margin-left: 1px;
 }

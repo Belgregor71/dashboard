@@ -45,11 +45,11 @@ function renderList(sites) {
       <div class="fuel-station">
         <div class="fuel-badge" style="background:${brand.bg};color:${brand.fg}">${brand.label}</div>
         <div class="fuel-details">
-          <div class="fuel-price-line">
-            <span class="fuel-price">${w}.${d}</span><span class="fuel-cents">¢</span>
-          </div>
           <div class="fuel-station-name">${label}</div>
           <div class="fuel-dist">${s.distanceKm} km away</div>
+        </div>
+        <div class="fuel-price-line">
+          <span class="fuel-price">${w}.${d}</span><span class="fuel-cents">¢</span>
         </div>
       </div>`;
   }).join("");

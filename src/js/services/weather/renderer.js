@@ -392,6 +392,11 @@ function renderCurrent(data) {
   const descEl = document.getElementById("current-conditions");
   const rangeEl = document.getElementById("weather-range");
   const windTextEl = document.getElementById("weather-wind-text");
+  const locationEl = document.getElementById("weather-home-location");
+
+  if (locationEl) {
+    setTextIfChanged(locationEl, (CONFIG.weather?.bom?.locationName || "Nudgee").toUpperCase());
+  }
 
   const max = Math.round(daily.temperature_2m_max[0]);
   const min = Math.round(daily.temperature_2m_min[0]);
