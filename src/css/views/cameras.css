@@ -21,23 +21,13 @@
 }
 
 .cameras-header {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: var(--cam-gap);
   min-height: var(--cam-header-h);
 }
 
 .cameras-title {
-  font-size: clamp(1.6rem, 2.1vw, 2.4rem);
-  font-weight: 700;
-}
-
-.cameras-header-subtitle {
-  font-size: clamp(0.75rem, 0.95vw, 1rem);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  opacity: 0.6;
+  font-size: clamp(1.5rem, 2.1vw, var(--fs-view-title));
 }
 
 .cameras-status {
@@ -62,11 +52,11 @@
 }
 
 .cameras-status__value[data-status="online"] {
-  color: #6ee7b7;
+  color: var(--status-ok);
 }
 
 .cameras-status__value[data-status="offline"] {
-  color: #fda4af;
+  color: var(--status-error);
 }
 
 .cam-layout {

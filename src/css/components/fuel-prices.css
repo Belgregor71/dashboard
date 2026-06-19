@@ -3,11 +3,6 @@
   flex-direction: column;
 }
 
-#fuel-panel h2 {
-  margin-bottom: 16px;
-  font-size: 1.6rem;
-}
-
 #fuel-panel-list {
   display: flex;
   flex-direction: column;

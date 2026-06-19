@@ -21,6 +21,37 @@
   --glass-border:    1px solid rgba(255, 255, 255, 0.10);
   --glass-radius:    18px;
   --glass-radius-sm: 14px;
+  --radius-pill:     999px;
   --glass-shadow:    0 8px 28px rgba(0, 0, 0, 0.30);
   --glass-sheen:     inset 0 1px 0 rgba(255, 255, 255, 0.07);
+
+  /* ── Type system ──────────────────────────────────────────────
+     One display face for every page/section title across the
+     dashboard (clock, view headers, panel titles), one body face
+     for everything else. Keeps every view feeling like the same
+     app instead of independently-styled modules.
+  ──────────────────────────────────────────────────────────── */
+  --font-display: "Barlow Condensed", "Inter", sans-serif;
+  --font-body:    "Inter", Arial, sans-serif;
+
+  --fs-eyebrow:    0.78rem;
+  --ls-eyebrow:    0.16em;
+  --fs-view-title: clamp(1.8rem, 2.6vw, 2.6rem);
+
+  /* ── Status semantics ─────────────────────────────────────────
+     Shared meaning for "ok / warn / error / info" across cameras,
+     system status, media automation — was previously a different
+     green/red per view.
+  ──────────────────────────────────────────────────────────── */
+  --status-ok:    #4dd57b;
+  --status-warn:  #ffb347;
+  --status-error: #ff6b6b;
+  --status-info:  #79b8ff;
+
+  /* ── Time-of-day accent ───────────────────────────────────────
+     Set per body.tint-* class in background.css. Default here is
+     the daytime value so anything using it has a sane value before
+     background.js applies a tint class.
+  ──────────────────────────────────────────────────────────── */
+  --accent: rgba(255, 255, 255, 0.95);
 }

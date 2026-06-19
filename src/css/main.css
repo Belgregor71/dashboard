@@ -2,6 +2,7 @@
 @import './base/reset.css';
 @import './layout/background.css';
 @import './components/panels.css';
+@import './components/view-header.css';
 @import './components/overlays.css';
 @import './layout/top-bar.css';
 @import './components/weather-strip.css';

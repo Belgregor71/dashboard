@@ -1,0 +1,47 @@
+/* ── Shared page header ──────────────────────────────────────
+   One header treatment for every full-screen view (calendar,
+   agenda, cameras, status, briefing) so they read as pages of
+   the same app rather than separately-styled modules.
+──────────────────────────────────────────────────────────── */
+
+.view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 20px;
+}
+
+.view-header__title-group {
+  display: grid;
+  gap: 6px;
+}
+
+.view-header__eyebrow {
+  font-family: var(--font-body);
+  font-size: var(--fs-eyebrow);
+  font-weight: 500;
+  letter-spacing: var(--ls-eyebrow);
+  text-transform: uppercase;
+  color: var(--accent);
+  opacity: 0.75;
+  transition: color 2s ease;
+}
+
+.view-header__title {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: var(--fs-view-title);
+  letter-spacing: -0.01em;
+  line-height: 1.05;
+}
+
+.view-header__meta {
+  font-size: 1.05rem;
+  opacity: 0.7;
+}
+
+.view-header__aside {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}

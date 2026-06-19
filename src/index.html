@@ -79,13 +79,13 @@
 
     <!-- ROW 2: Today | To-Do | Shopping -->
     <section id="today-panel" class="panel">
-      <h2>Today</h2>
+      <h2 class="panel-title">Today</h2>
       <div id="today-date"></div>
       <ul id="today-list"></ul>
     </section>
 
     <section id="reminders-panel" class="panel">
-      <h2>To-Do List</h2>
+      <h2 class="panel-title">To-Do List</h2>
       <div class="todo-table">
         <div class="todo-row todo-row--header">
           <span>Task</span>
@@ -96,13 +96,13 @@
     </section>
 
     <section id="fuel-panel" class="panel">
-      <h2>Fuel Prices</h2>
+      <h2 class="panel-title">Fuel Prices</h2>
       <div id="fuel-panel-list"></div>
     </section>
 
     <!-- ROW 3: Server | Media 1 | Media 2 -->
     <section id="server-status-panel" class="panel is-hidden is-collapsed">
-      <h2>Now Playing:</h2>
+      <h2 class="panel-title">Now Playing:</h2>
       <div id="server-status-list"></div>
       <div id="plex-status" class="plex-status">
         <div class="plex-status__grid is-hidden"></div>
@@ -145,7 +145,7 @@
 
     <!-- ROW 4: Week at a glance (full width) -->
     <section id="timeline-panel" class="panel">
-      <h2>Week at a glance</h2>
+      <h2 class="panel-title">Week at a glance</h2>
       <div id="week-range"></div>
       <ul id="weekly-list"></ul>
     </section>
@@ -157,12 +157,12 @@
   <!-- CALENDAR VIEW -->
   <main id="calendar-view" class="calendar-view">
     <section class="panel calendar-panel">
-      <div class="calendar-header">
-        <div>
-          <div id="calendar-month-title"></div>
-          <div id="calendar-today-label"></div>
+      <div class="calendar-header view-header">
+        <div class="view-header__title-group">
+          <div id="calendar-month-title" class="view-header__title"></div>
+          <div id="calendar-today-label" class="view-header__meta"></div>
         </div>
-        <div class="calendar-header-subtitle">Family Calendar</div>
+        <div class="calendar-header-subtitle view-header__eyebrow">Family Calendar</div>
       </div>
       <div class="calendar-weekdays">
         <div>S</div>
@@ -180,12 +180,12 @@
   <!-- AGENDA VIEW -->
   <main id="agenda-view" class="agenda-view">
     <section class="panel agenda-panel">
-      <div class="agenda-header">
-        <div>
-          <div id="agenda-title">Today</div>
-          <div id="agenda-today-label"></div>
+      <div class="agenda-header view-header">
+        <div class="view-header__title-group">
+          <div id="agenda-title" class="view-header__title">Today</div>
+          <div id="agenda-today-label" class="view-header__meta"></div>
         </div>
-        <div class="agenda-header-subtitle">Agenda</div>
+        <div class="agenda-header-subtitle view-header__eyebrow">Agenda</div>
       </div>
       <div id="agenda-list" class="agenda-list"></div>
     </section>
@@ -194,12 +194,12 @@
   <!-- CAMERAS VIEW -->
   <main id="cameras-view" class="cameras-view">
     <section class="panel cameras-panel">
-      <div class="cameras-header">
-        <div>
-          <div class="cameras-title">Cameras</div>
-          <div class="cameras-header-subtitle">Home Security</div>
+      <div class="cameras-header view-header">
+        <div class="view-header__title-group">
+          <div class="cameras-title view-header__title">Cameras</div>
+          <div class="cameras-header-subtitle view-header__eyebrow">Home Security</div>
         </div>
-        <div class="cameras-status">
+        <div class="cameras-status view-header__aside">
           <span class="cameras-status__label">HA</span>
           <span id="cameras-ha-status" class="cameras-status__value" data-status="offline">Offline</span>
         </div>
@@ -357,10 +357,10 @@
 
   <!-- SYSTEM STATUS VIEW -->
   <main id="status-view" class="status-view">
-    <section class="status-header-bar">
-      <div class="status-header-title-wrap">
-        <div class="status-header-label">System diagnostics</div>
-        <h1 class="status-header-title">Status</h1>
+    <section class="status-header-bar view-header">
+      <div class="status-header-title-wrap view-header__title-group">
+        <div class="status-header-label view-header__eyebrow">System diagnostics</div>
+        <h1 class="status-header-title view-header__title">Status</h1>
       </div>
       <button id="status-explain-trigger" class="status-ai-button" type="button">Explain Status</button>
       <div class="status-header-metrics">

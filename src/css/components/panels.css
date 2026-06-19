@@ -27,6 +27,19 @@
   display: none;
 }
 
+/* ── Panel/card titles ─────────────────────────────────────────
+   Shared with .view-header__title's display face, at a smaller
+   scale fit for the home-view cards (Today, To-Do, Fuel Prices,
+   Now Playing, Week at a glance).
+──────────────────────────────────────────────────────────── */
+.panel-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(1.3rem, 1.6vw, 1.7rem);
+  letter-spacing: 0.01em;
+  margin-bottom: var(--space-sm);
+}
+
 @media (max-height: 820px) {
   .panel {
     padding: 12px;

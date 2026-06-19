@@ -46,12 +46,12 @@
 /* ── Clock ─────────────────────────────────────────────────── */
 
 #clock {
-  font-family: "Barlow Condensed", "Inter", sans-serif;
+  font-family: var(--font-display);
   font-size: clamp(3.5rem, 6vw, 7rem);
   font-weight: 200;
   letter-spacing: -0.01em;
   line-height: 1;
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--accent);
   transition: color 2s ease, text-shadow 2s ease;
 }
 
@@ -66,7 +66,7 @@
 /* ── Date ──────────────────────────────────────────────────── */
 
 #date {
-  font-family: "Barlow Condensed", "Inter", sans-serif;
+  font-family: var(--font-display);
   font-size: clamp(0.85rem, 1.5vw, 1.6rem);
   font-weight: 300;
   letter-spacing: 0.14em;
@@ -77,22 +77,9 @@
 }
 
 /* ── Time-of-day accent colours ────────────────────────────── */
-/* These kick in once background.js adds the tint class to body */
-
-body.tint-morning #clock {
-  color: rgba(255, 205, 140, 0.96);
-}
-
-body.tint-day #clock {
-  color: rgba(255, 255, 255, 0.95);
-}
-
-body.tint-evening #clock {
-  color: rgba(255, 185, 130, 0.94);
-}
+/* --accent itself is set per body.tint-* class in background.css */
 
 body.tint-night #clock {
-  color: rgba(130, 215, 255, 0.92);
   text-shadow: 0 0 80px rgba(60, 160, 255, 0.20);
 }
 

@@ -44,6 +44,17 @@
 .tint-evening { background-color: rgba(255, 130, 60,  0.20); }
 .tint-night   { background-color: rgba(2,   6,  20,  0.62); }
 
+/* ── Time-of-day accent ──────────────────────────────────────
+   Single source for the dashboard's "living" accent colour —
+   consumed by the clock and by view-header eyebrows/titles so
+   every page quietly shifts with the day instead of just the
+   home view's clock.
+──────────────────────────────────────────────────────────── */
+body.tint-morning { --accent: rgba(255, 205, 140, 0.96); }
+body.tint-day     { --accent: rgba(255, 255, 255, 0.95); }
+body.tint-evening { --accent: rgba(255, 185, 130, 0.94); }
+body.tint-night   { --accent: rgba(130, 215, 255, 0.92); }
+
 /* Night mode: deepen panel backgrounds and add a cool-blue atmosphere */
 body.tint-night .panel {
   background: linear-gradient(180deg, rgba(6, 10, 26, 0.70), rgba(2, 4, 14, 0.60));

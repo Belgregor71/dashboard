@@ -20,22 +20,8 @@
   box-shadow: var(--glass-sheen);
 }
 
-.status-header-title-wrap {
-  display: grid;
-  gap: 6px;
-}
-
-.status-header-label {
-  font-size: 0.78rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  opacity: 0.65;
-}
-
 .status-header-title {
   margin: 0;
-  font-size: clamp(1.7rem, 2.4vw, 2.4rem);
-  font-weight: 600;
 }
 
 .status-header-metrics {
@@ -109,7 +95,7 @@
   display: grid;
   gap: 12px;
   padding: 12px 24px;
-  border-radius: 18px;
+  border-radius: var(--glass-radius);
   background: rgba(61, 18, 18, 0.65);
   border: 1px solid rgba(255, 122, 122, 0.5);
   backdrop-filter: blur(18px) brightness(0.9);
@@ -165,7 +151,7 @@
   gap: 4px 16px;
   align-items: center;
   padding: 10px 14px;
-  border-radius: 14px;
+  border-radius: var(--glass-radius-sm);
   background: rgba(0, 0, 0, 0.24);
 }
 
@@ -200,22 +186,22 @@
 }
 
 .status-indicator--ok {
-  background: #4dd57b;
+  background: var(--status-ok);
   box-shadow: 0 0 12px rgba(77, 213, 123, 0.6);
 }
 
 .status-indicator--warn {
-  background: #ffb347;
+  background: var(--status-warn);
   box-shadow: 0 0 12px rgba(255, 179, 71, 0.6);
 }
 
 .status-indicator--error {
-  background: #ff6b6b;
+  background: var(--status-error);
   box-shadow: 0 0 12px rgba(255, 107, 107, 0.6);
 }
 
 .status-indicator--info {
-  background: #79b8ff;
+  background: var(--status-info);
   box-shadow: 0 0 12px rgba(121, 184, 255, 0.5);
 }
 

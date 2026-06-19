@@ -2,7 +2,7 @@
   grid-column: 1 / -1;
   padding: 14px 24px;
   margin: 4px 0 0;
-  border-radius: 16px;
+  border-radius: var(--glass-radius-sm);
   backdrop-filter: blur(20px);
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(114, 255, 159, 0.24);
@@ -12,7 +12,7 @@
 .status-arr-panel {
   margin-top: 14px;
   padding: 16px 18px;
-  border-radius: 16px;
+  border-radius: var(--glass-radius-sm);
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(114, 255, 159, 0.2);
 }

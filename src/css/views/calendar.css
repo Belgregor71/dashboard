@@ -67,27 +67,7 @@ body[data-view="calendar"] #calendar-view .calendar-panel.high-contrast::before 
 }
 
 .calendar-header {
-  display: flex;
-  justify-content: space-between;
   align-items: baseline;
-  gap: 20px;
-}
-
-#calendar-month-title {
-  font-size: 2.4rem;
-  font-weight: 600;
-}
-
-#calendar-today-label {
-  font-size: 1.1rem;
-  opacity: 0.75;
-}
-
-.calendar-header-subtitle {
-  font-size: 1rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  opacity: 0.6;
 }
 
 .calendar-weekdays {
@@ -114,7 +94,7 @@ body[data-view="calendar"] #calendar-view .calendar-panel.high-contrast::before 
 .calendar-day {
   min-height: 0;
   padding: 14px 14px 12px;
-  border-radius: 16px;
+  border-radius: var(--glass-radius-sm);
   background: rgba(18, 22, 34, 0.44);
   border: var(--glass-border);
   box-shadow: var(--glass-sheen);

@@ -1,10 +1,6 @@
-#server-status-panel h2 {
-  margin-bottom: 8px;
-}
-
 @media (max-height: 820px) {
   #server-status-panel h2 {
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     margin-bottom: 6px;
   }
   .plex-status__tile {
@@ -47,7 +43,7 @@
 
 .plex-status__tile {
   position: relative;
-  border-radius: 16px;
+  border-radius: var(--glass-radius-sm);
   overflow: hidden;
   background-size: cover;
   background-position: center;
@@ -107,7 +103,7 @@
 .media-panel__art {
   width: 90px;
   height: 90px;
-  border-radius: 16px;
+  border-radius: var(--glass-radius-sm);
   overflow: hidden;
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
 }
