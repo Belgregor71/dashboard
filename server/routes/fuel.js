@@ -8,7 +8,7 @@ const COUNTRY_ID   = 21;
 const REGION_LEVEL = 2;
 const REGION_ID    = 1; // Brisbane
 const FUEL_ID      = 2; // Unleaded (ULP)
-const TOP_N        = 5;
+const TOP_N        = 3;
 
 let cache   = null;
 let cacheAt = 0;
