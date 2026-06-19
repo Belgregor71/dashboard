@@ -1,14 +1,4 @@
-import { setFuelActive } from "./middleSlot.js";
-
 const REFRESH_MS = 2 * 60 * 60 * 1000;
-const SHOW_MS    = 60 * 60 * 1000; // hide 1 hour after last detected change
-
-let lastPriceKey = null;
-let hideTimer    = null;
-
-function priceKey(sites) {
-  return sites.map(s => `${s.name}:${s.price}`).join("|");
-}
 
 function renderList(sites) {
   const list = document.getElementById("fuel-panel-list");
@@ -29,18 +19,8 @@ export function initFuelPrices() {
       const data = await r.json();
       if (data.configured === false) return;
       const sites = data.sites ?? [];
-      if (!sites.length) return;
-
-      const key = priceKey(sites);
-      if (key === lastPriceKey) return;
-
-      lastPriceKey = key;
-      renderList(sites);
-
-      clearTimeout(hideTimer);
-      setFuelActive(true);
-      hideTimer = setTimeout(() => setFuelActive(false), SHOW_MS);
-    } catch { /* stay hidden on error */ }
+      if (sites.length) renderList(sites);
+    } catch { /* non-fatal */ }
   }
 
   refresh();
