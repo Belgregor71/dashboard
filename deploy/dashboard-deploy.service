@@ -1,0 +1,7 @@
+[Unit]
+Description=Pull and deploy latest dashboard code if origin/main has moved
+
+[Service]
+Type=oneshot
+User=dashboard
+ExecStart=/home/dashboard/update-dashboard.sh

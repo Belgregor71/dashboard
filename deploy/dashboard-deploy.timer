@@ -1,0 +1,10 @@
+[Unit]
+Description=Run dashboard auto-deploy check periodically
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=dashboard-deploy.service
+
+[Install]
+WantedBy=timers.target
