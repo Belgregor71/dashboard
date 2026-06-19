@@ -183,7 +183,7 @@ router.get("/admin/photos", basicAuth, async (_req, res) => {
       li.id = 'row-' + enc;
       li.innerHTML = '<img src="/photos/' + enc + '" alt="' + name + '" loading="lazy">' +
         '<span class="name">' + name + '</span>' +
-        '<button onclick="del(\'' + enc + '\')">&#x2715; Delete</button>';
+        '<button onclick="del(\\'' + enc + '\\')">&#x2715; Delete</button>';
       list.appendChild(li);
     }
 
