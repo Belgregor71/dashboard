@@ -1194,6 +1194,10 @@ function initElements() {
   lastTriggerPillEl = document.getElementById("camera-last-trigger-pill");
 }
 
+export function getLastCameraTrigger() {
+  return lastTriggered;
+}
+
 export function initCameraTiles() {
   initElements();
   if (!tilesGrid) return;

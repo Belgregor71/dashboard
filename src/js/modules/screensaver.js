@@ -1,19 +1,23 @@
-const IDLE_MS       = 5 * 60 * 1000;  // 5 min of no motion → engage
-const MODE_MS       = 30 * 1000;       // rotate modes every 30s
-const MODES         = ["photo", "minimal"];
+import { getLastCameraTrigger } from "./cameraTiles.js";
 
-let el        = null;
-let photoEl   = null;
-let timeEl    = null;
-let dateEl    = null;
-let weatherEl = null;
+const IDLE_MS    = 5 * 60 * 1000;  // 5 min of no motion → engage
+const PHOTO_MS   = 30 * 1000;       // rotate photo every 30s
+const INFO_MS    = 15 * 1000;       // refresh ambient info lines every 15s
+const MOTION_RECENT_MS = 30 * 60 * 1000; // "last motion" line only while fresh
 
-let idleTimer  = null;
-let modeTimer  = null;
-let clockTimer = null;
-let modeIndex  = 0;
-let active     = false;
-let photos     = [];
+let el          = null;
+let photoEl     = null;
+let timeEl      = null;
+let datelineEl  = null;
+let infoEl      = null;
+let footerEl    = null;
+
+let idleTimer   = null;
+let photoTimer  = null;
+let infoTimer   = null;
+let clockTimer  = null;
+let active      = false;
+let photos      = [];
 
 // ─── DOM build ────────────────────────────────────────────────
 
@@ -29,15 +33,17 @@ function build() {
     <div class="screensaver__overlay"></div>
     <div class="screensaver__content">
       <div class="screensaver__time"></div>
-      <div class="screensaver__date"></div>
-      <div class="screensaver__weather"></div>
+      <div class="screensaver__dateline"></div>
+      <div class="screensaver__info"></div>
+      <div class="screensaver__footer"></div>
     </div>
   `;
   document.body.appendChild(el);
-  photoEl   = el.querySelector(".screensaver__photo");
-  timeEl    = el.querySelector(".screensaver__time");
-  dateEl    = el.querySelector(".screensaver__date");
-  weatherEl = el.querySelector(".screensaver__weather");
+  photoEl    = el.querySelector(".screensaver__photo");
+  timeEl     = el.querySelector(".screensaver__time");
+  datelineEl = el.querySelector(".screensaver__dateline");
+  infoEl     = el.querySelector(".screensaver__info");
+  footerEl   = el.querySelector(".screensaver__footer");
 }
 
 async function loadPhotos() {
@@ -53,46 +59,127 @@ async function loadPhotos() {
   } catch { /* non-fatal — screensaver works without photos */ }
 }
 
-// ─── Clock tick ───────────────────────────────────────────────
+// ─── Clock + dateline ───────────────────────────────────────────
 
 function tickClock() {
-  if (!timeEl || !dateEl) return;
+  if (!timeEl || !datelineEl) return;
   const now = new Date();
   timeEl.textContent = now.toLocaleTimeString("en-AU", {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
   });
-  dateEl.textContent = now.toLocaleDateString("en-AU", {
-    weekday: "long",
-    day:     "numeric",
-    month:   "long",
-  });
-}
 
-function updateWeather() {
-  if (!weatherEl) return;
+  const weekday = now.toLocaleDateString("en-AU", { weekday: "long" });
   const temp = document.getElementById("current-temp")?.textContent?.trim();
   const cond = document.getElementById("current-conditions")?.textContent?.trim();
-  weatherEl.textContent = [temp, cond].filter(Boolean).join(" · ");
+  datelineEl.textContent = [weekday, [temp, cond].filter(Boolean).join(" ")]
+    .filter(Boolean)
+    .join(" · ");
 }
 
-// ─── Mode cycling ─────────────────────────────────────────────
+// ─── Ambient info lines ───────────────────────────────────────
 
-function applyMode() {
-  const mode = MODES[modeIndex % MODES.length];
-  el.dataset.mode = mode;
-
-  if (mode === "photo" && photos.length > 0) {
-    const src = photos[Math.floor(Math.random() * photos.length)];
-    if (photoEl) {
-      photoEl.classList.remove("screensaver__photo--visible");
-      photoEl.src = src;
-      photoEl.onload = () => photoEl.classList.add("screensaver__photo--visible");
-    }
-  } else if (mode === "minimal" && photoEl) {
-    photoEl.classList.remove("screensaver__photo--visible");
+function readPanelText(panelId, ...textSelectors) {
+  const panel = document.getElementById(panelId);
+  if (!panel || panel.classList.contains("is-collapsed") || panel.classList.contains("is-hidden")) {
+    return null;
   }
+  const parts = textSelectors
+    .map(sel => document.querySelector(sel)?.textContent?.trim())
+    .filter(Boolean);
+  return parts.length ? parts.join(" — ") : null;
+}
+
+function readCommuteLine() {
+  const panel = document.getElementById("commute-panel");
+  if (!panel || panel.classList.contains("is-collapsed") || panel.classList.contains("is-hidden")) {
+    return null;
+  }
+  const parts = [
+    document.getElementById("commute-greg")?.textContent?.trim(),
+    document.getElementById("commute-brett")?.textContent?.trim()
+  ].filter(Boolean);
+  return parts.length ? `Commute: ${parts.join(" · ")}` : null;
+}
+
+function readNextEventLine() {
+  const panel = document.getElementById("next-event-panel");
+  if (!panel || panel.classList.contains("is-collapsed") || panel.classList.contains("is-hidden")) {
+    return null;
+  }
+  const name = document.getElementById("next-event-name")?.textContent?.trim();
+  const meta = document.getElementById("next-event-meta")?.textContent?.trim();
+  return name ? [name, meta].filter(Boolean).join(" · ") : null;
+}
+
+function readNowPlayingLine() {
+  for (const id of ["media-panel-1", "media-panel-2"]) {
+    const panel = document.getElementById(id);
+    if (!panel || panel.classList.contains("is-collapsed") || panel.classList.contains("is-hidden")) continue;
+    const source = panel.querySelector(".media-panel__source")?.textContent?.trim();
+    const title = panel.querySelector(".media-panel__title")?.textContent?.trim();
+    if (title) return `Now playing: ${[source, title].filter(Boolean).join(" — ")}`;
+  }
+  return null;
+}
+
+function readDownloadsLine() {
+  const strip = document.getElementById("arr-summary-strip");
+  if (!strip || strip.classList.contains("hidden")) return null;
+  return document.getElementById("arr-summary-text")?.textContent?.trim() || null;
+}
+
+function formatRelativeTime(timestamp) {
+  const deltaMs = Date.now() - timestamp;
+  const minutes = Math.round(deltaMs / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes === 1) return "1 min ago";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+}
+
+function readLastMotionLine() {
+  const trigger = getLastCameraTrigger();
+  if (!trigger?.cameraName || !trigger?.timestamp) return null;
+  if (Date.now() - trigger.timestamp > MOTION_RECENT_MS) return null;
+  return `${trigger.cameraName}: motion ${formatRelativeTime(trigger.timestamp)}`;
+}
+
+function readTodayCountLine() {
+  const list = document.getElementById("today-list");
+  if (!list) return null;
+  const count = list.querySelectorAll("li:not(.today-empty)").length;
+  if (!count) return null;
+  return count === 1 ? "1 event today" : `${count} events today`;
+}
+
+function updateInfo() {
+  if (!infoEl || !footerEl) return;
+
+  const lines = [
+    readLastMotionLine(),
+    readCommuteLine(),
+    readNextEventLine(),
+    readNowPlayingLine(),
+    readDownloadsLine()
+  ].filter(Boolean).slice(0, 3);
+
+  infoEl.innerHTML = lines.map(line => `<div class="screensaver__info-line">${line}</div>`).join("");
+
+  const footer = readTodayCountLine();
+  footerEl.textContent = footer || "";
+}
+
+// ─── Photo rotation ───────────────────────────────────────────
+
+function showNextPhoto() {
+  if (!photoEl || photos.length === 0) return;
+  const src = photos[Math.floor(Math.random() * photos.length)];
+  photoEl.classList.remove("screensaver__photo--visible");
+  photoEl.src = src;
+  photoEl.onload = () => photoEl.classList.add("screensaver__photo--visible");
 }
 
 // ─── Enter / Exit ─────────────────────────────────────────────
@@ -107,27 +194,29 @@ export function wakeScreensaver() {
 }
 
 // Force-enter immediately, bypassing the idle timer.
-// startMode: "photo" | "minimal" — which mode to show first.
-export function engageScreensaver({ startMode = "minimal" } = {}) {
+export function engageScreensaver() {
   clearTimeout(idleTimer);
-  modeIndex = Math.max(0, MODES.indexOf(startMode));
   enter();
 }
 
 function enter() {
   if (active) return;
-  active    = true;
-  modeIndex = 0;
+  active = true;
+
+  el.dataset.mode = photos.length > 0 ? "photo" : "minimal";
 
   tickClock();
-  updateWeather();
-  applyMode();
+  updateInfo();
+  showNextPhoto();
 
   el.classList.add("is-active");
   document.body.classList.add("screensaver-active");
 
   clockTimer = setInterval(tickClock, 1000);
-  modeTimer  = setInterval(() => { modeIndex++; applyMode(); }, MODE_MS);
+  infoTimer  = setInterval(updateInfo, INFO_MS);
+  if (photos.length > 0) {
+    photoTimer = setInterval(showNextPhoto, PHOTO_MS);
+  }
 }
 
 function exit() {
@@ -135,9 +224,11 @@ function exit() {
   active = false;
 
   clearInterval(clockTimer);
-  clearInterval(modeTimer);
+  clearInterval(infoTimer);
+  clearInterval(photoTimer);
   clockTimer = null;
-  modeTimer  = null;
+  infoTimer  = null;
+  photoTimer = null;
 
   el.classList.remove("is-active");
   document.body.classList.remove("screensaver-active");
