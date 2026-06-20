@@ -46,14 +46,14 @@ export const CONFIG = {
     ],
     doorbellOverlay: {
       enabled: false,
-      triggerEntityId: "binary_sensor.front_door_motion_detected",
+      triggerEntityId: "binary_sensor.doorbell_motion_detected",
       triggerEntityIds: [
-        "binary_sensor.front_door_motion_detected",
-        "binary_sensor.front_door_ringing"
+        "binary_sensor.doorbell_motion_detected",
+        "binary_sensor.doorbell_ringing"
       ],
       triggerStates: ["on", "ringing"],
-      cameraEntityId: "camera.front_door",
-      streamPath: "/api/camera_proxy/camera.front_door",
+      cameraEntityId: "camera.doorbell",
+      streamPath: "/api/camera_proxy/camera.doorbell",
       activeLabel: "Doorbell motion detected",
       autoCloseMs: 45000
     },
@@ -63,7 +63,7 @@ export const CONFIG = {
       debug: false,
       triggerCameraMap: [
         {
-          entityId: "binary_sensor.front_door_motion_detected",
+          entityId: "binary_sensor.doorbell_motion_detected",
           camera: "front_door",
           title: "Front Door",
           detection: "Motion",
@@ -71,7 +71,7 @@ export const CONFIG = {
           duration: 45
         },
         {
-          entityId: "binary_sensor.front_door_person_detected",
+          entityId: "binary_sensor.doorbell_person_detected",
           camera: "front_door",
           title: "Front Door",
           detection: "Person",
@@ -79,7 +79,7 @@ export const CONFIG = {
           duration: 45
         },
         {
-          entityId: "binary_sensor.front_door_ringing",
+          entityId: "binary_sensor.doorbell_ringing",
           camera: "front_door",
           title: "Front Door",
           detection: "Doorbell",
@@ -87,7 +87,7 @@ export const CONFIG = {
           duration: 45
         },
         {
-          entityId: "image.front_door_event_image",
+          entityId: "image.doorbell_event_image",
           camera: "front_door",
           title: "Front Door",
           detection: "Event image",
@@ -218,9 +218,9 @@ export const CONFIG = {
     },
     cameraFeeds: [
       {
-        entityId: "camera.front_door",
+        entityId: "camera.doorbell",
         label: "Front Door",
-        streamPath: "/api/camera_proxy/camera.front_door"
+        streamPath: "/api/camera_proxy/camera.doorbell"
       },
       {
         entityId: "camera.front_yard",
@@ -255,8 +255,8 @@ export const CONFIG = {
       durationMs: 30000,
       triggerStates: ["on", "ringing", "detected", "motion"],
       triggerEntityIds: [
-        "binary_sensor.front_door_motion_detected",
-        "binary_sensor.front_door_ringing",
+        "binary_sensor.doorbell_motion_detected",
+        "binary_sensor.doorbell_ringing",
         "binary_sensor.front_yard_motion_detected",
         "binary_sensor.driveway_motion_detected",
         "binary_sensor.backyard_motion_detected",

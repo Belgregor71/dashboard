@@ -2,10 +2,10 @@ export const CAMERA_CONFIG = [
   {
     id: "front_door",
     name: "Front Door",
-    entity: "camera.front_door",
-    cameraEntity: "camera.front_door",
+    entity: "camera.doorbell",
+    cameraEntity: "camera.doorbell",
     mode: "snapshot",
-    eventImageEntity: "image.front_door_event_image",
+    eventImageEntity: "image.doorbell_event_image",
     preferredSnapshot: "cameraProxy",
     snapshotRefreshMs: 15000,
     pinnedHero: true
