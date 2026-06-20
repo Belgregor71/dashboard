@@ -129,7 +129,7 @@ function normalizeCameraTriggerRegistry(config) {
       if (!normalizedId) return;
       const existing = triggerByEntity.get(normalizedId);
       triggerByEntity.set(normalizedId, {
-        camera,
+        camera: existing?.camera || camera,
         title: existing?.title || meta.title,
         detection: existing?.detection || detection,
         priority: existing?.priority ?? meta.priority,
