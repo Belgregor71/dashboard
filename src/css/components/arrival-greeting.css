@@ -36,7 +36,7 @@
 /* ── Welcome headline ──────────────────────────────────────── */
 
 .arrival-greeting__welcome {
-  font-family: "Barlow Condensed", "Inter", sans-serif;
+  font-family: var(--font-display);
   font-size: clamp(2rem, 4vw, 3.6rem);
   font-weight: 300;
   letter-spacing: -0.01em;
@@ -74,7 +74,7 @@
 }
 
 .arrival-greeting__time {
-  font-family: "Barlow Condensed", "Inter", sans-serif;
+  font-family: var(--font-display);
   font-weight: 300;
   font-size: 1.05em;
   color: rgba(255, 255, 255, 0.50);
