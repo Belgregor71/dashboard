@@ -150,7 +150,7 @@ function readLastMotionLine() {
 function readTodayCountLine() {
   const list = document.getElementById("today-list");
   if (!list) return null;
-  const count = list.querySelectorAll("li:not(.today-empty)").length;
+  const count = list.querySelectorAll(".today-event").length;
   if (!count) return null;
   return count === 1 ? "1 event today" : `${count} events today`;
 }
