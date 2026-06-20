@@ -434,6 +434,7 @@ function renderCurrent(data) {
 
 function renderWeekly(daily) {
   if (!daily?.weathercode) return;
+  if (!document.getElementById("weekly-list")) return;
 
   const haStates = getAllEntities();
   daily.weathercode.slice(0, 7).forEach((code, i) => {

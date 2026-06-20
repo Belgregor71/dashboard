@@ -1,4 +1,5 @@
 import { getLastCameraTrigger } from "./cameraTiles.js";
+import { switchView } from "../core/viewManager.js";
 
 const IDLE_MS    = 5 * 60 * 1000;  // 5 min of no motion → engage
 const PHOTO_MS   = 30 * 1000;       // rotate photo every 30s
@@ -148,9 +149,10 @@ function readLastMotionLine() {
 }
 
 function readTodayCountLine() {
-  const list = document.getElementById("today-list");
-  if (!list) return null;
-  const count = list.querySelectorAll(".today-event").length;
+  const events = window.__CAL_EVENTS__;
+  if (!Array.isArray(events)) return null;
+  const now = new Date();
+  const count = events.filter(ev => ev?.start && new Date(ev.start).toDateString() === now.toDateString()).length;
   if (!count) return null;
   return count === 1 ? "1 event today" : `${count} events today`;
 }
@@ -233,6 +235,7 @@ function exit() {
   el.classList.remove("is-active");
   document.body.classList.remove("screensaver-active");
 
+  switchView("home");
   resetIdleTimer();
 }
 

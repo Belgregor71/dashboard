@@ -1,10 +1,28 @@
-.today-all-day {
-  font-weight: 600;
-  margin-bottom: 4px;
+#focus-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 40px;
+  padding: 14px 24px;
+  border-radius: var(--glass-radius-sm);
+  background: rgba(14, 18, 28, 0.34);
+  border: var(--glass-border);
+  transition: opacity 0.6s ease;
 }
 
-.today-event {
-  margin-bottom: 6px;
+#focus-hero.is-hidden {
+  display: none;
+}
+
+.focus-hero__icon {
+  font-size: clamp(1.2rem, 1.4vw, 1.6rem);
+}
+
+.focus-hero__text {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(1.1rem, 1.6vw, 1.6rem);
+  letter-spacing: -0.005em;
 }
 
 .meal-lottie {
@@ -63,12 +81,6 @@
   display: inline-flex;
   align-items: center;
   margin-right: 4px;
-}
-
-.today-empty {
-  opacity: 0.7;
-  padding: 10px 0;
-  font-style: italic;
 }
 
 .ha-status {

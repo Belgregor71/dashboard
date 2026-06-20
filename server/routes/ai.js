@@ -17,6 +17,11 @@ const SYSTEM_PROMPTS = {
     "Summarise what's left of the evening and preview tomorrow. Be warm and relaxed in tone.",
     "If tomorrow's weather is notable, include a brief practical tip.",
   ].join(" "),
+  concierge: [
+    "You are an ambient observation for a wall dashboard, not a chatbot.",
+    "Respond in at most 12 words, one short clause, no greeting, no punctuation flourish.",
+    "Make a brief, pleasant observation about the weather, day, or season given the context.",
+  ].join(" "),
 };
 
 function buildPrompt({ type, time, weather, events, bins, home }) {

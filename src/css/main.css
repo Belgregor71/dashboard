@@ -10,11 +10,9 @@
 @import './layout/grid.css';
 @import './components/home-panels.css';
 @import './components/media.css';
-@import './components/week.css';
 @import './utils/view-switching.css';
 @import './views/system.css';
-@import './views/calendar.css';
-@import './views/agenda.css';
+@import './views/timeline.css';
 @import './views/cameras.css';
 @import './views/weather.css';
 @import './views/briefing.css';
@@ -23,9 +21,6 @@
 @import './components/popover.css';
 @import './utils/helpers.css';
 @import './utils/weather-fx.css';
-@import './components/news-ticker.css';
-@import './components/bin-reminder.css';
-@import './components/nrl-scores.css';
 @import './components/fuel-prices.css';
 @import './components/arrival-greeting.css';
 @import './views/screensaver.css';

@@ -52,7 +52,7 @@ function routeAiIntent(intentPayload = {}) {
   }
 
   if (intent === "show_calendar") {
-    switchView("calendar");
+    switchView("timeline");
     emit("command:executed", { command: intent, ok: true, message: response || "Showing calendar" });
     return true;
   }
@@ -184,44 +184,19 @@ export function registerHAEvents() {
         return;
       }
 
-      if (command === "agenda_plus") {
-        switchView("agenda");
-        emit("agenda:reset");
+      if (command === "agenda_plus" || command === "agenda_filter" || command === "agenda_date") {
+        switchView("timeline");
         emit("command:executed", {
           command,
           ok: true,
-          message: "Showing agenda"
-        });
-        return;
-      }
-
-      if (command === "agenda_filter") {
-        switchView("agenda");
-        emit("agenda:filter", {
-          category: data.category || data.filter || data.intent || data.value
-        });
-        emit("command:executed", {
-          command,
-          ok: true,
-          message: "Filtering agenda"
-        });
-        return;
-      }
-
-      if (command === "agenda_date") {
-        switchView("agenda");
-        emit("agenda:date", { date: data.date || data.value, offsetDays: data.offsetDays });
-        emit("command:executed", {
-          command,
-          ok: true,
-          message: "Updating agenda date"
+          message: "Showing timeline"
         });
         return;
       }
 
       if (command === "agenda_tomorrow") {
-        switchView("agenda");
-        emit("agenda:date", { date: "tomorrow" });
+        switchView("timeline");
+        emit("timeline:scroll", { label: "Tomorrow" });
         emit("command:executed", {
           command,
           ok: true,
@@ -231,11 +206,10 @@ export function registerHAEvents() {
       }
 
       if (command === "agenda_next") {
-        emit("agenda:focus-next");
         emit("command:executed", {
           command,
           ok: true,
-          message: "Next agenda item"
+          message: "Showing timeline"
         });
         return;
       }

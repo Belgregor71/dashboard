@@ -38,13 +38,8 @@ function toCommand(raw, payload = {}) {
   return map[normalized] || normalized;
 }
 
-function ensureCalendarVisible(command) {
-  const current = getCurrentView();
-  if (["show_agenda"].includes(command)) {
-    if (current !== "agenda") switchView("agenda");
-    return;
-  }
-  if (current !== "calendar") switchView("calendar");
+function ensureCalendarVisible() {
+  if (getCurrentView() !== "timeline") switchView("timeline");
 }
 
 export function registerCalendarCommandHandlers(nextHooks = {}) {

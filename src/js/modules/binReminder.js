@@ -1,10 +1,11 @@
+import { emit } from "../core/eventBus.js";
+
 const BIN_META = {
   red:    { label: "General",   color: "#c0392b" },
   yellow: { label: "Recycling", color: "#f1c40f" },
   green:  { label: "Organics",  color: "#27ae60" },
 };
 
-const ITEM_ID   = "bin-reminder-item";
 const REFRESH_H = 60 * 60 * 1000; // re-check every hour
 
 let lastData = null;
@@ -13,49 +14,12 @@ export function getLastBinData() {
   return lastData;
 }
 
-function buildItem(data) {
-  const li = document.createElement("li");
-  li.id = ITEM_ID;
-  li.className = "bin-reminder";
-
-  const dotsHtml = data.bins
-    .map(b => {
-      const meta = BIN_META[b] ?? { label: b, color: "#888" };
-      return `
-        <div class="bin-dot">
-          <div class="bin-dot__circle" style="background:${meta.color}"></div>
-          <span class="bin-dot__label">${meta.label}</span>
-        </div>`;
-    })
-    .join("");
-
-  li.innerHTML = `
-    <div class="bin-reminder__header">
-      <span class="bin-reminder__icon">🗑️</span>
-      <span class="bin-reminder__title">${data.label}</span>
-    </div>
-    <div class="bin-reminder__dots">${dotsHtml}</div>
-  `;
-  return li;
-}
-
 function render(data) {
   lastData = data;
-  const list = document.getElementById("today-list");
-  if (!list) return;
-
-  const existing = document.getElementById(ITEM_ID);
-
-  if (!data?.due) {
-    existing?.remove();
-    return;
-  }
-
-  if (existing) {
-    existing.replaceWith(buildItem(data));
-  } else {
-    list.prepend(buildItem(data));
-  }
+  const binsText = Array.isArray(data?.bins)
+    ? data.bins.map(b => BIN_META[b]?.label ?? b).join(" + ")
+    : "";
+  emit("bins:updated", { ...data, binsText });
 }
 
 async function refresh() {

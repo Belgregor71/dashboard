@@ -16,6 +16,7 @@ import {
 } from "../modules/commute.js";
 import { initMiddleSlot } from "../modules/middleSlot.js";
 import { initNextEventPanel } from "../modules/nextEventPanel.js";
+import { initFocusHero } from "../modules/focusHero.js";
 
 import { refreshCalendar } from "../modules/calendar.js";
 import { startWeather } from "../services/weather/renderer.js";
@@ -33,13 +34,11 @@ import { initDoorbellAlert } from "../modules/doorbellAlert.js";
 import { initBinReminder } from "../modules/binReminder.js";
 import { initTimeContext } from "../modules/timeContext.js";
 import { initArrivalGreeting } from "../modules/arrivalGreeting.js";
-import { initNrlScores } from "../modules/nrlScores.js";
 import { initFuelPrices } from "../modules/fuelPrices.js";
 import { initMorningBriefing } from "../modules/morningBriefing.js";
 import { initOccasionPopup } from "../modules/occasionPopup.js";
 import { createStatusView } from "../modules/systemStatus.js";
 import { createBriefingView } from "../views/briefingView.js";
-import { initNewsTicker } from "../modules/newsTicker.js";
 import { createWeatherView } from "../views/weatherView.js";
 
 import { connectHA } from "../services/homeAssistant/client.js";
@@ -58,8 +57,7 @@ export function startApp() {
   initMiddleSlot();
 
   registerView("home", {});
-  registerView("calendar", {});
-  registerView("agenda", {});
+  registerView("timeline", {});
   registerView("cameras", {});
   registerView("weather", createWeatherView());
   registerView("status", createStatusView());
@@ -70,7 +68,6 @@ export function startApp() {
   initVoiceOverlay();
   initVoiceCommands();
   initMotionTrigger();
-  initNewsTicker();
 
   const cfg = window.CONFIG || {};
 
@@ -147,12 +144,12 @@ export function startApp() {
   initBinReminder();
   initTimeContext();
   initArrivalGreeting();
-  initNrlScores();
   initFuelPrices();
   initMorningBriefing();
   initOccasionPopup();
   initEnergySaver();
   initScreensaver();
+  initFocusHero();
 
   if (isEnabled("homeAssistant", false)) {
     initHomeAssistantTodayPanel();

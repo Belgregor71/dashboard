@@ -5,14 +5,13 @@ import { resetIdleTimer } from "../modules/screensaver.js";
 import { triggerGoodnight } from "../modules/goodnightRoutine.js";
 import { generateBriefing } from "../modules/aiBriefing.js";
 
-const VIEW_ORDER = ["home", "weather", "cameras", "calendar", "agenda", "status", "briefing"];
+const VIEW_ORDER = ["home", "weather", "cameras", "timeline"];
 
 const VIEW_LABELS = {
   home: "Home",
   weather: "Weather",
   cameras: "Cameras",
-  calendar: "Calendar",
-  agenda: "Agenda",
+  timeline: "Timeline",
   status: "Status",
   briefing: "Briefing",
 };
@@ -21,8 +20,7 @@ const VIEW_PHRASES = {
   home:     "Switching to home.",
   weather:  "Here's the weather.",
   cameras:  "Showing cameras.",
-  calendar: "Showing the calendar.",
-  agenda:   "Here's today's agenda.",
+  timeline: "Here's what's coming up.",
   status:   "Showing system status.",
   briefing: "Here's your briefing.",
 };
@@ -30,13 +28,12 @@ const VIEW_PHRASES = {
 // --- Navigation ---
 
 const NAV_KEYWORD_MAP = [
-  { keywords: ["home", "main"],              view: "home" },
-  { keywords: ["weather", "forecast"],       view: "weather" },
-  { keywords: ["camera", "cameras"],         view: "cameras" },
-  { keywords: ["calendar", "schedule"],      view: "calendar" },
-  { keywords: ["agenda", "today"],           view: "agenda" },
-  { keywords: ["status", "system"],          view: "status" },
-  { keywords: ["briefing", "brief", "morning"], view: "briefing" },
+  { keywords: ["home", "main"],                          view: "home" },
+  { keywords: ["weather", "forecast"],                   view: "weather" },
+  { keywords: ["camera", "cameras"],                      view: "cameras" },
+  { keywords: ["calendar", "schedule", "agenda", "today"], view: "timeline" },
+  { keywords: ["status", "system"],                      view: "status" },
+  { keywords: ["briefing", "brief", "morning"],          view: "briefing" },
 ];
 
 function nextViewId() {

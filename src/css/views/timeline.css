@@ -1,62 +1,58 @@
-#agenda-view {
-  padding: 10px 40px 40px;
+#timeline-view {
+  padding: 10px 40px 24px;
+  flex: 1;
+  min-height: 0;
+  box-sizing: border-box;
 }
 
-.agenda-panel {
+.timeline-panel {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  min-height: calc(100vh - 160px);
+  gap: 18px;
+  flex: 1;
+  min-height: 0;
 }
 
-.agenda-header {
+.timeline-header {
   align-items: baseline;
 }
 
-.agenda-list {
+.timeline-list {
   display: grid;
-  gap: 14px;
+  gap: 22px;
+  overflow-y: auto;
 }
 
-.agenda-section {
+.timeline-moments {
+  display: grid;
+  gap: 6px;
+}
+
+.timeline-moment {
+  font-style: italic;
+  font-size: clamp(0.95rem, 1vw, 1.1rem);
+  opacity: 0.8;
+  padding-left: 4px;
+}
+
+.timeline-group {
   display: grid;
   gap: 10px;
-  padding: 16px;
-  border-radius: var(--glass-radius);
-  backdrop-filter: var(--glass-blur);
-  background: var(--glass-bg);
-  border: var(--glass-border);
-  box-shadow: var(--glass-sheen);
 }
 
-.agenda-section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.agenda-section-title {
+.timeline-group-title {
   font-size: clamp(0.9rem, 0.95vw, 1.05rem);
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  opacity: 0.8;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  opacity: 0.65;
 }
 
-.agenda-section-count {
-  font-size: clamp(0.8rem, 0.85vw, 0.95rem);
-  opacity: 0.6;
-}
-
-.agenda-section-list {
+.timeline-entries {
   display: grid;
   gap: 8px;
 }
 
-.agenda-event {
+.timeline-entry {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
@@ -68,11 +64,11 @@
   color: var(--event-text);
 }
 
-.agenda-event-icon {
+.timeline-entry-icon {
   font-size: clamp(1.1rem, 1.2vw, 1.35rem);
 }
 
-.agenda-event-title {
+.timeline-entry-title {
   font-size: clamp(1.05rem, 1.15vw, 1.3rem);
   font-weight: 600;
   white-space: nowrap;
@@ -80,24 +76,13 @@
   text-overflow: ellipsis;
 }
 
-.agenda-event-time {
+.timeline-entry-time {
   font-size: clamp(0.85rem, 0.95vw, 1.05rem);
   opacity: 0.75;
   white-space: nowrap;
 }
 
-.agenda-overflow {
-  font-size: 0.85rem;
-  opacity: 0.7;
-  padding-left: 12px;
-}
-
-.agenda-event--focused {
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2),
-    0 0 12px rgba(255, 255, 255, 0.3);
-}
-
-.agenda-empty {
+.timeline-empty {
   padding: 16px;
   border-radius: var(--glass-radius-sm);
   background: rgba(14, 18, 28, 0.30);
@@ -105,4 +90,3 @@
   opacity: 0.75;
   text-align: center;
 }
-

@@ -22,10 +22,6 @@
    De-emphasise: media, to-do, shopping.
    ─────────────────────────────────────────────────────────── */
 
-body[data-time-context="morning"] #today-panel {
-  filter: brightness(1.05);
-}
-
 body[data-time-context="morning"] #reminders-panel,
 body[data-time-context="morning"] #shopping-panel {
   filter: brightness(0.72) saturate(0.75);
@@ -35,10 +31,6 @@ body[data-time-context="morning"] #server-status-panel,
 body[data-time-context="morning"] #media-panel-1,
 body[data-time-context="morning"] #media-panel-2 {
   filter: brightness(0.55) saturate(0.60);
-}
-
-body[data-time-context="morning"] #timeline-panel {
-  filter: brightness(0.88) saturate(0.85);
 }
 
 /* ── WORK  09:00–17:00 ──────────────────────────────────────
@@ -84,10 +76,3 @@ body[data-time-context="night"] #media-panel-2 {
   filter: brightness(0.65) saturate(0.60);
 }
 
-body[data-time-context="night"] #timeline-panel {
-  filter: brightness(0.80) saturate(0.82);
-}
-
-body[data-time-context="night"] #today-panel {
-  filter: brightness(1.0); /* keep Today fully readable */
-}

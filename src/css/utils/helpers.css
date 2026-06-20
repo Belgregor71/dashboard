@@ -11,8 +11,7 @@ body.dashboard-sleeping {
 }
 
 body.dashboard-sleeping .dashboard-shell,
-body.dashboard-sleeping #calendar-view,
-body.dashboard-sleeping #agenda-view,
+body.dashboard-sleeping #timeline-view,
 body.dashboard-sleeping #cameras-view,
 body.dashboard-sleeping #weather-view {
   visibility: hidden;

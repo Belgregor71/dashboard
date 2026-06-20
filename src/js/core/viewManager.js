@@ -1,12 +1,17 @@
 import { emit } from "./eventBus.js";
 
 let currentView = "home";
-const viewOrder = ["home", "weather", "cameras", "calendar", "agenda", "status", "briefing"];
+const viewOrder = ["home", "weather", "cameras", "timeline"];
+const AMBIENT_VIEW = "home";
+const EXPLORE_RETURN_MS = 90_000;
+let exploreReturnTimer = null;
 const viewAliasMap = new Map([
   ["briefing-view", "briefing"],
   ["status-view", "status"],
   ["weather-view", "weather"],
-  ["camera", "cameras"]
+  ["camera", "cameras"],
+  ["calendar", "timeline"],
+  ["agenda", "timeline"]
 ]);
 const viewHandlers = new Map();
 let clickHandlerRegistered = false;
@@ -33,6 +38,12 @@ function getNextView(view) {
   const index = viewOrder.indexOf(view);
   if (index === -1) return viewOrder[0];
   return viewOrder[(index + 1) % viewOrder.length];
+}
+
+function scheduleExploreReturn() {
+  clearTimeout(exploreReturnTimer);
+  if (currentView === AMBIENT_VIEW) return;
+  exploreReturnTimer = setTimeout(() => switchView(AMBIENT_VIEW), EXPLORE_RETURN_MS);
 }
 
 function registerClickCycle() {
@@ -66,7 +77,7 @@ export function getCurrentView() {
 export function switchView(view) {
   const normalizedView = normalizeViewId(view);
   if (!normalizedView || normalizedView === currentView) return;
-  if (!viewOrder.includes(normalizedView)) {
+  if (!viewHandlers.has(normalizedView)) {
     console.warn("Ignoring unknown view:", view);
     return;
   }
@@ -83,4 +94,5 @@ export function switchView(view) {
   nextModule.onEnter();
 
   emit("view:changed", { view: normalizedView, previousView });
+  scheduleExploreReturn();
 }

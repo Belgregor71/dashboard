@@ -12,7 +12,7 @@
 /**
  * @typedef {Object} AiRouteResult
  * @property {"switch_view"|"show_weather"|"show_cameras"|"show_calendar"|"status_explain"|"unknown"} intent
- * @property {"home"|"weather"|"cameras"|"calendar"|"agenda"|"status"|"briefing"} [view]
+ * @property {"home"|"weather"|"cameras"|"timeline"|"status"|"briefing"} [view]
  * @property {number} confidence
  * @property {string} response
  */

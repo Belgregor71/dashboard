@@ -1,7 +1,6 @@
 /* Default: all views hidden */
 .home-view,
-.calendar-view,
-.agenda-view,
+.timeline-view,
 .cameras-view,
 .weather-view,
 .status-view,
@@ -13,66 +12,39 @@
 
 /* Home view */
 body[data-view="home"] .home-view { display: flex; }
-body[data-view="home"] .calendar-view,
-body[data-view="home"] .agenda-view,
+body[data-view="home"] .timeline-view,
 body[data-view="home"] .cameras-view,
 body[data-view="home"] .weather-view,
 body[data-view="home"] .status-view,
 body[data-view="home"] .briefing-view { display: none; }
 
-/* Calendar view */
-body[data-view="calendar"] .calendar-view { display: flex; }
-body[data-view="calendar"] .home-view,
-body[data-view="calendar"] .agenda-view,
-body[data-view="calendar"] .cameras-view,
-body[data-view="calendar"] .weather-view,
-body[data-view="calendar"] .status-view,
-body[data-view="calendar"] .briefing-view { display: none; }
+/* Timeline view */
+body[data-view="timeline"] .timeline-view { display: flex; }
+body[data-view="timeline"] .home-view,
+body[data-view="timeline"] .cameras-view,
+body[data-view="timeline"] .weather-view,
+body[data-view="timeline"] .status-view,
+body[data-view="timeline"] .briefing-view { display: none; }
 
-body[data-view="calendar"] #middle-slot,
-body[data-view="calendar"] #current-weather-panel {
+body[data-view="timeline"] #middle-slot,
+body[data-view="timeline"] #current-weather-panel {
   display: none;
 }
 
-body[data-view="calendar"] #top-bar {
+body[data-view="timeline"] #top-bar {
   grid-template-columns: 1fr;
   justify-items: start;
   padding: 20px 40px 10px;
 }
 
-body[data-view="calendar"] #time-panel {
-  padding-left: 10px;
-}
-
-/* Agenda view */
-body[data-view="agenda"] .agenda-view { display: block; }
-body[data-view="agenda"] .home-view,
-body[data-view="agenda"] .calendar-view,
-body[data-view="agenda"] .cameras-view,
-body[data-view="agenda"] .weather-view,
-body[data-view="agenda"] .status-view,
-body[data-view="agenda"] .briefing-view { display: none; }
-
-body[data-view="agenda"] #middle-slot,
-body[data-view="agenda"] #current-weather-panel {
-  display: none;
-}
-
-body[data-view="agenda"] #top-bar {
-  grid-template-columns: 1fr;
-  justify-items: start;
-  padding: 20px 40px 10px;
-}
-
-body[data-view="agenda"] #time-panel {
+body[data-view="timeline"] #time-panel {
   padding-left: 10px;
 }
 
 /* Cameras view */
 body[data-view="cameras"] .cameras-view { display: block; }
 body[data-view="cameras"] .home-view,
-body[data-view="cameras"] .calendar-view,
-body[data-view="cameras"] .agenda-view,
+body[data-view="cameras"] .timeline-view,
 body[data-view="cameras"] .weather-view,
 body[data-view="cameras"] .status-view,
 body[data-view="cameras"] .briefing-view { display: none; }
@@ -95,8 +67,7 @@ body[data-view="cameras"] #time-panel {
 /* Weather view */
 body[data-view="weather"] .weather-view { display: flex; }
 body[data-view="weather"] .home-view,
-body[data-view="weather"] .calendar-view,
-body[data-view="weather"] .agenda-view,
+body[data-view="weather"] .timeline-view,
 body[data-view="weather"] .cameras-view,
 body[data-view="weather"] .status-view,
 body[data-view="weather"] .briefing-view { display: none; }
@@ -144,8 +115,7 @@ body[data-view="weather"] .weather-screen .wx-flash {
 /* Status view */
 body[data-view="status"] .status-view { display: flex; }
 body[data-view="status"] .home-view,
-body[data-view="status"] .calendar-view,
-body[data-view="status"] .agenda-view,
+body[data-view="status"] .timeline-view,
 body[data-view="status"] .cameras-view,
 body[data-view="status"] .weather-view,
 body[data-view="status"] .briefing-view { display: none; }
@@ -168,8 +138,7 @@ body[data-view="status"] #time-panel {
 /* Briefing view */
 body[data-view="briefing"] .briefing-view { display: grid; }
 body[data-view="briefing"] .home-view,
-body[data-view="briefing"] .calendar-view,
-body[data-view="briefing"] .agenda-view,
+body[data-view="briefing"] .timeline-view,
 body[data-view="briefing"] .cameras-view,
 body[data-view="briefing"] .weather-view,
 body[data-view="briefing"] .status-view { display: none; }

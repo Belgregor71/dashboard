@@ -1,45 +1,36 @@
-#fuel-panel {
+/* ── Inline strip, lives under commute times in the top-bar commute panel ── */
+
+.fuel-panel-list--inline {
   display: flex;
   flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
 }
 
-#fuel-panel-list {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  justify-content: space-between;
-}
-
-/* ── Per-station row ─────────────────────────────────────────── */
+/* ── Per-station row (compact) ───────────────────────────────── */
 
 .fuel-station {
   display: grid;
-  grid-template-columns: 40px 1fr auto;
+  grid-template-columns: 28px 1fr auto;
   align-items: center;
-  gap: 12px;
-  padding: 6px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  gap: 8px;
 }
-
-.fuel-station:first-child { padding-top: 0; }
-.fuel-station:last-child  { border-bottom: none; padding-bottom: 0; }
 
 /* ── Brand badge ─────────────────────────────────────────────── */
 
 .fuel-badge {
-  width: 40px;
-  height: 40px;
+  width: 28px;
+  height: 28px;
   border-radius: var(--glass-radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.6rem;
+  font-size: 0.5rem;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   text-align: center;
   line-height: 1.1;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
 /* ── Name + meta ─────────────────────────────────────────────── */
@@ -47,24 +38,24 @@
 .fuel-details {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
 }
 
 .fuel-station-name {
-  font-size: 0.95rem;
+  font-size: 0.75rem;
+  opacity: 0.8;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .fuel-dist {
-  font-size: 0.78rem;
-  opacity: 0.55;
-  letter-spacing: 0.02em;
+  font-size: 0.65rem;
+  opacity: 0.5;
 }
 
-/* ── Price (right-aligned, like a todo-row value) ─────────────── */
+/* ── Price (right-aligned) ─────────────────────────────────────── */
 
 .fuel-price-line {
   display: flex;
@@ -75,7 +66,7 @@
 }
 
 .fuel-price {
-  font-size: 1.5rem;
+  font-size: 1rem;
   font-weight: 700;
   color: #fff;
   letter-spacing: -0.02em;
@@ -83,7 +74,7 @@
 }
 
 .fuel-cents {
-  font-size: 0.85rem;
+  font-size: 0.65rem;
   font-weight: 400;
   opacity: 0.7;
   margin-left: 1px;

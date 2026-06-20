@@ -4,6 +4,7 @@ import { emit, on } from "../core/eventBus.js";
 import { initDetailsPopover } from "../services/calendar/detailsPopover.js";
 import { fetchHolidaysForMonthContext } from "../services/calendar/holidays.js";
 import { registerCalendarCommandHandlers } from "../services/calendar/commands.js";
+import { computeTravelMoments } from "../services/momentsEngine.js";
 
 const CAL_URL = "/api/calendar/all";
 const MEAL_PREFIX = /^Meal:\s*/;
@@ -180,16 +181,16 @@ const SOURCE_CATEGORY_MAP = {
   tripit: "travel"
 };
 
-const AGENDA_SECTION_LIMIT = 3;
-const AGENDA_EVENT_LIMIT = 3;
-const agendaState = {
-  filterCategoryId: null,
-  focusIndex: 0,
-  dateOffsetDays: 0,
-  explicitDate: null
+const TIMELINE_BUCKETS = ["Today", "Tomorrow", "This Week", "Later"];
+const BIN_CATEGORY = {
+  id: "bins",
+  label: "Bins",
+  icon: "🗑️",
+  accent: "#94A3B8",
+  bg: "rgba(148, 163, 184, 0.12)",
+  text: "#F8FAFC"
 };
-let agendaEventsCache = [];
-let agendaFocusTargets = [];
+let binState = null;
 const calendarState = {
   focusedEventId: null,
   eventsCache: [],
@@ -369,110 +370,24 @@ function applyEventCategoryStyles(element, category, variant) {
   element.style.setProperty("--event-text", resolved.text || "inherit");
 }
 
-function updateAgendaView() {
-  renderAgenda(agendaEventsCache);
-}
-
-function setAgendaEvents(events) {
-  agendaEventsCache = Array.isArray(events) ? events : [];
-  updateAgendaView();
-}
-
-function resetAgendaState() {
-  agendaState.filterCategoryId = null;
-  agendaState.focusIndex = 0;
-  agendaState.dateOffsetDays = 0;
-  agendaState.explicitDate = null;
-}
-
-function resolveAgendaCategoryId(rawValue) {
-  if (!rawValue) return null;
-  const normalized = normalizeEventText(String(rawValue));
-  if (!normalized) return null;
-  const directMatch = EVENT_CATEGORIES.find(
-    category =>
-      normalizeEventText(category.id) === normalized ||
-      normalizeEventText(category.label) === normalized
-  );
-  return directMatch?.id || null;
-}
-
-function setAgendaFilter(filterValue) {
-  const resolved = resolveAgendaCategoryId(filterValue);
-  agendaState.filterCategoryId = resolved;
-  agendaState.focusIndex = 0;
-  updateAgendaView();
-}
-
-function setAgendaDate({ date, offsetDays } = {}) {
-  if (typeof offsetDays === "number" && Number.isFinite(offsetDays)) {
-    agendaState.dateOffsetDays = offsetDays;
-    agendaState.explicitDate = null;
-    agendaState.focusIndex = 0;
-    updateAgendaView();
-    return;
-  }
-
-  if (typeof date === "string") {
-    const normalized = normalizeEventText(date);
-    if (normalized === "today") {
-      agendaState.dateOffsetDays = 0;
-      agendaState.explicitDate = null;
-    } else if (normalized === "tomorrow") {
-      agendaState.dateOffsetDays = 1;
-      agendaState.explicitDate = null;
-    } else {
-      const parsed = new Date(date);
-      if (!Number.isNaN(parsed.getTime())) {
-        agendaState.explicitDate = parsed;
-      }
-    }
-    agendaState.focusIndex = 0;
-    updateAgendaView();
-    return;
-  }
-}
-
-function focusNextAgendaEvent() {
-  if (!agendaFocusTargets.length) return;
-  agendaState.focusIndex = (agendaState.focusIndex + 1) % agendaFocusTargets.length;
-  agendaFocusTargets.forEach(target =>
-    target.classList.remove("agenda-event--focused")
-  );
-  const nextTarget = agendaFocusTargets[agendaState.focusIndex];
-  if (nextTarget) {
-    nextTarget.classList.add("agenda-event--focused");
-  }
-}
-
-on("agenda:reset", () => {
-  resetAgendaState();
-  updateAgendaView();
-});
-on("agenda:filter", ({ category }) => {
-  setAgendaFilter(category);
-});
-on("agenda:date", ({ date, offsetDays } = {}) => {
-  setAgendaDate({ date, offsetDays });
-});
-on("agenda:focus-next", () => {
-  focusNextAgendaEvent();
-});
-
-function shiftMonth(offset) {
-  const next = new Date(calendarState.selectedDate);
-  next.setMonth(next.getMonth() + offset, 1);
-  calendarState.selectedDate = next;
-  calendarState.lastInteractionSource = "voice";
-  calendarDebug("shiftMonth", offset, next.toISOString());
-  void refreshCalendar();
+function scrollTimelineToGroup(label) {
+  const container = document.getElementById("timeline-list");
+  if (!container) return;
+  const groups = container.querySelectorAll(".timeline-group-title");
+  const target = Array.from(groups).find(el => el.textContent === label);
+  target?.scrollIntoView({ block: "start" });
 }
 
 function goToToday() {
-  calendarState.selectedDate = new Date();
   calendarState.lastInteractionSource = "voice";
   calendarDebug("goToToday");
-  void refreshCalendar();
+  scrollTimelineToGroup("Today");
+}
+
+function goToLater() {
+  calendarState.lastInteractionSource = "voice";
+  calendarDebug("goToLater");
+  scrollTimelineToGroup("Later");
 }
 
 function toggleBirthdaysOnly() {
@@ -483,21 +398,32 @@ function toggleBirthdaysOnly() {
 }
 
 registerCalendarCommandHandlers({
-  nextMonth: () => shiftMonth(1),
-  previousMonth: () => shiftMonth(-1),
+  // No month grid in the unified Timeline — "next/previous month" instead
+  // jumps between the Today section and the Later (everything 7+ days out) section.
+  nextMonth: () => goToLater(),
+  previousMonth: () => goToToday(),
   goToday: () => goToToday(),
-  showAgenda: () => emit("agenda:reset"),
+  showAgenda: () => goToToday(),
   showBirthdays: () => toggleBirthdaysOnly(),
   showDetails: () => openFocusedDetails(),
   closeDetails: () => closeDetailsPopover(),
   detailsForNextEvent: () => openFocusedDetails({ forceNext: true })
 });
 
-on("calendar:next-month", () => shiftMonth(1));
-on("calendar:previous-month", () => shiftMonth(-1));
+on("calendar:next-month", () => goToLater());
+on("calendar:previous-month", () => goToToday());
 on("calendar:go-today", () => goToToday());
 on("calendar:show-details", () => openFocusedDetails());
 on("calendar:close-details", () => closeDetailsPopover());
+
+on("timeline:scroll", ({ label } = {}) => {
+  if (label) scrollTimelineToGroup(label);
+});
+
+on("bins:updated", data => {
+  binState = data?.due ? data : null;
+  renderTimeline(applyCalendarFilters(calendarState.eventsCache));
+});
 
 
 /* ------------------------------------------------------------------
@@ -529,15 +455,9 @@ export async function refreshCalendar() {
     window.__CAL_EVENTS__ = expandedAll;
 
     const filtered = applyCalendarFilters(normalized);
-    const expanded = expandMultiDay(filtered);
-    const todayEvents = getTodayEvents(expanded);
-    const weekEvents = getNext7DaysEvents(expanded);
 
     updateFocusedEvent(filtered);
-    renderToday(todayEvents);
-    renderWeek(weekEvents);
-    renderMonth(expanded, calendarState.selectedDate);
-    setAgendaEvents(filtered);
+    renderTimeline(filtered);
     emit("calendar:refreshed", { timestamp: Date.now(), count: filtered.length });
   } catch (err) {
     console.error("Calendar error:", err);
@@ -552,7 +472,7 @@ export async function refreshCalendar() {
 
 function ensureDetailsPopover() {
   if (calendarState.detailsPopover) return;
-  const root = document.getElementById("calendar-view");
+  const root = document.getElementById("timeline-view");
   calendarState.detailsPopover = initDetailsPopover(root);
 }
 
@@ -647,10 +567,7 @@ function closeDetailsPopover() {
 }
 
 function safeRenderEmpty() {
-  renderToday([]);
-  renderWeek(getNext7DaysEvents([]));
-  renderMonth([], calendarState.selectedDate);
-  setAgendaEvents([]);
+  renderTimeline([]);
 }
 
 /* ------------------------------------------------------------------
@@ -798,421 +715,136 @@ function expandMultiDay(events) {
 }
 
 /* ------------------------------------------------------------------
-   FILTERING
+   BIN PSEUDO-EVENTS
 -------------------------------------------------------------------*/
 
-function isToday(date) {
+function getBinPseudoEvents() {
+  if (!binState?.due) return [];
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  if (binState.eve) start.setDate(start.getDate() + 1);
+  const title = binState.binsText ? `${binState.label} (${binState.binsText})` : binState.label;
+  return [{
+    id: "bin-reminder",
+    title,
+    displayTitle: title,
+    rawTitle: title,
+    category: BIN_CATEGORY,
+    start,
+    end: start,
+    isAllDay: true
+  }];
+}
+
+/* ------------------------------------------------------------------
+   RENDER: UNIFIED TIMELINE
+   (replaces the former Today panel, Week-at-a-glance, Calendar month
+   grid and Agenda views with one chronological list)
+-------------------------------------------------------------------*/
+
+function dayDiff(date) {
   const now = new Date();
-  return date && date.toDateString() === now.toDateString();
+  const a = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const b = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  return Math.round((b - a) / 86400000);
 }
 
-function getTodayEvents(events) {
-  return events.filter(ev => ev.start && isToday(ev.start));
+function bucketLabel(diff) {
+  if (diff < 0) return null;
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  if (diff <= 6) return "This Week";
+  return "Later";
 }
 
-function getNext7DaysEvents(events) {
-  const today = new Date();
-  const days = [];
-
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    days.push(d);
-  }
-
-  return days.map(day => ({
-    date: day,
-    events: events.filter(
-      ev => ev.start && ev.start.toDateString() === day.toDateString()
-    )
-  }));
-}
-
-/* ------------------------------------------------------------------
-   RENDER: TODAY PANEL
--------------------------------------------------------------------*/
-
-function renderToday(events) {
-  const container = document.getElementById("today-list");
+function renderTimeline(events) {
+  const container = document.getElementById("timeline-list");
+  const todayLabel = document.getElementById("timeline-today-label");
   if (!container) {
-    console.warn("Calendar UI missing #today-list");
+    console.warn("Calendar UI missing #timeline-list");
     return;
   }
-
-  container.innerHTML = "";
-
-  if (!events || events.length === 0) {
-    container.innerHTML = `<div class="today-empty">Nothing scheduled</div>`;
-    return;
-  }
-
-  const allDay = events.filter(isAllDay);
-  const timed = events.filter(ev => !isAllDay(ev));
-
-  allDay.forEach(ev => {
-    const div = document.createElement("div");
-    div.className = "today-all-day";
-    applyEventCategoryStyles(div, ev.category, "line");
-    appendEventTitle(div, ev);
-    container.appendChild(div);
-  });
-
-  if (allDay.length && timed.length) {
-    container.appendChild(document.createElement("br"));
-  }
-
-  timed.forEach(ev => {
-    const div = document.createElement("div");
-    div.className = "today-event";
-    div.append(document.createTextNode(`${format.time(ev.start)} – `));
-    applyEventCategoryStyles(div, ev.category, "line");
-    appendEventTitle(div, ev);
-    container.appendChild(div);
-  });
-}
-
-/* ------------------------------------------------------------------
-   RENDER: WEEK PANEL (with weather icon placeholders)
--------------------------------------------------------------------*/
-
-function renderWeek(days) {
-  const container = document.getElementById("weekly-list");
-  if (!container) {
-    console.warn("Calendar UI missing #weekly-list");
-    return;
-  }
-
-  container.innerHTML = "";
-
-  (days || []).forEach(({ date, events }, index) => {
-    const dayDiv = document.createElement("div");
-    dayDiv.className = "week-day-block";
-
-    // Weather icon placeholder for this day
-    const iconDiv = document.createElement("div");
-    iconDiv.className = "week-weather-icon";
-    iconDiv.id = `week-icon-${index}`;
-    dayDiv.appendChild(iconDiv);
-
-    const isTodayFlag = isToday(date);
-    const dayName = format.dayName(date);
-
-    const header = document.createElement("div");
-    header.className = "week-day" + (isTodayFlag ? " week-today" : "");
-    header.textContent = dayName;
-    dayDiv.appendChild(header);
-
-    if (!events || events.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "week-empty";
-      empty.textContent = "No events";
-      dayDiv.appendChild(empty);
-    } else {
-      const allDay = events.filter(isAllDay);
-      const timed = events.filter(ev => !isAllDay(ev)).sort(
-        (a, b) => a.start - b.start
-      );
-      const maxEvents = 2;
-      const entries = [...allDay, ...timed].slice(0, maxEvents);
-
-      entries.forEach(ev => {
-        const div = document.createElement("div");
-        if (isAllDay(ev)) {
-          div.className = "week-all-day";
-          applyEventCategoryStyles(div, ev.category, "line");
-          appendEventTitle(div, ev);
-        } else {
-          div.className = "week-event";
-          div.append(document.createTextNode(`${format.time(ev.start)} – `));
-          applyEventCategoryStyles(div, ev.category, "line");
-          appendEventTitle(div, ev);
-        }
-
-        dayDiv.appendChild(div);
-      });
-    }
-
-    container.appendChild(dayDiv);
-  });
-
-  emit("calendar:weekRendered");
-}
-
-/* ------------------------------------------------------------------
-   RENDER: MONTH VIEW (CALENDAR PAGE)
--------------------------------------------------------------------*/
-
-function renderMonth(events, selectedDate = new Date()) {
-  const grid = document.getElementById("calendar-month-grid");
-  const title = document.getElementById("calendar-month-title");
-  const todayLabel = document.getElementById("calendar-today-label");
-
-  if (!grid || !title) {
-    if (!grid) console.warn("Calendar UI missing #calendar-month-grid");
-    if (!title) console.warn("Calendar UI missing #calendar-month-title");
-    return;
-  }
-
-  const viewDate = selectedDate instanceof Date ? new Date(selectedDate) : new Date();
-  const today = new Date();
-  const year = viewDate.getFullYear();
-  const month = viewDate.getMonth();
-
-  title.textContent = viewDate.toLocaleDateString("en-AU", {
-    month: "long",
-    year: "numeric"
-  });
 
   if (todayLabel) {
-    todayLabel.textContent = format.date(today);
-  }
-
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const startIndex = firstDay.getDay();
-  const totalCells = Math.ceil((startIndex + lastDay.getDate()) / 7) * 7;
-  grid.style.setProperty("--calendar-rows", String(totalCells / 7));
-  const eventsByDay = new Map();
-
-  (events || []).forEach(ev => {
-    if (!ev.start) return;
-    const start = new Date(ev.start);
-    if (start.getFullYear() !== year || start.getMonth() !== month) return;
-    const key = `${start.getFullYear()}-${start.getMonth()}-${start.getDate()}`;
-    if (!eventsByDay.has(key)) eventsByDay.set(key, []);
-    eventsByDay.get(key).push(ev);
-  });
-
-  grid.innerHTML = "";
-
-  for (let i = 0; i < totalCells; i++) {
-    const dayNumber = i - startIndex + 1;
-    const cell = document.createElement("div");
-    cell.className = "calendar-day";
-
-    if (dayNumber < 1 || dayNumber > lastDay.getDate()) {
-      cell.classList.add("calendar-day--outside");
-      grid.appendChild(cell);
-      continue;
-    }
-
-    const cellDate = new Date(year, month, dayNumber);
-    const key = `${year}-${month}-${dayNumber}`;
-    const dayEvents = (eventsByDay.get(key) || []).slice().sort((a, b) => a.start - b.start);
-    const allDayEvents = dayEvents.filter(ev => isAllDay(ev));
-    const timedEvents = dayEvents.filter(ev => !isAllDay(ev));
-
-    if (isToday(cellDate)) {
-      cell.classList.add("calendar-today");
-    }
-
-    const dateEl = document.createElement("div");
-    dateEl.className = "calendar-date";
-    const dateBadge = document.createElement("span");
-    dateBadge.textContent = dayNumber;
-    dateEl.appendChild(dateBadge);
-    cell.appendChild(dateEl);
-
-    const maxAllDay = 2;
-    if (allDayEvents.length) {
-      const allDayStrip = document.createElement("div");
-      allDayStrip.className = "day-allday-strip";
-
-      allDayEvents.slice(0, maxAllDay).forEach(ev => {
-        const banner = document.createElement("div");
-        const pos = ev.spanPosition === "start" ? "cont-start" : ev.spanPosition === "end" ? "cont-end" : ev.spanPosition === "mid" ? "cont-mid" : "cont-single";
-        banner.className = `allday-banner ${pos}`;
-        if (ev.source === "holidays") banner.classList.add("allday-banner--holiday");
-
-        if (ev.source === "holidays") {
-          const holidayIcon = document.createElement("span");
-          holidayIcon.className = "event-icon";
-          holidayIcon.textContent = "🎉";
-          banner.appendChild(holidayIcon);
-        }
-        appendEventTitle(banner, ev);
-        allDayStrip.appendChild(banner);
-      });
-
-      if (allDayEvents.length > maxAllDay) {
-        const overflow = document.createElement("div");
-        overflow.className = "allday-more";
-        overflow.textContent = `+${allDayEvents.length - maxAllDay} more`;
-        allDayStrip.appendChild(overflow);
-      }
-
-      cell.appendChild(allDayStrip);
-    }
-
-    const timedWrap = document.createElement("div");
-    timedWrap.className = "day-timed-events";
-    const maxTimed = 2;
-    timedEvents.slice(0, maxTimed).forEach(ev => {
-      const eventEl = document.createElement("div");
-      eventEl.className = "calendar-event";
-      applyEventCategoryStyles(eventEl, ev.category, "pill");
-      eventEl.append(document.createTextNode(`${format.time(ev.start)} `));
-      appendEventTitle(eventEl, ev);
-      timedWrap.appendChild(eventEl);
-    });
-
-    if (timedEvents.length > maxTimed) {
-      const moreEl = document.createElement("div");
-      moreEl.className = "calendar-event calendar-event--more";
-      moreEl.textContent = `+${timedEvents.length - maxTimed} more`;
-      timedWrap.appendChild(moreEl);
-    }
-
-    cell.appendChild(timedWrap);
-    grid.appendChild(cell);
-  }
-}
-
-
-/* ------------------------------------------------------------------
-   RENDER: AGENDA VIEW
--------------------------------------------------------------------*/
-
-function renderAgenda(events) {
-  const container = document.getElementById("agenda-list");
-  const titleEl = document.getElementById("agenda-title");
-  const todayLabel = document.getElementById("agenda-today-label");
-
-  if (!container) {
-    console.warn("Calendar UI missing #agenda-list");
-    return;
-  }
-
-  const today = new Date();
-  const selectedDate = agendaState.explicitDate
-    ? new Date(agendaState.explicitDate)
-    : new Date(today);
-  if (!agendaState.explicitDate) {
-    selectedDate.setDate(selectedDate.getDate() + agendaState.dateOffsetDays);
-  }
-  const isTodaySelected = selectedDate.toDateString() === today.toDateString();
-
-  if (titleEl) {
-    titleEl.textContent = isTodaySelected ? "Today" : format.date(selectedDate);
-  }
-  if (todayLabel) {
-    todayLabel.textContent = format.dayName(selectedDate);
+    todayLabel.textContent = format.date(new Date());
   }
 
   container.innerHTML = "";
-  agendaFocusTargets = [];
 
-  const dayEvents = (events || [])
-    .filter(ev => ev.start && ev.start.toDateString() === selectedDate.toDateString())
-    .filter(ev => {
-      if (!agendaState.filterCategoryId) return true;
-      return ev.category?.id === agendaState.filterCategoryId;
-    })
+  const merged = [...(events || []), ...getBinPseudoEvents()];
+  const upcoming = merged
+    .filter(ev => ev.start && bucketLabel(dayDiff(ev.start)) !== null)
     .sort((a, b) => a.start - b.start);
 
-  if (!dayEvents.length) {
-    const empty = document.createElement("div");
-    empty.className = "agenda-empty";
-    empty.textContent = "No events scheduled";
-    container.appendChild(empty);
+  if (!upcoming.length) {
+    container.innerHTML = `<div class="timeline-empty">Nothing scheduled</div>`;
     return;
   }
 
-  const groupMap = new Map();
-  dayEvents.forEach(ev => {
-    const category = ev.category || DEFAULT_CATEGORY;
-    const categoryId = category.id || DEFAULT_CATEGORY.id;
-    if (!groupMap.has(categoryId)) {
-      groupMap.set(categoryId, {
-        category,
-        events: [],
-        earliest: ev.start ? ev.start.getTime() : Number.POSITIVE_INFINITY
-      });
-    }
-    const group = groupMap.get(categoryId);
-    group.events.push(ev);
-    if (ev.start) {
-      group.earliest = Math.min(group.earliest, ev.start.getTime());
-    }
+  const moments = computeTravelMoments(upcoming);
+  if (moments.length) {
+    const momentsBlock = document.createElement("div");
+    momentsBlock.className = "timeline-moments";
+    moments.forEach(moment => {
+      const line = document.createElement("div");
+      line.className = "timeline-moment";
+      line.textContent = `${moment.icon} ${moment.text}`;
+      momentsBlock.appendChild(line);
+    });
+    container.appendChild(momentsBlock);
+  }
+
+  const buckets = new Map();
+  upcoming.forEach(ev => {
+    const label = bucketLabel(dayDiff(ev.start));
+    if (!buckets.has(label)) buckets.set(label, []);
+    buckets.get(label).push(ev);
   });
 
-  const groups = Array.from(groupMap.values())
-    .map(group => ({
-      ...group,
-      events: group.events.slice().sort((a, b) => a.start - b.start)
-    }))
-    .sort((a, b) => a.earliest - b.earliest)
-    .slice(0, AGENDA_SECTION_LIMIT);
+  TIMELINE_BUCKETS.forEach(label => {
+    const items = buckets.get(label);
+    if (!items?.length) return;
 
-  groups.forEach(group => {
-    const section = document.createElement("div");
-    section.className = "agenda-section";
+    const group = document.createElement("div");
+    group.className = "timeline-group";
 
-    const header = document.createElement("div");
-    header.className = "agenda-section-header";
-
-    const sectionTitle = document.createElement("div");
-    sectionTitle.className = "agenda-section-title";
-    sectionTitle.textContent = `${group.category.icon} ${group.category.label}`;
-    header.appendChild(sectionTitle);
-
-    const sectionCount = document.createElement("div");
-    sectionCount.className = "agenda-section-count";
-    sectionCount.textContent = `${group.events.length} event${group.events.length === 1 ? "" : "s"}`;
-    header.appendChild(sectionCount);
-
-    section.appendChild(header);
+    const heading = document.createElement("div");
+    heading.className = "timeline-group-title";
+    heading.textContent = label;
+    group.appendChild(heading);
 
     const list = document.createElement("div");
-    list.className = "agenda-section-list";
+    list.className = "timeline-entries";
 
-    group.events.slice(0, AGENDA_EVENT_LIMIT).forEach(ev => {
+    items.forEach(ev => {
       const row = document.createElement("div");
-      row.className = "agenda-event";
-      applyEventCategoryStyles(row, group.category);
+      row.className = "timeline-entry";
+      applyEventCategoryStyles(row, ev.category);
 
       const icon = document.createElement("span");
-      icon.className = "agenda-event-icon";
-      icon.textContent = group.category.icon;
+      icon.className = "timeline-entry-icon";
+      icon.textContent = ev.category?.icon || DEFAULT_CATEGORY.icon;
 
       const title = document.createElement("span");
-      title.className = "agenda-event-title";
+      title.className = "timeline-entry-title";
       title.textContent = ev.displayTitle || ev.title || "(Untitled)";
 
       const time = document.createElement("span");
-      time.className = "agenda-event-time";
-      if (isAllDay(ev)) {
-        time.textContent = "All day";
-      } else if (ev.end && ev.end.getTime() !== ev.start.getTime()) {
-        time.textContent = `${format.time(ev.start)} – ${format.time(ev.end)}`;
+      time.className = "timeline-entry-time";
+      if (label === "Today" || label === "Tomorrow") {
+        time.textContent = isAllDay(ev) ? "All day" : format.time(ev.start);
       } else {
-        time.textContent = format.time(ev.start);
+        time.textContent = format.date(ev.start);
       }
 
       row.appendChild(icon);
       row.appendChild(title);
       row.appendChild(time);
       list.appendChild(row);
-      agendaFocusTargets.push(row);
     });
 
-    if (group.events.length > AGENDA_EVENT_LIMIT) {
-      const overflow = document.createElement("div");
-      overflow.className = "agenda-overflow";
-      overflow.textContent = `+${group.events.length - AGENDA_EVENT_LIMIT} more in ${group.category.label}`;
-      list.appendChild(overflow);
-    }
-
-    section.appendChild(list);
-    container.appendChild(section);
+    group.appendChild(list);
+    container.appendChild(group);
   });
-
-  agendaFocusTargets.forEach(target =>
-    target.classList.remove("agenda-event--focused")
-  );
-  if (agendaFocusTargets.length) {
-    agendaState.focusIndex = Math.min(agendaState.focusIndex, agendaFocusTargets.length - 1);
-    const active = agendaFocusTargets[agendaState.focusIndex];
-    if (active) active.classList.add("agenda-event--focused");
-  }
 }
+

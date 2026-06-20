@@ -39,6 +39,7 @@
             <div id="commute-greg"></div>
             <div id="commute-brett"></div>
           </div>
+          <div id="fuel-panel-list" class="fuel-panel-list--inline"></div>
         </div>
       </div>
 
@@ -74,17 +75,17 @@
     </div>
   </header>
 
+  <!-- HOME HERO: Focus Engine output -->
+  <section id="focus-hero" class="focus-hero is-hidden">
+    <span id="focus-hero-icon" class="focus-hero__icon"></span>
+    <span id="focus-hero-text" class="focus-hero__text"></span>
+  </section>
+
   <!-- ROW 2–4 GRID -->
   <div class="home-view">
     <main id="main-grid">
 
-    <!-- ROW 2: Today | To-Do | Shopping -->
-    <section id="today-panel" class="panel">
-      <h2 class="panel-title">Today</h2>
-      <div id="today-date"></div>
-      <ul id="today-list"></ul>
-    </section>
-
+    <!-- ROW 1: To-Do -->
     <section id="reminders-panel" class="panel">
       <h2 class="panel-title">To-Do List</h2>
       <div class="todo-table">
@@ -96,12 +97,7 @@
       </div>
     </section>
 
-    <section id="fuel-panel" class="panel">
-      <h2 class="panel-title">Fuel Prices</h2>
-      <div id="fuel-panel-list"></div>
-    </section>
-
-    <!-- ROW 3: Server | Media 1 | Media 2 -->
+    <!-- ROW 2: Server | Media 1 | Media 2 -->
     <section id="server-status-panel" class="panel is-hidden is-collapsed">
       <h2 class="panel-title">Now Playing:</h2>
       <div id="server-status-list"></div>
@@ -143,52 +139,21 @@
       <span id="arr-summary-text"></span>
     </div>
 
-
-    <!-- ROW 4: Week at a glance (full width) -->
-    <section id="timeline-panel" class="panel">
-      <h2 class="panel-title">Week at a glance</h2>
-      <div id="week-range"></div>
-      <ul id="weekly-list"></ul>
-    </section>
-
     <div id="camera-last-trigger-pill" class="camera-last-trigger-pill hidden" aria-live="polite"></div>
     </main>
   </div>
 
-  <!-- CALENDAR VIEW -->
-  <main id="calendar-view" class="calendar-view">
-    <section class="panel calendar-panel">
-      <div class="calendar-header view-header">
+  <!-- TIMELINE VIEW (merges Today / Week / Calendar / Agenda / Bins) -->
+  <main id="timeline-view" class="timeline-view">
+    <section class="panel timeline-panel">
+      <div class="timeline-header view-header">
         <div class="view-header__title-group">
-          <div id="calendar-month-title" class="view-header__title"></div>
-          <div id="calendar-today-label" class="view-header__meta"></div>
+          <div class="view-header__title">Timeline</div>
+          <div id="timeline-today-label" class="view-header__meta"></div>
         </div>
-        <div class="calendar-header-subtitle view-header__eyebrow">Family Calendar</div>
+        <div class="timeline-header-subtitle view-header__eyebrow">What's coming up</div>
       </div>
-      <div class="calendar-weekdays">
-        <div>S</div>
-        <div>M</div>
-        <div>T</div>
-        <div>W</div>
-        <div>T</div>
-        <div>F</div>
-        <div>S</div>
-      </div>
-      <div id="calendar-month-grid" class="calendar-month-grid"></div>
-    </section>
-  </main>
-
-  <!-- AGENDA VIEW -->
-  <main id="agenda-view" class="agenda-view">
-    <section class="panel agenda-panel">
-      <div class="agenda-header view-header">
-        <div class="view-header__title-group">
-          <div id="agenda-title" class="view-header__title">Today</div>
-          <div id="agenda-today-label" class="view-header__meta"></div>
-        </div>
-        <div class="agenda-header-subtitle view-header__eyebrow">Agenda</div>
-      </div>
-      <div id="agenda-list" class="agenda-list"></div>
+      <div id="timeline-list" class="timeline-list"></div>
     </section>
   </main>
 
@@ -613,14 +578,6 @@
       </div>
     </div>
   </section>
-
-  <!-- News ticker -->
-  <div id="news-ticker">
-    <div id="news-ticker-label">ABC</div>
-    <div id="news-ticker-track">
-      <div id="news-ticker-content"></div>
-    </div>
-  </div>
 
   <!-- Main entry point (imports everything else) -->
     <!-- Config (feature flags etc) -->
