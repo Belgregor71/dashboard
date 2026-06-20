@@ -19,10 +19,9 @@
 
 /* ── MORNING  05:00–09:00 ───────────────────────────────────
    Focus: Today panel (agenda) and Weather (top bar).
-   De-emphasise: media, to-do, shopping.
+   De-emphasise: media, shopping.
    ─────────────────────────────────────────────────────────── */
 
-body[data-time-context="morning"] #reminders-panel,
 body[data-time-context="morning"] #shopping-panel {
   filter: brightness(0.72) saturate(0.75);
 }
@@ -55,17 +54,12 @@ body[data-time-context="evening"] #shopping-panel {
   filter: brightness(1.05);
 }
 
-body[data-time-context="evening"] #reminders-panel {
-  filter: brightness(0.70) saturate(0.72);
-}
-
 /* ── NIGHT  21:00–05:00 ─────────────────────────────────────
    Focus: Today (any overnight notes), Timeline (tomorrow at a glance).
-   Heavy de-emphasis on to-do, shopping, and media.
+   Heavy de-emphasis on shopping and media.
    The screensaver will take over soon anyway.
    ─────────────────────────────────────────────────────────── */
 
-body[data-time-context="night"] #reminders-panel,
 body[data-time-context="night"] #shopping-panel {
   filter: brightness(0.52) saturate(0.50);
 }

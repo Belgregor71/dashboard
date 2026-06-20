@@ -53,33 +53,12 @@ function renderArrPanel(data) {
   });
 }
 
-function renderArrStrip(data) {
-  const strip = document.getElementById("arr-summary-strip");
-  const text = document.getElementById("arr-summary-text");
-  if (!strip || !text) return;
-
-  if (!data?.active) {
-    strip.classList.add("hidden");
-    return;
-  }
-
-  const counts = [
-    `TV: ${safeArray(data.sonarr).length}`,
-    `Movies: ${safeArray(data.radarr).length}`,
-    `Music: ${safeArray(data.lidarr).length}`
-  ];
-
-  text.textContent = `Active Downloads — ${counts.join(" • ")}`;
-  strip.classList.remove("hidden");
-}
-
 async function loadArrData() {
   try {
     const response = await fetch("/api/arr/summary", { cache: "no-store" });
     if (!response.ok) return;
     const data = await response.json();
     renderArrPanel(data);
-    renderArrStrip(data);
   } catch (err) {
     console.error("ARR load error", err);
   }

@@ -125,12 +125,6 @@ function readNowPlayingLine() {
   return null;
 }
 
-function readDownloadsLine() {
-  const strip = document.getElementById("arr-summary-strip");
-  if (!strip || strip.classList.contains("hidden")) return null;
-  return document.getElementById("arr-summary-text")?.textContent?.trim() || null;
-}
-
 function formatRelativeTime(timestamp) {
   const deltaMs = Date.now() - timestamp;
   const minutes = Math.round(deltaMs / 60000);
@@ -164,8 +158,7 @@ function updateInfo() {
     readLastMotionLine(),
     readCommuteLine(),
     readNextEventLine(),
-    readNowPlayingLine(),
-    readDownloadsLine()
+    readNowPlayingLine()
   ].filter(Boolean).slice(0, 3);
 
   infoEl.innerHTML = lines.map(line => `<div class="screensaver__info-line">${line}</div>`).join("");

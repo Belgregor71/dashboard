@@ -191,6 +191,15 @@ const BIN_CATEGORY = {
   text: "#F8FAFC"
 };
 let binState = null;
+const TODO_CATEGORY = {
+  id: "todo",
+  label: "To-Do",
+  icon: "✅",
+  accent: "#94A3B8",
+  bg: "rgba(148, 163, 184, 0.12)",
+  text: "#F8FAFC"
+};
+let todoEvents = [];
 const calendarState = {
   focusedEventId: null,
   eventsCache: [],
@@ -418,6 +427,11 @@ on("calendar:close-details", () => closeDetailsPopover());
 
 on("timeline:scroll", ({ label } = {}) => {
   if (label) scrollTimelineToGroup(label);
+});
+
+on("todos:updated", events => {
+  todoEvents = Array.isArray(events) ? events : [];
+  renderTimeline(applyCalendarFilters(calendarState.eventsCache));
 });
 
 on("bins:updated", data => {
@@ -737,6 +751,24 @@ function getBinPseudoEvents() {
 }
 
 /* ------------------------------------------------------------------
+   TO-DO PSEUDO-EVENTS (only due-dated items — undated todos have no
+   time-relevant place in a chronological timeline)
+-------------------------------------------------------------------*/
+
+function getTodoPseudoEvents() {
+  return todoEvents.map(ev => ({
+    id: `todo:${ev.title}:${ev.start}`,
+    title: ev.title,
+    displayTitle: ev.title,
+    rawTitle: ev.title,
+    category: TODO_CATEGORY,
+    start: ev.start,
+    end: ev.start,
+    isAllDay: true
+  }));
+}
+
+/* ------------------------------------------------------------------
    RENDER: UNIFIED TIMELINE
    (replaces the former Today panel, Week-at-a-glance, Calendar month
    grid and Agenda views with one chronological list)
@@ -771,7 +803,7 @@ function renderTimeline(events) {
 
   container.innerHTML = "";
 
-  const merged = [...(events || []), ...getBinPseudoEvents()];
+  const merged = [...(events || []), ...getBinPseudoEvents(), ...getTodoPseudoEvents()];
   const upcoming = merged
     .filter(ev => ev.start && bucketLabel(dayDiff(ev.start)) !== null)
     .sort((a, b) => a.start - b.start);

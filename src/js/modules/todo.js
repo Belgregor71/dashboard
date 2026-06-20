@@ -1,9 +1,9 @@
 import { CONFIG } from "../core/config.js";
+import { emit } from "../core/eventBus.js";
 import { getEntity } from "../services/homeAssistant/state.js";
 import { getTodoEntityIds } from "../services/homeAssistant/todoEntities.js";
 
 const SHOPPING_ENTITY_ID = CONFIG.homeAssistant?.shoppingListEntityId ?? "todo.shopping_list";
-const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 function normalizeItems(entity) {
   const items = entity?.attributes?.items ?? entity?.attributes?.all_items ?? [];
@@ -26,43 +26,6 @@ function parseDueDate(item) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function startOfDay(date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function formatDaysLeft(item) {
-  const dueDate = parseDueDate(item);
-  if (!dueDate) return "—";
-
-  const today = startOfDay(new Date());
-  const dueDay = startOfDay(dueDate);
-  const diffDays = Math.round((dueDay - today) / MS_PER_DAY);
-
-  if (diffDays < 0) return "Overdue";
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "1 day";
-  return `${diffDays} days`;
-}
-
-function buildTodoRow(task, daysLeft, isEmpty = false) {
-  const row = document.createElement("div");
-  row.className = `todo-row${isEmpty ? " todo-row--empty" : ""}`;
-
-  const taskSpan = document.createElement("span");
-  taskSpan.textContent = task;
-
-  const daysSpan = document.createElement("span");
-  daysSpan.textContent = daysLeft;
-
-  row.appendChild(taskSpan);
-  row.appendChild(daysSpan);
-  return row;
-}
-
-function resolveListLabel(entityId) {
-  return entityId?.split(".")[1]?.replace(/_/g, " ") ?? "list";
-}
-
 function normalizeTodoItems(todoEntityIds) {
   return todoEntityIds.flatMap((entityId) => {
     const entity = getEntity(entityId);
@@ -74,36 +37,15 @@ function normalizeTodoItems(todoEntityIds) {
 }
 
 function renderTodoList() {
-  const listEl = document.getElementById("reminders-list");
-  if (!listEl) return;
-
   const todoEntityIds = getTodoEntityIds();
   const items = normalizeTodoItems(todoEntityIds).filter(item => !isCompleted(item));
 
-  listEl.innerHTML = "";
+  const dueEvents = items
+    .map(item => ({ title: resolveSummary(item), start: parseDueDate(item) }))
+    .filter(ev => ev.start)
+    .map(ev => ({ ...ev, isAllDay: true }));
 
-  if (!items.length) {
-    listEl.appendChild(buildTodoRow("No tasks", "—", true));
-    return;
-  }
-
-  const sorted = [...items].sort((a, b) => {
-    const dueA = parseDueDate(a);
-    const dueB = parseDueDate(b);
-
-    if (dueA && dueB) return dueA - dueB;
-    if (dueA) return -1;
-    if (dueB) return 1;
-    return resolveSummary(a).localeCompare(resolveSummary(b));
-  });
-
-  const showListLabel = todoEntityIds.length > 1;
-  sorted.forEach(item => {
-    const label = showListLabel
-      ? `${resolveSummary(item)} (${resolveListLabel(item.__entityId)})`
-      : resolveSummary(item);
-    listEl.appendChild(buildTodoRow(label, formatDaysLeft(item)));
-  });
+  emit("todos:updated", dueEvents);
 }
 
 function renderShoppingList() {
