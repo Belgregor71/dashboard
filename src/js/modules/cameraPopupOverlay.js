@@ -1,6 +1,6 @@
 import { CONFIG } from "../core/config.js";
 import { on } from "../core/eventBus.js";
-import { switchView } from "../core/viewManager.js";
+import { switchView, getCurrentView } from "../core/viewManager.js";
 import { wakeScreensaver, resetIdleTimer } from "./screensaver.js";
 
 
@@ -263,7 +263,9 @@ export function initCameraPopupOverlay() {
 
     wakeScreensaver();
     resetIdleTimer();
-    if (!options.skipViewSwitch) switchView("home");
+    // Don't fight the doorbell/gate alert's switchView("cameras") - the popup
+    // overlay renders fine over the cameras view too.
+    if (getCurrentView() !== "cameras") switchView("home");
 
     titleEl.textContent = title;
     badgeEl.textContent = `${detection} detected`;
@@ -390,7 +392,7 @@ export function initCameraPopupOverlay() {
         detection: pending.detection,
         duration: pending.duration
       },
-      { priority: pending.priority, skipViewSwitch: true }
+      { priority: pending.priority }
     );
 
     activeSnapshotTimestamp = Date.now();
