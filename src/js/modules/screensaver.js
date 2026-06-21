@@ -5,9 +5,21 @@ const IDLE_MS    = 5 * 60 * 1000;  // 5 min of no motion → engage
 const PHOTO_MS   = 30 * 1000;       // rotate photo every 30s
 const INFO_MS    = 15 * 1000;       // refresh ambient info lines every 15s
 const MOTION_RECENT_MS = 30 * 60 * 1000; // "last motion" line only while fresh
+const DRIFT_MS   = 4 * 60 * 1000;   // reposition every 4 min — gentle OLED/burn-in protection
+
+// Small, slow transform-only offsets (GPU-cheap) — kept modest so the
+// content never drifts close to the screen edges.
+const DRIFT_OFFSETS = [
+  { x: 0, y: 0 },
+  { x: 4, y: -3 },
+  { x: -4, y: 3 },
+  { x: 3, y: 3 },
+  { x: -3, y: -4 }
+];
 
 let el          = null;
 let photoEl     = null;
+let contentEl   = null;
 let timeEl      = null;
 let datelineEl  = null;
 let infoEl      = null;
@@ -17,6 +29,8 @@ let idleTimer   = null;
 let photoTimer  = null;
 let infoTimer   = null;
 let clockTimer  = null;
+let driftTimer  = null;
+let driftIndex  = 0;
 let active      = false;
 let photos      = [];
 
@@ -41,6 +55,7 @@ function build() {
   `;
   document.body.appendChild(el);
   photoEl    = el.querySelector(".screensaver__photo");
+  contentEl  = el.querySelector(".screensaver__content");
   timeEl     = el.querySelector(".screensaver__time");
   datelineEl = el.querySelector(".screensaver__dateline");
   infoEl     = el.querySelector(".screensaver__info");
@@ -167,6 +182,15 @@ function updateInfo() {
   footerEl.textContent = footer || "";
 }
 
+// ─── Content drift (burn-in protection) ────────────────────────
+
+function applyDrift() {
+  if (!contentEl) return;
+  driftIndex = (driftIndex + 1) % DRIFT_OFFSETS.length;
+  const { x, y } = DRIFT_OFFSETS[driftIndex];
+  contentEl.style.transform = `translate(${x}vw, ${y}vh)`;
+}
+
 // ─── Photo rotation ───────────────────────────────────────────
 
 function showNextPhoto() {
@@ -200,6 +224,9 @@ function enter() {
 
   el.dataset.mode = photos.length > 0 ? "photo" : "minimal";
 
+  driftIndex = 0;
+  if (contentEl) contentEl.style.transform = "translate(0, 0)";
+
   tickClock();
   updateInfo();
   showNextPhoto();
@@ -209,6 +236,7 @@ function enter() {
 
   clockTimer = setInterval(tickClock, 1000);
   infoTimer  = setInterval(updateInfo, INFO_MS);
+  driftTimer = setInterval(applyDrift, DRIFT_MS);
   if (photos.length > 0) {
     photoTimer = setInterval(showNextPhoto, PHOTO_MS);
   }
@@ -221,9 +249,11 @@ function exit() {
   clearInterval(clockTimer);
   clearInterval(infoTimer);
   clearInterval(photoTimer);
+  clearInterval(driftTimer);
   clockTimer = null;
   infoTimer  = null;
   photoTimer = null;
+  driftTimer = null;
 
   el.classList.remove("is-active");
   document.body.classList.remove("screensaver-active");

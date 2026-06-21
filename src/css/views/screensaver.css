@@ -87,6 +87,10 @@
   color: #fff;
   padding: 2rem;
   user-select: none;
+  /* Gentle, slow reposition for OLED/burn-in protection — transform-only,
+     GPU-cheap. Offsets applied via JS (screensaver.js applyDrift). */
+  transition: transform 8s ease-in-out;
+  will-change: transform;
 }
 
 /* ── Clock ─────────────────────────────────────────────────── */
