@@ -1,6 +1,6 @@
 export const CAMERA_CONFIG = [
   {
-    id: "front_door",
+    id: "doorbell",
     name: "Front Door",
     entity: "camera.doorbell",
     cameraEntity: "camera.doorbell",

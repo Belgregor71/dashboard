@@ -75,7 +75,7 @@ export const CONFIG = {
       triggerCameraMap: [
         {
           entityId: "binary_sensor.doorbell_motion_detected",
-          camera: "front_door",
+          camera: "doorbell",
           title: "Front Door",
           detection: "Motion",
           priority: 100,
@@ -83,7 +83,7 @@ export const CONFIG = {
         },
         {
           entityId: "binary_sensor.doorbell_person_detected",
-          camera: "front_door",
+          camera: "doorbell",
           title: "Front Door",
           detection: "Person",
           priority: 100,
@@ -91,7 +91,7 @@ export const CONFIG = {
         },
         {
           entityId: "binary_sensor.doorbell_ringing",
-          camera: "front_door",
+          camera: "doorbell",
           title: "Front Door",
           detection: "Doorbell",
           priority: 100,
@@ -99,7 +99,7 @@ export const CONFIG = {
         },
         {
           entityId: "image.doorbell_event_image",
-          camera: "front_door",
+          camera: "doorbell",
           title: "Front Door",
           detection: "Event image",
           priority: 100,
