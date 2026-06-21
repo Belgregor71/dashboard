@@ -263,7 +263,7 @@ export function initCameraPopupOverlay() {
 
     wakeScreensaver();
     resetIdleTimer();
-    switchView("home");
+    if (!options.skipViewSwitch) switchView("home");
 
     titleEl.textContent = title;
     badgeEl.textContent = `${detection} detected`;
@@ -390,7 +390,7 @@ export function initCameraPopupOverlay() {
         detection: pending.detection,
         duration: pending.duration
       },
-      { priority: pending.priority }
+      { priority: pending.priority, skipViewSwitch: true }
     );
 
     activeSnapshotTimestamp = Date.now();
