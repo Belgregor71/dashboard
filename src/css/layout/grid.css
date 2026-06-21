@@ -7,7 +7,8 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  align-content: stretch;
+  align-content: start;
+  align-items: start;
 }
 
 @media (max-height: 820px) {
