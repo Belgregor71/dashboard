@@ -22,7 +22,8 @@ import {
   getBomForecastBundle,
   getBomHourlySeries,
   getBomRelatedEntityIds,
-  getBomWarnings
+  getBomWarnings,
+  normalizeUvCategory
 } from "./bom.js";
 
 let activeLotties = [];
@@ -711,6 +712,13 @@ function formatNextRainMeta(deltaMs, amount) {
   return `in ${hours}h ${remMins}m • ${amount.toFixed(1)}mm`;
 }
 
+function formatFeelsDeltaMeta(apparent, actual) {
+  if (apparent == null || actual == null) return "";
+  const delta = Math.round(apparent - actual);
+  if (delta === 0) return "Same as actual";
+  return delta > 0 ? `${delta}° warmer than actual` : `${Math.abs(delta)}° cooler than actual`;
+}
+
 function normalizeUvDial(index, category) {
   const uvIndex = Number.isFinite(index) ? Math.max(0, Math.round(index)) : null;
   const maxDial = 12;
@@ -730,10 +738,21 @@ function renderBomPanels() {
   const hourlySlice = getNextHourlySlice(hourly, hourlyIndex, 12);
   const humidity = hourlyIndex != null ? hourly?.relativehumidity_2m?.[hourlyIndex] : null;
   const apparent = hourlyIndex != null ? hourly?.apparent_temperature?.[hourlyIndex] : null;
+  const dewPoint = hourlyIndex != null ? hourly?.dewpoint_2m?.[hourlyIndex] : null;
+  const actualTemp = cachedWeather?.current_weather?.temperature ?? null;
   const rainfallSeries = (bomHourly.length ? bomHourly : hourlySlice.map((row) => ({
     value: Number.isFinite(row.precipMm) ? row.precipMm : 0,
     label: formatHourLabel(row.time)
   })));
+
+  // UV from BOM/HA is optional — fall back to Open-Meteo's hourly uv_index
+  // (already fetched for the narrative/background logic) so the card isn't
+  // dependent on a Home Assistant BOM sensor being configured.
+  const uvIndexFallback = hourlyIndex != null ? hourly?.uv_index?.[hourlyIndex] : null;
+  const uvMaxIndex = todayBundle.uvMaxIndex ?? uvIndexFallback;
+  const uvCategory = todayBundle.uvMaxIndex != null
+    ? todayBundle.uvCategory
+    : normalizeUvCategory(null, uvIndexFallback);
 
   if (BOM_DEBUG) {
     bomLog("resolved BOM ids", {
@@ -752,13 +771,15 @@ function renderBomPanels() {
   const summaryHash = JSON.stringify({
     warning: warnings.summary,
     fire: todayBundle.fireDanger,
-    uv: todayBundle.uvMaxIndex,
-    uvCategory: todayBundle.uvCategory,
+    uv: uvMaxIndex,
+    uvCategory,
     rainChance: todayBundle.rainChance,
     rainRange: todayBundle.rainRange,
     rainfall: rainfallSeries.map((item) => item.value),
     humidity,
-    apparent
+    apparent,
+    dewPoint,
+    actualTemp
   });
 
   if (summaryHash === lastBomRenderHash) return;
@@ -779,20 +800,20 @@ function renderBomPanels() {
   const nextRainMeta = document.getElementById("weather-next-rain-meta");
   const nextRainSpark = document.getElementById("weather-next-rain-spark");
 
-  const uvDialData = normalizeUvDial(todayBundle.uvMaxIndex, todayBundle.uvCategory);
+  const uvDialData = normalizeUvDial(uvMaxIndex, uvCategory);
   if (uvDial) uvDial.style.setProperty("--uv-deg", `${uvDialData.degrees}deg`);
   setTextIfChanged(uvValue, uvDialData.uvIndex != null ? `${uvDialData.uvIndex}` : "--");
   setTextIfChanged(uvMeta, uvDialData.label);
 
   setTextIfChanged(rainCard, todayBundle.rainChance != null ? `${Math.round(todayBundle.rainChance)}% chance` : "--");
-  setTextIfChanged(rainMeta, "");
+  setTextIfChanged(rainMeta, todayBundle.rainRange || "");
   renderBarSparkline(rainSpark, rainfallSeries, 36);
 
   setTextIfChanged(humidityLarge, humidity != null ? `${Math.round(humidity)}%` : "--");
-  setTextIfChanged(humidityMeta, "");
+  setTextIfChanged(humidityMeta, dewPoint != null ? `Dew point ${Math.round(dewPoint)}°` : "");
 
   setTextIfChanged(feelsLarge, apparent != null ? `${Math.round(apparent)}°` : "--");
-  setTextIfChanged(feelsMeta, "");
+  setTextIfChanged(feelsMeta, formatFeelsDeltaMeta(apparent, actualTemp));
   renderLineSparkline(feelsSpark, hourlySlice.map((row) => row.apparent));
 
   const nextRainIndex = rainfallSeries.findIndex((item) => item.value > 0.1);

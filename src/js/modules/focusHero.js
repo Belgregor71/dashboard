@@ -1,4 +1,6 @@
 import { computeFocus } from "../services/focusEngine.js";
+import { getBomWarnings } from "../services/weather/bom.js";
+import { getAllEntities } from "../services/homeAssistant/state.js";
 
 const TICK_MS = 30_000;
 const CONCIERGE_MIN_INTERVAL_MS = 20 * 60 * 1000;
@@ -13,6 +15,7 @@ function isPanelActive(panelId) {
 
 function readState() {
   return {
+    bomWarning: getBomWarnings(getAllEntities()).summary || null,
     weatherCondition: document.getElementById("current-conditions")?.textContent?.trim() || "",
     weatherTemp: document.getElementById("current-temp")?.textContent?.trim() || "",
     commuteActive: isPanelActive("commute-panel"),

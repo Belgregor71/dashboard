@@ -20,6 +20,7 @@ import { initFocusHero } from "../modules/focusHero.js";
 
 import { refreshCalendar } from "../modules/calendar.js";
 import { startWeather } from "../services/weather/renderer.js";
+import { initWeatherRadar } from "../services/weather/radar.js";
 import { initMediaPanels } from "../modules/mediaPanels.js";
 import { initTodoPanels } from "../modules/todo.js";
 import { initPlexStatus } from "../modules/plexStatus.js";
@@ -98,6 +99,7 @@ export function startApp() {
     startWeather();
     const weatherMs = cfg.weather?.refreshMs ?? 10 * 60 * 1000;
     setInterval(startWeather, weatherMs);
+    initWeatherRadar();
   } else {
     console.info("Weather disabled");
   }

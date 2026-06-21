@@ -120,7 +120,7 @@ function normalizeRainRange(rainMin, rainMax, supplied) {
   return `${rainMin} mm`;
 }
 
-function normalizeUvCategory(rawCategory, uvMaxIndex) {
+export function normalizeUvCategory(rawCategory, uvMaxIndex) {
   if (rawCategory) return String(rawCategory);
   if (uvMaxIndex == null) return "";
   if (uvMaxIndex <= 2) return "Low";

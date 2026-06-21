@@ -195,11 +195,12 @@
   position: relative;
   height: 100%;
   display: grid;
-  grid-template-rows: auto auto auto 1fr;
-  gap: 18px;
-  padding: 28px 48px;
+  grid-template-rows: auto auto auto auto minmax(250px, 1fr);
+  gap: 12px;
+  padding: 18px 48px;
   z-index: 7;
   box-sizing: border-box;
+  overflow-y: auto;
 }
 
 .weather-hero {
@@ -266,21 +267,21 @@
 .weather-metrics {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 14px;
+  gap: 10px;
 }
 
 .metric-card {
-  border-radius: 22px;
-  padding: 14px 16px;
-  min-height: 116px;
+  border-radius: 18px;
+  padding: 10px 14px;
+  min-height: 84px;
   display: grid;
   grid-template-rows: auto auto auto 1fr;
   align-items: start;
-  row-gap: 4px;
+  row-gap: 2px;
 }
 
 .metric-label {
-  font-size: clamp(0.92rem, 1.08vw, 1.04rem);
+  font-size: clamp(0.8rem, 0.95vw, 0.92rem);
   letter-spacing: 0.12em;
   opacity: 0.7;
   text-transform: uppercase;
@@ -289,31 +290,31 @@
 .metric-value {
   font-family: var(--font-display);
   margin-top: 0;
-  font-size: clamp(2.1rem, 2.9vw, 3rem);
+  font-size: clamp(1.5rem, 2vw, 2.1rem);
   font-weight: 700;
 }
 
 .metric-meta {
   margin-top: 0;
   min-height: 1.2em;
-  font-size: clamp(0.92rem, 1.02vw, 1.02rem);
+  font-size: clamp(0.8rem, 0.88vw, 0.9rem);
   opacity: 0.75;
 }
 
 .metric-uv-dial {
-  margin-top: 8px;
+  margin-top: 4px;
   align-self: end;
-  width: 64px;
-  height: 64px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background: conic-gradient(rgba(255, 196, 90, 0.95) var(--uv-deg, 0deg), rgba(255, 255, 255, 0.14) 0deg);
   border: 2px solid rgba(255, 255, 255, 0.2);
 }
 
 .metric-spark {
-  margin-top: 10px;
+  margin-top: 4px;
   align-self: end;
-  height: 44px;
+  height: 28px;
   display: flex;
   align-items: flex-end;
   gap: 4px;
@@ -509,6 +510,65 @@
   height: 3px;
   background: rgba(120, 190, 255, 0.7);
   box-shadow: 0 0 10px rgba(120, 190, 255, 0.45);
+}
+
+.weather-radar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 16px 18px;
+  gap: 10px;
+}
+
+.weather-radar__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.weather-radar__title {
+  font-size: clamp(0.92rem, 1.08vw, 1.04rem);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.weather-radar__updated {
+  font-size: 0.85rem;
+  opacity: 0.6;
+}
+
+.weather-radar__grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 1px;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.weather-radar__cell {
+  position: relative;
+}
+
+.weather-radar__tile {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.weather-radar__tile--base {
+  filter: saturate(0.4) brightness(0.55);
+}
+
+.weather-radar__attribution {
+  font-size: 0.7rem;
+  opacity: 0.45;
+  text-align: right;
 }
 
 .wx-layer {

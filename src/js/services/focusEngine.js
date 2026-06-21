@@ -1,6 +1,7 @@
 const SEVERE_WEATHER_PATTERN = /storm|severe|warning|heavy rain|flood/i;
 
 export function computeFocus({
+  bomWarning,
   weatherCondition,
   weatherTemp,
   commuteActive,
@@ -8,6 +9,10 @@ export function computeFocus({
   nextEventActive,
   nextEventText
 } = {}) {
+  if (bomWarning) {
+    return { icon: "⚠️", text: bomWarning };
+  }
+
   if (weatherCondition && SEVERE_WEATHER_PATTERN.test(weatherCondition)) {
     return {
       icon: "⚠️",

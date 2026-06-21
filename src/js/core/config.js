@@ -4,7 +4,18 @@ const HA_DASH_CONFIG = DASH_CONFIG.homeAssistant ?? {};
 const DASH_WEATHER = DASH_CONFIG.weather ?? {};
 
 const DEFAULT_BOM_DAILY = {
-  5: { sourceEntityId: "" },
+  // dayIndex 0 (today, the only day the Weather view actually reads) maps to
+  // slot 5 — see DAY_SLOT_MAP in bom.js. This HA integration exposes each
+  // field as its own flat sensor entity (not attributes on one forecast
+  // entity), so each mapping below is a full entity id, read via state.
+  5: {
+    sourceEntityId: "",
+    tempMin: "sensor.nudgee_temp_min_0",
+    tempMax: "sensor.nudgee_temp_max_0",
+    uvCategory: "sensor.nudgee_uv_category_0",
+    uvMaxIndex: "sensor.nudgee_uv_max_index_0",
+    uvForecast: "sensor.nudgee_uv_forecast_0"
+  },
   6: { sourceEntityId: "" },
   7: { sourceEntityId: "" }
 };
@@ -21,8 +32,8 @@ export const CONFIG = {
   weather: {
     debugBom: ENV.WEATHER_DEBUG_BOM === "1",
     bom: {
-      locationName: "",
-      warningsEntityId: "",
+      locationName: "Nudgee",
+      warningsEntityId: "sensor.nudgee_warnings",
       hourlyEntityId: "",
       daily: DEFAULT_BOM_DAILY,
       ...DASH_BOM,
