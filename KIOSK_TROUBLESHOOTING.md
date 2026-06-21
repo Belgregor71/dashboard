@@ -59,3 +59,46 @@ If Home Assistant is enabled, set both values:
 HA_HOST=http://homeassistant.local:8123
 HA_TOKEN=your_long_lived_token
 ```
+
+## No audio (TTS plays in software but nothing comes out of the display)
+
+The Pi has three ALSA playback devices: the 3.5mm headphone jack (card 0) and two HDMI outputs (cards 1 and 2, one per HDMI port). `/etc/asound.conf` pins a single system-wide default card - if it points at the headphone jack while the display's speakers are on HDMI, every TTS/audio call succeeds in the browser (`audio.play()` resolves with no error) but nothing is audible, because it's playing into a jack with nothing plugged in.
+
+### Check what's actually connected
+
+```sh
+for f in /sys/class/drm/*HDMI*/status; do echo "$f:"; cat "$f"; done
+aplay -l   # lists card 0 (Headphones), card 1 (vc4hdmi0), card 2 (vc4hdmi1)
+```
+
+`HDMI-A-1` connected maps to ALSA card 1 (`vc4hdmi0`); `HDMI-A-2` maps to card 2.
+
+### Point the default device at the right HDMI output
+
+```sh
+sudo cp /etc/asound.conf /etc/asound.conf.bak
+echo 'defaults.pcm.card 1
+defaults.ctl.card 1' | sudo tee /etc/asound.conf
+```
+
+(Use `2` instead of `1` if the display is on the second HDMI port.)
+
+### Test before involving the browser at all
+
+```sh
+aplay -D default /path/to/any.wav
+```
+
+If that's silent, it's still a hardware/ALSA config issue, not the app. If it plays, restart the kiosk so Chromium reopens its audio device against the new default - it caches the device at browser launch, so just reloading the page isn't enough:
+
+```sh
+sudo systemctl restart dashboard-kiosk.service
+```
+
+### Volume
+
+```sh
+amixer -c 1 sset PCM 100%   # 100% is 0.00dB - the ceiling for this device, no further gain available
+```
+
+If it's still too quiet at 100%, the next lever is the display's own physical volume control, not the Pi.
