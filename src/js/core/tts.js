@@ -1,4 +1,4 @@
-let _voicesLoaded = false;
+let currentAudio = null;
 
 function ensureVoices() {
   return new Promise((resolve) => {
@@ -24,10 +24,10 @@ function pickVoice(voices) {
   return voices[0] ?? null;
 }
 
-export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0 } = {}) {
+// Fallback path — used only if the self-hosted Kokoro TTS endpoint is
+// unreachable, so voice features never go fully silent.
+async function speakWithBrowserTts(text, { rate, pitch, volume }) {
   if (!window.speechSynthesis || !text) return;
-
-  silence();
 
   const voices = await ensureVoices();
 
@@ -45,7 +45,42 @@ export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0 } = {
   });
 }
 
+export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0 } = {}) {
+  if (!text) return;
+
+  silence();
+
+  try {
+    const res = await fetch("/api/tts/speak", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, rate }),
+      signal: AbortSignal.timeout(15_000)
+    });
+    if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);
+
+    const blob = await res.blob();
+    const audio = new Audio(URL.createObjectURL(blob));
+    audio.volume = volume;
+    currentAudio = audio;
+
+    return new Promise((resolve) => {
+      audio.onended = resolve;
+      audio.onerror = resolve; // don't block callers on playback error
+      audio.play().catch(resolve);
+    });
+  } catch {
+    // Non-fatal — fall back to robotic browser TTS rather than going silent
+    return speakWithBrowserTts(text, { rate, pitch, volume });
+  }
+}
+
 export function silence() {
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+    currentAudio = null;
+  }
   if (window.speechSynthesis?.speaking || window.speechSynthesis?.pending) {
     window.speechSynthesis.cancel();
   }

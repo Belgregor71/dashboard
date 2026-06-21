@@ -26,6 +26,7 @@ import nrlRoutes from "./server/routes/nrl.js";
 import aiRoutes from "./server/routes/ai.js";
 import fuelRoutes from "./server/routes/fuel.js";
 import radarRoutes from "./server/routes/radar.js";
+import ttsRoutes from "./server/routes/tts.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -81,6 +82,7 @@ app.use(nrlRoutes);
 app.use(aiRoutes);
 app.use(fuelRoutes);
 app.use(radarRoutes);
+app.use(ttsRoutes);
 
 // Home Assistant image/camera proxy
 attachHaProxy(app);
