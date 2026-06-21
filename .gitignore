@@ -11,6 +11,7 @@ static/photos/
 CLAUDE_CODE_PROMPT.md
 server/package.json
 server/package-lock.json
+server/tts-cache/
 
 # Playwright MCP tool artifacts
 .playwright-mcp/
