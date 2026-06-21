@@ -60,16 +60,23 @@ export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0 } = {
     if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);
 
     const blob = await res.blob();
+    console.log(`[TEMP-DEBUG] TTS response ok, blob size=${blob.size} type=${blob.type}`); // TEMP DEBUG
     const audio = new Audio(URL.createObjectURL(blob));
     audio.volume = volume;
     currentAudio = audio;
 
     return new Promise((resolve) => {
       audio.onended = resolve;
-      audio.onerror = resolve; // don't block callers on playback error
-      audio.play().catch(resolve);
+      audio.onerror = (e) => { console.error("[TEMP-DEBUG] audio.onerror", audio.error?.code, audio.error?.message); resolve(e); }; // TEMP DEBUG
+      audio.play().then(() => {
+        console.log("[TEMP-DEBUG] audio.play() succeeded"); // TEMP DEBUG
+      }).catch((err) => {
+        console.error("[TEMP-DEBUG] audio.play() rejected:", err?.name, err?.message); // TEMP DEBUG
+        resolve();
+      });
     });
-  } catch {
+  } catch (err) {
+    console.error("[TEMP-DEBUG] speak() caught error, falling back to browser TTS:", err?.name, err?.message); // TEMP DEBUG
     // Non-fatal — fall back to robotic browser TTS rather than going silent
     return speakWithBrowserTts(text, { rate, pitch, volume });
   }
