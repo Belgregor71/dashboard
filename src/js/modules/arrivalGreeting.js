@@ -6,6 +6,7 @@ const DURATION_MS  = 15_000;           // how long the card stays visible
 const COOLDOWN_MS  = 10 * 60 * 1000;  // suppress re-greeting within 10 min
 
 const cooldowns = new Map(); // entityId → expiry timestamp
+const lastKnownState = new Map(); // entityId → last seen state
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -165,7 +166,14 @@ export function initArrivalGreeting() {
     const state    = String(entity?.state    ?? "");
 
     if (!entityId.startsWith("person.")) return;
+
+    // The initial HA snapshot dispatches an "ha:state-updated" for every
+    // entity, including people already home - that's not an arrival. Only
+    // greet on a genuine away->home transition observed during this session.
+    const previousState = lastKnownState.get(entityId);
+    lastKnownState.set(entityId, state);
     if (state !== "home") return;
+    if (previousState === undefined || previousState === "home") return;
 
     const now = Date.now();
     if ((cooldowns.get(entityId) ?? 0) > now) return;
