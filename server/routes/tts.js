@@ -20,7 +20,7 @@ router.post("/api/tts/speak", async (req, res) => {
         response_format: "wav",
         speed: Number.isFinite(rate) && rate > 0 ? rate : 1.0
       })
-    }, 15_000);
+    }, 30_000);
 
     if (!upstream.ok) throw new Error(`Kokoro HTTP ${upstream.status}`);
     res.set("Content-Type", "audio/wav");
