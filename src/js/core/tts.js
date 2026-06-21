@@ -55,7 +55,7 @@ export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0 } = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, rate }),
-      signal: AbortSignal.timeout(15_000)
+      signal: AbortSignal.timeout(30_000)
     });
     if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);
 

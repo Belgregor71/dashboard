@@ -156,10 +156,6 @@ class HaWsManager extends EventEmitter {
         const eventData = msg?.event?.data || {};
         if (eventType === "state_changed" && eventData?.new_state?.entity_id) {
           this.states.set(eventData.new_state.entity_id, eventData.new_state);
-          // TEMP DEBUG — remove after diagnosing doorbell/side_gate voice alert
-          if (/doorbell|side_gate/.test(eventData.new_state.entity_id)) {
-            console.log(`[TEMP-DEBUG] state_changed forwarded: ${eventData.new_state.entity_id} -> ${eventData.new_state.state} (listeners: ${this.listenerCount("event")})`);
-          }
         }
         this.emit("event", { eventType, data: eventData });
       }
