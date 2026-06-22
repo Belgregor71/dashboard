@@ -6,7 +6,7 @@ export const CAMERA_CONFIG = [
     cameraEntity: "camera.doorbell",
     mode: "snapshot",
     eventImageEntity: "image.doorbell_event_image",
-    preferredSnapshot: "eventImage",
+    preferredSnapshot: "cameraProxy",
     snapshotRefreshMs: 15000,
     pinnedHero: true
   },
@@ -17,7 +17,7 @@ export const CAMERA_CONFIG = [
     cameraEntity: "camera.front_yard",
     mode: "snapshot",
     eventImageEntity: "image.front_yard_event_image",
-    preferredSnapshot: "eventImage",
+    preferredSnapshot: "cameraProxy",
     snapshotRefreshMs: 15000
   },
   {
@@ -27,7 +27,7 @@ export const CAMERA_CONFIG = [
     cameraEntity: "camera.driveway",
     mode: "snapshot",
     eventImageEntity: "image.driveway_event_image",
-    preferredSnapshot: "eventImage",
+    preferredSnapshot: "cameraProxy",
     snapshotRefreshMs: 15000
   },
   {
@@ -37,7 +37,7 @@ export const CAMERA_CONFIG = [
     cameraEntity: "camera.backyard",
     mode: "snapshot",
     eventImageEntity: "image.backyard_event_image",
-    preferredSnapshot: "eventImage",
+    preferredSnapshot: "cameraProxy",
     snapshotRefreshMs: 15000
   },
   {
@@ -47,7 +47,7 @@ export const CAMERA_CONFIG = [
     cameraEntity: "camera.patio",
     mode: "snapshot",
     eventImageEntity: "image.patio_event_image",
-    preferredSnapshot: "eventImage",
+    preferredSnapshot: "cameraProxy",
     snapshotRefreshMs: 15000
   },
   {
@@ -57,7 +57,7 @@ export const CAMERA_CONFIG = [
     cameraEntity: "camera.side_gate",
     mode: "snapshot",
     eventImageEntity: "image.side_gate_event_image",
-    preferredSnapshot: "eventImage",
+    preferredSnapshot: "cameraProxy",
     snapshotRefreshMs: 15000
   },
   {
@@ -67,7 +67,7 @@ export const CAMERA_CONFIG = [
     cameraEntity: "camera.tilt_pan",
     mode: "snapshot",
     eventImageEntity: "image.tilt_pan_event_image",
-    preferredSnapshot: "eventImage",
+    preferredSnapshot: "cameraProxy",
     snapshotRefreshMs: 15000
   }
 ];

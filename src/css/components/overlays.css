@@ -235,8 +235,8 @@
 }
 
 .camera-popup-overlay__card {
-  width: min(1900px, 92vw);
-  height: min(86vh, 1200px);
+  width: min(950px, 46vw);
+  height: min(43vh, 600px);
   display: flex;
   flex-direction: column;
   border-radius: 22px;
