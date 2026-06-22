@@ -7,7 +7,11 @@ import { wakeScreensaver, resetIdleTimer } from "./screensaver.js";
 const DEFAULT_DURATION_SECONDS = 30;
 const DEFAULT_TRIGGER_STATES = ["on", "ringing", "detected", "motion"];
 const SNAPSHOT_DEBOUNCE_MS = 700;
-const PENDING_TRIGGER_WINDOW_MS = 8000;
+// Eufy's cloud upload of the event image can lag well behind the trigger
+// (observed: over a minute) - this window must outlast that lag, or the
+// dashboard discards the real image update and the popup is stuck on the
+// stale starting frame.
+const PENDING_TRIGGER_WINDOW_MS = 150000;
 const EVENT_IMAGE_FALLBACK_MS = 2500;
 const MOTION_REFRESH_DELAYS_MS = [700, 1500, 2500];
 
