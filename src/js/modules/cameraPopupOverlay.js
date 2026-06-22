@@ -23,7 +23,7 @@ function normalizeText(value, fallback) {
 }
 
 function buildSnapshotUrl(cameraKey) {
-  return `/api/camera/${encodeURIComponent(cameraKey)}/snapshot?source=cameraProxy&ts=${Date.now()}`;
+  return `/api/camera/${encodeURIComponent(cameraKey)}/snapshot?ts=${Date.now()}`;
 }
 
 function normalizeTriggerStates(config) {

@@ -80,14 +80,13 @@ function resolveLegacySnapshotSource(camera) {
   return { type: "legacySnapshot", url: buildHaUrl(camera.snapshotPath) };
 }
 
-function buildSnapshotSources(camera, preferredOverride) {
+function buildSnapshotSources(camera) {
   const sources = [];
   const eventSource = resolveEventImageSource(camera);
   const cameraSource = resolveCameraProxySource(camera);
   const legacySource = resolveLegacySnapshotSource(camera);
-  const preferred = preferredOverride || camera.preferredSnapshot;
 
-  if (preferred === "cameraProxy") {
+  if (camera.preferredSnapshot === "cameraProxy") {
     if (cameraSource) sources.push(cameraSource);
     if (eventSource) sources.push(eventSource);
   } else {
@@ -188,8 +187,8 @@ async function fetchHaImage(url, { timeoutMs = SNAPSHOT_TIMEOUT_MS } = {}) {
   );
 }
 
-async function fetchCameraSnapshot(camera, preferredOverride) {
-  const sources = buildSnapshotSources(camera, preferredOverride);
+async function fetchCameraSnapshot(camera) {
+  const sources = buildSnapshotSources(camera);
   if (!sources.length) {
     throw Object.assign(new Error("Snapshot source not configured"), {
       status: 500,
@@ -269,9 +268,8 @@ router.get("/api/camera/:id/snapshot", async (req, res) => {
 
   const cameraId = camera.id;
   const now = Date.now();
-  const sourceOverride = req.query.source === "cameraProxy" ? "cameraProxy" : undefined;
   try {
-    const snapshot = await fetchCameraSnapshot(camera, sourceOverride);
+    const snapshot = await fetchCameraSnapshot(camera);
     snapshotCache.set(cameraId, {
       buffer: snapshot.buffer,
       contentType: snapshot.contentType,
