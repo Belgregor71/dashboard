@@ -63,6 +63,7 @@
 
 .media-details-card {
   max-width: 700px;
+  height: min(86vh, 1200px);
 }
 
 .media-details-body {
