@@ -12,6 +12,14 @@ const SCHEDULES = [
 const STORAGE_KEY   = "dashboard:briefing-fired";
 const CATCHUP_MS    = 30 * 60 * 1000; // fire a missed briefing if within 30 min
 
+// Ollama has been observed taking 60s+ to respond (likely a cold model
+// load), which left the briefing view sitting in dead air. Generating
+// ahead of the scheduled time absorbs that latency so speech starts
+// immediately when the schedule actually fires.
+const PREFETCH_LEAD_MS = 3 * 60 * 1000;
+const prefetched       = new Map(); // schedule.name -> summary
+const prefetchInFlight  = new Set(); // schedule.name
+
 // ── Persistent storage ─────────────────────────────────────────
 
 function getFired() {
@@ -33,13 +41,24 @@ function markFired(name) {
 
 // ── Trigger ────────────────────────────────────────────────────
 
+async function prefetch(schedule) {
+  if (prefetched.has(schedule.name) || prefetchInFlight.has(schedule.name)) return;
+  prefetchInFlight.add(schedule.name);
+  try {
+    const summary = await generateBriefing({ type: schedule.type });
+    if (summary) prefetched.set(schedule.name, summary);
+  } catch { /* fall back to a live fetch at fire time */ }
+  finally { prefetchInFlight.delete(schedule.name); }
+}
+
 async function trigger(schedule) {
   wakeScreensaver();
   resetIdleTimer();
   switchView("briefing");
 
   try {
-    const summary = await generateBriefing({ type: schedule.type });
+    const summary = prefetched.get(schedule.name) ?? await generateBriefing({ type: schedule.type });
+    prefetched.delete(schedule.name);
     if (summary) await speak(summary, { rate: schedule.rate });
   } catch { /**/ }
 }
@@ -62,6 +81,11 @@ function tick() {
 
     const schedMs  = schedule.hour * 3_600_000 + schedule.minute * 60_000;
     const deltaMs  = nowMs - schedMs;
+
+    if (deltaMs >= -PREFETCH_LEAD_MS && deltaMs < 0) {
+      prefetch(schedule);
+      continue;
+    }
 
     if (deltaMs >= 0 && deltaMs <= CATCHUP_MS) {
       markFired(schedule.name);
