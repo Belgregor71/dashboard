@@ -419,6 +419,9 @@ function renderCurrent(data) {
   const anim = loadLottieAnimation("weather-lottie", animFile);
   if (anim) activeLotties.push(anim);
 
+  const heroAnim = loadLottieAnimation("weather-hero-icon", animFile);
+  if (heroAnim) activeLotties.push(heroAnim);
+
   renderCinematic(data, hourlyIndex);
 }
 
