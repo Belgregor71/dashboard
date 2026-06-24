@@ -886,8 +886,12 @@ function renderTimeline(events) {
     });
   }
 
+  const WEEK_WINDOW_DAYS = 9;
   const todayItems = upcoming.filter(ev => dayDiff(ev.start) === 0);
-  const weekItems = upcoming.filter(ev => dayDiff(ev.start) > 0);
+  const weekItems = upcoming.filter(ev => {
+    const diff = dayDiff(ev.start);
+    return diff > 0 && diff <= WEEK_WINDOW_DAYS;
+  });
 
   const active = todayItems.find(ev => ev.start <= now && ev.end && ev.end > now) || null;
   const upcomingToday = todayItems.filter(ev => ev !== active && ev.start > now);
