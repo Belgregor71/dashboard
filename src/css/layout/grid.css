@@ -1,14 +1,12 @@
 #main-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: auto;
+  grid-template-columns: 1.15fr 1.15fr 1.15fr 0.85fr;
+  grid-template-rows: 1fr;
   gap: 20px;
   padding: 0 40px 44px 40px;
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  align-content: start;
-  align-items: start;
 }
 
 @media (max-height: 820px) {
@@ -31,4 +29,19 @@
 #media-panel-2 {
   grid-column: 3 / 4;
   grid-row: 1;
+}
+
+#home-stack {
+  grid-column: 4 / 5;
+  grid-row: 1;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 20px;
+  min-height: 0;
+}
+
+@media (max-height: 820px) {
+  #home-stack {
+    gap: 12px;
+  }
 }

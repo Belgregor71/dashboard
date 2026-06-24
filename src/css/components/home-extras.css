@@ -69,23 +69,7 @@
   50% { opacity: 0.3; }
 }
 
-/* ── Bins + Menu secondary row ──────────────────────────────── */
-
-#home-secondary-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  padding: 0 40px;
-  margin-top: 20px;
-}
-
-@media (max-height: 820px) {
-  #home-secondary-row {
-    padding: 0 20px;
-    margin-top: 12px;
-    gap: 12px;
-  }
-}
+/* ── Bins + Menu side stack (grid.css places #home-stack itself) ── */
 
 #bins-tile,
 #menu-tile {
