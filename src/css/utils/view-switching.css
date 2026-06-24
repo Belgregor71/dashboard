@@ -72,26 +72,10 @@ body[data-view="weather"] .cameras-view,
 body[data-view="weather"] .status-view,
 body[data-view="weather"] .briefing-view { display: none; }
 
+body[data-view="weather"] #top-bar,
 body[data-view="weather"] #middle-slot,
 body[data-view="weather"] #current-weather-panel {
   display: none;
-}
-
-body[data-view="weather"] #top-bar {
-  grid-template-columns: 1fr;
-  justify-items: start;
-  padding: 20px 40px 10px;
-  position: relative;
-  z-index: 30;
-}
-
-body[data-view="weather"] #top-bar .panel {
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.28));
-  backdrop-filter: blur(4px) brightness(0.9);
-}
-
-body[data-view="weather"] #time-panel {
-  padding-left: 10px;
 }
 
 body[data-view="weather"] .weather-background,
