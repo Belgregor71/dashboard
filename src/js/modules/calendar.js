@@ -181,7 +181,6 @@ const SOURCE_CATEGORY_MAP = {
   tripit: "travel"
 };
 
-const TIMELINE_BUCKETS = ["Today", "Tomorrow", "This Week", "Later"];
 const BIN_CATEGORY = {
   id: "bins",
   label: "Bins",
@@ -367,24 +366,9 @@ function resolveEventCategory(event) {
   return { category: DEFAULT_CATEGORY, displayTitle: rawTitle || "(Untitled)" };
 }
 
-function applyEventCategoryStyles(element, category, variant) {
-  if (!element) return;
-  element.classList.add("event-item");
-  if (variant) {
-    element.classList.add(`event-item--${variant}`);
-  }
-  const resolved = category || DEFAULT_CATEGORY;
-  element.style.setProperty("--event-accent", resolved.accent);
-  element.style.setProperty("--event-bg", resolved.bg);
-  element.style.setProperty("--event-text", resolved.text || "inherit");
-}
-
 function scrollTimelineToGroup(label) {
-  const container = document.getElementById("timeline-list");
-  if (!container) return;
-  const groups = container.querySelectorAll(".timeline-group-title");
-  const target = Array.from(groups).find(el => el.textContent === label);
-  target?.scrollIntoView({ block: "start" });
+  const targetId = label === "Today" ? "timeline-rail" : "timeline-week-col";
+  document.getElementById(targetId)?.scrollIntoView({ block: "start" });
 }
 
 function goToToday() {
@@ -781,19 +765,100 @@ function dayDiff(date) {
   return Math.round((b - a) / 86400000);
 }
 
-function bucketLabel(diff) {
-  if (diff < 0) return null;
-  if (diff === 0) return "Today";
-  if (diff === 1) return "Tomorrow";
-  if (diff <= 6) return "This Week";
-  return "Later";
+function timelineGlyph(ev) {
+  const glyph = document.createElement("span");
+  glyph.className = "timeline-glyph";
+  glyph.style.setProperty("--gc", (ev.category || DEFAULT_CATEGORY).accent);
+  if (MEAL_PREFIX.test(ev.rawTitle || ev.title || "")) {
+    const lottie = document.createElement("span");
+    lottie.className = "meal-lottie";
+    glyph.appendChild(lottie);
+    loadMealLottie(lottie);
+  } else {
+    glyph.textContent = (ev.category || DEFAULT_CATEGORY).icon;
+  }
+  return glyph;
+}
+
+function timelineTitle(ev) {
+  const rawTitle = ev.rawTitle ?? ev.title ?? "";
+  if (MEAL_PREFIX.test(rawTitle)) {
+    return (ev.displayTitle ?? rawTitle).replace(MEAL_PREFIX, "").trim() || "Meal";
+  }
+  return ev.displayTitle || ev.title || "(Untitled)";
+}
+
+function makeTimelineStop(ev, variant) {
+  const stop = document.createElement("div");
+  stop.className = `timeline-stop${variant ? ` timeline-stop--${variant}` : ""}`;
+  stop.appendChild(timelineGlyph(ev));
+
+  const body = document.createElement("div");
+  body.className = "timeline-stop__body";
+
+  if (variant === "now" || variant === "next") {
+    const tag = document.createElement("div");
+    tag.className = "timeline-stop__tag";
+    tag.textContent = variant === "now" ? "On now" : "Up next";
+    body.appendChild(tag);
+  }
+
+  const time = document.createElement("div");
+  time.className = "timeline-stop__time";
+  time.textContent = isAllDay(ev) ? "All day" : format.time(ev.start);
+  body.appendChild(time);
+
+  const title = document.createElement("div");
+  title.className = "timeline-stop__title";
+  title.textContent = timelineTitle(ev);
+  body.appendChild(title);
+
+  if (variant === "now" && ev.end) {
+    const now = new Date();
+    const pct = Math.min(100, Math.max(0, ((now - ev.start) / (ev.end - ev.start)) * 100));
+    const track = document.createElement("div");
+    track.className = "timeline-stop__progress";
+    track.innerHTML = `<i style="width:${pct.toFixed(1)}%"></i>`;
+    body.appendChild(track);
+  }
+
+  stop.appendChild(body);
+
+  if (variant === "next") {
+    const now = new Date();
+    const ms = ev.start - now;
+    const mins = Math.max(0, Math.round(ms / 60000));
+    let value, unit;
+    if (ms <= 0) {
+      value = "now";
+      unit = "starting";
+    } else if (mins < 60) {
+      value = `${mins}m`;
+      unit = "away";
+    } else {
+      const hh = Math.floor(mins / 60);
+      const mm = mins % 60;
+      value = `${hh}h${mm ? ` ${mm}m` : ""}`;
+      unit = "away";
+    }
+    const count = document.createElement("div");
+    count.className = "timeline-stop__count";
+    count.innerHTML = `<b>${value}</b><span>${unit}</span>`;
+    stop.appendChild(count);
+  }
+
+  return stop;
 }
 
 function renderTimeline(events) {
-  const container = document.getElementById("timeline-list");
+  const rail = document.getElementById("timeline-rail");
+  const week = document.getElementById("timeline-week");
+  const momentsEl = document.getElementById("timeline-moments");
   const todayLabel = document.getElementById("timeline-today-label");
-  if (!container) {
-    console.warn("Calendar UI missing #timeline-list");
+  const todayCount = document.getElementById("timeline-today-count");
+  const weekSpan = document.getElementById("timeline-week-span");
+  if (!rail || !week) {
+    console.warn("Calendar UI missing #timeline-rail/#timeline-week");
     return;
   }
 
@@ -801,82 +866,113 @@ function renderTimeline(events) {
     todayLabel.textContent = format.date(new Date());
   }
 
-  container.innerHTML = "";
+  rail.innerHTML = "";
+  week.innerHTML = "";
+  if (momentsEl) momentsEl.innerHTML = "";
 
+  const now = new Date();
   const merged = [...(events || []), ...getBinPseudoEvents(), ...getTodoPseudoEvents()];
   const upcoming = merged
-    .filter(ev => ev.start && bucketLabel(dayDiff(ev.start)) !== null)
+    .filter(ev => ev.start && dayDiff(ev.start) >= 0)
     .sort((a, b) => a.start - b.start);
 
-  if (!upcoming.length) {
-    container.innerHTML = `<div class="timeline-empty">Nothing scheduled</div>`;
-    return;
-  }
-
   const moments = computeTravelMoments(upcoming);
-  if (moments.length) {
-    const momentsBlock = document.createElement("div");
-    momentsBlock.className = "timeline-moments";
+  if (momentsEl && moments.length) {
     moments.forEach(moment => {
       const line = document.createElement("div");
       line.className = "timeline-moment";
       line.textContent = `${moment.icon} ${moment.text}`;
-      momentsBlock.appendChild(line);
+      momentsEl.appendChild(line);
     });
-    container.appendChild(momentsBlock);
   }
 
-  const buckets = new Map();
-  upcoming.forEach(ev => {
-    const label = bucketLabel(dayDiff(ev.start));
-    if (!buckets.has(label)) buckets.set(label, []);
-    buckets.get(label).push(ev);
+  const todayItems = upcoming.filter(ev => dayDiff(ev.start) === 0);
+  const weekItems = upcoming.filter(ev => dayDiff(ev.start) > 0);
+
+  const active = todayItems.find(ev => ev.start <= now && ev.end && ev.end > now) || null;
+  const upcomingToday = todayItems.filter(ev => ev !== active && ev.start > now);
+  const next = upcomingToday[0] || null;
+  const later = upcomingToday.slice(1);
+
+  let todayN = 0;
+  if (active) {
+    rail.appendChild(makeTimelineStop(active, "now"));
+    todayN += 1;
+  }
+
+  const nowline = document.createElement("div");
+  nowline.className = "timeline-nowline";
+  nowline.innerHTML = `<span class="timeline-nowline__dot"></span><span class="timeline-nowline__line"></span><b>Now · ${format.time(now)}</b>`;
+  rail.appendChild(nowline);
+
+  if (next) {
+    rail.appendChild(makeTimelineStop(next, "next"));
+    todayN += 1;
+  }
+  later.forEach(ev => {
+    rail.appendChild(makeTimelineStop(ev, "later"));
+    todayN += 1;
   });
 
-  TIMELINE_BUCKETS.forEach(label => {
-    const items = buckets.get(label);
-    if (!items?.length) return;
+  if (todayN === 0) {
+    const idle = document.createElement("div");
+    idle.className = "timeline-idle";
+    idle.textContent = "That's a wrap for today.";
+    rail.appendChild(idle);
+  }
+  if (todayCount) {
+    todayCount.textContent = todayN ? `${todayN} thing${todayN === 1 ? "" : "s"} left` : "all clear";
+  }
 
-    const group = document.createElement("div");
-    group.className = "timeline-group";
+  const dayMap = new Map();
+  weekItems.forEach(ev => {
+    const key = ev.start.toDateString();
+    if (!dayMap.has(key)) dayMap.set(key, []);
+    dayMap.get(key).push(ev);
+  });
 
-    const heading = document.createElement("div");
-    heading.className = "timeline-group-title";
-    heading.textContent = label;
-    group.appendChild(heading);
+  if (weekSpan) {
+    weekSpan.textContent = dayMap.size ? `next ${dayMap.size} day${dayMap.size === 1 ? "" : "s"}` : "";
+  }
+
+  dayMap.forEach(items => {
+    const dayRow = document.createElement("div");
+    dayRow.className = "timeline-day";
+
+    const label = document.createElement("div");
+    label.className = "timeline-day__label";
+    label.innerHTML = `<span class="wd">${items[0].start.toLocaleDateString("en-AU", { weekday: "short" })}</span><span class="dn">${items[0].start.getDate()}</span>`;
+    dayRow.appendChild(label);
 
     const list = document.createElement("div");
-    list.className = "timeline-entries";
-
+    list.className = "timeline-day__items";
     items.forEach(ev => {
       const row = document.createElement("div");
-      row.className = "timeline-entry";
-      applyEventCategoryStyles(row, ev.category);
-
-      const icon = document.createElement("span");
-      icon.className = "timeline-entry-icon";
-      icon.textContent = ev.category?.icon || DEFAULT_CATEGORY.icon;
-
-      const title = document.createElement("span");
-      title.className = "timeline-entry-title";
-      title.textContent = ev.displayTitle || ev.title || "(Untitled)";
+      row.className = "timeline-day-item";
+      row.style.setProperty("--gc", (ev.category || DEFAULT_CATEGORY).accent);
 
       const time = document.createElement("span");
-      time.className = "timeline-entry-time";
-      if (label === "Today" || label === "Tomorrow") {
-        time.textContent = isAllDay(ev) ? "All day" : format.time(ev.start);
-      } else {
-        time.textContent = format.date(ev.start);
-      }
+      time.className = "timeline-day-item__time";
+      time.textContent = isAllDay(ev) ? "All day" : format.time(ev.start);
 
-      row.appendChild(icon);
-      row.appendChild(title);
+      const glyph = timelineGlyph(ev);
+      glyph.classList.add("timeline-day-item__glyph");
+
+      const title = document.createElement("span");
+      title.className = "timeline-day-item__title";
+      title.textContent = timelineTitle(ev);
+
       row.appendChild(time);
+      row.appendChild(glyph);
+      row.appendChild(title);
       list.appendChild(row);
     });
-
-    group.appendChild(list);
-    container.appendChild(group);
+    dayRow.appendChild(list);
+    week.appendChild(dayRow);
   });
+
+  if (!todayItems.length && !weekItems.length) {
+    rail.innerHTML = `<div class="timeline-empty">Nothing scheduled</div>`;
+  }
 }
 

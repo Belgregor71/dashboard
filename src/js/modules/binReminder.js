@@ -14,11 +14,30 @@ export function getLastBinData() {
   return lastData;
 }
 
+function updateBinsTile(data) {
+  const tile = document.getElementById("bins-tile");
+  if (!tile) return;
+
+  if (!data?.due) {
+    tile.classList.add("is-hidden", "is-collapsed");
+    return;
+  }
+
+  const binKey = data.bins?.[1] || data.bins?.[0] || "red";
+  const meta = BIN_META[binKey] || { label: binKey, color: "#888" };
+
+  tile.classList.remove("is-hidden", "is-collapsed");
+  document.getElementById("bins-tile-lid").style.setProperty("--bin-lid", meta.color);
+  document.getElementById("bins-tile-name").textContent = meta.label;
+  document.getElementById("bins-tile-sub").textContent = data.eve ? "out tonight" : "out this morning";
+}
+
 function render(data) {
   lastData = data;
   const binsText = Array.isArray(data?.bins)
     ? data.bins.map(b => BIN_META[b]?.label ?? b).join(" + ")
     : "";
+  updateBinsTile(data);
   emit("bins:updated", { ...data, binsText });
 }
 

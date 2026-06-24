@@ -9,6 +9,7 @@
 @import './components/commute.css';
 @import './layout/grid.css';
 @import './components/home-panels.css';
+@import './components/home-extras.css';
 @import './components/media.css';
 @import './utils/view-switching.css';
 @import './views/system.css';

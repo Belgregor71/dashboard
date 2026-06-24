@@ -236,6 +236,8 @@
   font-weight: 700;
   line-height: 1;
   margin-top: 4px;
+  color: var(--accent);
+  transition: color 2s ease;
 }
 
 .weather-hero__meta {
@@ -246,22 +248,30 @@
 
 .weather-narrative {
   position: absolute;
-  left: 50%;
-  top: 52%;
-  transform: translate(-50%, -40%);
-  font-size: clamp(1.2rem, 2vw, 2rem);
-  letter-spacing: 0.04em;
-  text-align: center;
-  max-width: 640px;
+  left: 48px;
+  right: 48px;
+  bottom: 20px;
+  display: flex;
+  align-items: center;
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(1.1rem, 1.6vw, 1.6rem);
+  letter-spacing: -0.005em;
+  text-align: left;
+  padding: 16px 26px;
+  border-radius: var(--glass-radius-sm);
+  background: rgba(14, 18, 28, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   opacity: 0;
   z-index: 6;
   transition: opacity 1.4s ease, transform 1.4s ease;
+  transform: translateY(8px);
   pointer-events: none;
 }
 
 .weather-narrative.is-visible {
-  opacity: 0.85;
-  transform: translate(-50%, -48%);
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .weather-metrics {
@@ -489,7 +499,7 @@
   position: absolute;
   inset: -8px -10px;
   border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid color-mix(in oklch, var(--accent) 42%, transparent);
   background: rgba(255, 255, 255, 0.04);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }

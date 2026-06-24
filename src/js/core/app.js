@@ -38,6 +38,9 @@ import { initArrivalGreeting } from "../modules/arrivalGreeting.js";
 import { initFuelPrices } from "../modules/fuelPrices.js";
 import { initMorningBriefing } from "../modules/morningBriefing.js";
 import { initOccasionPopup } from "../modules/occasionPopup.js";
+import { initBomWarningBanner } from "../modules/bomWarningBanner.js";
+import { initTonightsMenu } from "../modules/tonightsMenu.js";
+import { initNewsTicker } from "../modules/newsTicker.js";
 import { createStatusView } from "../modules/systemStatus.js";
 import { createBriefingView } from "../views/briefingView.js";
 import { createWeatherView } from "../views/weatherView.js";
@@ -152,6 +155,9 @@ export function startApp() {
   initEnergySaver();
   initScreensaver();
   initFocusHero();
+  initBomWarningBanner();
+  initTonightsMenu();
+  initNewsTicker();
 
   if (isEnabled("homeAssistant", false)) {
     initHomeAssistantTodayPanel();

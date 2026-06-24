@@ -28,6 +28,8 @@
 
 .cameras-title {
   font-size: clamp(1.5rem, 2.1vw, var(--fs-view-title));
+  color: var(--accent);
+  transition: color 2s ease;
 }
 
 .cameras-status {
@@ -36,8 +38,9 @@
   gap: 8px;
   padding: 6px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.35);
+  border: var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
   font-size: clamp(0.65rem, 0.9vw, 0.85rem);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -102,8 +105,9 @@
   overflow: hidden;
   min-height: 0;
   height: 100%;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: var(--glass-bg);
+  border: var(--glass-border);
+  backdrop-filter: var(--glass-blur);
 }
 
 .camera-hero__media::after {
@@ -262,8 +266,9 @@
 .camera-card {
   border-radius: var(--cam-radius);
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--glass-bg);
+  border: var(--glass-border);
+  backdrop-filter: var(--glass-blur);
   position: relative;
   min-height: 0;
   height: 100%;
@@ -435,7 +440,45 @@
 
 .camera-timeline {
   display: grid;
-  gap: 6px;
+  gap: 8px;
+}
+
+.camera-timeline__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.camera-timeline__legend {
+  margin-left: auto;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.camera-timeline__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.camera-timeline__legend-item i {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.camera-timeline__legend-item[data-legend="person"] i {
+  background: var(--status-info);
+}
+.camera-timeline__legend-item[data-legend="motion"] i {
+  background: rgba(255, 255, 255, 0.4);
+}
+.camera-timeline__legend-item[data-legend="ringing"] i {
+  background: var(--accent);
 }
 
 .camera-summary {
@@ -444,8 +487,9 @@
   width: min(360px, 90vw);
   padding: 16px;
   border-radius: 16px;
-  background: rgba(0, 0, 0, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(12, 16, 28, 0.92);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
   opacity: 0;
   transform: translateY(-10px);
@@ -544,19 +588,19 @@
 }
 
 .heat-cell[data-level="1"] {
-  background: rgba(96, 165, 250, 0.35);
+  background: color-mix(in oklch, var(--accent) 35%, transparent);
 }
 
 .heat-cell[data-level="2"] {
-  background: rgba(96, 165, 250, 0.55);
+  background: color-mix(in oklch, var(--accent) 55%, transparent);
 }
 
 .heat-cell[data-level="3"] {
-  background: rgba(96, 165, 250, 0.75);
+  background: color-mix(in oklch, var(--accent) 75%, transparent);
 }
 
 .heat-cell[data-level="4"] {
-  background: rgba(96, 165, 250, 0.95);
+  background: color-mix(in oklch, var(--accent) 95%, transparent);
 }
 
 .camera-timeline__title {
@@ -575,14 +619,32 @@
   overflow: hidden;
 }
 
+.camera-timeline__band::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+}
+
 .camera-timeline__marker {
   position: absolute;
   top: 50%;
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: rgba(96, 165, 250, 0.85);
+  background: rgba(255, 255, 255, 0.4);
   transform: translate(-50%, -50%);
+}
+
+.camera-timeline__marker[data-type="person"] {
+  background: var(--status-info);
+}
+.camera-timeline__marker[data-type="ringing"] {
+  background: var(--accent);
 }
 
 .camera-toast {

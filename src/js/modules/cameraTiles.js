@@ -954,6 +954,7 @@ function renderTimeline() {
     if (event.timestamp < cutoff) return;
     const marker = document.createElement("span");
     marker.className = "camera-timeline__marker";
+    marker.dataset.type = event.type;
     const pct = ((event.timestamp - cutoff) / TIMELINE_WINDOW_MS) * 100;
     marker.style.left = `${Math.min(100, Math.max(0, pct))}%`;
     marker.title = `${event.label} (${new Date(event.timestamp).toLocaleTimeString([], {

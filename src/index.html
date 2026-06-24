@@ -17,8 +17,10 @@
 <body data-view="home">
   <!-- Background -->
   <div id="background">
-    <img id="background-image" alt="Background" />
     <div id="background-tint"></div>
+    <div id="aurora-sky"></div>
+    <div class="aurora-blobs"><span class="a1"></span><span class="a2"></span><span class="a3"></span></div>
+    <div id="stars"></div>
   </div>
 
   <!-- ROW 1: Time | Commute (conditional) | Weather -->
@@ -75,6 +77,14 @@
     </div>
   </header>
 
+  <!-- BOM WARNING BANNER (conditional) -->
+  <div id="bom-warning-bar" class="bom-warning-bar is-hidden">
+    <span class="bom-warning-bar__dot"></span>
+    <b id="bom-warning-title"></b>
+    <span id="bom-warning-detail"></span>
+    <span class="bom-warning-bar__src">BOM</span>
+  </div>
+
   <!-- HOME HERO: Focus Engine output -->
   <section id="focus-hero" class="focus-hero is-hidden">
     <span id="focus-hero-icon" class="focus-hero__icon"></span>
@@ -125,6 +135,38 @@
 
     <div id="camera-last-trigger-pill" class="camera-last-trigger-pill hidden" aria-live="polite"></div>
     </main>
+
+    <!-- ROW 2: Bins | Tonight's Menu -->
+    <div id="home-secondary-row">
+      <section id="bins-tile" class="panel is-hidden is-collapsed">
+        <div class="eyebrow">Bins</div>
+        <div class="bins-tile__row">
+          <span class="bins-tile__lid" id="bins-tile-lid"></span>
+          <div>
+            <div class="bins-tile__name" id="bins-tile-name"></div>
+            <div class="bins-tile__sub" id="bins-tile-sub"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="menu-tile" class="panel is-hidden is-collapsed">
+        <div class="eyebrow">Tonight's Menu</div>
+        <div class="menu-tile__row">
+          <div class="menu-tile__thumb" id="menu-tile-thumb"></div>
+          <div>
+            <div class="menu-tile__name" id="menu-tile-name"></div>
+            <div class="menu-tile__sub" id="menu-tile-sub"></div>
+          </div>
+        </div>
+        <div class="menu-tile__upcoming" id="menu-tile-upcoming"></div>
+      </section>
+    </div>
+
+    <!-- NEWS TICKER -->
+    <div id="news-ticker" class="news-ticker is-hidden">
+      <span class="news-ticker__tag" id="news-ticker-source">NEWS</span>
+      <div class="news-ticker__track"><span class="news-ticker__run" id="news-ticker-run"></span></div>
+    </div>
   </div>
 
   <!-- TIMELINE VIEW (merges Today / Week / Calendar / Agenda / Bins) -->
@@ -137,7 +179,17 @@
         </div>
         <div class="timeline-header-subtitle view-header__eyebrow">What's coming up</div>
       </div>
-      <div id="timeline-list" class="timeline-list"></div>
+      <div id="timeline-moments" class="timeline-moments"></div>
+      <div class="timeline-body" id="timeline-body">
+        <div class="timeline-col timeline-col--today">
+          <div class="timeline-col-label"><b>Today</b><span id="timeline-today-count"></span></div>
+          <div class="timeline-rail" id="timeline-rail"></div>
+        </div>
+        <div class="timeline-col timeline-col--week" id="timeline-week-col">
+          <div class="timeline-col-label"><b>The Week</b><span id="timeline-week-span"></span></div>
+          <div class="timeline-week" id="timeline-week"></div>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -178,7 +230,14 @@
       </section>
 
       <section class="camera-timeline">
-        <div class="camera-timeline__title">Last 2 hours</div>
+        <div class="camera-timeline__head">
+          <div class="camera-timeline__title">Last 2 hours</div>
+          <div class="camera-timeline__legend">
+            <span class="camera-timeline__legend-item" data-legend="person"><i></i>Person</span>
+            <span class="camera-timeline__legend-item" data-legend="motion"><i></i>Motion</span>
+            <span class="camera-timeline__legend-item" data-legend="ringing"><i></i>Doorbell</span>
+          </div>
+        </div>
         <div class="camera-timeline__band" id="camera-timeline-band"></div>
       </section>
     </section>

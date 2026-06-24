@@ -5,33 +5,6 @@
   overflow: hidden;
 }
 
-#background-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  filter: saturate(1.18) contrast(1.06);
-  opacity: 0;
-  transform: scale(1.02);
-  transition: opacity 2.2s ease;
-}
-
-.bg-visible {
-  opacity: 1 !important;
-}
-
-.bg-animate {
-  animation: background-zoom 24s ease-in-out;
-}
-
-@keyframes background-zoom {
-  from {
-    transform: scale(1.02);
-  }
-  to {
-    transform: scale(1.08);
-  }
-}
-
 #background-tint {
   position: absolute;
   inset: 0;
@@ -39,45 +12,123 @@
   transition: background-color 1s ease;
 }
 
-.tint-morning { background-color: rgba(255, 200, 120, 0.18); }
-.tint-day     { background-color: rgba(255, 255, 255, 0.05); }
-.tint-evening { background-color: rgba(255, 130, 60,  0.20); }
+/* Aurora HUD: cool-only wash — the aurora layer carries the colour,
+   this just dims the photo a touch more at night so panels read clearly. */
+.tint-morning { background-color: rgba(8, 14, 30, 0.30); }
+.tint-day     { background-color: rgba(8, 14, 30, 0.16); }
+.tint-evening { background-color: rgba(8, 12, 26, 0.34); }
 .tint-night   { background-color: rgba(2,   6,  20,  0.62); }
 
 /* ── Time-of-day accent ──────────────────────────────────────
    Single source for the dashboard's "living" accent colour —
    consumed by the clock and by view-header eyebrows/titles so
    every page quietly shifts with the day instead of just the
-   home view's clock.
+   home view's clock. Aurora HUD cool-only cycle: the accent moves
+   through the blue family across the day (sky-blue → near-white-blue
+   → periwinkle → cyan) and never goes warm.
 ──────────────────────────────────────────────────────────── */
-body.tint-morning { --accent: rgba(255, 205, 140, 0.96); }
-body.tint-day     { --accent: rgba(255, 255, 255, 0.95); }
-body.tint-evening { --accent: rgba(255, 185, 130, 0.94); }
-body.tint-night   { --accent: rgba(130, 215, 255, 0.92); }
+body.tint-morning { --accent: rgba(150, 200, 255, 0.95); --accent-2: #8ea2ff; }
+body.tint-day     { --accent: rgba(196, 230, 255, 0.97); --accent-2: #9fc4ff; }
+body.tint-evening { --accent: rgba(160, 176, 255, 0.95); --accent-2: #b3a0ff; }
+body.tint-night   { --accent: rgba(130, 215, 255, 0.92); --accent-2: #9fb6ff; }
 
 /* Night mode: deepen panel backgrounds and add a cool-blue atmosphere */
 body.tint-night .panel {
   background: linear-gradient(180deg, rgba(6, 10, 26, 0.70), rgba(2, 4, 14, 0.60));
 }
 
-/* Morning / evening: warm the panel glass slightly */
+/* Morning / evening: keep panel glass on the same cool family (no warm tint) */
 body.tint-morning .panel {
-  background: linear-gradient(180deg, rgba(28, 22, 14, 0.52), rgba(12, 10, 6, 0.42));
+  background: linear-gradient(180deg, rgba(16, 22, 38, 0.50), rgba(8, 12, 22, 0.40));
 }
 body.tint-evening .panel {
-  background: linear-gradient(180deg, rgba(28, 18, 10, 0.52), rgba(14, 8, 4, 0.42));
+  background: linear-gradient(180deg, rgba(14, 18, 36, 0.52), rgba(8, 10, 22, 0.42));
+}
+
+/* ── Aurora sky layer ─────────────────────────────────────────
+   The dashboard's sole backdrop: a deep-space gradient + three
+   drifting glow blobs + twinkling stars.
+──────────────────────────────────────────────────────────── */
+#aurora-sky {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1500px 950px at 80% -12%, color-mix(in oklch, var(--accent) 20%, transparent), transparent 60%),
+    radial-gradient(1200px 800px at 8% 112%, color-mix(in oklch, var(--accent-2) 18%, transparent), transparent 60%),
+    linear-gradient(160deg, var(--sky-0), var(--sky-1) 55%, var(--sky-2));
+  transition: background 2s linear;
+}
+
+.aurora-blobs {
+  position: absolute;
+  inset: -20% -10%;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.5;
+  filter: blur(45px);
+}
+
+.aurora-blobs span {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform;
+}
+
+.aurora-blobs .a1 {
+  width: 900px; height: 520px; left: 6%; top: -12%;
+  background: radial-gradient(closest-side, color-mix(in oklch, var(--accent) 60%, transparent), transparent);
+  animation: auroraDrift1 28s ease-in-out infinite;
+}
+.aurora-blobs .a2 {
+  width: 820px; height: 480px; right: 2%; top: -6%;
+  background: radial-gradient(closest-side, color-mix(in oklch, var(--accent-2) 55%, transparent), transparent);
+  animation: auroraDrift2 34s ease-in-out infinite;
+}
+.aurora-blobs .a3 {
+  width: 1100px; height: 600px; left: 22%; bottom: -24%;
+  background: radial-gradient(closest-side, color-mix(in oklch, var(--accent-2) 28%, transparent), transparent);
+  animation: auroraDrift3 40s ease-in-out infinite;
+}
+@keyframes auroraDrift1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(120px,40px) scale(1.12); } }
+@keyframes auroraDrift2 { 0%,100% { transform: translate(0,0) scale(1.05); } 50% { transform: translate(-110px,60px) scale(.95); } }
+@keyframes auroraDrift3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(90px,-50px) scale(1.1); } }
+
+#stars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 2s;
+}
+#stars i {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #fff;
+  animation: starTwinkle 4s ease-in-out infinite;
+}
+@keyframes starTwinkle { 0%,100% { opacity: .15; } 50% { opacity: .9; } }
+
+body.tint-morning #stars { opacity: .30; }
+body.tint-day     #stars { opacity: .10; }
+body.tint-evening #stars { opacity: .45; }
+body.tint-night   #stars { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blobs span { animation: none !important; }
 }
 
 body[data-view="weather"] #background,
-body[data-view="weather"] #background-image,
-body[data-view="weather"] #background-tint {
+body[data-view="weather"] #background-tint,
+body[data-view="weather"] #aurora-sky,
+body[data-view="weather"] .aurora-blobs,
+body[data-view="weather"] #stars {
   display: none;
 }
 
-/* ── Living background: season + weather + holiday ──────────── */
-
-body.weather-bg-storm #background-image { filter: saturate(0.6) contrast(1.1) brightness(0.7); }
-body.weather-bg-rain  #background-image { filter: saturate(0.8) contrast(1.0) brightness(0.85); }
+/* ── Living background: season + holiday ──────────────────────── */
 
 body.season-summer #background-tint { filter: saturate(1.1); }
 body.season-winter #background-tint { filter: saturate(0.85) brightness(0.95); }
