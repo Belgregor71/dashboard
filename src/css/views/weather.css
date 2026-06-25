@@ -325,8 +325,7 @@
   grid-row: span 2;
 }
 
-.metric-card.metric-rain,
-.metric-card.metric-next-rain {
+.metric-card.metric-rain {
   grid-column: 1 / -1;
 }
 
@@ -440,35 +439,37 @@
 .weather-hourly-strip {
   flex: 1;
   display: flex;
+  align-items: flex-end;
   gap: 14px;
   overflow: hidden;
   justify-content: space-between;
   min-height: 0;
 }
 
-.hourly-item {
-  width: min(92px, 6vw);
+.hourly-bar-col {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  flex: 1;
 }
 
-.hourly-time {
-  font-size: 0.92rem;
-  opacity: 0.78;
-  text-transform: lowercase;
-}
-
-.hourly-temp {
+.hourly-bar-value {
   font-family: var(--font-display);
-  font-size: 1.22rem;
+  font-size: 0.95rem;
   font-weight: 650;
 }
 
-.hourly-lottie {
-  width: 42px;
-  height: 42px;
+.hourly-bar {
+  width: 14px;
+  border-radius: 7px 7px 2px 2px;
+  background: linear-gradient(to top, var(--accent) 0%, rgba(255, 255, 255, 0.5) 100%);
+}
+
+.hourly-bar-time {
+  font-size: 0.85rem;
+  opacity: 0.7;
+  text-transform: lowercase;
 }
 
 .metric-line {

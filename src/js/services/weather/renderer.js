@@ -321,11 +321,6 @@ function getClosestHourIndex(hourly) {
   return closestIndex;
 }
 
-function withinHourRange(hour, start, end) {
-  if (start <= end) return hour >= start && hour <= end;
-  return hour >= start || hour <= end;
-}
-
 function mean(values) {
   if (!values?.length) return null;
   const sum = values.reduce((acc, v) => acc + v, 0);
@@ -482,13 +477,21 @@ function renderCinematic(data, hourlyIndex) {
   const max = Math.round(daily.temperature_2m_max[0]);
   const min = Math.round(daily.temperature_2m_min[0]);
   const apparent = hourly?.apparent_temperature?.[hourlyIndex];
+  const humidity = hourlyIndex != null ? hourly?.relativehumidity_2m?.[hourlyIndex] : null;
   if (anchorMeta) {
-    const feels = apparent != null ? `Feels like ${Math.round(apparent)}°` : "";
-    anchorMeta.textContent = `${feels}${feels ? " | " : ""}H ${max}° L ${min}°`;
+    const windDirText = describeWindDirection(current.winddirection);
+    const wind = current.windspeed != null
+      ? `Wind ${Math.round(current.windspeed)}${windDirText ? ` ${windDirText}` : ""}`
+      : "";
+    const feels = apparent != null ? `Feels ${Math.round(apparent)}°` : "";
+    const humidityText = humidity != null ? `Humidity ${Math.round(humidity)}%` : "";
+    anchorMeta.textContent = [`High ${max}° Low ${min}°`, wind, feels, humidityText]
+      .filter(Boolean)
+      .join(" · ");
   }
 
   renderNarrative({ current, hourly, hourlyIndex });
-  renderDayparts({ hourly, hourlyIndex });
+  renderDayparts({ hourly });
   renderHourlyStrip({ hourly, hourlyIndex });
   scheduleBomPanelUpdate({ immediate: true });
 }
@@ -561,7 +564,7 @@ function formatHourLabel(time) {
     .toLowerCase();
 }
 
-function renderDayparts({ hourly, hourlyIndex }) {
+function renderDayparts({ hourly }) {
   const dayparts = document.getElementById("weather-dayparts");
   if (!dayparts) return;
 
@@ -570,21 +573,24 @@ function renderDayparts({ hourly, hourlyIndex }) {
     return;
   }
 
-  const now = new Date();
-  const endWindow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  const indicesForRange = (startHour, endHour) =>
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const windowIndices = (startMs, endMs) =>
     hourly.time.reduce((acc, time, idx) => {
-      const t = new Date(time);
-      if (t < now || t > endWindow) return acc;
-      if (withinHourRange(t.getHours(), startHour, endHour)) acc.push(idx);
+      const t = new Date(time).getTime();
+      if (t >= startMs && t < endMs) acc.push(idx);
       return acc;
     }, []);
 
+  const dayMs = 24 * 60 * 60 * 1000;
+  const hourMs = 60 * 60 * 1000;
+  const dayStart = today.getTime();
+
   const buckets = [
-    { key: "now", label: "Now", indices: hourlyIndex != null ? [hourlyIndex] : [] },
-    { key: "evening", label: "Evening", indices: indicesForRange(18, 21) },
-    { key: "night", label: "Night", indices: indicesForRange(22, 4) },
-    { key: "morning", label: "Morning", indices: indicesForRange(5, 11) }
+    { key: "morning", label: "Morning", indices: windowIndices(dayStart + 5 * hourMs, dayStart + 12 * hourMs) },
+    { key: "afternoon", label: "Afternoon", indices: windowIndices(dayStart + 12 * hourMs, dayStart + 18 * hourMs) },
+    { key: "evening", label: "Evening", indices: windowIndices(dayStart + 18 * hourMs, dayStart + 22 * hourMs) },
+    { key: "night", label: "Night", indices: windowIndices(dayStart + 22 * hourMs, dayStart + dayMs + 5 * hourMs) }
   ];
 
   const mostCommon = (values) => {
@@ -618,11 +624,26 @@ function renderDayparts({ hourly, hourlyIndex }) {
   });
 }
 
+const HOURLY_BAR_COUNT = 10;
+const HOURLY_BAR_MAX_HEIGHT = 110;
+const HOURLY_BAR_MIN_HEIGHT = 24;
+
+function formatBarHourLabel(time, idx) {
+  if (idx === 0) return "Now";
+  const date = new Date(time);
+  if (Number.isNaN(date.getTime())) return "--";
+  return date
+    .toLocaleTimeString([], { hour: "numeric", hour12: true })
+    .replace(/\s/g, "")
+    .toLowerCase()
+    .replace(/m$/, "");
+}
+
 function renderHourlyStrip({ hourly, hourlyIndex }) {
   const strip = document.getElementById("weather-hourly-strip");
   if (!strip) return;
 
-  const rows = getNextHourlySlice(hourly, hourlyIndex, 12);
+  const rows = getNextHourlySlice(hourly, hourlyIndex, HOURLY_BAR_COUNT);
   if (!rows.length) {
     strip.innerHTML = "";
     strip.classList.add("is-hidden");
@@ -630,20 +651,24 @@ function renderHourlyStrip({ hourly, hourlyIndex }) {
   }
 
   strip.classList.remove("is-hidden");
-  strip.innerHTML = rows.map((row, idx) => `
-    <div class="hourly-item">
-      <div class="hourly-time">${formatHourLabel(row.time)}</div>
-      <div class="hourly-lottie" id="weather-hourly-lottie-${idx}"></div>
-      <div class="hourly-temp">${row.temp != null ? `${Math.round(row.temp)}°` : "--"}</div>
-    </div>
-  `).join("");
 
-  rows.forEach((row, idx) => {
-    if (row.code == null) return;
-    const animFile = weatherAnimation(row.code, row.isDay !== 0);
-    const anim = loadLottieAnimation(`weather-hourly-lottie-${idx}`, animFile);
-    if (anim) activeLotties.push(anim);
-  });
+  const temps = rows.map(row => row.temp).filter(v => v != null);
+  const minTemp = Math.min(...temps);
+  const maxTemp = Math.max(...temps);
+  const range = Math.max(maxTemp - minTemp, 1);
+
+  strip.innerHTML = rows.map((row, idx) => {
+    const temp = row.temp;
+    const ratio = temp != null ? (temp - minTemp) / range : 0;
+    const barHeight = Math.round(HOURLY_BAR_MIN_HEIGHT + ratio * (HOURLY_BAR_MAX_HEIGHT - HOURLY_BAR_MIN_HEIGHT));
+    return `
+      <div class="hourly-bar-col">
+        <div class="hourly-bar-value">${temp != null ? `${Math.round(temp)}°` : "--"}</div>
+        <div class="hourly-bar" style="height:${barHeight}px"></div>
+        <div class="hourly-bar-time">${formatBarHourLabel(row.time, idx)}</div>
+      </div>
+    `;
+  }).join("");
 }
 
 function toggleSparkVisibility(target, isVisible) {
@@ -736,6 +761,12 @@ function renderBomPanels() {
     value: Number.isFinite(row.precipMm) ? row.precipMm : 0,
     label: formatHourLabel(row.time)
   })));
+  const todayKey = dayKeyForDate(new Date());
+  const todayRainTotal = (hourly?.time || []).reduce((sum, time, idx) => {
+    if (dayKeyForDate(new Date(time)) !== todayKey) return sum;
+    const value = hourly?.precipitation?.[idx];
+    return sum + (Number.isFinite(value) ? value : 0);
+  }, 0);
 
   // UV from BOM/HA is optional — fall back to Open-Meteo's hourly uv_index
   // (already fetched for the narrative/background logic) so the card isn't
@@ -765,9 +796,8 @@ function renderBomPanels() {
     fire: todayBundle.fireDanger,
     uv: uvMaxIndex,
     uvCategory,
-    rainChance: todayBundle.rainChance,
-    rainRange: todayBundle.rainRange,
     rainfall: rainfallSeries.map((item) => item.value),
+    todayRainTotal,
     humidity,
     apparent,
     dewPoint,
@@ -788,17 +818,24 @@ function renderBomPanels() {
   const feelsLarge = document.getElementById("weather-feels-like-large");
   const feelsMeta = document.getElementById("weather-feels-like-meta");
   const feelsSpark = document.getElementById("weather-feels-spark");
-  const nextRainValue = document.getElementById("weather-next-rain");
-  const nextRainMeta = document.getElementById("weather-next-rain-meta");
-  const nextRainSpark = document.getElementById("weather-next-rain-spark");
 
   const uvDialData = normalizeUvDial(uvMaxIndex, uvCategory);
   if (uvDial) uvDial.style.setProperty("--uv-deg", `${uvDialData.degrees}deg`);
   setTextIfChanged(uvValue, uvDialData.uvIndex != null ? `${uvDialData.uvIndex}` : "--");
   setTextIfChanged(uvMeta, uvDialData.label);
 
-  setTextIfChanged(rainCard, todayBundle.rainChance != null ? `${Math.round(todayBundle.rainChance)}% chance` : "--");
-  setTextIfChanged(rainMeta, todayBundle.rainRange || "");
+  setTextIfChanged(rainCard, `${todayRainTotal.toFixed(1)}mm today`);
+
+  const nextRainIndex = rainfallSeries.findIndex((item) => item.value > 0.1);
+  if (nextRainIndex >= 0) {
+    const nextRainPoint = rainfallSeries[nextRainIndex];
+    const hourlyPoint = hourlySlice[nextRainIndex];
+    const timestamp = hourlyPoint?.time ? new Date(hourlyPoint.time) : new Date(Date.now() + nextRainIndex * 3600000);
+    const deltaMs = Math.max(0, timestamp.getTime() - Date.now());
+    setTextIfChanged(rainMeta, `Next window — ${formatNextRainMeta(deltaMs, nextRainPoint.value)}`);
+  } else {
+    setTextIfChanged(rainMeta, "No rain expected");
+  }
   renderBarSparkline(rainSpark, rainfallSeries, 36);
 
   setTextIfChanged(humidityLarge, humidity != null ? `${Math.round(humidity)}%` : "--");
@@ -807,22 +844,6 @@ function renderBomPanels() {
   setTextIfChanged(feelsLarge, apparent != null ? `${Math.round(apparent)}°` : "--");
   setTextIfChanged(feelsMeta, formatFeelsDeltaMeta(apparent, actualTemp));
   renderLineSparkline(feelsSpark, hourlySlice.map((row) => row.apparent));
-
-  const nextRainIndex = rainfallSeries.findIndex((item) => item.value > 0.1);
-  if (nextRainIndex >= 0) {
-    const nextRainPoint = rainfallSeries[nextRainIndex];
-    const hourlyPoint = hourlySlice[nextRainIndex];
-    const timestamp = hourlyPoint?.time ? new Date(hourlyPoint.time) : new Date(Date.now() + nextRainIndex * 3600000);
-    const timeLabel = timestamp.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).toLowerCase();
-    const deltaMs = Math.max(0, timestamp.getTime() - Date.now());
-    setTextIfChanged(nextRainValue, timeLabel);
-    setTextIfChanged(nextRainMeta, formatNextRainMeta(deltaMs, nextRainPoint.value));
-    renderBarSparkline(nextRainSpark, rainfallSeries, 28);
-  } else {
-    setTextIfChanged(nextRainValue, "No rain expected");
-    setTextIfChanged(nextRainMeta, "");
-    renderBarSparkline(nextRainSpark, [], 28);
-  }
 
   bomLog("summary", {
     warning: warnings.summary,
