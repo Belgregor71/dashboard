@@ -210,6 +210,7 @@
 
 .weather-hero {
   grid-area: hero;
+  align-self: start;
   border-radius: 26px;
   padding: 18px 24px;
 }
@@ -365,7 +366,7 @@
 .metric-uv-dial {
   position: relative;
   flex: none;
-  margin: auto 0;
+  margin: 6px 0;
   width: clamp(64px, 9vw, 96px);
   height: clamp(64px, 9vw, 96px);
   border-radius: 50%;
@@ -397,6 +398,30 @@
   align-items: flex-end;
   gap: 4px;
   opacity: 0.85;
+}
+
+.metric-unit {
+  font-size: 0.95rem;
+  font-weight: 500;
+  opacity: 0.7;
+  margin-left: 4px;
+}
+
+.metric-progress {
+  margin-top: 4px;
+  align-self: end;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.metric-progress span {
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
 }
 
 .metric-spark .bar,
@@ -433,8 +458,8 @@
 }
 
 .weather-daypart__icon {
-  width: 28px;
-  height: 28px;
+  width: clamp(36px, 4.2vw, 48px);
+  height: clamp(36px, 4.2vw, 48px);
   flex: none;
 }
 
@@ -446,7 +471,7 @@
 
 .weather-daypart__value {
   font-family: var(--font-display);
-  font-size: 1.46rem;
+  font-size: clamp(1.8rem, 2.3vw, 2.3rem);
   font-weight: 600;
 }
 
@@ -471,11 +496,10 @@
 }
 
 .weather-hourly__head b {
-  font-size: clamp(0.92rem, 1.08vw, 1.04rem);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-family: var(--font-display);
+  font-size: clamp(1.05rem, 1.3vw, 1.25rem);
   font-weight: 600;
-  opacity: 0.7;
+  opacity: 0.85;
 }
 
 .weather-hourly__head span {
@@ -508,9 +532,9 @@
 }
 
 .hourly-bar {
-  width: 14px;
-  border-radius: 7px 7px 2px 2px;
-  background: linear-gradient(to top, var(--accent) 0%, rgba(255, 255, 255, 0.5) 100%);
+  width: clamp(20px, 2.4vw, 32px);
+  border-radius: 10px 10px 3px 3px;
+  background: linear-gradient(to top, var(--accent) 0%, rgba(255, 255, 255, 0.55) 100%);
 }
 
 .hourly-bar-time {

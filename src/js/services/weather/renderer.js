@@ -479,7 +479,7 @@ function renderCinematic(data, hourlyIndex) {
     const humidityText = humidity != null ? `Humidity ${Math.round(humidity)}%` : "";
     anchorMeta.textContent = [`High ${max}° Low ${min}°`, wind, feels, humidityText]
       .filter(Boolean)
-      .join(" · ");
+      .join("   ");
   }
 
   renderNarrative({ current, hourly, hourlyIndex });
@@ -818,6 +818,7 @@ function renderBomPanels() {
   const rainSpark = document.getElementById("weather-rain-spark");
   const humidityLarge = document.getElementById("weather-humidity-large");
   const humidityMeta = document.getElementById("weather-humidity-meta");
+  const humidityBar = document.querySelector("#weather-humidity-bar span");
   const feelsLarge = document.getElementById("weather-feels-like-large");
   const feelsMeta = document.getElementById("weather-feels-like-meta");
   const feelsSpark = document.getElementById("weather-feels-spark");
@@ -827,7 +828,7 @@ function renderBomPanels() {
   setTextIfChanged(uvValue, uvDialData.uvIndex != null ? `${uvDialData.uvIndex}` : "--");
   setTextIfChanged(uvMeta, uvDialData.label);
 
-  setTextIfChanged(rainCard, `${todayRainTotal.toFixed(1)}mm today`);
+  if (rainCard) rainCard.innerHTML = `${todayRainTotal.toFixed(1)}<span class="metric-unit">mm today</span>`;
 
   const nextRainIndex = rainfallSeries.findIndex((item) => item.value > 0.1);
   if (nextRainIndex >= 0) {
@@ -843,6 +844,7 @@ function renderBomPanels() {
 
   setTextIfChanged(humidityLarge, humidity != null ? `${Math.round(humidity)}%` : "--");
   setTextIfChanged(humidityMeta, dewPoint != null ? `Dew point ${Math.round(dewPoint)}°` : "");
+  if (humidityBar) humidityBar.style.width = humidity != null ? `${Math.max(0, Math.min(100, Math.round(humidity)))}%` : "0%";
 
   setTextIfChanged(feelsLarge, apparent != null ? `${Math.round(apparent)}°` : "--");
   setTextIfChanged(feelsMeta, formatFeelsDeltaMeta(apparent, actualTemp));
