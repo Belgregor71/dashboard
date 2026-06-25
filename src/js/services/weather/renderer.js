@@ -342,14 +342,6 @@ function pickDescriptor(code, maxPop) {
   return map[category] || "Calm";
 }
 
-function pickIcon(code, maxPop) {
-  if (maxPop >= 50) return "☔";
-  const category = getBaseCategory(code);
-  if (category === "storm") return "⚡";
-  if (category === "rain" && maxPop >= 20) return "☔";
-  return "";
-}
-
 export async function startWeather() {
   try {
     clearLotties();
@@ -611,16 +603,27 @@ function renderDayparts({ hourly }) {
     const pop = popValues.length ? Math.max(...popValues) : 0;
     const reprCode = mostCommon(codes);
     const descriptor = pickDescriptor(reprCode, pop);
-    const icon = pickIcon(reprCode, pop);
+    const isDayValues = bucket.indices.map(i => hourly.is_day?.[i]).filter(v => v != null);
+    const isDayMost = isDayValues.length ? mostCommon(isDayValues) : (bucket.key === "night" ? 0 : 1);
+    const iconId = `weather-daypart-icon-${bucket.key}`;
 
     const daypart = document.createElement("div");
     daypart.className = "weather-daypart weather-glass";
     daypart.innerHTML = `
       <div class="weather-daypart__label">${bucket.label}</div>
-      <div class="weather-daypart__value">${icon ? `${icon} ` : ""}${avgTemp != null ? `${Math.round(avgTemp)}°` : "--"}</div>
+      <div class="weather-daypart__row">
+        <div class="weather-daypart__icon" id="${iconId}"></div>
+        <div class="weather-daypart__value">${avgTemp != null ? `${Math.round(avgTemp)}°` : "--"}</div>
+      </div>
       <div class="weather-daypart__meta">${descriptor}</div>
     `;
     dayparts.appendChild(daypart);
+
+    if (reprCode != null) {
+      const animFile = weatherAnimation(Number(reprCode), Number(isDayMost) !== 0);
+      const anim = loadLottieAnimation(iconId, animFile);
+      if (anim) activeLotties.push(anim);
+    }
   });
 }
 

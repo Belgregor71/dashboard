@@ -295,9 +295,10 @@
           <div class="weather-metrics" id="weather-metrics">
             <div class="metric-card weather-glass metric-uv">
               <div class="metric-label">UV Index</div>
-              <div class="metric-value" id="weather-uv-dial-value">--</div>
+              <div id="weather-uv-dial" class="metric-uv-dial" aria-hidden="true">
+                <span class="metric-value" id="weather-uv-dial-value">--</span>
+              </div>
               <div class="metric-meta" id="weather-uv-dial-meta"></div>
-              <div id="weather-uv-dial" class="metric-uv-dial" aria-hidden="true"></div>
             </div>
 
             <div class="metric-card weather-glass metric-humidity">

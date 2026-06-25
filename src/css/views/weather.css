@@ -196,7 +196,7 @@
   height: 100%;
   display: grid;
   grid-template-columns: 1.18fr 0.92fr;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto auto minmax(0, 300px);
   grid-template-areas:
     "hero     metrics"
     "dayparts metrics"
@@ -323,6 +323,18 @@
 
 .metric-card.metric-uv {
   grid-row: span 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.metric-card.metric-uv .metric-label {
+  align-self: flex-start;
+}
+
+.metric-card.metric-uv .metric-meta {
+  text-align: center;
 }
 
 .metric-card.metric-rain {
@@ -351,13 +363,30 @@
 }
 
 .metric-uv-dial {
-  margin-top: 4px;
-  align-self: end;
-  width: 40px;
-  height: 40px;
+  position: relative;
+  flex: none;
+  margin: auto 0;
+  width: clamp(64px, 9vw, 96px);
+  height: clamp(64px, 9vw, 96px);
   border-radius: 50%;
-  background: conic-gradient(rgba(255, 196, 90, 0.95) var(--uv-deg, 0deg), rgba(255, 255, 255, 0.14) 0deg);
+  background: conic-gradient(var(--accent) var(--uv-deg, 0deg), rgba(255, 255, 255, 0.14) 0deg);
   border: 2px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.metric-uv-dial::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: rgba(15, 22, 34, 0.55);
+}
+
+.metric-uv-dial .metric-value {
+  position: relative;
+  z-index: 1;
 }
 
 .metric-spark {
@@ -395,6 +424,24 @@
   letter-spacing: 0.2em;
   text-transform: uppercase;
   opacity: 0.68;
+}
+
+.weather-daypart__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.weather-daypart__icon {
+  width: 28px;
+  height: 28px;
+  flex: none;
+}
+
+.weather-daypart__icon svg,
+.weather-daypart__icon canvas {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .weather-daypart__value {
