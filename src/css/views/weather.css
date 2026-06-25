@@ -409,12 +409,38 @@
   opacity: 0.75;
 }
 
-.weather-hourly-strip {
+.weather-hourly {
   grid-area: hourly;
   display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 16px 18px;
+  gap: 10px;
+}
+
+.weather-hourly__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.weather-hourly__head b {
+  font-size: clamp(0.92rem, 1.08vw, 1.04rem);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.weather-hourly__head span {
+  font-size: 0.85rem;
+  opacity: 0.6;
+}
+
+.weather-hourly-strip {
+  flex: 1;
+  display: flex;
   gap: 14px;
-  padding: 10px 14px;
-  border-radius: 18px;
   overflow: hidden;
   justify-content: space-between;
   min-height: 0;
