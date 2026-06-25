@@ -59,6 +59,13 @@ function getMediaConfigs() {
   }));
 }
 
+function decodeHtmlEntities(text) {
+  if (!text) return text;
+  const textarea = document.createElement("textarea");
+  textarea.innerHTML = text;
+  return textarea.value;
+}
+
 function formatSubtitle(attributes) {
   return (
     attributes.media_artist ||
@@ -107,10 +114,10 @@ function renderPanel(panel, entity, config) {
 
   sourceEl.textContent =
     config?.label || attributes.friendly_name || "Media";
-  titleEl.textContent = attributes.media_title || "Now Playing";
-  subtitleEl.textContent = formatSubtitle(attributes);
+  titleEl.textContent = decodeHtmlEntities(attributes.media_title) || "Now Playing";
+  subtitleEl.textContent = decodeHtmlEntities(formatSubtitle(attributes));
   artEl.src = imageUrl || "";
-  artEl.alt = attributes.media_title || "Media artwork";
+  artEl.alt = decodeHtmlEntities(attributes.media_title) || "Media artwork";
   artEl.classList.toggle("is-hidden", !imageUrl);
 
   updateProgress(panel, attributes);
