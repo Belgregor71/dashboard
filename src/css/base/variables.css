@@ -13,8 +13,9 @@
   /* ── Glass surface tokens ───────────────────────────────────
      Single source of truth for the frosted-glass look.
      All panel/card glass styling should reference these.
-     Weather view (.weather-glass) intentionally differs — brighter
-     glass for its cinematic video background. Do not change it.
+     Weather view (.weather-glass) keeps its own rule (needs more
+     opacity to stay legible over its cinematic video background)
+     but is tuned to the same cool navy hue as --glass-bg.
   ──────────────────────────────────────────────────────────── */
   --glass-blur:      blur(18px) brightness(0.87);
   --glass-bg:        linear-gradient(180deg, rgba(24, 28, 40, 0.48), rgba(10, 12, 18, 0.34));

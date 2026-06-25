@@ -184,11 +184,11 @@
 }
 
 .weather-glass {
-  backdrop-filter: blur(22px) saturate(135%) brightness(0.9);
-  background: linear-gradient(155deg, rgba(255, 255, 255, 0.16), rgba(15, 22, 34, 0.32));
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(22px) saturate(112%) brightness(0.88);
+  background: linear-gradient(155deg, rgba(36, 44, 66, 0.58), rgba(10, 14, 24, 0.58));
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 22px;
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
 .weather-overlay {
