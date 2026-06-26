@@ -37,7 +37,7 @@ function updateTimestamp(frameTime) {
   const el = document.getElementById("weather-radar-updated");
   if (!el || !frameTime) return;
   const date = new Date(frameTime * 1000);
-  el.textContent = `As of ${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+  el.textContent = `updated ${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase().replace(/\s/g, "")}`;
 }
 
 export async function initWeatherRadar() {

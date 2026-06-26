@@ -629,7 +629,7 @@ function renderDayparts({ hourly }) {
 
 const HOURLY_BAR_COUNT = 10;
 const HOURLY_BAR_MAX_HEIGHT = 110;
-const HOURLY_BAR_MIN_HEIGHT = 24;
+const HOURLY_BAR_MIN_HEIGHT = 55;
 
 function formatBarHourLabel(time, idx) {
   if (idx === 0) return "Now";

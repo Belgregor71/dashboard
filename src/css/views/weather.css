@@ -196,7 +196,7 @@
   height: 100%;
   display: grid;
   grid-template-columns: 1.18fr 0.92fr;
-  grid-template-rows: auto auto minmax(0, 300px);
+  grid-template-rows: 1fr 0.55fr 1fr;
   grid-template-areas:
     "hero     metrics"
     "dayparts metrics"
@@ -210,9 +210,10 @@
 
 .weather-hero {
   grid-area: hero;
-  align-self: start;
   border-radius: 26px;
   padding: 18px 24px;
+  display: flex;
+  flex-direction: column;
 }
 
 .weather-hero__eyebrow {
@@ -230,6 +231,7 @@
 }
 
 .weather-hero__main {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: clamp(16px, 2.4vw, 32px);
@@ -272,7 +274,7 @@
 .weather-hero__meta {
   font-size: clamp(0.95rem, 1.25vw, 1.3rem);
   opacity: 0.78;
-  margin-top: 8px;
+  padding-top: 10px;
 }
 
 .weather-narrative {
@@ -366,9 +368,10 @@
 .metric-uv-dial {
   position: relative;
   flex: none;
-  margin: 6px 0;
-  width: clamp(64px, 9vw, 96px);
-  height: clamp(64px, 9vw, 96px);
+  margin-top: auto;
+  margin-bottom: auto;
+  width: clamp(100px, 11vw, 130px);
+  height: clamp(100px, 11vw, 130px);
   border-radius: 50%;
   background: conic-gradient(var(--accent) var(--uv-deg, 0deg), rgba(255, 255, 255, 0.14) 0deg);
   border: 2px solid rgba(255, 255, 255, 0.2);
@@ -436,6 +439,7 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
+  align-items: start;
 }
 
 .weather-daypart {
@@ -680,9 +684,8 @@
 
 .weather-radar__title {
   font-size: clamp(0.92rem, 1.08vw, 1.04rem);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  opacity: 0.7;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
 }
 
 .weather-radar__updated {
