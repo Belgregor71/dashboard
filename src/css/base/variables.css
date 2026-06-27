@@ -78,4 +78,25 @@
   --sky-0: #070b18;
   --sky-1: #0e1530;
   --sky-2: #1a2148;
+
+  /* ── Extended type scale ─────────────────────────────────────
+     Hero sizes above --fs-display for weather temp, screensaver
+     clock, and other large single-number displays.
+  ──────────────────────────────────────────────────────────── */
+  --fs-hero:  clamp(4rem, 8vw, 9rem);
+  --fs-jumbo: clamp(6rem, 13vw, 10.5rem);
+
+  /* ── Layout spacing ──────────────────────────────────────────
+     Consistent outer gutters and column/row gaps used across
+     every view. Centralised so a single edit rescales all layout.
+  ──────────────────────────────────────────────────────────── */
+  --layout-gutter: 40px;
+  --layout-gap:    20px;
+
+  /* ── Modal / overlay radius ──────────────────────────────────
+     Overlays and modals sit above the main surface so they earn
+     a slightly larger radius than inline panels.
+  ──────────────────────────────────────────────────────────── */
+  --radius-modal:    22px;
+  --radius-modal-xl: 32px;
 }

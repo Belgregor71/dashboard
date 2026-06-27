@@ -1,3 +1,14 @@
+/* ── Shared status lamp pulse ────────────────────────────────
+   Used by .ha-connection__dot (home-panels) and
+   .status-indicator--* (system view). Defined once here so
+   both component files can reference it without a load-order
+   dependency on each other.
+──────────────────────────────────────────────────────────── */
+@keyframes status-lamp-pulse {
+  0%, 100% { box-shadow: 0 0 6px var(--lamp-dim); }
+  50%       { box-shadow: 0 0 18px var(--lamp-bright); }
+}
+
 .hidden {
   display: none !important;
 }

@@ -75,7 +75,7 @@
   font-weight: 500;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--ink-faint);
   margin-bottom: 2px;
 }
 
@@ -98,26 +98,27 @@
 
 .bl-label {
   font-size: 0.80em;
-  color: rgba(255, 255, 255, 0.38);
+  color: var(--ink-dim);
   min-width: 5em;
   flex-shrink: 0;
   text-align: right;
 }
 
 .bl-val--dim {
-  color: rgba(255, 255, 255, 0.40);
+  color: var(--ink-faint);
 }
 
 .bl-empty {
   font-size: var(--fs-body);
-  color: rgba(255, 255, 255, 0.32);
+  color: var(--ink-faint);
   font-style: italic;
   line-height: 1.4;
 }
 
 .bl-divider {
   font-size: 0.75em;
-  color: rgba(255, 255, 255, 0.28);
+  color: var(--ink-faint);
+  opacity: 0.55;
   text-transform: uppercase;
   letter-spacing: 0.10em;
   padding-top: 6px;

@@ -25,7 +25,7 @@
 .occasion-popup__card {
   position: relative;
   width: min(820px, 88vw);
-  border-radius: 32px;
+  border-radius: var(--radius-modal-xl);
   overflow: hidden;
   box-shadow: 0 32px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255,255,255,0.08);
   transform: scale(0.75) translateY(40px);
@@ -120,8 +120,9 @@
 
 /* Text */
 .occasion-popup__title {
+  font-family: var(--font-display);
   font-size: clamp(1.9rem, 4.5vw, 3.2rem);
-  font-weight: 800;
+  font-weight: 700;
   color: #fff;
   padding: 18px 28px 6px;
   line-height: 1.15;

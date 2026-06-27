@@ -84,7 +84,7 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  color: #fff;
+  color: var(--ink);
   padding: 2rem;
   user-select: none;
   /* Gentle, slow reposition for OLED/burn-in protection — transform-only,

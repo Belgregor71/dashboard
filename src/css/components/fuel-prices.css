@@ -68,7 +68,7 @@
 .fuel-price {
   font-size: 1rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--ink);
   letter-spacing: -0.02em;
   line-height: 1;
 }

@@ -33,7 +33,7 @@
 .next-event-progress-track {
   width: 100%;
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.15);
   overflow: hidden;
 }

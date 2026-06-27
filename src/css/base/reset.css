@@ -5,8 +5,8 @@
 }
 
 body {
-  font-family: "Inter", Arial, sans-serif;
-  color: white;
+  font-family: var(--font-body);
+  color: var(--ink);
   background: #000;
   overflow: hidden;
   height: 100vh;

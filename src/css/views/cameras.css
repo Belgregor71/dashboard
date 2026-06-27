@@ -37,7 +37,7 @@
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: var(--glass-border);
   background: var(--glass-bg);
   backdrop-filter: var(--glass-blur);
@@ -136,7 +136,7 @@
   position: absolute;
   inset: 12px auto auto 12px;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: clamp(0.6rem, 0.8vw, 0.72rem);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -187,7 +187,7 @@
   font-size: clamp(0.62rem, 0.8vw, 0.82rem);
   opacity: 0.85;
   padding: 3px 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(15, 23, 42, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.12);
   text-transform: uppercase;
@@ -319,7 +319,7 @@
   inset: 10px 10px auto auto;
   z-index: 2;
   padding: 3px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: clamp(0.6rem, 0.8vw, 0.75rem);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -345,7 +345,7 @@
   inset: 10px auto auto 10px;
   z-index: 2;
   padding: 3px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: clamp(0.58rem, 0.75vw, 0.7rem);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -362,12 +362,12 @@
   inset: auto 10px 10px 10px;
   z-index: 2;
   padding: 6px 8px;
-  border-radius: 8px;
+  border-radius: var(--glass-radius-sm);
   font-size: clamp(0.58rem, 0.75vw, 0.7rem);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   background: rgba(0, 0, 0, 0.7);
-  color: #fff;
+  color: var(--ink);
 }
 
 .camera-card__debug.is-hidden {
@@ -384,7 +384,7 @@
 
 .camera-card__action {
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 6px 12px;
   font-size: 0.75rem;
   font-weight: 600;
@@ -415,7 +415,7 @@
 }
 
 .camera-card.is-streaming .camera-card__badge--auto {
-  background: rgba(39, 174, 96, 0.85);
+  background: color-mix(in oklch, var(--status-ok) 85%, transparent);
   color: #fff;
 }
 
@@ -424,7 +424,7 @@
   align-items: center;
   justify-content: center;
   padding: 6px 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: clamp(0.65rem, 0.85vw, 0.85rem);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -487,11 +487,11 @@
   inset: 80px 40px auto auto;
   width: min(360px, 90vw);
   padding: 16px;
-  border-radius: 16px;
-  background: rgba(12, 16, 28, 0.92);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  border-radius: var(--glass-radius);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  box-shadow: var(--glass-shadow);
   opacity: 0;
   transform: translateY(-10px);
   transition: opacity 0.2s ease, transform 0.2s ease;
@@ -614,7 +614,7 @@
 .camera-timeline__band {
   position: relative;
   height: clamp(14px, 1.6vh, 20px);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(255, 255, 255, 0.1);
   overflow: hidden;
@@ -652,9 +652,9 @@
   position: absolute;
   inset: auto 40px 24px auto;
   padding: 10px 16px;
-  border-radius: 999px;
-  background: rgba(15, 15, 15, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-pill);
+  background: var(--glass-bg);
+  border: var(--glass-border);
   font-size: 0.85rem;
   opacity: 0;
   pointer-events: none;
@@ -671,16 +671,16 @@
   bottom: 18px;
   transform: translateX(-50%);
   padding: 10px 16px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.88);
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  color: rgba(241, 245, 249, 0.96);
+  border-radius: var(--radius-pill);
+  background: var(--glass-bg);
+  border: var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  color: var(--ink);
   font-size: 0.85rem;
   line-height: 1.2;
   z-index: 45;
   pointer-events: none;
-  backdrop-filter: blur(10px);
+  backdrop-filter: var(--glass-blur);
   max-width: calc(100vw - 24px);
   white-space: nowrap;
   overflow: hidden;

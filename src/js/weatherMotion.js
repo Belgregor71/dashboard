@@ -63,13 +63,12 @@ export function startWeatherMotion({ code }) {
 
   function maybeLightning() {
     if (!p.lightning) return;
-    // occasional flash
     if (Math.random() < 0.006) {
-      flash.style.transition = "none";
-      flash.style.background = "rgba(255,255,255,0.55)";
+      flash.classList.remove("is-fading");
+      flash.classList.add("is-flashing");
       requestAnimationFrame(() => {
-        flash.style.transition = "background 180ms ease-out";
-        flash.style.background = "rgba(255,255,255,0)";
+        flash.classList.remove("is-flashing");
+        flash.classList.add("is-fading");
       });
     }
   }

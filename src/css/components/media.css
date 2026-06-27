@@ -148,7 +148,7 @@
 
 .media-panel__progress {
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.18);
   overflow: hidden;
 }
@@ -160,7 +160,7 @@
 .media-panel__progress-bar {
   height: 100%;
   width: 0%;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--accent);
   transition: width 0.25s linear;
 }
 

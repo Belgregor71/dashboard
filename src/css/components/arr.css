@@ -3,7 +3,7 @@
   padding: 16px 18px;
   border-radius: var(--glass-radius-sm);
   background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(114, 255, 159, 0.2);
+  border: 1px solid color-mix(in oklch, var(--status-ok) 30%, transparent);
 }
 
 .media-status-section {
@@ -35,7 +35,7 @@
 
 .media-status-pill-row .status-header-pill__value {
   padding: 5px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.18);
   font-size: 0.84rem;
@@ -49,7 +49,7 @@
 .media-disk-bar {
   height: 7px;
   background: rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   overflow: hidden;
 }
 
@@ -57,7 +57,7 @@
   display: block;
   height: 100%;
   width: 0;
-  background: linear-gradient(90deg, rgba(255, 181, 94, 0.9), rgba(255, 102, 102, 0.9));
+  background: linear-gradient(90deg, var(--status-warn), var(--status-error));
   transition: width 180ms ease;
 }
 
@@ -100,14 +100,14 @@
 .arr-progress {
   height: 6px;
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
+  border-radius: var(--radius-pill);
   overflow: hidden;
   margin-top: 4px;
 }
 
 .arr-bar {
   height: 100%;
-  background: linear-gradient(90deg, #4ade80, #22c55e);
+  background: linear-gradient(90deg, var(--status-ok), color-mix(in oklch, var(--status-ok) 70%, white));
   transition: width 0.5s ease;
 }
 

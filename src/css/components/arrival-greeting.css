@@ -22,14 +22,14 @@
 
 .arrival-greeting__card {
   background: linear-gradient(145deg, rgba(16, 22, 40, 0.88), rgba(8, 12, 24, 0.80));
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 22px;
+  border: var(--glass-border);
+  border-radius: var(--radius-modal);
   padding: 28px 32px 0;
-  backdrop-filter: blur(24px) brightness(0.9);
+  backdrop-filter: var(--glass-blur);
   box-shadow:
     0 4px 6px rgba(0, 0, 0, 0.2),
     0 20px 60px rgba(0, 0, 0, 0.45),
-    0 0 0 1px rgba(120, 180, 255, 0.08) inset;
+    var(--glass-sheen);
   overflow: hidden;
 }
 
@@ -50,7 +50,8 @@
 .arrival-greeting__status {
   font-size: clamp(0.9rem, 1.4vw, 1.2rem);
   font-weight: 400;
-  color: rgba(120, 200, 255, 0.85);
+  color: var(--accent-2);
+  opacity: 0.85;
   letter-spacing: 0.02em;
   margin-bottom: 16px;
 }
