@@ -10,15 +10,6 @@
   transition: opacity 0.45s ease, transform 0.45s ease;
 }
 
-.panel-glass {
-  border: var(--glass-border);
-  box-shadow: var(--glass-shadow), var(--glass-sheen);
-}
-
-.panel-elevated {
-  box-shadow: var(--glass-shadow), var(--glass-sheen);
-}
-
 .panel.is-hidden {
   opacity: 0;
   transform: translateY(8px);

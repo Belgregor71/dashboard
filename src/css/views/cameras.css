@@ -268,6 +268,7 @@
   overflow: hidden;
   background: var(--glass-bg);
   border: var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-sheen);
   backdrop-filter: var(--glass-blur);
   position: relative;
   min-height: 0;
