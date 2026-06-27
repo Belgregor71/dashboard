@@ -179,5 +179,5 @@
 }
 
 .server-item .ok {
-  color: #7CFC00;
+  color: var(--status-ok);
 }

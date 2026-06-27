@@ -83,6 +83,4 @@ body.tint-night #clock {
   text-shadow: 0 0 80px rgba(60, 160, 255, 0.20);
 }
 
-body.tint-morning #date { color: rgba(255, 210, 160, 0.85); }
-body.tint-evening #date { color: rgba(255, 200, 150, 0.80); }
 body.tint-night   #date { color: rgba(120, 200, 255, 0.72); }

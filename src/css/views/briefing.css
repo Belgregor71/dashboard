@@ -17,9 +17,7 @@
   font-weight: 500;
   letter-spacing: var(--ls-eyebrow);
   text-transform: uppercase;
-  color: var(--accent);
-  opacity: 0.75;
-  transition: color 2s ease;
+  color: var(--ink-faint);
 }
 
 .briefing-strip__time {

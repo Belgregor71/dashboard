@@ -1,7 +1,9 @@
 .panel {
   backdrop-filter: var(--glass-blur);
   background: var(--glass-bg);
+  border: var(--glass-border);
   border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow), var(--glass-sheen);
   padding: 20px;
   opacity: 1;
   transform: translateY(0);
@@ -10,7 +12,7 @@
 
 .panel-glass {
   border: var(--glass-border);
-  box-shadow: var(--glass-sheen);
+  box-shadow: var(--glass-shadow), var(--glass-sheen);
 }
 
 .panel-elevated {

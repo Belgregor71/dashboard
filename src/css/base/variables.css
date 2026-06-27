@@ -34,6 +34,17 @@
   ──────────────────────────────────────────────────────────── */
   --font-display: "Barlow Condensed", "Inter", sans-serif;
   --font-body:    "Inter", Arial, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, monospace;
+
+  /* ── Ink / text tones ────────────────────────────────────────
+     Fixed-value text hierarchy that does not shift with the
+     time-of-day accent. Use these instead of raw rgba(255,255,255,x)
+     so the palette stays coherent and can be updated in one place.
+     --ink-faint is the correct colour for eyebrows and labels.
+  ──────────────────────────────────────────────────────────── */
+  --ink:       #eef3fb;   /* primary text          */
+  --ink-dim:   #9fb0d4;   /* secondary / meta      */
+  --ink-faint: #5e6f96;   /* labels, eyebrows, captions */
 
   --fs-eyebrow:    0.78rem;
   --ls-eyebrow:    0.16em;
@@ -48,6 +59,12 @@
   --status-warn:  #ffb347;
   --status-error: #ff6b6b;
   --status-info:  #79b8ff;
+
+  /* ── Warm accent ─────────────────────────────────────────────
+     The only warm hue in the system. Reserved for sun and
+     lightning glyphs only. Do not use for text or UI chrome.
+  ──────────────────────────────────────────────────────────── */
+  --warm: #ffcd8c;
 
   /* ── Time-of-day accent ───────────────────────────────────────
      Set per body.tint-* class in background.css. Default here is

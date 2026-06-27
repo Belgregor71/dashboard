@@ -195,7 +195,7 @@
 }
 
 .camera-hero__status[data-status="offline"] {
-  background: rgba(231, 76, 60, 0.75);
+  background: color-mix(in oklch, var(--status-error) 75%, transparent);
 }
 
 .camera-hero__status[data-status="stale"] {
@@ -327,7 +327,7 @@
 }
 
 .camera-card__pill[data-status="offline"] {
-  background: rgba(231, 76, 60, 0.85);
+  background: color-mix(in oklch, var(--status-error) 85%, transparent);
 }
 
 .camera-card__pill[data-status="stale"] {
@@ -395,7 +395,7 @@
 }
 
 .camera-card__action--stop {
-  background: rgba(231, 76, 60, 0.85);
+  background: color-mix(in oklch, var(--status-error) 85%, transparent);
 }
 
 .camera-card__status {
@@ -427,7 +427,7 @@
   font-size: clamp(0.65rem, 0.85vw, 0.85rem);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  background: rgba(231, 76, 60, 0.85);
+  background: color-mix(in oklch, var(--status-error) 85%, transparent);
   color: #fff;
   position: relative;
   z-index: 1;

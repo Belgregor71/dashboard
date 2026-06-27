@@ -264,7 +264,7 @@
 .weather-hero__temp {
   font-family: var(--font-display);
   font-size: clamp(5rem, 9vw, 9rem);
-  font-weight: 300;
+  font-weight: 200;
   line-height: 1;
   margin-top: 4px;
   color: var(--accent);
@@ -352,10 +352,10 @@
 }
 
 .metric-value {
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
   margin-top: 0;
   font-size: clamp(1.5rem, 2vw, 2.1rem);
-  font-weight: 700;
+  font-weight: 300;
 }
 
 .metric-meta {

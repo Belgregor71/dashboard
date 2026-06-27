@@ -77,11 +77,11 @@
 }
 
 .ha-connection__dot.is-online {
-  background: #55d67e;
-  box-shadow: 0 0 12px rgba(85, 214, 126, 0.6);
+  background: var(--status-ok);
+  box-shadow: 0 0 12px color-mix(in oklch, var(--status-ok) 60%, transparent);
 }
 
 .ha-connection__dot.is-offline {
-  background: #f06a6a;
-  box-shadow: 0 0 12px rgba(240, 106, 106, 0.6);
+  background: var(--status-error);
+  box-shadow: 0 0 12px color-mix(in oklch, var(--status-error) 60%, transparent);
 }
