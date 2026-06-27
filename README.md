@@ -11,7 +11,7 @@ Always-on home dashboard for a Raspberry Pi 4 + 32-inch landscape display.
 | Build | Vite 6 — `src/` → `dist/` |
 | Display | Chromium in `--kiosk` mode via systemd |
 
-The server runs on port **3000** and serves the Vite-built `dist/` folder (falling back to `static/` if no build exists). All external API calls are proxied through the server so the browser never talks to outside services directly.
+The server runs on port **3000** and serves the Vite-built `dist/` folder. All external API calls are proxied through the server so the browser never talks to outside services directly.
 
 ## Project layout
 
@@ -31,11 +31,14 @@ src/                   # Vite source (edit here)
     modules/           # One file per widget/feature
     services/          # Home Assistant SSE client, calendar, weather parsers
   css/
-    components/        # Split CSS — one file per component
+    base/              # variables.css (design tokens), reset.css
+    layout/            # background.css, grid.css, top-bar.css
+    components/        # One file per component
+    views/             # One file per full-screen view
+    utils/             # helpers.css, weather-fx.css, view-switching.css, …
+    main.css           # Imports everything in order
 dist/                  # Vite build output (served by Express, git-ignored)
 static/                # Non-built assets: photos, icons, weather videos, data/
-  js/                  # Mirror of src/js/ — used when dist/ doesn't exist
-  css/
 ```
 
 ## Active integrations
@@ -44,11 +47,29 @@ static/                # Non-built assets: photos, icons, weather videos, data/
 - **Home Assistant** — WebSocket bridge for live state, camera/image proxy
 - **Plex** — now-playing status
 - **Sonos** — media status via HA WebSocket
-- **Weather** — BOM + Open-Meteo, rain radar
+- **Sonarr / Radarr** — active download progress + disk usage
+- **Weather** — Open-Meteo forecasts, BOM radar + severe-weather warnings
 - **Calendars** — iCal URLs (direct, no Google API)
+- **Commute** — travel-time panel
+- **Fuel prices** — local station pricing
+- **NRL** — live scores / ladder
+- **Bins** — council collection reminder
 - **ABC news ticker** — RSS
-- **Ollama AI briefing** — morning + evening scheduled summaries
+- **Ollama AI briefing** — morning + evening scheduled summaries (local LLM, no cloud)
+- **Kokoro TTS** — self-hosted text-to-speech (`bf_emma`, en-GB); falls back to browser `speechSynthesis`
 - **Voice commands** — Web Speech API, spacebar toggle, `en-AU`
+- **Screensaver** — photo slideshow with slow zoom, OLED burn-in drift protection
+
+## Design system
+
+All styling goes through CSS custom properties defined in `src/css/base/variables.css`. See `STYLE_GUIDE.md` for the full token reference. Key rules:
+
+- **Glass surfaces** — use `--glass-blur`, `--glass-bg`, `--glass-border`, `--glass-shadow`, `--glass-sheen` together, never piecemeal.
+- **Text color** — use `--ink` / `--ink-dim` / `--ink-faint` on dark/glass backgrounds; `color: #fff` only on saturated status-coloured badge backgrounds.
+- **Border radius** — `--radius-pill` (999px), `--glass-radius` (18px), `--glass-radius-sm` (14px), `--radius-modal` (22px), `--radius-modal-xl` (32px). Never hard-code `999px`.
+- **Status colors** — `--status-ok/warn/error/info`; use `color-mix(in oklch, var(--status-X) N%, transparent)` for tinted badge backgrounds.
+- **Fonts** — `--font-display` (Barlow Condensed), `--font-body` (Inter), `--font-mono` (JetBrains Mono). Never hard-code a font stack.
+- **Animation** — JS toggles CSS classes; never mutates `element.style.*`. Shared `@keyframes` live in `helpers.css`.
 
 ## Setup
 
@@ -165,5 +186,5 @@ journalctl -u dashboard -n 100 --no-pager
 1. Add a route file in `server/routes/` and mount it in `server.js`
 2. Add a module in `src/js/modules/` that calls the endpoint
 3. Wire it into `src/js/core/app.js`
-4. Add CSS in `src/css/components/`
+4. Add CSS in `src/css/components/` using design tokens from `variables.css`
 5. Run `npm run build` to update `dist/`
