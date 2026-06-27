@@ -28,18 +28,20 @@ existing pattern here rather than inventing a new one.
 
 ## Typography
 
-Two font families, used consistently everywhere — never introduce a third or
+Three font families, used consistently everywhere — never introduce a fourth or
 hardcode a font stack literally; always reference the variables.
 
 ```css
 --font-display: "Barlow Condensed", "Inter", sans-serif;  /* headlines, numbers */
 --font-body:    "Inter", Arial, sans-serif;                /* everything else */
+--font-mono:    "JetBrains Mono", monospace;               /* debug/technical readouts */
 ```
 
 | Use case | Font | Example |
 |---|---|---|
 | Clock, hero temp, metric-card values, panel/view titles | `--font-display` | `8:44am`, `18°`, "Timeline" |
 | Eyebrow labels, meta text, body copy, descriptions | `--font-body` | "NUDGEE · TODAY", "Feels like 21°" |
+| Debug overlays, technical status readouts | `--font-mono` | camera debug badge |
 
 The rule of thumb: if it's the biggest, most prominent number or word in a
 component, it's display. If it's supporting/secondary text, it's body. This
@@ -47,11 +49,18 @@ was the exact bug fixed when Weather's hero temp was found rendering in the
 body font — every numeric "headline" element must explicitly set
 `font-family: var(--font-display)`; nothing inherits the right font by luck.
 
+Google Fonts must explicitly load every weight used. Current URL imports
+Barlow Condensed at 200–700 and Inter at 300–600. If a new weight is needed,
+update the `<link>` in `index.html` alongside the CSS — missing weights fail
+silently (the browser substitutes the nearest available weight).
+
 Sizing uses `clamp()` almost everywhere rather than fixed px/rem, so panels
 scale gracefully across viewport sizes without a separate mobile breakpoint
 system. Shared size tokens:
 
 ```css
+--fs-jumbo:      clamp(6rem, 13vw, 10.5rem);  /* screensaver clock */
+--fs-hero:       clamp(4rem, 8vw,  9rem);     /* weather hero temp */
 --fs-display:    clamp(2rem, 4.8vw, 4rem);
 --fs-title:      clamp(1.25rem, 2.2vw, 2rem);
 --fs-view-title: clamp(1.8rem, 2.6vw, 2.6rem);
@@ -101,6 +110,22 @@ body.is-holiday #background-tint     { box-shadow: inset 0 0 220px rgba(250, 204
 
 No moon-phase styling — deliberately excluded, not a gap.
 
+### Ink hierarchy (text on dark surfaces)
+
+The dashboard background is always dark. Use the ink token that matches the
+visual weight you want — never write a literal `rgba(255,255,255,X)` for text.
+
+```css
+--ink:       #eef3fb;   /* primary text — full-brightness white-blue */
+--ink-dim:   #9fb0d4;   /* secondary / supporting text */
+--ink-faint: #5e6f96;   /* tertiary / disabled / quiet meta labels */
+```
+
+`color: #fff` is only appropriate when text sits directly on a saturated
+coloured background (a `--status-ok` green badge, a `--status-error` red
+badge, etc.) where `--ink` would not provide sufficient contrast. On all
+glass surfaces and standard dark backgrounds, use `var(--ink)`.
+
 ### Status semantics
 
 Shared meaning for ok/warn/error/info across Cameras, Status, and media
@@ -112,6 +137,10 @@ automation — never define a one-off green/red in a component file.
 --status-error: #ff6b6b;
 --status-info:  #79b8ff;
 ```
+
+Use `color-mix(in oklch, var(--status-X) N%, transparent)` for tinted badge
+backgrounds rather than hard-coded rgba values — this keeps the palette
+consistent if a status token ever changes.
 
 ### Glass surface tokens
 
@@ -125,13 +154,26 @@ Every panel/card uses these — don't write a one-off `backdrop-filter`/
 --glass-radius:    18px;
 --glass-radius-sm: 14px;
 --radius-pill:     999px;
+--radius-modal:    22px;   /* standard modal/overlay card */
+--radius-modal-xl: 32px;   /* large occasion/holiday cards */
 --glass-shadow:    0 8px 28px rgba(0, 0, 0, 0.30);
 --glass-sheen:     inset 0 1px 0 rgba(255, 255, 255, 0.07);
 ```
 
+The five-property pattern for any glass surface is always:
+`background`, `border`, `backdrop-filter`, `box-shadow` (shadow + sheen),
+`border-radius`. Never apply them piecemeal — either use all five or none.
+
 The Weather view's `.weather-glass` is a deliberate, brighter exception (it
 sits over a cinematic video background and needs more contrast) — don't
 "fix" it to match `--glass-bg`, and don't copy its values elsewhere either.
+
+### Layout tokens
+
+```css
+--layout-gutter: 40px;   /* horizontal page margin (left/right of view content) */
+--layout-gap:    20px;   /* standard gap between grid cells / stacked panels */
+```
 
 ### Spacing tokens
 
@@ -237,6 +279,42 @@ reason:
 If a new motion idea doesn't have a one-sentence reason beyond "looks nice,"
 it's probably not in keeping with this dashboard — re-read the Design
 philosophy section above.
+
+### Shared keyframes
+
+`@keyframes` used across more than one file live in `src/css/utils/helpers.css`,
+not in a component or view file. The current shared keyframes:
+
+```css
+@keyframes status-lamp-pulse { … }   /* used by .ha-connection__dot in home-panels.css */
+```
+
+Never define a keyframe in a component file if it's already (or might be)
+consumed by another component — move it to `helpers.css` instead.
+
+### CSS class states, not inline styles
+
+Animating an element from JS must be done by toggling CSS classes, not by
+mutating `element.style.*`. Inline style mutations bypass the cascade and
+make transitions impossible to override or inspect.
+
+The lightning flash pattern is the canonical example:
+
+```js
+// Correct — class toggle
+flash.classList.remove("is-fading");
+flash.classList.add("is-flashing");
+requestAnimationFrame(() => {
+  flash.classList.remove("is-flashing");
+  flash.classList.add("is-fading");
+});
+```
+
+```css
+/* Correct — states defined in CSS */
+.wx-flash.is-flashing { background: rgba(255, 255, 255, 0.55); transition: none; }
+.wx-flash.is-fading   { background: transparent; transition: background 180ms ease-out; }
+```
 
 ## Performance notes (Pi 4 / NAS split)
 
