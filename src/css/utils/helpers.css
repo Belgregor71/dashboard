@@ -3,7 +3,7 @@
 }
 
 .is-hidden {
-  display: none !important;
+  display: none;
 }
 
 body.dashboard-sleeping {

@@ -20,6 +20,7 @@
 
 .plex-status {
   position: relative;
+  height: 100%;
 }
 
 .plex-status__grid {
@@ -153,6 +154,7 @@
   height: 100%;
   width: 0%;
   background: rgba(255, 255, 255, 0.8);
+  transition: width 0.25s linear;
 }
 
 #shopping-list {
