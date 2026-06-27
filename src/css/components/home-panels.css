@@ -77,11 +77,15 @@
 }
 
 .ha-connection__dot.is-online {
+  --lamp-dim:    color-mix(in oklch, var(--status-ok)    35%, transparent);
+  --lamp-bright: color-mix(in oklch, var(--status-ok)    70%, transparent);
   background: var(--status-ok);
-  box-shadow: 0 0 12px color-mix(in oklch, var(--status-ok) 60%, transparent);
+  animation: status-lamp-pulse 2.8s ease-in-out infinite;
 }
 
 .ha-connection__dot.is-offline {
+  --lamp-dim:    color-mix(in oklch, var(--status-error) 35%, transparent);
+  --lamp-bright: color-mix(in oklch, var(--status-error) 70%, transparent);
   background: var(--status-error);
-  box-shadow: 0 0 12px color-mix(in oklch, var(--status-error) 60%, transparent);
+  animation: status-lamp-pulse 1.4s ease-in-out infinite;
 }

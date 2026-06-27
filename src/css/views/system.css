@@ -187,24 +187,37 @@
   box-shadow: 0 0 12px rgba(0, 0, 0, 0.4);
 }
 
+@keyframes status-lamp-pulse {
+  0%, 100% { box-shadow: 0 0 6px var(--lamp-dim); }
+  50%       { box-shadow: 0 0 18px var(--lamp-bright); }
+}
+
 .status-indicator--ok {
+  --lamp-dim:    color-mix(in oklch, var(--status-ok)    35%, transparent);
+  --lamp-bright: color-mix(in oklch, var(--status-ok)    70%, transparent);
   background: var(--status-ok);
-  box-shadow: 0 0 12px rgba(77, 213, 123, 0.6);
+  animation: status-lamp-pulse 2.8s ease-in-out infinite;
 }
 
 .status-indicator--warn {
+  --lamp-dim:    color-mix(in oklch, var(--status-warn)  35%, transparent);
+  --lamp-bright: color-mix(in oklch, var(--status-warn)  70%, transparent);
   background: var(--status-warn);
-  box-shadow: 0 0 12px rgba(255, 179, 71, 0.6);
+  animation: status-lamp-pulse 2s ease-in-out infinite;
 }
 
 .status-indicator--error {
+  --lamp-dim:    color-mix(in oklch, var(--status-error) 35%, transparent);
+  --lamp-bright: color-mix(in oklch, var(--status-error) 70%, transparent);
   background: var(--status-error);
-  box-shadow: 0 0 12px rgba(255, 107, 107, 0.6);
+  animation: status-lamp-pulse 1.4s ease-in-out infinite;
 }
 
 .status-indicator--info {
+  --lamp-dim:    color-mix(in oklch, var(--status-info)  35%, transparent);
+  --lamp-bright: color-mix(in oklch, var(--status-info)  70%, transparent);
   background: var(--status-info);
-  box-shadow: 0 0 12px rgba(121, 184, 255, 0.5);
+  animation: status-lamp-pulse 3s ease-in-out infinite;
 }
 
 .status-alerts__title {

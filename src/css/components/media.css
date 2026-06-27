@@ -51,6 +51,13 @@
   display: flex;
   align-items: flex-end;
   box-shadow: 0 12px 20px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+.plex-status__tile:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 36px rgba(0, 0, 0, 0.5);
 }
 
 .plex-status__tile::after {
