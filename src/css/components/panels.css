@@ -18,7 +18,7 @@
 }
 
 .panel.is-collapsed {
-  display: none;
+  display: none !important;
 }
 
 /* ── Panel/card titles ─────────────────────────────────────────
