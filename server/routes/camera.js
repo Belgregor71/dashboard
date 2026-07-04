@@ -393,6 +393,30 @@ async function isGo2rtcReceiving(serial) {
   }
 }
 
+// The kiosk's Chromium fails to decode the H.264 fMP4 (zero frames, no error;
+// broken hw-decode pipeline on the Pi), so the stream is transcoded to MJPEG
+// by go2rtc's bundled ffmpeg and rendered by a plain <img>.
+async function ensureMjpegStream(go2rtcBase, serial) {
+  const name = `${serial}_mjpeg`;
+  try {
+    const existing = await fetchWithTimeout(
+      `${go2rtcBase}/api/streams?src=${encodeURIComponent(name)}`,
+      {},
+      3000
+    );
+    if (existing.ok) return name;
+  } catch { /* not registered yet */ }
+  // Registration succeeds in memory even when go2rtc reports a config
+  // persistence error (non-2xx), so the response is ignored.
+  const src = encodeURIComponent(`ffmpeg:${serial}#video=mjpeg`);
+  await fetchWithTimeout(
+    `${go2rtcBase}/api/streams?name=${encodeURIComponent(name)}&src=${src}`,
+    { method: "PUT" },
+    3000
+  ).catch(() => {});
+  return name;
+}
+
 function scheduleLivestreamStop(camera) {
   clearTimeout(liveStopTimers.get(camera.id));
   liveStopTimers.set(
@@ -450,15 +474,16 @@ router.get("/api/camera/:id/live", async (req, res) => {
     }
     if (clientGone) return;
 
+    const mjpegName = await ensureMjpegStream(go2rtcBase, serial);
     // No timeout here: this is a long-lived live stream.
-    const upstream = await fetch(`${go2rtcBase}/api/stream.mp4?src=${encodeURIComponent(serial)}`);
+    const upstream = await fetch(`${go2rtcBase}/api/stream.mjpeg?src=${encodeURIComponent(mjpegName)}`);
     if (!upstream.ok || !upstream.body) {
       res.status(502).json({ error: "go2rtc stream error" });
       return;
     }
     upstreamBody = upstream.body;
     res.status(200);
-    res.set("Content-Type", upstream.headers.get("content-type") || "video/mp4");
+    res.set("Content-Type", upstream.headers.get("content-type") || "multipart/x-mixed-replace");
     res.set("Cache-Control", "no-store");
     await pipeline(upstream.body, res);
   } catch (err) {

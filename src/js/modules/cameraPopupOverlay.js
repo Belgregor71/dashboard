@@ -255,20 +255,10 @@ export function initCameraPopupOverlay() {
     liveCameraKey = "";
     liveAttempts = 0;
     overlayEl.classList.remove("is-live");
-    // Dropping src aborts the /live request, which lets the server stop the
+    // Emptying src aborts the /live request, which lets the server stop the
     // P2P stream once no viewers remain.
+    liveEl.src = "";
     liveEl.removeAttribute("src");
-    liveEl.load();
-  }
-
-  function requestLivePlayback(cameraKey) {
-    liveEl.src = buildLiveUrl(cameraKey);
-    // The autoplay attribute alone is not reliable for a src swapped in after
-    // load; an explicit play() is. A rejection (e.g. autoplay policy) just
-    // leaves the snapshot showing.
-    liveEl.play().catch((err) => {
-      logDebug("live stream play() rejected", { camera: cameraKey, error: err?.name });
-    });
   }
 
   function startLiveStream(cameraKey) {
@@ -277,7 +267,7 @@ export function initCameraPopupOverlay() {
     stopLiveStream();
     liveCameraKey = cameraKey;
     liveAttempts = 1;
-    requestLivePlayback(cameraKey);
+    liveEl.src = buildLiveUrl(cameraKey);
     logDebug("live stream requested", { camera: cameraKey });
   }
 
@@ -294,7 +284,7 @@ export function initCameraPopupOverlay() {
     liveRetryTimer = setTimeout(() => {
       if (activeCameraKey !== cameraKey || liveCameraKey !== cameraKey) return;
       liveAttempts += 1;
-      requestLivePlayback(cameraKey);
+      liveEl.src = buildLiveUrl(cameraKey);
       logDebug("live stream retry", { camera: cameraKey, attempt: liveAttempts });
     }, LIVE_RETRY_DELAY_MS);
   }
@@ -474,14 +464,15 @@ export function initCameraPopupOverlay() {
   }
 
   if (liveEl) {
-    liveEl.addEventListener("playing", () => {
+    // "load" fires when the first MJPEG frame decodes; later frames just
+    // replace the image without re-firing it.
+    liveEl.addEventListener("load", () => {
       if (!liveCameraKey || liveCameraKey !== activeCameraKey) return;
       overlayEl.classList.add("is-live");
       updateUpdatedBadge();
-      logDebug("live stream playing", { camera: liveCameraKey });
+      logDebug("live stream showing", { camera: liveCameraKey });
     });
     liveEl.addEventListener("error", handleLiveFailure);
-    liveEl.addEventListener("ended", handleLiveFailure);
   }
 
   closeBtn?.addEventListener("click", hideCameraPopup);
