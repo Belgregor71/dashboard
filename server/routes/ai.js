@@ -1,5 +1,6 @@
 import express from "express";
 import Anthropic from "@anthropic-ai/sdk";
+import { reportFailure, reportSuccess } from "../services/healthService.js";
 
 const router = express.Router();
 
@@ -107,16 +108,21 @@ router.post("/api/ai/brief", async (req, res) => {
 
   try {
     const summary = await generateWithClaude(type, system, prompt);
-    if (summary) return res.json({ summary, source: "claude" });
+    if (summary) {
+      reportSuccess("ai");
+      return res.json({ summary, source: "claude" });
+    }
   } catch (err) {
     console.error("[AI] Claude brief error, falling back to Ollama:", err.message);
   }
 
   try {
     const summary = await generateWithOllama(type, system, prompt);
+    reportSuccess("ai");
     return res.json({ summary, source: "ollama" });
   } catch (err) {
     console.error("[AI] brief error:", err.message);
+    reportFailure("ai", err.message);
     return res.status(502).json({ summary: null });
   }
 });

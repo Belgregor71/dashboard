@@ -625,6 +625,12 @@
     </div>
   </section>
 
+  <!-- Watchdog indicator: appears only when a server-side feed is degraded -->
+  <div id="health-indicator" class="health-indicator is-hidden" aria-hidden="true">
+    <span class="health-indicator__dot"></span>
+    <span id="health-indicator-label" class="health-indicator__label"></span>
+  </div>
+
   <!-- Main entry point (imports everything else) -->
     <!-- Config (feature flags etc) -->
   <script src="/env.js"></script>

@@ -1,5 +1,6 @@
 import fetch from "node-fetch";
 import { validateData } from "../middleware/validate.js";
+import { reportFailure, reportSuccess } from "./healthService.js";
 
 /** @typedef {import("../types/api.js").WeatherNowNormalized} WeatherNowNormalized */
 /** @typedef {import("../types/api.js").WeatherForecastNormalized} WeatherForecastNormalized */
@@ -125,6 +126,7 @@ export function weatherFallbackForecast() {
 export async function getWeatherNormalized({ lat, lon, validateNow, validateForecast }) {
   try {
     const raw = await fetchWeatherRaw({ lat, lon });
+    reportSuccess("weather");
     const now = normalizeWeatherNow(raw);
     const forecast = normalizeWeatherForecast(raw);
 
@@ -142,6 +144,7 @@ export async function getWeatherNormalized({ lat, lon, validateNow, validateFore
 
     return { now, forecast };
   } catch (error) {
+    reportFailure("weather", error?.message);
     error.code = "WEATHER_UNAVAILABLE";
     throw error;
   }

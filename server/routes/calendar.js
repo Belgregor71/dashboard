@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import ical from "node-ical";
 import { HOLIDAY_REGION_DEFAULT, HOLIDAY_COUNTRY } from "../config.js";
 import { fetchWithTimeout } from "../utils/fetch.js";
+import { reportFailure, reportSuccess } from "../services/healthService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -225,9 +226,11 @@ router.get("/api/calendar/all", async (_req, res) => {
     );
     const merged = results.flat().filter((ev) => ev.start);
     merged.sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+    reportSuccess("calendar");
     res.json(merged);
   } catch (err) {
     console.error("Calendar ALL proxy error:", err);
+    reportFailure("calendar", err?.message);
     res.status(500).json({ error: "Calendar all error" });
   }
 });

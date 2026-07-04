@@ -2,6 +2,7 @@ import express from "express";
 import os from "os";
 import { readFile } from "fs/promises";
 import { fetchWithTimeout } from "../utils/fetch.js";
+import { getHealth } from "../services/healthService.js";
 
 const router = express.Router();
 
@@ -107,6 +108,10 @@ router.get("/api/system/ping", async (_req, res) => {
       target
     });
   }
+});
+
+router.get("/api/system/health", (_req, res) => {
+  res.json(getHealth());
 });
 
 router.get("/api/system/metrics", async (_req, res) => {

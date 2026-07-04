@@ -92,6 +92,7 @@ export function createStatusView() {
   let metricsInterval = null;
   let rendered = false;
   let latestAlertCount = 0;
+  let serverHealthIssues = [];
   let aiLoading = false;
   const modeEntityId = CONFIG.systemStatus?.modeEntityId;
 
@@ -280,6 +281,20 @@ export function createStatusView() {
     }
   }
 
+  async function updateServerHealth() {
+    try {
+      const response = await fetch("/api/system/health");
+      if (!response.ok) return;
+      const data = await response.json();
+      serverHealthIssues = (data?.feeds || [])
+        .filter((feed) => feed.level !== "ok")
+        .map((feed) => `${feed.label}: ${feed.detail || "degraded"}`);
+      updateAlerts();
+    } catch {
+      // Server unreachable — connectivity row already covers this.
+    }
+  }
+
   function updateHaStatusIndicator() {
     const statusItem = root.querySelector('[data-status-item="ha"]');
     setIndicator(statusItem, haConnected ? "ok" : "error");
@@ -298,6 +313,7 @@ export function createStatusView() {
       }
     });
 
+    alertItems.push(...serverHealthIssues);
     latestAlertCount = alertItems.length;
 
     if (!alertItems.length) {
@@ -330,7 +346,10 @@ export function createStatusView() {
       connectivityInterval = setInterval(updateConnectivity, CONNECTION_REFRESH_MS);
     }
     if (!metricsInterval) {
-      metricsInterval = setInterval(updateMetrics, METRICS_REFRESH_MS);
+      metricsInterval = setInterval(() => {
+        updateMetrics();
+        updateServerHealth();
+      }, METRICS_REFRESH_MS);
     }
   }
 
@@ -432,6 +451,7 @@ export function createStatusView() {
   function onEnter() {
     updateConnectivity();
     updateMetrics();
+    updateServerHealth();
     startPolling();
   }
 

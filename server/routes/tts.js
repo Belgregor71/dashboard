@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { fetchWithTimeout } from "../utils/fetch.js";
+import { reportFailure, reportSuccess } from "../services/healthService.js";
 
 const router = express.Router();
 
@@ -44,6 +45,7 @@ router.post("/api/tts/speak", async (req, res) => {
     }, 30_000);
 
     if (!upstream.ok) throw new Error(`Kokoro HTTP ${upstream.status}`);
+    reportSuccess("tts");
     const buffer = Buffer.from(await upstream.arrayBuffer());
 
     mkdirSync(CACHE_DIR, { recursive: true });
@@ -54,6 +56,7 @@ router.post("/api/tts/speak", async (req, res) => {
     res.send(buffer);
   } catch (err) {
     console.error("[TTS] Kokoro error:", err.message);
+    reportFailure("tts", err.message);
     res.status(502).json({ error: "TTS unavailable" });
   }
 });

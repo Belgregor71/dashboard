@@ -6,6 +6,7 @@ import { CAMERA_CONFIG } from "../../config/cameras.js";
 import { normalizeBaseUrl } from "../config.js";
 import { haPost } from "../ha/haRest.js";
 import { fetchWithTimeout } from "../utils/fetch.js";
+import { reportFailure, reportSuccess } from "../services/healthService.js";
 
 const router = express.Router();
 
@@ -287,6 +288,7 @@ router.get("/api/camera/:id/snapshot", async (req, res) => {
       contentType: snapshot.contentType,
       ts: now
     });
+    reportSuccess("cameras");
     setCameraStatus(cameraId, {
       ok: true,
       sourceUsed: snapshot.sourceUsed,
@@ -305,6 +307,7 @@ router.get("/api/camera/:id/snapshot", async (req, res) => {
     const cached = snapshotCache.get(cameraId);
     const canServeStale = cached && cached.ts && now - cached.ts <= SNAPSHOT_STALE_WINDOW_MS;
 
+    reportFailure("cameras", `${cameraId}: ${errorInfo.message || errorInfo.code || "snapshot failed"}`);
     setCameraStatus(cameraId, {
       ok: false,
       sourceUsed: err?.sourceUsed || null,
