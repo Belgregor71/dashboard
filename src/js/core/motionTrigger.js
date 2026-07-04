@@ -12,6 +12,7 @@ export function initMotionTrigger() {
     if (!WATCH_ENTITIES.has(entity?.entity_id)) return;
     if (entity?.state !== "on") return;
 
+    console.info(`[MOTION] ${entity.entity_id} → on; ${isScreensaverActive() ? "waking screensaver" : "resetting idle timer"}`);
     resetIdleTimer();
     if (isScreensaverActive()) wakeScreensaver();
 
