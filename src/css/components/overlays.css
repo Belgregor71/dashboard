@@ -315,6 +315,7 @@
 .camera-popup-overlay__body {
   flex: 1;
   background: #060708;
+  position: relative;
 }
 
 .camera-popup-overlay__frame {
@@ -324,4 +325,18 @@
   display: block;
   background: #060708;
   object-fit: contain;
+}
+
+.camera-popup-overlay__live {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #060708;
+  display: none;
+}
+
+.camera-popup-overlay.is-live .camera-popup-overlay__live {
+  display: block;
 }

@@ -1,3 +1,5 @@
+// eufySerial: eufy device serial — go2rtc stream name used by /api/camera/:id/live
+// (the eufy_security HA integration publishes P2P livestreams to go2rtc under the serial).
 export const CAMERA_CONFIG = [
   {
     id: "doorbell",
@@ -8,7 +10,8 @@ export const CAMERA_CONFIG = [
     eventImageEntity: "image.doorbell_event_image",
     preferredSnapshot: "eventImage",
     snapshotRefreshMs: 15000,
-    pinnedHero: true
+    pinnedHero: true,
+    eufySerial: "T8210P3421280A30"
   },
   {
     id: "front_yard",
@@ -18,7 +21,8 @@ export const CAMERA_CONFIG = [
     mode: "snapshot",
     eventImageEntity: "image.front_yard_event_image",
     preferredSnapshot: "eventImage",
-    snapshotRefreshMs: 15000
+    snapshotRefreshMs: 15000,
+    eufySerial: "T8142N6321324822"
   },
   {
     id: "driveway",
@@ -28,7 +32,8 @@ export const CAMERA_CONFIG = [
     mode: "snapshot",
     eventImageEntity: "image.driveway_event_image",
     preferredSnapshot: "eventImage",
-    snapshotRefreshMs: 15000
+    snapshotRefreshMs: 15000,
+    eufySerial: "T8124P3122443D52"
   },
   {
     id: "backyard",
@@ -38,7 +43,8 @@ export const CAMERA_CONFIG = [
     mode: "snapshot",
     eventImageEntity: "image.backyard_event_image",
     preferredSnapshot: "eventImage",
-    snapshotRefreshMs: 15000
+    snapshotRefreshMs: 15000,
+    eufySerial: "T8142N63213238D1"
   },
   {
     id: "patio",
@@ -48,7 +54,8 @@ export const CAMERA_CONFIG = [
     mode: "snapshot",
     eventImageEntity: "image.patio_event_image",
     preferredSnapshot: "eventImage",
-    snapshotRefreshMs: 15000
+    snapshotRefreshMs: 15000,
+    eufySerial: "T8142N6321322FB5"
   },
   {
     id: "side_gate",
@@ -58,7 +65,8 @@ export const CAMERA_CONFIG = [
     mode: "snapshot",
     eventImageEntity: "image.side_gate_event_image",
     preferredSnapshot: "eventImage",
-    snapshotRefreshMs: 15000
+    snapshotRefreshMs: 15000,
+    eufySerial: "T8142N63213234A5"
   },
   {
     id: "tilt_pan",
@@ -68,6 +76,7 @@ export const CAMERA_CONFIG = [
     mode: "snapshot",
     eventImageEntity: "image.tilt_pan_event_image",
     preferredSnapshot: "eventImage",
-    snapshotRefreshMs: 15000
+    snapshotRefreshMs: 15000,
+    eufySerial: "T8410P31214323A2"
   }
 ];

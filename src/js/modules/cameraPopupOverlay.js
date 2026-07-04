@@ -14,6 +14,8 @@ const SNAPSHOT_DEBOUNCE_MS = 700;
 const PENDING_TRIGGER_WINDOW_MS = 150000;
 const EVENT_IMAGE_FALLBACK_MS = 2500;
 const MOTION_REFRESH_DELAYS_MS = [700, 1500, 2500];
+const LIVE_RETRY_DELAY_MS = 3000;
+const LIVE_MAX_ATTEMPTS = 2;
 
 function toPositiveSeconds(value, fallback = DEFAULT_DURATION_SECONDS) {
   const parsed = Number(value);
@@ -28,6 +30,10 @@ function normalizeText(value, fallback) {
 
 function buildSnapshotUrl(cameraKey) {
   return `/api/camera/${encodeURIComponent(cameraKey)}/snapshot?ts=${Date.now()}`;
+}
+
+function buildLiveUrl(cameraKey) {
+  return `/api/camera/${encodeURIComponent(cameraKey)}/live?ts=${Date.now()}`;
 }
 
 function normalizeTriggerStates(config) {
@@ -168,6 +174,7 @@ export function initCameraPopupOverlay() {
   const badgeEl = document.getElementById("camera-popup-badge");
   const updatedEl = document.getElementById("camera-popup-updated");
   const frameEl = document.getElementById("camera-popup-frame");
+  const liveEl = document.getElementById("camera-popup-live");
   const closeBtn = document.getElementById("camera-popup-close");
 
   if (!titleEl || !badgeEl || !updatedEl || !frameEl) return;
@@ -175,6 +182,9 @@ export function initCameraPopupOverlay() {
   let autoCloseTimer = null;
   let updatedInterval = null;
   let activeCameraKey = "";
+  let liveCameraKey = "";
+  let liveAttempts = 0;
+  let liveRetryTimer = null;
   let activePriority = Number.NEGATIVE_INFINITY;
   let activeSnapshotTimestamp = 0;
   let lastRefreshAt = 0;
@@ -227,6 +237,10 @@ export function initCameraPopupOverlay() {
   }
 
   function updateUpdatedBadge() {
+    if (overlayEl.classList.contains("is-live")) {
+      updatedEl.textContent = "Live";
+      return;
+    }
     if (!activeSnapshotTimestamp) {
       updatedEl.textContent = "";
       return;
@@ -234,10 +248,62 @@ export function initCameraPopupOverlay() {
     updatedEl.textContent = formatUpdatedLabel(activeSnapshotTimestamp);
   }
 
+  function stopLiveStream() {
+    if (!liveEl) return;
+    clearTimeout(liveRetryTimer);
+    liveRetryTimer = null;
+    liveCameraKey = "";
+    liveAttempts = 0;
+    overlayEl.classList.remove("is-live");
+    // Dropping src aborts the /live request, which lets the server stop the
+    // P2P stream once no viewers remain.
+    liveEl.removeAttribute("src");
+    liveEl.load();
+  }
+
+  function requestLivePlayback(cameraKey) {
+    liveEl.src = buildLiveUrl(cameraKey);
+    // The autoplay attribute alone is not reliable for a src swapped in after
+    // load; an explicit play() is. A rejection (e.g. autoplay policy) just
+    // leaves the snapshot showing.
+    liveEl.play().catch((err) => {
+      logDebug("live stream play() rejected", { camera: cameraKey, error: err?.name });
+    });
+  }
+
+  function startLiveStream(cameraKey) {
+    if (!liveEl) return;
+    if (liveCameraKey === cameraKey) return;
+    stopLiveStream();
+    liveCameraKey = cameraKey;
+    liveAttempts = 1;
+    requestLivePlayback(cameraKey);
+    logDebug("live stream requested", { camera: cameraKey });
+  }
+
+  function handleLiveFailure() {
+    if (!liveCameraKey) return;
+    const cameraKey = liveCameraKey;
+    overlayEl.classList.remove("is-live");
+    updateUpdatedBadge();
+    if (liveAttempts >= LIVE_MAX_ATTEMPTS) {
+      logDebug("live stream gave up, snapshot fallback", { camera: cameraKey });
+      return;
+    }
+    clearTimeout(liveRetryTimer);
+    liveRetryTimer = setTimeout(() => {
+      if (activeCameraKey !== cameraKey || liveCameraKey !== cameraKey) return;
+      liveAttempts += 1;
+      requestLivePlayback(cameraKey);
+      logDebug("live stream retry", { camera: cameraKey, attempt: liveAttempts });
+    }, LIVE_RETRY_DELAY_MS);
+  }
+
   function hideCameraPopup() {
     clearAutoCloseTimer();
     stopUpdatedTicker();
     clearAllPerCameraTimers();
+    stopLiveStream();
     pendingTriggers.clear();
     activeCameraKey = "";
     activePriority = Number.NEGATIVE_INFINITY;
@@ -294,6 +360,8 @@ export function initCameraPopupOverlay() {
 
     overlayEl.classList.add("is-active");
     overlayEl.setAttribute("aria-hidden", "false");
+
+    startLiveStream(cameraKey);
 
     stopUpdatedTicker();
     updatedInterval = setInterval(updateUpdatedBadge, 1000);
@@ -403,6 +471,17 @@ export function initCameraPopupOverlay() {
     lastPopupSnapshotAt[cameraKey] = activeSnapshotTimestamp;
     refreshSnapshot(cameraKey);
     updateUpdatedBadge();
+  }
+
+  if (liveEl) {
+    liveEl.addEventListener("playing", () => {
+      if (!liveCameraKey || liveCameraKey !== activeCameraKey) return;
+      overlayEl.classList.add("is-live");
+      updateUpdatedBadge();
+      logDebug("live stream playing", { camera: liveCameraKey });
+    });
+    liveEl.addEventListener("error", handleLiveFailure);
+    liveEl.addEventListener("ended", handleLiveFailure);
   }
 
   closeBtn?.addEventListener("click", hideCameraPopup);

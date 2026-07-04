@@ -1,8 +1,10 @@
 import express from "express";
+import fetch from "node-fetch";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import { CAMERA_CONFIG } from "../../config/cameras.js";
 import { normalizeBaseUrl } from "../config.js";
+import { haPost } from "../ha/haRest.js";
 import { fetchWithTimeout } from "../utils/fetch.js";
 
 const router = express.Router();
@@ -12,8 +14,18 @@ const SNAPSHOT_RETRY_DELAY_MS = 300;
 const SNAPSHOT_MAX_RETRIES = 1;
 const SNAPSHOT_STALE_WINDOW_MS = 10 * 60 * 1000;
 
+// Live streams: waiting for the eufy P2P stream to reach go2rtc takes a few
+// seconds (battery cameras have to wake first), hence the generous timeout.
+const LIVE_READY_TIMEOUT_MS = 20000;
+const LIVE_READY_POLL_MS = 500;
+// Grace period before stopping the P2P stream after the last viewer leaves,
+// so a quick client reconnect doesn't tear down a freshly started stream.
+const LIVE_STOP_GRACE_MS = 3000;
+
 const snapshotCache = new Map();
 const cameraStatusCache = new Map();
+const liveViewers = new Map();
+const liveStopTimers = new Map();
 const CAMERA_MAP = new Map(CAMERA_CONFIG.map((c) => [c.id, c]));
 
 function resolveAbsoluteUrl(pathValue, baseUrl) {
@@ -360,6 +372,100 @@ router.get("/api/camera/:id/stream", async (req, res) => {
   } catch (err) {
     console.error("Camera stream proxy error:", err);
     res.status(500).json({ error: "Camera stream error" });
+  }
+});
+
+// --- Live P2P streams (eufy -> go2rtc -> fMP4) ---
+
+async function isGo2rtcReceiving(serial) {
+  const url = buildGo2RtcUrl(`/api/streams?src=${encodeURIComponent(serial)}`);
+  if (!url) return false;
+  try {
+    const response = await fetchWithTimeout(url, {}, 3000);
+    if (!response.ok) return false;
+    const info = await response.json();
+    const producers = Array.isArray(info?.producers) ? info.producers : [];
+    // An idle stream keeps a producer entry with just a url; receivers only
+    // exist while video is actually flowing in.
+    return producers.some((p) => Array.isArray(p?.receivers) && p.receivers.length > 0);
+  } catch {
+    return false;
+  }
+}
+
+function scheduleLivestreamStop(camera) {
+  clearTimeout(liveStopTimers.get(camera.id));
+  liveStopTimers.set(
+    camera.id,
+    setTimeout(() => {
+      liveStopTimers.delete(camera.id);
+      if ((liveViewers.get(camera.id) || 0) > 0) return;
+      haPost("/api/services/eufy_security/stop_p2p_livestream", {
+        entity_id: getCameraEntity(camera)
+      }).catch((err) => console.warn(`Live stream stop failed (${camera.id}):`, err.message));
+    }, LIVE_STOP_GRACE_MS)
+  );
+}
+
+router.get("/api/camera/:id/live", async (req, res) => {
+  const camera = getCameraConfig(req.params.id);
+  if (!camera) { res.status(404).json({ error: "Camera not found" }); return; }
+
+  const serial = camera.eufySerial;
+  const go2rtcBase = normalizeBaseUrl(process.env.GO2RTC_HOST);
+  if (!serial || !go2rtcBase) {
+    res.status(404).json({ error: "Live stream not configured" });
+    return;
+  }
+
+  liveViewers.set(camera.id, (liveViewers.get(camera.id) || 0) + 1);
+  clearTimeout(liveStopTimers.get(camera.id));
+  liveStopTimers.delete(camera.id);
+
+  let upstreamBody = null;
+  let clientGone = false;
+  res.on("close", () => {
+    clientGone = true;
+    upstreamBody?.destroy();
+    const remaining = Math.max(0, (liveViewers.get(camera.id) || 1) - 1);
+    liveViewers.set(camera.id, remaining);
+    if (remaining === 0) scheduleLivestreamStop(camera);
+  });
+
+  try {
+    // Ask HA to start the P2P stream; "already streaming" errors are fine —
+    // the readiness poll below decides the real outcome.
+    await haPost("/api/services/eufy_security/start_p2p_livestream", {
+      entity_id: getCameraEntity(camera)
+    }).catch((err) => console.warn(`Live stream start (${camera.id}):`, err.message));
+
+    const deadline = Date.now() + LIVE_READY_TIMEOUT_MS;
+    while (!(await isGo2rtcReceiving(serial))) {
+      if (clientGone) return;
+      if (Date.now() > deadline) {
+        res.status(504).json({ error: "Live stream did not start" });
+        return;
+      }
+      await sleep(LIVE_READY_POLL_MS);
+    }
+    if (clientGone) return;
+
+    // No timeout here: this is a long-lived live stream.
+    const upstream = await fetch(`${go2rtcBase}/api/stream.mp4?src=${encodeURIComponent(serial)}`);
+    if (!upstream.ok || !upstream.body) {
+      res.status(502).json({ error: "go2rtc stream error" });
+      return;
+    }
+    upstreamBody = upstream.body;
+    res.status(200);
+    res.set("Content-Type", upstream.headers.get("content-type") || "video/mp4");
+    res.set("Cache-Control", "no-store");
+    await pipeline(upstream.body, res);
+  } catch (err) {
+    if (!clientGone && err?.code !== "ERR_STREAM_PREMATURE_CLOSE") {
+      console.error(`Camera live stream error (${camera.id}):`, err.message);
+    }
+    if (!res.headersSent) res.status(502).json({ error: "Camera live stream error" });
   }
 });
 
