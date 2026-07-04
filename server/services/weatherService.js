@@ -56,8 +56,13 @@ function conditionFor(code) {
 export function normalizeWeatherNow(raw) {
   const current = raw?.current_weather || {};
   const daily = raw?.daily || {};
+  // current_weather.time has 15-min resolution ("…T17:45") but hourly.time
+  // is on the hour — truncate to the hour or indexOf misses 3 times out of 4.
+  const currentHour = typeof current.time === "string"
+    ? current.time.replace(/T(\d{2}):\d{2}/, "T$1:00")
+    : current.time;
   const timeIndex = Array.isArray(raw?.hourly?.time)
-    ? raw.hourly.time.indexOf(current.time)
+    ? raw.hourly.time.indexOf(currentHour)
     : -1;
 
   return {
