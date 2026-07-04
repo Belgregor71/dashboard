@@ -62,14 +62,22 @@
   animation: weather-pan 28s ease-in-out infinite;
 }
 
-.weather-bg-video {
+/* Crossfade lives on the layer wrapper: weather-pan already animates
+   transform on the video itself, so the scale settle must not share
+   that element. */
+.weather-bg-layer {
+  position: absolute;
+  inset: 0;
   z-index: 1;
+  overflow: hidden;
   opacity: 0;
-  transition: opacity 1.2s ease;
+  transform: scale(1.045);
+  transition: opacity 1.8s ease, transform 2.4s ease;
 }
 
-.weather-bg-video.is-active {
+.weather-bg-layer.is-active {
   opacity: 1;
+  transform: scale(1);
 }
 
 .weather-bg-image {

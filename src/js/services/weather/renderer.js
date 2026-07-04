@@ -50,7 +50,9 @@ const BACKGROUND_ASSETS = {
     image: "/assets/weather_bg/cloudy.svg"
   },
   rain: {
-    mp4: "/assets/weather_bg/rain.mp4",
+    /* rain.mp4 is a 28-byte placeholder (never shipped); reuse cloudy
+       until a real rain loop is generated. */
+    mp4: "/assets/weather_bg/cloudy.mp4",
     image: "/assets/weather_bg/rain.svg"
   },
   storm: {
@@ -192,25 +194,55 @@ function isWeatherViewActive() {
   return document.body?.dataset?.view === "weather";
 }
 
+const BG_CROSSFADE_SETTLE_MS = 2800;
+let bgFadeTimer = null;
+
+function getBgLayers() {
+  const entries = ["a", "b"].map(key => ({
+    layer: document.getElementById(`weather-bg-layer-${key}`),
+    video: document.getElementById(`weather-bg-video-${key}`)
+  }));
+  return entries.every(({ layer, video }) => layer && video) ? entries : [];
+}
+
+function setActiveBgLayer(layers, target) {
+  layers.forEach(({ layer }) => {
+    layer.classList.toggle("is-active", layer === target.layer);
+  });
+  if (bgFadeTimer) clearTimeout(bgFadeTimer);
+  bgFadeTimer = setTimeout(() => {
+    bgFadeTimer = null;
+    layers.forEach(({ layer, video }) => {
+      if (!layer.classList.contains("is-active")) video.pause();
+    });
+  }, BG_CROSSFADE_SETTLE_MS);
+}
+
 function stopCinematicBackground({ resetSources = false } = {}) {
-  const video = document.getElementById("weather-bg-video");
-  if (!video) return;
+  const layers = getBgLayers();
+  if (!layers.length) return;
+
+  if (bgFadeTimer) {
+    clearTimeout(bgFadeTimer);
+    bgFadeTimer = null;
+  }
 
   if (!cinematicPaused || resetSources) {
-    video.pause();
-    video.classList.remove("is-active");
+    layers.forEach(({ layer, video }) => {
+      video.pause();
+      layer.classList.remove("is-active");
+    });
     cinematicPaused = true;
   }
 
   if (!resetSources) return;
 
-  const mp4Source = document.getElementById("weather-bg-mp4");
-
-  video.dataset.category = "";
-  video.dataset.variant = "";
-  mp4Source?.removeAttribute("src");
-  video.removeAttribute("src");
-  video.load();
+  layers.forEach(({ video }) => {
+    video.dataset.category = "";
+    video.dataset.variant = "";
+    video.removeAttribute("src");
+    video.load();
+  });
 }
 
 function applyCinematicBackground(weatherData) {
@@ -221,16 +253,14 @@ function applyCinematicBackground(weatherData) {
     return false;
   }
 
-  if (lastAppliedCinematicCode === code && lastAppliedView === currentView) {
+  if (lastAppliedCinematicCode === code && lastAppliedView === currentView && !cinematicPaused) {
     bomLog("cinematic skip", { currentView, code, reason: "unchanged-code" });
     return false;
   }
 
-  const video = document.getElementById("weather-bg-video");
-  const mp4Source = document.getElementById("weather-bg-mp4");
+  const layers = getBgLayers();
   const image = document.getElementById("weather-bg-image");
-
-  if (!video || !mp4Source || !image) return false;
+  if (!layers.length || !image) return false;
 
   const baseCategory = getBaseCategory(code);
   const variant = getBackgroundVariant(baseCategory, weatherData, new Date());
@@ -242,36 +272,46 @@ function applyCinematicBackground(weatherData) {
     weatherRoot.classList.add(`is-${baseCategory}`);
   }
 
-  if (video.dataset.variant === variant) {
+  image.style.backgroundImage = `url("${asset.image}")`;
+
+  const loaded = layers.find(({ video }) => video.dataset.variant === variant);
+  if (loaded) {
+    /* Variant already sits on one layer (resume after view switch, or
+       A/B toggle between two conditions) — crossfade back to it. */
+    loaded.video.play().catch(() => {});
+    setActiveBgLayer(layers, loaded);
     lastAppliedCinematicCode = code;
     lastAppliedView = currentView;
     cinematicPaused = false;
-    bomLog("cinematic skip", { currentView, code, reason: "unchanged-variant" });
-    return false;
+    bomLog("cinematic apply", { currentView, code, variant, reason: "layer-resume" });
+    return true;
   }
+
+  const active = layers.find(({ layer }) => layer.classList.contains("is-active"));
+  const incoming = layers.find(entry => entry !== active) || layers[0];
+  const { video } = incoming;
 
   video.dataset.category = baseCategory;
   video.dataset.variant = variant;
-  mp4Source.src = asset.mp4;
-  image.style.backgroundImage = `url("${asset.image}")`;
 
-  const activateVideo = () => {
-    video.classList.add("is-active");
+  const activate = () => {
+    if (video.dataset.variant !== variant) return; // superseded by a later change
+    video.play().catch(() => {});
+    setActiveBgLayer(layers, incoming);
   };
 
   const handleError = () => {
-    video.classList.remove("is-active");
+    if (video.dataset.variant !== variant) return;
+    /* Leave the outgoing layer running (or the poster showing). */
+    video.dataset.category = "";
+    video.dataset.variant = "";
+    bomLog("cinematic video error", { variant });
   };
 
-  video.removeEventListener("loadeddata", activateVideo);
-  video.removeEventListener("error", handleError);
-  video.addEventListener("loadeddata", activateVideo, { once: true });
+  video.addEventListener("canplay", activate, { once: true });
   video.addEventListener("error", handleError, { once: true });
-
+  video.src = asset.mp4;
   video.load();
-  video.play().catch(() => {
-    handleError();
-  });
 
   lastAppliedCinematicCode = code;
   lastAppliedView = currentView;
@@ -279,6 +319,11 @@ function applyCinematicBackground(weatherData) {
   bomLog("cinematic apply", { currentView, code, variant });
   return true;
 }
+
+// Debug hook (same spirit as __switchView): lets kiosk-side CDP / local
+// Playwright force a background variant to verify crossfades live.
+window.__setWeatherBg = code =>
+  applyCinematicBackground({ current_weather: { weathercode: code, temperature: 25 } });
 
 function syncWeatherMotion(weatherData) {
   const code = weatherData?.current_weather?.weathercode;
