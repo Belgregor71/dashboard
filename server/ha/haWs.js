@@ -5,6 +5,7 @@ import { haGet } from "./haRest.js";
 
 const MAX_BACKOFF_MS = 30_000;
 const BASE_BACKOFF_MS = 1_000;
+const HEARTBEAT_INTERVAL_MS = 30_000;
 
 function toWsUrl(haHost) {
   // haHost examples: http://192.168.0.179:8123 or https://ha.local:8123
@@ -26,6 +27,7 @@ class HaWsManager extends EventEmitter {
     this.lastConnectedAt = null;
     this.backoffMs = BASE_BACKOFF_MS;
     this.reconnectTimer = null;
+    this.heartbeatTimer = null;
     this.states = new Map();
     this.started = false;
   }
@@ -40,8 +42,37 @@ class HaWsManager extends EventEmitter {
     this.started = false;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
+    this.stopHeartbeat();
     if (this.socket) this.socket.close();
     this.socket = null;
+  }
+
+  // Detects half-open connections (e.g. HA host hard-rebooted without closing
+  // the socket): without pings the socket stays ESTABLISHED forever and no
+  // close event ever fires, so state updates silently stop.
+  startHeartbeat(ws) {
+    this.stopHeartbeat();
+    let alive = true;
+    ws.on("pong", () => {
+      alive = true;
+    });
+    this.heartbeatTimer = setInterval(() => {
+      if (this.socket !== ws) {
+        this.stopHeartbeat();
+        return;
+      }
+      if (!alive) {
+        ws.terminate(); // triggers close -> scheduleReconnect
+        return;
+      }
+      alive = false;
+      ws.ping();
+    }, HEARTBEAT_INTERVAL_MS);
+  }
+
+  stopHeartbeat() {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = null;
   }
 
   getStatus() {
@@ -105,6 +136,7 @@ class HaWsManager extends EventEmitter {
 
     ws.on("open", () => {
       this.lastError = null;
+      this.startHeartbeat(ws);
     });
 
     ws.on("message", (data) => {
@@ -166,6 +198,7 @@ class HaWsManager extends EventEmitter {
       const reason = reasonBuf ? reasonBuf.toString() : "";
       this.lastError = reason || `socket_closed_${code}`;
       this.socket = null;
+      this.stopHeartbeat();
       this.scheduleReconnect(this.lastError);
     });
 
