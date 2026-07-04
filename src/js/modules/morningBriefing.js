@@ -12,13 +12,12 @@ const SCHEDULES = [
 const STORAGE_KEY   = "dashboard:briefing-fired";
 const CATCHUP_MS    = 30 * 60 * 1000; // fire a missed briefing if within 30 min
 
-// Ollama has been observed taking 60s+ to respond (likely a cold model
-// load), which left the briefing view sitting in dead air. Generating
-// ahead of the scheduled time absorbs that latency so speech starts
-// immediately when the schedule actually fires.
+// Generating ahead of the scheduled time absorbs AI latency (cold Ollama
+// loads have taken 60s+) so speech starts immediately when the schedule
+// fires. generateBriefing caches per type and dedupes in-flight calls, so
+// repeated ticks in the lead window are harmless and the trigger (and the
+// briefing view) reuse the exact summary that was prefetched.
 const PREFETCH_LEAD_MS = 3 * 60 * 1000;
-const prefetched       = new Map(); // schedule.name -> summary
-const prefetchInFlight  = new Set(); // schedule.name
 
 // ── Persistent storage ─────────────────────────────────────────
 
@@ -42,13 +41,8 @@ function markFired(name) {
 // ── Trigger ────────────────────────────────────────────────────
 
 async function prefetch(schedule) {
-  if (prefetched.has(schedule.name) || prefetchInFlight.has(schedule.name)) return;
-  prefetchInFlight.add(schedule.name);
-  try {
-    const summary = await generateBriefing({ type: schedule.type });
-    if (summary) prefetched.set(schedule.name, summary);
-  } catch { /* fall back to a live fetch at fire time */ }
-  finally { prefetchInFlight.delete(schedule.name); }
+  try { await generateBriefing({ type: schedule.type }); }
+  catch { /* fall back to a live fetch at fire time */ }
 }
 
 async function trigger(schedule) {
@@ -57,8 +51,7 @@ async function trigger(schedule) {
   switchView("briefing");
 
   try {
-    const summary = prefetched.get(schedule.name) ?? await generateBriefing({ type: schedule.type });
-    prefetched.delete(schedule.name);
+    const summary = await generateBriefing({ type: schedule.type });
     if (summary) await speak(summary, { rate: schedule.rate });
   } catch { /**/ }
 }

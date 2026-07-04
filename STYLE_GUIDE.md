@@ -19,9 +19,13 @@ existing pattern here rather than inventing a new one.
   either communicates a state change (fade between views) or serves a real
   purpose (the screensaver's position drift exists for OLED burn-in
   protection, not decoration). No motion for its own sake.
-- **Self-hosted over cloud where it's free to do so.** Local Ollama for text,
-  local Kokoro-TTS for voice — no API keys, no usage limits, no per-request
-  cost. Direct third-party calls (Open-Meteo, RainViewer, OSM tiles) are fine
+- **Self-hosted over cloud where it's free to do so.** Local Kokoro-TTS for
+  voice; local Ollama as the always-available AI fallback. The one deliberate
+  cloud exception is briefing/concierge text generation (Claude Haiku via
+  `/api/ai/brief`, ~$0.001 per briefing) — quality there proved worth paying
+  for, and Ollama still takes over automatically whenever the API or the
+  internet is down. Direct third-party calls (Open-Meteo, RainViewer, OSM
+  tiles) are fine
   when the provider explicitly supports it; anything that looks like
   sustained automated scraping against a provider's stated policy (BOM's
   radar imagery) is avoided even if it would technically work.
@@ -239,10 +243,11 @@ to riff on, and that distinction matters — don't reach for an AI call by
 default:
 
 - **Rich context (morning/evening briefs)** → AI-generated, via
-  `server/routes/ai.js`'s `SYSTEM_PROMPTS`. Small local models
-  (`llama3.2:1b`) follow a **concrete example response** far more reliably
-  than an abstract "be witty" instruction — every prompt includes one
-  verbatim example to imitate, not just a style description.
+  `server/routes/ai.js`'s `SYSTEM_PROMPTS`. Claude Haiku is the primary
+  generator with local Ollama as automatic fallback. Every prompt includes a
+  **concrete example response** to anchor the voice — small local models
+  (`llama3.2:1b`) need it to follow the tone at all, and it keeps the two
+  generators sounding like the same house voice.
 - **Thin/no context (doorbell alerts)** → a **curated static list**, picked
   client-side with no AI round-trip at all (`doorbellAlert.js`). Two reasons:
   the alert needs to fire instantly, and there's nothing for an AI to

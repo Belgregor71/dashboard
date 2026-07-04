@@ -2,7 +2,10 @@
 import lottie from "lottie-web/build/player/lottie_light.js";
 window.lottie = lottie;
 
-import { initViews, registerView } from "./viewManager.js";
+import { initViews, registerView, switchView } from "./viewManager.js";
+// Debug hook: lets kiosk-side CDP / local Playwright drive views that are
+// deliberately outside the click-cycle (briefing, status) for verification.
+window.__switchView = switchView;
 import { registerLifecycle } from "./lifecycle.js";
 import { initVoiceOverlay } from "./voiceOverlay.js";
 import { initVoiceCommands } from "./voiceCommands.js";
