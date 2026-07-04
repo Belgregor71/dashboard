@@ -31,17 +31,36 @@ function readState() {
   };
 }
 
+// Real weather for the concierge line — the DOM condition label alone
+// ("Clear") gave the model so little that it invented forecasts.
+async function fetchWeatherLine() {
+  try {
+    const res = await fetch("/api/weather/now", { signal: AbortSignal.timeout(8_000) });
+    if (!res.ok) return null;
+    const data  = await res.json();
+    const parts = [];
+    if (data?.now?.temp_c != null) parts.push(`${Math.round(data.now.temp_c)}°`);
+    const label = data?.now?.condition?.label;
+    if (label && label !== "Unavailable") parts.push(label);
+    if (data?.day?.low_c != null && data?.day?.high_c != null) {
+      parts.push(`${Math.round(data.day.low_c)}° to ${Math.round(data.day.high_c)}° today`);
+    }
+    return parts.length ? parts.join(", ") : null;
+  } catch { return null; }
+}
+
 async function maybeFetchConcierge(weatherCondition) {
   if (Date.now() - conciergeFetchedAt < CONCIERGE_MIN_INTERVAL_MS) return;
   conciergeFetchedAt = Date.now(); // claim the slot before awaiting, avoids overlapping fetches
   try {
+    const weather = (await fetchWeatherLine()) ?? weatherCondition ?? null;
     const res = await fetch("/api/ai/brief", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         type: "concierge",
         time: new Date().toLocaleString("en-AU", { weekday: "long", hour: "numeric", minute: "2-digit", hour12: true }),
-        weather: weatherCondition || null
+        weather
       }),
       signal: AbortSignal.timeout(8_000)
     });
