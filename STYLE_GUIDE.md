@@ -260,7 +260,10 @@ default:
 - **The ambient concierge** (Focus Hero's idle fallback line) is the
   least reliable of the three even with guardrails — accept occasional flat
   or odd lines there rather than fighting the model further; it's
-  low-stakes, ambient-only content.
+  low-stakes, ambient-only content. `focusHero.js` fetches `/api/weather/now`
+  directly for this (not the home view's DOM text) so the model has real
+  temp/condition/range to work from — without it, it previously invented
+  forecasts ("tomorrow's gonna be hot") out of thin air.
 
 TTS: self-hosted Kokoro (`bf_emma` voice, British English — Piper/Kokoro have
 no Australian voice, and `tts.js`'s existing preference order already
