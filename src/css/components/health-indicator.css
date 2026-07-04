@@ -1,5 +1,11 @@
 /* Watchdog indicator — subtle corner chip shown only while a feed is degraded */
 
+/* This file imports after helpers.css, so restate is-hidden at higher
+   specificity — otherwise display:flex below wins over it. */
+.health-indicator.is-hidden {
+  display: none;
+}
+
 .health-indicator {
   /* Sits above the news ticker strip, which occupies the bottom edge */
   position: fixed;
