@@ -3,6 +3,7 @@ console.log(">>> DASHBOARD SERVER LOADED <<<");
 import dotenv from "dotenv";
 import express from "express";
 import { existsSync } from "fs";
+import net from "net";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -29,6 +30,11 @@ import aiRoutes from "./server/routes/ai.js";
 import fuelRoutes from "./server/routes/fuel.js";
 import radarRoutes from "./server/routes/radar.js";
 import ttsRoutes from "./server/routes/tts.js";
+
+// Node 20's Happy Eyeballs gives each address-family connect attempt only
+// 250ms; distant hosts (e.g. RainViewer in Germany, ~270ms RTT from here)
+// can never complete a handshake in that window, so every fetch ETIMEDOUTs.
+net.setDefaultAutoSelectFamilyAttemptTimeout(1500);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
