@@ -50,9 +50,7 @@ const BACKGROUND_ASSETS = {
     image: "/assets/weather_bg/cloudy.svg"
   },
   rain: {
-    /* rain.mp4 is a 28-byte placeholder (never shipped); reuse cloudy
-       until a real rain loop is generated. */
-    mp4: "/assets/weather_bg/cloudy.mp4",
+    mp4: "/assets/weather_bg/rain.mp4",
     image: "/assets/weather_bg/rain.svg"
   },
   storm: {
