@@ -132,6 +132,10 @@ export async function generateBriefing({ type = currentBriefingType(), force = f
   })();
 
   inFlight = { type, promise };
-  promise.finally(() => { if (inFlight?.promise === promise) inFlight = null; });
+  // Not .finally(): that chains a new promise which re-throws the rejection
+  // with no handler attached — an unhandled rejection on every failed brief
+  // even though callers catch the promise returned below.
+  const clear = () => { if (inFlight?.promise === promise) inFlight = null; };
+  promise.then(clear, clear);
   return promise;
 }
