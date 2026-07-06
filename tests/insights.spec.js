@@ -9,6 +9,7 @@ import {
   claimCooldown,
   recordFuelPrice
 } from "../src/js/services/insightRules.js";
+import { computeFocus } from "../src/js/services/focusEngine.js";
 
 // Pure unit tests — insightRules.js has no imports, no DOM, no storage,
 // so these run straight in the Playwright node process.
@@ -222,5 +223,25 @@ test.describe("selection & cooldowns", () => {
     const history = recordFuelPrice({ "2026-6-1": 180 }, 165, NOW);
     expect(history["2026-6-1"]).toBeUndefined();
     expect(history["2026-7-6"]).toBe(165);
+  });
+});
+
+test.describe("focus hero tiers", () => {
+  const insight = { icon: "⏰", display: "Leave early for the 8:30 school run." };
+
+  test("insight renders when no warning is active", () => {
+    const focus = computeFocus({ insight, commuteActive: true, commuteText: "Greg 22 min" });
+    expect(focus.text).toBe(insight.display);
+    expect(focus.icon).toBe("⏰");
+  });
+
+  test("a BOM warning outranks an insight (observed live: marine wind warning)", () => {
+    const focus = computeFocus({ bomWarning: "Marine Wind Warning for Queensland", insight });
+    expect(focus.text).toContain("Marine Wind Warning");
+  });
+
+  test("insight outranks the plain commute readout", () => {
+    const focus = computeFocus({ insight, commuteActive: true, commuteText: "Greg 22 min" });
+    expect(focus.text).not.toContain("Greg");
   });
 });
