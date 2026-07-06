@@ -51,6 +51,15 @@ export function loadLottieAnimation(containerId, fileName) {
     path: `/icons/weather/lottie/${fileName}`
   });
 
+  // Subframe interpolation re-rasterizes the SVG at 60fps and pegged the
+  // Pi's GPU process at a full core (measured 2026-07-06: 99.6% → 4.4%
+  // after this + pausing hidden instances). Native frame rate looks
+  // identical on a weather icon.
+  anim.setSubframe(false);
+  // Created while the container's view is hidden — don't tick invisibly;
+  // syncLottiePlayback() resumes it when the view actually shows.
+  if (!container.offsetParent) anim.pause();
+
   container.dataset.lottieFile = fileName;
   container._lottieInstance = anim;
 
@@ -61,4 +70,20 @@ export function loadLottieAnimation(containerId, fileName) {
   });
 
   return anim;
+}
+
+/**
+ * Pause every lottie whose container isn't currently rendered (hidden view,
+ * or screensaver covering everything) and resume the visible ones. Cheap —
+ * safe to call on every view change.
+ */
+export function syncLottiePlayback() {
+  const saverActive = document.body.classList.contains("screensaver-active");
+  document.querySelectorAll("[data-lottie-file]").forEach((el) => {
+    const anim = el._lottieInstance;
+    if (!anim || anim.isDestroyed) return;
+    const shouldPlay = !saverActive && el.offsetParent !== null;
+    if (shouldPlay && anim.isPaused) anim.play();
+    else if (!shouldPlay && !anim.isPaused) anim.pause();
+  });
 }

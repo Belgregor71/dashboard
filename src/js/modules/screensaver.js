@@ -1,5 +1,6 @@
 import { getLastCameraTrigger } from "./cameraTiles.js";
 import { switchView } from "../core/viewManager.js";
+import { syncLottiePlayback } from "../helpers/lottie.js";
 
 const IDLE_MS    = 5 * 60 * 1000;  // 5 min of no motion → engage
 const PHOTO_MS   = 30 * 1000;       // rotate photo every 30s
@@ -233,6 +234,7 @@ function enter() {
 
   el.classList.add("is-active");
   document.body.classList.add("screensaver-active");
+  syncLottiePlayback(); // icons under the overlay would keep burning GPU
 
   clockTimer = setInterval(tickClock, 1000);
   infoTimer  = setInterval(updateInfo, INFO_MS);
@@ -257,6 +259,7 @@ function exit() {
 
   el.classList.remove("is-active");
   document.body.classList.remove("screensaver-active");
+  syncLottiePlayback();
 
   switchView("home");
   resetIdleTimer();

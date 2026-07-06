@@ -1,7 +1,10 @@
+import { on } from "../../core/eventBus.js";
+
 const OVERLAY_REFRESH_MS = 5 * 60 * 1000;
 
 let tileGrid = null; // { z, tiles: [{x,y}] }
 let refreshTimer = null;
+let overlaysStale = false;
 
 function buildCell(z, tile) {
   const cell = document.createElement("div");
@@ -26,6 +29,13 @@ function buildCell(z, tile) {
 
 function refreshOverlays() {
   if (!tileGrid) return;
+  // No point fetching + decoding 9 tiles into a hidden view every 5 min —
+  // mark stale and catch up when the weather view is next entered.
+  if (document.body?.dataset?.view !== "weather") {
+    overlaysStale = true;
+    return;
+  }
+  overlaysStale = false;
   const cacheBust = Date.now();
   document.querySelectorAll(".weather-radar__tile--overlay").forEach(img => {
     const { z, x, y } = img.dataset;
@@ -71,4 +81,8 @@ export async function initWeatherRadar() {
     } catch { /* keep showing the last frame */ }
     refreshOverlays();
   }, OVERLAY_REFRESH_MS);
+
+  on("view:changed", ({ view } = {}) => {
+    if (view === "weather" && overlaysStale) refreshOverlays();
+  });
 }

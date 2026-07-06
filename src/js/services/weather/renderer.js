@@ -9,7 +9,7 @@ import {
   getWindBeaufortFilename,
   describeWindDirection
 } from "../../config/weather-animations.js";
-import { loadLottieAnimation } from "../../helpers/lottie.js";
+import { loadLottieAnimation, syncLottiePlayback } from "../../helpers/lottie.js";
 import { emit, on } from "../../core/eventBus.js";
 import { CONFIG } from "../../core/config.js";
 import { startWeatherMotion, stopWeatherMotion } from "../../weatherMotion.js";
@@ -453,6 +453,7 @@ function renderCurrent(data) {
   if (heroAnim) activeLotties.push(heroAnim);
 
   renderCinematic(data, hourlyIndex);
+  syncLottiePlayback();
 }
 
 function renderWeekly(daily) {
@@ -947,11 +948,13 @@ on("view:changed", ({ view } = {}) => {
     clearWeatherFxOverlay();
     stopCinematicBackground();
     lastAppliedView = view || "";
+    syncLottiePlayback();
     return;
   }
   if (cachedWeather) {
     renderWeekly(cachedWeather.daily);
   }
+  syncLottiePlayback();
 });
 
 document.addEventListener("ha:state-updated", (event) => {
