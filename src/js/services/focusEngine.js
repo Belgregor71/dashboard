@@ -4,6 +4,7 @@ export function computeFocus({
   bomWarning,
   weatherCondition,
   weatherTemp,
+  insight,
   commuteActive,
   commuteText,
   nextEventActive,
@@ -18,6 +19,12 @@ export function computeFocus({
       icon: "⚠️",
       text: weatherTemp ? `${weatherCondition} · ${weatherTemp}` : weatherCondition
     };
+  }
+
+  // Cross-source insight (leave-early, bins vs rain, fuel cycle…): more
+  // situational than the plain commute/next-event readouts below.
+  if (insight?.display) {
+    return { icon: insight.icon || "💡", text: insight.display };
   }
 
   if (commuteActive && commuteText) {

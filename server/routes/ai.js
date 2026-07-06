@@ -30,9 +30,19 @@ const SYSTEM_PROMPTS = {
     "Use only the weather facts provided below — never predict or invent conditions (no guessing about tomorrow, heat, or rain that isn't in the data). If no weather is given, riff on the time of day alone.",
     "Match this dry, deadpan Aussie tone exactly: 'Stupidly sunny again. Glad I don't have skin in the game.'",
   ].join(" "),
+  insight: [
+    "You rewrite ONE dashboard nudge sentence in a dry, deadpan Aussie voice — a sarcastic mate, not a cheerful chatbot.",
+    "Output ONLY the rewritten sentence, 18 words maximum, no markdown, no quotes.",
+    "Keep every fact, name, time and number from the input EXACTLY — do not add, drop, or invent anything.",
+    "Example input: 'Traffic's adding 12 min right now — leave early for Dentist at 9:00 am.'",
+    "Example output: 'Traffic's coughed up an extra 12 minutes, so leave early for the 9:00 am dentist.'",
+  ].join(" "),
 };
 
-function buildPrompt({ type, time, weather, events, bins, commute, fuel, news, home }) {
+function buildPrompt({ type, time, weather, events, bins, commute, fuel, news, home, text }) {
+  if (type === "insight") {
+    return `Rewrite this nudge: ${text ?? ""}`;
+  }
   const lines = [`Time: ${time ?? "unknown"}`];
   if (weather) lines.push(`Weather: ${weather}`);
   if (events)  lines.push(`Calendar: ${events}`);
@@ -45,7 +55,7 @@ function buildPrompt({ type, time, weather, events, bins, commute, fuel, news, h
   return `Briefly summarise ${verb} for this family:\n${lines.join("\n")}`;
 }
 
-const MAX_TOKENS = { morning: 300, evening: 300, concierge: 60 };
+const MAX_TOKENS = { morning: 300, evening: 300, concierge: 60, insight: 60 };
 
 let anthropic = null;
 function getAnthropic() {
@@ -76,6 +86,7 @@ const OLLAMA_OPTIONS = {
   morning:   { temperature: 0.75, num_predict: 120 },
   evening:   { temperature: 0.75, num_predict: 120 },
   concierge: { temperature: 0.85, num_predict: 25 },
+  insight:   { temperature: 0.7,  num_predict: 40 },
 };
 
 async function generateWithOllama(type, system, prompt) {
