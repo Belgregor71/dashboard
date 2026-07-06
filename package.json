@@ -8,10 +8,12 @@
     "dev": "vite",
     "build": "vite build && node scripts/copy-static-config.js",
     "preview": "vite preview",
+    "test": "playwright test",
     "test:ha-ws-proxy": "node scripts/test-ha-ws-proxy.js",
     "pregen:tts": "node scripts/pregenerate-tts-cache.js"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "vite": "^6.4.3"
   },
   "dependencies": {

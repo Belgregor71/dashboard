@@ -1,0 +1,16 @@
+#!/bin/sh
+# Pushing to main deploys straight to the Pi kiosk (dashboard-deploy.timer
+# pulls origin/main). This gate makes a broken push much harder:
+#   1. the exact build the Pi will run must succeed locally
+#   2. API contract tests + browser smoke test must pass
+#
+# Wire it up once per clone:  git config core.hooksPath .githooks
+# Emergency bypass (know what you're doing): git push --no-verify
+
+echo "[pre-push] build gate (the Pi runs this same build on deploy)"
+npm run build || exit 1
+
+echo "[pre-push] API contract + browser smoke tests"
+npm test || exit 1
+
+echo "[pre-push] all gates passed"
