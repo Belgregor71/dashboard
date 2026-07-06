@@ -42,6 +42,7 @@ test.describe("system", () => {
       expect(feed).toHaveProperty("id");
       expect(["ok", "warn", "error"]).toContain(feed.level);
     }
+    expect(Array.isArray(body.recoveries)).toBe(true);
   });
 
   test("GET /api/system/metrics", async ({ request }) => {

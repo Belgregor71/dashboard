@@ -120,12 +120,12 @@ function evaluateFeed(id) {
   return { level: "ok", detail: null };
 }
 
-function inQuietHours(date = new Date()) {
+export function inQuietHours(date = new Date()) {
   const hour = date.getHours();
   return hour >= QUIET_START_HOUR || hour < QUIET_END_HOUR;
 }
 
-async function sendPush(title, message) {
+export async function sendPush(title, message) {
   const service = process.env.HEALTH_NOTIFY_SERVICE;
   if (!service || !haManager) {
     // Not configured is a choice, not a failure — log it and treat as handled

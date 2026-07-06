@@ -11,6 +11,7 @@ import { fileURLToPath } from "url";
 import { readHaConfig } from "./server/ha/haConfig.js";
 import { getHaWsManager } from "./server/ha/haWs.js";
 import { startHealthService } from "./server/services/healthService.js";
+import { startRecoveryService } from "./server/services/recoveryService.js";
 import { normalizeBaseUrl } from "./server/config.js";
 import arrRoutes from "./server/routes/arr.js";
 import { createHaRouter } from "./server/ha/haRoutes.js";
@@ -79,6 +80,8 @@ app.use("/api/ha", haRouteLogger, createHaRouter());
 // createHaRouter() has already started the HA WS manager when HA is enabled.
 const { enabled: haEnabledForHealth } = readHaConfig({ requireConfig: false });
 startHealthService({ manager: haEnabledForHealth ? getHaWsManager() : null });
+// Self-heal layer: re-arms detection switches, repairs the eufy push lane.
+startRecoveryService({ manager: haEnabledForHealth ? getHaWsManager() : null });
 
 // Feature routes
 app.use(systemRoutes);
