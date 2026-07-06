@@ -16,3 +16,7 @@ server/tts-cache/
 # Playwright MCP tool artifacts
 .playwright-mcp/
 static/js/
+
+# Playwright test artifacts
+test-results/
+playwright-report/
