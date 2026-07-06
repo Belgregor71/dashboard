@@ -1,4 +1,14 @@
 let currentAudio = null;
+let currentAudioUrl = null;
+
+// Blob object URLs pin the full audio buffer for the lifetime of the page
+// unless revoked — on a kiosk that never reloads, every utterance would
+// leak its WAV otherwise.
+function releaseAudioUrl(url) {
+  if (!url) return;
+  URL.revokeObjectURL(url);
+  if (currentAudioUrl === url) currentAudioUrl = null;
+}
 
 function ensureVoices() {
   return new Promise((resolve) => {
@@ -60,18 +70,17 @@ export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0 } = {
     if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);
 
     const blob = await res.blob();
-    console.log(`[TEMP-DEBUG] TTS response ok, blob size=${blob.size} type=${blob.type}`); // TEMP DEBUG
-    const audio = new Audio(URL.createObjectURL(blob));
+    const audioUrl = URL.createObjectURL(blob);
+    const audio = new Audio(audioUrl);
     audio.volume = volume;
     currentAudio = audio;
+    currentAudioUrl = audioUrl;
 
     return new Promise((resolve) => {
-      audio.onended = resolve;
-      audio.onerror = (e) => { console.error("[TEMP-DEBUG] audio.onerror", audio.error?.code, audio.error?.message); resolve(e); }; // TEMP DEBUG
-      audio.play().then(() => {
-        console.log("[TEMP-DEBUG] audio.play() succeeded"); // TEMP DEBUG
-      }).catch((err) => {
-        console.error("[TEMP-DEBUG] audio.play() rejected:", err?.name, err?.message); // TEMP DEBUG
+      audio.onended = () => { releaseAudioUrl(audioUrl); resolve(); };
+      audio.onerror = (e) => { releaseAudioUrl(audioUrl); resolve(e); };
+      audio.play().catch(() => {
+        releaseAudioUrl(audioUrl);
         resolve();
       });
     });
@@ -87,6 +96,7 @@ export function silence() {
     currentAudio.pause();
     currentAudio.currentTime = 0;
     currentAudio = null;
+    releaseAudioUrl(currentAudioUrl);
   }
   if (window.speechSynthesis?.speaking || window.speechSynthesis?.pending) {
     window.speechSynthesis.cancel();

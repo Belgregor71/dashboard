@@ -1,6 +1,6 @@
 import express from "express";
 import crypto from "crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, unlinkSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { fetchWithTimeout } from "../utils/fetch.js";
@@ -9,6 +9,27 @@ import { reportFailure, reportSuccess } from "../services/healthService.js";
 const router = express.Router();
 
 const CACHE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "../tts-cache");
+const CACHE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+const PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+// AI briefing text is unique every day, so without pruning the cache grows
+// without bound on the Pi's SD card (~1 MB/day observed).
+function pruneCache() {
+  if (!existsSync(CACHE_DIR)) return;
+  const cutoff = Date.now() - CACHE_MAX_AGE_MS;
+  try {
+    for (const file of readdirSync(CACHE_DIR)) {
+      if (!file.endsWith(".wav")) continue;
+      const filePath = path.join(CACHE_DIR, file);
+      if (statSync(filePath).mtimeMs < cutoff) unlinkSync(filePath);
+    }
+  } catch (err) {
+    console.warn("[TTS] cache prune failed:", err.message);
+  }
+}
+
+pruneCache();
+setInterval(pruneCache, PRUNE_INTERVAL_MS).unref();
 
 function cachePathFor(text, speed) {
   const key = crypto.createHash("sha256").update(`${text}::${speed}`).digest("hex");

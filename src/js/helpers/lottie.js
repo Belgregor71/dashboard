@@ -14,18 +14,27 @@ export function loadLottieAnimation(containerId, fileName) {
     }
   }
 
-  const previous = container.querySelector(".lottie-fade");
+  // Remove every previous wrapper, not just the newest: transitionend never
+  // fires on hidden elements (display:none ancestors), so without the timer
+  // fallback the exiting wrappers pile up forever (observed: 700+ zombie
+  // divs after a day of kiosk uptime).
+  const previousWrappers = Array.from(container.querySelectorAll(".lottie-fade"));
   const previousInstance = container._lottieInstance;
-  if (previous) {
-    previous.classList.add("is-exiting");
-    previous.addEventListener(
+  if (previousWrappers.length) {
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      previousWrappers.forEach((el) => el.remove());
+      previousInstance?.destroy?.();
+    };
+    previousWrappers.forEach((el) => el.classList.add("is-exiting"));
+    previousWrappers[previousWrappers.length - 1].addEventListener(
       "transitionend",
-      () => {
-        previous.remove();
-        previousInstance?.destroy?.();
-      },
+      cleanup,
       { once: true }
     );
+    setTimeout(cleanup, 1000); // fade transition is 0.8s
   } else if (previousInstance) {
     previousInstance.destroy?.();
   }

@@ -720,6 +720,12 @@ function applySnapshotSuccess(cameraId, objectUrl, { stale = false, target = "ti
   state.stale = stale;
   state.pendingStale = stale;
   state.badgeEl?.classList.toggle("is-hidden", !stale);
+  // A pending URL that never reached a load event (e.g. the tile img was
+  // rebuilt before it decoded) would be orphaned by the overwrite below —
+  // revoke it or the blob stays pinned forever.
+  if (state.pendingObjectUrl && state.pendingObjectUrl !== state.lastObjectUrl) {
+    revokeObjectUrl(state.pendingObjectUrl);
+  }
   state.previousObjectUrl = state.lastObjectUrl;
   state.pendingObjectUrl = objectUrl;
 
