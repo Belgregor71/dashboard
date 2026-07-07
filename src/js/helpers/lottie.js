@@ -47,9 +47,14 @@ export function loadLottieAnimation(containerId, fileName) {
   // instance calls play() itself when the data arrives, overriding any
   // pause() issued at creation — which is how hidden-view icons ended up
   // ticking anyway. Playback starts explicitly below, visibility-gated.
+  // canvas renderer: these weather icons are always on screen; SVG
+  // re-rasterization of the animated art cost ~50ms/frame on the Pi GPU
+  // (pinned a full core). Canvas draws to a single bitmap and is far
+  // cheaper. clearCanvas avoids trails between frames.
   const anim = window.lottie.loadAnimation({
     container: wrapper,
-    renderer: "svg",
+    renderer: "canvas",
+    rendererSettings: { clearCanvas: true },
     loop: true,
     autoplay: false,
     path: `/icons/weather/lottie/${fileName}`

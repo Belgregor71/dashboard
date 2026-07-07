@@ -1,5 +1,8 @@
 // static/js/core/app.js
-import lottie from "lottie-web/build/player/lottie_light.js";
+// Full build (not lottie_light) so the always-on header weather icons can
+// use the canvas renderer — SVG re-rasters those cost ~50ms/frame each and
+// pinned the Pi GPU at ~1 core 24/7. Canvas rasters one bitmap instead.
+import lottie from "lottie-web/build/player/lottie.js";
 window.lottie = lottie;
 
 import { initViews, registerView, switchView } from "./viewManager.js";
