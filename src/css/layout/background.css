@@ -66,7 +66,11 @@ body.tint-evening .panel {
   pointer-events: none;
   mix-blend-mode: screen;
   opacity: 0.5;
-  filter: blur(45px);
+  /* blur stays small on purpose: a 45px blur over this >viewport layer
+     fell off the Pi's GPU raster fast path and pinned the GPU process at
+     100%. 22px keeps the soft glow while the blurred bitmap rasters once
+     and just composites. (Measured 2026-07-07: 100% → 0%.) */
+  filter: blur(22px);
 }
 
 .aurora-blobs span {
@@ -90,9 +94,12 @@ body.tint-evening .panel {
   background: radial-gradient(closest-side, color-mix(in oklch, var(--accent-2) 28%, transparent), transparent);
   animation: auroraDrift3 40s ease-in-out infinite;
 }
-@keyframes auroraDrift1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(120px,40px) scale(1.12); } }
-@keyframes auroraDrift2 { 0%,100% { transform: translate(0,0) scale(1.05); } 50% { transform: translate(-110px,60px) scale(.95); } }
-@keyframes auroraDrift3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(90px,-50px) scale(1.1); } }
+/* translate-only, no scale(): scaling a blurred layer re-rasterizes the
+   blur every frame (the actual GPU peg). Translate just moves the cached
+   bitmap on the compositor — effectively free. */
+@keyframes auroraDrift1 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(120px,40px); } }
+@keyframes auroraDrift2 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-110px,60px); } }
+@keyframes auroraDrift3 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(90px,-50px); } }
 
 #stars {
   position: absolute;
