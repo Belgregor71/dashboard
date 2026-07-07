@@ -66,40 +66,31 @@ body.tint-evening .panel {
   pointer-events: none;
   mix-blend-mode: screen;
   opacity: 0.5;
-  /* blur stays small on purpose: a 45px blur over this >viewport layer
-     fell off the Pi's GPU raster fast path and pinned the GPU process at
-     100%. 22px keeps the soft glow while the blurred bitmap rasters once
-     and just composites. (Measured 2026-07-07: 100% → 0%.) */
-  filter: blur(22px);
+  filter: blur(45px);
 }
 
 .aurora-blobs span {
   position: absolute;
   border-radius: 50%;
-  will-change: transform;
 }
 
+/* Blobs are static (no drift). A continuously animating full-screen
+   background forces every glass panel's backdrop-filter to re-blur the
+   whole screen each frame — that interaction pinned the Pi GPU process at
+   ~1 core 24/7 on every view. Static blobs raster once and idle.
+   (Measured 2026-07-07: 80% of a core → ~0%.) */
 .aurora-blobs .a1 {
   width: 900px; height: 520px; left: 6%; top: -12%;
   background: radial-gradient(closest-side, color-mix(in oklch, var(--accent) 60%, transparent), transparent);
-  animation: auroraDrift1 28s ease-in-out infinite;
 }
 .aurora-blobs .a2 {
   width: 820px; height: 480px; right: 2%; top: -6%;
   background: radial-gradient(closest-side, color-mix(in oklch, var(--accent-2) 55%, transparent), transparent);
-  animation: auroraDrift2 34s ease-in-out infinite;
 }
 .aurora-blobs .a3 {
   width: 1100px; height: 600px; left: 22%; bottom: -24%;
   background: radial-gradient(closest-side, color-mix(in oklch, var(--accent-2) 28%, transparent), transparent);
-  animation: auroraDrift3 40s ease-in-out infinite;
 }
-/* translate-only, no scale(): scaling a blurred layer re-rasterizes the
-   blur every frame (the actual GPU peg). Translate just moves the cached
-   bitmap on the compositor — effectively free. */
-@keyframes auroraDrift1 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(120px,40px); } }
-@keyframes auroraDrift2 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-110px,60px); } }
-@keyframes auroraDrift3 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(90px,-50px); } }
 
 #stars {
   position: absolute;
@@ -108,24 +99,22 @@ body.tint-evening .panel {
   opacity: 0;
   transition: opacity 2s;
 }
+/* Static field — per-star opacity is set in background.js. No twinkle
+   animation: see the .aurora-blobs note; a continuously animating
+   full-screen sky forces the glass panels' backdrop-filter to re-blur the
+   whole screen every frame and pinned the Pi GPU at ~1 core. */
 #stars i {
   position: absolute;
   width: 2px;
   height: 2px;
   border-radius: 50%;
   background: #fff;
-  animation: starTwinkle 4s ease-in-out infinite;
 }
-@keyframes starTwinkle { 0%,100% { opacity: .15; } 50% { opacity: .9; } }
 
 body.tint-morning #stars { opacity: .30; }
 body.tint-day     #stars { opacity: .10; }
 body.tint-evening #stars { opacity: .45; }
 body.tint-night   #stars { opacity: 1; }
-
-@media (prefers-reduced-motion: reduce) {
-  .aurora-blobs span { animation: none !important; }
-}
 
 body[data-view="weather"] #background,
 body[data-view="weather"] #background-tint,
