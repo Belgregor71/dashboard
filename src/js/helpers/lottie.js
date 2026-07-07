@@ -43,36 +43,27 @@ export function loadLottieAnimation(containerId, fileName) {
   wrapper.className = "lottie-fade";
   container.appendChild(wrapper);
 
-  // autoplay must stay false: lottie loads the JSON async and an autoplay
-  // instance calls play() itself when the data arrives, overriding any
-  // pause() issued at creation — which is how hidden-view icons ended up
-  // ticking anyway. Playback starts explicitly below, visibility-gated.
-  // canvas renderer: these weather icons are always on screen; SVG
-  // re-rasterization of the animated art cost ~50ms/frame on the Pi GPU
-  // (pinned a full core). Canvas draws to a single bitmap and is far
-  // cheaper. clearCanvas avoids trails between frames.
+  // These header weather icons render a single STATIC frame, never animated.
+  // Continuously rendering the animated art costs ~50ms/frame of Pi GPU and
+  // pinned the GPU process at a full core 24/7 — and that held regardless of
+  // renderer (svg or canvas), frame rate (even 15fps), or CSS containment
+  // (all measured on the live Pi 2026-07-07). Only a static frame is free.
+  // autoplay stays false; we goToAndStop once the JSON has loaded.
   const anim = window.lottie.loadAnimation({
     container: wrapper,
-    renderer: "canvas",
-    rendererSettings: { clearCanvas: true },
-    loop: true,
+    renderer: "svg",
+    loop: false,
     autoplay: false,
     path: `/icons/weather/lottie/${fileName}`
   });
-
-  // Subframe interpolation re-rasterizes the SVG at 60fps and pegged the
-  // Pi's GPU process at a full core (measured 2026-07-06: 99.6% → 4.4%
-  // after this + pausing hidden instances). Native frame rate looks
-  // identical on a weather icon.
-  anim.setSubframe(false);
 
   container.dataset.lottieFile = fileName;
   container._lottieInstance = anim;
 
   anim.addEventListener("DOMLoaded", () => {
-    // Only tick if the container is actually rendered; syncLottiePlayback()
-    // starts it later when its view becomes visible.
-    if (container.offsetParent) anim.play();
+    // A mid-animation frame reliably shows the icon fully drawn (frame 0 can
+    // be a pre-build/empty state on some icons).
+    anim.goToAndStop(Math.floor(anim.totalFrames / 2), true);
     requestAnimationFrame(() => {
       wrapper.classList.add("visible");
     });
@@ -82,17 +73,15 @@ export function loadLottieAnimation(containerId, fileName) {
 }
 
 /**
- * Pause every lottie whose container isn't currently rendered (hidden view,
- * or screensaver covering everything) and resume the visible ones. Cheap —
- * safe to call on every view change.
+ * The weather icons are static (see loadLottieAnimation), so there is nothing
+ * to resume — this only guarantees none are left ticking (e.g. a debug hook
+ * or a future change that calls play()). Cheap and idempotent; safe on every
+ * view change.
  */
 export function syncLottiePlayback() {
-  const saverActive = document.body.classList.contains("screensaver-active");
   document.querySelectorAll("[data-lottie-file]").forEach((el) => {
     const anim = el._lottieInstance;
-    if (!anim || anim.isDestroyed) return;
-    const shouldPlay = !saverActive && el.offsetParent !== null;
-    if (shouldPlay && anim.isPaused) anim.play();
-    else if (!shouldPlay && !anim.isPaused) anim.pause();
+    if (!anim || anim.isDestroyed || anim.isPaused) return;
+    anim.pause();
   });
 }
