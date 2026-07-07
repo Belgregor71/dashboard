@@ -43,11 +43,15 @@ export function loadLottieAnimation(containerId, fileName) {
   wrapper.className = "lottie-fade";
   container.appendChild(wrapper);
 
+  // autoplay must stay false: lottie loads the JSON async and an autoplay
+  // instance calls play() itself when the data arrives, overriding any
+  // pause() issued at creation — which is how hidden-view icons ended up
+  // ticking anyway. Playback starts explicitly below, visibility-gated.
   const anim = window.lottie.loadAnimation({
     container: wrapper,
     renderer: "svg",
     loop: true,
-    autoplay: true,
+    autoplay: false,
     path: `/icons/weather/lottie/${fileName}`
   });
 
@@ -56,14 +60,14 @@ export function loadLottieAnimation(containerId, fileName) {
   // after this + pausing hidden instances). Native frame rate looks
   // identical on a weather icon.
   anim.setSubframe(false);
-  // Created while the container's view is hidden — don't tick invisibly;
-  // syncLottiePlayback() resumes it when the view actually shows.
-  if (!container.offsetParent) anim.pause();
 
   container.dataset.lottieFile = fileName;
   container._lottieInstance = anim;
 
   anim.addEventListener("DOMLoaded", () => {
+    // Only tick if the container is actually rendered; syncLottiePlayback()
+    // starts it later when its view becomes visible.
+    if (container.offsetParent) anim.play();
     requestAnimationFrame(() => {
       wrapper.classList.add("visible");
     });
