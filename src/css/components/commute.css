@@ -78,3 +78,14 @@
   font-size: 2.4rem;
   font-weight: 300;
 }
+
+/* Live traffic delay from TomTom — subordinate to the time, amber to signal
+   "congestion is adding this". Only shown past DELAY_THRESHOLD_MIN. */
+.commute-delay {
+  font-family: var(--font-body);
+  font-size: 0.5em;
+  font-weight: 500;
+  color: var(--status-warn);
+  vertical-align: middle;
+  margin-left: 6px;
+}
