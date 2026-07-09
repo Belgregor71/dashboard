@@ -194,12 +194,31 @@ function applyDrift() {
 
 // ─── Photo rotation ───────────────────────────────────────────
 
+// Ken Burns move classes (defined in screensaver.css). A fresh one is
+// applied per photo so the slideshow doesn't repeat the same motion; the
+// class is removed then re-added across a reflow to replay the animation
+// (a CSS animation on the reused <img> won't restart on a src swap alone).
+const KB_VARIANTS = ["ss-kb-1", "ss-kb-2", "ss-kb-3", "ss-kb-4", "ss-kb-5"];
+let lastKbVariant = null;
+
+function pickKbVariant() {
+  let variant = lastKbVariant;
+  while (variant === lastKbVariant) {
+    variant = KB_VARIANTS[Math.floor(Math.random() * KB_VARIANTS.length)];
+  }
+  lastKbVariant = variant;
+  return variant;
+}
+
 function showNextPhoto() {
   if (!photoEl || photos.length === 0) return;
   const src = photos[Math.floor(Math.random() * photos.length)];
-  photoEl.classList.remove("screensaver__photo--visible");
+  photoEl.classList.remove("screensaver__photo--visible", ...KB_VARIANTS);
   photoEl.src = src;
-  photoEl.onload = () => photoEl.classList.add("screensaver__photo--visible");
+  photoEl.onload = () => {
+    void photoEl.offsetWidth; // reflow so the re-added class replays from frame 0
+    photoEl.classList.add("screensaver__photo--visible", pickKbVariant());
+  };
 }
 
 // ─── Enter / Exit ─────────────────────────────────────────────
@@ -286,6 +305,7 @@ export async function initScreensaver() {
   // Debug/verification hooks (match __switchView, __forceInsight conventions).
   window.__engageScreensaver = engageScreensaver;
   window.__wakeScreensaver = wakeScreensaver;
+  window.__ssNextPhoto = showNextPhoto;
 
   // Any direct user interaction (click / tap / keypress) wakes screensaver
   ["click", "touchstart", "keydown"].forEach(evt =>

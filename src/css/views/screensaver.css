@@ -43,16 +43,53 @@
   opacity: 0;
   filter: saturate(1.1) contrast(1.04) brightness(0.62);
   transition: opacity 1.2s ease;
-  animation: ss-zoom 30s ease-in-out forwards;
+  transform-origin: center;
+  will-change: transform, opacity;
 }
 
 .screensaver__photo--visible {
   opacity: 1;
 }
 
-@keyframes ss-zoom {
+/* ── Ken Burns variants ───────────────────────────────────────
+   The photo <img> is reused across rotations, so a persistent CSS
+   animation only ever plays on the first photo (it doesn't restart
+   on a src swap). Instead screensaver.js picks one ss-kb-* class per
+   photo and re-adds it across a reflow, replaying a fresh move each
+   time. Duration matches PHOTO_MS (30s) so the move plays across the
+   full time a photo is up, then holds (forwards) — motion stops
+   between rotations, honouring the screensaver GPU freeze.
+
+   Edge-reveal guard: whenever a variant translates, it stays at
+   scale >= 1.06 so the overscan ((S-1)/2) always covers the pan and
+   no black edge is exposed on the 16:9 panel. Pure-zoom variants
+   never translate, so scale 1.0 is safe.
+──────────────────────────────────────────────────────────── */
+.screensaver__photo.ss-kb-1 { animation: ss-kb-1 30s ease-in-out forwards; }
+.screensaver__photo.ss-kb-2 { animation: ss-kb-2 30s ease-in-out forwards; }
+.screensaver__photo.ss-kb-3 { animation: ss-kb-3 30s ease-in-out forwards; }
+.screensaver__photo.ss-kb-4 { animation: ss-kb-4 30s ease-in-out forwards; }
+.screensaver__photo.ss-kb-5 { animation: ss-kb-5 30s ease-in-out forwards; }
+
+@keyframes ss-kb-1 { /* slow zoom in  */
   from { transform: scale(1.0); }
-  to   { transform: scale(1.08); }
+  to   { transform: scale(1.09); }
+}
+@keyframes ss-kb-2 { /* slow zoom out */
+  from { transform: scale(1.09); }
+  to   { transform: scale(1.0); }
+}
+@keyframes ss-kb-3 { /* pan left → right */
+  from { transform: translate(-3%, 0) scale(1.10); }
+  to   { transform: translate(3%, 0) scale(1.10); }
+}
+@keyframes ss-kb-4 { /* diagonal drift, top-right → bottom-left */
+  from { transform: translate(3%, 2%) scale(1.11); }
+  to   { transform: translate(-3%, -2%) scale(1.11); }
+}
+@keyframes ss-kb-5 { /* push in with a gentle drift */
+  from { transform: translate(2%, -1.5%) scale(1.06); }
+  to   { transform: translate(-2%, 1.5%) scale(1.13); }
 }
 
 /* ── Gradient overlay (readability) ───────────────────────── */
@@ -135,7 +172,7 @@
   font-family: var(--font-body);
   font-size: clamp(1rem, 1.6vw, 1.5rem);
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--ink);
 }
 
 /* ── Footer (today's event count) ────────────────────────────
@@ -147,7 +184,7 @@
   font-size: clamp(0.78rem, 1vw, 0.95rem);
   font-weight: 400;
   letter-spacing: 0.04em;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--ink-faint);
   margin-top: 1.5rem;
 }
 

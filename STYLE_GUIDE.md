@@ -280,7 +280,7 @@ reason:
 | Motion | Purpose | Where |
 |---|---|---|
 | Screensaver content drift (4 min cycle, 8s ease) | OLED/burn-in protection | `screensaver.js` |
-| Background photo zoom (scale 1.0→1.08 over 30s) | Ambient "alive" feel | `background.css` `ss-zoom` |
+| Screensaver photo Ken Burns (zoom/pan over 30s, varied per photo) | Ambient "alive" feel + OLED burn-in protection | `screensaver.css` `ss-kb-*` |
 | View fade transitions | State change feedback | `panels.css` |
 | Focus Hero / Timeline Moments | None — static, no animation | — |
 
