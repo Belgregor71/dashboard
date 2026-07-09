@@ -304,10 +304,15 @@
           <div class="weather-metrics" id="weather-metrics">
             <div class="metric-card weather-glass metric-uv">
               <div class="metric-label">UV Index</div>
-              <div id="weather-uv-dial" class="metric-uv-dial" aria-hidden="true">
-                <span class="metric-value" id="weather-uv-dial-value">--</span>
+              <div class="uv-scale">
+                <div class="uv-scale__track" id="weather-uv-track" aria-hidden="true">
+                  <div class="uv-scale__marker"></div>
+                </div>
+                <div class="uv-scale__readout">
+                  <div class="metric-value" id="weather-uv-value">--</div>
+                  <div class="metric-meta" id="weather-uv-meta"></div>
+                </div>
               </div>
-              <div class="metric-meta" id="weather-uv-dial-meta"></div>
             </div>
 
             <div class="metric-card weather-glass metric-humidity">
@@ -329,6 +334,13 @@
               <div class="metric-value" id="weather-rain-range-card">--</div>
               <div class="metric-meta" id="weather-rain-range-meta"></div>
               <div id="weather-rain-spark" class="metric-spark" aria-hidden="true"></div>
+            </div>
+
+            <div class="metric-card weather-glass metric-aqi" id="weather-aqi-card">
+              <div class="metric-label">Air Quality</div>
+              <div class="metric-value" id="weather-aqi-value">--</div>
+              <div class="metric-meta" id="weather-aqi-meta"></div>
+              <div class="metric-progress" id="weather-aqi-bar" aria-hidden="true"><span></span></div>
             </div>
 
           </div>

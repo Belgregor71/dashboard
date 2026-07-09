@@ -17,6 +17,7 @@ import { categoryForWeatherCode } from "../../weatherPrompts.js";
 import { WEATHER_LAT, WEATHER_LON } from "../../config/config.js";
 import { getTimes as getSunTimesFromCalc } from "../../vendor/suncalc.js";
 import { clearWeatherFxOverlay, setWeatherFxOverlay } from "./fxOverlay.js";
+import { refreshAirQuality } from "./airQuality.js";
 import { getAllEntities } from "../homeAssistant/state.js";
 import {
   getBomForecastBundle,
@@ -386,6 +387,9 @@ function pickDescriptor(code, maxPop) {
 }
 
 export async function startWeather() {
+  // Air quality is a separate upstream on its own guard — fire it independently
+  // so a failure there never blocks or breaks the main weather render.
+  refreshAirQuality();
   try {
     clearLotties();
     const data = await fetchWeatherData();
@@ -783,13 +787,13 @@ function formatFeelsDeltaMeta(apparent, actual) {
   return delta > 0 ? `${delta}° warmer than actual` : `${Math.abs(delta)}° cooler than actual`;
 }
 
-function normalizeUvDial(index, category) {
+function normalizeUvScale(index, category) {
   const uvIndex = Number.isFinite(index) ? Math.max(0, Math.round(index)) : null;
-  const maxDial = 12;
-  const ratio = uvIndex == null ? 0 : Math.min(uvIndex, maxDial) / maxDial;
-  const degrees = Math.round(ratio * 360);
+  const maxScale = 11; // WHO "extreme" band starts at 11 — top of the scale
+  const ratio = uvIndex == null ? 0 : Math.min(uvIndex, maxScale) / maxScale;
+  const pct = Math.round(ratio * 100);
   const label = category || "--";
-  return { uvIndex, label, degrees };
+  return { uvIndex, label, pct };
 }
 
 function renderBomPanels() {
@@ -854,9 +858,9 @@ function renderBomPanels() {
   if (summaryHash === lastBomRenderHash) return;
   lastBomRenderHash = summaryHash;
 
-  const uvDial = document.getElementById("weather-uv-dial");
-  const uvValue = document.getElementById("weather-uv-dial-value");
-  const uvMeta = document.getElementById("weather-uv-dial-meta");
+  const uvTrack = document.getElementById("weather-uv-track");
+  const uvValue = document.getElementById("weather-uv-value");
+  const uvMeta = document.getElementById("weather-uv-meta");
   const rainCard = document.getElementById("weather-rain-range-card");
   const rainMeta = document.getElementById("weather-rain-range-meta");
   const rainSpark = document.getElementById("weather-rain-spark");
@@ -867,10 +871,10 @@ function renderBomPanels() {
   const feelsMeta = document.getElementById("weather-feels-like-meta");
   const feelsSpark = document.getElementById("weather-feels-spark");
 
-  const uvDialData = normalizeUvDial(uvMaxIndex, uvCategory);
-  if (uvDial) uvDial.style.setProperty("--uv-deg", `${uvDialData.degrees}deg`);
-  setTextIfChanged(uvValue, uvDialData.uvIndex != null ? `${uvDialData.uvIndex}` : "--");
-  setTextIfChanged(uvMeta, uvDialData.label);
+  const uvScaleData = normalizeUvScale(uvMaxIndex, uvCategory);
+  if (uvTrack) uvTrack.style.setProperty("--uv-pct", `${uvScaleData.pct}%`);
+  setTextIfChanged(uvValue, uvScaleData.uvIndex != null ? `${uvScaleData.uvIndex}` : "--");
+  setTextIfChanged(uvMeta, uvScaleData.label);
 
   if (rainCard) rainCard.innerHTML = `${todayRainTotal.toFixed(1)}<span class="metric-unit">mm today</span>`;
 

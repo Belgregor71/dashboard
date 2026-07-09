@@ -339,21 +339,28 @@
   grid-row: span 2;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 6px;
 }
 
-.metric-card.metric-uv .metric-label {
-  align-self: flex-start;
-}
+/* Rain and Air Quality share the bottom row of the metrics column, each
+   half-width (Rain left, AQI right) — dense auto-flow places them side by
+   side beneath the UV / Humidity / Feels cards. */
 
-.metric-card.metric-uv .metric-meta {
-  text-align: center;
+/* AQI bar: width from --aqi-pct (set in airQuality.js), colour from the EPA
+   band via data-aqi-band — reusing the shared --status-* tokens so it reads
+   the same ok/warn/error as the rest of the dashboard. */
+.metric-aqi .metric-progress span {
+  width: var(--aqi-pct, 0%);
+  background: var(--ink-faint);
+  transition: width 0.6s ease;
 }
-
-.metric-card.metric-rain {
-  grid-column: 1 / -1;
-}
+.metric-aqi[data-aqi-band="good"]           .metric-progress span { background: var(--status-ok); }
+.metric-aqi[data-aqi-band="moderate"]       .metric-progress span { background: var(--status-warn); }
+.metric-aqi[data-aqi-band="sensitive"]      .metric-progress span { background: color-mix(in oklch, var(--status-warn) 50%, var(--status-error)); }
+.metric-aqi[data-aqi-band="unhealthy"]      .metric-progress span { background: var(--status-error); }
+.metric-aqi[data-aqi-band="very-unhealthy"] .metric-progress span { background: color-mix(in oklch, var(--status-error) 55%, #7a2ea0); }
+.metric-aqi[data-aqi-band="hazardous"]      .metric-progress span { background: #7a2ea0; }
 
 .metric-label {
   font-size: clamp(0.8rem, 0.95vw, 0.92rem);
@@ -376,32 +383,53 @@
   opacity: 0.75;
 }
 
-.metric-uv-dial {
+/* Vertical UV scale: a tall gradient track (0 at bottom → 11+ at top,
+   green→red→purple from the shared status tokens) with a marker at the
+   current index, sat beside a big value + category readout. Fills the tall
+   card far better than the old small dial did. --uv-pct is set from the
+   current UV index in renderer.js. */
+.uv-scale {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  gap: clamp(12px, 1.4vw, 20px);
+  min-height: 0;
+  padding: 4px 2px 6px;
+}
+
+.uv-scale__track {
   position: relative;
   flex: none;
-  margin-top: auto;
-  margin-bottom: auto;
-  width: clamp(100px, 11vw, 130px);
-  height: clamp(100px, 11vw, 130px);
-  border-radius: 50%;
-  background: conic-gradient(var(--accent) var(--uv-deg, 0deg), rgba(255, 255, 255, 0.14) 0deg);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: clamp(10px, 0.9vw, 14px);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(
+    to top,
+    var(--status-ok) 0%,
+    var(--status-warn) 30%,
+    color-mix(in oklch, var(--status-warn), var(--status-error)) 55%,
+    var(--status-error) 75%,
+    color-mix(in oklch, var(--status-error) 55%, #7a2ea0) 100%
+  );
 }
 
-.metric-uv-dial::before {
-  content: "";
+.uv-scale__marker {
   position: absolute;
-  inset: 8px;
-  border-radius: 50%;
-  background: rgba(15, 22, 34, 0.55);
+  left: -4px;
+  right: -4px;
+  bottom: var(--uv-pct, 0%);
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ink);
+  box-shadow: 0 0 0 2px rgba(8, 12, 20, 0.65);
+  transform: translateY(50%);
+  transition: bottom 0.6s ease;
 }
 
-.metric-uv-dial .metric-value {
-  position: relative;
-  z-index: 1;
+.uv-scale__readout {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
 }
 
 .metric-spark {
