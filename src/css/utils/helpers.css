@@ -9,6 +9,19 @@
   50%       { box-shadow: 0 0 18px var(--lamp-bright); }
 }
 
+/* ── Shared view enter fade ──────────────────────────────────
+   Plays once each time a view container flips from display:none
+   to visible (viewManager toggles body[data-view]). Opacity-only
+   and no fill: never creates a containing block for the fixed
+   descendants some views have (weather background, camera pill),
+   and — being finite — composites for one beat then idles, so it
+   costs nothing under the screensaver's GPU freeze.
+──────────────────────────────────────────────────────────── */
+@keyframes view-enter {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 .hidden {
   display: none !important;
 }

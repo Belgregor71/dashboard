@@ -10,6 +10,18 @@
   min-height: 0;
 }
 
+/* View enter fade — the incoming view container plays this once as it
+   flips from display:none to visible on a switch. See @keyframes
+   view-enter in helpers.css for why it's opacity-only. */
+body[data-view="home"]     .home-view,
+body[data-view="timeline"] .timeline-view,
+body[data-view="cameras"]  .cameras-view,
+body[data-view="weather"]  .weather-view,
+body[data-view="status"]   .status-view,
+body[data-view="briefing"] .briefing-view {
+  animation: view-enter 420ms ease;
+}
+
 /* Home view */
 body[data-view="home"] .home-view { display: flex; flex-direction: column; }
 body[data-view="home"] .timeline-view,
