@@ -40,7 +40,7 @@
   font-size: clamp(2rem, 4vw, 3.6rem);
   font-weight: 300;
   letter-spacing: -0.01em;
-  color: rgba(255, 255, 255, 0.97);
+  color: var(--ink);
   line-height: 1.1;
   margin-bottom: 6px;
 }
@@ -71,14 +71,14 @@
   align-items: baseline;
   gap: 10px;
   font-size: clamp(0.85rem, 1.3vw, 1.1rem);
-  color: rgba(255, 255, 255, 0.80);
+  color: var(--ink-dim);
 }
 
 .arrival-greeting__time {
   font-family: var(--font-display);
   font-weight: 300;
   font-size: 1.05em;
-  color: rgba(255, 255, 255, 0.50);
+  color: var(--ink-faint);
   min-width: 4.5em;
   flex-shrink: 0;
 }
@@ -89,7 +89,7 @@
 
 .arrival-greeting__empty {
   font-size: clamp(0.85rem, 1.3vw, 1.1rem);
-  color: rgba(255, 255, 255, 0.40);
+  color: var(--ink-faint);
   font-style: italic;
   margin-bottom: 20px;
 }
