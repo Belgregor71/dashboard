@@ -43,27 +43,26 @@ export function loadLottieAnimation(containerId, fileName) {
   wrapper.className = "lottie-fade";
   container.appendChild(wrapper);
 
-  // These header weather icons render a single STATIC frame, never animated.
-  // Continuously rendering the animated art costs ~50ms/frame of Pi GPU and
-  // pinned the GPU process at a full core 24/7 — and that held regardless of
-  // renderer (svg or canvas), frame rate (even 15fps), or CSS containment
-  // (all measured on the live Pi 2026-07-07). Only a static frame is free.
-  // autoplay stays false; we goToAndStop once the JSON has loaded.
+  // autoplay must stay false: lottie loads the JSON async and an autoplay
+  // instance calls play() itself when the data arrives, overriding any
+  // pause() issued at creation. Playback starts explicitly below, gated on
+  // visibility and (globally) frozen under the screensaver — see freezeLotties.
   const anim = window.lottie.loadAnimation({
     container: wrapper,
     renderer: "svg",
-    loop: false,
+    loop: true,
     autoplay: false,
     path: `/icons/weather/lottie/${fileName}`
   });
+
+  // Native frame rate looks identical on a weather icon and halves the raster.
+  anim.setSubframe(false);
 
   container.dataset.lottieFile = fileName;
   container._lottieInstance = anim;
 
   anim.addEventListener("DOMLoaded", () => {
-    // A mid-animation frame reliably shows the icon fully drawn (frame 0 can
-    // be a pre-build/empty state on some icons).
-    anim.goToAndStop(Math.floor(anim.totalFrames / 2), true);
+    if (container.offsetParent && !lottiesFrozen) anim.play();
     requestAnimationFrame(() => {
       wrapper.classList.add("visible");
     });
@@ -72,16 +71,38 @@ export function loadLottieAnimation(containerId, fileName) {
   return anim;
 }
 
+let lottiesFrozen = false;
+
 /**
- * The weather icons are static (see loadLottieAnimation), so there is nothing
- * to resume — this only guarantees none are left ticking (e.g. a debug hook
- * or a future change that calls play()). Cheap and idempotent; safe on every
- * view change.
+ * Freeze/unfreeze EVERY lottie on the page in one call (lottie-web's global
+ * player timer). The kiosk composites the whole dashboard at 60fps whenever
+ * any animation runs, which costs ~1 GPU core on the Pi; when the screensaver
+ * engages (nobody watching) there is no reason to pay that. Verified on the
+ * live Pi: freezing all lotties drops the GPU process to ~0%.
+ */
+export function freezeLotties() {
+  lottiesFrozen = true;
+  window.lottie?.freeze?.();
+}
+
+export function unfreezeLotties() {
+  lottiesFrozen = false;
+  window.lottie?.unfreeze?.();
+}
+
+/**
+ * Pause every lottie whose container isn't currently rendered (hidden view)
+ * and resume the visible ones — unless globally frozen by the screensaver.
+ * Cheap; safe to call on every view change.
  */
 export function syncLottiePlayback() {
+  if (lottiesFrozen) return;
+  const saverActive = document.body.classList.contains("screensaver-active");
   document.querySelectorAll("[data-lottie-file]").forEach((el) => {
     const anim = el._lottieInstance;
-    if (!anim || anim.isDestroyed || anim.isPaused) return;
-    anim.pause();
+    if (!anim || anim.isDestroyed) return;
+    const shouldPlay = !saverActive && el.offsetParent !== null;
+    if (shouldPlay && anim.isPaused) anim.play();
+    else if (!shouldPlay && !anim.isPaused) anim.pause();
   });
 }

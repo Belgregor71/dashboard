@@ -17,11 +17,7 @@ function initStars() {
     const star = document.createElement("i");
     star.style.left = `${(Math.random() * 100).toFixed(1)}%`;
     star.style.top = `${(Math.random() * 72).toFixed(1)}%`;
-    // Static per-star brightness instead of a twinkle animation: a
-    // continuously animating full-screen starfield forces every glass panel's
-    // backdrop-filter to re-blur the whole screen each frame (pinned the Pi
-    // GPU process at ~1 core 24/7). Varied opacity keeps the field lively.
-    star.style.opacity = (0.2 + Math.random() * 0.7).toFixed(2);
+    star.style.animationDelay = `${(Math.random() * 4).toFixed(1)}s`;
     frag.appendChild(star);
   }
   stars.appendChild(frag);

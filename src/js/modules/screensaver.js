@@ -1,6 +1,6 @@
 import { getLastCameraTrigger } from "./cameraTiles.js";
 import { switchView } from "../core/viewManager.js";
-import { syncLottiePlayback } from "../helpers/lottie.js";
+import { freezeLotties, unfreezeLotties } from "../helpers/lottie.js";
 
 const IDLE_MS    = 5 * 60 * 1000;  // 5 min of no motion → engage
 const PHOTO_MS   = 30 * 1000;       // rotate photo every 30s
@@ -234,7 +234,10 @@ function enter() {
 
   el.classList.add("is-active");
   document.body.classList.add("screensaver-active");
-  syncLottiePlayback(); // icons under the overlay would keep burning GPU
+  // Nobody is watching: freeze every lottie + (via CSS on .screensaver-active)
+  // the marquee/aurora/stars. Any running animation composites the whole
+  // dashboard at 60fps = ~1 GPU core on the Pi; this drops it to ~0.
+  freezeLotties();
 
   clockTimer = setInterval(tickClock, 1000);
   infoTimer  = setInterval(updateInfo, INFO_MS);
@@ -259,7 +262,7 @@ function exit() {
 
   el.classList.remove("is-active");
   document.body.classList.remove("screensaver-active");
-  syncLottiePlayback();
+  unfreezeLotties();
 
   switchView("home");
   resetIdleTimer();
@@ -279,6 +282,10 @@ export async function initScreensaver() {
   await loadPhotos();
   build();
   resetIdleTimer();
+
+  // Debug/verification hooks (match __switchView, __forceInsight conventions).
+  window.__engageScreensaver = engageScreensaver;
+  window.__wakeScreensaver = wakeScreensaver;
 
   // Any direct user interaction (click / tap / keypress) wakes screensaver
   ["click", "touchstart", "keydown"].forEach(evt =>

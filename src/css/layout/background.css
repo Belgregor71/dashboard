@@ -72,25 +72,27 @@ body.tint-evening .panel {
 .aurora-blobs span {
   position: absolute;
   border-radius: 50%;
+  will-change: transform;
 }
 
-/* Blobs are static (no drift). A continuously animating full-screen
-   background forces every glass panel's backdrop-filter to re-blur the
-   whole screen each frame — that interaction pinned the Pi GPU process at
-   ~1 core 24/7 on every view. Static blobs raster once and idle.
-   (Measured 2026-07-07: 80% of a core → ~0%.) */
 .aurora-blobs .a1 {
   width: 900px; height: 520px; left: 6%; top: -12%;
   background: radial-gradient(closest-side, color-mix(in oklch, var(--accent) 60%, transparent), transparent);
+  animation: auroraDrift1 28s ease-in-out infinite;
 }
 .aurora-blobs .a2 {
   width: 820px; height: 480px; right: 2%; top: -6%;
   background: radial-gradient(closest-side, color-mix(in oklch, var(--accent-2) 55%, transparent), transparent);
+  animation: auroraDrift2 34s ease-in-out infinite;
 }
 .aurora-blobs .a3 {
   width: 1100px; height: 600px; left: 22%; bottom: -24%;
   background: radial-gradient(closest-side, color-mix(in oklch, var(--accent-2) 28%, transparent), transparent);
+  animation: auroraDrift3 40s ease-in-out infinite;
 }
+@keyframes auroraDrift1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(120px,40px) scale(1.12); } }
+@keyframes auroraDrift2 { 0%,100% { transform: translate(0,0) scale(1.05); } 50% { transform: translate(-110px,60px) scale(.95); } }
+@keyframes auroraDrift3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(90px,-50px) scale(1.1); } }
 
 #stars {
   position: absolute;
@@ -99,22 +101,30 @@ body.tint-evening .panel {
   opacity: 0;
   transition: opacity 2s;
 }
-/* Static field — per-star opacity is set in background.js. No twinkle
-   animation: see the .aurora-blobs note; a continuously animating
-   full-screen sky forces the glass panels' backdrop-filter to re-blur the
-   whole screen every frame and pinned the Pi GPU at ~1 core. */
 #stars i {
   position: absolute;
   width: 2px;
   height: 2px;
   border-radius: 50%;
   background: #fff;
+  animation: starTwinkle 4s ease-in-out infinite;
 }
+@keyframes starTwinkle { 0%,100% { opacity: .15; } 50% { opacity: .9; } }
 
 body.tint-morning #stars { opacity: .30; }
 body.tint-day     #stars { opacity: .10; }
 body.tint-evening #stars { opacity: .45; }
 body.tint-night   #stars { opacity: 1; }
+
+/* Idle freeze: while the screensaver is up (nobody watching), pause the
+   continuous background animations. Any running animation makes the kiosk
+   re-composite the whole page at 60fps ≈ 1 GPU core on the Pi. Lotties are
+   frozen from JS (lottie.freeze); these are CSS so they pause here. */
+body.screensaver-active #stars i,
+body.screensaver-active .aurora-blobs span,
+body.screensaver-active #news-ticker-run {
+  animation-play-state: paused !important;
+}
 
 body[data-view="weather"] #background,
 body[data-view="weather"] #background-tint,
