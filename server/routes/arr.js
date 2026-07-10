@@ -3,14 +3,11 @@ import fetch from "node-fetch";
 
 const router = express.Router();
 
-function ensureArrConfig(name, baseUrl, apiKey) {
-  if (!baseUrl || !apiKey) {
-    throw new Error(`${name} URL/API key missing`);
-  }
-}
-
 async function fetchQueue(name, baseUrl, apiKey) {
-  ensureArrConfig(name, baseUrl, apiKey);
+  // A service with no URL/key isn't configured on this host — that's "no
+  // downloads", not a server error. Returning empty keeps /arr/summary a clean
+  // 200 instead of a 500 the kiosk re-hits every 10s.
+  if (!baseUrl || !apiKey) return [];
 
   const url = new URL("/api/v3/queue", baseUrl);
   url.searchParams.set("page", "1");

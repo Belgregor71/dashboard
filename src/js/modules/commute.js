@@ -15,7 +15,7 @@ function loadCommuteLottie() {
     renderer: "svg",
     loop: true,
     autoplay: true,
-    path: "/icons/car.lottie"
+    path: "/icons/car.json"
   });
 
   container._lottieInstance = anim;

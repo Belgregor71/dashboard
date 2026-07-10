@@ -156,7 +156,15 @@ test.describe("feeds", () => {
   });
 
   test("GET /api/arr/summary", async ({ request }) => {
-    await expectJson(request, "/api/arr/summary", { statuses: [200, 500, 502] });
+    // Unconfigured services must answer 200-empty, not 500 (the kiosk re-hits
+    // this every 10s); a configured-but-down upstream may still 500/502.
+    const { status, body } = await expectJson(request, "/api/arr/summary", { statuses: [200, 500, 502] });
+    if (status === 200) {
+      expect(typeof body.active).toBe("boolean");
+      for (const svc of ["sonarr", "radarr", "lidarr"]) {
+        expect(Array.isArray(body[svc])).toBe(true);
+      }
+    }
   });
 
   test("GET /api/plex/sessions", async ({ request }) => {

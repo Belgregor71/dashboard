@@ -225,7 +225,7 @@ function loadMealLottie(container) {
     renderer: "svg",
     loop: true,
     autoplay: true,
-    path: "/icons/Food.lottie"
+    path: "/icons/Food.json"
   });
 
   container._lottieInstance = anim;
