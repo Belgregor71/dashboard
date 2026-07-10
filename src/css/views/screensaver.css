@@ -196,6 +196,40 @@
   background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.04) 0%, rgba(0, 0, 0, 1) 70%);
 }
 
+/* ── Night mode (sunset → sunrise) ────────────────────────────
+   Engaged automatically overnight (screensaver.js isNight, via suncalc at
+   the dashboard coordinates) so the 32" panel doesn't light the room. The
+   clock + Ken Burns photos stay, but the whole scene is heavily dimmed and
+   the busy ambient lines drop away — just a quiet, readable clock.
+──────────────────────────────────────────────────────────── */
+.screensaver--night .screensaver__photo {
+  filter: saturate(0.85) contrast(1) brightness(0.26);
+}
+
+.screensaver--night .screensaver__overlay {
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.45) 0%,
+    rgba(0, 0, 0, 0.60) 55%,
+    rgba(0, 0, 0, 0.82) 100%
+  );
+}
+
+.screensaver--night .screensaver__time {
+  color: var(--ink-dim);
+  text-shadow: 0 2px 40px rgba(0, 0, 0, 0.6);
+}
+
+.screensaver--night .screensaver__dateline {
+  color: var(--ink-faint);
+  opacity: 0.6;
+}
+
+.screensaver--night .screensaver__info,
+.screensaver--night .screensaver__footer {
+  display: none;
+}
+
 /* ── Hide dashboard content while screensaver is active ────── */
 
 body.screensaver-active > *:not(#screensaver) {

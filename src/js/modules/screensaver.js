@@ -1,12 +1,24 @@
 import { getLastCameraTrigger } from "./cameraTiles.js";
 import { switchView } from "../core/viewManager.js";
 import { freezeLotties, unfreezeLotties } from "../helpers/lottie.js";
+import { getTimes as getSunTimes } from "../vendor/suncalc.js";
+import { WEATHER_LAT, WEATHER_LON } from "../config/constants.js";
 
 const IDLE_MS    = 5 * 60 * 1000;  // 5 min of no motion → engage
 const PHOTO_MS   = 30 * 1000;       // rotate photo every 30s
 const INFO_MS    = 15 * 1000;       // refresh ambient info lines every 15s
 const MOTION_RECENT_MS = 30 * 60 * 1000; // "last motion" line only while fresh
 const DRIFT_MS   = 4 * 60 * 1000;   // reposition every 4 min — gentle OLED/burn-in protection
+
+// ─── Night mode (sunset → sunrise) ────────────────────────────
+// Overnight the panel drops to a heavily-dimmed clock so it doesn't light
+// the room. It engages the moment the sun sets (not just after idle) and
+// auto-returns to the dashboard at sunrise.
+const NIGHT_PHOTO_MS = 2 * 60 * 1000; // slower rotation at night — dimmer + GPU-quiet
+const NIGHT_IDLE_MS  = 30 * 1000;     // settle back to the dim clock quickly after interaction
+const NIGHT_CHECK_MS = 60 * 1000;     // watch for the sunset / sunrise boundary
+
+let nightTimer  = null;
 
 // Small, slow transform-only offsets (GPU-cheap) — kept modest so the
 // content never drifts close to the screen edges.
@@ -221,6 +233,50 @@ function showNextPhoto() {
   };
 }
 
+// ─── Night mode ───────────────────────────────────────────────
+
+// True between local sunset and sunrise (suncalc, dashboard coordinates).
+// getSunTimes returns this calendar day's rise/set, so comparing against
+// both bounds covers the whole night without needing adjacent days.
+function isNight(now = new Date()) {
+  const { sunrise, sunset } = getSunTimes(now, WEATHER_LAT, WEATHER_LON);
+  if (!(sunrise instanceof Date) || !(sunset instanceof Date)) return false;
+  if (Number.isNaN(sunrise.getTime()) || Number.isNaN(sunset.getTime())) return false;
+  return now < sunrise || now >= sunset;
+}
+
+function applyNight(night) {
+  if (!el) return;
+  el.classList.toggle("screensaver--night", night);
+  el.dataset.night = night ? "1" : "0";
+}
+
+function startPhotoTimer(night) {
+  clearInterval(photoTimer);
+  photoTimer = null;
+  if (photos.length > 0) {
+    photoTimer = setInterval(showNextPhoto, night ? NIGHT_PHOTO_MS : PHOTO_MS);
+  }
+}
+
+// Watches the sunset/sunrise boundary once a minute: engage the dim clock the
+// moment night falls, and hand back to the dashboard at first light.
+function syncNight() {
+  const night = isNight();
+  if (!active) {
+    if (night) engageScreensaver();
+    return;
+  }
+  const wasNight = el.dataset.night === "1";
+  if (night === wasNight) return;
+  if (night) {
+    applyNight(true);        // sunset while already idling — dim in place
+    startPhotoTimer(true);
+  } else {
+    exit();                  // sunrise — return to the dashboard
+  }
+}
+
 // ─── Enter / Exit ─────────────────────────────────────────────
 
 export function isScreensaverActive() {
@@ -243,6 +299,8 @@ function enter() {
   active = true;
 
   el.dataset.mode = photos.length > 0 ? "photo" : "minimal";
+  const night = isNight();
+  applyNight(night);
 
   driftIndex = 0;
   if (contentEl) contentEl.style.transform = "translate(0, 0)";
@@ -261,9 +319,7 @@ function enter() {
   clockTimer = setInterval(tickClock, 1000);
   infoTimer  = setInterval(updateInfo, INFO_MS);
   driftTimer = setInterval(applyDrift, DRIFT_MS);
-  if (photos.length > 0) {
-    photoTimer = setInterval(showNextPhoto, PHOTO_MS);
-  }
+  startPhotoTimer(night);
 }
 
 function exit() {
@@ -292,7 +348,8 @@ function exit() {
 export function resetIdleTimer() {
   clearTimeout(idleTimer);
   if (active) return;
-  idleTimer = setTimeout(enter, IDLE_MS);
+  // At night, settle back to the dim clock quickly rather than waiting 5 min.
+  idleTimer = setTimeout(enter, isNight() ? NIGHT_IDLE_MS : IDLE_MS);
 }
 
 // ─── Init ─────────────────────────────────────────────────────
@@ -302,10 +359,16 @@ export async function initScreensaver() {
   build();
   resetIdleTimer();
 
+  // Engage the dim clock straight away if it's already night, then watch the
+  // sunset/sunrise boundary from here on.
+  syncNight();
+  nightTimer = setInterval(syncNight, NIGHT_CHECK_MS);
+
   // Debug/verification hooks (match __switchView, __forceInsight conventions).
   window.__engageScreensaver = engageScreensaver;
   window.__wakeScreensaver = wakeScreensaver;
   window.__ssNextPhoto = showNextPhoto;
+  window.__isNight = isNight;
 
   // Any direct user interaction (click / tap / keypress) wakes screensaver
   ["click", "touchstart", "keydown"].forEach(evt =>
