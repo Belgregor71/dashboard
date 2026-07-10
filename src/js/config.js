@@ -35,8 +35,9 @@ window.CONFIG = {
     plex: true,
 
     // Phase 1 presence runtime (docs/vision/phase-1-presence-runtime.md).
-    // Off by default; flipped on the Pi after live verification.
-    presenceRuntime: false
+    // Verified live on the Pi 2026-07-11 (screensaver boundary drives
+    // ambient<->glance; dead click-cycle suppressed) — now enabled.
+    presenceRuntime: true
   },
 
   /* --------------------------------------------------------------

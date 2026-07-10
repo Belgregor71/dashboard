@@ -19,15 +19,20 @@ test.beforeAll(() => {
   }
 });
 
-// Flip the feature flag on by appending to the served (non-module) config
-// script, so the committed config.js keeps presenceRuntime:false.
-async function enablePresence(page) {
-  await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
-    const body = (await res.text()) + "\nwindow.CONFIG.features.presenceRuntime = true;\n";
-    await route.fulfill({ response: res, body });
-  });
+// Force the feature flag to a known value by appending to the served
+// (non-module) config script, so each test is independent of the committed
+// default (which flips to true once Phase 1 is verified live).
+function forcePresence(value) {
+  return async (page) => {
+    await page.route("**/js/config.js", async (route) => {
+      const res = await route.fetch();
+      const body = (await res.text()) + `\nwindow.CONFIG.features.presenceRuntime = ${value};\n`;
+      await route.fulfill({ response: res, body });
+    });
+  };
 }
+const enablePresence = forcePresence(true);
+const disablePresence = forcePresence(false);
 
 test("presence on: FSM tracks the screensaver boundary and suppresses the click-cycle", async ({ page }) => {
   const pageErrors = [];
@@ -63,7 +68,8 @@ test("presence on: FSM tracks the screensaver boundary and suppresses the click-
   expect(pageErrors, `uncaught page errors:\n${pageErrors.join("\n")}`).toHaveLength(0);
 });
 
-test("presence off (default): the click-cycle still advances the view", async ({ page }) => {
+test("presence off: the click-cycle still advances the view", async ({ page }) => {
+  await disablePresence(page);
   await page.goto("/");
   await page.waitForFunction(() => document.body?.dataset?.view === "home");
   await page.waitForTimeout(500);
