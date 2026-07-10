@@ -73,6 +73,7 @@ function pickDay(events, dayStr) {
         start,
         allDay,
         time:   allDay ? "All day" : fmtTime(start),
+        location: String(ev.location ?? "").trim(),
       };
     });
 }
@@ -87,6 +88,54 @@ async function fetchDrive(destination) {
   return {
     mins:     Math.round(data.seconds / 60),
     delayMin: Math.round((data.trafficDelaySeconds ?? 0) / 60),
+  };
+}
+
+// ── Leave-by (next located event, any day 6am–9pm) ─────────────
+// Route home → the next timed event that has a real, geocodable location so
+// the leaveBy insight can show a concrete "leave by 8:05". Online-meeting and
+// URL "locations" aren't routable, so they're skipped.
+
+const LEAVEBY_LOOKAHEAD_MS = 3 * 60 * 60 * 1000; // only route events within 3h
+const ONLINE_LOCATION_RE =
+  /(https?:\/\/|zoom|meet\.google|teams|webex|hangout|google meet|online|virtual|phone|tbd|tba)/i;
+
+function isRoutableLocation(loc) {
+  const s = String(loc ?? "").trim();
+  return s.length >= 4 && !ONLINE_LOCATION_RE.test(s);
+}
+
+function pickNextLocatedEvent(events, now) {
+  return events
+    .map((ev) => ({ ev, start: eventStart(ev) }))
+    .filter(({ ev, start }) => {
+      if (!start) return false;
+      if (start.getHours() === 0 && start.getMinutes() === 0) return false; // all-day
+      const delta = start.getTime() - now.getTime();
+      if (delta <= 0 || delta > LEAVEBY_LOOKAHEAD_MS) return false;
+      return isRoutableLocation(ev.location);
+    })
+    .sort((a, b) => a.start - b.start)[0] ?? null;
+}
+
+async function fetchLeaveBy(events, now) {
+  const hour = now.getHours();
+  if (hour < 6 || hour >= 21) return null; // insight engine is quiet outside this
+  const candidate = pickNextLocatedEvent(events, now);
+  if (!candidate) return null;
+
+  const drive = await fetchDrive(String(candidate.ev.location).trim()).catch(() => null);
+  if (!drive) return null;
+
+  const leaveBy = new Date(candidate.start.getTime() - drive.mins * 60_000);
+  return {
+    title:      String(candidate.ev.title ?? candidate.ev.summary ?? "your event"),
+    start:      candidate.start,
+    time:       fmtTime(candidate.start),
+    minutes:    drive.mins,
+    delayMin:   drive.delayMin,
+    leaveBy,
+    leaveByStr: fmtTime(leaveBy),
   };
 }
 
@@ -120,6 +169,24 @@ function readEntities() {
     .filter(t => !isNaN(t.count));
 
   return { people, media, todos };
+}
+
+// Debug hook (convention: __switchView / __forceInsight / __isNight) — routes an
+// arbitrary free-text location live so leave-by can be verified on the kiosk
+// without waiting for a real calendar event to come due.
+if (typeof window !== "undefined") {
+  window.__leaveByProbe = async (location, minsToEvent = 40) => {
+    const now = new Date();
+    const start = new Date(now.getTime() + minsToEvent * 60_000);
+    const drive = await fetchDrive(String(location).trim()).catch(() => null);
+    if (!drive) return null;
+    const leaveBy = new Date(start.getTime() - drive.mins * 60_000);
+    return {
+      title: "Probe", start, time: fmtTime(start),
+      minutes: drive.mins, delayMin: drive.delayMin,
+      leaveBy, leaveByStr: fmtTime(leaveBy),
+    };
+  };
 }
 
 // ── Public API ─────────────────────────────────────────────────
@@ -160,9 +227,12 @@ export async function gatherBriefingContext(type) {
   const greg  = val(gregRes);
   const brett = val(brettRes);
 
+  const nextEventDrive = await fetchLeaveBy(allEvents, now).catch(() => null);
+
   const context = {
     type,
     generatedAt: now,
+    nextEventDrive,
     weather:         normalizeWeather(val(weatherRes)),
     tomorrowWeather: pickTomorrow(val(forecastRes)),
     calendar: {

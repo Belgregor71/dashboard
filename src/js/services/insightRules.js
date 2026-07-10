@@ -15,44 +15,36 @@ function minutesUntil(date, now) {
   return Math.round((date.getTime() - now.getTime()) / 60_000);
 }
 
-function maxCommuteDelay(ctx) {
-  return Math.max(ctx.commute?.greg?.delayMin ?? 0, ctx.commute?.brett?.delayMin ?? 0);
-}
-
 function dateKey(d) {
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 }
 
 // ── Rules ──────────────────────────────────────────────────────
 
-/** Timed event soon + rain or unusual traffic → leave early. */
-export function leaveEarly(ctx, now) {
-  const next = (ctx.calendar?.today ?? []).find((ev) => {
-    if (ev.allDay || !ev.start) return false;
-    const mins = minutesUntil(ev.start, now);
-    return mins >= 30 && mins <= 120;
-  });
-  if (!next) return null;
+/**
+ * Concrete leave-by for the next event with a routable location.
+ * The engine does the geocode + live-traffic routing (rules stay pure) and
+ * hands us `ctx.nextEventDrive` = { title, start, minutes, delayMin, leaveBy,
+ * leaveByStr }. We surface it once leaving is on the horizon.
+ */
+export function leaveBy(ctx, now) {
+  const d = ctx.nextEventDrive;
+  if (!d || !Number.isFinite(d.minutes)) return null;
+  const leaveByDate = d.leaveBy instanceof Date ? d.leaveBy : new Date(d.leaveBy);
+  if (Number.isNaN(leaveByDate.getTime())) return null;
 
-  const rain = (ctx.weather?.rainChancePct ?? 0) >= 50;
-  const delay = maxCommuteDelay(ctx);
-  const traffic = delay >= 10;
-  if (!rain && !traffic) return null;
+  const mins = minutesUntil(leaveByDate, now);
+  // Nudge once leaving is on the horizon; drop it once you're well overdue.
+  if (mins > 45 || mins < -5) return null;
 
-  const mins = minutesUntil(next.start, now);
-  let text;
-  if (rain && traffic) {
-    text = `Rain about and traffic's adding ${delay} min — leave early for ${next.title} at ${next.time}.`;
-  } else if (traffic) {
-    text = `Traffic's adding ${delay} min right now — leave early for ${next.title} at ${next.time}.`;
-  } else {
-    text = `Rain around when you head out — allow a few extra minutes for ${next.title} at ${next.time}.`;
-  }
+  const delay = Number.isFinite(d.delayMin) ? d.delayMin : 0;
+  const traffic = delay >= 2 ? `, +${delay} min in traffic` : "";
+  const text = `Leave by ${d.leaveByStr} for ${d.title} — ${d.minutes} min drive${traffic}.`;
 
   return {
-    id: `leave-early:${next.title}:${next.start.toISOString()}`,
-    icon: "⏰",
-    score: 80 + Math.round((120 - mins) / 4), // closer event → more urgent
+    id: `leave-by:${d.title}:${new Date(d.start).toISOString()}`,
+    icon: "🚗",
+    score: 84 + Math.round((45 - mins) / 3), // closer to leave-time → more urgent
     text,
     cooldownMs: 2 * 60 * 60 * 1000
   };
@@ -118,7 +110,7 @@ export function tomorrowRainEarlyStart(ctx, now) {
   };
 }
 
-export const RULES = [leaveEarly, binWeatherClash, fuelCycleLow, tomorrowRainEarlyStart];
+export const RULES = [leaveBy, binWeatherClash, fuelCycleLow, tomorrowRainEarlyStart];
 
 // ── Evaluation & selection ─────────────────────────────────────
 

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import {
-  leaveEarly,
+  leaveBy,
   binWeatherClash,
   fuelCycleLow,
   tomorrowRainEarlyStart,
@@ -38,59 +38,52 @@ function timedEvent(title, when) {
   };
 }
 
-test.describe("leaveEarly", () => {
-  const soon = new Date(NOW.getTime() + 60 * 60_000); // event in 1h
+test.describe("leaveBy", () => {
+  // Event 40 min out, 20 min drive → you should leave in 20 min.
+  function driveCtx(overrides = {}) {
+    const start = new Date(NOW.getTime() + 40 * 60_000);
+    return ctxWith({
+      nextEventDrive: {
+        title:      "Dentist",
+        start,
+        time:       "8:40 am",
+        minutes:    20,
+        delayMin:   6,
+        leaveBy:    new Date(start.getTime() - 20 * 60_000),
+        leaveByStr: "8:20 am",
+        ...overrides
+      }
+    });
+  }
 
-  test("fires when rain + upcoming event", () => {
-    const c = leaveEarly(
-      ctxWith({
-        weather: { rainChancePct: 70 },
-        calendar: { today: [timedEvent("Dentist", soon)], tomorrow: [] }
-      }),
-      NOW
-    );
+  test("fires with a concrete leave-by time and drive length", () => {
+    const c = leaveBy(driveCtx(), NOW);
     expect(c).not.toBeNull();
+    expect(c.text).toContain("Leave by 8:20 am");
     expect(c.text).toContain("Dentist");
-    expect(c.score).toBeGreaterThanOrEqual(80);
+    expect(c.text).toContain("20 min drive");
+    expect(c.score).toBeGreaterThanOrEqual(84);
   });
 
-  test("fires on traffic delay and includes the number", () => {
-    const c = leaveEarly(
-      ctxWith({
-        commute: { greg: { mins: 30, delayMin: 14 }, brett: null },
-        calendar: { today: [timedEvent("School run", soon)], tomorrow: [] }
-      }),
-      NOW
-    );
-    expect(c.text).toContain("14 min");
+  test("includes the traffic delay when material", () => {
+    expect(leaveBy(driveCtx({ delayMin: 6 }), NOW).text).toContain("+6 min in traffic");
   });
 
-  test("silent with no rain and normal traffic", () => {
-    expect(
-      leaveEarly(ctxWith({ calendar: { today: [timedEvent("Dentist", soon)], tomorrow: [] } }), NOW)
-    ).toBeNull();
+  test("omits the traffic chip under the noise threshold", () => {
+    expect(leaveBy(driveCtx({ delayMin: 1 }), NOW).text).not.toContain("traffic");
   });
 
-  test("silent when the event is too far out or too close", () => {
-    const far = new Date(NOW.getTime() + 3 * 60 * 60_000);
-    const imminent = new Date(NOW.getTime() + 10 * 60_000);
-    const rainy = (ev) =>
-      leaveEarly(
-        ctxWith({ weather: { rainChancePct: 90 }, calendar: { today: [ev], tomorrow: [] } }),
-        NOW
-      );
-    expect(rainy(timedEvent("Far", far))).toBeNull();
-    expect(rainy(timedEvent("Imminent", imminent))).toBeNull();
+  test("silent when nothing is routed", () => {
+    expect(leaveBy(ctxWith(), NOW)).toBeNull();
   });
 
-  test("silent for all-day events", () => {
-    const allDay = { title: "Sports day", start: soon, allDay: true, time: "All day" };
-    expect(
-      leaveEarly(
-        ctxWith({ weather: { rainChancePct: 90 }, calendar: { today: [allDay], tomorrow: [] } }),
-        NOW
-      )
-    ).toBeNull();
+  test("silent when leaving is still far off or well overdue", () => {
+    const start = new Date(NOW.getTime() + 3 * 60 * 60_000);
+    const farOff = driveCtx({ start, leaveBy: new Date(start.getTime() - 20 * 60_000) });
+    expect(leaveBy(farOff, NOW)).toBeNull(); // leave-by ~2h40 away (> 45 min)
+
+    const overdue = driveCtx({ leaveBy: new Date(NOW.getTime() - 30 * 60_000) });
+    expect(leaveBy(overdue, NOW)).toBeNull(); // 30 min overdue (< -5 min)
   });
 });
 
@@ -188,17 +181,25 @@ test.describe("tomorrowRainEarlyStart", () => {
 });
 
 test.describe("selection & cooldowns", () => {
-  const soon = new Date(EVENING.getTime() + 60 * 60_000);
+  const dinnerStart = new Date(EVENING.getTime() + 40 * 60_000);
   const busyCtx = ctxWith({
     weather: { rainChancePct: 70 },
     bins: { due: true, eve: true, colours: ["Red"] },
-    calendar: { today: [timedEvent("Dinner", soon)], tomorrow: [] }
+    nextEventDrive: {
+      title:      "Dinner",
+      start:      dinnerStart,
+      time:       "7:10 pm",
+      minutes:    20,
+      delayMin:   3,
+      leaveBy:    new Date(dinnerStart.getTime() - 20 * 60_000),
+      leaveByStr: "6:50 pm",
+    }
   });
 
   test("highest score wins; cooldown falls through to next candidate", () => {
     const candidates = evaluateInsights(busyCtx, EVENING);
     expect(candidates.length).toBe(2);
-    expect(candidates[0].id).toContain("leave-early"); // 80+ beats bins 60
+    expect(candidates[0].id).toContain("leave-by"); // 84+ beats bins 60
 
     const afterClaim = claimCooldown(candidates[0], { now: EVENING });
     const next = pickInsight(candidates, { cooldowns: afterClaim, now: EVENING });
@@ -213,8 +214,10 @@ test.describe("selection & cooldowns", () => {
   });
 
   test("a throwing rule never breaks evaluation", () => {
-    // calendar.today = null would throw inside leaveEarly without the guard
-    const broken = ctxWith({ calendar: null, bins: { due: true, eve: true, colours: [] }, weather: { rainChancePct: 90 } });
+    // A rule that throws (here leaveBy, via a poisoned getter) must be swallowed
+    // by evaluateInsights so the other candidates still come through.
+    const broken = ctxWith({ bins: { due: true, eve: true, colours: [] }, weather: { rainChancePct: 90 } });
+    Object.defineProperty(broken, "nextEventDrive", { get() { throw new Error("boom"); } });
     const candidates = evaluateInsights(broken, EVENING);
     expect(candidates.some((c) => c.id.includes("bin-weather"))).toBe(true);
   });
