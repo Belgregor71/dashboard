@@ -57,12 +57,15 @@ function registerClickCycle() {
   });
 }
 
-export function initViews() {
+export function initViews({ presenceEnabled = false } = {}) {
   document.body.dataset.view = currentView;
   const initialView = getViewModule(currentView);
   initialView.render();
   initialView.onEnter();
-  registerClickCycle();
+  // Presence runtime (Phase 1): the display has no pointer, so the click-cycle
+  // is dead navigation. When presence is on, don't register it — event-driven
+  // switchView (doorbell, voice, briefing, screensaver-exit) is untouched.
+  if (!presenceEnabled) registerClickCycle();
 }
 
 export function registerView(viewId, module) {

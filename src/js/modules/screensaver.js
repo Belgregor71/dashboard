@@ -1,5 +1,6 @@
 import { getLastCameraTrigger } from "./cameraTiles.js";
 import { switchView } from "../core/viewManager.js";
+import { emit } from "../core/eventBus.js";
 import { freezeLotties, unfreezeLotties } from "../helpers/lottie.js";
 import { getTimes as getSunTimes } from "../vendor/suncalc.js";
 import { WEATHER_LAT, WEATHER_LON } from "../config/constants.js";
@@ -320,11 +321,17 @@ function enter() {
   infoTimer  = setInterval(updateInfo, INFO_MS);
   driftTimer = setInterval(applyDrift, DRIFT_MS);
   startPhotoTimer(night);
+
+  // Mode 0 boundary for the presence FSM (screensaver stays the authority).
+  emit("screensaver:changed", { active: true });
 }
 
 function exit() {
   if (!active) return;
   active = false;
+
+  // Mode 0 → awake boundary for the presence FSM.
+  emit("screensaver:changed", { active: false });
 
   clearInterval(clockTimer);
   clearInterval(infoTimer);

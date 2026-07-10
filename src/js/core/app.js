@@ -6,6 +6,7 @@ import { initViews, registerView, switchView } from "./viewManager.js";
 // Debug hook: lets kiosk-side CDP / local Playwright drive views that are
 // deliberately outside the click-cycle (briefing, status) for verification.
 window.__switchView = switchView;
+import { initPresence } from "./presence.js";
 import { registerLifecycle } from "./lifecycle.js";
 import { initVoiceOverlay } from "./voiceOverlay.js";
 import { initVoiceCommands } from "./voiceCommands.js";
@@ -71,7 +72,12 @@ export function startApp() {
   registerView("status", createStatusView());
   registerView("briefing", createBriefingView());
 
-  initViews();
+  // Phase 1 presence runtime — off by default, gated by the feature flag so it
+  // ships reversibly. When on, it names the presence mode and disables the
+  // dead click-cycle. See docs/vision/phase-1-presence-runtime.md.
+  const presenceEnabled = isEnabled("presenceRuntime", false);
+  initViews({ presenceEnabled });
+  initPresence({ enabled: presenceEnabled });
   registerLifecycle();
   initVoiceOverlay();
   initVoiceCommands();

@@ -32,7 +32,11 @@ window.CONFIG = {
 
     // External integrations
     homeAssistant: true, // force enable
-    plex: true
+    plex: true,
+
+    // Phase 1 presence runtime (docs/vision/phase-1-presence-runtime.md).
+    // Off by default; flipped on the Pi after live verification.
+    presenceRuntime: false
   },
 
   /* --------------------------------------------------------------
