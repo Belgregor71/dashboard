@@ -200,6 +200,32 @@ test.describe("feeds", () => {
   });
 });
 
+test.describe("routines (Phase 8 behavioural learning)", () => {
+  // On-device aggregate store. Cold start degrades to an object, never an error;
+  // a PUT round-trips; a bad body is a JSON 400 (never an HTML error page).
+  test("GET /api/routines returns { routines: object }", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/routines");
+    expect(typeof body.routines).toBe("object");
+    expect(Array.isArray(body.routines)).toBe(false);
+  });
+
+  test("PUT then GET round-trips the aggregate blob", async ({ request }) => {
+    const marker = { wake: { weekday: { n: 6, mean: 421, variance: 9 } } };
+    await expectJson(request, "/api/routines", { method: "put", data: { routines: marker } });
+    const { body } = await expectJson(request, "/api/routines");
+    expect(body.routines.wake.weekday.mean).toBe(421);
+  });
+
+  test("PUT with a non-object body is a JSON 400", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/routines", {
+      method: "put",
+      data: { routines: [1, 2, 3] },
+      statuses: [400]
+    });
+    expect(body).toHaveProperty("error");
+  });
+});
+
 test.describe("home assistant", () => {
   test("GET /api/ha/health", async ({ request }) => {
     const { body } = await expectJson(request, "/api/ha/health");

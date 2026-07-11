@@ -2,7 +2,7 @@
 
 _Plan drafted 2026-07-11. Part of the [Home OS vision](./home-os-vision.md) roadmap. Builds on [Phase 6](./phase-6-intent.md) (house intent) and [Phase 1](./phase-1-presence-runtime.md) (context store). Third phase of "the Dissolve"._
 
-**📝 Proposed — not yet built.**
+**🛠️ Built — shipped flag-OFF (`features.routineLearning: false`), pending the multi-day Pi observation window before default-on.** Pure `routineStore.js` + persistence route + observation runtime + advisory feeds into House Model / attention are in; `npm test` green (pure `tests/routines.spec.js` + contract); flag-on path verified in a real browser (seeded history → learned departure sharpens the live `timeBudget`; below-threshold gates to null; nudges computed). Next: flip on the Pi, confirm aggregates stabilise + stay bounded + `/kiosk-metrics` flat over several days, then default on.
 
 ## Key insight that de-risks this phase
 

@@ -62,6 +62,20 @@ function nextBudgetMin(events, nowMs) {
   return Math.max(0, Math.round((soonest - nowMs) / 60_000));
 }
 
+// Phase 8 (docs/vision/phase-8-learn.md): a confident learned departure sharpens
+// the budget when the calendar is silent. Only when it's ahead and within a few
+// hours — a soft prior, never overriding a hard calendar event. Null (below the
+// confidence threshold) → no effect, so flag-off is byte-identical.
+const LEARNED_HORIZON_MIN = 180;
+function learnedBudgetMin(learnedDeparture, nowMs) {
+  if (learnedDeparture == null) return null;
+  const d = new Date(nowMs);
+  const cur = d.getHours() * 60 + d.getMinutes();
+  const diff = learnedDeparture - cur;
+  if (diff <= 0 || diff > LEARNED_HORIZON_MIN) return null;
+  return diff;
+}
+
 function companyFrom(peopleHome) {
   if (!Number.isFinite(peopleHome) || peopleHome <= 0) return "unknown";
   if (peopleHome === 1) return "alone";
@@ -80,6 +94,8 @@ function companyFrom(peopleHome) {
  * @param {Array}  [input.events] today's upcoming events, each { start, leaveBy? }
  *   as Date or epoch ms. Missing leaveBy falls back to start (graceful degrade).
  * @param {number} [input.peopleHome] count of person.* entities home.
+ * @param {number} [input.learnedDeparture] learned departure (minutes-of-day) once
+ *   confident, else null — Phase 8 sharpens the budget when the calendar is silent.
  * @param {Date}   [input.now]
  * @returns {{activity:string, tempo:string, timeBudget:(number|null), company:string}}
  */
@@ -90,12 +106,14 @@ export function deriveIntent({
   condition,      // eslint-disable-line no-unused-vars — reserved (later phases)
   events,
   peopleHome,
+  learnedDeparture = null,
   now = new Date()
 } = {}) {
   const nowMs = now instanceof Date ? now.getTime() : Number(now);
   const hour = new Date(nowMs).getHours();
 
-  const timeBudget = nextBudgetMin(events, nowMs);
+  // Calendar (a hard signal) always wins; the learned routine only fills the gap.
+  const timeBudget = nextBudgetMin(events, nowMs) ?? learnedBudgetMin(learnedDeparture, nowMs);
   const company = companyFrom(peopleHome);
   const present = presence === "glance" || presence === "dwell";
   const hosting = company === "hosting";

@@ -12,6 +12,7 @@ CLAUDE_CODE_PROMPT.md
 server/package.json
 server/package-lock.json
 server/tts-cache/
+data/routines/
 
 # Playwright MCP tool artifacts
 .playwright-mcp/

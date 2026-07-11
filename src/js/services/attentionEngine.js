@@ -7,6 +7,7 @@ import {
 import { evaluatePredictive } from "./predictiveRules.js";
 import { rankQueue, selectForMode } from "./attentionRank.js";
 import { get as getContext } from "../core/contextStore.js";
+import { emit } from "../core/eventBus.js";
 
 // The unified attention runtime (docs/vision/phase-2-attention-engine.md).
 // It merges the scored insight candidates (insightRules, over the async
@@ -136,24 +137,26 @@ async function refresh() {
  * debug-injected candidates, ranks them, and applies the presence mode.
  * Claims the insight cooldown when the hero changes.
  */
-export function getSelection({ sources = [], now = new Date(), mode = "glance" } = {}) {
+export function getSelection({ sources = [], now = new Date(), mode = "glance", weights = null } = {}) {
   const phrased = insightCandidates.map((c) =>
     phrasedById[c.id] ? { ...c, text: phrasedById[c.id] } : c
   );
-  const queue = rankQueue([...phrased, ...sources, ...injected], now);
+  const queue = rankQueue([...phrased, ...sources, ...injected], now, { weights });
   const cooldowns = readJson(COOLDOWN_KEY, {});
   const intent = intentEnabled() ? getContext().intent : null;
   const sel = selectForMode(queue, mode, { cooldowns, now, currentId: currentHeroId, intent });
 
-  if (sel.hero && sel.hero.id !== currentHeroId) {
-    currentHeroId = sel.hero.id;
+  const nextId = sel.hero ? sel.hero.id : null;
+  if (nextId !== currentHeroId) {
+    currentHeroId = nextId;
+    // Phase 8: the hero changed — announce the presentation so routineRuntime can
+    // learn dwell vs ignore (no-op when nothing listens, i.e. routineLearning off).
+    emit("attention:hero", { hero: sel.hero ? { id: sel.hero.id, source: sel.hero.source } : null });
     // Only cooldown-bearing candidates (the nagging insight rules) get claimed;
     // live readouts carry cooldownMs:0 and should keep showing.
-    if (sel.hero.cooldownMs > 0) {
+    if (sel.hero && sel.hero.cooldownMs > 0) {
       writeJson(COOLDOWN_KEY, claimCooldown(sel.hero, { cooldowns, now }));
     }
-  } else if (!sel.hero) {
-    currentHeroId = null;
   }
 
   return { ...sel, queue };

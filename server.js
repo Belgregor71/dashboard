@@ -31,6 +31,7 @@ import aiRoutes from "./server/routes/ai.js";
 import fuelRoutes from "./server/routes/fuel.js";
 import radarRoutes from "./server/routes/radar.js";
 import ttsRoutes from "./server/routes/tts.js";
+import routinesRoutes from "./server/routes/routines.js";
 
 // Node 20's Happy Eyeballs gives each address-family connect attempt only
 // 250ms; distant hosts (e.g. RainViewer in Germany, ~270ms RTT from here)
@@ -99,6 +100,7 @@ app.use(aiRoutes);
 app.use(fuelRoutes);
 app.use(radarRoutes);
 app.use(ttsRoutes);
+app.use(routinesRoutes);
 
 // Home Assistant image/camera proxy
 attachHaProxy(app);

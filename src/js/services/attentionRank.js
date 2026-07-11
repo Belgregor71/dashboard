@@ -16,13 +16,19 @@ export const MODE = {
 /**
  * Merge, drop-expired, and sort a candidate list best-first.
  * `expiresAt` (epoch ms) drops stale candidates (e.g. "rain in 14 min").
+ *
+ * Phase 8 (docs/vision/phase-8-learn.md): an optional `weights` map ({ source:
+ * nudge }) TILTS the sort by a small learned per-source amount — it never
+ * changes the displayed score, only the ordering. Omitted/empty → byte-identical
+ * to the pre-Phase-8 sort.
  */
-export function rankQueue(candidates, now = new Date()) {
+export function rankQueue(candidates, now = new Date(), { weights = null } = {}) {
   const t = now.getTime();
+  const eff = (c) => c.score + (weights ? weights[c.source] || 0 : 0);
   return candidates
     .filter((c) => c && (c.expiresAt == null || c.expiresAt > t))
     .slice()
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => eff(b) - eff(a));
 }
 
 /**

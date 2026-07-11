@@ -8,6 +8,7 @@ import { initViews, registerView, switchView } from "./viewManager.js";
 window.__switchView = switchView;
 import { initPresence } from "./presence.js";
 import { initIntent } from "./intentEngine.js";
+import { initRoutineRuntime } from "./routineRuntime.js";
 import { registerLifecycle } from "./lifecycle.js";
 import { initVoiceOverlay } from "./voiceOverlay.js";
 import { initVoiceCommands } from "./voiceCommands.js";
@@ -83,6 +84,11 @@ export function startApp() {
   // gated off by default so it ships reversibly. When on, it names the room's
   // posture and the attention gate reads it. See docs/vision/phase-6-intent.md.
   initIntent({ enabled: isEnabled("houseIntent", false) });
+  // Phase 8 "Learn Without Asking" — a passive observer that folds household
+  // rhythms into bounded on-device aggregates and, above a confidence threshold,
+  // sharpens intent + attention. Off by default → no observation, no writes.
+  // See docs/vision/phase-8-learn.md.
+  initRoutineRuntime({ enabled: isEnabled("routineLearning", false) });
   registerLifecycle();
   initVoiceOverlay();
   initVoiceCommands();

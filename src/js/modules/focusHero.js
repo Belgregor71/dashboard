@@ -6,6 +6,7 @@ import { initAttentionEngine, getSelection } from "../services/attentionEngine.j
 import { collectSources } from "../services/candidateSources.js";
 import { getMode } from "../core/presence.js";
 import { on } from "../core/eventBus.js";
+import { attentionWeights } from "../core/routineRuntime.js";
 
 const TICK_MS = 30_000;
 const CONCIERGE_MIN_INTERVAL_MS = 20 * 60 * 1000;
@@ -135,7 +136,8 @@ function renderStack(items) {
 function updateAttention(state, els) {
   const mode = getMode();
   const sources = collectSources(state);
-  const sel = getSelection({ sources, now: new Date(), mode });
+  // Phase 8 — learned per-source nudges tilt the ranking ({} when off → unchanged).
+  const sel = getSelection({ sources, now: new Date(), mode, weights: attentionWeights() });
   lastSelection = sel;
 
   if (!sel.hero) {

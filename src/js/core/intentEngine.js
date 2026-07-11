@@ -2,6 +2,7 @@ import { get as getContext, set as setContext } from "./contextStore.js";
 import { on, emit } from "./eventBus.js";
 import { getAllEntities } from "../services/homeAssistant/state.js";
 import { deriveIntent, settleCategory, NEUTRAL_INTENT } from "../services/houseModel.js";
+import { learnedDeparture } from "./routineRuntime.js";
 
 // The intent runtime — Phase 6 (docs/vision/phase-6-intent.md). It gathers the
 // live inputs (context store + calendar + person.* state), calls the pure House
@@ -77,6 +78,9 @@ function recompute() {
     condition: ctx.condition,
     events,
     peopleHome,
+    // Phase 8 — a confident learned departure sharpens the budget when the
+    // calendar is silent (null when routineLearning is off → unchanged).
+    learnedDeparture: learnedDeparture(now),
     now
   });
   lastInputs = { presence: ctx.presence, isNight: ctx.isNight, peopleHome, events: events.length };

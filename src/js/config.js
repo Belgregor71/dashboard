@@ -75,7 +75,18 @@ window.CONFIG = {
     // measured GPU prerequisite (the Mode-0 Ken Burns photo-decode debt) — flip
     // on the Pi only after `gpucpu.sh` drops well below the 80% baseline in idle
     // AND engaged modes, then default on.
-    ambientSubstrate: false
+    ambientSubstrate: false,
+
+    // Phase 8 "Learn Without Asking" (docs/vision/phase-8-learn.md). A passive
+    // observer on the signals already emitted (presence, person.* transitions,
+    // attention hero) that folds household rhythms into bounded on-device
+    // aggregates (data/routines/) and, only ABOVE a confidence threshold,
+    // sharpens the House Model's timeBudget (learned departure) and nudges
+    // attention ranking per source. Never announced, never sent upstream.
+    // Default OFF: byte-identical to Phase 6/7 (no observation, no writes). Flip
+    // on the Pi, observe for several days that the aggregates stabilise + stay
+    // bounded + /kiosk-metrics flat, then default on.
+    routineLearning: false
   },
 
   /* --------------------------------------------------------------
