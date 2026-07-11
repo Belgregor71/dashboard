@@ -72,10 +72,11 @@ window.CONFIG = {
     // (body) so the intent-dressed, weather-tinted room persists across
     // AMBIENT → GLANCE → DWELL — the awake dashboard surfaces *over* the mood
     // instead of hiding it. Default OFF: byte-identical to Phase 5/6. Gated on a
-    // measured GPU prerequisite (the Mode-0 Ken Burns photo-decode debt) — flip
-    // on the Pi only after `gpucpu.sh` drops well below the 80% baseline in idle
-    // AND engaged modes, then default on.
-    ambientSubstrate: false,
+    // measured GPU prerequisite (the Mode-0 Ken Burns photo-decode debt), which
+    // PASSED on the Pi (Ken Burns → 6s settle+hold dropped Mode-0 steady-state
+    // GPU 80%→0%). Enabled here in daylight to run the remaining awake
+    // GLANCE/DWELL gpucpu + per-token legibility verification. Reversible (→ false).
+    ambientSubstrate: true,
 
     // Phase 8 "Learn Without Asking" (docs/vision/phase-8-learn.md). A passive
     // observer on the signals already emitted (presence, person.* transitions,
