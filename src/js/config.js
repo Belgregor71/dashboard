@@ -90,7 +90,21 @@ window.CONFIG = {
     // cross the confidence threshold (several days of samples), so there is no
     // immediate behaviour change. Watch: aggregates stabilise + stay bounded +
     // /kiosk-metrics flat. One-line revert (→ false) if anything drifts.
-    routineLearning: true
+    routineLearning: true,
+
+    // Phase 9 "Remember on Purpose" (docs/vision/phase-9-remember.md). Replaces
+    // the keyword-matched on-this-day footer with STRUCTURED memory the house
+    // holds (people/pets/places/first-times, authored into data/memories/), and a
+    // rarity-budgeted, context-matched selector: at most one memory a day, a
+    // per-entry cooldown in months, and a context-fit floor so an ordinary
+    // afternoon stays silent. It rides the Phase 2 queue as a Low-band,
+    // non-interrupt candidate — no new render path. Tender entries (a lost pet)
+    // get the gentlest surface (ambient-only, no caption), enforced in code.
+    // Default OFF -> byte-identical to Phase 3's on-this-day regex path. Flipped
+    // ON here (2026-07-12) to enable the structured memory engine on the Pi with
+    // authored data/memories/ entries. Verify __forceMemory surfaces gently, the
+    // rarity budget holds, and /kiosk-metrics stays flat. One-line revert (-> false).
+    memoryEngine: true
   },
 
   /* --------------------------------------------------------------

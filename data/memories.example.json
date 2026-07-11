@@ -1,0 +1,31 @@
+[
+  {
+    "id": "tas-2021",
+    "kind": "trip",
+    "date": "2021-07-14",
+    "title": "Tasmania — the cold week",
+    "tags": ["winter", "grey", "wistful", "weekend"],
+    "photos": ["tasmania/cradle-mountain.jpg", "tasmania/wineglass-bay.jpg"],
+    "sensitivity": "normal",
+    "cooldownMonths": 6
+  },
+  {
+    "id": "first-swim",
+    "kind": "first",
+    "recurring": { "month": 11, "day": 3 },
+    "title": "First swim of the summer",
+    "tags": ["summer", "bright", "joyful"],
+    "photos": ["summer/first-swim.jpg"],
+    "sensitivity": "normal",
+    "cooldownMonths": 6
+  },
+  {
+    "id": "brodie",
+    "kind": "pet",
+    "title": "Brodie",
+    "tags": ["winter", "grey", "wistful"],
+    "photos": ["brodie/backyard.jpg", "brodie/by-the-heater.jpg"],
+    "sensitivity": "tender",
+    "cooldownMonths": 12
+  }
+]

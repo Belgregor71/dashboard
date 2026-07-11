@@ -8,6 +8,7 @@ import { evaluatePredictive } from "./predictiveRules.js";
 import { rankQueue, selectForMode } from "./attentionRank.js";
 import { get as getContext } from "../core/contextStore.js";
 import { emit } from "../core/eventBus.js";
+import { collectMemory } from "../core/memoryRuntime.js";
 
 // The unified attention runtime (docs/vision/phase-2-attention-engine.md).
 // It merges the scored insight candidates (insightRules, over the async
@@ -70,6 +71,16 @@ function intentEnabled() {
   }
 }
 
+// Phase 9 memory engine (docs/vision/phase-9-remember.md) — flag-gated so flag-off
+// keeps Phase 3's on-this-day regex path exactly.
+function memoryEnabled() {
+  try {
+    return Boolean(window.CONFIG?.features?.memoryEngine);
+  } catch {
+    return false;
+  }
+}
+
 async function aiPhrase(templateText) {
   const res = await fetch("/api/ai/brief", {
     method: "POST",
@@ -109,8 +120,18 @@ async function refresh() {
   // decay (expiresAt), cooldowns and phrasing are all Phase 2 — this is the one
   // added collection + concat. Guarded so flag-off is untouched.
   if (predictiveEnabled()) {
-    insightCandidates = [...insightCandidates, ...evaluatePredictive(ctx, now, { fuelHistory })]
-      .sort((a, b) => b.score - a.score);
+    let predictive = evaluatePredictive(ctx, now, { fuelHistory });
+    // Phase 9 "Replace": the structured memory engine owns on-this-day, so the
+    // Phase 3 regex candidate stands down to avoid a duplicate anniversary line.
+    if (memoryEnabled()) predictive = predictive.filter((c) => !c.id.startsWith("on-this-day:"));
+    insightCandidates = [...insightCandidates, ...predictive].sort((a, b) => b.score - a.score);
+  }
+
+  // Phase 9: merge at most one rarity-budgeted, context-matched memory candidate
+  // into the same scored list — the Phase 3 guarded-concat pattern. The runtime
+  // owns the entries + budget + cooldowns; collectMemory returns [] when off.
+  if (memoryEnabled()) {
+    insightCandidates = [...insightCandidates, ...collectMemory(ctx, now)].sort((a, b) => b.score - a.score);
   }
 
   // AI-phrase only the top insight (matches the old single-line behaviour);

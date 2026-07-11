@@ -13,6 +13,7 @@ server/package.json
 server/package-lock.json
 server/tts-cache/
 data/routines/
+data/memories/
 
 # Playwright MCP tool artifacts
 .playwright-mcp/

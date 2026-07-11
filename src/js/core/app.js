@@ -9,6 +9,7 @@ window.__switchView = switchView;
 import { initPresence } from "./presence.js";
 import { initIntent } from "./intentEngine.js";
 import { initRoutineRuntime } from "./routineRuntime.js";
+import { initMemoryRuntime } from "./memoryRuntime.js";
 import { registerLifecycle } from "./lifecycle.js";
 import { initVoiceOverlay } from "./voiceOverlay.js";
 import { initVoiceCommands } from "./voiceCommands.js";
@@ -89,6 +90,11 @@ export function startApp() {
   // sharpens intent + attention. Off by default → no observation, no writes.
   // See docs/vision/phase-8-learn.md.
   initRoutineRuntime({ enabled: isEnabled("routineLearning", false) });
+  // Phase 9 "Remember on Purpose" — structured, rarity-budgeted memory the house
+  // holds, surfaced through the Phase 2 queue as a Low-band non-interrupt
+  // candidate. Off by default → Phase 3's on-this-day path is unchanged.
+  // See docs/vision/phase-9-remember.md.
+  initMemoryRuntime({ enabled: isEnabled("memoryEngine", false) });
   registerLifecycle();
   initVoiceOverlay();
   initVoiceCommands();

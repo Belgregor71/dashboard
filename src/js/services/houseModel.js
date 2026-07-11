@@ -27,12 +27,37 @@ export const ACTIVITIES = [
 export const TEMPOS = ["rushed", "unhurried", "neutral"];
 export const COMPANY = ["alone", "together", "hosting", "unknown"];
 
+// Phase 9 timeline slice (docs/vision/phase-9-remember.md): the character of the
+// day and the season, so tone/atmosphere can tell a Sunday from a Monday and
+// winter from summer, and the memory engine can match "the right kind of
+// afternoon". Southern Hemisphere (Brisbane) — the seasons are the local ones.
+export const SEASONS = ["summer", "autumn", "winter", "spring"];
+export const DAY_CHARACTERS = ["weekday", "weekend", "holiday"];
+
 export const NEUTRAL_INTENT = {
   activity: "unknown",
   tempo: "neutral",
   timeBudget: null,
-  company: "unknown"
+  company: "unknown",
+  dayCharacter: "weekday",
+  season: "summer"
 };
+
+/** Local (Southern-Hemisphere) season for a date. */
+export function seasonOf(now = new Date()) {
+  const m = (now instanceof Date ? now : new Date(now)).getMonth(); // 0 = Jan
+  if (m === 11 || m <= 1) return "summer"; // Dec–Feb
+  if (m <= 4) return "autumn";             // Mar–May
+  if (m <= 7) return "winter";             // Jun–Aug
+  return "spring";                         // Sep–Nov
+}
+
+/** The character of the day: a holiday, a weekend, or an ordinary weekday. */
+export function dayCharacterOf(now = new Date(), { holiday = false } = {}) {
+  if (holiday) return "holiday";
+  const d = (now instanceof Date ? now : new Date(now)).getDay(); // 0 = Sun
+  return d === 0 || d === 6 ? "weekend" : "weekday";
+}
 
 // A hard event this close, while someone's present, means a rushed room.
 const RUSHED_BUDGET_MIN = 30;
@@ -96,8 +121,10 @@ function companyFrom(peopleHome) {
  * @param {number} [input.peopleHome] count of person.* entities home.
  * @param {number} [input.learnedDeparture] learned departure (minutes-of-day) once
  *   confident, else null — Phase 8 sharpens the budget when the calendar is silent.
+ * @param {boolean} [input.holiday] today is a public holiday (drives dayCharacter).
  * @param {Date}   [input.now]
- * @returns {{activity:string, tempo:string, timeBudget:(number|null), company:string}}
+ * @returns {{activity:string, tempo:string, timeBudget:(number|null), company:string,
+ *   dayCharacter:string, season:string}}
  */
 export function deriveIntent({
   presence,
@@ -107,6 +134,7 @@ export function deriveIntent({
   events,
   peopleHome,
   learnedDeparture = null,
+  holiday = false,
   now = new Date()
 } = {}) {
   const nowMs = now instanceof Date ? now.getTime() : Number(now);
@@ -138,7 +166,12 @@ export function deriveIntent({
     tempo = "unhurried";
   }
 
-  return { activity, tempo, timeBudget, company };
+  // Phase 9 timeline slice — the week and the year, always emitted (they don't
+  // depend on presence). Tone/atmosphere and the memory engine read them.
+  const dayCharacter = dayCharacterOf(now, { holiday });
+  const season = seasonOf(now);
+
+  return { activity, tempo, timeBudget, company, dayCharacter, season };
 }
 
 /**

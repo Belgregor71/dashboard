@@ -12,7 +12,7 @@ const state = {
   // Phase 6 House Model posture — a neutral resting value until intentEngine
   // (flag-gated) writes a derived one; flag off, it stays neutral and no reader
   // acts on it, so behaviour is byte-identical to Phase 5.
-  intent: { activity: "unknown", tempo: "neutral", timeBudget: null, company: "unknown" }
+  intent: { activity: "unknown", tempo: "neutral", timeBudget: null, company: "unknown", dayCharacter: "weekday", season: "summer" }
 };
 
 const subscribers = new Set();

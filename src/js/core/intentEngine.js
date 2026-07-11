@@ -55,7 +55,13 @@ function apply(next, reason) {
   const prev = committed;
   const catChanged =
     next.activity !== prev.activity || next.tempo !== prev.tempo || next.company !== prev.company;
-  const changed = catChanged || next.timeBudget !== prev.timeBudget;
+  // dayCharacter/season are not settled (they turn over at clean boundaries, not
+  // noisy motion) but still mark the posture stale so the store stays fresh.
+  const changed =
+    catChanged ||
+    next.timeBudget !== prev.timeBudget ||
+    next.dayCharacter !== prev.dayCharacter ||
+    next.season !== prev.season;
   if (!changed) return;
 
   committed = next;
@@ -94,7 +100,12 @@ function recompute() {
   );
   pending = settled.pending;
 
-  let next = { ...settled.committed, timeBudget: derived.timeBudget };
+  let next = {
+    ...settled.committed,
+    timeBudget: derived.timeBudget,
+    dayCharacter: derived.dayCharacter,
+    season: derived.season
+  };
   // A forced posture wins and holds across ticks until cleared with null.
   if (override) next = { ...next, ...override };
 

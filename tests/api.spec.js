@@ -226,6 +226,18 @@ test.describe("routines (Phase 8 behavioural learning)", () => {
   });
 });
 
+test.describe("memories (Phase 9 memory engine)", () => {
+  // Authored-memory loader — read-only, on-device. Cold start (no directory, or
+  // no files) degrades to an empty list, never an error or an HTML page.
+  test("GET /api/memories returns { memories: array }", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/memories");
+    expect(Array.isArray(body.memories)).toBe(true);
+    for (const m of body.memories) {
+      expect(typeof m.id).toBe("string"); // every returned entry is identified
+    }
+  });
+});
+
 test.describe("home assistant", () => {
   test("GET /api/ha/health", async ({ request }) => {
     const { body } = await expectJson(request, "/api/ha/health");
