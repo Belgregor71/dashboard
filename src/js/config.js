@@ -41,9 +41,9 @@ window.CONFIG = {
 
     // Phase 2 attention engine (docs/vision/phase-2-attention-engine.md).
     // Unifies every focus-hero source into one scored, presence-gated queue.
-    // Off for the first deploy — flip on the Pi after live verification, then
-    // default on (the Phase 1 rollout pattern).
-    attentionEngine: false
+    // Verified live on the Pi 2026-07-11 (DWELL reveals top-3 stack; AMBIENT
+    // interrupt-only; GLANCE single hero) — now enabled.
+    attentionEngine: true
   },
 
   /* --------------------------------------------------------------
