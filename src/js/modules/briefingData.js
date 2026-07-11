@@ -11,6 +11,7 @@ import {
 
 const CONTEXT_TTL_MS = 5 * 60 * 1000;
 let cached = null; // { type, at, context }
+let nowcastOverride = null; // __nowcastProbe seed for kiosk verification
 
 async function getJson(url) {
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
@@ -76,6 +77,26 @@ function pickDay(events, dayStr) {
         location: String(ev.location ?? "").trim(),
       };
     });
+}
+
+// ── Anniversaries / "on this day" markers (Phase 3) ────────────
+// Today's birthday/anniversary calendar events — the grounded source for the
+// low-band onThisDay memory candidate.
+
+const ANNIVERSARY_RE = /\b(birthday|bday|anniversary)\b/i;
+
+function pickAnniversaries(events, now) {
+  const todayStr = now.toDateString();
+  return events
+    .map((ev) => ({ ev, start: eventStart(ev) }))
+    .filter(({ ev, start }) =>
+      start &&
+      start.toDateString() === todayStr &&
+      ANNIVERSARY_RE.test(String(ev.title ?? ev.summary ?? ""))
+    )
+    .map(({ ev }) => ({ title: String(ev.title ?? ev.summary ?? "").trim() }))
+    .filter((a) => a.title)
+    .slice(0, 3);
 }
 
 // ── Commute (weekday mornings only) ────────────────────────────
@@ -187,6 +208,16 @@ if (typeof window !== "undefined") {
       leaveBy, leaveByStr: fmtTime(leaveBy),
     };
   };
+
+  // Seed ctx.nowcast so the rain-incoming rule can be verified on the kiosk
+  // without waiting for real weather. Pass null to clear. Invalidates the
+  // context cache; pair with window.__refreshAttention() to apply immediately.
+  window.__nowcastProbe = (minToRain = 15, prob = 80, mm = 0.6) => {
+    nowcastOverride =
+      minToRain == null ? null : { startsInMin: minToRain, probabilityPct: prob, mm };
+    cached = null;
+    return nowcastOverride;
+  };
 }
 
 // ── Public API ─────────────────────────────────────────────────
@@ -200,7 +231,7 @@ export async function gatherBriefingContext(type) {
   const day         = now.getDay();
   const wantCommute = type === "morning" && day >= 1 && day <= 5;
 
-  const [weatherRes, forecastRes, calRes, binsRes, fuelRes, newsRes, gregRes, brettRes] =
+  const [weatherRes, forecastRes, calRes, binsRes, fuelRes, newsRes, nowcastRes, gregRes, brettRes] =
     await Promise.allSettled([
       getJson("/api/weather/now"),
       getJson("/api/weather/forecast"),
@@ -208,6 +239,7 @@ export async function gatherBriefingContext(type) {
       getJson("/api/bins"),
       getJson("/api/fuel"),
       getJson("/api/news"),
+      getJson("/api/weather/nowcast"),
       wantCommute ? fetchDrive(COMMUTE_GREG_DEST)  : Promise.resolve(null),
       wantCommute ? fetchDrive(COMMUTE_BRETT_DEST) : Promise.resolve(null),
     ]);
@@ -235,6 +267,8 @@ export async function gatherBriefingContext(type) {
     nextEventDrive,
     weather:         normalizeWeather(val(weatherRes)),
     tomorrowWeather: pickTomorrow(val(forecastRes)),
+    nowcast:         nowcastOverride ?? (val(nowcastRes)?.nowcast ?? null),
+    anniversaries:   pickAnniversaries(allEvents, now),
     calendar: {
       today:    pickDay(allEvents, todayStr),
       tomorrow: pickDay(allEvents, tomorrow.toDateString()),

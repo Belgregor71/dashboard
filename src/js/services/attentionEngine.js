@@ -4,6 +4,7 @@ import {
   claimCooldown,
   recordFuelPrice
 } from "./insightRules.js";
+import { evaluatePredictive } from "./predictiveRules.js";
 import { rankQueue, selectForMode } from "./attentionRank.js";
 
 // The unified attention runtime (docs/vision/phase-2-attention-engine.md).
@@ -47,6 +48,16 @@ function inQuietHours(now = new Date()) {
   return hour >= QUIET_START_HOUR || hour < QUIET_END_HOUR;
 }
 
+// Phase 3 predictive candidates (docs/vision/phase-3-anticipate.md) — flag-gated
+// so flag-off is byte-identical to Phase 2.
+function predictiveEnabled() {
+  try {
+    return Boolean(window.CONFIG?.features?.predictiveCandidates);
+  } catch {
+    return false;
+  }
+}
+
 async function aiPhrase(templateText) {
   const res = await fetch("/api/ai/brief", {
     method: "POST",
@@ -81,6 +92,14 @@ async function refresh() {
   }
 
   insightCandidates = evaluateInsights(ctx, now, { fuelHistory });
+
+  // Phase 3: merge predictive candidates into the same scored list. Ranking,
+  // decay (expiresAt), cooldowns and phrasing are all Phase 2 — this is the one
+  // added collection + concat. Guarded so flag-off is untouched.
+  if (predictiveEnabled()) {
+    insightCandidates = [...insightCandidates, ...evaluatePredictive(ctx, now, { fuelHistory })]
+      .sort((a, b) => b.score - a.score);
+  }
 
   // AI-phrase only the top insight (matches the old single-line behaviour);
   // the deterministic template is always the fallback.
@@ -142,4 +161,8 @@ export function initAttentionEngine() {
     injected = candidate == null ? [] : Array.isArray(candidate) ? candidate : [candidate];
     return injected;
   };
+
+  // Force an immediate context+candidate refresh — lets __nowcastProbe (which
+  // seeds ctx.nowcast) take effect without waiting out the 5-min cycle.
+  window.__refreshAttention = () => refresh();
 }

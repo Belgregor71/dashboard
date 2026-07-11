@@ -37,6 +37,10 @@ export async function fetchWeatherRaw({ lat, lon }) {
   url.searchParams.set("current_weather", "true");
   url.searchParams.set("daily", "temperature_2m_max,temperature_2m_min,weathercode,sunrise,sunset,precipitation_probability_max");
   url.searchParams.set("hourly", "apparent_temperature,relativehumidity_2m,precipitation_probability,uv_index,windspeed_10m");
+  // Short-range nowcast (Phase 3): 15-min precip for the next ~3h. Ignored by
+  // the now/forecast normalizers; read only by normalizeNowcast.
+  url.searchParams.set("minutely_15", "precipitation,precipitation_probability");
+  url.searchParams.set("forecast_minutely_15", "12");
   url.searchParams.set("timezone", "auto");
 
   const response = await fetchWithTimeout(url.toString());
@@ -101,6 +105,45 @@ export function normalizeWeatherForecast(raw) {
       rain_chance_pct: raw?.daily?.precipitation_probability_max?.[idx] ?? null
     }))
   };
+}
+
+/**
+ * Next precip window from Open-Meteo minutely_15, or null.
+ * Shape: { startsInMin, probabilityPct, mm }. The first future 15-min block
+ * within the horizon that carries a real precip forecast (≥ PRECIP_MM_FLOOR mm).
+ * Time is anchored to current_weather.time so the diff is TZ-consistent with
+ * the block timestamps (both are local, naive ISO from the same response).
+ */
+export function normalizeNowcast(raw) {
+  const minutely = raw?.minutely_15 || {};
+  const times = minutely.time;
+  const precip = minutely.precipitation;
+  const probs = minutely.precipitation_probability;
+  if (!Array.isArray(times) || !Array.isArray(precip)) return null;
+
+  const HORIZON_MIN = 120;
+  const PRECIP_MM_FLOOR = 0.1;
+
+  const anchorStr = raw?.current_weather?.time;
+  const anchor = typeof anchorStr === "string" ? new Date(anchorStr).getTime() : Date.now();
+  if (!Number.isFinite(anchor)) return null;
+
+  for (let i = 0; i < times.length; i++) {
+    const t = new Date(times[i]).getTime();
+    if (!Number.isFinite(t)) continue;
+    const startsInMin = Math.round((t - anchor) / 60_000);
+    if (startsInMin <= 0) continue;        // current/past block
+    if (startsInMin > HORIZON_MIN) break;  // past the nowcast horizon
+    const mm = Number(precip[i]);
+    if (!Number.isFinite(mm) || mm < PRECIP_MM_FLOOR) continue;
+    const prob = Number(probs?.[i]);
+    return {
+      startsInMin,
+      probabilityPct: Number.isFinite(prob) ? prob : null,
+      mm: Math.round(mm * 10) / 10
+    };
+  }
+  return null;
 }
 
 export function weatherFallbackNow() {

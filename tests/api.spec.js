@@ -98,6 +98,18 @@ test.describe("weather", () => {
     expect(Array.isArray(body.days)).toBe(true);
   });
 
+  test("GET /api/weather/nowcast keeps its shape and degrades to null when upstream is down", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/weather/nowcast", { statuses: [200, 502] });
+    expect(body).toHaveProperty("nowcast");
+    if (body.nowcast !== null) {
+      expect(typeof body.nowcast.startsInMin).toBe("number");
+      expect(body.nowcast.startsInMin).toBeGreaterThan(0);
+      expect(typeof body.nowcast.mm).toBe("number");
+      // probabilityPct is a number or null (Open-Meteo may omit it)
+      expect(["number", "object"]).toContain(typeof body.nowcast.probabilityPct);
+    }
+  });
+
   test("GET /api/weather/radar/meta", async ({ request }) => {
     const { status, body } = await expectJson(request, "/api/weather/radar/meta", { statuses: [200, 502] });
     if (status === 200) {

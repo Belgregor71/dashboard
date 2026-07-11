@@ -84,3 +84,59 @@ test("dwell reveals the top 3; glance collapses to 1; ambient needs an interrupt
 
   expect(pageErrors, `uncaught page errors:\n${pageErrors.join("\n")}`).toHaveLength(0);
 });
+
+// Phase 3 (docs/vision/phase-3-anticipate.md): a short-lived predictive
+// candidate decays out of the live queue on its own once expiresAt passes — no
+// manual teardown. Boots with the predictiveCandidates flag on (clean boot).
+test("a short-lived predictive candidate decays out of the queue", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (err) => pageErrors.push(err.message));
+
+  await page.route("**/js/config.js", async (route) => {
+    const res = await route.fetch();
+    const body =
+      (await res.text()) +
+      "\nwindow.CONFIG.features.presenceRuntime = true;" +
+      "\nwindow.CONFIG.features.attentionEngine = true;" +
+      "\nwindow.CONFIG.features.predictiveCandidates = true;\n";
+    await route.fulfill({ response: res, body });
+  });
+
+  await page.goto("/");
+  await page.waitForFunction(
+    () => typeof window.__attention === "function" && typeof window.__forceCandidate === "function"
+  );
+
+  // Inject a rain-shaped candidate whose window starts in ~1.2s, then render it.
+  await page.evaluate(() => {
+    window.__forceCandidate([
+      {
+        id: "rain-incoming:test",
+        source: "predictive",
+        score: 78,
+        icon: "🌧️",
+        text: "Rain likely in about 15 min — 90% chance.",
+        cooldownMs: 0,
+        expiresAt: Date.now() + 1200
+      }
+    ]);
+    window.__presence("glance");
+    window.__presence("dwell");
+  });
+  await expect(page.locator("#focus-hero-text")).toHaveText("Rain likely in about 15 min — 90% chance.");
+
+  // Once the window passes, a mode round-trip re-ranks and rankQueue drops it.
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          window.__presence("glance");
+          window.__presence("dwell");
+          return window.__attention().queue.some((c) => c.id === "rain-incoming:test");
+        }),
+      { timeout: 5000 }
+    )
+    .toBe(false);
+
+  expect(pageErrors, `uncaught page errors:\n${pageErrors.join("\n")}`).toHaveLength(0);
+});

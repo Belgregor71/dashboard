@@ -43,7 +43,13 @@ window.CONFIG = {
     // Unifies every focus-hero source into one scored, presence-gated queue.
     // Verified live on the Pi 2026-07-11 (DWELL reveals top-3 stack; AMBIENT
     // interrupt-only; GLANCE single hero) — now enabled.
-    attentionEngine: true
+    attentionEngine: true,
+
+    // Phase 3 predictive candidates (docs/vision/phase-3-anticipate.md).
+    // Grounded anticipatory rules (rain-incoming, bin-night, on-this-day) merged
+    // into the attention queue. Default off for the first deploy; flip on the Pi
+    // after live verification, then default on (the Phase 1/2 rollout pattern).
+    predictiveCandidates: false
   },
 
   /* --------------------------------------------------------------

@@ -18,6 +18,12 @@ import {
   collectSources
 } from "../src/js/services/candidateSources.js";
 import { rankQueue, selectForMode, MODE } from "../src/js/services/attentionRank.js";
+import {
+  rainIncoming,
+  binNight,
+  onThisDay,
+  evaluatePredictive
+} from "../src/js/services/predictiveRules.js";
 
 // Pure unit tests — insightRules.js has no imports, no DOM, no storage,
 // so these run straight in the Playwright node process.
@@ -294,6 +300,93 @@ test.describe("candidateSources score bands", () => {
     expect(commuteCandidate({ commuteActive: false, commuteText: "Greg 22 min" })).toBeNull();
     expect(nextEventCandidate({ nextEventActive: true, nextEventText: "" })).toBeNull();
     expect(collectSources({})).toEqual([]);
+  });
+});
+
+// ── Phase 3: predictive candidates (docs/vision/phase-3-anticipate.md) ──
+
+test.describe("rainIncoming", () => {
+  test("fires in-band and scales with confidence", () => {
+    const hi = rainIncoming(ctxWith({ nowcast: { startsInMin: 15, probabilityPct: 90, mm: 0.6 } }), NOW);
+    const lo = rainIncoming(ctxWith({ nowcast: { startsInMin: 15, probabilityPct: 60, mm: 0.6 } }), NOW);
+    expect(hi).not.toBeNull();
+    expect(hi.score).toBe(78); // 55 + round(90*0.25)
+    expect(lo.score).toBe(70); // 55 + round(60*0.25)
+    expect(hi.score).toBeGreaterThan(lo.score);
+    expect(hi.text).toContain("15 min");
+  });
+
+  test("sets expiresAt at the start of the rain window (decay handle)", () => {
+    const c = rainIncoming(ctxWith({ nowcast: { startsInMin: 20, probabilityPct: 80, mm: 0.4 } }), NOW);
+    expect(c.expiresAt).toBe(NOW.getTime() + 20 * 60_000);
+  });
+
+  test("damped out below the probability floor, and when no nowcast", () => {
+    expect(rainIncoming(ctxWith({ nowcast: { startsInMin: 15, probabilityPct: 40, mm: 0.6 } }), NOW)).toBeNull();
+    expect(rainIncoming(ctxWith({ nowcast: null }), NOW)).toBeNull();
+    expect(rainIncoming(ctxWith(), NOW)).toBeNull();
+  });
+
+  test("calls out bins when they're still out", () => {
+    const c = rainIncoming(
+      ctxWith({ nowcast: { startsInMin: 12, probabilityPct: 70, mm: 0.8 }, bins: { eve: true, colours: ["Red"] } }),
+      NOW
+    );
+    expect(c.text).toContain("bins are still out");
+  });
+
+  test("a decayed rain candidate drops out of the ranked queue", () => {
+    const c = rainIncoming(ctxWith({ nowcast: { startsInMin: 10, probabilityPct: 80, mm: 0.5 } }), NOW);
+    const afterOnset = new Date(c.expiresAt + 60_000);
+    expect(rankQueue([c], afterOnset).map((x) => x.id)).toEqual([]);
+    expect(rankQueue([c], NOW).map((x) => x.id)).toEqual([c.id]);
+  });
+});
+
+test.describe("binNight", () => {
+  test("fires on a dry bin eve and decays end of day", () => {
+    const c = binNight(ctxWith({ bins: { eve: true, colours: ["Red", "Yellow"] }, weather: { rainChancePct: 10 } }), EVENING);
+    expect(c).not.toBeNull();
+    expect(c.score).toBe(50);
+    expect(c.text).toContain("Red + Yellow");
+    expect(c.expiresAt).toBeGreaterThan(EVENING.getTime());
+  });
+
+  test("stands down when rain is coming (binWeatherClash owns it) or no bin eve", () => {
+    expect(binNight(ctxWith({ bins: { eve: true, colours: ["Red"] }, weather: { rainChancePct: 70 } }), EVENING)).toBeNull();
+    expect(binNight(ctxWith({ bins: { eve: false, colours: ["Red"] } }), EVENING)).toBeNull();
+  });
+});
+
+test.describe("onThisDay", () => {
+  test("fires low-band on a matching anniversary and yields to any Medium+", () => {
+    const c = onThisDay(ctxWith({ anniversaries: [{ title: "Mum & Dad's Anniversary" }] }), NOW);
+    expect(c).not.toBeNull();
+    expect(c.score).toBeGreaterThanOrEqual(40);
+    expect(c.score).toBeLessThan(50);
+    expect(c.text).toContain("Mum & Dad's Anniversary");
+    // Loses the hero to a bin-night (Medium 50).
+    const q = rankQueue([c, binNight(ctxWith({ bins: { eve: true, colours: [] }, weather: { rainChancePct: 0 } }), NOW)], NOW);
+    expect(q[0].id).toContain("bin-night");
+  });
+
+  test("silent with no anniversaries", () => {
+    expect(onThisDay(ctxWith({ anniversaries: [] }), NOW)).toBeNull();
+    expect(onThisDay(ctxWith(), NOW)).toBeNull();
+  });
+});
+
+test.describe("evaluatePredictive", () => {
+  test("returns in-band candidates sorted best-first", () => {
+    const ctx = ctxWith({
+      nowcast: { startsInMin: 15, probabilityPct: 90, mm: 0.6 }, // rain 78
+      bins: { eve: true, colours: ["Red"] },                     // bin-night 50 (dry)
+      weather: { rainChancePct: 0 },
+      anniversaries: [{ title: "Anniversary" }]                  // on-this-day 42
+    });
+    const out = evaluatePredictive(ctx, NOW);
+    expect(out[0].id).toContain("rain-incoming");
+    expect(out.map((c) => c.score)).toEqual([78, 50, 42]);
   });
 });
 
