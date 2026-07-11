@@ -6,6 +6,7 @@ import {
 } from "./insightRules.js";
 import { evaluatePredictive } from "./predictiveRules.js";
 import { rankQueue, selectForMode } from "./attentionRank.js";
+import { get as getContext } from "../core/contextStore.js";
 
 // The unified attention runtime (docs/vision/phase-2-attention-engine.md).
 // It merges the scored insight candidates (insightRules, over the async
@@ -53,6 +54,16 @@ function inQuietHours(now = new Date()) {
 function predictiveEnabled() {
   try {
     return Boolean(window.CONFIG?.features?.predictiveCandidates);
+  } catch {
+    return false;
+  }
+}
+
+// Phase 6 House Model (docs/vision/phase-6-intent.md) — flag-gated so flag-off
+// passes no intent and the gate keeps its exact Phase 3–5 behaviour.
+function intentEnabled() {
+  try {
+    return Boolean(window.CONFIG?.features?.houseIntent);
   } catch {
     return false;
   }
@@ -131,7 +142,8 @@ export function getSelection({ sources = [], now = new Date(), mode = "glance" }
   );
   const queue = rankQueue([...phrased, ...sources, ...injected], now);
   const cooldowns = readJson(COOLDOWN_KEY, {});
-  const sel = selectForMode(queue, mode, { cooldowns, now, currentId: currentHeroId });
+  const intent = intentEnabled() ? getContext().intent : null;
+  const sel = selectForMode(queue, mode, { cooldowns, now, currentId: currentHeroId, intent });
 
   if (sel.hero && sel.hero.id !== currentHeroId) {
     currentHeroId = sel.hero.id;

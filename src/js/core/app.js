@@ -7,6 +7,7 @@ import { initViews, registerView, switchView } from "./viewManager.js";
 // deliberately outside the click-cycle (briefing, status) for verification.
 window.__switchView = switchView;
 import { initPresence } from "./presence.js";
+import { initIntent } from "./intentEngine.js";
 import { registerLifecycle } from "./lifecycle.js";
 import { initVoiceOverlay } from "./voiceOverlay.js";
 import { initVoiceCommands } from "./voiceCommands.js";
@@ -78,6 +79,10 @@ export function startApp() {
   const presenceEnabled = isEnabled("presenceRuntime", false);
   initViews({ presenceEnabled });
   initPresence({ enabled: presenceEnabled });
+  // Phase 6 House Model — a pure reducer over slices the store already carries,
+  // gated off by default so it ships reversibly. When on, it names the room's
+  // posture and the attention gate reads it. See docs/vision/phase-6-intent.md.
+  initIntent({ enabled: isEnabled("houseIntent", false) });
   registerLifecycle();
   initVoiceOverlay();
   initVoiceCommands();

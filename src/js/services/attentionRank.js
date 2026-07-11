@@ -37,8 +37,14 @@ export function rankQueue(candidates, now = new Date()) {
  * Cooldowns are the insight-rules store ({ id: expiresAt }). The current hero
  * is exempt from its own cooldown; cooldownMs:0 candidates (live readouts:
  * bom/commute/next-event) are never blocked.
+ *
+ * Phase 6 (docs/vision/phase-6-intent.md): an optional `intent` posture
+ * MODULATES the presence floor — presence stays the base. A `rushed` room is
+ * left alone (raised to interrupt-only even while technically present); an
+ * `unhurried` room earns the DWELL depth sooner. No intent (flag off) → the
+ * pre-Phase-6 behaviour, byte-identical.
  */
-export function selectForMode(queue, mode, { cooldowns = {}, now = new Date(), currentId = null } = {}) {
+export function selectForMode(queue, mode, { cooldowns = {}, now = new Date(), currentId = null, intent = null } = {}) {
   if (mode === MODE.VOICE) return { hero: null, stack: [] };
 
   const t = now.getTime();
@@ -50,9 +56,16 @@ export function selectForMode(queue, mode, { cooldowns = {}, now = new Date(), c
       cooldowns[c.id] <= t
   );
 
-  if (mode === MODE.AMBIENT) eligible = eligible.filter((c) => c.interrupt);
+  const rushed = intent?.tempo === "rushed";
+  const unhurried = intent?.tempo === "unhurried";
 
-  const depth = mode === MODE.DWELL ? 3 : 1;
+  // A rushed room raises the floor to interrupt-only; AMBIENT is already there.
+  const interruptOnly = mode === MODE.AMBIENT || (rushed && (mode === MODE.GLANCE || mode === MODE.DWELL));
+  if (interruptOnly) eligible = eligible.filter((c) => c.interrupt);
+
+  // DWELL depth by presence, or granted early when the room is unhurried.
+  const dwellDepth = mode === MODE.DWELL || (unhurried && mode === MODE.GLANCE);
+  const depth = dwellDepth && !interruptOnly ? 3 : 1;
   const stack = eligible.slice(0, depth);
   return { hero: stack[0] ?? null, stack };
 }

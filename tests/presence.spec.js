@@ -34,10 +34,18 @@ function forcePresence(value) {
 const enablePresence = forcePresence(true);
 const disablePresence = forcePresence(false);
 
+// Pin a deterministic daytime so isNight() is false. Otherwise, when the suite
+// runs after sunset, initScreensaver()'s syncNight() auto-engages the dim clock
+// at boot (screensaver.js) → presence is "ambient" and a click merely dismisses
+// the screensaver instead of exercising the boundary/click-cycle these tests
+// assert. This makes the presence contract independent of wall-clock time.
+const MIDDAY = new Date("2026-07-06T12:00:00");
+
 test("presence on: FSM tracks the screensaver boundary and suppresses the click-cycle", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
   await enablePresence(page);
+  await page.clock.setFixedTime(MIDDAY);
 
   await page.goto("/");
   await page.waitForFunction(() => typeof window.__presence === "function");
@@ -70,6 +78,7 @@ test("presence on: FSM tracks the screensaver boundary and suppresses the click-
 
 test("presence off: the click-cycle still advances the view", async ({ page }) => {
   await disablePresence(page);
+  await page.clock.setFixedTime(MIDDAY);
   await page.goto("/");
   await page.waitForFunction(() => document.body?.dataset?.view === "home");
   await page.waitForTimeout(500);

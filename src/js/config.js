@@ -57,7 +57,13 @@ window.CONFIG = {
     // occasional earned "on this day" memory. Verified live on the Pi
     // 2026-07-11: tint renders and adds zero GPU cost (80% Mode 0 baseline is
     // the pre-existing Ken Burns photo decode, unchanged by the token) — enabled.
-    ambientAtmospherics: true
+    ambientAtmospherics: true,
+
+    // Phase 6 House Model (docs/vision/phase-6-intent.md). A pure reducer fuses
+    // presence + calendar + people-home into an `intent` posture the attention
+    // gate reads (rushed → interrupt-only; unhurried → DWELL depth sooner).
+    // Off by default → ship reversible, flip on the Pi after live verification.
+    houseIntent: false
   },
 
   /* --------------------------------------------------------------
