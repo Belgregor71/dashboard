@@ -47,9 +47,10 @@ window.CONFIG = {
 
     // Phase 3 predictive candidates (docs/vision/phase-3-anticipate.md).
     // Grounded anticipatory rules (rain-incoming, bin-night, on-this-day) merged
-    // into the attention queue. Default off for the first deploy; flip on the Pi
-    // after live verification, then default on (the Phase 1/2 rollout pattern).
-    predictiveCandidates: false
+    // into the attention queue. Verified live on the Pi 2026-07-11 (rain hero
+    // fires at the confidence-scaled score, renders, and decays past its
+    // window) — now enabled.
+    predictiveCandidates: true
   },
 
   /* --------------------------------------------------------------
