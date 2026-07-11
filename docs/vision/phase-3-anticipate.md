@@ -2,6 +2,8 @@
 
 _Plan drafted 2026-07-11. Part of the [Home OS vision](./home-os-vision.md) roadmap. Builds on [Phase 2](./phase-2-attention-engine.md) (unified attention engine, shipped & enabled) and [Phase 1](./phase-1-presence-runtime.md) (presence FSM)._
 
+**✅ Shipped & enabled 2026-07-11.** Code `0987e33` (flag-off), default-on `6656fe0` — both deployed and live on the Pi. Verified on the kiosk over CDP: `__nowcastProbe(15, 80)` + `__refreshAttention()` fired a rain-incoming hero at the confidence-scaled score (75 = `55 + round(80×0.25)`), decaying past its window; flag-off regression clean; `/kiosk-metrics` flat across 15 refresh cycles (no leak — `refresh()` is pure fetch + rule eval, no new UI). Rain-incoming, bin-night, and on-this-day ship; package-expected and door/garage stay deferred as planned.
+
 ## Key insight that de-risks this phase
 
 Phase 2 already built everything anticipation needs. The attention engine's candidate model has **`expiresAt` (decay)**, **`interrupt`** (override the AMBIENT floor), **score bands**, and the **cooldown store** — and `rankQueue` already drops expired candidates. So Phase 3 does **not** touch the engine, the renderer, the presence gate, or the stack UI. It adds **pure rules and the data they read**, exactly like `insightRules.js` — the lowest-risk shape of work in this codebase.
