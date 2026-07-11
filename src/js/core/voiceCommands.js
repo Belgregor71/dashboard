@@ -109,7 +109,7 @@ function answerNextEvent() {
 }
 
 async function answerBriefing() {
-  switchView("briefing");
+  switchView("briefing", { force: true }); // voice request — past the Phase 7 gate
   await speak("Generating your briefing, one moment.");
   try {
     const summary = await generateBriefing();
@@ -287,7 +287,7 @@ export function initVoiceCommands() {
     for (const text of transcripts) {
       const view = matchNav(text);
       if (view) {
-        switchView(view);
+        switchView(view, { force: true }); // voice nav — past the Phase 7 gate
         setVoiceState("success", VIEW_LABELS[view]);
         speak(VIEW_PHRASES[view]);
         return;

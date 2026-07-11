@@ -16,6 +16,16 @@ const viewAliasMap = new Map([
 const viewHandlers = new Map();
 let clickHandlerRegistered = false;
 
+// Phase 7 "Dissolve" (docs/vision/phase-7-dissolve.md): the rich legacy views
+// are already user-unreachable (nav died in Phase 1) and their content now flows
+// through the attention queue / event surfaces. When the substrate flag is on we
+// gate *passive* navigation into them off, so the awake dashboard stays the
+// ambient substrate instead of being taken over by a full-screen widget page.
+// Event/voice callers pass { force: true } to bypass — doorbell + voice are
+// untouched (see the callers). Views stay registered (reversible, not deleted).
+const RETIRED_VIEWS = new Set(["weather", "cameras", "briefing"]);
+let substrateEnabled = false;
+
 function normalizeViewId(view) {
   if (typeof view !== "string") return "";
   const normalized = view.trim().toLowerCase();
@@ -57,7 +67,8 @@ function registerClickCycle() {
   });
 }
 
-export function initViews({ presenceEnabled = false } = {}) {
+export function initViews({ presenceEnabled = false, substrateEnabled: substrate = false } = {}) {
+  substrateEnabled = substrate;
   document.body.dataset.view = currentView;
   const initialView = getViewModule(currentView);
   initialView.render();
@@ -77,9 +88,13 @@ export function getCurrentView() {
   return currentView;
 }
 
-export function switchView(view) {
+export function switchView(view, { force = false } = {}) {
   const normalizedView = normalizeViewId(view);
   if (!normalizedView || normalizedView === currentView) return;
+  // Phase 7: passive navigation into a retired view is gated off behind the
+  // flag; event/voice paths pass force:true to reach them (doorbell, "show
+  // cameras", the morning briefing). Flag off → this is inert.
+  if (substrateEnabled && !force && RETIRED_VIEWS.has(normalizedView)) return;
   if (!viewHandlers.has(normalizedView)) {
     console.warn("Ignoring unknown view:", view);
     return;

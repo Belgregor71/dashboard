@@ -65,7 +65,17 @@ window.CONFIG = {
     // Shipped flag-off in 155f451, then flipped on & live-verified on the Pi
     // 2026-07-11 (__intent tracks the real evening; __forceIntent raises the
     // gate floor; kiosk-metrics flat) — now enabled.
-    houseIntent: true
+    houseIntent: true,
+
+    // Phase 7 "Dissolve the dashboard" (docs/vision/phase-7-dissolve.md). Lifts
+    // the Phase 5 atmo-* token off the screensaver root onto a shared app root
+    // (body) so the intent-dressed, weather-tinted room persists across
+    // AMBIENT → GLANCE → DWELL — the awake dashboard surfaces *over* the mood
+    // instead of hiding it. Default OFF: byte-identical to Phase 5/6. Gated on a
+    // measured GPU prerequisite (the Mode-0 Ken Burns photo-decode debt) — flip
+    // on the Pi only after `gpucpu.sh` drops well below the 80% baseline in idle
+    // AND engaged modes, then default on.
+    ambientSubstrate: false
   },
 
   /* --------------------------------------------------------------

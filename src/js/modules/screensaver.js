@@ -54,6 +54,13 @@ let photos      = [];
 // When on, the Mode 0 scene carries a slow-settling tint driven by the real
 // weather + light. Flag off → this whole block is inert and Mode 0 is unchanged.
 let atmosphereEnabled = false;
+// ─── Ambient substrate (Phase 7, flag-gated) ──────────────────
+// When on, the atmo-* token is *also* written to a shared app root (the <body>)
+// so the weather/light mood persists into the awake dashboard (GLANCE/DWELL),
+// not just Mode 0. The screensaver keeps its own token for its overlay; the
+// body token drives the awake tint (body.substrate::before, background.css).
+// Flag off → body is never touched and Mode 0 is exactly the Phase 5/6 scene.
+let substrateEnabled = false;
 const ANNIVERSARY_RE = /\b(birthday|bday|anniversary)\b/i; // "on this day" earned memory
 
 // ─── DOM build ────────────────────────────────────────────────
@@ -283,20 +290,38 @@ function applyNight(night) {
 // Map real weather (contextStore) + light into one resting tint token and swap
 // it onto the screensaver root. Class swap on an existing node — no new surface,
 // no loop — so it settles to rest and stays off the GPU (project-gpu-idle-freeze).
-function applyAtmosphere() {
-  if (!atmosphereEnabled || !el) return;
-  const token = atmosphereFor({
+function computeToken() {
+  return atmosphereFor({
     condition: getContext().condition,
     isNight: isNight(),
     hour: new Date().getHours()
   });
+}
+
+function applyAtmosphere() {
+  if (!atmosphereEnabled || !el) return;
+  const token = computeToken();
   el.classList.remove(...ATMOSPHERE_TOKENS);
   el.classList.add(token);
+  // Phase 7: mirror the resting token onto the shared root so it survives the
+  // exit into GLANCE/DWELL — a class swap on <body>, no new surface, no loop.
+  if (substrateEnabled) applySubstrateToken(token);
+}
+
+// Write the atmosphere token to the shared app root (<body>). Only ever touched
+// while the substrate flag is on, so flag-off behaviour is byte-identical.
+function applySubstrateToken(token) {
+  document.body.classList.remove(...ATMOSPHERE_TOKENS);
+  document.body.classList.add(token);
 }
 
 function clearAtmosphere() {
   if (!el) return;
   el.classList.remove(...ATMOSPHERE_TOKENS);
+  // The body token is deliberately NOT cleared on exit — the awake dashboard
+  // keeps the mood. Re-settle it to the current state in case the day/night
+  // boundary moved while Mode 0 was up.
+  if (substrateEnabled) applySubstrateToken(computeToken());
 }
 
 function startPhotoTimer(night) {
@@ -418,9 +443,20 @@ export function resetIdleTimer() {
 
 export async function initScreensaver(options = {}) {
   atmosphereEnabled = options.atmosphereEnabled === true;
+  // Phase 7: the substrate only makes sense with the atmosphere mapper feeding
+  // it a token, so it rides on top of the Phase 5 flag.
+  substrateEnabled = atmosphereEnabled && options.substrateEnabled === true;
 
   await loadPhotos();
   build();
+
+  // Mark the shared root and settle the initial awake tint so the dashboard is
+  // already dressed at boot (the display comes up awake in daytime).
+  if (substrateEnabled) {
+    document.body.classList.add("substrate");
+    applySubstrateToken(computeToken());
+  }
+
   resetIdleTimer();
 
   // Engage the dim clock straight away if it's already night, then watch the
@@ -434,6 +470,9 @@ export async function initScreensaver(options = {}) {
   if (atmosphereEnabled) {
     subscribeContext(() => {
       if (active) applyAtmosphere();
+      // Keep the awake substrate tracking the weather even while the dashboard
+      // is up (Mode 0's applyAtmosphere covers the active case).
+      else if (substrateEnabled) applySubstrateToken(computeToken());
     });
   }
 
@@ -449,9 +488,13 @@ export async function initScreensaver(options = {}) {
     if (forced && el) {
       el.classList.remove(...ATMOSPHERE_TOKENS);
       el.classList.add(forced);
+      // Phase 7: also drive the shared root so a forced token can be checked
+      // persisting into the awake screen (the dissolve.spec persistence test).
+      if (substrateEnabled) applySubstrateToken(forced);
     }
     const token = el ? [...el.classList].find(c => c.startsWith("atmo-")) ?? null : null;
-    return { enabled: atmosphereEnabled, active, token };
+    const bodyToken = [...document.body.classList].find(c => c.startsWith("atmo-")) ?? null;
+    return { enabled: atmosphereEnabled, substrate: substrateEnabled, active, token, bodyToken };
   };
 
   // Any direct user interaction (click / tap / keypress) wakes screensaver

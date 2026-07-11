@@ -30,7 +30,7 @@ function routeAiIntent(intentPayload = {}) {
   if (confidence < 0.6) return false;
 
   if (intent === "switch_view" && view) {
-    switchView(view);
+    switchView(view, { force: true }); // voice/AI command — past the Phase 7 gate
     emit("command:executed", {
       command: intent,
       ok: true,
@@ -40,13 +40,13 @@ function routeAiIntent(intentPayload = {}) {
   }
 
   if (intent === "show_weather") {
-    switchView("weather");
+    switchView("weather", { force: true }); // voice/AI command — past the Phase 7 gate
     emit("command:executed", { command: intent, ok: true, message: response || "Showing weather" });
     return true;
   }
 
   if (intent === "show_cameras") {
-    switchView("cameras");
+    switchView("cameras", { force: true }); // voice/AI command — past the Phase 7 gate
     emit("command:executed", { command: intent, ok: true, message: response || "Showing cameras" });
     return true;
   }
@@ -153,7 +153,7 @@ export function registerHAEvents() {
       }
 
       if (command === "switch_view") {
-        switchView(data.view);
+        switchView(data.view, { force: true }); // remote/voice command — past the Phase 7 gate
         emit("command:executed", {
           command,
           ok: true,

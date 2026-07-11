@@ -77,7 +77,7 @@ export function startApp() {
   // ships reversibly. When on, it names the presence mode and disables the
   // dead click-cycle. See docs/vision/phase-1-presence-runtime.md.
   const presenceEnabled = isEnabled("presenceRuntime", false);
-  initViews({ presenceEnabled });
+  initViews({ presenceEnabled, substrateEnabled: isEnabled("ambientSubstrate", false) });
   initPresence({ enabled: presenceEnabled });
   // Phase 6 House Model — a pure reducer over slices the store already carries,
   // gated off by default so it ships reversibly. When on, it names the room's
@@ -168,7 +168,12 @@ export function startApp() {
   initMorningBriefing();
   initOccasionPopup();
   initEnergySaver();
-  initScreensaver({ atmosphereEnabled: isEnabled("ambientAtmospherics", false) });
+  initScreensaver({
+    atmosphereEnabled: isEnabled("ambientAtmospherics", false),
+    // Phase 7 — lift the atmosphere token onto the shared root so the awake
+    // dashboard carries the mood too (docs/vision/phase-7-dissolve.md).
+    substrateEnabled: isEnabled("ambientSubstrate", false)
+  });
   initFocusHero({ attentionEnabled: isEnabled("attentionEngine", false) });
   initBomWarningBanner();
   initTonightsMenu();

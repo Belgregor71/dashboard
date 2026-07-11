@@ -56,20 +56,30 @@
    animation only ever plays on the first photo (it doesn't restart
    on a src swap). Instead screensaver.js picks one ss-kb-* class per
    photo and re-adds it across a reflow, replaying a fresh move each
-   time. Duration matches PHOTO_MS (30s) so the move plays across the
-   full time a photo is up, then holds (forwards) — motion stops
-   between rotations, honouring the screensaver GPU freeze.
+   time.
+
+   Phase 7 GPU gate (project-gpu-idle-freeze / docs/vision/phase-7-dissolve.md):
+   the pan used to run the full PHOTO_MS window (30s), so the oversized 1080p
+   frame was software-re-rasterised at 60fps the *entire* time a photo was up —
+   the pre-existing ~80%-of-a-core Mode-0 cost. Phase 7 makes the atmosphere
+   render during engaged states too, so that baseline can't stand. The fix is
+   the Phase 5 "settle, don't loop" rule applied to the pan itself: animate a
+   brief settle (SS_KB_SETTLE) then hold static (forwards) for the rest of the
+   window. Motion — and the per-frame decode — stops after the settle, so the
+   averaged GPU cost falls well below the old pinned baseline. (If `gpucpu.sh`
+   still doesn't clear the gate, the remaining lever is pre-downscaling the
+   source photos to display resolution — see the phase memo.)
 
    Edge-reveal guard: whenever a variant translates, it stays at
    scale >= 1.06 so the overscan ((S-1)/2) always covers the pan and
    no black edge is exposed on the 16:9 panel. Pure-zoom variants
    never translate, so scale 1.0 is safe.
 ──────────────────────────────────────────────────────────── */
-.screensaver__photo.ss-kb-1 { animation: ss-kb-1 30s ease-in-out forwards; }
-.screensaver__photo.ss-kb-2 { animation: ss-kb-2 30s ease-in-out forwards; }
-.screensaver__photo.ss-kb-3 { animation: ss-kb-3 30s ease-in-out forwards; }
-.screensaver__photo.ss-kb-4 { animation: ss-kb-4 30s ease-in-out forwards; }
-.screensaver__photo.ss-kb-5 { animation: ss-kb-5 30s ease-in-out forwards; }
+.screensaver__photo.ss-kb-1 { animation: ss-kb-1 6s ease-out forwards; }
+.screensaver__photo.ss-kb-2 { animation: ss-kb-2 6s ease-out forwards; }
+.screensaver__photo.ss-kb-3 { animation: ss-kb-3 6s ease-out forwards; }
+.screensaver__photo.ss-kb-4 { animation: ss-kb-4 6s ease-out forwards; }
+.screensaver__photo.ss-kb-5 { animation: ss-kb-5 6s ease-out forwards; }
 
 @keyframes ss-kb-1 { /* slow zoom in  */
   from { transform: scale(1.0); }

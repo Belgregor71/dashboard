@@ -119,7 +119,8 @@ export function initDoorbellAlert() {
     resetIdleTimer();
 
     // 2. Navigate to cameras view so the snapshot popup appears over camera feeds
-    switchView("cameras");
+    //    (force past the Phase 7 substrate gate — a doorbell is an event surface)
+    switchView("cameras", { force: true });
 
     // 3. Speak the alert — TTS runs async so navigation happens first
     const personName = getKnownPersonName(location.personNameEntity);

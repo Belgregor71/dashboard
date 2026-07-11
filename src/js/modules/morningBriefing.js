@@ -48,7 +48,7 @@ async function prefetch(schedule) {
 async function trigger(schedule) {
   wakeScreensaver();
   resetIdleTimer();
-  switchView("briefing");
+  switchView("briefing", { force: true }); // scheduled briefing event — past the Phase 7 gate
 
   try {
     const summary = await generateBriefing({ type: schedule.type });
