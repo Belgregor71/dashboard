@@ -62,8 +62,10 @@ window.CONFIG = {
     // Phase 6 House Model (docs/vision/phase-6-intent.md). A pure reducer fuses
     // presence + calendar + people-home into an `intent` posture the attention
     // gate reads (rushed → interrupt-only; unhurried → DWELL depth sooner).
-    // Off by default → ship reversible, flip on the Pi after live verification.
-    houseIntent: false
+    // Shipped flag-off in 155f451, then flipped on & live-verified on the Pi
+    // 2026-07-11 (__intent tracks the real evening; __forceIntent raises the
+    // gate floor; kiosk-metrics flat) — now enabled.
+    houseIntent: true
   },
 
   /* --------------------------------------------------------------
