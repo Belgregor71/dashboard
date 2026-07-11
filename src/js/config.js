@@ -54,9 +54,10 @@ window.CONFIG = {
 
     // Phase 5 ambient atmospherics (docs/vision/phase-5-atmospherics.md).
     // Mode 0 (screensaver) carries a slow-settling weather/light tint + the
-    // occasional earned "on this day" memory. Default off — flip on the Pi
-    // after the GPU-idle gate passes, then default on (Phase 1/2/3 rollout).
-    ambientAtmospherics: false
+    // occasional earned "on this day" memory. Verified live on the Pi
+    // 2026-07-11: tint renders and adds zero GPU cost (80% Mode 0 baseline is
+    // the pre-existing Ken Burns photo decode, unchanged by the token) — enabled.
+    ambientAtmospherics: true
   },
 
   /* --------------------------------------------------------------
