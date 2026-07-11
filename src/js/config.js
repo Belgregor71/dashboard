@@ -50,7 +50,13 @@ window.CONFIG = {
     // into the attention queue. Verified live on the Pi 2026-07-11 (rain hero
     // fires at the confidence-scaled score, renders, and decays past its
     // window) — now enabled.
-    predictiveCandidates: true
+    predictiveCandidates: true,
+
+    // Phase 5 ambient atmospherics (docs/vision/phase-5-atmospherics.md).
+    // Mode 0 (screensaver) carries a slow-settling weather/light tint + the
+    // occasional earned "on this day" memory. Default off — flip on the Pi
+    // after the GPU-idle gate passes, then default on (Phase 1/2/3 rollout).
+    ambientAtmospherics: false
   },
 
   /* --------------------------------------------------------------

@@ -97,19 +97,39 @@
 .screensaver__overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
+  background-color: transparent;
+  background-image: linear-gradient(
     to bottom,
     rgba(0, 0, 0, 0.10) 0%,
     rgba(0, 0, 0, 0.32) 55%,
     rgba(0, 0, 0, 0.68) 100%
   );
   opacity: 0;
-  transition: opacity 1.4s ease;
+  /* The atmosphere tint (background-color) settles over ~60s — a slow state
+     change that comes to rest, never a loop. It shows through the readability
+     gradient's transparent regions. Opacity stays fast for the fade-in. */
+  transition: opacity 1.4s ease, background-color 60s ease;
 }
 
 .screensaver[data-mode="photo"] .screensaver__overlay {
   opacity: 1;
 }
+
+/* ── Ambient atmosphere tints (Phase 5) ───────────────────────
+   docs/vision/phase-5-atmospherics.md. Each atmo-* token is a *resting*
+   background-color on the readability overlay — a weather/light wash that
+   settles (see the 60s transition above) rather than animating. The mapper
+   (services/atmosphere.js) only ever emits these classes; none carries an
+   animation, which is the idle-freeze guardrail (project-gpu-idle-freeze).
+   Only applied while the flag is on (screensaver.js applyAtmosphere).
+──────────────────────────────────────────────────────────── */
+.screensaver.atmo-clear-day    .screensaver__overlay { background-color: rgba(30, 66, 120, 0.12); }
+.screensaver.atmo-clear-golden .screensaver__overlay { background-color: rgba(150, 95, 40, 0.20); }
+.screensaver.atmo-cloudy       .screensaver__overlay { background-color: rgba(66, 78, 96, 0.24); }
+.screensaver.atmo-rain         .screensaver__overlay { background-color: rgba(36, 66, 98, 0.30); }
+.screensaver.atmo-storm        .screensaver__overlay { background-color: rgba(28, 38, 66, 0.38); }
+.screensaver.atmo-fog          .screensaver__overlay { background-color: rgba(120, 130, 145, 0.22); }
+.screensaver.atmo-night        .screensaver__overlay { background-color: rgba(4, 10, 28, 0.42); }
 
 /* ── Content ───────────────────────────────────────────────── */
 

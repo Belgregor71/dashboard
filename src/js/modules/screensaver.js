@@ -4,6 +4,8 @@ import { emit } from "../core/eventBus.js";
 import { freezeLotties, unfreezeLotties } from "../helpers/lottie.js";
 import { getTimes as getSunTimes } from "../vendor/suncalc.js";
 import { WEATHER_LAT, WEATHER_LON } from "../config/constants.js";
+import { get as getContext, subscribe as subscribeContext } from "../core/contextStore.js";
+import { atmosphereFor, ATMOSPHERE_TOKENS } from "../services/atmosphere.js";
 
 const IDLE_MS    = 5 * 60 * 1000;  // 5 min of no motion → engage
 const PHOTO_MS   = 30 * 1000;       // rotate photo every 30s
@@ -47,6 +49,12 @@ let driftTimer  = null;
 let driftIndex  = 0;
 let active      = false;
 let photos      = [];
+
+// ─── Ambient atmosphere (Phase 5, flag-gated) ─────────────────
+// When on, the Mode 0 scene carries a slow-settling tint driven by the real
+// weather + light. Flag off → this whole block is inert and Mode 0 is unchanged.
+let atmosphereEnabled = false;
+const ANNIVERSARY_RE = /\b(birthday|bday|anniversary)\b/i; // "on this day" earned memory
 
 // ─── DOM build ────────────────────────────────────────────────
 
@@ -180,6 +188,23 @@ function readTodayCountLine() {
   return count === 1 ? "1 event today" : `${count} events today`;
 }
 
+// Earned memory (Phase 5): the quiet "on this day" line for the near-silent
+// Mode 0 frame — today's birthday/anniversary markers, same grounded source
+// and regex as the onThisDay predictive candidate (briefingData.js). Only ever
+// present on days that actually have one, so it reads as occasional by nature.
+function readOnThisDayLine() {
+  const events = window.__CAL_EVENTS__;
+  if (!Array.isArray(events)) return null;
+  const todayStr = new Date().toDateString();
+  const match = events.find(ev =>
+    ev?.start &&
+    new Date(ev.start).toDateString() === todayStr &&
+    ANNIVERSARY_RE.test(String(ev.title ?? ev.summary ?? ""))
+  );
+  const title = String(match?.title ?? match?.summary ?? "").trim();
+  return title ? `🎉 ${title}` : null;
+}
+
 function updateInfo() {
   if (!infoEl || !footerEl) return;
 
@@ -192,7 +217,9 @@ function updateInfo() {
 
   infoEl.innerHTML = lines.map(line => `<div class="screensaver__info-line">${line}</div>`).join("");
 
-  const footer = readTodayCountLine();
+  // The earned memory (flag-gated) takes the quiet footer slot when today has
+  // one; otherwise the footer keeps its plain event-count line.
+  const footer = (atmosphereEnabled && readOnThisDayLine()) || readTodayCountLine();
   footerEl.textContent = footer || "";
 }
 
@@ -252,6 +279,26 @@ function applyNight(night) {
   el.dataset.night = night ? "1" : "0";
 }
 
+// ─── Ambient atmosphere ───────────────────────────────────────
+// Map real weather (contextStore) + light into one resting tint token and swap
+// it onto the screensaver root. Class swap on an existing node — no new surface,
+// no loop — so it settles to rest and stays off the GPU (project-gpu-idle-freeze).
+function applyAtmosphere() {
+  if (!atmosphereEnabled || !el) return;
+  const token = atmosphereFor({
+    condition: getContext().condition,
+    isNight: isNight(),
+    hour: new Date().getHours()
+  });
+  el.classList.remove(...ATMOSPHERE_TOKENS);
+  el.classList.add(token);
+}
+
+function clearAtmosphere() {
+  if (!el) return;
+  el.classList.remove(...ATMOSPHERE_TOKENS);
+}
+
 function startPhotoTimer(night) {
   clearInterval(photoTimer);
   photoTimer = null;
@@ -272,6 +319,7 @@ function syncNight() {
   if (night === wasNight) return;
   if (night) {
     applyNight(true);        // sunset while already idling — dim in place
+    applyAtmosphere();       // and settle the tint to its night state
     startPhotoTimer(true);
   } else {
     exit();                  // sunrise — return to the dashboard
@@ -302,6 +350,7 @@ function enter() {
   el.dataset.mode = photos.length > 0 ? "photo" : "minimal";
   const night = isNight();
   applyNight(night);
+  applyAtmosphere();
 
   driftIndex = 0;
   if (contentEl) contentEl.style.transform = "translate(0, 0)";
@@ -344,6 +393,7 @@ function exit() {
 
   el.classList.remove("is-active");
   document.body.classList.remove("screensaver-active");
+  clearAtmosphere();
   unfreezeLotties();
 
   switchView("home");
@@ -361,7 +411,9 @@ export function resetIdleTimer() {
 
 // ─── Init ─────────────────────────────────────────────────────
 
-export async function initScreensaver() {
+export async function initScreensaver(options = {}) {
+  atmosphereEnabled = options.atmosphereEnabled === true;
+
   await loadPhotos();
   build();
   resetIdleTimer();
@@ -371,11 +423,31 @@ export async function initScreensaver() {
   syncNight();
   nightTimer = setInterval(syncNight, NIGHT_CHECK_MS);
 
+  // Re-settle the tint whenever the shared weather slice shifts while Mode 0 is
+  // up (the 10-min weather refresh feeds contextStore.condition). Init-once, so
+  // no per-event teardown needed (see CLAUDE.md kiosk memory discipline).
+  if (atmosphereEnabled) {
+    subscribeContext(() => {
+      if (active) applyAtmosphere();
+    });
+  }
+
   // Debug/verification hooks (match __switchView, __forceInsight conventions).
   window.__engageScreensaver = engageScreensaver;
   window.__wakeScreensaver = wakeScreensaver;
   window.__ssNextPhoto = showNextPhoto;
   window.__isNight = isNight;
+
+  // Force an atmosphere token over CDP to check each tint live without waiting
+  // for the weather (convention: __isNight / __nowcastProbe).
+  window.__atmosphere = (forced) => {
+    if (forced && el) {
+      el.classList.remove(...ATMOSPHERE_TOKENS);
+      el.classList.add(forced);
+    }
+    const token = el ? [...el.classList].find(c => c.startsWith("atmo-")) ?? null : null;
+    return { enabled: atmosphereEnabled, active, token };
+  };
 
   // Any direct user interaction (click / tap / keypress) wakes screensaver
   ["click", "touchstart", "keydown"].forEach(evt =>

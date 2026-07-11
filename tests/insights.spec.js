@@ -24,6 +24,9 @@ import {
   onThisDay,
   evaluatePredictive
 } from "../src/js/services/predictiveRules.js";
+import { atmosphereFor, ATMOSPHERE_TOKENS } from "../src/js/services/atmosphere.js";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
 
 // Pure unit tests — insightRules.js has no imports, no DOM, no storage,
 // so these run straight in the Playwright node process.
@@ -464,5 +467,63 @@ test.describe("attentionRank: ranking + presence gate", () => {
     // …unless it is the current hero (exempt from its own cooldown).
     const kept = selectForMode(q, MODE.GLANCE, { cooldowns, now, currentId: "insight:a" });
     expect(kept.hero.id).toBe("insight:a");
+  });
+});
+
+test.describe("atmosphere mapper (Phase 5)", () => {
+  test("night beats every weather condition", () => {
+    for (const condition of ["clear", "cloudy", "rain", "storm", "fog", undefined]) {
+      expect(atmosphereFor({ condition, isNight: true, hour: 3 })).toBe("atmo-night");
+    }
+  });
+
+  test("each daytime condition maps to its token", () => {
+    expect(atmosphereFor({ condition: "rain", isNight: false, hour: 12 })).toBe("atmo-rain");
+    expect(atmosphereFor({ condition: "storm", isNight: false, hour: 12 })).toBe("atmo-storm");
+    expect(atmosphereFor({ condition: "cloudy", isNight: false, hour: 12 })).toBe("atmo-cloudy");
+    expect(atmosphereFor({ condition: "fog", isNight: false, hour: 12 })).toBe("atmo-fog");
+  });
+
+  test("clear sky goes golden near dawn/dusk, neutral midday", () => {
+    expect(atmosphereFor({ condition: "clear", isNight: false, hour: 7 })).toBe("atmo-clear-golden");
+    expect(atmosphereFor({ condition: "clear", isNight: false, hour: 18 })).toBe("atmo-clear-golden");
+    expect(atmosphereFor({ condition: "clear", isNight: false, hour: 12 })).toBe("atmo-clear-day");
+  });
+
+  test("unknown/missing condition rests on the calm daytime tint", () => {
+    expect(atmosphereFor({ condition: undefined, isNight: false, hour: 12 })).toBe("atmo-clear-day");
+    expect(atmosphereFor({ condition: "snow", isNight: false, hour: 12 })).toBe("atmo-clear-day");
+    expect(atmosphereFor({})).toBe("atmo-clear-day");
+  });
+
+  test("every emitted token is a declared token", () => {
+    const cases = [
+      { isNight: true, hour: 2 },
+      { condition: "clear", isNight: false, hour: 6 },
+      { condition: "clear", isNight: false, hour: 13 },
+      { condition: "rain", isNight: false, hour: 10 },
+      { condition: "storm", isNight: false, hour: 15 },
+      { condition: "cloudy", isNight: false, hour: 9 },
+      { condition: "fog", isNight: false, hour: 8 }
+    ];
+    for (const c of cases) expect(ATMOSPHERE_TOKENS).toContain(atmosphereFor(c));
+  });
+
+  // The phase-critical guardrail (project-gpu-idle-freeze): no atmosphere token
+  // may map to a looping animation, or Mode 0 re-composites the whole page at
+  // ~1 GPU core forever. Assert the CSS gives each token a resting tint only —
+  // no `animation` on an atmo-* selector, no atmo-* @keyframes.
+  test("no atmosphere token maps to a looping-animation class", () => {
+    const cssPath = fileURLToPath(new URL("../src/css/views/screensaver.css", import.meta.url));
+    const css = readFileSync(cssPath, "utf8");
+    for (const token of ATMOSPHERE_TOKENS) {
+      expect(css, `${token} should be styled`).toContain(`.${token}`);
+      expect(css, `${token} must not @keyframes`).not.toMatch(new RegExp(`@keyframes\s+${token}\b`));
+    }
+    // No rule that selects an atmo-* class may declare an animation.
+    const atmoRules = css.match(/\.atmo-[^{}]*\{[^}]*\}/g) || [];
+    for (const rule of atmoRules) {
+      expect(rule, `atmo rule must not animate: ${rule}`).not.toMatch(/animation(-name)?\s*:/);
+    }
   });
 });

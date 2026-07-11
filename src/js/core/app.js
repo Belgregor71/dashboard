@@ -163,7 +163,7 @@ export function startApp() {
   initMorningBriefing();
   initOccasionPopup();
   initEnergySaver();
-  initScreensaver();
+  initScreensaver({ atmosphereEnabled: isEnabled("ambientAtmospherics", false) });
   initFocusHero({ attentionEnabled: isEnabled("attentionEngine", false) });
   initBomWarningBanner();
   initTonightsMenu();

@@ -118,9 +118,10 @@ app.use("/photos", express.static(path.join(__dirname, "static", "photos")));
 app.use("/icons", express.static(path.join(__dirname, "static", "icons")));
 
 app.get("/", (_req, res) => {
-  const distIndex = path.join(__dirname, "dist", "index.html");
-  const staticIndex = path.join(__dirname, "static", "index.html");
-  res.sendFile(existsSync(distIndex) ? distIndex : staticIndex);
+  // The Vite-built app is the only entry point (npm run build every deploy).
+  // A missing dist/index.html is a build failure to surface, not to paper over
+  // with the retired legacy app (Phase 5 removed static/index.html).
+  res.sendFile(path.join(__dirname, "dist", "index.html"));
 });
 
 function attachHaProxy(appInstance) {

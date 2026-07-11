@@ -59,6 +59,22 @@ test.describe("system", () => {
   });
 });
 
+test.describe("document root", () => {
+  // Phase 5 removed the legacy static/index.html fallback — `/` must serve the
+  // Vite-built document unconditionally. Guards against a broken build or a
+  // regression that 404s the kiosk's entry point.
+  test("GET / returns 200 and the built HTML document", async ({ request }) => {
+    const res = await request.get("/");
+    expect(res.status()).toBe(200);
+    expect(res.headers()["content-type"] || "").toContain("text/html");
+    const html = await res.text();
+    expect(html).toContain("<!DOCTYPE html>");
+    // The built app links the split-tree bundle, never the retired legacy CSS.
+    expect(html).toContain("/assets/");
+    expect(html).not.toContain("/css/styles.css");
+  });
+});
+
 test.describe("cameras", () => {
   test("GET /api/cameras", async ({ request }) => {
     const { body } = await expectJson(request, "/api/cameras");

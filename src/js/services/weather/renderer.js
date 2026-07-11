@@ -18,6 +18,7 @@ import { WEATHER_LAT, WEATHER_LON } from "../../config/config.js";
 import { getTimes as getSunTimesFromCalc } from "../../vendor/suncalc.js";
 import { clearWeatherFxOverlay, setWeatherFxOverlay } from "./fxOverlay.js";
 import { refreshAirQuality } from "./airQuality.js";
+import { set as setContext } from "../../core/contextStore.js";
 import { getAllEntities } from "../homeAssistant/state.js";
 import {
   getBomForecastBundle,
@@ -444,6 +445,10 @@ function renderCurrent(data) {
     const windAnim = loadLottieAnimation("weather-wind-icon", windIconFile);
     if (windAnim) activeLotties.push(windAnim);
   }
+
+  // Feed the shared store's weather slice so the ambient atmosphere (Phase 5)
+  // reads the real condition from one place instead of re-fetching.
+  setContext({ condition: getBaseCategory(current.weathercode) });
 
   const isDay = isDaytime(data);
   const animFile = weatherAnimation(current.weathercode, isDay);
