@@ -4,7 +4,7 @@ import { emit } from "../core/eventBus.js";
 import { freezeLotties, unfreezeLotties } from "../helpers/lottie.js";
 import { getTimes as getSunTimes } from "../vendor/suncalc.js";
 import { WEATHER_LAT, WEATHER_LON } from "../config/constants.js";
-import { get as getContext, subscribe as subscribeContext } from "../core/contextStore.js";
+import { get as getContext, set as setContext, subscribe as subscribeContext } from "../core/contextStore.js";
 import { atmosphereFor, ATMOSPHERE_TOKENS } from "../services/atmosphere.js";
 
 const IDLE_MS    = 5 * 60 * 1000;  // 5 min of no motion → engage
@@ -311,6 +311,11 @@ function startPhotoTimer(night) {
 // moment night falls, and hand back to the dashboard at first light.
 function syncNight() {
   const night = isNight();
+  // Publish the day/night boundary to the shared store so consumers (Phase 6
+  // House Model) read one authoritative value instead of recomputing suncalc.
+  // syncNight runs at init + every minute + on the boundary, so the slice stays
+  // current. (The slice was declared in Phase 5 but never actually written.)
+  setContext({ isNight: night });
   if (!active) {
     if (night) engageScreensaver();
     return;
