@@ -40,6 +40,14 @@ test("view switching cycles without errors and lottie wrappers stay bounded", as
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
 
+  // Phase 7 gates passive __switchView into the rich views; pin it off so this
+  // lottie-leak guard can actually cycle the views regardless of the committed
+  // default (mirrors dissolve.spec's forceSubstrate).
+  await page.route("**/js/config.js", async (route) => {
+    const res = await route.fetch();
+    await route.fulfill({ response: res, body: (await res.text()) + `\nwindow.CONFIG.features.ambientSubstrate = false;\n` });
+  });
+
   await page.goto("/");
   await page.waitForFunction(() => typeof window.__switchView === "function");
   await page.waitForTimeout(2_000);

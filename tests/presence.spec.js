@@ -21,12 +21,17 @@ test.beforeAll(() => {
 
 // Force the feature flag to a known value by appending to the served
 // (non-module) config script, so each test is independent of the committed
-// default (which flips to true once Phase 1 is verified live).
+// default (which flips to true once Phase 1 is verified live). We also pin
+// ambientSubstrate OFF here: Phase 7 gates passive navigation (click-cycle /
+// __switchView into the rich views), so these presence-nav assertions must
+// isolate themselves from that gate to stay meaningful once Phase 7 is default-on.
 function forcePresence(value) {
   return async (page) => {
     await page.route("**/js/config.js", async (route) => {
       const res = await route.fetch();
-      const body = (await res.text()) + `\nwindow.CONFIG.features.presenceRuntime = ${value};\n`;
+      const body = (await res.text())
+        + `\nwindow.CONFIG.features.presenceRuntime = ${value};`
+        + `\nwindow.CONFIG.features.ambientSubstrate = false;\n`;
       await route.fulfill({ response: res, body });
     });
   };
