@@ -97,9 +97,21 @@ independently deployable and reversible via feature flag.
 2. **One hero, one queue** — generalise `insightRules` into the attention engine; retire per-widget show/hide; add dwell → lean-in reveal. _(shipped — `phase-2-attention-engine.md`)_
 3. **Anticipate** — predictive candidates (leave-by shipped, rain-incoming, bin night, package expected, garage-left-open); tasteful memory surfacing; dissolve first legacy views. _(shipped — `phase-3-anticipate.md`)_
 4. **Give it a voice** — add the mic; wake behaviour, conversational Mode 3 over Assist + Claude; graceful recede. _(**deferred — no mic on the Pi**; the engine's `MODE.VOICE` seam is reserved so it drops in later untouched)_
-5. **Make it feel alive** — ambient atmospherics at the edge of perception; retire the last legacy view + the dual CSS tree; every effect GPU-budgeted and proven on the Pi. _(planned, taken next — `phase-5-atmospherics.md`)_
+5. **Make it feel alive** — ambient atmospherics at the edge of perception; retire the last legacy view + the dual CSS tree; every effect GPU-budgeted and proven on the Pi. _(shipped & enabled — `phase-5-atmospherics.md`)_
 
 _Order note (2026-07-11): Phase 4 is hardware-blocked, so Phase 5 is taken first. The two are independent — Phase 4 is Mode 3 (voice), Phase 5 is Mode 0 (ambient) — so reordering costs nothing._
+
+## Roadmap, part two — "the Dissolve" (Phases 6–10)
+
+_Drafted 2026-07-11 after the "As Lived" product design review. Phases 1–5 built an excellent **instrument** — one you'd miss for its information. Part two aims past that: a home you'd miss for itself. The review's finding was that the system still reasons in **items** when a home reasons in **states**; these five phases add the one missing reasoning layer, then let it reach every part of the screen. Order is deliberate — **substrate first, character last.**_
+
+6. **Know why** — the House Intent Engine: a pure reasoning layer between context and attention (`Sensors → Context → House Model → Intent → Attention → Screen`) that infers activity / tempo / time-budget / company from signals already flowing. Invisible on the glass, the hinge everything else turns on. _(proposed — `phase-6-intent.md`)_
+7. **Dissolve the dashboard** — lift the atmosphere off the screensaver onto a shared substrate so the intent-dressed room persists through every mode; retire the already-unreachable nav views. **Gated on paying down the 80%-core Ken Burns decode debt first.** _(proposed — `phase-7-dissolve.md`)_
+8. **Learn without asking** — a quiet on-device observer that learns wake / departure / weekend rhythm / attention preferences from existing events, acts only above a confidence threshold, and never announces. _(proposed — `phase-8-learn.md`)_
+9. **Remember on purpose** — replace regex-on-calendar memory with structured memory objects surfaced rarely and context-appropriately; generalise `momentsEngine` into an anticipation → afterglow timeline. Handles grief/nostalgia with a hard-gated "tender" class. _(proposed — `phase-9-remember.md`)_
+10. **One character** — the Personality Engine: a single temperament (restraint-first, not jokes) every surfacing path routes through, plus a rare, hard-budgeted delight registry. Last, because a temperament can only harmonise behaviours that already exist. _(proposed — `phase-10-temperament.md`)_
+
+_The measure of success shifts here — from "shows the right thing" to what someone should **feel** after six months: that the house is on their side. See the "As Lived" review for the full critique behind these five._
 
 ## The one rule
 
