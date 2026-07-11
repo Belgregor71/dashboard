@@ -83,10 +83,13 @@ window.CONFIG = {
     // aggregates (data/routines/) and, only ABOVE a confidence threshold,
     // sharpens the House Model's timeBudget (learned departure) and nudges
     // attention ranking per source. Never announced, never sent upstream.
-    // Default OFF: byte-identical to Phase 6/7 (no observation, no writes). Flip
-    // on the Pi, observe for several days that the aggregates stabilise + stay
-    // bounded + /kiosk-metrics flat, then default on.
-    routineLearning: false
+    // Shipped flag-off in f051f7b; enabled here to START the multi-day
+    // observation window. Inert-until-confident: the runtime observes + persists
+    // bounded aggregates, but the advisory feeds return null/{} until routines
+    // cross the confidence threshold (several days of samples), so there is no
+    // immediate behaviour change. Watch: aggregates stabilise + stay bounded +
+    // /kiosk-metrics flat. One-line revert (→ false) if anything drifts.
+    routineLearning: true
   },
 
   /* --------------------------------------------------------------
