@@ -164,7 +164,7 @@ export function startApp() {
   initOccasionPopup();
   initEnergySaver();
   initScreensaver();
-  initFocusHero();
+  initFocusHero({ attentionEnabled: isEnabled("attentionEngine", false) });
   initBomWarningBanner();
   initTonightsMenu();
   initNewsTicker();

@@ -25,6 +25,44 @@
   letter-spacing: -0.005em;
 }
 
+/* Lean-in stack (DWELL): candidates 2–3 under the hero. Opacity-only fade —
+   collapsing to empty removes it from layout; hidden state keeps it in the DOM
+   so the fade can play (never display:none for the transition). */
+.focus-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 40px 0;
+  transition: opacity 0.5s ease;
+}
+
+.focus-stack.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.focus-stack__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 24px;
+  border-radius: var(--glass-radius-sm);
+  background: rgba(14, 18, 28, 0.24);
+  border: var(--glass-border);
+}
+
+.focus-stack__icon {
+  font-size: clamp(1rem, 1.2vw, 1.3rem);
+}
+
+.focus-stack__text {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(0.95rem, 1.3vw, 1.3rem);
+  letter-spacing: -0.005em;
+  opacity: 0.85;
+}
+
 .meal-lottie {
   display: inline-block;
   width: 1em;

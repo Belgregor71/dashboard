@@ -37,7 +37,13 @@ window.CONFIG = {
     // Phase 1 presence runtime (docs/vision/phase-1-presence-runtime.md).
     // Verified live on the Pi 2026-07-11 (screensaver boundary drives
     // ambient<->glance; dead click-cycle suppressed) — now enabled.
-    presenceRuntime: true
+    presenceRuntime: true,
+
+    // Phase 2 attention engine (docs/vision/phase-2-attention-engine.md).
+    // Unifies every focus-hero source into one scored, presence-gated queue.
+    // Off for the first deploy — flip on the Pi after live verification, then
+    // default on (the Phase 1 rollout pattern).
+    attentionEngine: false
   },
 
   /* --------------------------------------------------------------

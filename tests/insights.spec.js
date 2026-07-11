@@ -10,6 +10,14 @@ import {
   recordFuelPrice
 } from "../src/js/services/insightRules.js";
 import { computeFocus } from "../src/js/services/focusEngine.js";
+import {
+  bomCandidate,
+  weatherSevereCandidate,
+  nextEventCandidate,
+  commuteCandidate,
+  collectSources
+} from "../src/js/services/candidateSources.js";
+import { rankQueue, selectForMode, MODE } from "../src/js/services/attentionRank.js";
 
 // Pure unit tests — insightRules.js has no imports, no DOM, no storage,
 // so these run straight in the Playwright node process.
@@ -246,5 +254,122 @@ test.describe("focus hero tiers", () => {
   test("insight outranks the plain commute readout", () => {
     const focus = computeFocus({ insight, commuteActive: true, commuteText: "Greg 22 min" });
     expect(focus.text).not.toContain("Greg");
+  });
+});
+
+// ── Phase 2: attention engine (docs/vision/phase-2-attention-engine.md) ──
+
+test.describe("candidateSources score bands", () => {
+  test("bom warning lands in the interrupt band with interrupt:true", () => {
+    const c = bomCandidate({ bomWarning: "Marine Wind Warning for Queensland" });
+    expect(c.score).toBeGreaterThanOrEqual(90);
+    expect(c.interrupt).toBe(true);
+    expect(c.text).toContain("Marine Wind Warning");
+  });
+
+  test("severe weather is interrupt-band and reads condition · temp", () => {
+    const c = weatherSevereCandidate({ weatherCondition: "Severe Thunderstorm", weatherTemp: "24°" });
+    expect(c.score).toBeGreaterThanOrEqual(90);
+    expect(c.interrupt).toBe(true);
+    expect(c.text).toBe("Severe Thunderstorm · 24°");
+  });
+
+  test("a benign condition is not a severe-weather candidate", () => {
+    expect(weatherSevereCandidate({ weatherCondition: "Clear", weatherTemp: "18°" })).toBeNull();
+  });
+
+  test("next-event lands in the medium band", () => {
+    const c = nextEventCandidate({ nextEventActive: true, nextEventText: "Standup · 9:00 am" });
+    expect(c.score).toBeGreaterThanOrEqual(50);
+    expect(c.score).toBeLessThan(70);
+  });
+
+  test("commute lands in the low band, below next-event", () => {
+    const c = commuteCandidate({ commuteActive: true, commuteText: "Greg 22 min" });
+    expect(c.score).toBeGreaterThanOrEqual(40);
+    expect(c.score).toBeLessThan(50);
+  });
+
+  test("inactive/empty panels yield no candidate", () => {
+    expect(commuteCandidate({ commuteActive: false, commuteText: "Greg 22 min" })).toBeNull();
+    expect(nextEventCandidate({ nextEventActive: true, nextEventText: "" })).toBeNull();
+    expect(collectSources({})).toEqual([]);
+  });
+});
+
+test.describe("attentionRank: ranking + presence gate", () => {
+  const NOW_MS = new Date("2026-07-06T08:00:00").getTime();
+  const now = new Date(NOW_MS);
+
+  // A representative queue: interrupt, high, medium, low.
+  function queue() {
+    return rankQueue(
+      [
+        commuteCandidate({ commuteActive: true, commuteText: "Greg 22 min" }),          // 42
+        bomCandidate({ bomWarning: "Storm warning" }),                                   // 95 interrupt
+        { id: "leave-by:x", source: "insight", score: 84, icon: "🚗", text: "Leave by 8:20", cooldownMs: 1000 }, // 84
+        nextEventCandidate({ nextEventActive: true, nextEventText: "Standup · 9am" })     // 50
+      ],
+      now
+    );
+  }
+
+  test("BOM outranks the leave-by insight, which outranks commute", () => {
+    const q = queue();
+    expect(q.map((c) => c.source)).toEqual(["bom", "insight", "nextEvent", "commute"]);
+  });
+
+  test("expired candidates are dropped", () => {
+    const q = rankQueue(
+      [
+        { id: "stale", score: 88, cooldownMs: 0, expiresAt: NOW_MS - 1 },
+        { id: "live", score: 50, cooldownMs: 0, expiresAt: NOW_MS + 60_000 }
+      ],
+      now
+    );
+    expect(q.map((c) => c.id)).toEqual(["live"]);
+  });
+
+  test("GLANCE shows the top 1; DWELL reveals the top 3", () => {
+    const glance = selectForMode(queue(), MODE.GLANCE, { now });
+    expect(glance.stack).toHaveLength(1);
+    expect(glance.hero.source).toBe("bom");
+
+    const dwell = selectForMode(queue(), MODE.DWELL, { now });
+    expect(dwell.stack).toHaveLength(3);
+    expect(dwell.stack.map((c) => c.source)).toEqual(["bom", "insight", "nextEvent"]);
+  });
+
+  test("AMBIENT shows only interrupt candidates", () => {
+    const withInterrupt = selectForMode(queue(), MODE.AMBIENT, { now });
+    expect(withInterrupt.hero.source).toBe("bom");
+
+    // No interrupt in the queue → AMBIENT shows nothing.
+    const noInterrupt = rankQueue(
+      [nextEventCandidate({ nextEventActive: true, nextEventText: "Standup" })],
+      now
+    );
+    expect(selectForMode(noInterrupt, MODE.AMBIENT, { now }).hero).toBeNull();
+  });
+
+  test("VOICE hands over the floor (shows nothing)", () => {
+    expect(selectForMode(queue(), MODE.VOICE, { now }).hero).toBeNull();
+  });
+
+  test("a cooldown skips an insight but never a cooldownMs:0 readout", () => {
+    const q = rankQueue(
+      [
+        { id: "insight:a", score: 84, cooldownMs: 1000, icon: "💡", text: "a" },
+        commuteCandidate({ commuteActive: true, commuteText: "Greg 22 min" })
+      ],
+      now
+    );
+    const cooldowns = { "insight:a": NOW_MS + 10_000 }; // on cooldown
+    const sel = selectForMode(q, MODE.GLANCE, { cooldowns, now });
+    expect(sel.hero.source).toBe("commute"); // insight skipped, live readout falls through
+
+    // …unless it is the current hero (exempt from its own cooldown).
+    const kept = selectForMode(q, MODE.GLANCE, { cooldowns, now, currentId: "insight:a" });
+    expect(kept.hero.id).toBe("insight:a");
   });
 });

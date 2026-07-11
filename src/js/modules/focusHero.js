@@ -2,12 +2,20 @@ import { computeFocus } from "../services/focusEngine.js";
 import { getBomWarnings } from "../services/weather/bom.js";
 import { getAllEntities } from "../services/homeAssistant/state.js";
 import { getCurrentInsight, initInsightEngine } from "../services/insightEngine.js";
+import { initAttentionEngine, getSelection } from "../services/attentionEngine.js";
+import { collectSources } from "../services/candidateSources.js";
+import { getMode } from "../core/presence.js";
+import { on } from "../core/eventBus.js";
 
 const TICK_MS = 30_000;
 const CONCIERGE_MIN_INTERVAL_MS = 20 * 60 * 1000;
+const STACK_FADE_MS = 700; // > CSS opacity transition; never clear on transitionend (hidden node)
 
 let conciergeText = null;
 let conciergeFetchedAt = 0;
+let attentionOn = false;
+let stackClearTimer = null;
+let lastSelection = { hero: null, stack: [], queue: [] };
 
 function isPanelActive(panelId) {
   const panel = document.getElementById(panelId);
@@ -73,34 +81,118 @@ async function maybeFetchConcierge(weatherCondition) {
   } catch { /* non-fatal — hero just stays hidden */ }
 }
 
-function update() {
+function heroEls() {
   const hero = document.getElementById("focus-hero");
   const iconEl = document.getElementById("focus-hero-icon");
   const textEl = document.getElementById("focus-hero-text");
-  if (!hero || !iconEl || !textEl) return;
+  if (!hero || !iconEl || !textEl) return null;
+  return { hero, iconEl, textEl };
+}
+
+function showHero(els, icon, text) {
+  els.iconEl.textContent = icon;
+  els.textEl.textContent = text;
+  els.hero.classList.remove("is-hidden");
+}
+
+function hideHero(els) {
+  els.hero.classList.add("is-hidden");
+}
+
+// ── Lean-in stack (Mode 2 DWELL) ──────────────────────────────
+// Opacity-fade only (transform breaks fixed descendants) with a setTimeout
+// teardown — transitionend never fires while the node is hidden. See the
+// 2026-07 leak-audit memory.
+function renderStack(items) {
+  const stackEl = document.getElementById("focus-stack");
+  if (!stackEl) return;
+
+  if (!items.length) {
+    stackEl.classList.add("is-hidden");
+    clearTimeout(stackClearTimer);
+    stackClearTimer = setTimeout(() => stackEl.replaceChildren(), STACK_FADE_MS);
+    return;
+  }
+
+  clearTimeout(stackClearTimer);
+  stackEl.replaceChildren(
+    ...items.map((c) => {
+      const row = document.createElement("div");
+      row.className = "focus-stack__item";
+      const icon = document.createElement("span");
+      icon.className = "focus-stack__icon";
+      icon.textContent = c.icon;
+      const text = document.createElement("span");
+      text.className = "focus-stack__text";
+      text.textContent = c.text;
+      row.append(icon, text);
+      return row;
+    })
+  );
+  stackEl.classList.remove("is-hidden");
+}
+
+function updateAttention(state, els) {
+  const mode = getMode();
+  const sources = collectSources(state);
+  const sel = getSelection({ sources, now: new Date(), mode });
+  lastSelection = sel;
+
+  if (!sel.hero) {
+    // Concierge fallback only when the display is awake — never in AMBIENT/VOICE.
+    if (mode === "glance" || mode === "dwell") {
+      void maybeFetchConcierge(state.weatherCondition);
+      if (conciergeText) showHero(els, "✨", conciergeText);
+      else hideHero(els);
+    } else {
+      hideHero(els);
+    }
+    renderStack([]);
+    return;
+  }
+
+  showHero(els, sel.hero.icon, sel.hero.text);
+  renderStack(sel.stack.slice(1)); // items 2..N — the hero already owns slot 1
+}
+
+function update() {
+  const els = heroEls();
+  if (!els) return;
 
   const state = readState();
+
+  if (attentionOn) {
+    updateAttention(state, els);
+    return;
+  }
+
+  // ── flag-off path: unchanged pre-Phase-2 behaviour ──
   const focus = computeFocus(state);
 
   if (!focus) {
     void maybeFetchConcierge(state.weatherCondition);
     if (!conciergeText) {
-      hero.classList.add("is-hidden");
+      hideHero(els);
       return;
     }
-    iconEl.textContent = "✨";
-    textEl.textContent = conciergeText;
-    hero.classList.remove("is-hidden");
+    showHero(els, "✨", conciergeText);
     return;
   }
 
-  iconEl.textContent = focus.icon;
-  textEl.textContent = focus.text;
-  hero.classList.remove("is-hidden");
+  showHero(els, focus.icon, focus.text);
 }
 
-export function initFocusHero() {
-  initInsightEngine();
+export function initFocusHero({ attentionEnabled = false } = {}) {
+  attentionOn = attentionEnabled === true;
+
+  if (attentionOn) {
+    initAttentionEngine();
+    on("presence:changed", update); // reveal/collapse the stack immediately on mode change
+    window.__attention = () => ({ mode: getMode(), ...lastSelection });
+  } else {
+    initInsightEngine();
+  }
+
   update();
   setInterval(update, TICK_MS);
 }
