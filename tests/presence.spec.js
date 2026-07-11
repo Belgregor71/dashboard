@@ -31,7 +31,11 @@ function forcePresence(value) {
       const res = await route.fetch();
       const body = (await res.text())
         + `\nwindow.CONFIG.features.presenceRuntime = ${value};`
-        + `\nwindow.CONFIG.features.ambientSubstrate = false;\n`;
+        + `\nwindow.CONFIG.features.ambientSubstrate = false;`
+        // Phase 9.5: pin the Immich photo source off too — the screensaver-boundary
+        // contract must not depend on it, and its async photo fetch at init would
+        // otherwise delay the __engageScreensaver hook these tests drive.
+        + `\nwindow.CONFIG.features.immichPhotos = false;\n`;
       await route.fulfill({ response: res, body });
     });
   };

@@ -30,7 +30,11 @@ function forceSubstrate(value) {
   return async (page) => {
     await page.route("**/js/config.js", async (route) => {
       const res = await route.fetch();
-      const body = (await res.text()) + `\nwindow.CONFIG.features.ambientSubstrate = ${value};\n`;
+      const body = (await res.text())
+        + `\nwindow.CONFIG.features.ambientSubstrate = ${value};`
+        // Phase 9.5: pin the Immich photo source off — its async init fetch would
+        // otherwise delay the __engageScreensaver hook this spec drives.
+        + `\nwindow.CONFIG.features.immichPhotos = false;\n`;
       await route.fulfill({ response: res, body });
     });
   };
