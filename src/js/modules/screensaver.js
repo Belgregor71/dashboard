@@ -490,8 +490,34 @@ export async function initScreensaver(options = {}) {
   // Phase 9.5: source the ambient photo pool from Immich when enabled.
   immichEnabled = options.immichEnabled === true;
 
-  await loadPhotos();
   build();
+
+  // Debug/verification hooks — registered right after the DOM exists but BEFORE
+  // the async photo load, so they're available regardless of photo-fetch latency
+  // (the presence/dissolve specs drive __engageScreensaver straight after boot;
+  // engage/wake/showNextPhoto all handle an empty pool, which loadPhotos fills in
+  // just below). Match __switchView / __forceInsight conventions.
+  window.__engageScreensaver = engageScreensaver;
+  window.__wakeScreensaver = wakeScreensaver;
+  window.__ssNextPhoto = showNextPhoto;
+  window.__isNight = isNight;
+
+  // Force an atmosphere token over CDP to check each tint live without waiting
+  // for the weather (convention: __isNight / __nowcastProbe).
+  window.__atmosphere = (forced) => {
+    if (forced && el) {
+      el.classList.remove(...ATMOSPHERE_TOKENS);
+      el.classList.add(forced);
+      // Phase 7: also drive the shared root so a forced token can be checked
+      // persisting into the awake screen (the dissolve.spec persistence test).
+      if (substrateEnabled) applySubstrateToken(forced);
+    }
+    const token = el ? [...el.classList].find(c => c.startsWith("atmo-")) ?? null : null;
+    const bodyToken = [...document.body.classList].find(c => c.startsWith("atmo-")) ?? null;
+    return { enabled: atmosphereEnabled, substrate: substrateEnabled, active, token, bodyToken };
+  };
+
+  await loadPhotos();
 
   // Mark the shared root and settle the initial awake tint so the dashboard is
   // already dressed at boot (the display comes up awake in daytime).
@@ -523,27 +549,6 @@ export async function initScreensaver(options = {}) {
       else if (substrateEnabled) applySubstrateToken(computeToken());
     });
   }
-
-  // Debug/verification hooks (match __switchView, __forceInsight conventions).
-  window.__engageScreensaver = engageScreensaver;
-  window.__wakeScreensaver = wakeScreensaver;
-  window.__ssNextPhoto = showNextPhoto;
-  window.__isNight = isNight;
-
-  // Force an atmosphere token over CDP to check each tint live without waiting
-  // for the weather (convention: __isNight / __nowcastProbe).
-  window.__atmosphere = (forced) => {
-    if (forced && el) {
-      el.classList.remove(...ATMOSPHERE_TOKENS);
-      el.classList.add(forced);
-      // Phase 7: also drive the shared root so a forced token can be checked
-      // persisting into the awake screen (the dissolve.spec persistence test).
-      if (substrateEnabled) applySubstrateToken(forced);
-    }
-    const token = el ? [...el.classList].find(c => c.startsWith("atmo-")) ?? null : null;
-    const bodyToken = [...document.body.classList].find(c => c.startsWith("atmo-")) ?? null;
-    return { enabled: atmosphereEnabled, substrate: substrateEnabled, active, token, bodyToken };
-  };
 
   // Any direct user interaction (click / tap / keypress) wakes screensaver
   ["click", "touchstart", "keydown"].forEach(evt =>
