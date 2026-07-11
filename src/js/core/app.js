@@ -184,7 +184,9 @@ export function startApp() {
     atmosphereEnabled: isEnabled("ambientAtmospherics", false),
     // Phase 7 — lift the atmosphere token onto the shared root so the awake
     // dashboard carries the mood too (docs/vision/phase-7-dissolve.md).
-    substrateEnabled: isEnabled("ambientSubstrate", false)
+    substrateEnabled: isEnabled("ambientSubstrate", false),
+    // Phase 9.5 — source the ambient photo pool from Immich (docs/vision/photo-source-immich.md).
+    immichEnabled: isEnabled("immichPhotos", false)
   });
   initFocusHero({ attentionEnabled: isEnabled("attentionEngine", false) });
   initBomWarningBanner();

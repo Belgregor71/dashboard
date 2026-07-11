@@ -2,6 +2,7 @@ import { on } from "./eventBus.js";
 import { get as getContext } from "./contextStore.js";
 import { pickMemory, toSurface, moodOf } from "../services/memoryEngine.js";
 import { seasonOf, dayCharacterOf } from "../services/houseModel.js";
+import { buildOnThisDayMemory } from "../services/photoMemory.js";
 
 // The memory runtime — Phase 9 (docs/vision/phase-9-remember.md). It owns every
 // side effect the pure selector (memoryEngine.js) refuses to touch: it loads the
@@ -25,7 +26,18 @@ const HISTORY_KEY = "dashboard:memory-history";
 const COOLDOWN_KEY = "dashboard:insight-cooldowns";
 
 let enabled = false;
-let entries = [];       // authored memory entries (from /api/memories)
+let entries = [];         // authored memory entries (from /api/memories)
+let onThisDayEntry = null; // Phase 9.5: a photo-backed "N years ago today" entry from Immich
+
+// Phase 9.5 (docs/vision/photo-source-immich.md) — the Immich photo source is its
+// own flag on top of the memory engine.
+function immichEnabled() {
+  try {
+    return Boolean(window.CONFIG?.features?.immichPhotos);
+  } catch {
+    return false;
+  }
+}
 
 function readJson(key, fallback) {
   try {
@@ -55,6 +67,21 @@ async function loadEntries() {
     if (Array.isArray(data?.memories)) entries = data.memories;
   } catch {
     /* keep whatever we had — a memory not showing is the safe failure */
+  }
+}
+
+// Phase 9.5: fold today's Immich on-this-day photos into a single photo-backed
+// memory entry, so the awake hero can surface "N years ago today" with a face.
+// Fail-soft: Immich down → onThisDayEntry stays null and nothing changes.
+async function loadOnThisDay() {
+  if (!immichEnabled()) { onThisDayEntry = null; return; }
+  try {
+    const res = await fetch("/api/immich/on-this-day", { signal: AbortSignal.timeout(8_000) });
+    if (!res.ok) return;
+    const data = await res.json();
+    onThisDayEntry = buildOnThisDayMemory(data?.assets ?? [], new Date());
+  } catch {
+    /* keep the last-known entry */
   }
 }
 
@@ -95,7 +122,11 @@ function buildCtx(briefingCtx, now) {
  */
 export function collectMemory(briefingCtx = {}, now = new Date()) {
   if (!enabled) return [];
-  const all = [...entries, ...anchorEntries(briefingCtx.anniversaries, now)];
+  const all = [
+    ...entries,
+    ...anchorEntries(briefingCtx.anniversaries, now),
+    ...(onThisDayEntry ? [onThisDayEntry] : []) // Phase 9.5 Immich photo memory
+  ];
   const ctx = buildCtx(briefingCtx, now);
   const history = {
     lastSurfacedDay: readJson(HISTORY_KEY, {}).lastSurfacedDay ?? null,
@@ -124,6 +155,8 @@ export function initMemoryRuntime(options = {}) {
   // budget/cooldowns/entries without waiting for the right day.
   window.__memoryState = () => ({
     enabled,
+    immich: immichEnabled(),
+    onThisDay: onThisDayEntry ? { id: onThisDayEntry.id, title: onThisDayEntry.title, photos: onThisDayEntry.photos.length } : null,
     entries: entries.map((e) => ({ id: e.id, kind: e.kind, sensitivity: e.sensitivity ?? "normal" })),
     lastSurfacedDay: readJson(HISTORY_KEY, {}).lastSurfacedDay ?? null,
     cooldowns: readJson(COOLDOWN_KEY, {})
@@ -132,7 +165,8 @@ export function initMemoryRuntime(options = {}) {
   if (!enabled) return; // flag off → no load, no candidate, Phase 3 path unchanged
 
   loadEntries();
-  setInterval(loadEntries, ENTRIES_RELOAD_MS);
+  loadOnThisDay(); // Phase 9.5 — Immich on-this-day photo memory (no-op when that flag is off)
+  setInterval(() => { loadEntries(); loadOnThisDay(); }, ENTRIES_RELOAD_MS);
   on("attention:hero", onHero);
 
   // Force a specific authored entry (by id) onto the queue for verification,
@@ -144,8 +178,9 @@ export function initMemoryRuntime(options = {}) {
       window.__forceCandidate?.(null);
       return null;
     }
-    const entry = entries.find((e) => e.id === id);
-    if (!entry) return { error: `no memory entry "${id}"`, ids: entries.map((e) => e.id) };
+    const pool = [...entries, ...(onThisDayEntry ? [onThisDayEntry] : [])];
+    const entry = pool.find((e) => e.id === id);
+    if (!entry) return { error: `no memory entry "${id}"`, ids: pool.map((e) => e.id) };
     const surface = toSurface(entry, new Date());
     // A tender surface is ambient-only (no text hero) — return it for inspection
     // (caption:null, ambientOnly:true) but do not inject it into the text queue.

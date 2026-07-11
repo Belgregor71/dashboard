@@ -6,6 +6,7 @@ import { getTimes as getSunTimes } from "../vendor/suncalc.js";
 import { WEATHER_LAT, WEATHER_LON } from "../config/constants.js";
 import { get as getContext, set as setContext, subscribe as subscribeContext } from "../core/contextStore.js";
 import { atmosphereFor, ATMOSPHERE_TOKENS } from "../services/atmosphere.js";
+import { photosForToday } from "../services/photoMemory.js";
 
 const IDLE_MS    = 5 * 60 * 1000;  // 5 min of no motion → engage
 const PHOTO_MS   = 30 * 1000;       // rotate photo every 30s
@@ -61,6 +62,11 @@ let atmosphereEnabled = false;
 // body token drives the awake tint (body.substrate::before, background.css).
 // Flag off → body is never touched and Mode 0 is exactly the Phase 5/6 scene.
 let substrateEnabled = false;
+// ─── Immich photo source (Phase 9.5, flag-gated) ──────────────
+// When on, the ambient rotation draws from the household's Immich library
+// (whole-library random + today's on-this-day photos, server-proxied +
+// downscaled). Flag off → this block is inert and photos come from static/photos.
+let immichEnabled = false;
 const ANNIVERSARY_RE = /\b(birthday|bday|anniversary)\b/i; // "on this day" earned memory
 
 // ─── DOM build ────────────────────────────────────────────────
@@ -91,17 +97,52 @@ function build() {
   footerEl   = el.querySelector(".screensaver__footer");
 }
 
-async function loadPhotos() {
+const immichThumb = (id) => `/api/immich/asset/${encodeURIComponent(id)}/thumb`;
+
+// Phase 9.5: pull the ambient pool from Immich — today's on-this-day photos
+// (boosted so they're likely to show) plus a whole-library random draw. Returns
+// [] when Immich is unconfigured/unreachable so the caller falls back to static.
+async function loadImmichPhotos() {
   try {
-    const res   = await fetch("/api/photos");
+    const [otdRes, rndRes] = await Promise.all([
+      fetch("/api/immich/on-this-day"),
+      fetch("/api/immich/random?count=40")
+    ]);
+    const otd = otdRes.ok ? (await otdRes.json()).assets ?? [] : [];
+    const rnd = rndRes.ok ? (await rndRes.json()).assets ?? [] : [];
+
+    const onThisDay = photosForToday(otd, new Date()).map((p) => immichThumb(p.id));
+    const random = rnd.map((a) => immichThumb(a.id));
+
+    // De-dupe, on-this-day first (it also biases the random shuffle toward them).
+    return [...new Set([...onThisDay, ...random])];
+  } catch {
+    return [];
+  }
+}
+
+async function loadStaticPhotos() {
+  try {
+    const res = await fetch("/api/photos");
     const files = await res.json();
     if (Array.isArray(files) && files.length > 0) {
-      photos = files.map(f => {
+      return files.map((f) => {
         const name = String(f).replace(/^\/?photos\//, "");
         return `/photos/${encodeURIComponent(name)}`;
       });
     }
   } catch { /* non-fatal — screensaver works without photos */ }
+  return [];
+}
+
+async function loadPhotos() {
+  if (immichEnabled) {
+    const immich = await loadImmichPhotos();
+    if (immich.length > 0) { photos = immich; return; }
+    // Immich down/empty → fall through to the static library (never a blank frame).
+  }
+  const staticPhotos = await loadStaticPhotos();
+  if (staticPhotos.length > 0) photos = staticPhotos;
 }
 
 // ─── Clock + dateline ───────────────────────────────────────────
@@ -446,6 +487,8 @@ export async function initScreensaver(options = {}) {
   // Phase 7: the substrate only makes sense with the atmosphere mapper feeding
   // it a token, so it rides on top of the Phase 5 flag.
   substrateEnabled = atmosphereEnabled && options.substrateEnabled === true;
+  // Phase 9.5: source the ambient photo pool from Immich when enabled.
+  immichEnabled = options.immichEnabled === true;
 
   await loadPhotos();
   build();
@@ -463,6 +506,11 @@ export async function initScreensaver(options = {}) {
   // sunset/sunrise boundary from here on.
   syncNight();
   nightTimer = setInterval(syncNight, NIGHT_CHECK_MS);
+
+  // Phase 9.5: refresh the Immich pool a few times a day so on-this-day rolls
+  // over and the random draw stays fresh. Init-once timer (CLAUDE.md kiosk
+  // discipline — no per-event teardown). Inert unless the flag is on.
+  if (immichEnabled) setInterval(loadPhotos, 6 * 60 * 60 * 1000);
 
   // Re-settle the tint whenever the shared weather slice shifts while Mode 0 is
   // up (the 10-min weather refresh feeds contextStore.condition). Init-once, so

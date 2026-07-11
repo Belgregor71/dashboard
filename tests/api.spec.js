@@ -238,6 +238,32 @@ test.describe("memories (Phase 9 memory engine)", () => {
   });
 });
 
+test.describe("immich photo source (Phase 9.5)", () => {
+  // Read-only proxy. With no IMMICH_URL/KEY (the test machine) every endpoint
+  // degrades to empty/404 — never a 500-to-HTML page, never a crash.
+  test("GET /api/immich/on-this-day returns { assets: array }", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/immich/on-this-day");
+    expect(Array.isArray(body.assets)).toBe(true);
+  });
+
+  test("GET /api/immich/random returns { assets: array }", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/immich/random?count=5");
+    expect(Array.isArray(body.assets)).toBe(true);
+  });
+
+  test("GET /api/immich/asset/:id/thumb rejects a non-UUID id with a JSON 400", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/immich/asset/not-a-uuid/thumb", { statuses: [400] });
+    expect(body).toHaveProperty("error");
+  });
+
+  test("GET /api/immich/asset/:id/thumb for a well-formed id is image, 404, or 502 — never HTML", async ({ request }) => {
+    const res = await request.get("/api/immich/asset/b55feb89-5cbd-4e94-a9eb-613fc351634b/thumb");
+    expect([200, 404, 502]).toContain(res.status());
+    const ct = res.headers()["content-type"] || "";
+    expect(ct.startsWith("image/") || ct.includes("application/json")).toBe(true);
+  });
+});
+
 test.describe("home assistant", () => {
   test("GET /api/ha/health", async ({ request }) => {
     const { body } = await expectJson(request, "/api/ha/health");

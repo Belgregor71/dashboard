@@ -33,6 +33,7 @@ import radarRoutes from "./server/routes/radar.js";
 import ttsRoutes from "./server/routes/tts.js";
 import routinesRoutes from "./server/routes/routines.js";
 import memoriesRoutes from "./server/routes/memories.js";
+import immichRoutes from "./server/routes/immich.js";
 
 // Node 20's Happy Eyeballs gives each address-family connect attempt only
 // 250ms; distant hosts (e.g. RainViewer in Germany, ~270ms RTT from here)
@@ -103,6 +104,7 @@ app.use(radarRoutes);
 app.use(ttsRoutes);
 app.use(routinesRoutes);
 app.use(memoriesRoutes);
+app.use(immichRoutes);
 
 // Home Assistant image/camera proxy
 attachHaProxy(app);

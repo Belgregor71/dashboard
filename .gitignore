@@ -14,6 +14,7 @@ server/package-lock.json
 server/tts-cache/
 data/routines/
 data/memories/
+data/immich-cache/
 
 # Playwright MCP tool artifacts
 .playwright-mcp/

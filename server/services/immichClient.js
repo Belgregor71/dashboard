@@ -1,0 +1,144 @@
+import { fetchWithTimeout } from "../utils/fetch.js";
+
+// Read-only Immich client — Phase 9.5 (docs/vision/photo-source-immich.md). The
+// house's photo source lives on the Synology (LAN, on-device). This module holds
+// the API key (server-side ONLY, never sent to the browser) and speaks the small
+// slice of Immich's REST API the memory engine + screensaver need:
+//   POST /api/search/random   — random assets (ambient rotation)
+//   POST /api/search/metadata — assets in a taken-date window (on-this-day)
+//   GET  /api/assets/:id/thumbnail?size=preview — a server-side DOWNSCALED
+//        rendition (~47 KB jpeg) so the Pi never decodes a full-res original.
+//
+// Everything is fail-soft: a sleeping/absent Synology returns []/null, never an
+// error the kiosk has to render. Confirmed against the live v3.0.2 instance.
+
+const TIMEOUT_MS = 6000;
+const DAY_MS = 86_400_000;
+
+// Strip a wrapping quote pair (the HA_TOKEN .env gotcha — values are often
+// double-quoted on the Pi).
+function envVal(key) {
+  const raw = process.env[key];
+  if (!raw) return null;
+  return raw.trim().replace(/^["']|["']$/g, "");
+}
+
+function config() {
+  const base = envVal("IMMICH_URL");
+  const key = envVal("IMMICH_API_KEY");
+  if (!base || !key) return null;
+  return { base: base.replace(/\/$/, ""), key };
+}
+
+export function isConfigured() {
+  return config() != null;
+}
+
+function headers(key, json = true) {
+  const h = { "x-api-key": key, Accept: "application/json" };
+  if (json) h["Content-Type"] = "application/json";
+  return h;
+}
+
+// A displayable still: a real image, not trashed/archived, with an id.
+function usableImage(a) {
+  return Boolean(a && a.id && a.type === "IMAGE" && !a.isTrashed && !a.isArchived);
+}
+
+function slim(a) {
+  return { id: a.id, localDateTime: a.localDateTime || a.fileCreatedAt || null };
+}
+
+/** Random still images. Over-fetches then filters, since videos/trashed slip in. */
+export async function searchRandom(count = 12) {
+  const cfg = config();
+  if (!cfg) return [];
+  try {
+    const res = await fetchWithTimeout(
+      `${cfg.base}/api/search/random`,
+      { method: "POST", headers: headers(cfg.key), body: JSON.stringify({ size: Math.min(count * 3, 100) }) },
+      TIMEOUT_MS
+    );
+    if (!res.ok) return [];
+    const arr = await res.json();
+    const items = Array.isArray(arr) ? arr : (arr?.assets?.items ?? []);
+    return items.filter(usableImage).slice(0, count).map(slim);
+  } catch {
+    return [];
+  }
+}
+
+// One taken-date window (metadata search is a contiguous range, so on-this-day
+// is one narrow query per past year). Window is deliberately ±1 day around the
+// local calendar day to absorb TZ slop; the exact month/day match is done by the
+// pure frontend filter (photoMemory.js) on localDateTime.
+async function windowForYear(cfg, year, month, day) {
+  const after = new Date(year, month, day - 1);
+  const before = new Date(year, month, day + 2);
+  try {
+    const res = await fetchWithTimeout(
+      `${cfg.base}/api/search/metadata`,
+      {
+        method: "POST",
+        headers: headers(cfg.key),
+        body: JSON.stringify({ takenAfter: after.toISOString(), takenBefore: before.toISOString(), size: 40 })
+      },
+      TIMEOUT_MS
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data?.assets?.items ?? []).filter(usableImage).map(slim);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Assets taken around today's month/day across prior years — the raw feed for
+ * "on this day". Slightly over-fetched around each day; the caller (pure
+ * photoMemory.js) makes the exact month/day match. Empty when unconfigured/down.
+ */
+export async function onThisDay(now = new Date(), { yearsBack = 15 } = {}) {
+  const cfg = config();
+  if (!cfg) return [];
+  const month = now.getMonth();
+  const day = now.getDate();
+  const thisYear = now.getFullYear();
+
+  const years = [];
+  for (let y = thisYear - 1; y >= thisYear - yearsBack; y--) years.push(y);
+
+  const perYear = await Promise.all(years.map((y) => windowForYear(cfg, y, month, day)));
+  // Dedupe by id (a window can overlap another's edge).
+  const seen = new Set();
+  const out = [];
+  for (const list of perYear) {
+    for (const a of list) {
+      if (seen.has(a.id)) continue;
+      seen.add(a.id);
+      out.push(a);
+    }
+  }
+  return out;
+}
+
+/**
+ * Fetch a downscaled rendition (default the ~47 KB preview jpeg). Returns
+ * { status, contentType, buffer } or null on failure. Never fetches the original.
+ */
+export async function fetchRendition(id, size = "preview") {
+  const cfg = config();
+  if (!cfg || !id) return null;
+  try {
+    const res = await fetchWithTimeout(
+      `${cfg.base}/api/assets/${encodeURIComponent(id)}/thumbnail?size=${encodeURIComponent(size)}`,
+      { headers: headers(cfg.key, false) },
+      TIMEOUT_MS
+    );
+    if (!res.ok) return null;
+    const buffer = Buffer.from(await res.arrayBuffer());
+    return { status: res.status, contentType: res.headers.get("content-type") || "image/jpeg", buffer };
+  } catch {
+    return null;
+  }
+}

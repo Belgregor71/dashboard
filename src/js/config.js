@@ -104,7 +104,18 @@ window.CONFIG = {
     // ON here (2026-07-12) to enable the structured memory engine on the Pi with
     // authored data/memories/ entries. Verify __forceMemory surfaces gently, the
     // rarity budget holds, and /kiosk-metrics stays flat. One-line revert (-> false).
-    memoryEngine: true
+    memoryEngine: true,
+
+    // Phase 9.5 "The Photo Source" (docs/vision/photo-source-immich.md). Points the
+    // memory engine + screensaver at the household's Immich library on the Synology
+    // (read-only, server-proxied, API key server-side only). The ambient frame draws
+    // from the whole library and boosts on-this-day photos; the memory engine gains a
+    // photo-backed "N years ago today" entry. Immich serves pre-downscaled renditions,
+    // so the Pi never decodes a full-res original. Default OFF -> byte-identical
+    // (static/photos/ screensaver, text-only memory). Needs IMMICH_URL + IMMICH_API_KEY
+    // in the Pi's .env; degrades to the static path when unset/unreachable. Enabled
+    // 2026-07-12 (key added to the Pi's .env). Revert (-> false).
+    immichPhotos: true
   },
 
   /* --------------------------------------------------------------
