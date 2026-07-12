@@ -195,7 +195,11 @@ export function startApp() {
     // Phase 9.5 — source the ambient photo pool from Immich (docs/vision/photo-source-immich.md).
     immichEnabled: isEnabled("immichPhotos", false)
   });
-  initFocusHero({ attentionEnabled: isEnabled("attentionEngine", false) });
+  initFocusHero({
+    attentionEnabled: isEnabled("attentionEngine", false),
+    // Study 02 — length-responsive hero-line type scale (docs/design/).
+    heroTypeEnabled: isEnabled("heroType", false)
+  });
   initBomWarningBanner();
   initTonightsMenu();
   initNewsTicker();

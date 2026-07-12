@@ -25,6 +25,38 @@
   letter-spacing: -0.005em;
 }
 
+/* ── Length-responsive hero type (features.heroType, study 02) ──
+   The line the room is read by from 3–4 m. focusHero.js picks the
+   tier from the phrased text length (the temperament trims copy
+   first, so type never has to shrink to fit) and swaps the modifier
+   class. Flag-off adds no class → the base rule above is unchanged.
+   Sizing is set once per content change, never animated (the only
+   hero motion is the opacity cross-fade). */
+.focus-hero.hero-type .focus-hero__text {
+  font-weight: 500;
+  font-size: var(--hero-fs, var(--fs-hero-line-b));
+  line-height: 0.98;
+  letter-spacing: 0.006em;
+  text-wrap: balance;
+  text-shadow: 0 2px 34px rgba(0, 0, 0, 0.55);
+}
+
+.focus-hero.hero-type.focus-hero--tier-a { --hero-fs: var(--fs-hero-line-a); }
+.focus-hero.hero-type.focus-hero--tier-b { --hero-fs: var(--fs-hero-line-b); }
+.focus-hero.hero-type.focus-hero--tier-c { --hero-fs: var(--fs-hero-line-c); }
+
+/* The extended tier is the most likely to wrap to two lines; give it a
+   hair more leading so the block still reads as one thought. */
+.focus-hero.hero-type.focus-hero--tier-c .focus-hero__text {
+  line-height: 1.02;
+}
+
+/* The weather/category glyph tracks the line at ~0.8× cap height —
+   a colour cue that resolves before the words do. */
+.focus-hero.hero-type .focus-hero__icon {
+  font-size: calc(var(--hero-fs, var(--fs-hero-line-b)) * 0.8);
+}
+
 /* Lean-in stack (DWELL): candidates 2–3 under the hero. Opacity-only fade —
    collapsing to empty removes it from layout; hidden state keeps it in the DOM
    so the fade can play (never display:none for the transition). */

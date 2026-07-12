@@ -12,11 +12,31 @@ const TICK_MS = 30_000;
 const CONCIERGE_MIN_INTERVAL_MS = 20 * 60 * 1000;
 const STACK_FADE_MS = 700; // > CSS opacity transition; never clear on transitionend (hidden node)
 
+const HERO_TIER_A_MAX = 16; // ≤16 chars → headline
+const HERO_TIER_B_MAX = 40; // 17–40 chars → standard (the default)
+
 let conciergeText = null;
 let conciergeFetchedAt = 0;
 let attentionOn = false;
+let heroTypeOn = false;
 let stackClearTimer = null;
 let lastSelection = { hero: null, stack: [], queue: [] };
+
+// Study 02 — length-responsive hero type. Character count picks the tier:
+// short lines go big, long lines step down. 41+ chars all land on tier C
+// (the legibility floor) — the temperament trims copy before it reaches here.
+function heroTier(text) {
+  const n = (text || "").trim().length;
+  if (n <= HERO_TIER_A_MAX) return "a";
+  if (n <= HERO_TIER_B_MAX) return "b";
+  return "c";
+}
+
+function applyHeroTier(hero, text) {
+  const tier = heroTier(text);
+  hero.classList.remove("focus-hero--tier-a", "focus-hero--tier-b", "focus-hero--tier-c");
+  hero.classList.add(`focus-hero--tier-${tier}`);
+}
 
 function isPanelActive(panelId) {
   const panel = document.getElementById(panelId);
@@ -93,6 +113,7 @@ function heroEls() {
 function showHero(els, icon, text) {
   els.iconEl.textContent = icon;
   els.textEl.textContent = text;
+  if (heroTypeOn) applyHeroTier(els.hero, text);
   els.hero.classList.remove("is-hidden");
 }
 
@@ -184,8 +205,21 @@ function update() {
   showHero(els, focus.icon, focus.text);
 }
 
-export function initFocusHero({ attentionEnabled = false } = {}) {
+export function initFocusHero({ attentionEnabled = false, heroTypeEnabled = false } = {}) {
   attentionOn = attentionEnabled === true;
+  heroTypeOn = heroTypeEnabled === true;
+
+  // Study 02 — mark the feature on so the length-responsive CSS engages, and
+  // expose a probe for the on-Pi 3–4 m legibility check. Flag-off: no class,
+  // no hook → byte-identical.
+  if (heroTypeOn) {
+    const els = heroEls();
+    if (els) els.hero.classList.add("hero-type");
+    window.__heroType = () => {
+      const t = document.getElementById("focus-hero-text")?.textContent || "";
+      return { enabled: true, len: t.trim().length, tier: heroTier(t), text: t };
+    };
+  }
 
   if (attentionOn) {
     initAttentionEngine();

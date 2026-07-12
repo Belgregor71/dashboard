@@ -133,7 +133,19 @@ window.CONFIG = {
     // + delight registry on the Pi. Verify at the kiosk: __forceDelight each moment
     // fires once then the budget blocks a re-fire, __voice preview matches the
     // consistency snapshot, /kiosk-metrics stays flat. One-line revert (-> false).
-    personality: true
+    personality: true,
+
+    // Design study 02 "The Hero Line" (docs/design/homeos-hero-type.html). A
+    // length-responsive type scale for the Mode-1 focus hero: three tiers by
+    // character count (<=16 -> headline, 17–40 -> standard, 41+ -> the floor) so
+    // short lines go big and long lines step down, but never below the 3–4 m
+    // legibility floor on the 32" panel. Copy is trimmed by the temperament
+    // (personality.phrase) before it's set, so type never shrinks to fit.
+    // Sizing is set once per content change (never animated) — the only hero
+    // motion stays the opacity cross-fade. Default OFF -> byte-identical to the
+    // fixed 1.6rem line. Ships flag-off (no-op deploy) then flips on the Pi to
+    // verify legibility at 3–4 m + /kiosk-metrics flat. One-line revert (-> false).
+    heroType: false
   },
 
   /* --------------------------------------------------------------

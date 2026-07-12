@@ -86,6 +86,17 @@
   --fs-hero:  clamp(4rem, 8vw, 9rem);
   --fs-jumbo: clamp(6rem, 13vw, 10.5rem);
 
+  /* ── Length-responsive hero-line scale (study 02) ────────────
+     The Mode-1 focus hero is sized by character count: short lines
+     go big, long lines step down — never below the 3–4 m legibility
+     floor on the 32" 1080p panel (~69 ppi). Caps chosen so the vw
+     term and the rem ceiling coincide at 1920px wide:
+       A ≈ 144px / cap ~37mm  · B ≈ 104px / cap ~27mm  · C ≈ 72px / cap ~18mm
+     Consumed only under .focus-hero.hero-type (features.heroType). */
+  --fs-hero-line-a: clamp(3rem,    7.5vw,  9rem);   /* headline · ≤16 chars */
+  --fs-hero-line-b: clamp(2.25rem, 5.4vw,  6.5rem); /* standard · 17–40 chars (default) */
+  --fs-hero-line-c: clamp(1.75rem, 3.75vw, 4.5rem); /* extended · 41+ chars (the floor) */
+
   /* ── Layout spacing ──────────────────────────────────────────
      Consistent outer gutters and column/row gaps used across
      every view. Centralised so a single edit rescales all layout.
