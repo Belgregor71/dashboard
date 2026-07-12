@@ -2,7 +2,7 @@
 
 _Plan drafted 2026-07-11. Part of the [Home OS vision](./home-os-vision.md) roadmap. Builds on [Phase 7](./phase-7-dissolve.md) (a room quiet enough to hold a memory), [Phase 8](./phase-8-learn.md) (context confidence), [Phase 6](./phase-6-intent.md) (intent), and [Phase 3](./phase-3-anticipate.md) (the `on-this-day` candidate). Fourth phase of "the Dissolve"._
 
-**📝 Proposed — not yet built. Handle with care — this is the phase that touches grief and nostalgia.**
+**✅ Shipped & enabled on the Pi (`features.memoryEngine:true`). Handled with care — this is the phase that touches grief and nostalgia** (the tender-gating invariant is enforced in code and unit-tested). _(Original plan document; live status in the [roadmap](./home-os-vision.md).)_
 
 ## Key insight that de-risks this phase
 

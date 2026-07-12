@@ -2,7 +2,7 @@
 
 _Plan drafted 2026-07-11. Part of the [Home OS vision](./home-os-vision.md) roadmap. Builds on and harmonises [Phase 6](./phase-6-intent.md) (intent), [Phase 7](./phase-7-dissolve.md) (substrate), [Phase 8](./phase-8-learn.md) (learning), and [Phase 9](./phase-9-remember.md) (memory). Final phase of "the Dissolve"._
 
-**📝 Proposed — not yet built. Deliberately last: a temperament can only harmonise behaviours that already exist.**
+**✅ Shipped & enabled on the Pi (2026-07-12, commit `69d476e`, `features.personality:true`). The final phase of the Dissolve.** Deliberately last: a temperament can only harmonise behaviours that already exist. Live-verified: attention/memory phrasing + arrival copy route through one voice, the atmosphere settle timing is sourced from the authority (`--atmo-settle`), `__forceDelight` fires each moment once then the persisted budget blocks a re-fire, and `/kiosk-metrics` stays flat. Reversible → `personality:false`.
 
 ## Key insight that de-risks this phase
 

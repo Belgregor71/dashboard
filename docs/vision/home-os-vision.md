@@ -105,13 +105,25 @@ _Order note (2026-07-11): Phase 4 is hardware-blocked, so Phase 5 is taken first
 
 _Drafted 2026-07-11 after the "As Lived" product design review. Phases 1–5 built an excellent **instrument** — one you'd miss for its information. Part two aims past that: a home you'd miss for itself. The review's finding was that the system still reasons in **items** when a home reasons in **states**; these five phases add the one missing reasoning layer, then let it reach every part of the screen. Order is deliberate — **substrate first, character last.**_
 
-6. **Know why** — the House Intent Engine: a pure reasoning layer between context and attention (`Sensors → Context → House Model → Intent → Attention → Screen`) that infers activity / tempo / time-budget / company from signals already flowing. Invisible on the glass, the hinge everything else turns on. _(proposed — `phase-6-intent.md`)_
-7. **Dissolve the dashboard** — lift the atmosphere off the screensaver onto a shared substrate so the intent-dressed room persists through every mode; retire the already-unreachable nav views. **Gated on paying down the 80%-core Ken Burns decode debt first.** _(proposed — `phase-7-dissolve.md`)_
-8. **Learn without asking** — a quiet on-device observer that learns wake / departure / weekend rhythm / attention preferences from existing events, acts only above a confidence threshold, and never announces. _(proposed — `phase-8-learn.md`)_
-9. **Remember on purpose** — replace regex-on-calendar memory with structured memory objects surfaced rarely and context-appropriately; generalise `momentsEngine` into an anticipation → afterglow timeline. Handles grief/nostalgia with a hard-gated "tender" class. _(proposed — `phase-9-remember.md`)_
-10. **One character** — the Personality Engine: a single temperament (restraint-first, not jokes) every surfacing path routes through, plus a rare, hard-budgeted delight registry. Last, because a temperament can only harmonise behaviours that already exist. _(proposed — `phase-10-temperament.md`)_
+6. **Know why** — the House Intent Engine: a pure reasoning layer between context and attention (`Sensors → Context → House Model → Intent → Attention → Screen`) that infers activity / tempo / time-budget / company from signals already flowing. Invisible on the glass, the hinge everything else turns on. _(shipped & enabled — `phase-6-intent.md`)_
+7. **Dissolve the dashboard** — lift the atmosphere off the screensaver onto a shared substrate so the intent-dressed room persists through every mode; retire the already-unreachable nav views. The 80%-core Ken Burns decode debt was paid down first (settle + hold dropped Mode-0 GPU 80%→0%). _(shipped & enabled — `phase-7-dissolve.md`)_
+8. **Learn without asking** — a quiet on-device observer that learns wake / departure / weekend rhythm / attention preferences from existing events, acts only above a confidence threshold, and never announces. _(shipped & enabled — `phase-8-learn.md`)_
+9. **Remember on purpose** — replace regex-on-calendar memory with structured memory objects surfaced rarely and context-appropriately; generalise `momentsEngine` into an anticipation → afterglow timeline. Handles grief/nostalgia with a hard-gated "tender" class. Photo source: read-only Immich proxy (`photo-source-immich.md`). _(shipped & enabled — `phase-9-remember.md`)_
+10. **One character** — the Personality Engine: a single temperament (restraint-first, not jokes) every surfacing path routes through, plus a rare, hard-budgeted delight registry. Last, because a temperament can only harmonise behaviours that already exist. _(shipped & enabled — `phase-10-temperament.md`)_
 
 _The measure of success shifts here — from "shows the right thing" to what someone should **feel** after six months: that the house is on their side. See the "As Lived" review for the full critique behind these five._
+
+## Status — the Dissolve is complete (2026-07-12)
+
+All ten phases are shipped, enabled, and Pi-verified (Phase 4 / voice remains the one
+hardware-blocked seam, reserved as `MODE.VOICE` for when a mic lands). The dashboard is
+now the presence it set out to be: an ambient, weather-tinted room that surfaces one
+curated thing on a glance, learns the household's rhythm without asking, remembers on
+purpose, and speaks — when it speaks at all — in one restrained voice. Every phase stays
+reversible from `src/js/config.js` (`features.*`). What remains is not building but
+**living with it**: multi-week soaks confirming the learned aggregates stay bounded, the
+delight budgets hold to their two-or-three-times-a-year cadence, and `/kiosk-metrics`
+stays flat — after which each flag becomes the default.
 
 ## The one rule
 

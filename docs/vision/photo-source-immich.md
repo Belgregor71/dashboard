@@ -2,7 +2,7 @@
 
 _Plan drafted 2026-07-12. Finishes the photo half of [Phase 9](./phase-9-remember.md) (the memory engine) and feeds the deferred ambient photo-frame. Independent of [Phase 10](./phase-10-temperament.md) — it adds a data source, not a voice, so it can land before or after without entangling._
 
-**📝 Proposed — not yet built. A scoped, read-only first cut, not a full Immich feature port.**
+**✅ Shipped & enabled on the Pi (`features.immichPhotos:true`). A scoped, read-only first cut, not a full Immich feature port.** _(Original plan document; live status in the [roadmap](./home-os-vision.md).)_
 
 ## Key insight that de-risks this phase
 

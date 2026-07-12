@@ -2,7 +2,7 @@
 
 _Plan drafted 2026-07-11. Part of the [Home OS vision](./home-os-vision.md) roadmap. Builds on [Phase 6](./phase-6-intent.md) (house intent) and [Phase 5](./phase-5-atmospherics.md) (ambient atmospherics). Second phase of "the Dissolve"._
 
-**📝 Proposed — not yet built. Gated on a GPU prerequisite (below).**
+**✅ Shipped & enabled on the Pi (`features.ambientSubstrate:true`).** The GPU prerequisite below was paid down first (Ken Burns → settle + hold dropped Mode-0 GPU 80%→0%). _(Original plan document; live status in the [roadmap](./home-os-vision.md).)_
 
 ## Key insight that de-risks this phase
 

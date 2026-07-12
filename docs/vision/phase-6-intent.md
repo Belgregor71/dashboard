@@ -2,7 +2,7 @@
 
 _Plan drafted 2026-07-11. Part of the [Home OS vision](./home-os-vision.md) roadmap. Builds on [Phase 1](./phase-1-presence-runtime.md) (presence FSM + context store), [Phase 2](./phase-2-attention-engine.md) (attention engine), and [Phase 3](./phase-3-anticipate.md) (predictive candidates) — all shipped & enabled._
 
-**📝 Proposed — not yet built.** First phase of "the Dissolve" (Phases 6–10), the arc that turns the finished instrument into a home. Companion review: the "As Lived" product design review.
+**✅ Shipped & enabled on the Pi (`features.houseIntent:true`).** First phase of "the Dissolve" (Phases 6–10), the arc that turns the finished instrument into a home. Companion review: the "As Lived" product design review. _(This remains the original plan document; live status is tracked in the [roadmap](./home-os-vision.md).)_
 
 ## Key insight that de-risks this phase
 

@@ -60,6 +60,25 @@ static/                # Non-built assets: photos, icons, weather videos, data/
 - **Voice commands** — Web Speech API, spacebar toggle, `en-AU`
 - **Screensaver** — photo slideshow with slow zoom, OLED burn-in drift protection
 
+## Presence & the Home OS layer
+
+Beyond the widgets, the dashboard runs a **presence-first behavioural layer** — the
+"Home OS" — that decides _what deserves the screen right now_ and disappears when
+nothing does. Instead of navigating pages, the display has one job at any moment, and
+presence picks it. The full direction lives in [`docs/vision/`](docs/vision/); the spine:
+
+- **Four presence modes** — Ambient (nobody near: slow photography, weather-tinted light, a dim clock) → Glance (motion: one hero) → Lean-in (dwell: the next few things) → Conversation (voice, reserved — no mic on the Pi yet).
+- **One attention engine, one ranked queue** — every source (insights, predictions, memory, delight) emits scored **candidates** with decay + cooldowns; the presence mode sets the floor, so ~95% of the time the screen stays calm. See `src/js/services/attentionEngine.js` + `attentionRank.js`.
+- **A House Model** infers activity / tempo / time-budget from signals already flowing (`houseModel.js` → `intentEngine.js`), so the attention gate can tell someone sprinting past their keys from one leaning in with a coffee.
+- **An ambient substrate** carries a slow weather/light tint across every mode (`atmosphere.js`); **on-device learning** folds household rhythms into bounded aggregates (`routineStore.js`, `data/routines/`); a **structured memory engine** surfaces rare, context-matched moments (`memoryEngine.js`, `data/memories/`, Immich photos); and **one temperament authority** (`personality.js`) routes every line, silence, motion-timing and celebration through a single restraint-first voice, with a hard-budgeted **delight registry** (`delight.js`, `data/delight/`) for the two-or-three-times-a-year magic.
+
+This shipped as **ten independently-deployable, feature-flagged phases** ("the Dissolve"),
+every one reversible from `src/js/config.js` (`features.*`) and verified live on the Pi.
+The pure reasoning cores (`atmosphere`, `houseModel`, `routineStore`, `memoryEngine`,
+`personality`, `delight`) carry no DOM or IO, so they unit-test in plain node
+(`tests/*.spec.js`). See the phase plans in `docs/vision/` and the roadmap in
+[`docs/vision/home-os-vision.md`](docs/vision/home-os-vision.md).
+
 ## Design system
 
 All styling goes through CSS custom properties defined in `src/css/base/variables.css`. See `STYLE_GUIDE.md` for the full token reference. Key rules:
