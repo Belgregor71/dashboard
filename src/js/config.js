@@ -183,9 +183,14 @@ window.CONFIG = {
     // per-arrival JS timer). A >=2-day absence trips the budgeted home-after-away
     // delight -> the card shows its warm variant (warmth replaces logistics),
     // rationed by the same budget (can't fire twice). Copy already routes through
-    // personality.phrase. Default OFF -> byte-identical (the current cool card,
-    // JS drain). One-line revert (-> false).
-    arrivalCard: false
+    // personality.phrase. Pi-verified 2026-07-13 (eb87382 flag-off → default-on
+    // here): normal card showed full glass blur(18px) + warm crown 0.34 + the
+    // arrival-drain CSS animation + agenda; warm variant (delight home-after-away,
+    // budget spent-then-blocked) strengthened the crown to 0.55 and dropped the
+    // agenda; DOM flat 2265→2265 over 40 arrivals, heap 54MB / 64 listeners (no
+    // leak). Now default-on; flag-off stays byte-identical (cool card, JS drain).
+    // One-line revert (-> false).
+    arrivalCard: true
   },
 
   /* --------------------------------------------------------------
