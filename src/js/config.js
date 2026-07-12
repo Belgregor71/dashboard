@@ -127,9 +127,13 @@ window.CONFIG = {
     // after being away, a birthday morning, Christmas Eve, power restored) on
     // signals the house already has, each with a hard budget persisted to
     // data/delight/ so it can't fire twice. Default OFF -> every module keeps its
-    // current tone and no delight candidate is added (byte-identical). Verify the
-    // consistency snapshot + __forceDelight budget gate, then flip on the Pi.
-    personality: false
+    // current tone and no delight candidate is added (byte-identical). Shipped
+    // flag-off in 4ecb213 (deployed + Pi-verified byte-identical: hooks live,
+    // --atmo-settle unset, runtime inert). Flipped ON here to enable the one voice
+    // + delight registry on the Pi. Verify at the kiosk: __forceDelight each moment
+    // fires once then the budget blocks a re-fire, __voice preview matches the
+    // consistency snapshot, /kiosk-metrics stays flat. One-line revert (-> false).
+    personality: true
   },
 
   /* --------------------------------------------------------------
