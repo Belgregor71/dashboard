@@ -142,10 +142,12 @@ window.CONFIG = {
     // legibility floor on the 32" panel. Copy is trimmed by the temperament
     // (personality.phrase) before it's set, so type never shrinks to fit.
     // Sizing is set once per content change (never animated) — the only hero
-    // motion stays the opacity cross-fade. Default OFF -> byte-identical to the
-    // fixed 1.6rem line. Ships flag-off (no-op deploy) then flips on the Pi to
-    // verify legibility at 3–4 m + /kiosk-metrics flat. One-line revert (-> false).
-    heroType: false
+    // motion stays the opacity cross-fade. Shipped flag-off in 003b1cb (no-op
+    // deploy), flipped ON live on the Pi and verified: tier mapping exact
+    // (13ch->144px / 32ch->104px / 52ch->72px), heap + GPU flat (80% = the
+    // pre-existing awake-home baseline, unchanged by a static type change).
+    // Now default-on. One-line revert (-> false).
+    heroType: true
   },
 
   /* --------------------------------------------------------------
