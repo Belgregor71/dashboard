@@ -20,9 +20,16 @@ test.beforeAll(() => {
   }
 });
 
+// Pin a neutral daytime so the boot is deterministic: away from the morning /
+// evening briefing windows (which switchView("briefing") within a 30-min catch-up
+// and would steal body.dataset.view) and not night (which auto-engages the
+// screensaver). Mirrors the clock pin in presence/attention/ambient-clock specs.
+const MIDDAY = new Date("2026-07-06T12:00:00");
+
 test("dashboard boots with no uncaught exceptions and core panels render", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
+  await page.clock.setFixedTime(MIDDAY);
 
   await page.goto("/");
   await page.waitForFunction(() => document.body?.dataset?.view === "home");
