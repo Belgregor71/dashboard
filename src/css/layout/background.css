@@ -157,7 +157,9 @@ body.substrate::before {
   z-index: -1;
   pointer-events: none;
   background-color: transparent;
-  transition: background-color 60s ease;
+  /* Settle duration from the Phase 10 temperament authority when its flag is on
+     (--atmo-settle); unset → the literal 60s (byte-identical to Phase 7). */
+  transition: background-color var(--atmo-settle, 60s) ease;
 }
 body.substrate.atmo-clear-day::before    { background-color: rgba(30, 66, 120, 0.10); }
 body.substrate.atmo-clear-golden::before  { background-color: rgba(150, 95, 40, 0.16); }

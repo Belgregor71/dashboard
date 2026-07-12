@@ -226,6 +226,32 @@ test.describe("routines (Phase 8 behavioural learning)", () => {
   });
 });
 
+test.describe("delight budgets (Phase 10 personality)", () => {
+  // On-device budget store. Cold start degrades to an object, never an error; a
+  // PUT round-trips; a bad body is a JSON 400 (never an HTML error page).
+  test("GET /api/delight returns { budgets: object }", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/delight");
+    expect(typeof body.budgets).toBe("object");
+    expect(Array.isArray(body.budgets)).toBe(false);
+  });
+
+  test("PUT then GET round-trips the budgets blob", async ({ request }) => {
+    const marker = { "christmas-eve": "xmas:2026" };
+    await expectJson(request, "/api/delight", { method: "put", data: { budgets: marker } });
+    const { body } = await expectJson(request, "/api/delight");
+    expect(body.budgets["christmas-eve"]).toBe("xmas:2026");
+  });
+
+  test("PUT with a non-object body is a JSON 400", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/delight", {
+      method: "put",
+      data: { budgets: [1, 2, 3] },
+      statuses: [400]
+    });
+    expect(body).toHaveProperty("error");
+  });
+});
+
 test.describe("memories (Phase 9 memory engine)", () => {
   // Authored-memory loader — read-only, on-device. Cold start (no directory, or
   // no files) degrades to an empty list, never an error or an HTML page.

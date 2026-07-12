@@ -15,6 +15,7 @@ server/tts-cache/
 data/routines/
 data/memories/
 data/immich-cache/
+data/delight/
 
 # Playwright MCP tool artifacts
 .playwright-mcp/

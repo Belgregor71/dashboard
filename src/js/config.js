@@ -115,7 +115,21 @@ window.CONFIG = {
     // (static/photos/ screensaver, text-only memory). Needs IMMICH_URL + IMMICH_API_KEY
     // in the Pi's .env; degrades to the static path when unset/unreachable. Enabled
     // 2026-07-12 (key added to the Pi's .env). Revert (-> false).
-    immichPhotos: true
+    immichPhotos: true,
+
+    // Phase 10 "One Character" (docs/vision/phase-10-temperament.md). One
+    // temperament authority (personality.js) every surfacing path routes through,
+    // so the house speaks/moves/celebrates the same way every time: attention +
+    // memory phrasing pass through one voice, centralised silence thresholds
+    // decide when to say nothing, the atmosphere settle timing is sourced from the
+    // authority, and arrival copy speaks in the same register. Plus a tightly
+    // rationed delight registry — rare moments (first rain after a dry spell, home
+    // after being away, a birthday morning, Christmas Eve, power restored) on
+    // signals the house already has, each with a hard budget persisted to
+    // data/delight/ so it can't fire twice. Default OFF -> every module keeps its
+    // current tone and no delight candidate is added (byte-identical). Verify the
+    // consistency snapshot + __forceDelight budget gate, then flip on the Pi.
+    personality: false
   },
 
   /* --------------------------------------------------------------

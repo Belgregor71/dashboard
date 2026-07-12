@@ -10,6 +10,7 @@ import { initPresence } from "./presence.js";
 import { initIntent } from "./intentEngine.js";
 import { initRoutineRuntime } from "./routineRuntime.js";
 import { initMemoryRuntime } from "./memoryRuntime.js";
+import { initPersonalityRuntime } from "./personalityRuntime.js";
 import { registerLifecycle } from "./lifecycle.js";
 import { initVoiceOverlay } from "./voiceOverlay.js";
 import { initVoiceCommands } from "./voiceCommands.js";
@@ -95,6 +96,12 @@ export function startApp() {
   // candidate. Off by default → Phase 3's on-this-day path is unchanged.
   // See docs/vision/phase-9-remember.md.
   initMemoryRuntime({ enabled: isEnabled("memoryEngine", false) });
+  // Phase 10 "One Character" — one temperament authority every surfacing path
+  // routes through (voice, silence, motion timing, celebration) + a rationed
+  // delight registry. Must init before initFocusHero so collectDelight is live
+  // for the attention queue. Off by default → every path keeps its current tone.
+  // See docs/vision/phase-10-temperament.md.
+  initPersonalityRuntime({ enabled: isEnabled("personality", false) });
   registerLifecycle();
   initVoiceOverlay();
   initVoiceCommands();

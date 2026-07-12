@@ -9,6 +9,8 @@ import { rankQueue, selectForMode } from "./attentionRank.js";
 import { get as getContext } from "../core/contextStore.js";
 import { emit } from "../core/eventBus.js";
 import { collectMemory } from "../core/memoryRuntime.js";
+import { collectDelight } from "../core/personalityRuntime.js";
+import { phrase, shouldSpeak } from "../core/personality.js";
 
 // The unified attention runtime (docs/vision/phase-2-attention-engine.md).
 // It merges the scored insight candidates (insightRules, over the async
@@ -81,6 +83,16 @@ function memoryEnabled() {
   }
 }
 
+// Phase 10 personality (docs/vision/phase-10-temperament.md) — flag-gated so
+// flag-off keeps each candidate's current tone and adds no delight candidate.
+function personalityEnabled() {
+  try {
+    return Boolean(window.CONFIG?.features?.personality);
+  } catch {
+    return false;
+  }
+}
+
 async function aiPhrase(templateText) {
   const res = await fetch("/api/ai/brief", {
     method: "POST",
@@ -134,6 +146,13 @@ async function refresh() {
     insightCandidates = [...insightCandidates, ...collectMemory(ctx, now)].sort((a, b) => b.score - a.score);
   }
 
+  // Phase 10: merge at most one gentle delight celebration — the same guarded
+  // concat. The runtime owns the signals + persisted budget; collectDelight
+  // returns [] when off or when no rare moment is live.
+  if (personalityEnabled()) {
+    insightCandidates = [...insightCandidates, ...collectDelight(now)].sort((a, b) => b.score - a.score);
+  }
+
   // AI-phrase only the top insight (matches the old single-line behaviour);
   // the deterministic template is always the fallback.
   const top = insightCandidates[0];
@@ -162,9 +181,20 @@ export function getSelection({ sources = [], now = new Date(), mode = "glance", 
   const phrased = insightCandidates.map((c) =>
     phrasedById[c.id] ? { ...c, text: phrasedById[c.id] } : c
   );
-  const queue = rankQueue([...phrased, ...sources, ...injected], now, { weights });
-  const cooldowns = readJson(COOLDOWN_KEY, {});
   const intent = intentEnabled() ? getContext().intent : null;
+
+  // Phase 10: route every candidate's copy through the one temperament voice, and
+  // let the centralised silence thresholds drop a line the house would stay quiet
+  // about. Flag-off → the list is untouched (byte-identical ranking + selection).
+  let candidates = [...phrased, ...sources, ...injected];
+  if (personalityEnabled()) {
+    candidates = candidates
+      .filter((c) => shouldSpeak(c, intent))
+      .map((c) => ({ ...c, text: phrase(intent, c.kind ?? c.source, { text: c.text }) }));
+  }
+
+  const queue = rankQueue(candidates, now, { weights });
+  const cooldowns = readJson(COOLDOWN_KEY, {});
   const sel = selectForMode(queue, mode, { cooldowns, now, currentId: currentHeroId, intent });
 
   const nextId = sel.hero ? sel.hero.id : null;

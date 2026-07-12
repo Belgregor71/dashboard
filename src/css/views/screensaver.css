@@ -117,8 +117,10 @@
   opacity: 0;
   /* The atmosphere tint (background-color) settles over ~60s — a slow state
      change that comes to rest, never a loop. It shows through the readability
-     gradient's transparent regions. Opacity stays fast for the fade-in. */
-  transition: opacity 1.4s ease, background-color 60s ease;
+     gradient's transparent regions. Opacity stays fast for the fade-in. The
+     settle duration comes from the Phase 10 temperament authority when its flag
+     is on (personalityRuntime sets --atmo-settle); unset → the literal 60s. */
+  transition: opacity 1.4s ease, background-color var(--atmo-settle, 60s) ease;
 }
 
 .screensaver[data-mode="photo"] .screensaver__overlay {

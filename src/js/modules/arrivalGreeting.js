@@ -1,12 +1,26 @@
 import { wakeScreensaver, resetIdleTimer } from "./screensaver.js";
 import { speak } from "../core/tts.js";
 import { getAllEntities } from "../services/homeAssistant/state.js";
+import { emit } from "../core/eventBus.js";
+import { get as getContext } from "../core/contextStore.js";
+import { phrase } from "../core/personality.js";
 
 const DURATION_MS  = 15_000;           // how long the card stays visible
 const COOLDOWN_MS  = 10 * 60 * 1000;  // suppress re-greeting within 10 min
 
 const cooldowns = new Map(); // entityId → expiry timestamp
 const lastKnownState = new Map(); // entityId → last seen state
+const lastAwayAt = new Map(); // entityId → when they left home (Phase 10 away-duration)
+
+// Phase 10 personality (docs/vision/phase-10-temperament.md) — flag-gated so
+// flag-off keeps the welcome copy + arrival behaviour byte-identical.
+function personalityEnabled() {
+  try {
+    return Boolean(window.CONFIG?.features?.personality);
+  } catch {
+    return false;
+  }
+}
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -123,9 +137,15 @@ function showCard(name, others, events) {
   clearTimeout(dismissTimer);
   clearInterval(progressTimer);
 
+  // Phase 10: the welcome headline speaks in the house's one voice (flag-off →
+  // the literal string, byte-identical).
+  const welcome = personalityEnabled()
+    ? phrase(getContext().intent, "arrival", { text: `Welcome home, ${name}!` })
+    : `Welcome home, ${name}!`;
+
   overlayEl.innerHTML = `
     <div class="arrival-greeting__card">
-      <div class="arrival-greeting__welcome">Welcome home, ${name}!</div>
+      <div class="arrival-greeting__welcome">${welcome}</div>
       <div class="arrival-greeting__status">${homeStatusText(others)}</div>
       ${eventsHtml(events)}
       <div class="arrival-greeting__track">
@@ -172,7 +192,11 @@ export function initArrivalGreeting() {
     // greet on a genuine away->home transition observed during this session.
     const previousState = lastKnownState.get(entityId);
     lastKnownState.set(entityId, state);
-    if (state !== "home") return;
+    if (state !== "home") {
+      // Note when they leave, so an arrival can measure the absence (Phase 10).
+      if (personalityEnabled() && previousState === "home") lastAwayAt.set(entityId, Date.now());
+      return;
+    }
     if (previousState === undefined || previousState === "home") return;
 
     const now = Date.now();
@@ -182,6 +206,14 @@ export function initArrivalGreeting() {
     const name   = firstName(entity);
     const others = getPeopleAlreadyHome(entityId);
     const events = await getRemainingTodayEvents();
+
+    // Phase 10: hand the absence duration to the delight registry (home-after-away
+    // moment). Emitted only when the flag is on → flag-off behaviour is unchanged.
+    if (personalityEnabled()) {
+      const awayAt = lastAwayAt.get(entityId);
+      lastAwayAt.delete(entityId);
+      emit("arrival:home", { name, awayMs: awayAt ? Date.now() - awayAt : 0 });
+    }
 
     wakeScreensaver();
     resetIdleTimer();
