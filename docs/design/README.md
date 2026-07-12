@@ -10,6 +10,10 @@ The artifacts below are *design intent*, not production code — the standalone 
 uses fallback fonts (the artifact host blocks webfonts) and represents photography
 with gradients. Translate them into the real tree; don't copy-paste.
 
+Standalone copies of every study live alongside this file as `docs/design/homeos-*.html`
+(open them in a browser, or let Claude Design read them from the repo). The links in
+the table below point to the same studies rendered on the artifact host.
+
 ## The design studies (live artifacts)
 
 | # | Surface | Artifact |

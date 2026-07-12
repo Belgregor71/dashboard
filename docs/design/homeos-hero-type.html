@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HomeOS — The Hero Line</title>
+<style>
+  /* ============================================================
+     HomeOS — The Hero Line: a length-responsive type system for
+     the one line the room is read by, from 3–4 metres.
+     ============================================================ */
+  :root {
+    --ground:#e7e9f0; --surface:#fff; --surface-2:#f2f4f9;
+    --ink:#171d30; --ink-dim:#47506d; --ink-faint:#8b95b0;
+    --line:rgba(20,30,60,0.13); --line-strong:rgba(20,30,60,0.22);
+    --gold:#b7791f; --cool:#2f5fb0; --crit:#c2483d;
+
+    --sky-0:#070b18;
+    --p-ink:#eef3fb; --p-ink-dim:#9fb0d4; --p-warm:#ffcd8c; --p-cool:#9fc4ff; --p-warn:#ffb347;
+
+    --font-display:"Barlow Condensed","Arial Narrow","Roboto Condensed","Oswald",sans-serif;
+    --font-body:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --font-mono:"JetBrains Mono",ui-monospace,"SF Mono","Cascadia Code",monospace;
+    --maxw:1120px; --eyebrow:0.73rem;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --ground:#090d18;--surface:#10162a;--surface-2:#0c1120;--ink:#eef3fb;--ink-dim:#9fb0d4;--ink-faint:#66739a;
+      --line:rgba(255,255,255,0.09);--line-strong:rgba(255,255,255,0.16);--gold:#ffcd8c;--cool:#9fc4ff;--crit:#ff8a7a; }
+  }
+  :root[data-theme="light"]{ --ground:#e7e9f0;--surface:#fff;--surface-2:#f2f4f9;--ink:#171d30;--ink-dim:#47506d;--ink-faint:#8b95b0;
+    --line:rgba(20,30,60,0.13);--line-strong:rgba(20,30,60,0.22);--gold:#b7791f;--cool:#2f5fb0;--crit:#c2483d; }
+  :root[data-theme="dark"]{ --ground:#090d18;--surface:#10162a;--surface-2:#0c1120;--ink:#eef3fb;--ink-dim:#9fb0d4;--ink-faint:#66739a;
+    --line:rgba(255,255,255,0.09);--line-strong:rgba(255,255,255,0.16);--gold:#ffcd8c;--cool:#9fc4ff;--crit:#ff8a7a; }
+
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--ground); color:var(--ink); font-family:var(--font-body); line-height:1.6; -webkit-font-smoothing:antialiased; overflow-x:hidden; }
+  .wrap{ max-width:var(--maxw); margin-inline:auto; padding-inline:clamp(20px,5vw,48px); }
+  .display{ font-family:var(--font-display); font-weight:600; letter-spacing:0.004em; line-height:0.98; }
+  .eyebrow{ font-size:var(--eyebrow); letter-spacing:0.2em; text-transform:uppercase; color:var(--ink-faint); font-weight:600; margin:0 0 0.9rem; }
+  h1,h2,h3{ text-wrap:balance; }
+  .mono{ font-family:var(--font-mono); font-size:0.82em; color:var(--gold); background:color-mix(in oklab,var(--gold) 12%,transparent); padding:0.06em 0.4em; border-radius:5px; white-space:nowrap; }
+  ::selection{ background:color-mix(in oklab,var(--gold) 35%,transparent); }
+
+  /* ---------- specimen hero ---------- */
+  .hero{ position:relative; background:var(--sky-0); overflow:hidden; isolation:isolate; }
+  .hero__bg{ position:absolute; inset:0; z-index:-2;
+    background:radial-gradient(130% 100% at 80% 100%, rgba(255,196,120,0.34), transparent 55%),
+      linear-gradient(180deg,#0c1020 0%,#241d16 55%,#4a3720 100%); }
+  .hero__read{ position:absolute; inset:0; z-index:-1; background:linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.05) 45%, rgba(0,0,0,0.6)); }
+  .hero__inner{ padding:clamp(40px,8vw,90px) 0 clamp(34px,6vw,72px); color:var(--p-ink); }
+  .hero .eyebrow{ color:rgba(238,243,251,0.6); }
+  .hero__line{ display:flex; align-items:center; gap:clamp(0.5rem,1.6vw,1.1rem); }
+  .hero__glyph{ font-size:clamp(2rem,7vw,5.4rem); line-height:1; flex:none; filter:drop-shadow(0 0 20px rgba(120,160,220,0.35)); }
+  .hero__text{ font-family:var(--font-display); font-weight:500; font-size:clamp(2.4rem,8.6vw,7rem); line-height:0.96; letter-spacing:0.006em; text-shadow:0 2px 34px rgba(0,0,0,0.55); }
+  .hero__meta{ margin-top:clamp(1.4rem,3vw,2.4rem); display:flex; flex-wrap:wrap; gap:1.4rem 2.4rem; color:rgba(238,243,251,0.72); font-family:var(--font-mono); font-size:0.82rem; }
+  .hero__meta b{ color:var(--p-warm); font-weight:400; }
+
+  /* ---------- sections ---------- */
+  section{ padding-block:clamp(52px,8vw,100px); }
+  .head{ max-width:60ch; margin-bottom:clamp(28px,5vw,50px); }
+  .head .k{ color:var(--gold); }
+  .head h2{ font-family:var(--font-display); font-weight:600; font-size:clamp(2rem,4.6vw,3.3rem); line-height:1.0; margin:0 0 0.8rem; letter-spacing:0.006em; }
+  .head p{ color:var(--ink-dim); font-size:1.06rem; margin:0; }
+  .rule{ border:0; height:1px; background:var(--line); }
+
+  /* ---------- the length-responsive scale ---------- */
+  .tiers{ display:grid; gap:clamp(20px,3vw,36px); }
+  .tier{ display:grid; grid-template-columns:1fr auto; gap:clamp(16px,3vw,40px); align-items:center;
+    padding:clamp(18px,3vw,32px); border:1px solid var(--line); border-radius:16px; background:var(--surface); }
+  @media (max-width:760px){ .tier{ grid-template-columns:1fr; } }
+  .tier__demo{ min-width:0; }
+  .tier__badge{ font-family:var(--font-mono); font-size:0.72rem; letter-spacing:0.06em; color:var(--gold); margin:0 0 0.7rem; }
+  .tier__line{ font-family:var(--font-display); font-weight:500; color:var(--ink); letter-spacing:0.004em; line-height:0.98; }
+  .tier--a .tier__line{ font-size:clamp(2.4rem,8.5vw,7rem); }
+  .tier--b .tier__line{ font-size:clamp(1.9rem,6vw,5.2rem); }
+  .tier--c .tier__line{ font-size:clamp(1.4rem,4.2vw,3.6rem); line-height:1.02; }
+  .tier__data{ display:grid; grid-template-columns:repeat(2,auto); gap:0.4rem 1.6rem; align-content:start;
+    border-left:1px solid var(--line); padding-left:clamp(16px,3vw,32px); }
+  @media (max-width:760px){ .tier__data{ border-left:0; border-top:1px solid var(--line); padding-left:0; padding-top:1.2rem; } }
+  .tier__data dt{ font-size:var(--eyebrow); letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-faint); font-weight:600; }
+  .tier__data dd{ margin:0; font-family:var(--font-display); font-weight:600; font-size:1.5rem; line-height:1; letter-spacing:0.01em; white-space:nowrap; }
+  .tier__data dd small{ font-size:0.5em; color:var(--ink-faint); font-weight:500; }
+
+  /* ---------- voice → type ---------- */
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:clamp(16px,2.5vw,24px); }
+  @media (max-width:720px){ .grid2{ grid-template-columns:1fr; } }
+  .vcard{ border:1px solid var(--line); border-radius:16px; padding:clamp(18px,3vw,28px); background:var(--surface); }
+  .vcard.bad{ background:color-mix(in oklab, var(--crit) 6%, var(--surface)); }
+  .vcard__tag{ display:inline-flex; align-items:center; gap:0.45rem; font-family:var(--font-mono); font-size:0.72rem; letter-spacing:0.05em; margin:0 0 1rem; }
+  .vcard.bad .vcard__tag{ color:var(--crit); }
+  .vcard.good .vcard__tag{ color:var(--gold); }
+  .vcard__sample{ font-family:var(--font-display); font-weight:500; font-size:clamp(1.4rem,3.4vw,2.2rem); line-height:1.05; letter-spacing:0.006em; color:var(--ink); }
+  .vcard.bad .vcard__sample{ color:var(--ink-dim); }
+  .vcard__foot{ margin:1.1rem 0 0; font-size:0.9rem; color:var(--ink-dim); }
+  .vcard__foot .mono{ color:inherit; background:transparent; padding:0; }
+
+  /* ---------- anatomy ---------- */
+  .anat{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+  .anat>div{ background:var(--surface); padding:1.15rem 1.2rem; }
+  .anat dt{ font-family:var(--font-display); font-weight:600; font-size:1.05rem; margin:0 0 0.35rem; letter-spacing:0.01em; }
+  .anat dd{ margin:0; color:var(--ink-dim); font-size:0.88rem; }
+  .anat .tok{ display:block; font-family:var(--font-mono); font-size:0.75rem; color:var(--gold); margin-top:0.4rem; }
+
+  /* ---------- over photography ---------- */
+  .grounds{ display:grid; grid-template-columns:repeat(3,1fr); gap:clamp(14px,2.5vw,24px); }
+  @media (max-width:720px){ .grounds{ grid-template-columns:1fr; } }
+  .gcard{ }
+  .gframe{ position:relative; aspect-ratio:16/9; border-radius:14px; overflow:hidden; border:1px solid rgba(255,255,255,0.10); box-shadow:0 16px 40px rgba(0,0,0,0.34); container-type:inline-size; isolation:isolate; }
+  .gframe__ph{ position:absolute; inset:0; z-index:-3; }
+  .gframe__tint{ position:absolute; inset:0; z-index:-2; }
+  .gframe__read{ position:absolute; inset:0; z-index:-1; background:linear-gradient(180deg, rgba(0,0,0,0.06) 0%, rgba(0,0,0,0) 44%, rgba(0,0,0,0.70) 100%); }
+  .gframe__line{ position:absolute; inset:auto clamp(12px,4%,22px) clamp(12px,7%,26px) clamp(12px,4%,22px);
+    font-family:var(--font-display); font-weight:500; color:#eef3fb; font-size:clamp(1rem,7cqw,2rem); line-height:1.0; letter-spacing:0.01em;
+    text-shadow:0 1px 18px rgba(0,0,0,0.55); display:flex; gap:0.4rem; align-items:baseline; }
+  .gframe__line .g{ font-size:0.8em; }
+  .ph-golden{ background:radial-gradient(130% 92% at 82% 100%, rgba(255,198,120,0.5), transparent 52%), linear-gradient(180deg,#14172a,#2c2416 48%,#5c451f 80%,#8f6529); }
+  .ph-storm{ background:radial-gradient(110% 70% at 55% 16%, rgba(150,168,200,0.12), transparent 58%), linear-gradient(180deg,#070b16,#121b2c 52%,#1b2740); }
+  .ph-night{ background:radial-gradient(80% 55% at 22% 10%, rgba(120,180,255,0.10), transparent 55%), linear-gradient(180deg,#04060f,#070d1e 60%,#0b1226); }
+  .t-golden{ background:rgba(150,95,40,0.20); } .t-storm{ background:rgba(28,38,66,0.38); } .t-night{ background:rgba(4,10,28,0.42); }
+  .gcap{ display:flex; justify-content:space-between; margin-top:0.7rem; color:var(--ink-faint); font-size:0.8rem; }
+  .gcap code{ font-family:var(--font-mono); }
+
+  /* ---------- waterfall ---------- */
+  .fall{ display:grid; gap:0; border-top:1px solid var(--line); }
+  .fall__row{ display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:clamp(0.8rem,2vw,1.6rem);
+    padding:clamp(0.9rem,2vw,1.4rem) 0; border-bottom:1px solid var(--line); }
+  .fall__g{ font-size:clamp(1.1rem,3vw,1.7rem); }
+  .fall__t{ font-family:var(--font-display); font-weight:500; color:var(--ink); letter-spacing:0.004em; line-height:1.05; min-width:0;
+    font-size:clamp(1.15rem,3.6vw,2.3rem); }
+  .fall__t small{ display:block; font-family:var(--font-body); font-weight:500; font-size:0.42em; color:var(--ink-faint); letter-spacing:0.04em; margin-top:0.15rem; }
+  .fall__tier{ font-family:var(--font-mono); font-size:0.72rem; color:var(--ink-faint); white-space:nowrap; }
+
+  /* ---------- closing ---------- */
+  .closing{ padding-block:clamp(64px,10vw,120px); text-align:center; border-top:1px solid var(--line); }
+  .closing h2{ font-family:var(--font-display); font-weight:600; font-size:clamp(1.9rem,4.6vw,3.2rem); line-height:1.04; max-width:22ch; margin:0 auto 1rem; letter-spacing:0.008em; }
+  .closing p{ color:var(--ink-dim); max-width:52ch; margin:0 auto; }
+  .foot{ text-align:center; padding:2.4rem 1rem 3.4rem; color:var(--ink-faint); font-size:0.8rem; border-top:1px solid var(--line); }
+  .foot code{ font-family:var(--font-mono); }
+</style>
+</head>
+<body>
+
+<!-- ==================== SPECIMEN HERO ==================== -->
+<header class="hero">
+  <div class="hero__bg" aria-hidden="true"></div>
+  <div class="hero__read" aria-hidden="true"></div>
+  <div class="wrap hero__inner">
+    <p class="eyebrow">HomeOS · The Hero Line · Mode 1 Glance</p>
+    <div class="hero__line">
+      <span class="hero__glyph">🌧</span>
+      <span class="hero__text">Rain likely in<br>about 15 minutes.</span>
+    </div>
+    <div class="hero__meta">
+      <span>Barlow Condensed · Medium</span>
+      <span>cap height <b>≈ 37 mm</b> on the 32″ panel</span>
+      <span>legible, walking, at <b>3–4 m</b></span>
+    </div>
+  </div>
+</header>
+
+<!-- ==================== THE PROBLEM ==================== -->
+<section class="wrap">
+  <div class="head">
+    <p class="eyebrow k">The problem</p>
+    <h2 class="display">One line. Any length. Always readable from the doorway.</h2>
+    <p>The hero carries the whole room in Mode 1 — it is the two-second answer to "what do I need to know?" But its content is never the same length twice: "21°" one moment, "Leave by 8:20 — 20 minute drive, 6 in traffic" the next. A fixed type size can't serve both. So the size is <strong>length-responsive</strong>: short lines go big, long lines step down — but never below the distance floor. And the copy is trimmed by the temperament, not the typesetter.</p>
+  </div>
+
+  <!-- panel maths -->
+  <div class="grid2" style="grid-template-columns:repeat(4,1fr);">
+    <div class="vcard" style="text-align:center"><div class="display" style="font-size:2rem">32″</div><p class="eyebrow" style="margin:.5rem 0 0">Panel · 16:9</p></div>
+    <div class="vcard" style="text-align:center"><div class="display" style="font-size:2rem">69<small style="font-size:.5em;color:var(--ink-faint)">ppi</small></div><p class="eyebrow" style="margin:.5rem 0 0">1 px ≈ 0.37 mm</p></div>
+    <div class="vcard" style="text-align:center"><div class="display" style="font-size:2rem">3–4<small style="font-size:.5em;color:var(--ink-faint)">m</small></div><p class="eyebrow" style="margin:.5rem 0 0">Reading distance</p></div>
+    <div class="vcard" style="text-align:center"><div class="display" style="font-size:2rem">≈ 12<small style="font-size:.5em;color:var(--ink-faint)">mm</small></div><p class="eyebrow" style="margin:.5rem 0 0">4 m legibility floor</p></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ==================== THE SCALE ==================== -->
+<section class="wrap">
+  <div class="head">
+    <p class="eyebrow k">The scale</p>
+    <h2 class="display">Three tiers, set by character count</h2>
+    <p>Shorter means bigger. Each tier holds a cap height comfortably above the 4-metre floor — the longest permitted line is still more than 1.5× legible. Rendered here at true relative scale.</p>
+  </div>
+
+  <div class="tiers">
+    <article class="tier tier--a">
+      <div class="tier__demo">
+        <p class="tier__badge">TIER A · HEADLINE · ≤ 16 chars</p>
+        <div class="tier__line">21° and clearing.</div>
+      </div>
+      <dl class="tier__data">
+        <dt>Size</dt><dd>144<small>px</small></dd>
+        <dt>Cap</dt><dd>37<small>mm</small></dd>
+        <dt>Lines</dt><dd>1</dd>
+        <dt>Legible</dt><dd>~13<small>m</small></dd>
+      </dl>
+    </article>
+
+    <article class="tier tier--b">
+      <div class="tier__demo">
+        <p class="tier__badge">TIER B · STANDARD · 17–40 chars · the default</p>
+        <div class="tier__line">Rain likely in about 15 minutes.</div>
+      </div>
+      <dl class="tier__data">
+        <dt>Size</dt><dd>104<small>px</small></dd>
+        <dt>Cap</dt><dd>27<small>mm</small></dd>
+        <dt>Lines</dt><dd>1–2</dd>
+        <dt>Legible</dt><dd>~9<small>m</small></dd>
+      </dl>
+    </article>
+
+    <article class="tier tier--c">
+      <div class="tier__demo">
+        <p class="tier__badge">TIER C · EXTENDED · 41–64 chars · the floor</p>
+        <div class="tier__line">Leave by 8:20 — 20 minute drive, 6 in traffic.</div>
+      </div>
+      <dl class="tier__data">
+        <dt>Size</dt><dd>72<small>px</small></dd>
+        <dt>Cap</dt><dd>18<small>mm</small></dd>
+        <dt>Lines</dt><dd>2</dd>
+        <dt>Legible</dt><dd>~6<small>m</small></dd>
+      </dl>
+    </article>
+  </div>
+</section>
+
+<!-- ==================== VOICE → TYPE ==================== -->
+<section class="wrap">
+  <div class="head">
+    <p class="eyebrow k">Voice sets the type</p>
+    <h2 class="display">The temperament trims, so the type never has to shrink to fit</h2>
+    <p>Phase 10 routes every line through one voice before it is ever set. That isn't only tone — it's a typographic safeguard. A rambling, apologetic line would fall to an illegible size; the phrased line lands in Tier B and reads from the hall.</p>
+  </div>
+  <div class="grid2">
+    <div class="vcard bad">
+      <p class="vcard__tag">✕ RAW — 74 chars → below the floor</p>
+      <p class="vcard__sample">Sorry to interrupt — I just noticed it looks like it might possibly rain soon.</p>
+      <p class="vcard__foot">Too long to set above <span class="mono">18&nbsp;mm</span>. To fit, the type would drop under the 4-metre floor — unreadable from the doorway.</p>
+    </div>
+    <div class="vcard good">
+      <p class="vcard__tag">✓ VOICED — 32 chars → Tier B</p>
+      <p class="vcard__sample">Rain likely in about 15 minutes.</p>
+      <p class="vcard__foot"><span class="mono">personality.phrase()</span> strips the apology and the hedging. The fact survives; the type stays at <span class="mono">27&nbsp;mm</span>.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ==================== ANATOMY ==================== -->
+<section class="wrap">
+  <div class="head">
+    <p class="eyebrow k">Anatomy</p>
+    <h2 class="display">One glyph, one line, tuned for distance</h2>
+  </div>
+  <dl class="anat">
+    <div><dt>Face &amp; weight</dt><dd>Barlow Condensed Medium. Condensed fits more legible characters per line on a wall; Medium reads calm where Bold would shout.<span class="tok">--font-display · 500</span></dd></div>
+    <div><dt>Tracking</dt><dd>Near-zero, a hair positive. Large condensed type tightens naturally; over-tracking would break the word into letters at distance.<span class="tok">letter-spacing 0.006em</span></dd></div>
+    <div><dt>Leading</dt><dd>Set below single (0.96–1.0). A two-line hero should read as one block, not two rows.<span class="tok">line-height 0.96</span></dd></div>
+    <div><dt>Glyph ratio</dt><dd>The weather/category icon sits at ~0.8× cap height, optically centred — a colour cue that resolves before the words do.<span class="tok">≈ 0.8 × cap</span></dd></div>
+    <div><dt>Colour</dt><dd>Soft white-blue, never pure white. It's the primary ink, held above every darkened photo.<span class="tok">--ink #eef3fb</span></dd></div>
+    <div><dt>Shadow</dt><dd>A wide, soft shadow — not for depth, for a guaranteed floor of contrast over unpredictable photography.<span class="tok">0 2px 34px rgba(0,0,0,.55)</span></dd></div>
+  </dl>
+</section>
+
+<!-- ==================== OVER PHOTOGRAPHY ==================== -->
+<section class="wrap">
+  <div class="head">
+    <p class="eyebrow k">Over any photograph</p>
+    <h2 class="display">Legible on the brightest frame and the darkest</h2>
+    <p>The line never controls its background — it floats over whatever photo is up. Three layers guarantee contrast on all of them: a bottom readability gradient, the weather tint, and the type's own soft shadow. Target 7:1; never below AA-large.</p>
+  </div>
+  <div class="grounds">
+    <div class="gcard">
+      <div class="gframe"><div class="gframe__ph ph-golden"></div><div class="gframe__tint t-golden"></div><div class="gframe__read"></div>
+        <div class="gframe__line"><span class="g">🌧</span><span>Rain likely in about 15 minutes.</span></div></div>
+      <div class="gcap"><span>Brightest — golden hour</span><code>atmo-clear-golden</code></div>
+    </div>
+    <div class="gcard">
+      <div class="gframe"><div class="gframe__ph ph-storm"></div><div class="gframe__tint t-storm"></div><div class="gframe__read"></div>
+        <div class="gframe__line"><span class="g">⛈</span><span>Storm rolling in from the west.</span></div></div>
+      <div class="gcap"><span>Mid — overcast</span><code>atmo-storm</code></div>
+    </div>
+    <div class="gcard">
+      <div class="gframe"><div class="gframe__ph ph-night"></div><div class="gframe__tint t-night"></div><div class="gframe__read"></div>
+        <div class="gframe__line"><span class="g">🌙</span><span>All quiet. Doors locked.</span></div></div>
+      <div class="gcap"><span>Darkest — deep night</span><code>atmo-night</code></div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ==================== WATERFALL ==================== -->
+<section class="wrap">
+  <div class="head">
+    <p class="eyebrow k">In the wild</p>
+    <h2 class="display">Every source, one voice, its natural tier</h2>
+    <p>The queue feeds the hero from many sources — a warning, a forecast, a memory, a rare celebration, the idle concierge. All are phrased by the same temperament and land at the tier their length earns.</p>
+  </div>
+  <div class="fall">
+    <div class="fall__row"><span class="fall__g">🌧</span><span class="fall__t">Rain likely in about 15 minutes.<small>predictive · nowcast</small></span><span class="fall__tier">Tier B · 27mm</span></div>
+    <div class="fall__row"><span class="fall__g">🚗</span><span class="fall__t">Leave by 8:20 — 20 minute drive.<small>leave-by · calendar + traffic</small></span><span class="fall__tier">Tier B · 27mm</span></div>
+    <div class="fall__row"><span class="fall__g">🗑</span><span class="fall__t">Bins go out tonight.<small>predictive · bin night</small></span><span class="fall__tier">Tier A · 37mm</span></div>
+    <div class="fall__row"><span class="fall__g">🕰</span><span class="fall__t">On this day — Tasmania.<small>memory · low band</small></span><span class="fall__tier">Tier A · 37mm</span></div>
+    <div class="fall__row"><span class="fall__g">🎂</span><span class="fall__t">Happy birthday, Dylan.<small>delight · budgeted</small></span><span class="fall__tier">Tier A · 37mm</span></div>
+    <div class="fall__row"><span class="fall__g">✨</span><span class="fall__t">Cold one tonight — 9° by the small hours.<small>concierge · idle fallback</small></span><span class="fall__tier">Tier B · 27mm</span></div>
+  </div>
+</section>
+
+<!-- ==================== MOTION NOTE ==================== -->
+<section class="wrap">
+  <div class="head" style="max-width:64ch">
+    <p class="eyebrow k">Exchange, don't slide</p>
+    <h2 class="display">One line replaces another in 700 ms — a cross-fade, never a scroll</h2>
+    <p>When the hero changes, the outgoing line fades as the incoming one rises, on the shared <span class="mono">personality.timing('hero')</span> curve. No horizontal motion, nothing to track across the wall — the room simply says a different thing, calmly, the way a person changes the subject.</p>
+  </div>
+</section>
+
+<!-- ==================== CLOSING ==================== -->
+<section class="closing wrap">
+  <p class="eyebrow k" style="color:var(--gold)">The rule</p>
+  <h2 class="display">If it can't be read from the doorway, it isn't the hero — it's noise.</h2>
+  <p>The type scale, the three layers of contrast, and the one-voice trim all serve a single test: someone glances up from the kettle, three metres away, and knows the one thing that matters. Then looks away.</p>
+</section>
+
+<div class="foot">
+  HomeOS · The Hero Line — cap heights computed for a 32″ 1920×1080 panel (~69 ppi); legibility floors at the ~10-arcminute comfortable-reading threshold. Rendered in Barlow Condensed where available (falls back to Arial Narrow); true on the Pi. Copy shown is representative, phrased in the house voice.
+</div>
+</body>
+</html>

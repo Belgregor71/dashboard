@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HomeOS — Colour &amp; Atmosphere</title>
+<style>
+  :root{
+    --ground:#e7e9f0;--surface:#fff;--surface-2:#f2f4f9;--ink:#171d30;--ink-dim:#47506d;--ink-faint:#8b95b0;
+    --line:rgba(20,30,60,0.13);--line-strong:rgba(20,30,60,0.22);--gold:#b7791f;--cool:#2f5fb0;
+    --sky-0:#070b18;--p-ink:#eef3fb;
+    --font-display:"Barlow Condensed","Arial Narrow","Roboto Condensed","Oswald",sans-serif;
+    --font-body:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --font-mono:"JetBrains Mono",ui-monospace,"SF Mono",monospace;
+    --maxw:1120px;--eyebrow:0.73rem;
+  }
+  @media (prefers-color-scheme:dark){:root{--ground:#090d18;--surface:#10162a;--surface-2:#0c1120;--ink:#eef3fb;--ink-dim:#9fb0d4;--ink-faint:#66739a;--line:rgba(255,255,255,0.09);--line-strong:rgba(255,255,255,0.16);--gold:#ffcd8c;--cool:#9fc4ff;}}
+  :root[data-theme="light"]{--ground:#e7e9f0;--surface:#fff;--surface-2:#f2f4f9;--ink:#171d30;--ink-dim:#47506d;--ink-faint:#8b95b0;--line:rgba(20,30,60,0.13);--line-strong:rgba(20,30,60,0.22);--gold:#b7791f;--cool:#2f5fb0;}
+  :root[data-theme="dark"]{--ground:#090d18;--surface:#10162a;--surface-2:#0c1120;--ink:#eef3fb;--ink-dim:#9fb0d4;--ink-faint:#66739a;--line:rgba(255,255,255,0.09);--line-strong:rgba(255,255,255,0.16);--gold:#ffcd8c;--cool:#9fc4ff;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font-body);line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+  .wrap{max-width:var(--maxw);margin-inline:auto;padding-inline:clamp(20px,5vw,48px);}
+  .display{font-family:var(--font-display);font-weight:600;letter-spacing:0.005em;line-height:0.98;}
+  .eyebrow{font-size:var(--eyebrow);letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-faint);font-weight:600;margin:0 0 0.9rem;}
+  .k{color:var(--gold);}
+  h1,h2,h3{text-wrap:balance;}
+  code{font-family:var(--font-mono);}
+  ::selection{background:color-mix(in oklab,var(--gold) 35%,transparent);}
+
+  .mast{padding:clamp(46px,9vw,92px) 0 clamp(22px,4vw,38px);border-bottom:1px solid var(--line);}
+  .mast h1{font-family:var(--font-display);font-weight:600;font-size:clamp(2.4rem,6vw,4.4rem);line-height:0.96;margin:0 0 1rem;letter-spacing:0.008em;}
+  .mast p{color:var(--ink-dim);font-size:1.08rem;max-width:58ch;margin:0;}
+
+  section{padding-block:clamp(48px,7vw,88px);}
+  .head{max-width:62ch;margin-bottom:clamp(24px,4vw,42px);}
+  .head h2{font-family:var(--font-display);font-weight:600;font-size:clamp(1.9rem,4.4vw,3rem);line-height:1.0;margin:0 0 0.7rem;letter-spacing:0.006em;}
+  .head p{color:var(--ink-dim);font-size:1.04rem;margin:0;}
+  .rule{border:0;height:1px;background:var(--line);}
+
+  /* atmosphere: shown as light over photography (how it really appears) */
+  .atmos{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(12px,2vw,20px);}
+  @media (max-width:900px){.atmos{grid-template-columns:repeat(2,1fr);}}
+  @media (max-width:520px){.atmos{grid-template-columns:1fr;}}
+  .swatch{border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--surface);}
+  .swatch__frame{position:relative;aspect-ratio:4/3;background:var(--sky-0);isolation:isolate;}
+  .swatch__ph{position:absolute;inset:0;z-index:-2;
+    background:radial-gradient(120% 90% at 74% 96%,rgba(210,180,150,0.28),transparent 55%),linear-gradient(180deg,#232a3a,#3a3f4e 55%,#565b66);}
+  .swatch__tint{position:absolute;inset:0;z-index:-1;}
+  .swatch__body{padding:0.75rem 0.85rem 0.9rem;}
+  .swatch__name{font-family:var(--font-mono);font-size:0.8rem;color:var(--ink);}
+  .swatch__desc{font-size:0.82rem;color:var(--ink-dim);margin:0.15rem 0 0.5rem;}
+  .swatch__val{font-family:var(--font-mono);font-size:0.72rem;color:var(--ink-faint);}
+  /* real atmo-* overlay values */
+  .a-night{background:rgba(4,10,28,0.42);} .a-golden{background:rgba(150,95,40,0.20);}
+  .a-clearday{background:rgba(30,66,120,0.12);} .a-cloudy{background:rgba(66,78,96,0.24);}
+  .a-rain{background:rgba(36,66,98,0.30);} .a-storm{background:rgba(28,38,66,0.38);}
+  .a-fog{background:rgba(120,130,145,0.22);}
+
+  /* generic swatch grids */
+  .chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:clamp(12px,2vw,18px);}
+  .chip{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface);}
+  .chip__sw{height:74px;position:relative;}
+  .chip__sw.ck{background-image:linear-gradient(45deg,rgba(128,128,128,.25) 25%,transparent 25%),linear-gradient(-45deg,rgba(128,128,128,.25) 25%,transparent 25%),linear-gradient(45deg,transparent 75%,rgba(128,128,128,.25) 75%),linear-gradient(-45deg,transparent 75%,rgba(128,128,128,.25) 75%);background-size:14px 14px;background-position:0 0,0 7px,7px -7px,-7px 0;}
+  .chip__sw i{position:absolute;inset:0;}
+  .chip__body{padding:0.6rem 0.75rem 0.8rem;}
+  .chip__name{font-family:var(--font-mono);font-size:0.78rem;color:var(--ink);}
+  .chip__val{font-family:var(--font-mono);font-size:0.7rem;color:var(--ink-faint);margin-top:0.15rem;}
+  .chip__use{font-size:0.8rem;color:var(--ink-dim);margin-top:0.35rem;}
+
+  /* ink specimen row */
+  .ink-row{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(12px,2vw,18px);}
+  @media (max-width:640px){.ink-row{grid-template-columns:1fr;}}
+  .ink-card{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--sky-0);}
+  .ink-card .demo{padding:1.4rem 1.2rem;font-family:var(--font-display);font-weight:600;font-size:1.6rem;letter-spacing:0.01em;}
+  .ink-card .foot{padding:0.7rem 1.2rem 0.95rem;border-top:1px solid rgba(255,255,255,0.07);}
+  .ink-card .foot .n{font-family:var(--font-mono);font-size:0.78rem;color:#cdd6ea;}
+  .ink-card .foot .u{font-size:0.78rem;color:#8a97b6;margin-top:0.12rem;}
+
+  .rules{list-style:none;margin:0;padding:0;display:grid;gap:0.7rem;}
+  .rules li{display:grid;grid-template-columns:auto 1fr;gap:0.7rem;align-items:baseline;color:var(--ink-dim);font-size:0.98rem;}
+  .rules b{color:var(--gold);font-family:var(--font-mono);font-size:0.8rem;font-weight:400;}
+
+  .glass-demo{position:relative;border-radius:14px;overflow:hidden;aspect-ratio:21/6;background:var(--sky-0);isolation:isolate;display:flex;align-items:center;justify-content:center;}
+  .glass-demo .bg{position:absolute;inset:0;z-index:-1;background:radial-gradient(80% 120% at 30% 20%,rgba(255,190,120,0.35),transparent 60%),linear-gradient(120deg,#12213f,#3a2a44 60%,#5a3a2c);}
+  .glass-panel{padding:1rem 1.6rem;border-radius:14px;color:#eef3fb;font-family:var(--font-display);font-weight:600;font-size:1.3rem;letter-spacing:0.01em;
+    background:linear-gradient(180deg,rgba(24,28,40,0.48),rgba(10,12,18,0.34));border:1px solid rgba(255,255,255,0.10);
+    box-shadow:0 8px 28px rgba(0,0,0,0.30),inset 0 1px 0 rgba(255,255,255,0.07);backdrop-filter:blur(18px) brightness(0.87);}
+  .glass-recipe{margin-top:1rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .glass-recipe>div{background:var(--surface);padding:0.8rem 0.9rem;}
+  .glass-recipe dt{font-family:var(--font-mono);font-size:0.72rem;color:var(--gold);}
+  .glass-recipe dd{margin:0.25rem 0 0;font-size:0.8rem;color:var(--ink-dim);}
+
+  .foot{text-align:center;padding:2.6rem 1rem 3.4rem;color:var(--ink-faint);font-size:0.8rem;border-top:1px solid var(--line);margin-top:clamp(40px,6vw,72px);}
+</style>
+</head>
+<body>
+
+<header class="mast wrap">
+  <p class="eyebrow k">HomeOS · Reference</p>
+  <h1 class="display">Colour comes from the sky, not the chrome</h1>
+  <p>The palette has two halves. One is <strong>borrowed light</strong> — the weather and the hour, washed over the whole room and never fixed. The other is a small, disciplined set of <strong>fixed inks and signals</strong> that never shift, so text and state stay legible whatever the light is doing. This is every token, with the value and the reason.</p>
+</header>
+
+<!-- ATMOSPHERE -->
+<section class="wrap">
+  <div class="head">
+    <p class="eyebrow k">Borrowed light · the atmosphere set</p>
+    <h2 class="display">Seven states of weather, as a wash — not a fill</h2>
+    <p>Each <code>atmo-*</code> token is a single translucent tint laid over whatever photo is up (values are the Mode-0 overlay; the awake substrate runs a touch lower). It settles over 60&nbsp;s and never loops. Shown here over one neutral frame so you can read the light each one casts.</p>
+  </div>
+  <div class="atmos">
+    <div class="swatch"><div class="swatch__frame"><div class="swatch__ph"></div><div class="swatch__tint a-golden"></div></div>
+      <div class="swatch__body"><div class="swatch__name">atmo-clear-golden</div><p class="swatch__desc">Dawn &amp; dusk — the light goes warm.</p><div class="swatch__val">rgba(150,95,40, .20)</div></div></div>
+    <div class="swatch"><div class="swatch__frame"><div class="swatch__ph"></div><div class="swatch__tint a-clearday"></div></div>
+      <div class="swatch__body"><div class="swatch__name">atmo-clear-day</div><p class="swatch__desc">Open blue sky, calm daylight.</p><div class="swatch__val">rgba(30,66,120, .12)</div></div></div>
+    <div class="swatch"><div class="swatch__frame"><div class="swatch__ph"></div><div class="swatch__tint a-cloudy"></div></div>
+      <div class="swatch__body"><div class="swatch__name">atmo-cloudy</div><p class="swatch__desc">Overcast — cooler, flatter.</p><div class="swatch__val">rgba(66,78,96, .24)</div></div></div>
+    <div class="swatch"><div class="swatch__frame"><div class="swatch__ph"></div><div class="swatch__tint a-rain"></div></div>
+      <div class="swatch__body"><div class="swatch__name">atmo-rain</div><p class="swatch__desc">Wet blue, a little deeper.</p><div class="swatch__val">rgba(36,66,98, .30)</div></div></div>
+    <div class="swatch"><div class="swatch__frame"><div class="swatch__ph"></div><div class="swatch__tint a-storm"></div></div>
+      <div class="swatch__body"><div class="swatch__name">atmo-storm</div><p class="swatch__desc">Muted, weighted — the room hushes.</p><div class="swatch__val">rgba(28,38,66, .38)</div></div></div>
+    <div class="swatch"><div class="swatch__frame"><div class="swatch__ph"></div><div class="swatch__tint a-fog"></div></div>
+      <div class="swatch__body"><div class="swatch__name">atmo-fog</div><p class="swatch__desc">Soft grey veil, low contrast.</p><div class="swatch__val">rgba(120,130,145, .22)</div></div></div>
+    <div class="swatch"><div class="swatch__frame"><div class="swatch__ph"></div><div class="swatch__tint a-night"></div></div>
+      <div class="swatch__body"><div class="swatch__name">atmo-night</div><p class="swatch__desc">Deepest wash — sunset to sunrise.</p><div class="swatch__val">rgba(4,10,28, .42)</div></div></div>
+  </div>
+</section>
+
+<!-- TIME-OF-DAY ACCENT -->
+<section class="wrap">
+  <div class="head">
+    <p class="eyebrow k">Borrowed light · the living accent</p>
+    <h2 class="display">One accent that walks through the day</h2>
+    <p>A single <code>--accent</code>, set by the hour, quietly tints the clock and the view titles together so the whole face shifts as the day turns — cool at first light, warm at dusk, cool again at night.</p>
+  </div>
+  <div class="chips">
+    <div class="chip"><div class="chip__sw"><i style="background:rgba(255,205,140,0.96)"></i></div><div class="chip__body"><div class="chip__name">tint-morning</div><div class="chip__val">rgba(255,205,140, .96)</div><p class="chip__use">First light — soft gold.</p></div></div>
+    <div class="chip"><div class="chip__sw"><i style="background:rgba(255,255,255,0.95)"></i></div><div class="chip__body"><div class="chip__name">tint-day</div><div class="chip__val">rgba(255,255,255, .95)</div><p class="chip__use">Neutral daylight.</p></div></div>
+    <div class="chip"><div class="chip__sw"><i style="background:rgba(255,185,130,0.94)"></i></div><div class="chip__body"><div class="chip__name">tint-evening</div><div class="chip__val">rgba(255,185,130, .94)</div><p class="chip__use">Dusk — the warm one.</p></div></div>
+    <div class="chip"><div class="chip__sw"><i style="background:rgba(130,215,255,0.92)"></i></div><div class="chip__body"><div class="chip__name">tint-night</div><div class="chip__val">rgba(130,215,255, .92)</div><p class="chip__use">After dark — cool blue.</p></div></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- FIXED INK -->
+<section class="wrap">
+  <div class="head">
+    <p class="eyebrow k">Fixed · ink hierarchy</p>
+    <h2 class="display">Three inks, never pure white</h2>
+    <p>Text tone is fixed and does not move with the accent, so hierarchy reads the same in any light. Always these tokens — never a raw <code>rgba(255,255,255,x)</code>.</p>
+  </div>
+  <div class="ink-row">
+    <div class="ink-card"><div class="demo" style="color:#eef3fb">Rain in 15 minutes.</div><div class="foot"><div class="n">--ink · #eef3fb</div><div class="u">Primary — the hero line, the clock.</div></div></div>
+    <div class="ink-card"><div class="demo" style="color:#9fb0d4;font-size:1.3rem">Brett's already home.</div><div class="foot"><div class="n">--ink-dim · #9fb0d4</div><div class="u">Secondary — status, meta, sub-lines.</div></div></div>
+    <div class="ink-card"><div class="demo" style="color:#5e6f96;font-size:1rem;letter-spacing:0.16em;text-transform:uppercase">Nudgee · Today</div><div class="foot"><div class="n">--ink-faint · #5e6f96</div><div class="u">Tertiary — eyebrows, quiet labels.</div></div></div>
+  </div>
+</section>
+
+<!-- STATUS + WARM -->
+<section class="wrap">
+  <div class="head">
+    <p class="eyebrow k">Fixed · signals</p>
+    <h2 class="display">Status means one thing everywhere — and one warm hue, reserved</h2>
+    <p>Semantic colour is shared across cameras, system status and automation; it is <em>not</em> decoration and never doubles as the accent. Tinted badges use <code>color-mix(in oklch, …)</code>, not hard-coded rgba. The single warm hue is for sun and lightning glyphs only.</p>
+  </div>
+  <div class="chips">
+    <div class="chip"><div class="chip__sw"><i style="background:#4dd57b"></i></div><div class="chip__body"><div class="chip__name">--status-ok</div><div class="chip__val">#4dd57b</div><p class="chip__use">Healthy, online, done.</p></div></div>
+    <div class="chip"><div class="chip__sw"><i style="background:#ffb347"></i></div><div class="chip__body"><div class="chip__name">--status-warn</div><div class="chip__val">#ffb347</div><p class="chip__use">Attention — the severity stripe.</p></div></div>
+    <div class="chip"><div class="chip__sw"><i style="background:#ff6b6b"></i></div><div class="chip__body"><div class="chip__name">--status-error</div><div class="chip__val">#ff6b6b</div><p class="chip__use">Critical — a door, a fault.</p></div></div>
+    <div class="chip"><div class="chip__sw"><i style="background:#79b8ff"></i></div><div class="chip__body"><div class="chip__name">--status-info</div><div class="chip__val">#79b8ff</div><p class="chip__use">Neutral note.</p></div></div>
+    <div class="chip"><div class="chip__sw"><i style="background:#ffcd8c"></i></div><div class="chip__body"><div class="chip__name">--warm · reserved</div><div class="chip__val">#ffcd8c</div><p class="chip__use">Sun &amp; lightning glyphs, the arrival name. Never UI chrome.</p></div></div>
+  </div>
+</section>
+
+<!-- SKY BASE + GLASS -->
+<section class="wrap">
+  <div class="head">
+    <p class="eyebrow k">Fixed · ground &amp; material</p>
+    <h2 class="display">The night the room rests on, and the one glass it's built from</h2>
+  </div>
+  <div class="chips" style="margin-bottom:clamp(24px,4vw,40px)">
+    <div class="chip"><div class="chip__sw"><i style="background:#070b18"></i></div><div class="chip__body"><div class="chip__name">--sky-0</div><div class="chip__val">#070b18</div><p class="chip__use">Deepest ground.</p></div></div>
+    <div class="chip"><div class="chip__sw"><i style="background:#0e1530"></i></div><div class="chip__body"><div class="chip__name">--sky-1</div><div class="chip__val">#0e1530</div><p class="chip__use">Mid night.</p></div></div>
+    <div class="chip"><div class="chip__sw"><i style="background:#1a2148"></i></div><div class="chip__body"><div class="chip__name">--sky-2</div><div class="chip__val">#1a2148</div><p class="chip__use">Lifted horizon.</p></div></div>
+  </div>
+  <div class="glass-demo"><div class="bg"></div><div class="glass-panel">One glass, five properties, together</div></div>
+  <dl class="glass-recipe">
+    <div><dt>--glass-bg</dt><dd>180° gradient, rgba(24,28,40,.48) → (10,12,18,.34)</dd></div>
+    <div><dt>--glass-border</dt><dd>1px rgba(255,255,255,.10)</dd></div>
+    <div><dt>--glass-blur</dt><dd>blur(18px) brightness(0.87)</dd></div>
+    <div><dt>--glass-shadow + sheen</dt><dd>0 8px 28px /.30 + inset 0 1px 0 /.07</dd></div>
+    <div><dt>radius</dt><dd>18px · sm 14px · modal 22/32px</dd></div>
+  </dl>
+</section>
+
+<hr class="rule">
+
+<!-- RULES -->
+<section class="wrap">
+  <div class="head"><p class="eyebrow k">The colour rules</p><h2 class="display">How the two halves stay apart</h2></div>
+  <ul class="rules">
+    <li><b>01</b><span>Colour is <strong>borrowed from the weather and the hour</strong> (<code>atmo-*</code>, <code>--accent</code>), never painted onto chrome. If a panel wants colour, it takes it from the light.</span></li>
+    <li><b>02</b><span><strong>Ink never shifts with the accent.</strong> Legibility is fixed; mood is not. Use <code>--ink / -dim / -faint</code>, never a raw white.</span></li>
+    <li><b>03</b><span><strong>Status is meaning, not decoration.</strong> ok/warn/error/info are shared and never used as an accent; tinted badges via <code>color-mix</code>.</span></li>
+    <li><b>04</b><span><strong>One warm hue, reserved.</strong> <code>--warm</code> is for sun/lightning glyphs and the arrival name — nowhere else.</span></li>
+    <li><b>05</b><span><strong>Glass is all-or-nothing.</strong> The five properties travel together; never a one-off backdrop-filter in a component.</span></li>
+  </ul>
+</section>
+
+<div class="foot">HomeOS · Colour &amp; Atmosphere — verbatim from <code>variables.css</code> and <code>screensaver.css</code> / <code>background.css</code> (<code>atmosphere.js</code> token set). Atmosphere shown at Mode-0 overlay strength; the awake substrate runs a touch lower. Fonts preview in Barlow Condensed / Inter where available.</div>
+</body>
+</html>

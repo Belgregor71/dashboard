@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HomeOS — Design Language</title>
+<style>
+  /* ============================================================
+     HomeOS — Design Language
+     A preview of the presence-first home display, built from the
+     product's own tokens (variables.css / atmosphere.js).
+     ============================================================ */
+
+  /* ---- Page chrome tokens (theme-aware: a gallery wall) ------ */
+  :root {
+    --ground:      #e7e9f0;   /* cool gallery light, biased to the navy world */
+    --surface:     #ffffff;
+    --surface-2:   #f2f4f9;
+    --ink:         #171d30;
+    --ink-dim:     #47506d;
+    --ink-faint:   #8b95b0;
+    --line:        rgba(20, 30, 60, 0.13);
+    --line-strong: rgba(20, 30, 60, 0.22);
+    --gold:        #b7791f;   /* warm accent, tuned for light ground */
+    --cool:        #2f5fb0;
+
+    /* Product-world constants (identical in both page themes) */
+    --sky-0: #070b18;  --sky-1: #0e1530;  --sky-2: #1a2148;
+    --p-ink: #eef3fb;  --p-ink-dim: #9fb0d4;  --p-ink-faint: #5e6f96;
+    --p-warm: #ffcd8c; --p-cool: #9fc4ff;
+
+    --font-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", "Oswald", sans-serif;
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Code", monospace;
+
+    --maxw: 1120px;
+    --step-eyebrow: 0.74rem;
+    --lh-body: 1.62;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground:      #090d18;
+      --surface:     #10162a;
+      --surface-2:   #0c1120;
+      --ink:         #eef3fb;
+      --ink-dim:     #9fb0d4;
+      --ink-faint:   #66739a;
+      --line:        rgba(255, 255, 255, 0.09);
+      --line-strong: rgba(255, 255, 255, 0.16);
+      --gold:        #ffcd8c;
+      --cool:        #9fc4ff;
+    }
+  }
+  /* Viewer toggle wins in both directions */
+  :root[data-theme="light"] {
+    --ground: #e7e9f0; --surface: #ffffff; --surface-2: #f2f4f9;
+    --ink: #171d30; --ink-dim: #47506d; --ink-faint: #8b95b0;
+    --line: rgba(20,30,60,0.13); --line-strong: rgba(20,30,60,0.22);
+    --gold: #b7791f; --cool: #2f5fb0;
+  }
+  :root[data-theme="dark"] {
+    --ground: #090d18; --surface: #10162a; --surface-2: #0c1120;
+    --ink: #eef3fb; --ink-dim: #9fb0d4; --ink-faint: #66739a;
+    --line: rgba(255,255,255,0.09); --line-strong: rgba(255,255,255,0.16);
+    --gold: #ffcd8c; --cool: #9fc4ff;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-body);
+    line-height: var(--lh-body);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  .wrap { max-width: var(--maxw); margin-inline: auto; padding-inline: clamp(20px, 5vw, 48px); }
+
+  .eyebrow {
+    font-family: var(--font-body);
+    font-size: var(--step-eyebrow);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 600;
+    margin: 0 0 1rem;
+  }
+
+  h1, h2, h3 { text-wrap: balance; }
+  .display {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: 0.005em;
+    line-height: 0.98;
+  }
+
+  /* ---------- Hero ---------- */
+  .hero {
+    position: relative;
+    min-height: 88vh;
+    display: flex;
+    align-items: flex-end;
+    overflow: hidden;
+    background: var(--sky-0);
+    isolation: isolate;
+  }
+  .hero__atmos { position: absolute; inset: 0; z-index: -2; }
+  .hero__layer {
+    position: absolute; inset: 0;
+    opacity: 0;
+    animation: atmoCycle 52s infinite;
+  }
+  /* Four resting weather states — real atmo-* light, layered over a dusk field */
+  .hero__layer.golden {
+    background:
+      radial-gradient(120% 80% at 78% 96%, rgba(255,196,120,0.42), transparent 55%),
+      linear-gradient(180deg, #131a2e 0%, #2a2417 46%, #5a441f 78%, #8a6329 100%);
+    animation-delay: 0s;
+  }
+  .hero__layer.clear {
+    background:
+      radial-gradient(120% 90% at 30% 10%, rgba(90,150,230,0.20), transparent 55%),
+      linear-gradient(180deg, #0a1530 0%, #12244a 60%, #1c3564 100%);
+    animation-delay: 13s;
+  }
+  .hero__layer.storm {
+    background:
+      radial-gradient(100% 70% at 60% 20%, rgba(120,140,180,0.12), transparent 60%),
+      linear-gradient(180deg, #070b16 0%, #131a2a 55%, #1a2436 100%);
+    animation-delay: 26s;
+  }
+  .hero__layer.night {
+    background:
+      radial-gradient(90% 60% at 20% 8%, rgba(120,180,255,0.10), transparent 55%),
+      linear-gradient(180deg, #04060f 0%, #070c1c 60%, #0b1226 100%);
+    animation-delay: 39s;
+  }
+  @keyframes atmoCycle {
+    0%   { opacity: 0; }
+    4%   { opacity: 1; }
+    23%  { opacity: 1; }
+    27%  { opacity: 0; }
+    100% { opacity: 0; }
+  }
+  .hero__scrim {
+    position: absolute; inset: 0; z-index: -1;
+    background: linear-gradient(180deg, rgba(4,7,14,0.30) 0%, rgba(4,7,14,0.05) 40%, rgba(4,7,14,0.72) 100%);
+  }
+  .hero__inner { padding: clamp(28px, 6vw, 72px) 0 clamp(40px, 7vw, 84px); color: var(--p-ink); }
+  .hero .eyebrow { color: rgba(238,243,251,0.72); }
+  .hero__title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(2.9rem, 8.5vw, 7rem);
+    line-height: 0.94;
+    letter-spacing: 0.004em;
+    margin: 0 0 1.1rem;
+    max-width: 16ch;
+    text-shadow: 0 2px 40px rgba(0,0,0,0.5);
+  }
+  .hero__title em { color: var(--p-warm); font-style: normal; }
+  .hero__sub {
+    font-size: clamp(1.02rem, 1.7vw, 1.3rem);
+    color: rgba(238,243,251,0.82);
+    max-width: 52ch;
+    margin: 0 0 1.6rem;
+  }
+  .hero__ticker {
+    display: inline-flex; align-items: center; gap: 0.6rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    letter-spacing: 0.02em;
+    color: rgba(238,243,251,0.7);
+    padding: 0.5rem 0.9rem;
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 999px;
+    background: rgba(8,12,24,0.35);
+    backdrop-filter: blur(8px);
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--p-warm); box-shadow: 0 0 10px var(--p-warm); animation: breathe 4s ease-in-out infinite; }
+  @keyframes breathe { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+  /* ---------- Sections ---------- */
+  section { padding-block: clamp(56px, 9vw, 108px); }
+  .section-head { max-width: 62ch; margin-bottom: clamp(28px, 5vw, 52px); }
+  .section-head .kicker { color: var(--gold); }
+  .section-head h2 {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 4.6vw, 3.4rem);
+    line-height: 1.0;
+    margin: 0 0 0.8rem;
+    letter-spacing: 0.006em;
+  }
+  .section-head p { color: var(--ink-dim); font-size: 1.08rem; margin: 0; }
+  .lead-rule { height: 1px; background: var(--line); border: 0; margin: 0; }
+
+  /* ---------- Device frames (the product's constant dark world) ---------- */
+  .modes { display: grid; grid-template-columns: repeat(2, 1fr); gap: clamp(18px, 3vw, 30px); }
+  @media (max-width: 720px) { .modes { grid-template-columns: 1fr; } }
+
+  .mode { }
+  .mode__meta { display: flex; align-items: baseline; gap: 0.7rem; margin-bottom: 0.85rem; }
+  .mode__n { font-family: var(--font-mono); font-size: 0.78rem; color: var(--ink-faint); }
+  .mode__name { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; letter-spacing: 0.01em; }
+  .mode__trigger { margin-left: auto; font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink-faint); }
+  .mode__note { color: var(--ink-dim); font-size: 0.96rem; margin: 0.75rem 0 0; }
+
+  .screen {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--sky-0);
+    border: 1px solid rgba(255,255,255,0.10);
+    box-shadow: 0 18px 44px rgba(0,0,0,0.36);
+    color: var(--p-ink);
+    isolation: isolate;
+  }
+  .screen__photo { position: absolute; inset: 0; z-index: -3; }
+  .screen__tint  { position: absolute; inset: 0; z-index: -2; }
+  .screen__read  { position: absolute; inset: 0; z-index: -1;
+    background: linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0) 42%, rgba(0,0,0,0.68) 100%); }
+
+  /* Photography stand-ins (production = Immich library) */
+  .photo-golden { background:
+    radial-gradient(130% 90% at 82% 100%, rgba(255,198,120,0.5), transparent 52%),
+    linear-gradient(180deg, #14172a 0%, #2c2416 48%, #5c451f 80%, #8f6529 100%); }
+  .photo-clear { background:
+    radial-gradient(120% 80% at 26% 8%, rgba(120,170,240,0.24), transparent 55%),
+    linear-gradient(180deg, #0a1836 0%, #143056 62%, #1d3f70 100%); }
+  .photo-storm { background:
+    radial-gradient(110% 70% at 55% 16%, rgba(150,168,200,0.12), transparent 58%),
+    linear-gradient(180deg, #070b16 0%, #121b2c 52%, #1b2740 100%); }
+  .photo-night { background:
+    radial-gradient(80% 55% at 22% 10%, rgba(120,180,255,0.10), transparent 55%),
+    linear-gradient(180deg, #04060f 0%, #070d1e 60%, #0b1226 100%); }
+
+  /* Real atmo-* overlay tints (screensaver Mode-0 strength) */
+  .tint-golden { background: rgba(150, 95, 40, 0.20); }
+  .tint-clear  { background: rgba(30, 66, 120, 0.12); }
+  .tint-storm  { background: rgba(28, 38, 66, 0.38); }
+  .tint-night  { background: rgba(4, 10, 28, 0.42); }
+  .tint-rain   { background: rgba(36, 66, 98, 0.30); }
+
+  .screen__pad { position: absolute; inset: 0; padding: clamp(14px, 3.4%, 26px); display: flex; flex-direction: column; }
+
+  /* Ambient clock */
+  .amb-clock { margin-top: auto; }
+  .amb-time { font-family: var(--font-display); font-weight: 500; font-size: clamp(2.4rem, 12cqw, 4.6rem); line-height: 0.9; color: rgba(238,243,251,0.86); letter-spacing: 0.01em; }
+  .amb-time span { font-size: 0.42em; color: rgba(238,243,251,0.6); }
+  .amb-date { font-family: var(--font-display); letter-spacing: 0.18em; text-transform: uppercase; font-size: 0.8rem; color: rgba(238,243,251,0.5); margin-top: 0.35rem; }
+  .amb-memory { position: absolute; top: 8%; left: clamp(14px,3.4%,26px); right: clamp(14px,3.4%,26px); font-size: 0.82rem; color: rgba(238,243,251,0.42); }
+
+  /* Top row (clock + weather) */
+  .top-row { display: flex; justify-content: space-between; align-items: flex-start; }
+  .top-time { font-family: var(--font-display); font-weight: 500; font-size: clamp(1.4rem, 6cqw, 2.1rem); line-height: 1; }
+  .top-time span { font-size: 0.5em; color: rgba(238,243,251,0.6); }
+  .top-wx { text-align: right; }
+  .top-wx b { font-family: var(--font-display); font-weight: 600; font-size: clamp(1.4rem, 6cqw, 2.1rem); }
+  .top-wx small { display:block; font-size: 0.68rem; color: rgba(238,243,251,0.6); letter-spacing: 0.02em; }
+
+  /* Glance hero line */
+  .hero-line { margin-top: auto; margin-bottom: auto; display: flex; align-items: center; gap: 0.7rem; }
+  .hero-line .ic { font-size: clamp(1.3rem, 6cqw, 2rem); }
+  .hero-line .tx { font-family: var(--font-display); font-weight: 500; font-size: clamp(1.3rem, 6.4cqw, 2.2rem); line-height: 1.02; letter-spacing: 0.01em; }
+
+  /* Lean-in stack (glass earns its edges) */
+  .stack { margin-top: auto; display: grid; gap: 0.5rem; }
+  .glass {
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.55rem 0.75rem;
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(24,28,40,0.55), rgba(10,12,18,0.40));
+    border: 1px solid rgba(255,255,255,0.10);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+    backdrop-filter: blur(8px);
+    font-size: 0.82rem;
+  }
+  .glass .ic { font-size: 1rem; opacity: 0.9; }
+  .glass b { font-family: var(--font-display); font-weight: 600; letter-spacing: 0.01em; }
+  .glass .m { color: rgba(238,243,251,0.6); margin-left: auto; font-size: 0.74rem; }
+  .glass--hero { background: linear-gradient(180deg, rgba(40,44,60,0.6), rgba(16,20,32,0.46)); }
+
+  /* Voice (reserved) */
+  .voice-state { margin: auto; text-align: center; }
+  .wave { display: flex; align-items: center; justify-content: center; gap: 5px; height: 40px; margin-bottom: 0.8rem; }
+  .wave i { width: 4px; border-radius: 4px; background: var(--p-cool); opacity: 0.85; animation: wavep 1.4s ease-in-out infinite; }
+  .wave i:nth-child(1){height:40%;animation-delay:0s} .wave i:nth-child(2){height:75%;animation-delay:.15s}
+  .wave i:nth-child(3){height:100%;animation-delay:.3s} .wave i:nth-child(4){height:60%;animation-delay:.45s}
+  .wave i:nth-child(5){height:85%;animation-delay:.6s} .wave i:nth-child(6){height:45%;animation-delay:.75s}
+  @keyframes wavep { 0%,100%{transform:scaleY(0.5);opacity:0.4} 50%{transform:scaleY(1);opacity:0.9} }
+  .voice-state .lbl { font-family: var(--font-display); font-size: 1.2rem; letter-spacing: 0.02em; }
+  .voice-state .sub { font-size: 0.76rem; color: rgba(238,243,251,0.5); margin-top: 0.3rem; }
+  .reserved-tag { position: absolute; top: 10px; right: 10px; font-family: var(--font-mono); font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(238,243,251,0.5); border: 1px solid rgba(255,255,255,0.14); padding: 0.2rem 0.5rem; border-radius: 999px; }
+
+  .screen { container-type: inline-size; }
+
+  /* ---------- Atmosphere row (the signature) ---------- */
+  .atmos-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(14px, 2.5vw, 26px); }
+  @media (max-width: 720px) { .atmos-row { grid-template-columns: 1fr; } }
+  .atmos-cap { display: flex; justify-content: space-between; align-items: baseline; margin-top: 0.7rem; }
+  .atmos-cap b { font-family: var(--font-display); font-weight: 600; font-size: 1.05rem; letter-spacing: 0.01em; }
+  .atmos-cap code { font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink-faint); }
+  .atmos-mini { aspect-ratio: 16/10; }
+
+  /* ---------- Principle table ---------- */
+  .scroller { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 620px; }
+  th, td { text-align: left; padding: 0.85rem 1rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  thead th { font-family: var(--font-body); font-size: var(--step-eyebrow); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; border-bottom: 1px solid var(--line-strong); }
+  tbody th { font-family: var(--font-display); font-weight: 600; font-size: 1.18rem; letter-spacing: 0.01em; color: var(--ink); white-space: nowrap; }
+  td { color: var(--ink-dim); font-size: 0.95rem; }
+  td code, .mono { font-family: var(--font-mono); font-size: 0.82em; color: var(--gold); background: color-mix(in oklab, var(--gold) 12%, transparent); padding: 0.08em 0.4em; border-radius: 5px; white-space: nowrap; }
+
+  /* ---------- Motion / stillness ---------- */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(24px, 4vw, 48px); }
+  @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
+  .token-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.9rem; }
+  .token-list li { display: grid; gap: 0.15rem; padding-bottom: 0.9rem; border-bottom: 1px solid var(--line); }
+  .token-list .k { font-family: var(--font-mono); font-size: 0.85rem; color: var(--ink); }
+  .token-list .v { font-family: var(--font-mono); font-size: 0.8rem; color: var(--gold); }
+  .token-list .d { font-size: 0.86rem; color: var(--ink-dim); }
+
+  /* ---------- Rams reduction ---------- */
+  .rams { display: grid; gap: 0.2rem; }
+  .rams__row { display: grid; grid-template-columns: 1.1fr 1.4fr; gap: 1.2rem; padding: 1rem 0; border-bottom: 1px solid var(--line); align-items: baseline; }
+  @media (max-width: 640px) { .rams__row { grid-template-columns: 1fr; gap: 0.3rem; } }
+  .rams__gone { font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; color: var(--ink); position: relative; }
+  .rams__gone::before { content: "− "; color: var(--status, #c2483d); font-family: var(--font-body); }
+  .rams__for { color: var(--ink-dim); font-size: 0.95rem; }
+
+  /* ---------- Legibility spec ---------- */
+  .spec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: clamp(16px,2.5vw,24px); }
+  .spec {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 1.4rem 1.3rem;
+  }
+  .spec .num { font-family: var(--font-display); font-weight: 600; font-size: clamp(2rem, 3.4vw, 2.8rem); line-height: 1; letter-spacing: 0.01em; }
+  .spec .num small { font-size: 0.4em; color: var(--ink-faint); font-weight: 500; letter-spacing: 0.04em; }
+  .spec .lbl { font-family: var(--font-body); font-size: var(--step-eyebrow); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; margin-top: 0.7rem; }
+  .spec .desc { color: var(--ink-dim); font-size: 0.88rem; margin-top: 0.55rem; }
+
+  /* ---------- Closing ---------- */
+  .closing { text-align: center; padding-block: clamp(80px, 12vw, 150px); }
+  .closing h2 { font-family: var(--font-display); font-weight: 600; font-size: clamp(2rem, 5.5vw, 4rem); line-height: 1.02; max-width: 18ch; margin: 0 auto 1rem; letter-spacing: 0.008em; }
+  .closing p { color: var(--ink-dim); max-width: 46ch; margin: 0 auto; }
+  .footer { text-align: center; padding: 2.5rem 1rem 3.5rem; color: var(--ink-faint); font-size: 0.82rem; border-top: 1px solid var(--line); }
+  .footer code { font-family: var(--font-mono); }
+
+  a { color: var(--cool); }
+  ::selection { background: color-mix(in oklab, var(--gold) 35%, transparent); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero__layer, .dot, .wave i { animation: none !important; }
+    .hero__layer.golden { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================ HERO ============================ -->
+<header class="hero">
+  <div class="hero__atmos" aria-hidden="true">
+    <div class="hero__layer golden"></div>
+    <div class="hero__layer clear"></div>
+    <div class="hero__layer storm"></div>
+    <div class="hero__layer night"></div>
+  </div>
+  <div class="hero__scrim" aria-hidden="true"></div>
+  <div class="wrap hero__inner">
+    <p class="eyebrow">HomeOS · Design Language</p>
+    <h1 class="hero__title display">The screen becomes<br>part of the <em>wall.</em></h1>
+    <p class="hero__sub">Not a dashboard. A permanent architectural element that knows who's there, shows one thing worth knowing, and disappears when nothing is. Its material isn't pixels — it's light.</p>
+    <span class="hero__ticker"><span class="dot"></span> atmosphere settling — golden → clear → storm → night · a 60&nbsp;s wash in production</span>
+  </div>
+</header>
+
+<!-- ==================== THE FOUR MODES ==================== -->
+<section class="wrap">
+  <div class="section-head">
+    <p class="eyebrow kicker">The spine</p>
+    <h2 class="display">Four states of presence, one continuous room</h2>
+    <p>Presence sets the floor. As someone approaches, the room reveals only as much as the moment asks — and the glass dissolves or earns its edges accordingly. Same evening, four depths.</p>
+  </div>
+
+  <div class="modes">
+    <!-- Mode 0 -->
+    <article class="mode">
+      <div class="mode__meta"><span class="mode__n">00</span><span class="mode__name display">Ambient</span><span class="mode__trigger">nobody near</span></div>
+      <div class="screen">
+        <div class="screen__photo photo-golden"></div>
+        <div class="screen__tint tint-golden"></div>
+        <div class="screen__read"></div>
+        <div class="screen__pad">
+          <p class="amb-memory">On this day, nine years ago.</p>
+          <div class="amb-clock">
+            <div class="amb-time">6:12<span>pm</span></div>
+            <div class="amb-date">Sunday 12 July</div>
+          </div>
+        </div>
+      </div>
+      <p class="mode__note">Almost no text. Weather-tinted light, a dim clock, a rare earned memory. The wall breathing, not a screen working.</p>
+    </article>
+
+    <!-- Mode 1 -->
+    <article class="mode">
+      <div class="mode__meta"><span class="mode__n">01</span><span class="mode__name display">Glance</span><span class="mode__trigger">motion · &lt;2s</span></div>
+      <div class="screen">
+        <div class="screen__photo photo-golden"></div>
+        <div class="screen__tint tint-golden"></div>
+        <div class="screen__read"></div>
+        <div class="screen__pad">
+          <div class="top-row">
+            <div class="top-time">6:12<span>pm</span></div>
+            <div class="top-wx"><b>21°</b><small>NUDGEE · CLEAR</small></div>
+          </div>
+          <div class="hero-line">
+            <span class="ic">🌧</span>
+            <span class="tx">Rain likely in about 15 minutes.</span>
+          </div>
+        </div>
+      </div>
+      <p class="mode__note">One hero. The single most useful thing, scored above everything else — read in the two seconds someone walks past with a kettle.</p>
+    </article>
+
+    <!-- Mode 2 -->
+    <article class="mode">
+      <div class="mode__meta"><span class="mode__n">02</span><span class="mode__name display">Lean-in</span><span class="mode__trigger">dwell · 30s+</span></div>
+      <div class="screen">
+        <div class="screen__photo photo-golden"></div>
+        <div class="screen__tint tint-golden"></div>
+        <div class="screen__read"></div>
+        <div class="screen__pad">
+          <div class="top-row">
+            <div class="top-time">6:12<span>pm</span></div>
+            <div class="top-wx"><b>21°</b><small>NUDGEE · CLEAR</small></div>
+          </div>
+          <div class="stack">
+            <div class="glass glass--hero"><span class="ic">🌧</span><b>Rain likely in ~15 min</b><span class="m">60%</span></div>
+            <div class="glass"><span class="ic">📅</span><b>Dylan — pickup</b><span class="m">7:30pm</span></div>
+            <div class="glass"><span class="ic">🍝</span><b>Stuffed capsicums</b><span class="m">tonight</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="mode__note">Only here does glass earn its edges — the next three things, curated. Density is permitted when someone has chosen to look, never before.</p>
+    </article>
+
+    <!-- Mode 3 -->
+    <article class="mode">
+      <div class="mode__meta"><span class="mode__n">03</span><span class="mode__name display">Conversation</span><span class="mode__trigger">voice</span></div>
+      <div class="screen">
+        <div class="screen__photo photo-night"></div>
+        <div class="screen__tint tint-night"></div>
+        <div class="screen__read"></div>
+        <span class="reserved-tag">reserved · no mic yet</span>
+        <div class="screen__pad">
+          <div class="voice-state">
+            <div class="wave"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="lbl display">Listening…</div>
+            <div class="sub">full attention, then it recedes</div>
+          </div>
+        </div>
+      </div>
+      <p class="mode__note">The floor hands to voice — direct answers, then a graceful retreat back through the modes. The seam is built and reserved for when a mic lands.</p>
+    </article>
+  </div>
+</section>
+
+<!-- ==================== LIGHT AS MATERIAL ==================== -->
+<section class="wrap">
+  <div class="section-head">
+    <p class="eyebrow kicker">The signature</p>
+    <h2 class="display">Light is the material. The weather is the palette.</h2>
+    <p>Colour doesn't come from UI chrome — it comes from the sky. The same Glance moment wears the light of the hour and the weather outside, a wash that settles over 60&nbsp;seconds and never loops. The dashboard becomes another light source in the room.</p>
+  </div>
+
+  <div class="atmos-row">
+    <figure style="margin:0">
+      <div class="screen atmos-mini">
+        <div class="screen__photo photo-golden"></div><div class="screen__tint tint-golden"></div><div class="screen__read"></div>
+        <div class="screen__pad"><div class="hero-line" style="margin-bottom:0"><span class="tx">Golden hour holds a while.</span></div></div>
+      </div>
+      <figcaption class="atmos-cap"><b>Sunset</b><code>atmo-clear-golden</code></figcaption>
+    </figure>
+    <figure style="margin:0">
+      <div class="screen atmos-mini">
+        <div class="screen__photo photo-storm"></div><div class="screen__tint tint-storm"></div><div class="screen__read"></div>
+        <div class="screen__pad"><div class="hero-line" style="margin-bottom:0"><span class="ic">⛈</span><span class="tx">Storm rolling in from the west.</span></div></div>
+      </div>
+      <figcaption class="atmos-cap"><b>Storm</b><code>atmo-storm</code></figcaption>
+    </figure>
+    <figure style="margin:0">
+      <div class="screen atmos-mini">
+        <div class="screen__photo photo-night"></div><div class="screen__tint tint-night"></div><div class="screen__read"></div>
+        <div class="screen__pad"><div class="amb-clock" style="margin-top:auto"><div class="amb-time" style="font-size:clamp(1.6rem,10cqw,3rem)">11:40<span>pm</span></div></div></div>
+      </div>
+      <figcaption class="atmos-cap"><b>Deep night</b><code>atmo-night</code></figcaption>
+    </figure>
+  </div>
+</section>
+
+<hr class="lead-rule">
+
+<!-- ==================== DESIGN LANGUAGE ==================== -->
+<section class="wrap">
+  <div class="section-head">
+    <p class="eyebrow kicker">The rules</p>
+    <h2 class="display">Ten principles, each with a rule it can be held to</h2>
+    <p>A design language is a philosophy, not a palette. Every component must justify itself against these — and each principle resolves to a concrete rule tied to a real token, so "calm" is checkable, not claimed.</p>
+  </div>
+  <div class="scroller">
+    <table>
+      <thead><tr><th>Principle</th><th>The concrete rule it becomes</th></tr></thead>
+      <tbody>
+        <tr><th>Silence over noise</th><td>Ambient shows ≤ 6 words. A candidate below its band stays silent — <code>shouldSpeak()</code> is the one gate, and its default answer is no.</td></tr>
+        <tr><th>Light over colour</th><td>Colour comes from weather light — the <code>atmo-*</code> wash — never UI chrome. The one warm hue <code>--warm</code> is reserved for sun and lightning only.</td></tr>
+        <tr><th>Atmosphere over decoration</th><td>One resting wash that settles over <code>--atmo-settle</code> (60s) and comes to rest. No loops — <strong>0% GPU at idle</strong> is the hard floor.</td></tr>
+        <tr><th>Meaning over information</th><td>Exactly one hero may dominate. <code>score = importance × urgency × confidence</code>; presence sets the floor that lets almost everything lose.</td></tr>
+        <tr><th>Motion over animation</th><td><code>transform</code> / <code>opacity</code> only, and every motion names a reason. Ambient is effectively still — a slow settle, never a marquee.</td></tr>
+        <tr><th>Presence over interaction</th><td>No touch. The mode is chosen <em>for</em> you by where you are and how long you dwell — zero onboarding, zero navigation.</td></tr>
+        <tr><th>Space over panels</th><td>Glass dissolves in Ambient &amp; Glance and earns its edges only in Lean-in. Empty space is the correct state, not a bug to fill.</td></tr>
+        <tr><th>Restraint over features</th><td>One voice: every line passes <code>personality.phrase()</code>. Delight fires ≤ 2–3× a year on a hard, persisted budget.</td></tr>
+        <tr><th>Memory over media</th><td>A photo can carry a memory the house holds. Tender memories are ambient-only and <em>never</em> captioned — gentleness is code, not hope.</td></tr>
+        <tr><th>Rhythm over layout</th><td>The day's light and the learned routine set tempo — <code>houseModel</code> tempo, not a fixed grid. The room reads a rushed morning differently from a slow Sunday.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ==================== MOTION & STILLNESS ==================== -->
+<section class="wrap">
+  <div class="section-head">
+    <p class="eyebrow kicker">Motion &amp; stillness</p>
+    <h2 class="display">How information breathes — and where nothing happens</h2>
+    <p>Timing is a manner, shared by every transition from one authority (<span class="mono">personality.timing()</span>). Stillness is designed as deliberately as motion.</p>
+  </div>
+  <div class="grid-2">
+    <div>
+      <p class="eyebrow">Timing tokens</p>
+      <ul class="token-list">
+        <li><span class="k">atmosphere</span><span class="v">60000ms · ease</span><span class="d">The weather wash settling to rest. Slow enough to be ignorable.</span></li>
+        <li><span class="k">hero</span><span class="v">700ms · cubic-bezier(.4,0,.2,1)</span><span class="d">One thing arriving or replacing another. A calm exchange, not a snap.</span></li>
+        <li><span class="k">arrival</span><span class="v">550ms · cubic-bezier(.22,1,.36,1)</span><span class="d">A welcome-home card easing in — a touch of overshoot, then settle.</span></li>
+      </ul>
+    </div>
+    <div>
+      <p class="eyebrow">What animates · what is still, per mode</p>
+      <div class="scroller">
+        <table style="min-width:0">
+          <thead><tr><th>Mode</th><th>Moves</th><th>Still</th></tr></thead>
+          <tbody>
+            <tr><th style="font-size:1rem">Ambient</th><td>60s tint settle; slow photo drift (OLED)</td><td>everything else — 0% GPU</td></tr>
+            <tr><th style="font-size:1rem">Glance</th><td>one hero fades in (700ms)</td><td>ground, clock, weather</td></tr>
+            <tr><th style="font-size:1rem">Lean-in</th><td>stack reveals (opacity only)</td><td>the hero it grew from</td></tr>
+            <tr><th style="font-size:1rem">Voice</th><td>listening indicator</td><td>the room behind it</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="lead-rule">
+
+<!-- ==================== RAMS REDUCTION ==================== -->
+<section class="wrap">
+  <div class="section-head">
+    <p class="eyebrow kicker">The reduction</p>
+    <h2 class="display">What HomeOS removes that a dashboard shows</h2>
+    <p>"Weniger, aber besser." The design isn't what got added — it's what got taken away, and each cut earns its place.</p>
+  </div>
+  <div class="rams">
+    <div class="rams__row"><div class="rams__gone">Navigation, tabs, the click-cycle</div><div class="rams__for">Presence decides the one job at any moment. A passer-by carrying groceries has no time to navigate.</div></div>
+    <div class="rams__row"><div class="rams__gone">The grid of always-on widgets</div><div class="rams__for">One scored hero. Every "might be useful" tile was cognitive tax paid a hundred times a day.</div></div>
+    <div class="rams__row"><div class="rams__gone">Permanent labels for absent values</div><div class="rams__for">A panel with nothing to say is absent, not blank. Empty space is the ambient default.</div></div>
+    <div class="rams__row"><div class="rams__gone">Decorative motion</div><div class="rams__for">Any continuous animation pins a CPU core on the Pi. Motion now means a state change, nothing else.</div></div>
+    <div class="rams__row"><div class="rams__gone">Notifications that nag</div><div class="rams__for">Silence is the default and delight is budgeted. The house says a thing once, plainly, or not at all.</div></div>
+    <div class="rams__row"><div class="rams__gone">Pure white, hard chrome</div><div class="rams__for"><span class="mono">--ink</span> is a soft white-blue; colour is borrowed from the weather, not painted on.</div></div>
+  </div>
+</section>
+
+<!-- ==================== LEGIBILITY SPEC ==================== -->
+<section class="wrap">
+  <div class="section-head">
+    <p class="eyebrow kicker">Verify, don't claim</p>
+    <h2 class="display">Calm is measurable</h2>
+    <p>A wall display lives at a distance no phone designer plans for. These are the targets a mockup has to hit before it can ship onto the wall — on a 32-inch 1080p panel.</p>
+  </div>
+  <div class="spec-grid">
+    <div class="spec"><div class="num">3–4<small>m</small></div><div class="lbl">Reading distance</div><p class="desc">The hero must resolve while walking past — the design axis phones never face.</p></div>
+    <div class="spec"><div class="num">~120<small>px</small></div><div class="lbl">Hero cap-height</div><p class="desc">The Glance line uses <span class="mono">--fs-hero</span> (clamp 4–9rem) so it carries the room.</p></div>
+    <div class="spec"><div class="num">7:1<small>target</small></div><div class="lbl">Contrast on photos</div><p class="desc">A readability gradient + the <span class="mono">atmo-*</span> tint darken every photo so <span class="mono">--ink</span> clears AA-large on the brightest and the darkest frame.</p></div>
+    <div class="spec"><div class="num">≤ 6<small>words</small></div><div class="lbl">Ambient text budget</div><p class="desc">Below the count, it's a glance; above it, it's a document nobody reads from across a kitchen.</p></div>
+  </div>
+</section>
+
+<!-- ==================== CLOSING ==================== -->
+<section class="closing wrap">
+  <p class="eyebrow kicker" style="color:var(--gold)">The one rule</p>
+  <h2 class="display">Show the right thing at the right moment — and nothing at all, beautifully, the rest of the time.</h2>
+  <p>A visitor should almost forget there's software involved. Not a hotel-lobby aesthetic borrowed as decoration — the same discipline: presence, restraint, and light.</p>
+</section>
+
+<div class="footer">
+  HomeOS Design Language · built from the live token system (<code>variables.css</code>, <code>atmosphere.js</code>, <code>personality.js</code>). Device frames use the product's real <code>atmo-*</code> light values; photography is represented (production draws the household's Immich library). Fonts preview in Barlow Condensed / Inter where available.
+</div>
+</body>
+</html>
