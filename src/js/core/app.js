@@ -193,7 +193,9 @@ export function startApp() {
     // dashboard carries the mood too (docs/vision/phase-7-dissolve.md).
     substrateEnabled: isEnabled("ambientSubstrate", false),
     // Phase 9.5 — source the ambient photo pool from Immich (docs/vision/photo-source-immich.md).
-    immichEnabled: isEnabled("immichPhotos", false)
+    immichEnabled: isEnabled("immichPhotos", false),
+    // Study 05 (WP1) — ambient-clock treatment: tabular face + sun-altitude dim (docs/design/).
+    ambientClockEnabled: isEnabled("ambientClock", false)
   });
   initFocusHero({
     attentionEnabled: isEnabled("attentionEngine", false),

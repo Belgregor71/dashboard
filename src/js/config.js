@@ -147,7 +147,17 @@ window.CONFIG = {
     // (13ch->144px / 32ch->104px / 52ch->72px), heap + GPU flat (80% = the
     // pre-existing awake-home baseline, unchanged by a static type change).
     // Now default-on. One-line revert (-> false).
-    heroType: true
+    heroType: true,
+
+    // Design study 05 "The Ambient Clock" (docs/design/homeos-ambient-clock.html),
+    // WP1 of docs/design/PLAN.md. The Mode-0 screensaver clock gets the study
+    // treatment: tabular figures + a quieter/smaller meridiem, and its brightness
+    // tracks the *sun altitude* on a smooth curve (dims with the sky, ~0.9 day →
+    // ~0.3 the small-hours floor) instead of the binary sunset→sunrise night
+    // switch. Pure opacity/type, no new motion — the idle GPU stays frozen (0%).
+    // Default OFF -> byte-identical (plain clock string, binary night dimming).
+    // One-line revert (-> false).
+    ambientClock: false
   },
 
   /* --------------------------------------------------------------

@@ -262,6 +262,37 @@
   display: none;
 }
 
+/* ── Ambient clock (study 05, features.ambientClock) ──────────
+   docs/design/homeos-ambient-clock.html · WP1 of docs/design/PLAN.md.
+   The Mode-0 clock in tabular figures with a quieter, smaller meridiem, and a
+   brightness that tracks the sun: screensaver.js (applyClockDim) writes
+   --clock-dim on a smooth ~0.3 (small-hours floor) → ~0.9 (day) curve from sun
+   altitude, so the clock dims with the sky rather than snapping at sunset.
+   Type + opacity only — no new motion, so the idle GPU stays frozen (0%).
+   Placed after the --night block so the graded dim overrides the binary night
+   colour/opacity. Flag-off adds no class → this whole block is inert. */
+.screensaver--ambient-clock .screensaver__time {
+  font-weight: 500;
+  letter-spacing: 0.008em;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  opacity: var(--clock-dim, 0.9);
+  transition: color 2s ease, opacity 2s ease, font-size 1s ease;
+}
+
+.screensaver--ambient-clock .screensaver__meridiem {
+  font-size: 0.34em;
+  font-weight: 400;
+  opacity: 0.72;
+  margin-left: 0.12em;
+}
+
+.screensaver--ambient-clock .screensaver__dateline {
+  letter-spacing: 0.22em;
+  color: var(--accent);
+  opacity: calc(var(--clock-dim, 0.9) * 0.7);
+}
+
 /* ── Hide dashboard content while screensaver is active ────── */
 
 body.screensaver-active > *:not(#screensaver) {

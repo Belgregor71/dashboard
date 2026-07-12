@@ -73,6 +73,29 @@ function getSetJ(h, lw, phi, dec, n, M, L) {
   return solarTransitJ(a, M, L);
 }
 
+// Sun altitude above the horizon (radians), the standard SunCalc getPosition
+// reduced to the altitude we need for the ambient-clock dim curve. Positive =
+// above the horizon (day), negative = below (twilight → night).
+function siderealTime(d, lw) {
+  return rad * (280.16 + 360.9856235 * d) - lw;
+}
+
+function altitude(H, phi, dec) {
+  return asin(sin(phi) * sin(dec) + cos(phi) * cos(dec) * cos(H));
+}
+
+export function getPosition(date, lat, lon) {
+  const lw = rad * -lon;
+  const phi = rad * lat;
+  const d = toDays(date);
+  const M = solarMeanAnomaly(d);
+  const L = eclipticLongitude(M);
+  const dec = declination(L, 0);
+  const ra = rightAscension(L, 0);
+  const H = siderealTime(d, lw) - ra;
+  return { altitude: altitude(H, phi, dec) };
+}
+
 export function getTimes(date, lat, lon, height = 0) {
   const lw = rad * -lon;
   const phi = rad * lat;

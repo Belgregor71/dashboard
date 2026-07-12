@@ -2,7 +2,7 @@ import { getLastCameraTrigger } from "./cameraTiles.js";
 import { switchView } from "../core/viewManager.js";
 import { emit } from "../core/eventBus.js";
 import { freezeLotties, unfreezeLotties } from "../helpers/lottie.js";
-import { getTimes as getSunTimes } from "../vendor/suncalc.js";
+import { getTimes as getSunTimes, getPosition as getSunPosition } from "../vendor/suncalc.js";
 import { WEATHER_LAT, WEATHER_LON } from "../config/constants.js";
 import { get as getContext, set as setContext, subscribe as subscribeContext } from "../core/contextStore.js";
 import { atmosphereFor, ATMOSPHERE_TOKENS } from "../services/atmosphere.js";
@@ -68,6 +68,32 @@ let substrateEnabled = false;
 // downscaled). Flag off → this block is inert and photos come from static/photos.
 let immichEnabled = false;
 const ANNIVERSARY_RE = /\b(birthday|bday|anniversary)\b/i; // "on this day" earned memory
+
+// ─── Ambient clock (study 05, flag-gated) ─────────────────────
+// When on, the Mode 0 clock gets the study-05 treatment: tabular figures + a
+// quieter meridiem, and its brightness tracks the *sun altitude* on a smooth
+// curve (dims with the sky, never a hard sunset switch) rather than the binary
+// night class. Flag off → this block is inert and the clock is unchanged.
+let ambientClockEnabled = false;
+const CLOCK_DIM_DAY   = 0.9;  // sun well up → full ambient brightness
+const CLOCK_DIM_NIGHT = 0.3;  // the small-hours floor — dim, never off
+const CLOCK_ALT_DAY   = 6;    // ° above horizon mapped to CLOCK_DIM_DAY
+const CLOCK_ALT_NIGHT = -18;  // ° (astronomical twilight) mapped to CLOCK_DIM_NIGHT
+
+function sunAltitudeDeg(now = new Date()) {
+  return (getSunPosition(now, WEATHER_LAT, WEATHER_LON).altitude * 180) / Math.PI;
+}
+
+// Map sun altitude → clock opacity along a smooth line clamped to the
+// [night, day] floor/ceiling. Written as a custom property the CSS reads, so the
+// value is continuous (a data-driven ambient level, not a per-frame animation)
+// and the 2s opacity transition eases each minute's step.
+function applyClockDim() {
+  if (!ambientClockEnabled || !el) return;
+  const t = Math.min(1, Math.max(0, (sunAltitudeDeg() - CLOCK_ALT_NIGHT) / (CLOCK_ALT_DAY - CLOCK_ALT_NIGHT)));
+  const dim = CLOCK_DIM_NIGHT + t * (CLOCK_DIM_DAY - CLOCK_DIM_NIGHT);
+  el.style.setProperty("--clock-dim", dim.toFixed(3));
+}
 
 // ─── DOM build ────────────────────────────────────────────────
 
@@ -150,11 +176,20 @@ async function loadPhotos() {
 function tickClock() {
   if (!timeEl || !datelineEl) return;
   const now = new Date();
-  timeEl.textContent = now.toLocaleTimeString("en-AU", {
+  const time = now.toLocaleTimeString("en-AU", {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
   });
+  // Ambient clock: wrap the am/pm so it can be set quieter and smaller (study
+  // 05). Digits + meridiem are model-generated (numbers + "am"/"pm"), no
+  // injection surface. Flag off → the plain string, byte-identical.
+  const meridiem = ambientClockEnabled && time.match(/\s*([ap]m)\s*$/i);
+  if (meridiem) {
+    timeEl.innerHTML = `${time.slice(0, meridiem.index).trim()}<span class="screensaver__meridiem">${meridiem[1]}</span>`;
+  } else {
+    timeEl.textContent = time;
+  }
 
   const weekday = now.toLocaleDateString("en-AU", { weekday: "long" });
   const temp = document.getElementById("current-temp")?.textContent?.trim();
@@ -386,6 +421,7 @@ function syncNight() {
     if (night) engageScreensaver();
     return;
   }
+  applyClockDim(); // graded dim tracks the sky every minute while engaged (flag-gated inside)
   const wasNight = el.dataset.night === "1";
   if (night === wasNight) return;
   if (night) {
@@ -427,6 +463,7 @@ function enter() {
   if (contentEl) contentEl.style.transform = "translate(0, 0)";
 
   tickClock();
+  applyClockDim();
   updateInfo();
   showNextPhoto();
 
@@ -489,8 +526,13 @@ export async function initScreensaver(options = {}) {
   substrateEnabled = atmosphereEnabled && options.substrateEnabled === true;
   // Phase 9.5: source the ambient photo pool from Immich when enabled.
   immichEnabled = options.immichEnabled === true;
+  // Study 05: the ambient-clock treatment (tabular face + sun-altitude dim).
+  ambientClockEnabled = options.ambientClockEnabled === true;
 
   build();
+  // Feature marker — the study-05 CSS engages only under this class, so flag-off
+  // is byte-identical (no class, no --clock-dim, plain clock string).
+  if (ambientClockEnabled) el.classList.add("screensaver--ambient-clock");
 
   // Debug/verification hooks — registered right after the DOM exists but BEFORE
   // the async photo load, so they're available regardless of photo-fetch latency
@@ -501,6 +543,12 @@ export async function initScreensaver(options = {}) {
   window.__wakeScreensaver = wakeScreensaver;
   window.__ssNextPhoto = showNextPhoto;
   window.__isNight = isNight;
+  // Study 05 — inspect the live ambient-clock dim over CDP (the 3–4m/on-Pi check).
+  window.__ambientClock = () => ({
+    enabled: ambientClockEnabled,
+    altitudeDeg: ambientClockEnabled ? +sunAltitudeDeg().toFixed(2) : null,
+    dim: el ? el.style.getPropertyValue("--clock-dim") || null : null
+  });
 
   // Force an atmosphere token over CDP to check each tint live without waiting
   // for the weather (convention: __isNight / __nowcastProbe).
