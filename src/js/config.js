@@ -155,9 +155,11 @@ window.CONFIG = {
     // tracks the *sun altitude* on a smooth curve (dims with the sky, ~0.9 day →
     // ~0.3 the small-hours floor) instead of the binary sunset→sunrise night
     // switch. Pure opacity/type, no new motion — the idle GPU stays frozen (0%).
-    // Default OFF -> byte-identical (plain clock string, binary night dimming).
-    // One-line revert (-> false).
-    ambientClock: false
+    // Pi-verified 2026-07-12 (18a237b flag-off → default-on here): at night the
+    // clock clamped to the 0.3 floor, tabular face + quieter "pm", gpu-process
+    // 0% over 25s, legible over a real photo. Now default-on. One-line revert
+    // (-> false); flag-off is byte-identical (plain string, binary dimming).
+    ambientClock: true
   },
 
   /* --------------------------------------------------------------
