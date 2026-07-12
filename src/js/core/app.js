@@ -200,7 +200,9 @@ export function startApp() {
   initFocusHero({
     attentionEnabled: isEnabled("attentionEngine", false),
     // Study 02 — length-responsive hero-line type scale (docs/design/).
-    heroTypeEnabled: isEnabled("heroType", false)
+    heroTypeEnabled: isEnabled("heroType", false),
+    // Study 01 (WP2) — DWELL stack cards get the full glass system (docs/design/).
+    leanInStackEnabled: isEnabled("leanInStack", false)
   });
   initBomWarningBanner();
   initTonightsMenu();

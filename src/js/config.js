@@ -159,7 +159,18 @@ window.CONFIG = {
     // clock clamped to the 0.3 floor, tabular face + quieter "pm", gpu-process
     // 0% over 25s, legible over a real photo. Now default-on. One-line revert
     // (-> false); flag-off is byte-identical (plain string, binary dimming).
-    ambientClock: true
+    ambientClock: true,
+
+    // Design study 01 "The Lean-in stack" (docs/design/homeos-component-studies.html),
+    // WP2 of docs/design/PLAN.md. In DWELL — the one mode where glass earns its
+    // edges — the curated stack cards under the hero get the full 5-token glass
+    // system together (--glass-bg/-border/-blur/-shadow/-sheen), and their type
+    // firms up to sit as deliberate cards under the study-02 hero scale. The
+    // reveal stays opacity-only with the existing setTimeout teardown (never
+    // transitionend while hidden). Glass shows only in DWELL; the stack is hidden
+    // at rest, so Ambient stays 0% GPU. Default OFF -> byte-identical (flat cards).
+    // One-line revert (-> false).
+    leanInStack: false
   },
 
   /* --------------------------------------------------------------

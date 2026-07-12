@@ -95,6 +95,30 @@
   opacity: 0.85;
 }
 
+/* ── Lean-in glass stack (features.leanInStack, study 01) ──────
+   docs/design/homeos-component-studies.html · WP2 of docs/design/PLAN.md.
+   DWELL is the one mode where glass earns its edges, so the curated stack
+   cards get the full 5-token glass system *together* — the base rule above
+   already carries --glass-border + --glass-radius-sm; this adds the gradient,
+   the shadow+inset sheen, and the backdrop blur so all five travel as one.
+   The type firms up (weight + a touch more ink) to read as deliberate cards
+   under the study-02 hero, not faint ghosts. Static glass only — the reveal
+   is still the opacity fade in .focus-stack (no new motion). The stack is
+   hidden at rest, so this costs nothing in Ambient; it composites only during
+   the transient DWELL lean-in. focusHero.js adds .lean-in-glass when the flag
+   is on → flag-off is byte-identical (the flat cards above). */
+.focus-stack.lean-in-glass .focus-stack__item {
+  background: var(--glass-bg);
+  box-shadow: var(--glass-shadow), var(--glass-sheen);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+.focus-stack.lean-in-glass .focus-stack__text {
+  font-weight: 500;
+  opacity: 0.92;
+}
+
 .meal-lottie {
   display: inline-block;
   width: 1em;

@@ -19,6 +19,7 @@ let conciergeText = null;
 let conciergeFetchedAt = 0;
 let attentionOn = false;
 let heroTypeOn = false;
+let leanInOn = false;
 let stackClearTimer = null;
 let lastSelection = { hero: null, stack: [], queue: [] };
 
@@ -205,9 +206,10 @@ function update() {
   showHero(els, focus.icon, focus.text);
 }
 
-export function initFocusHero({ attentionEnabled = false, heroTypeEnabled = false } = {}) {
+export function initFocusHero({ attentionEnabled = false, heroTypeEnabled = false, leanInStackEnabled = false } = {}) {
   attentionOn = attentionEnabled === true;
   heroTypeOn = heroTypeEnabled === true;
+  leanInOn = leanInStackEnabled === true;
 
   // Study 02 — mark the feature on so the length-responsive CSS engages, and
   // expose a probe for the on-Pi 3–4 m legibility check. Flag-off: no class,
@@ -218,6 +220,25 @@ export function initFocusHero({ attentionEnabled = false, heroTypeEnabled = fals
     window.__heroType = () => {
       const t = document.getElementById("focus-hero-text")?.textContent || "";
       return { enabled: true, len: t.trim().length, tier: heroTier(t), text: t };
+    };
+  }
+
+  // Study 01 (WP2) — mark the stack so the full-glass CSS engages on DWELL only.
+  // Flag-off: no class → flat cards, byte-identical. The reveal/teardown path
+  // (renderStack) is unchanged; this only restyles the cards it produces.
+  if (leanInOn) {
+    const stackEl = document.getElementById("focus-stack");
+    if (stackEl) stackEl.classList.add("lean-in-glass");
+    window.__leanInStack = () => {
+      const item = document.querySelector("#focus-stack .focus-stack__item");
+      const cs = item ? getComputedStyle(item) : null;
+      return {
+        enabled: true,
+        marked: Boolean(document.getElementById("focus-stack")?.classList.contains("lean-in-glass")),
+        items: document.querySelectorAll("#focus-stack .focus-stack__item").length,
+        backdropFilter: cs ? (cs.backdropFilter || cs.webkitBackdropFilter) : null,
+        boxShadow: cs ? cs.boxShadow : null
+      };
     };
   }
 

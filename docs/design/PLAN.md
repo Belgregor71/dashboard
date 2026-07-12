@@ -6,7 +6,8 @@ the full loop before the next starts — the same discipline that landed Phases 
 and study 02.
 
 **Status:** Study 02 (the hero line) shipped + default-on (`features.heroType`).
-Four surfaces remain, sequenced lowest-risk → highest-signal.
+**WP1 (the ambient night clock, `features.ambientClock`) shipped + default-on + Pi-verified
+2026-07-12** (`21fe565`→`18a237b`→`708a2b2`). Three surfaces remain; **WP2 in progress.**
 
 ## Guardrails every surface follows (the shipping contract)
 
@@ -26,7 +27,7 @@ Constant across all four WPs — the packages below only call out deviations:
 
 ---
 
-## WP1 — The Ambient Night Clock (study 05)
+## WP1 — The Ambient Night Clock (study 05) ✅ SHIPPED (default-on, Pi-verified 2026-07-12)
 
 | | |
 |---|---|
@@ -39,7 +40,7 @@ Constant across all four WPs — the packages below only call out deviations:
 | **Verify** | Screensaver engaged → clock renders at spec day + night; `/kiosk-metrics` GPU **0%** (the idle-freeze must survive) |
 | **Risk** | Low — isolated to Mode 0, no new motion. Main watch: don't reintroduce a per-second animation that unfreezes the idle GPU |
 
-## WP2 — The Lean-in Glass Stack (study 01)
+## WP2 — The Lean-in Glass Stack (study 01) ◀ IN PROGRESS
 
 | | |
 |---|---|
