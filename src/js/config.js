@@ -168,9 +168,12 @@ window.CONFIG = {
     // firms up to sit as deliberate cards under the study-02 hero scale. The
     // reveal stays opacity-only with the existing setTimeout teardown (never
     // transitionend while hidden). Glass shows only in DWELL; the stack is hidden
-    // at rest, so Ambient stays 0% GPU. Default OFF -> byte-identical (flat cards).
+    // at rest, so Ambient stays 0% GPU. Pi-verified 2026-07-12 (7a054a3 flag-off
+    // → default-on here): DWELL cards showed blur(18px) + the glass shadow/sheen,
+    // DOM flat 2265→2265 across 40 reveal/teardown cycles, heap 54MB / listeners
+    // 64 (no leak). Now default-on; flag-off stays byte-identical (flat cards).
     // One-line revert (-> false).
-    leanInStack: false
+    leanInStack: true
   },
 
   /* --------------------------------------------------------------
