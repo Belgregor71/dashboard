@@ -108,3 +108,60 @@
   background: linear-gradient(to left, rgba(80, 160, 255, 0.6), rgba(120, 200, 255, 0.9));
   transition: width 0.08s linear;
 }
+
+/* ── Arrival glass card (features.arrivalCard, study 03) ───────
+   docs/design/homeos-arrival-card.html · WP3 of docs/design/PLAN.md.
+   The away→home greeting reshaped to the study — the warmest surface in the
+   system: the full glass overlay plus a hairline warm crown (--arrival-crown)
+   on the top edge (edge-light only; the text stays cool per the --warm rule).
+   The enter/exit slide sources its settle + easing from personality.timing
+   ("arrival"), published by arrivalGreeting.js as --arrival-settle/-ease so the
+   room moves with one set of manners. The countdown drains with a transform
+   (scaleX) animation instead of a per-arrival JS interval — opacity/transform
+   only, and it stops the moment the card dismisses. arrivalGreeting.js adds
+   .arrival-card when the flag is on → flag-off is byte-identical (the cool card
+   + JS width drain above). */
+.arrival-greeting.arrival-card {
+  transition: transform var(--arrival-settle, 550ms) var(--arrival-ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.arrival-greeting.arrival-card .arrival-greeting__card {
+  background: linear-gradient(180deg, rgba(28, 26, 32, 0.66), rgba(12, 12, 16, 0.54));
+  border: var(--glass-border);
+  border-top: 1px solid var(--arrival-crown); /* the warm crown — edge-light */
+  box-shadow: var(--glass-shadow), var(--glass-sheen);
+}
+
+.arrival-greeting.arrival-card .arrival-greeting__welcome {
+  font-weight: 500;
+}
+
+/* Transform-driven drain: shrinks from the right edge over the card's lifetime,
+   started by .is-active (synced with the entrance) and gone when it clears. */
+.arrival-greeting.arrival-card .arrival-greeting__bar {
+  transform-origin: left center;
+  transform: scaleX(1);
+  transition: none;
+  background: linear-gradient(90deg, var(--arrival-crown), rgba(159, 196, 255, 0.85));
+}
+
+.arrival-greeting.arrival-card.is-active .arrival-greeting__bar {
+  animation: arrival-drain var(--arrival-duration, 15000ms) linear forwards;
+}
+
+@keyframes arrival-drain {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+
+/* Warm variant — a ≥2-day absence trips the budgeted home-after-away delight.
+   Warmth replaces logistics: the crown strengthens and the agenda drops away,
+   leaving just the welcome. Budgeted upstream, so it stays rare. */
+.arrival-greeting.arrival-card.arrival-greeting--warm .arrival-greeting__card {
+  border-top-color: rgba(255, 205, 140, 0.55);
+}
+
+.arrival-greeting.arrival-card.arrival-greeting--warm .arrival-greeting__events,
+.arrival-greeting.arrival-card.arrival-greeting--warm .arrival-greeting__empty {
+  display: none;
+}

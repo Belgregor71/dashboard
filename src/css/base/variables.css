@@ -66,6 +66,13 @@
   ──────────────────────────────────────────────────────────── */
   --warm: #ffcd8c;
 
+  /* The arrival card (study 03, features.arrivalCard) is the one sanctioned
+     exception to "warm = glyphs only" above: a hairline warm CROWN on the
+     warmest surface in the system — used as edge-light on the card's top border
+     only, never for text or fills. Text on the card stays cool (--ink/--accent).
+     The card is "the exception it earns" (docs/design/homeos-arrival-card.html). */
+  --arrival-crown: rgba(255, 205, 140, 0.34);
+
   /* ── Time-of-day accent ───────────────────────────────────────
      Set per body.tint-* class in background.css. Default here is
      the daytime value so anything using it has a sane value before

@@ -182,7 +182,8 @@ export function startApp() {
   initDoorbellAlert();    // must be after initCameraPopupOverlay so cameras view wins
   initBinReminder();
   initTimeContext();
-  initArrivalGreeting();
+  // Study 03 (WP3) — away->home greeting gets the glass card treatment (docs/design/).
+  initArrivalGreeting({ arrivalCardEnabled: isEnabled("arrivalCard", false) });
   initFuelPrices();
   initMorningBriefing();
   initOccasionPopup();

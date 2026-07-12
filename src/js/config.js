@@ -173,7 +173,19 @@ window.CONFIG = {
     // DOM flat 2265→2265 across 40 reveal/teardown cycles, heap 54MB / listeners
     // 64 (no leak). Now default-on; flag-off stays byte-identical (flat cards).
     // One-line revert (-> false).
-    leanInStack: true
+    leanInStack: true,
+
+    // Design study 03 "The Arrival card" (docs/design/homeos-arrival-card.html),
+    // WP3 of docs/design/PLAN.md. The away->home greeting card gets the study
+    // treatment — the warmest surface in the system: the full glass overlay with
+    // a hairline warm "crown" (--arrival-crown), enter/exit sourced from
+    // personality.timing("arrival"), and a transform-driven countdown drain (no
+    // per-arrival JS timer). A >=2-day absence trips the budgeted home-after-away
+    // delight -> the card shows its warm variant (warmth replaces logistics),
+    // rationed by the same budget (can't fire twice). Copy already routes through
+    // personality.phrase. Default OFF -> byte-identical (the current cool card,
+    // JS drain). One-line revert (-> false).
+    arrivalCard: false
   },
 
   /* --------------------------------------------------------------
