@@ -19,6 +19,12 @@ test.beforeAll(() => {
   }
 });
 
+// Pin a deterministic daytime so isNight() is false. Otherwise, when the suite
+// runs after sunset, initScreensaver()'s syncNight() auto-engages the dim clock
+// at boot (screensaver.js), which hides #focus-hero and fails the DWELL reveal.
+// Mirrors the pin already in presence.spec / ambient-clock.spec.
+const MIDDAY = new Date("2026-07-06T12:00:00");
+
 // Force both feature flags on by appending to the served (non-module) config.
 function enableFlags(page) {
   return page.route("**/js/config.js", async (route) => {
@@ -35,6 +41,7 @@ test("dwell reveals the top 3; glance collapses to 1; ambient needs an interrupt
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
   await enableFlags(page);
+  await page.clock.setFixedTime(MIDDAY);
 
   await page.goto("/");
   await page.waitForFunction(
