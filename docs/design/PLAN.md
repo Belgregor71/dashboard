@@ -5,10 +5,9 @@ into flag-gated, Pi-verified work packages. Each WP is one PR/flag, shipped thro
 the full loop before the next starts — the same discipline that landed Phases 1–10
 and study 02.
 
-**Status:** Study 02 (the hero line) shipped + default-on (`features.heroType`).
-**WP1 (ambient night clock), WP2 (lean-in glass stack), WP3 (arrival glass card) shipped +
-default-on + Pi-verified** (`ambientClock` 2026-07-12; `leanInStack` 2026-07-12;
-`arrivalCard` 2026-07-13). **WP4 (the last surface) in progress.**
+**Status: ALL FOUR WPs SHIPPED + default-on + Pi-verified.** Study 02 (the hero line,
+`features.heroType`) plus WP1 (`ambientClock`), WP2 (`leanInStack`), WP3 (`arrivalCard`),
+WP4 (`ambientMemory`) — the HomeOS design track is complete (2026-07-12 → 2026-07-13).
 
 ## Guardrails every surface follows (the shipping contract)
 
@@ -66,7 +65,7 @@ Constant across all four WPs — the packages below only call out deviations:
 | **Verify** | Force an arrival on the Pi → card renders + auto-dismisses; delight budget spent once then blocks; `/kiosk-metrics` flat; overlay teardown cleans symmetrically (no blob/listener leak on repeated arrivals) |
 | **Risk** | Medium — overlay lifecycle + delight-budget interaction |
 
-## WP4 — The Ambient Memory Surface (study 01) ◀ IN PROGRESS
+## WP4 — The Ambient Memory Surface (study 01) ✅ SHIPPED (default-on, Pi-verified 2026-07-13)
 
 | | |
 |---|---|
