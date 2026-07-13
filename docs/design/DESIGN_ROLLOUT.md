@@ -117,7 +117,14 @@ overlap with the legacy media panel. Flag-off byte-identical.
 | **Verify** | Screenshot 03 (scored hero, glowing glyph) and 04 (matte concierge) reproduced; hero centered + offset; no container box. Flag-off byte-identical. `/kiosk-metrics` flat. |
 | **Risk** | Low–medium. The hero container currently provides contrast; over a bright photo the bare line leans on its text-shadow — verify legibility at 4 m over a real photo (WP-D provides the photo; until then verify over the substrate tint). |
 
-## WP-D — Photographic ground for the awake modes
+## WP-D — Photographic ground for the awake modes ✅ SHIPPED (default-on, Pi-verified 2026-07-13, `15b4793`)
+
+The awake home renders content over a static Immich family photo lit by the weather tint +
+readability gradient; the animated aurora/stars/time-tint are retired. **gpu-process 0% over 25s in
+Mode 0 (idle-freeze intact) AND 0% awake-idle** — retiring the aurora loop is a net GPU *reduction*.
+Top row + concierge hero legible over the photo. Flag-off byte-identical. **Deferred to a follow-up:
+the weather-based living accent (§6, accent stays time-based) and a day-boundary photo cross-dissolve
+(the photo holds for the session).**
 
 | | |
 |---|---|
