@@ -94,15 +94,17 @@
   --fs-jumbo: clamp(6rem, 13vw, 10.5rem);
 
   /* ── Length-responsive hero-line scale (study 02) ────────────
-     The Mode-1 focus hero is sized by character count: short lines
-     go big, long lines step down — never below the 3–4 m legibility
-     floor on the 32" 1080p panel (~69 ppi). Caps chosen so the vw
-     term and the rem ceiling coincide at 1920px wide:
-       A ≈ 144px / cap ~37mm  · B ≈ 104px / cap ~27mm  · C ≈ 72px / cap ~18mm
-     Consumed only under .focus-hero.hero-type (features.heroType). */
-  --fs-hero-line-a: clamp(3rem,    7.5vw,  9rem);   /* headline · ≤16 chars */
-  --fs-hero-line-b: clamp(2.25rem, 5.4vw,  6.5rem); /* standard · 17–40 chars (default) */
-  --fs-hero-line-c: clamp(1.75rem, 3.75vw, 4.5rem); /* extended · 41+ chars (the floor) */
+     The Mode-1 focus hero is sized by character count: short lines go
+     big, long lines step down — never below the 3–4 m legibility floor
+     on the 32" 1080p panel (~69 ppi). Consumed only under
+     .focus-hero.hero-type (features.heroType).
+     Pinned to fixed px (WP-F, DESIGN_SYSTEM.md §2.2/§8): the kiosk is a
+     fixed 1920-wide wall, so the surface is pixel-accurate rather than
+     viewport-scaled. At 1920 the previous clamps already resolved to
+     144 / ~103.7 / 72; b rounds to the intended 104 (a sub-px delta). */
+  --fs-hero-line-a: 144px; /* headline · ≤16 chars */
+  --fs-hero-line-b: 104px; /* standard · 17–40 chars (default) */
+  --fs-hero-line-c: 72px;  /* extended · 41+ chars (the floor) */
 
   /* ── Layout spacing ──────────────────────────────────────────
      Consistent outer gutters and column/row gaps used across
@@ -117,4 +119,55 @@
   ──────────────────────────────────────────────────────────── */
   --radius-modal:    22px;
   --radius-modal-xl: 32px;
+
+  /* ══ HomeOS design-system tokens ═══════════════════════════════
+     docs/design/DESIGN_SYSTEM.md — foundations landed in WP-F
+     (docs/design/DESIGN_ROLLOUT.md). ADDITIVE ONLY: nothing consumes
+     these yet, so this whole block is byte-identical at runtime. Later
+     WPs (bare top row, un-chromed hero, awake photographic ground)
+     migrate the HomeOS surfaces onto them. Legacy panels keep
+     --layout-gutter / --space-xs…xl above until they are retired — do
+     not repoint those here.
+  ──────────────────────────────────────────────────────────────── */
+
+  /* Cool — link hover + the voice waveform (DESIGN_SYSTEM §1.4). Shares
+     the value of the legacy --accent-2 (kept for its own consumers);
+     --cool is the design-system name for new work. */
+  --cool: #9fc4ff;
+
+  /* Hero-glass — the brighter glass variant for the scored winner (the
+     stack's top card) and the arrival card (DESIGN_SYSTEM §1.5). The
+     shipped WP2/WP3 CSS currently inlines these identical values; the
+     tokens give the recipe one home for the surfaces still to come. */
+  --glass-bg-hero:     linear-gradient(180deg, rgba(42, 47, 66, 0.62), rgba(16, 20, 32, 0.48));
+  --glass-border-hero: 1px solid rgba(255, 255, 255, 0.14);
+  --glass-shadow-hero: 0 12px 30px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+
+  /* Spacing rhythm — base-4, display-tuned for the 3–4 m wall
+     (DESIGN_SYSTEM §3.1). HomeOS surfaces snap to these. */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  18px;
+  --space-6:  26px;
+  --space-7:  28px;
+  --space-8:  34px;
+  --space-9:  46px;
+  --space-10: 64px;
+
+  /* Fixed layout constants for the presence surface (DESIGN_SYSTEM §3.2).
+     --safe-margin (108px) is the HomeOS wall inset — distinct from the
+     legacy --layout-gutter (40px), which stays for its panels. */
+  --safe-margin: 108px;
+  --content-max: 1240px;
+  --hero-offset: 120px;
+
+  /* Motion — the three named durations, all through personality.timing()
+     (DESIGN_SYSTEM §5). Opacity/transform only. --t-settle is 60s in
+     production. Some values are inlined in the shipped WP CSS; these
+     unify them for the surfaces still to come. */
+  --t-hero:    700ms cubic-bezier(0.4, 0, 0.2, 1);
+  --t-settle:  60s linear;
+  --t-arrival: 550ms cubic-bezier(0.22, 1, 0.36, 1);
 }
