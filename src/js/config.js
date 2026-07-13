@@ -269,9 +269,12 @@ window.CONFIG = {
     // (DESIGN_SYSTEM.md §2.1): a faint eyebrow (🕰 ON THIS DAY) + a display title,
     // right-aligned, surfacing on the 60s settle. When on, the footer drops the
     // on-this-day line (it moves to the whisper). Pure opacity/type — no loop, GPU
-    // stays 0% at rest. Default OFF -> byte-identical (the footer keeps the line,
-    // no whisper element). One-line revert (-> false).
-    memoryWhisper: false
+    // stays 0% at rest. Pi-verified 2026-07-14 (809e777 flag-off → default-on here):
+    // forced today-anniversary surfaced the whisper bottom-right ("🕰 ON THIS DAY"
+    // + the display title), legible over the night photo, footer dropped its line;
+    // hidden when no anniversary (silence). Now default-on; flag-off byte-identical
+    // (footer keeps the line, no whisper element). One-line revert (-> false).
+    memoryWhisper: true
   },
 
   /* --------------------------------------------------------------
