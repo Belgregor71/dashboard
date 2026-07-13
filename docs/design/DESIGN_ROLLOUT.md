@@ -82,7 +82,16 @@ errors, suite green (186 pass).
 | **Verify** | Suite green (drop/adjust any ticker test); boot smoke test still passes; on the Pi the bottom edge is clean, no console error, hero/stack unaffected. `/kiosk-metrics` DOM count drops slightly (one fewer marquee) — a small win. |
 | **Risk** | Low. Self-contained. Watch: the ticker had its own `requestAnimationFrame`/marquee — confirm its timer is fully torn down (removed with the module). |
 
-## WP-B — The bare top row (clock + weather)
+## WP-B — The bare top row (clock + weather) ✅ SHIPPED (default-on, Pi-verified 2026-07-13, `a3f258e`)
+
+Time bare top-left (tabular / 500 / `--ink` / quiet meridiem), `15°` over `NUDGEE · CLEAR` bare
+top-right; icon/wind/hi-lo/date/middle-slot gone; weather lottie not loaded (0 wrappers). Composed
+the condition line via CSS grid-areas + `display:contents` + an `::after` middot so JS content is
+untouched (the screensaver still reads `#current-conditions` = "Clear"). Flag-off byte-identical.
+**Follow-up noted:** media / now-playing still render as old glass panels below the hero when active
+— fold them into the attention stack in a later WP. Decision #2 (middle-slot coverage) is
+code-confirmed (`isPanelActive` ignores parent `display`) but wasn't observed live (no active commute
+this evening) — re-check when a commute is live.
 
 | | |
 |---|---|
