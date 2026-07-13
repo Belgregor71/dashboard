@@ -172,3 +172,14 @@
   .bom-warning-bar { animation: none; }
   .bom-warning-bar__dot { animation: none; }
 }
+
+/* ══ Home tiles folded into the attention queue (features.foldHomeTiles) ══
+   docs/design/DESIGN_ROLLOUT.md follow-up. On the presence surface the Tonight's
+   Menu + Bins tiles are hidden — dinner rides the attention queue (candidateSources
+   tonightsMenuCandidate) and bins are already carried by the bin-night predictive
+   candidate. The tiles stay in the DOM (display:none) so focusHero's readTonightsMenu
+   + binReminder still populate/read them. Class added by app.js only when the flag
+   is on → flag-off is byte-identical. */
+body.fold-home-tiles #home-stack {
+  display: none;
+}

@@ -22,6 +22,7 @@ let heroTypeOn = false;
 let leanInOn = false;
 let bareHeroOn = false;
 let mediaCandidateOn = false;
+let foldHomeTilesOn = false;
 let stackClearTimer = null;
 let lastSelection = { hero: null, stack: [], queue: [] };
 
@@ -60,10 +61,18 @@ function readNowPlaying() {
   return null;
 }
 
+// Tonight's dinner name from the menu tile, or null. Feeds the tonights-menu
+// attention candidate when features.foldHomeTiles folds the tile into the queue.
+function readTonightsMenu() {
+  if (!isPanelActive("menu-tile")) return null;
+  return document.getElementById("menu-tile-name")?.textContent?.trim() || null;
+}
+
 function readState() {
   // Now-playing → attention candidate. Read only when the flag is on, so flag-off
   // carries no candidate (byte-identical) and the panel keeps showing standalone.
   const nowPlayingText = mediaCandidateOn ? readNowPlaying() : null;
+  const menuName = foldHomeTilesOn ? readTonightsMenu() : null;
   return {
     bomWarning: getBomWarnings(getAllEntities()).summary || null,
     insight: getCurrentInsight(),
@@ -80,7 +89,9 @@ function readState() {
       document.getElementById("next-event-meta")?.textContent?.trim()
     ].filter(Boolean).join(" · "),
     nowPlayingActive: Boolean(nowPlayingText),
-    nowPlayingText
+    nowPlayingText,
+    menuActive: Boolean(menuName),
+    menuName
   };
 }
 
@@ -230,12 +241,13 @@ function update() {
   showHero(els, focus.icon, focus.text);
 }
 
-export function initFocusHero({ attentionEnabled = false, heroTypeEnabled = false, leanInStackEnabled = false, bareHeroEnabled = false, mediaCandidateEnabled = false } = {}) {
+export function initFocusHero({ attentionEnabled = false, heroTypeEnabled = false, leanInStackEnabled = false, bareHeroEnabled = false, mediaCandidateEnabled = false, foldHomeTilesEnabled = false } = {}) {
   attentionOn = attentionEnabled === true;
   heroTypeOn = heroTypeEnabled === true;
   leanInOn = leanInStackEnabled === true;
   bareHeroOn = bareHeroEnabled === true;
   mediaCandidateOn = mediaCandidateEnabled === true;
+  foldHomeTilesOn = foldHomeTilesEnabled === true;
 
   // Study 02 — mark the feature on so the length-responsive CSS engages, and
   // expose a probe for the on-Pi 3–4 m legibility check. Flag-off: no class,

@@ -83,12 +83,31 @@ export function nowPlayingCandidate({ nowPlayingActive, nowPlayingText } = {}) {
   };
 }
 
+/**
+ * Tonight's dinner — the quietest low-band candidate, folding the standalone
+ * "Tonight's Menu" tile into the attention queue (docs/design/DESIGN_ROLLOUT.md
+ * follow-up). Only present when the runtime reads it (gated on
+ * features.foldHomeTiles), so flag-off carries no candidate.
+ */
+export function tonightsMenuCandidate({ menuActive, menuName } = {}) {
+  if (!menuActive || !menuName) return null;
+  return {
+    id: `tonights-menu:${menuName}`,
+    source: "tonightsMenu",
+    icon: "🍽",
+    text: `${menuName} for dinner`,
+    score: 40,
+    cooldownMs: 0
+  };
+}
+
 export const SOURCES = [
   bomCandidate,
   weatherSevereCandidate,
   nextEventCandidate,
   commuteCandidate,
-  nowPlayingCandidate
+  nowPlayingCandidate,
+  tonightsMenuCandidate
 ];
 
 /** Run every source adapter over the runtime-read state; drop nulls. */

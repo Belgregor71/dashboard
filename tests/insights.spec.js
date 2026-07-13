@@ -16,6 +16,7 @@ import {
   nextEventCandidate,
   commuteCandidate,
   nowPlayingCandidate,
+  tonightsMenuCandidate,
   collectSources
 } from "../src/js/services/candidateSources.js";
 import { rankQueue, selectForMode, MODE } from "../src/js/services/attentionRank.js";
@@ -309,10 +310,19 @@ test.describe("candidateSources score bands", () => {
     expect(c.text).toContain("The Parent Trap");
   });
 
+  test("tonight's menu is the quietest low-band candidate, below now-playing", () => {
+    const c = tonightsMenuCandidate({ menuActive: true, menuName: "Steak Sandwich" });
+    expect(c.source).toBe("tonightsMenu");
+    expect(c.score).toBeGreaterThanOrEqual(40);
+    expect(c.score).toBeLessThan(41); // below now-playing (41)
+    expect(c.text).toContain("Steak Sandwich");
+  });
+
   test("inactive/empty panels yield no candidate", () => {
     expect(commuteCandidate({ commuteActive: false, commuteText: "Greg 22 min" })).toBeNull();
     expect(nextEventCandidate({ nextEventActive: true, nextEventText: "" })).toBeNull();
     expect(nowPlayingCandidate({ nowPlayingActive: false, nowPlayingText: "x" })).toBeNull();
+    expect(tonightsMenuCandidate({ menuActive: true, menuName: "" })).toBeNull();
     expect(collectSources({})).toEqual([]);
   });
 });

@@ -288,7 +288,17 @@ window.CONFIG = {
     // through the bare hero line; the standalone #media-stack was display:none but
     // stayed in the DOM. Now default-on; flag-off byte-identical (panel shows, no
     // candidate). One-line revert (-> false).
-    mediaCandidate: true
+    mediaCandidate: true,
+
+    // Design-system follow-up (docs/design/DESIGN_ROLLOUT.md) — fold the remaining
+    // home tiles (Tonight's Menu + Bins) off the presence surface. Tonight's
+    // dinner rides the attention queue as the quietest low-band candidate (🍽
+    // name), and the #home-stack tiles are hidden. Bins are already represented in
+    // attention by the shipped bin-night predictive candidate (predictiveCandidates
+    // fetches /api/bins), so the bins tile just hides. Tiles stay in the DOM.
+    // Default OFF -> byte-identical (the tiles show, no menu candidate). One-line
+    // revert (-> false).
+    foldHomeTiles: false
   },
 
   /* --------------------------------------------------------------
