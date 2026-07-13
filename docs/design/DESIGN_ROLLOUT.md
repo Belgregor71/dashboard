@@ -67,11 +67,16 @@ all resolve; zero existing consumers → render byte-identical; suite green.
 | **Verify** | `npm run build` clean; suite green; **byte-identical render** (no component references the new tokens yet). The pinned hero sizes are the only intended visual delta — confirm at 1920 they match the prior clamp output (they do, ±1px) so `heroType` is unchanged. |
 | **Risk** | Very low. Pure additive. The only care point is the hero-size pin — verify `__heroType` still reports 144/104/72 on the Pi. |
 
-## WP-A — Drop the ABC news ticker
+## WP-A — Drop the ABC news ticker ✅ SHIPPED (Pi-verified 2026-07-13, `77bc52c`)
+
+Removed the ticker UI entirely (markup, init, module, CSS incl. the 38s marquee + the
+screensaver-pause rule). `/api/news` kept — `briefingData.js` still reads it, so the route + its
+api.spec contract test are intact. Pi: `#news-ticker` gone from the DOM, bottom edge clean, 0 JS
+errors, suite green (186 pass).
 
 | | |
 |---|---|
-| **Flag** | none needed (a removal) — or `newsTicker:false` default-off first if you want a reversible step, then delete |
+| **Flag** | none needed (a removal); revert = `git revert` |
 | **Target** | `src/index.html` (`#news-ticker` block, ~L172), `src/js/core/app.js` (`initNewsTicker()` L212 + import L51), `src/js/modules/newsTicker.js`, `src/css/components/*` (ticker styles), the `/api/news` route only if nothing else uses it |
 | **Do** | Remove the markup, the init call + import, the module, and the ticker CSS. Confirm no other surface reads `/api/news` before removing the route + its contract test; if shared, leave the route and just drop the UI. |
 | **Verify** | Suite green (drop/adjust any ticker test); boot smoke test still passes; on the Pi the bottom edge is clean, no console error, hero/stack unaffected. `/kiosk-metrics` DOM count drops slightly (one fewer marquee) — a small win. |
