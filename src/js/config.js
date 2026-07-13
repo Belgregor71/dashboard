@@ -226,7 +226,18 @@ window.CONFIG = {
     // #current-conditions textContent stayed "Clear" so the screensaver dateline
     // is unaffected; concierge hero unaffected. Now default-on; flag-off stays
     // byte-identical (old cards + icon + wind + range return). Revert (-> false).
-    bareTopRow: true
+    bareTopRow: true,
+
+    // Design-system rollout WP-C (docs/design/DESIGN_ROLLOUT.md) — un-chrome the
+    // hero. Strips the container box off #focus-hero so the scored line sits bare
+    // over the ground (DESIGN_SYSTEM.md §2.1): glyph + text only, 28px gap,
+    // vertically centred +120px below true centre, glyph with a borrowed-light
+    // glow. The idle concierge fallback (✨) gets the matte variant — lower ink,
+    // softer shadow, no glyph glow — so it reads as the house making conversation,
+    // not a scored alert. The stack is bottom-anchored so it doesn't sit above the
+    // centred hero. Relies on features.heroType (shipped) for the tier sizes.
+    // Default OFF -> byte-identical (the boxed hero returns). Revert (-> false).
+    bareHero: false
   },
 
   /* --------------------------------------------------------------

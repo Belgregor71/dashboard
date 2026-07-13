@@ -119,6 +119,61 @@
   opacity: 0.92;
 }
 
+/* ══ Un-chromed hero (features.bareHero, WP-C) ═════════════════
+   docs/design/DESIGN_SYSTEM.md §2.1 + docs/design/DESIGN_ROLLOUT.md. The scored
+   line loses its container box and sits bare over the ground: glyph + text only,
+   28px gap, vertically centred +--hero-offset below true centre, glyph with a
+   borrowed-light glow. The tier sizes come from features.heroType (shipped). The
+   stack is pinned to the bottom so it never sits above the centred hero. Class
+   added by app.js only when the flag is on → flag-off matches nothing here
+   (byte-identical). Sizing/opacity only — no new loop, GPU stays 0% at rest. */
+body.bare-hero #focus-hero {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(calc(-50% + var(--hero-offset)));
+  margin: 0;
+  padding: 0 var(--safe-margin);
+  gap: 28px;
+  background: none;
+  border: none;
+  border-radius: 0;
+  z-index: 5;
+}
+
+/* The scored glyph earns the borrowed-light glow. */
+body.bare-hero #focus-hero .focus-hero__icon {
+  filter: drop-shadow(0 0 24px rgba(120, 160, 220, 0.35));
+}
+
+body.bare-hero .focus-hero__text {
+  max-width: 26ch;
+}
+
+/* Concierge (the idle ✨ fallback) goes matte — the house making conversation,
+   not a scored alert: lower ink, softer shadow, and the glyph loses its glow. */
+body.bare-hero #focus-hero.concierge .focus-hero__text {
+  color: rgba(238, 243, 251, 0.78);
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.4);
+}
+
+body.bare-hero #focus-hero.concierge .focus-hero__icon {
+  filter: none;
+  opacity: 0.8;
+}
+
+/* Bottom-anchor the lean-in stack so it reads under the centred hero, not above. */
+body.bare-hero #focus-stack {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--safe-margin);
+  margin: 0;
+  padding: 0 var(--safe-margin);
+  z-index: 5;
+}
+
 .meal-lottie {
   display: inline-block;
   width: 1em;

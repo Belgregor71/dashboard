@@ -20,6 +20,7 @@ let conciergeFetchedAt = 0;
 let attentionOn = false;
 let heroTypeOn = false;
 let leanInOn = false;
+let bareHeroOn = false;
 let stackClearTimer = null;
 let lastSelection = { hero: null, stack: [], queue: [] };
 
@@ -111,10 +112,13 @@ function heroEls() {
   return { hero, iconEl, textEl };
 }
 
-function showHero(els, icon, text) {
+function showHero(els, icon, text, { concierge = false } = {}) {
   els.iconEl.textContent = icon;
   els.textEl.textContent = text;
   if (heroTypeOn) applyHeroTier(els.hero, text);
+  // WP-C: mark the idle concierge fallback so the un-chromed hero can render it
+  // matte (no glyph glow, lower ink). Flag-off adds no class → byte-identical.
+  if (bareHeroOn) els.hero.classList.toggle("concierge", concierge === true);
   els.hero.classList.remove("is-hidden");
 }
 
@@ -166,7 +170,7 @@ function updateAttention(state, els) {
     // Concierge fallback only when the display is awake — never in AMBIENT/VOICE.
     if (mode === "glance" || mode === "dwell") {
       void maybeFetchConcierge(state.weatherCondition);
-      if (conciergeText) showHero(els, "✨", conciergeText);
+      if (conciergeText) showHero(els, "✨", conciergeText, { concierge: true });
       else hideHero(els);
     } else {
       hideHero(els);
@@ -199,17 +203,18 @@ function update() {
       hideHero(els);
       return;
     }
-    showHero(els, "✨", conciergeText);
+    showHero(els, "✨", conciergeText, { concierge: true });
     return;
   }
 
   showHero(els, focus.icon, focus.text);
 }
 
-export function initFocusHero({ attentionEnabled = false, heroTypeEnabled = false, leanInStackEnabled = false } = {}) {
+export function initFocusHero({ attentionEnabled = false, heroTypeEnabled = false, leanInStackEnabled = false, bareHeroEnabled = false } = {}) {
   attentionOn = attentionEnabled === true;
   heroTypeOn = heroTypeEnabled === true;
   leanInOn = leanInStackEnabled === true;
+  bareHeroOn = bareHeroEnabled === true;
 
   // Study 02 — mark the feature on so the length-responsive CSS engages, and
   // expose a probe for the on-Pi 3–4 m legibility check. Flag-off: no class,

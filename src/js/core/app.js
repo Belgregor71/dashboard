@@ -83,8 +83,9 @@ export function startApp() {
 
   // Design-system rollout (docs/design/DESIGN_ROLLOUT.md) — flags that only
   // restyle via CSS mark the <body> so the scoped rules engage. Flag-off adds no
-  // class → byte-identical. WP-B: the bare Glance/Lean-in top row.
+  // class → byte-identical. WP-B: the bare top row · WP-C: the un-chromed hero.
   if (isEnabled("bareTopRow", false)) document.body.classList.add("bare-top-row");
+  if (isEnabled("bareHero", false)) document.body.classList.add("bare-hero");
   initPresence({ enabled: presenceEnabled });
   // Phase 6 House Model — a pure reducer over slices the store already carries,
   // gated off by default so it ships reversibly. When on, it names the room's
@@ -209,7 +210,9 @@ export function startApp() {
     // Study 02 — length-responsive hero-line type scale (docs/design/).
     heroTypeEnabled: isEnabled("heroType", false),
     // Study 01 (WP2) — DWELL stack cards get the full glass system (docs/design/).
-    leanInStackEnabled: isEnabled("leanInStack", false)
+    leanInStackEnabled: isEnabled("leanInStack", false),
+    // Rollout WP-C — un-chromed hero: tag the concierge fallback for its matte variant.
+    bareHeroEnabled: isEnabled("bareHero", false)
   });
   initBomWarningBanner();
   initTonightsMenu();
