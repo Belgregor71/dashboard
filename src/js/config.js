@@ -190,7 +190,20 @@ window.CONFIG = {
     // agenda; DOM flat 2265→2265 over 40 arrivals, heap 54MB / 64 listeners (no
     // leak). Now default-on; flag-off stays byte-identical (cool card, JS drain).
     // One-line revert (-> false).
-    arrivalCard: true
+    arrivalCard: true,
+
+    // Design study 01 "The Ambient memory surface" (ambient half of
+    // docs/design/homeos-component-studies.html), WP4 of docs/design/PLAN.md.
+    // The tender ambient lane — the documented Phase-9 follow-up. A tender memory
+    // (sensitivity:"tender") surfaces ONLY in Mode 0 (the screensaver), WORDLESS:
+    // its photo fills the frame + a faint 🕯 mark bottom-right, held longer, then
+    // fades — never a caption, never the text hero. The gentleness is enforced in
+    // memoryEngine.toSurface (ambientOnly/caption:null/longer hold) and re-checked
+    // at the render boundary (the ambient lane refuses any non-tender surface).
+    // Rides the memoryEngine flag for data + budget. Pure opacity/type, no loop —
+    // idle GPU stays frozen. Default OFF -> byte-identical (no mark element, tender
+    // memories stay dropped as today). One-line revert (-> false).
+    ambientMemory: false
   },
 
   /* --------------------------------------------------------------

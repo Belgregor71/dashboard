@@ -6,6 +6,7 @@ import { getTimes as getSunTimes, getPosition as getSunPosition } from "../vendo
 import { WEATHER_LAT, WEATHER_LON } from "../config/constants.js";
 import { get as getContext, set as setContext, subscribe as subscribeContext } from "../core/contextStore.js";
 import { atmosphereFor, ATMOSPHERE_TOKENS } from "../services/atmosphere.js";
+import { collectAmbientMemory, spendMemoryBudget } from "../core/memoryRuntime.js";
 import { photosForToday } from "../services/photoMemory.js";
 
 const IDLE_MS    = 5 * 60 * 1000;  // 5 min of no motion → engage
@@ -41,12 +42,14 @@ let timeEl      = null;
 let datelineEl  = null;
 let infoEl      = null;
 let footerEl    = null;
+let tenderMarkEl = null; // study 01 (WP4): the faint 🕯, present only when the flag is on
 
 let idleTimer   = null;
 let photoTimer  = null;
 let infoTimer   = null;
 let clockTimer  = null;
 let driftTimer  = null;
+let tenderTimer = null; // WP4: holds a tender memory's photo, then resumes rotation
 let driftIndex  = 0;
 let active      = false;
 let photos      = [];
@@ -75,6 +78,10 @@ const ANNIVERSARY_RE = /\b(birthday|bday|anniversary)\b/i; // "on this day" earn
 // curve (dims with the sky, never a hard sunset switch) rather than the binary
 // night class. Flag off → this block is inert and the clock is unchanged.
 let ambientClockEnabled = false;
+// Study 01 (WP4): the tender ambient memory lane. When on, a tender memory
+// surfaces wordlessly in Mode 0 (its photo + the 🕯 mark, held longer). Off →
+// tender memories stay dropped (memoryRuntime), no mark element, byte-identical.
+let ambientMemoryEnabled = false;
 const CLOCK_DIM_DAY   = 0.9;  // sun well up → full ambient brightness
 const CLOCK_DIM_NIGHT = 0.3;  // the small-hours floor — dim, never off
 const CLOCK_ALT_DAY   = 6;    // ° above horizon mapped to CLOCK_DIM_DAY
@@ -113,6 +120,7 @@ function build() {
       <div class="screensaver__info"></div>
       <div class="screensaver__footer"></div>
     </div>
+    ${ambientMemoryEnabled ? `<div class="screensaver__tender-mark" aria-hidden="true">🕯</div>` : ""}
   `;
   document.body.appendChild(el);
   photoEl    = el.querySelector(".screensaver__photo");
@@ -121,6 +129,7 @@ function build() {
   datelineEl = el.querySelector(".screensaver__dateline");
   infoEl     = el.querySelector(".screensaver__info");
   footerEl   = el.querySelector(".screensaver__footer");
+  tenderMarkEl = el.querySelector(".screensaver__tender-mark"); // null when flag off
 }
 
 const immichThumb = (id) => `/api/immich/asset/${encodeURIComponent(id)}/thumb`;
@@ -333,15 +342,78 @@ function pickKbVariant() {
   return variant;
 }
 
-function showNextPhoto() {
-  if (!photoEl || photos.length === 0) return;
-  const src = photos[Math.floor(Math.random() * photos.length)];
+// Swap the frame to a specific image with a fresh Ken Burns move. Shared by the
+// random slideshow and the tender-memory lane (WP4).
+function setPhoto(src) {
+  if (!photoEl) return;
   photoEl.classList.remove("screensaver__photo--visible", ...KB_VARIANTS);
   photoEl.src = src;
   photoEl.onload = () => {
     void photoEl.offsetWidth; // reflow so the re-added class replays from frame 0
     photoEl.classList.add("screensaver__photo--visible", pickKbVariant());
   };
+}
+
+function showNextPhoto() {
+  if (!photoEl || photos.length === 0) return;
+  setPhoto(photos[Math.floor(Math.random() * photos.length)]);
+}
+
+// ─── Tender ambient memory lane (study 01, WP4) ───────────────
+// A tender memory surfaces ONLY here, in Mode 0, and ONLY wordlessly: its photo
+// fills the frame + a faint 🕯 mark, held longer than an ordinary rotation, then
+// the ambient slideshow resumes. No caption ever reaches the screen — the gating
+// (ambientOnly/caption:null/longer hold) is enforced in memoryEngine.toSurface;
+// this lane also refuses any non-tender surface, so the invariant holds no matter
+// who calls it.
+
+// Resolve a memory photo ref → a URL. Immich assets are { immich:id }; authored
+// entries are string paths (absolute/rooted as-is, bare names under /photos/).
+function memoryPhotoSrc(ref) {
+  if (ref && typeof ref === "object" && ref.immich) return immichThumb(ref.immich);
+  const s = String(ref ?? "");
+  if (/^(https?:|\/)/.test(s)) return s;
+  return `/photos/${s.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+function showTenderMark() {
+  if (tenderMarkEl) tenderMarkEl.classList.add("is-visible");
+}
+
+function hideTenderMark() {
+  if (tenderMarkEl) tenderMarkEl.classList.remove("is-visible");
+}
+
+// Render a tender surface: its photo, wordlessly, held for holdMs, then resume
+// the ambient slideshow. Refuses a non-tender surface (belt-and-braces with the
+// engine gating). Spends the day's memory budget so nothing else surfaces today.
+function surfaceTenderMemory(surface, night = isNight()) {
+  if (!ambientMemoryEnabled || !surface || !surface.ambientOnly) return false;
+  const ref = Array.isArray(surface.photos) ? surface.photos[0] : null;
+  if (!ref) return false;
+
+  clearInterval(photoTimer); photoTimer = null; // the lane owns the frame for the hold
+  clearTimeout(tenderTimer);
+
+  setPhoto(memoryPhotoSrc(ref));
+  showTenderMark();
+  spendMemoryBudget(new Date());
+
+  const holdMs = Number.isFinite(surface.holdMs) ? surface.holdMs : 22_000;
+  tenderTimer = setTimeout(() => {
+    tenderTimer = null;
+    hideTenderMark();
+    showNextPhoto();
+    startPhotoTimer(night); // hand the frame back to the ordinary slideshow
+  }, holdMs);
+  return true;
+}
+
+// On Mode-0 entry, offer the day's tender memory (if any) to the wordless lane.
+function maybeSurfaceTenderMemory(night) {
+  if (!ambientMemoryEnabled) return false;
+  const surface = collectAmbientMemory({}, new Date()); // null unless the day fits a tender entry
+  return surface ? surfaceTenderMemory(surface, night) : false;
 }
 
 // ─── Night mode ───────────────────────────────────────────────
@@ -465,7 +537,10 @@ function enter() {
   tickClock();
   applyClockDim();
   updateInfo();
-  showNextPhoto();
+  // WP4: a tender memory (if the day fits one) takes the frame wordlessly and
+  // manages its own hold+resume; otherwise the ordinary slideshow starts.
+  const tender = maybeSurfaceTenderMemory(night);
+  if (!tender) showNextPhoto();
 
   el.classList.add("is-active");
   document.body.classList.add("screensaver-active");
@@ -477,7 +552,7 @@ function enter() {
   clockTimer = setInterval(tickClock, 1000);
   infoTimer  = setInterval(updateInfo, INFO_MS);
   driftTimer = setInterval(applyDrift, DRIFT_MS);
-  startPhotoTimer(night);
+  if (!tender) startPhotoTimer(night); // the tender lane resumes the slideshow after its hold
 
   // Mode 0 boundary for the presence FSM (screensaver stays the authority).
   emit("screensaver:changed", { active: true });
@@ -494,10 +569,13 @@ function exit() {
   clearInterval(infoTimer);
   clearInterval(photoTimer);
   clearInterval(driftTimer);
+  clearTimeout(tenderTimer); // WP4: drop any in-flight tender hold + its mark
   clockTimer = null;
   infoTimer  = null;
   photoTimer = null;
   driftTimer = null;
+  tenderTimer = null;
+  hideTenderMark();
 
   el.classList.remove("is-active");
   document.body.classList.remove("screensaver-active");
@@ -528,6 +606,10 @@ export async function initScreensaver(options = {}) {
   immichEnabled = options.immichEnabled === true;
   // Study 05: the ambient-clock treatment (tabular face + sun-altitude dim).
   ambientClockEnabled = options.ambientClockEnabled === true;
+  // Study 01 (WP4): the tender ambient memory lane (set before build() so the
+  // mark element is only ever in the DOM when the flag is on → flag-off is
+  // byte-identical).
+  ambientMemoryEnabled = options.ambientMemoryEnabled === true;
 
   build();
   // Feature marker — the study-05 CSS engages only under this class, so flag-off
@@ -549,6 +631,28 @@ export async function initScreensaver(options = {}) {
     altitudeDeg: ambientClockEnabled ? +sunAltitudeDeg().toFixed(2) : null,
     dim: el ? el.style.getPropertyValue("--clock-dim") || null : null
   });
+
+  // Study 01 (WP4) — inspect + drive the tender lane over CDP. Registered only
+  // when the flag is on → flag-off exposes no hook. __forceAmbientMemory renders
+  // a surface exactly as a real tender memory would (the Pi has no authored data),
+  // and REFUSES any non-tender surface — the render-boundary half of the invariant.
+  if (ambientMemoryEnabled) {
+    window.__ambientMemory = () => ({
+      enabled: true,
+      markVisible: Boolean(tenderMarkEl?.classList.contains("is-visible")),
+      held: Boolean(tenderTimer),
+      // proof of wordlessness: the only text anywhere near the memory is the 🕯
+      // glyph itself — never a caption line.
+      markText: tenderMarkEl?.textContent ?? null,
+      photo: photoEl?.getAttribute("src") ?? null
+    });
+    window.__forceAmbientMemory = (surface) => {
+      if (!surface || !surface.ambientOnly) return { refused: true }; // lane refuses non-tender
+      if (!active) engageScreensaver();
+      surfaceTenderMemory(surface);
+      return window.__ambientMemory();
+    };
+  }
 
   // Force an atmosphere token over CDP to check each tint live without waiting
   // for the weather (convention: __isNight / __nowcastProbe).

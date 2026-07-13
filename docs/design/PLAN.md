@@ -6,10 +6,9 @@ the full loop before the next starts — the same discipline that landed Phases 
 and study 02.
 
 **Status:** Study 02 (the hero line) shipped + default-on (`features.heroType`).
-**WP1 (ambient night clock, `features.ambientClock`) + WP2 (lean-in glass stack,
-`features.leanInStack`) shipped + default-on + Pi-verified 2026-07-12**
-(`21fe565`→`18a237b`→`708a2b2`; `7a054a3`→`d36ac34`). One surface remains after this;
-**WP3 in progress.**
+**WP1 (ambient night clock), WP2 (lean-in glass stack), WP3 (arrival glass card) shipped +
+default-on + Pi-verified** (`ambientClock` 2026-07-12; `leanInStack` 2026-07-12;
+`arrivalCard` 2026-07-13). **WP4 (the last surface) in progress.**
 
 ## Guardrails every surface follows (the shipping contract)
 
@@ -54,7 +53,7 @@ Constant across all four WPs — the packages below only call out deviations:
 | **Verify** | DWELL reveals top-3 with glass edges; GLANCE collapses to 1 (unchanged); `/kiosk-metrics` DOM/heap flat across reveal/teardown cycles (leak-audit discipline) |
 | **Risk** | Medium — touches the live DWELL path + the glass token system. Keep glass all-or-nothing; reuse `renderStack`'s teardown, don't add a new timer |
 
-## WP3 — The Arrival "Welcome Home" Card (study 03) ◀ IN PROGRESS
+## WP3 — The Arrival "Welcome Home" Card (study 03) ✅ SHIPPED (default-on, Pi-verified 2026-07-13)
 
 | | |
 |---|---|
@@ -67,7 +66,7 @@ Constant across all four WPs — the packages below only call out deviations:
 | **Verify** | Force an arrival on the Pi → card renders + auto-dismisses; delight budget spent once then blocks; `/kiosk-metrics` flat; overlay teardown cleans symmetrically (no blob/listener leak on repeated arrivals) |
 | **Risk** | Medium — overlay lifecycle + delight-budget interaction |
 
-## WP4 — The Ambient Memory Surface (study 01)
+## WP4 — The Ambient Memory Surface (study 01) ◀ IN PROGRESS
 
 | | |
 |---|---|

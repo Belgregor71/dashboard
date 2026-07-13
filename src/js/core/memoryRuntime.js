@@ -115,13 +115,11 @@ function buildCtx(briefingCtx, now) {
   };
 }
 
-/**
- * The attention engine calls this each refresh (behind the flag). Returns [] or a
- * single-element array with the chosen Low-band, non-interrupt memory candidate —
- * the exact shape of the Phase 3 predictive concat.
- */
-export function collectMemory(briefingCtx = {}, now = new Date()) {
-  if (!enabled) return [];
+// The one selection both lanes share — the text hero (collectMemory) and the
+// ambient frame (collectAmbientMemory). pickMemory returns at most one surface
+// per day, so the two lanes are mutually exclusive by construction: whichever the
+// day's best-fit memory is, it goes to exactly one of them.
+function selectMemory(briefingCtx, now) {
   const all = [
     ...entries,
     ...anchorEntries(briefingCtx.anniversaries, now),
@@ -132,20 +130,47 @@ export function collectMemory(briefingCtx = {}, now = new Date()) {
     lastSurfacedDay: readJson(HISTORY_KEY, {}).lastSurfacedDay ?? null,
     cooldowns: readJson(COOLDOWN_KEY, {})
   };
-  const surface = pickMemory(all, ctx, history, now);
-  // Tender (ambient-only) memories belong to the quiet ambient photo frame, which
-  // is not wired to the text hero — so they never reach it. When unsure, silence:
-  // a grief anchor stays out of a passing text line by construction. (Surfacing
-  // tender memories through the ambient frame is the documented follow-up.)
+  return pickMemory(all, ctx, history, now);
+}
+
+/**
+ * The attention engine calls this each refresh (behind the flag). Returns [] or a
+ * single-element array with the chosen Low-band, non-interrupt memory candidate —
+ * the exact shape of the Phase 3 predictive concat.
+ */
+export function collectMemory(briefingCtx = {}, now = new Date()) {
+  if (!enabled) return [];
+  const surface = selectMemory(briefingCtx, now);
+  // Tender (ambient-only) memories belong to the quiet ambient photo frame
+  // (collectAmbientMemory / the screensaver, study 01 WP4) — never the text hero.
+  // When unsure, silence: a grief anchor stays out of a passing text line by
+  // construction.
   if (!surface || surface.ambientOnly) return [];
   return [surface];
 }
 
-// A memory reaching the glass spends the day's budget — so no second memory
-// surfaces today. Persisted so a same-day reload (e.g. a deploy) doesn't re-spend.
+/**
+ * The screensaver's Mode-0 tender lane (study 01 WP4) calls this. Returns the
+ * chosen memory ONLY when it's ambient-only (tender) — the wordless surface the
+ * text hero refuses — or null. The tender-gating (ambientOnly/caption:null/longer
+ * hold) is already applied in memoryEngine.toSurface; this just routes it.
+ */
+export function collectAmbientMemory(briefingCtx = {}, now = new Date()) {
+  if (!enabled) return null;
+  const surface = selectMemory(briefingCtx, now);
+  return surface && surface.ambientOnly ? surface : null;
+}
+
+// A surfaced memory (text hero OR the ambient tender frame) spends the day's
+// budget, so no second memory surfaces today. Persisted so a same-day reload
+// (e.g. a deploy) doesn't re-spend.
+export function spendMemoryBudget(now = new Date()) {
+  writeJson(HISTORY_KEY, { lastSurfacedDay: dateKey(now) });
+}
+
 function onHero({ hero }) {
   if (hero?.source !== "memory") return;
-  writeJson(HISTORY_KEY, { lastSurfacedDay: dateKey(new Date()) });
+  spendMemoryBudget(new Date());
 }
 
 export function initMemoryRuntime(options = {}) {

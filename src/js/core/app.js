@@ -196,7 +196,9 @@ export function startApp() {
     // Phase 9.5 — source the ambient photo pool from Immich (docs/vision/photo-source-immich.md).
     immichEnabled: isEnabled("immichPhotos", false),
     // Study 05 (WP1) — ambient-clock treatment: tabular face + sun-altitude dim (docs/design/).
-    ambientClockEnabled: isEnabled("ambientClock", false)
+    ambientClockEnabled: isEnabled("ambientClock", false),
+    // Study 01 (WP4) — the tender ambient memory lane: wordless Mode-0 surface (docs/design/).
+    ambientMemoryEnabled: isEnabled("ambientMemory", false)
   });
   initFocusHero({
     attentionEnabled: isEnabled("attentionEngine", false),

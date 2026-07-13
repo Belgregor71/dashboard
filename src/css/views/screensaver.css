@@ -293,6 +293,28 @@
   opacity: calc(var(--clock-dim, 0.9) * 0.7);
 }
 
+/* ── Tender ambient memory mark (study 01, features.ambientMemory) ──
+   docs/design/homeos-component-studies.html · WP4 of docs/design/PLAN.md.
+   A tender memory surfaces wordlessly (screensaver.js surfaceTenderMemory): its
+   photo fills the frame and this single faint 🕯 answers from the bottom-right
+   corner — the ONLY mark, never a caption. Static opacity, no motion, so the
+   idle GPU stays frozen (0%). The element is only in the DOM when the flag is on
+   (byte-identical off); it fades in on .is-visible and out when the hold ends. */
+.screensaver__tender-mark {
+  position: absolute;
+  right: clamp(16px, 4%, 40px);
+  bottom: clamp(16px, 4%, 40px);
+  font-size: clamp(0.9rem, 1.4vw, 1.4rem);
+  opacity: 0;
+  filter: grayscale(0.15);
+  transition: opacity 2.5s ease;
+  pointer-events: none;
+}
+
+.screensaver__tender-mark.is-visible {
+  opacity: 0.5;
+}
+
 /* ── Hide dashboard content while screensaver is active ────── */
 
 body.screensaver-active > *:not(#screensaver) {
