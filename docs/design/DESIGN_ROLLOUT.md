@@ -53,7 +53,11 @@ riskiest (it changes what's *behind* everything). **WP-E** finishes the long tai
 
 ---
 
-## WP-F — Foundations: land the tokens (no visible change)
+## WP-F — Foundations: land the tokens (no visible change) ✅ SHIPPED (Pi-verified 2026-07-13, `b81b5ba`)
+
+Landed `--cool`, `--glass-*-hero`, `--space-1…10`, `--safe-margin`/`--content-max`/`--hero-offset`,
+`--t-hero`/`-settle`/`-arrival`; pinned `--fs-hero-line-a/b/c` to 144/104/72px. Pi probe confirmed
+all resolve; zero existing consumers → render byte-identical; suite green.
 
 | | |
 |---|---|
