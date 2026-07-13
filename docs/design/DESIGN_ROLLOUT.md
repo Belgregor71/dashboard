@@ -134,7 +134,16 @@ the weather-based living accent (§6, accent stays time-based) and a day-boundar
 | **Verify** | Awake home shows a real photo under the bare top row + hero, lit by the weather; text legible over it (readability gradient). **`/kiosk-metrics` GPU 0% at rest is the gate** — a static awake photo must not reintroduce compositing cost. Flag-off byte-identical (aurora returns). |
 | **Risk** | **Highest.** Changes what's behind every awake surface + touches the GPU-idle-freeze that was hard-won. Verify 0% GPU exhaustively (Ambient *and* Glance at rest). Legibility of the bare hero/top-row (WP-B/C) over real photos is validated here — budget for a readability-gradient tune. |
 
-## WP-E — Memory whisper + polish sweep + retired-view cleanup
+## WP-E — Memory whisper + polish sweep + retired-view cleanup ◀ PARTLY SHIPPED
+
+- **E.1 captioned memory whisper** ✅ SHIPPED (default-on, Pi-verified 2026-07-14, `f9148ba`) — the
+  Mode-0 "on this day" surface moved from the footer line to the study-01 bottom-right whisper
+  (eyebrow + title), fading on the 60s settle, hidden when today has no anniversary. `memoryWhisper`.
+- **E.2 spacing/type sweep** ✅ SHIPPED (`7b69fe3`) — near-empty: WP-A–E were built token-first, so
+  the only migration was the bare-hero gap → `--space-7` (byte-identical). Legacy panels keep their
+  tokens; the design type scale stays literal px (fixed-1920, documented in `DESIGN_SYSTEM.md §2.1`).
+- **E.3 retired views** — REVISED to **restyle, not delete** (see Decisions). Separate future pass:
+  bring `weather` / `briefing` / `status` CSS onto the design tokens; keep their triggers working.
 
 | | |
 |---|---|
