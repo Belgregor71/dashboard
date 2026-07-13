@@ -101,7 +101,13 @@ this evening) — re-check when a commute is live.
 | **Verify** | Matches screenshots 03/05/07: bare time left, `18° / NUDGEE · CLEAR` right, no icon/wind/range, no card borders. Flag-off byte-identical (old panels return). `/kiosk-metrics` flat (removing the weather lottie should *reduce* GPU if it was animating). |
 | **Risk** | Medium. The weather lottie removal is a real behavior change — confirm nothing else depends on `#weather-lottie`. The hi/lo + wind data still exist in the service; we're only removing them from *this* row. |
 
-## WP-C — Un-chrome the hero + concierge line
+## WP-C — Un-chrome the hero + concierge line ✅ SHIPPED (default-on, Pi-verified 2026-07-13, `ff2e411`)
+
+The scored line sits bare over the ground (no box), fixed-centred at +120px, glyph with the
+borrowed-light glow; the idle concierge goes matte (ink .78, no glyph glow). The stack is
+bottom-anchored (centring took the hero out of flow, so the stack was repositioned so it reads
+below, not above). Pi: rect y587 h147 → centre 660 = 540 + 120px; matte concierge legible; no
+overlap with the legacy media panel. Flag-off byte-identical.
 
 | | |
 |---|---|
