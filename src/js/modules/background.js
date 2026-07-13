@@ -41,12 +41,45 @@ async function checkHoliday() {
   document.body.classList.toggle("is-holiday", isHoliday);
 }
 
+// ── Awake photographic ground (features.awakeGround, WP-D) ────
+// docs/design/DESIGN_ROLLOUT.md. A single Immich photo held behind the awake
+// modes (the atmosphere tint + readability gradient sit above it in CSS). Static
+// by design: fetched once, no rotation timer — the 0%-GPU-at-rest invariant. The
+// element is only created when the flag is on → flag-off is byte-identical.
+const immichThumb = (id) => `/api/immich/asset/${encodeURIComponent(id)}/thumb`;
+
+async function loadAwakePhoto(img) {
+  try {
+    const res = await fetch("/api/immich/random?count=1", { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return;
+    const asset = ((await res.json()).assets ?? [])[0];
+    if (!asset?.id) return;
+    img.onload = () => img.classList.add("is-loaded");
+    img.src = immichThumb(asset.id);
+  } catch {
+    /* Immich down/unreachable → the #background sky gradient shows through */
+  }
+}
+
+function initAwakeGround() {
+  if (!window.CONFIG?.features?.awakeGround) return;
+  const bg = document.getElementById("background");
+  if (!bg || document.getElementById("awake-photo")) return;
+  const img = document.createElement("img");
+  img.id = "awake-photo";
+  img.alt = "";
+  img.decoding = "async";
+  bg.prepend(img); // the bottom layer of the ground (tint + readability sit above)
+  loadAwakePhoto(img);
+}
+
 export function initBackground() {
   initStars();
   updateTint();
   setInterval(updateTint, 10 * 60 * 1000);
   void checkHoliday();
   setInterval(checkHoliday, 24 * 60 * 60 * 1000);
+  initAwakeGround();
 }
 
 const TINT_CLASSES = ["tint-morning", "tint-day", "tint-evening", "tint-night"];

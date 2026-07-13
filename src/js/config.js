@@ -241,7 +241,22 @@ window.CONFIG = {
     // y587 h147 → centre 660 = 540 + 120px), matte (glyph no glow, ink .78),
     // legible; no overlap with the legacy media panel. Now default-on; flag-off
     // byte-identical (the boxed hero returns). Revert (-> false).
-    bareHero: true
+    bareHero: true,
+
+    // Design-system rollout WP-D (docs/design/DESIGN_ROLLOUT.md) — the awake
+    // photographic ground. Today only the screensaver draws a photo; the awake
+    // Glance/Lean-in modes show the animated aurora/stars. With this on, the awake
+    // modes get the same layered ground as Mode 0 (DESIGN_SYSTEM.md §6): a single
+    // Immich photo, held STATIC (fetched once, no rotation timer — the 0%-GPU-at-
+    // rest invariant), the weather atmosphere tint (the shipped substrate ::before)
+    // over it, and a readability gradient beneath the content. The animated aurora
+    // /stars/time-tint are retired (a net GPU *reduction* awake — one fewer loop).
+    // Immich down → the base sky gradient shows through (never a blank frame).
+    // FOLLOW-UPS (not in v1): the weather-based living accent (§6) and a day-
+    // boundary photo cross-dissolve — the accent stays time-based, the photo holds
+    // for the session. Default OFF -> byte-identical (aurora returns, no photo).
+    // One-line revert (-> false).
+    awakeGround: false
   },
 
   /* --------------------------------------------------------------
