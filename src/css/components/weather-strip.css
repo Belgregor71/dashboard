@@ -75,3 +75,69 @@
   font-size: 1.05rem;
   opacity: 0.85;
 }
+
+/* ══ Bare top row — weather side (features.bareTopRow, WP-B) ═════
+   docs/design/DESIGN_SYSTEM.md §2.1. Strip the glass card; the weather sits bare
+   top-right: temp over a single "LOCATION · CONDITION" line. The weather icon is
+   gone (borrowed light — the wall renders the condition; renderer.js skips the
+   lottie load), as are the wind line and the hi/lo range.
+
+   Composition without touching JS content (the screensaver reads #current-conditions):
+   flatten the three .weather-column wrappers with display:contents so temp,
+   location and condition become direct grid items, then place them with named
+   areas — temp on top, location + condition sharing the row below with a middot
+   separator. Flag-off matches nothing here → byte-identical. */
+body.bare-top-row #current-weather-panel {
+  background: none;
+  border: none;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-areas:
+    "temp temp"
+    "loc  cond";
+  justify-content: end;
+  align-items: baseline;
+  column-gap: 0;
+  row-gap: var(--space-1);
+}
+
+body.bare-top-row .weather-column { display: contents; }
+
+/* Drop the icon, wind, and hi/lo range from the bare row. */
+body.bare-top-row #weather-lottie,
+body.bare-top-row #weather-range,
+body.bare-top-row .weather-wind { display: none; }
+
+body.bare-top-row #current-temp {
+  grid-area: temp;
+  justify-self: end;
+  font-size: 64px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+body.bare-top-row #weather-home-location { grid-area: loc; }
+body.bare-top-row #current-conditions    { grid-area: cond; }
+
+body.bare-top-row #weather-home-location,
+body.bare-top-row #current-conditions {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  opacity: 0.6;
+}
+
+/* the middot between LOCATION and CONDITION */
+body.bare-top-row #weather-home-location::after {
+  content: "·";
+  margin: 0 0.5ch;
+  opacity: 0.7;
+}

@@ -433,6 +433,12 @@ function renderCurrent(data) {
     lastPrimaryRenderHash = primaryHash;
   }
 
+  // Bare top row (WP-B, docs/design/DESIGN_ROLLOUT.md): the awake top row drops
+  // the weather icon (borrowed light) + wind line. Skip loading those lotties so
+  // a hidden animation doesn't keep a requestAnimationFrame running (the zombie-
+  // lottie leak CLAUDE.md warns about). Flag-off → loads as before, byte-identical.
+  const bareTopRow = Boolean(window.CONFIG?.features?.bareTopRow);
+
   if (windTextEl && current.windspeed != null) {
     const windKmh = current.windspeed;
     const windDirText = describeWindDirection(current.winddirection);
@@ -440,10 +446,12 @@ function renderCurrent(data) {
       ? `${Math.round(windKmh)} km/h ${windDirText}`
       : `${Math.round(windKmh)} km/h`;
 
-    const beaufort = getBeaufortNumber(windKmh);
-    const windIconFile = getWindBeaufortFilename(beaufort);
-    const windAnim = loadLottieAnimation("weather-wind-icon", windIconFile);
-    if (windAnim) activeLotties.push(windAnim);
+    if (!bareTopRow) {
+      const beaufort = getBeaufortNumber(windKmh);
+      const windIconFile = getWindBeaufortFilename(beaufort);
+      const windAnim = loadLottieAnimation("weather-wind-icon", windIconFile);
+      if (windAnim) activeLotties.push(windAnim);
+    }
   }
 
   // Feed the shared store's weather slice so the ambient atmosphere (Phase 5)
@@ -455,8 +463,13 @@ function renderCurrent(data) {
 
   syncWeatherMotion(data);
 
-  const anim = loadLottieAnimation("weather-lottie", animFile);
-  if (anim) activeLotties.push(anim);
+  // Bare top row (WP-B): the awake top-row weather icon is gone (borrowed light —
+  // the wall renders the condition). Skip its lottie so no hidden rAF keeps
+  // running. (The weather-view hero icon below is a separate, non-top-row surface.)
+  if (!bareTopRow) {
+    const anim = loadLottieAnimation("weather-lottie", animFile);
+    if (anim) activeLotties.push(anim);
+  }
 
   const heroAnim = loadLottieAnimation("weather-hero-icon", animFile);
   if (heroAnim) activeLotties.push(heroAnim);

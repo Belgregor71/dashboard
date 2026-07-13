@@ -207,7 +207,21 @@ window.CONFIG = {
     // spent (lastSurfacedDay set), a non-tender surface was refused by the lane,
     // gpu-process 0% over 25s. Now default-on; flag-off stays byte-identical (no
     // mark element, tender memories stay dropped). One-line revert (-> false).
-    ambientMemory: true
+    ambientMemory: true,
+
+    // Design-system rollout WP-B (docs/design/DESIGN_ROLLOUT.md) — the bare top
+    // row. Strips the old chrome off the awake Glance/Lean-in top row so the time
+    // and weather sit bare over the ground, per docs/design/DESIGN_SYSTEM.md §2.1:
+    // left = time only (display 500 / 64px / tabular / --ink, quiet meridiem, NO
+    // date — the date lives in the Ambient clock); right = temp (600 / 64px) over
+    // a single "LOCATION · CONDITION" line (Inter 500 / 19px / .14em / uppercase /
+    // ink .6). Removes the weather icon (borrowed-light law — the wall renders the
+    // condition, no lottie), the wind line, the hi/lo range, and the middle-slot
+    // commute/next-event cards (their content flows into the attention/hero queue).
+    // Adds body.bare-top-row (CSS-driven) + skips the weather/wind lottie loads so
+    // no hidden rAF keeps running. Default OFF -> byte-identical (the old glass
+    // cards + icon + wind + range return). One-line revert (-> false).
+    bareTopRow: false
   },
 
   /* --------------------------------------------------------------

@@ -80,6 +80,11 @@ export function startApp() {
   // dead click-cycle. See docs/vision/phase-1-presence-runtime.md.
   const presenceEnabled = isEnabled("presenceRuntime", false);
   initViews({ presenceEnabled, substrateEnabled: isEnabled("ambientSubstrate", false) });
+
+  // Design-system rollout (docs/design/DESIGN_ROLLOUT.md) — flags that only
+  // restyle via CSS mark the <body> so the scoped rules engage. Flag-off adds no
+  // class → byte-identical. WP-B: the bare Glance/Lean-in top row.
+  if (isEnabled("bareTopRow", false)) document.body.classList.add("bare-top-row");
   initPresence({ enabled: presenceEnabled });
   // Phase 6 House Model — a pure reducer over slices the store already carries,
   // gated off by default so it ships reversibly. When on, it names the room's
