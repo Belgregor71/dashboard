@@ -32,6 +32,11 @@ function enableFlags(mediaCandidate) {
         (await res.text()) +
         "\nwindow.CONFIG.features.presenceRuntime = true;" +
         "\nwindow.CONFIG.features.attentionEngine = true;" +
+        // Pin off the other candidate sources so now-playing is the sole candidate
+        // (else a fitting seed memory outranks it and this can't assert the hero).
+        "\nwindow.CONFIG.features.memoryEngine = false;" +
+        "\nwindow.CONFIG.features.predictiveCandidates = false;" +
+        "\nwindow.CONFIG.features.foldHomeTiles = false;" +
         `\nwindow.CONFIG.features.mediaCandidate = ${mediaCandidate};\n`;
       await route.fulfill({ response: res, body });
     });
@@ -44,6 +49,7 @@ function activateMedia(page) {
     p.classList.remove("is-hidden", "is-collapsed");
     p.querySelector(".media-panel__source").textContent = "Lounge Room";
     p.querySelector(".media-panel__title").textContent = "The Parent Trap";
+    p.querySelector(".media-panel__image").setAttribute("src", "/media/art/parent-trap.jpg");
   });
 }
 
@@ -68,10 +74,18 @@ test("media candidate on: now-playing rides the queue, standalone panel hidden",
   const np = await page.evaluate(() => window.__attention().queue.find((c) => c.source === "nowPlaying"));
   expect(np.text).toContain("The Parent Trap");
   expect(np.score).toBeLessThan(42); // lowest low-band
+  expect(np.image).toBe("/media/art/parent-trap.jpg"); // carries the artwork
 
-  // The standalone panel is hidden on the presence surface (still in the DOM).
+  // As the sole candidate it becomes the hero, rendered with the poster thumbnail.
+  await expect.poll(() => page.evaluate(() => window.__attention().hero?.source)).toBe("nowPlaying");
+  const heroArt = await page.evaluate(() => document.querySelector("#focus-hero-icon .focus-hero__art")?.getAttribute("src") ?? null);
+  expect(heroArt).toBe("/media/art/parent-trap.jpg");
+
+  // The standalone panels (media + plex) are hidden on the presence surface.
   const stackDisplay = await page.evaluate(() => getComputedStyle(document.getElementById("media-stack")).display);
   expect(stackDisplay).toBe("none");
+  const plexDisplay = await page.evaluate(() => getComputedStyle(document.getElementById("server-status-panel")).display);
+  expect(plexDisplay).toBe("none");
   expect(await page.evaluate(() => document.getElementById("media-panel-1") !== null)).toBe(true);
 
   expect(pageErrors, `uncaught page errors:\n${pageErrors.join("\n")}`).toHaveLength(0);

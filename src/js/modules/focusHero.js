@@ -50,15 +50,32 @@ function isPanelActive(panelId) {
 // The active media player's "source — title", or null. Reads the same panels the
 // screensaver's ambient line does; feeds the now-playing attention candidate when
 // features.mediaCandidate folds the standalone panel into the queue.
+// The active HA media player's { text, image }, or null. image = the album/movie
+// art (entity_picture) so the folded candidate can show the real thumbnail.
 function readNowPlaying() {
   for (const id of ["media-panel-1", "media-panel-2"]) {
     if (!isPanelActive(id)) continue;
     const panel = document.getElementById(id);
     const source = panel.querySelector(".media-panel__source")?.textContent?.trim();
     const title = panel.querySelector(".media-panel__title")?.textContent?.trim();
-    if (title) return [source, title].filter(Boolean).join(" — ");
+    if (!title) continue;
+    const image = panel.querySelector(".media-panel__image")?.getAttribute("src")?.trim() || null;
+    return { text: [source, title].filter(Boolean).join(" — "), image };
   }
   return null;
+}
+
+// The first active Plex stream's { text, image }, from the separate Plex panel
+// (#plex-status tiles carry the poster as a background-image).
+function readPlex() {
+  if (!isPanelActive("server-status-panel")) return null;
+  const tile = document.querySelector("#plex-status .plex-status__tile");
+  if (!tile) return null;
+  const title = tile.querySelector(".plex-status__title")?.textContent?.trim();
+  if (!title) return null;
+  const bg = tile.style.backgroundImage || "";
+  const m = /url\(["']?(.*?)["']?\)/.exec(bg);
+  return { text: title, image: m ? m[1] : null };
 }
 
 // Tonight's dinner name from the menu tile, or null. Feeds the tonights-menu
@@ -69,9 +86,11 @@ function readTonightsMenu() {
 }
 
 function readState() {
-  // Now-playing → attention candidate. Read only when the flag is on, so flag-off
-  // carries no candidate (byte-identical) and the panel keeps showing standalone.
-  const nowPlayingText = mediaCandidateOn ? readNowPlaying() : null;
+  // Now-playing (HA media + Plex) → attention candidates. Read only when the flag
+  // is on, so flag-off carries no candidate (byte-identical) and the panels keep
+  // showing standalone.
+  const nowPlaying = mediaCandidateOn ? readNowPlaying() : null;
+  const plex = mediaCandidateOn ? readPlex() : null;
   const menuName = foldHomeTilesOn ? readTonightsMenu() : null;
   return {
     bomWarning: getBomWarnings(getAllEntities()).summary || null,
@@ -88,8 +107,12 @@ function readState() {
       document.getElementById("next-event-name")?.textContent?.trim(),
       document.getElementById("next-event-meta")?.textContent?.trim()
     ].filter(Boolean).join(" · "),
-    nowPlayingActive: Boolean(nowPlayingText),
-    nowPlayingText,
+    nowPlayingActive: Boolean(nowPlaying),
+    nowPlayingText: nowPlaying?.text ?? null,
+    nowPlayingImage: nowPlaying?.image ?? null,
+    plexActive: Boolean(plex),
+    plexText: plex?.text ?? null,
+    plexImage: plex?.image ?? null,
     menuActive: Boolean(menuName),
     menuName
   };
@@ -143,13 +166,24 @@ function heroEls() {
   return { hero, iconEl, textEl };
 }
 
-function showHero(els, icon, text, { concierge = false } = {}) {
-  els.iconEl.textContent = icon;
+function showHero(els, icon, text, { concierge = false, image = null } = {}) {
+  // A media/plex candidate carries its artwork; render it in the glyph slot as a
+  // thumbnail (resized to fit via CSS) instead of the emoji. Else the plain glyph.
+  if (image) {
+    const img = document.createElement("img");
+    img.className = "focus-hero__art";
+    img.src = image;
+    img.alt = "";
+    els.iconEl.replaceChildren(img);
+  } else {
+    els.iconEl.textContent = icon;
+  }
   els.textEl.textContent = text;
   if (heroTypeOn) applyHeroTier(els.hero, text);
   // WP-C: mark the idle concierge fallback so the un-chromed hero can render it
   // matte (no glyph glow, lower ink). Flag-off adds no class → byte-identical.
   if (bareHeroOn) els.hero.classList.toggle("concierge", concierge === true);
+  els.hero.classList.toggle("focus-hero--art", Boolean(image));
   els.hero.classList.remove("is-hidden");
 }
 
@@ -179,7 +213,17 @@ function renderStack(items) {
       row.className = "focus-stack__item";
       const icon = document.createElement("span");
       icon.className = "focus-stack__icon";
-      icon.textContent = c.icon;
+      // Media/plex candidates show their artwork as a thumbnail (resized to fit
+      // via CSS); everything else keeps the emoji glyph.
+      if (c.image) {
+        const img = document.createElement("img");
+        img.className = "focus-stack__thumb";
+        img.src = c.image;
+        img.alt = "";
+        icon.replaceChildren(img);
+      } else {
+        icon.textContent = c.icon;
+      }
       const text = document.createElement("span");
       text.className = "focus-stack__text";
       text.textContent = c.text;
@@ -210,7 +254,7 @@ function updateAttention(state, els) {
     return;
   }
 
-  showHero(els, sel.hero.icon, sel.hero.text);
+  showHero(els, sel.hero.icon, sel.hero.text, { image: sel.hero.image });
   renderStack(sel.stack.slice(1)); // items 2..N — the hero already owns slot 1
 }
 

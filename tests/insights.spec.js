@@ -16,6 +16,7 @@ import {
   nextEventCandidate,
   commuteCandidate,
   nowPlayingCandidate,
+  plexCandidate,
   tonightsMenuCandidate,
   collectSources
 } from "../src/js/services/candidateSources.js";
@@ -308,6 +309,16 @@ test.describe("candidateSources score bands", () => {
     expect(c.score).toBeLessThan(42); // below commute (42)
     expect(c.interrupt).toBeFalsy();
     expect(c.text).toContain("The Parent Trap");
+  });
+
+  test("now-playing carries its artwork; plex is a peer low-band candidate", () => {
+    const np = nowPlayingCandidate({ nowPlayingActive: true, nowPlayingText: "Lounge — Film", nowPlayingImage: "/art/x.jpg" });
+    expect(np.image).toBe("/art/x.jpg");
+    const px = plexCandidate({ plexActive: true, plexText: "The Bear: Ep 3", plexImage: "/api/plex/image?path=/y" });
+    expect(px.source).toBe("plex");
+    expect(px.image).toBe("/api/plex/image?path=/y");
+    expect(px.score).toBe(41);
+    expect(plexCandidate({ plexActive: false, plexText: "x" })).toBeNull();
   });
 
   test("tonight's menu is the quietest low-band candidate, below now-playing", () => {

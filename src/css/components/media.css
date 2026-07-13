@@ -197,7 +197,10 @@
    nowPlayingCandidate) instead of a standalone glass panel — so hide the panel.
    It stays in the DOM (display:none, not removed) so focusHero's readNowPlaying
    and the screensaver's ambient line can still read its source/title. Class
-   added by app.js only when the flag is on → flag-off is byte-identical. */
-body.media-candidate #media-stack {
+   added by app.js only when the flag is on → flag-off is byte-identical. The
+   Plex "Now Playing" panel (#server-status-panel) folds the same way — its stream
+   rides the queue as the plexCandidate (with its poster), so hide it too. */
+body.media-candidate #media-stack,
+body.media-candidate #server-status-panel {
   display: none;
 }

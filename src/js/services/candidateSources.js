@@ -71,13 +71,32 @@ export function commuteCandidate({ commuteActive, commuteText } = {}) {
  * instead of a separate glass panel. Only present when the runtime reads it
  * (gated on features.mediaCandidate), so flag-off carries no candidate.
  */
-export function nowPlayingCandidate({ nowPlayingActive, nowPlayingText } = {}) {
+export function nowPlayingCandidate({ nowPlayingActive, nowPlayingText, nowPlayingImage } = {}) {
   if (!nowPlayingActive || !nowPlayingText) return null;
   return {
     id: `now-playing:${nowPlayingText}`,
     source: "nowPlaying",
     icon: "🎬",
+    image: nowPlayingImage || null, // the album/movie art, rendered as the thumb when present
     text: nowPlayingText,
+    score: 41,
+    cooldownMs: 0
+  };
+}
+
+/**
+ * A Plex stream — the same low band as now-playing, from the separate Plex panel
+ * (not HA). Carries the poster thumb so the attention thumb shows the artwork.
+ * Present only when the runtime reads it (gated on features.mediaCandidate).
+ */
+export function plexCandidate({ plexActive, plexText, plexImage } = {}) {
+  if (!plexActive || !plexText) return null;
+  return {
+    id: `plex:${plexText}`,
+    source: "plex",
+    icon: "🎬",
+    image: plexImage || null,
+    text: plexText,
     score: 41,
     cooldownMs: 0
   };
@@ -107,6 +126,7 @@ export const SOURCES = [
   nextEventCandidate,
   commuteCandidate,
   nowPlayingCandidate,
+  plexCandidate,
   tonightsMenuCandidate
 ];
 
