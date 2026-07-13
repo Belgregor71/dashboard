@@ -296,9 +296,12 @@ window.CONFIG = {
     // name), and the #home-stack tiles are hidden. Bins are already represented in
     // attention by the shipped bin-night predictive candidate (predictiveCandidates
     // fetches /api/bins), so the bins tile just hides. Tiles stay in the DOM.
-    // Default OFF -> byte-identical (the tiles show, no menu candidate). One-line
-    // revert (-> false).
-    foldHomeTiles: false
+    // Pi-verified 2026-07-14 (a1d64b7 flag-off → default-on here): a simulated
+    // dinner surfaced "🍽 Stuffed Capsicums for dinner" (score 40) in the attention
+    // queue and #home-stack was display:none (tiles stayed in the DOM). Now
+    // default-on; flag-off byte-identical (the tiles show, no menu candidate).
+    // One-line revert (-> false).
+    foldHomeTiles: true
   },
 
   /* --------------------------------------------------------------
