@@ -282,9 +282,13 @@ window.CONFIG = {
     // title) like commute/next-event, and the standalone glass media panel is
     // hidden on the presence surface (it stays in the DOM so the candidate + the
     // screensaver info line can still read it). Rides features.attentionEngine
-    // (shipped) for the queue. Default OFF -> byte-identical (the media panel shows
-    // as before, no candidate). One-line revert (-> false).
-    mediaCandidate: false
+    // (shipped) for the queue. Pi-verified 2026-07-14 (378805a flag-off →
+    // default-on here): a simulated player surfaced "🎬 Lounge Room — The Parent
+    // Trap" (score 41) in the attention queue and, as the only candidate, rendered
+    // through the bare hero line; the standalone #media-stack was display:none but
+    // stayed in the DOM. Now default-on; flag-off byte-identical (panel shows, no
+    // candidate). One-line revert (-> false).
+    mediaCandidate: true
   },
 
   /* --------------------------------------------------------------
