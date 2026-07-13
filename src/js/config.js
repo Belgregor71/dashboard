@@ -219,9 +219,14 @@ window.CONFIG = {
     // condition, no lottie), the wind line, the hi/lo range, and the middle-slot
     // commute/next-event cards (their content flows into the attention/hero queue).
     // Adds body.bare-top-row (CSS-driven) + skips the weather/wind lottie loads so
-    // no hidden rAF keeps running. Default OFF -> byte-identical (the old glass
-    // cards + icon + wind + range return). One-line revert (-> false).
-    bareTopRow: false
+    // no hidden rAF keeps running. Pi-verified 2026-07-13 (faf24b3 flag-off →
+    // default-on here): time bare top-left (tabular, 500, --ink, quiet meridiem),
+    // "15°" over "NUDGEE · CLEAR" bare top-right, no icon/wind/range/date/middle
+    // slot; weather lottie did NOT load (0 wrappers, no zombie rAF);
+    // #current-conditions textContent stayed "Clear" so the screensaver dateline
+    // is unaffected; concierge hero unaffected. Now default-on; flag-off stays
+    // byte-identical (old cards + icon + wind + range return). Revert (-> false).
+    bareTopRow: true
   },
 
   /* --------------------------------------------------------------
