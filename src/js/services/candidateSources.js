@@ -64,11 +64,31 @@ export function commuteCandidate({ commuteActive, commuteText } = {}) {
   };
 }
 
+/**
+ * What's playing on a media player — the lowest low-band candidate. Folds the
+ * standalone "Now Playing" panel into the one attention queue so it rides the
+ * hero/stack like everything else (docs/design/DESIGN_ROLLOUT.md follow-up)
+ * instead of a separate glass panel. Only present when the runtime reads it
+ * (gated on features.mediaCandidate), so flag-off carries no candidate.
+ */
+export function nowPlayingCandidate({ nowPlayingActive, nowPlayingText } = {}) {
+  if (!nowPlayingActive || !nowPlayingText) return null;
+  return {
+    id: `now-playing:${nowPlayingText}`,
+    source: "nowPlaying",
+    icon: "🎬",
+    text: nowPlayingText,
+    score: 41,
+    cooldownMs: 0
+  };
+}
+
 export const SOURCES = [
   bomCandidate,
   weatherSevereCandidate,
   nextEventCandidate,
-  commuteCandidate
+  commuteCandidate,
+  nowPlayingCandidate
 ];
 
 /** Run every source adapter over the runtime-read state; drop nulls. */

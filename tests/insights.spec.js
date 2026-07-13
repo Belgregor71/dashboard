@@ -15,6 +15,7 @@ import {
   weatherSevereCandidate,
   nextEventCandidate,
   commuteCandidate,
+  nowPlayingCandidate,
   collectSources
 } from "../src/js/services/candidateSources.js";
 import { rankQueue, selectForMode, MODE } from "../src/js/services/attentionRank.js";
@@ -299,9 +300,19 @@ test.describe("candidateSources score bands", () => {
     expect(c.score).toBeLessThan(50);
   });
 
+  test("now-playing is the lowest low-band candidate, below commute", () => {
+    const c = nowPlayingCandidate({ nowPlayingActive: true, nowPlayingText: "Lounge — The Parent Trap" });
+    expect(c.source).toBe("nowPlaying");
+    expect(c.score).toBeGreaterThanOrEqual(40);
+    expect(c.score).toBeLessThan(42); // below commute (42)
+    expect(c.interrupt).toBeFalsy();
+    expect(c.text).toContain("The Parent Trap");
+  });
+
   test("inactive/empty panels yield no candidate", () => {
     expect(commuteCandidate({ commuteActive: false, commuteText: "Greg 22 min" })).toBeNull();
     expect(nextEventCandidate({ nextEventActive: true, nextEventText: "" })).toBeNull();
+    expect(nowPlayingCandidate({ nowPlayingActive: false, nowPlayingText: "x" })).toBeNull();
     expect(collectSources({})).toEqual([]);
   });
 });

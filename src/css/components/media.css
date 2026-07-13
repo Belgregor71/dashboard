@@ -190,3 +190,14 @@
 .server-item .ok {
   color: var(--status-ok);
 }
+
+/* ══ Now-Playing folded into the attention queue (features.mediaCandidate) ══
+   docs/design/DESIGN_ROLLOUT.md follow-up. On the presence surface, what's
+   playing rides the attention hero/stack as a candidate (candidateSources
+   nowPlayingCandidate) instead of a standalone glass panel — so hide the panel.
+   It stays in the DOM (display:none, not removed) so focusHero's readNowPlaying
+   and the screensaver's ambient line can still read its source/title. Class
+   added by app.js only when the flag is on → flag-off is byte-identical. */
+body.media-candidate #media-stack {
+  display: none;
+}

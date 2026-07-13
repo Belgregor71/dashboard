@@ -21,6 +21,7 @@ let attentionOn = false;
 let heroTypeOn = false;
 let leanInOn = false;
 let bareHeroOn = false;
+let mediaCandidateOn = false;
 let stackClearTimer = null;
 let lastSelection = { hero: null, stack: [], queue: [] };
 
@@ -45,7 +46,24 @@ function isPanelActive(panelId) {
   return Boolean(panel) && !panel.classList.contains("is-collapsed") && !panel.classList.contains("is-hidden");
 }
 
+// The active media player's "source — title", or null. Reads the same panels the
+// screensaver's ambient line does; feeds the now-playing attention candidate when
+// features.mediaCandidate folds the standalone panel into the queue.
+function readNowPlaying() {
+  for (const id of ["media-panel-1", "media-panel-2"]) {
+    if (!isPanelActive(id)) continue;
+    const panel = document.getElementById(id);
+    const source = panel.querySelector(".media-panel__source")?.textContent?.trim();
+    const title = panel.querySelector(".media-panel__title")?.textContent?.trim();
+    if (title) return [source, title].filter(Boolean).join(" — ");
+  }
+  return null;
+}
+
 function readState() {
+  // Now-playing → attention candidate. Read only when the flag is on, so flag-off
+  // carries no candidate (byte-identical) and the panel keeps showing standalone.
+  const nowPlayingText = mediaCandidateOn ? readNowPlaying() : null;
   return {
     bomWarning: getBomWarnings(getAllEntities()).summary || null,
     insight: getCurrentInsight(),
@@ -60,7 +78,9 @@ function readState() {
     nextEventText: [
       document.getElementById("next-event-name")?.textContent?.trim(),
       document.getElementById("next-event-meta")?.textContent?.trim()
-    ].filter(Boolean).join(" · ")
+    ].filter(Boolean).join(" · "),
+    nowPlayingActive: Boolean(nowPlayingText),
+    nowPlayingText
   };
 }
 
@@ -210,11 +230,12 @@ function update() {
   showHero(els, focus.icon, focus.text);
 }
 
-export function initFocusHero({ attentionEnabled = false, heroTypeEnabled = false, leanInStackEnabled = false, bareHeroEnabled = false } = {}) {
+export function initFocusHero({ attentionEnabled = false, heroTypeEnabled = false, leanInStackEnabled = false, bareHeroEnabled = false, mediaCandidateEnabled = false } = {}) {
   attentionOn = attentionEnabled === true;
   heroTypeOn = heroTypeEnabled === true;
   leanInOn = leanInStackEnabled === true;
   bareHeroOn = bareHeroEnabled === true;
+  mediaCandidateOn = mediaCandidateEnabled === true;
 
   // Study 02 — mark the feature on so the length-responsive CSS engages, and
   // expose a probe for the on-Pi 3–4 m legibility check. Flag-off: no class,

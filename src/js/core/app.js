@@ -87,6 +87,7 @@ export function startApp() {
   if (isEnabled("bareTopRow", false)) document.body.classList.add("bare-top-row");
   if (isEnabled("bareHero", false)) document.body.classList.add("bare-hero");
   if (isEnabled("awakeGround", false)) document.body.classList.add("awake-ground");
+  if (isEnabled("mediaCandidate", false)) document.body.classList.add("media-candidate");
   initPresence({ enabled: presenceEnabled });
   // Phase 6 House Model — a pure reducer over slices the store already carries,
   // gated off by default so it ships reversibly. When on, it names the room's
@@ -215,7 +216,9 @@ export function startApp() {
     // Study 01 (WP2) — DWELL stack cards get the full glass system (docs/design/).
     leanInStackEnabled: isEnabled("leanInStack", false),
     // Rollout WP-C — un-chromed hero: tag the concierge fallback for its matte variant.
-    bareHeroEnabled: isEnabled("bareHero", false)
+    bareHeroEnabled: isEnabled("bareHero", false),
+    // Follow-up — fold "Now Playing" into the attention queue (docs/design/).
+    mediaCandidateEnabled: isEnabled("mediaCandidate", false)
   });
   initBomWarningBanner();
   initTonightsMenu();

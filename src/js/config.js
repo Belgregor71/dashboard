@@ -274,7 +274,17 @@ window.CONFIG = {
     // + the display title), legible over the night photo, footer dropped its line;
     // hidden when no anniversary (silence). Now default-on; flag-off byte-identical
     // (footer keeps the line, no whisper element). One-line revert (-> false).
-    memoryWhisper: true
+    memoryWhisper: true,
+
+    // Design-system follow-up (docs/design/DESIGN_ROLLOUT.md) — fold the standalone
+    // "Now Playing" media panel into the one attention queue. With this on, what's
+    // playing rides the hero/stack as the lowest low-band candidate (🎬 source —
+    // title) like commute/next-event, and the standalone glass media panel is
+    // hidden on the presence surface (it stays in the DOM so the candidate + the
+    // screensaver info line can still read it). Rides features.attentionEngine
+    // (shipped) for the queue. Default OFF -> byte-identical (the media panel shows
+    // as before, no candidate). One-line revert (-> false).
+    mediaCandidate: false
   },
 
   /* --------------------------------------------------------------
