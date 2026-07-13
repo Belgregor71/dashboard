@@ -307,6 +307,9 @@
   font-size: clamp(0.9rem, 1.4vw, 1.4rem);
   opacity: 0;
   filter: grayscale(0.15);
+  /* A soft shadow so the whisper stays perceptible over a bright photo too —
+     the same photo-legibility guard the clock/arrival card use, kept gentle. */
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.55);
   transition: opacity 2.5s ease;
   pointer-events: none;
 }
