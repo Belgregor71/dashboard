@@ -254,9 +254,13 @@ window.CONFIG = {
     // Immich down → the base sky gradient shows through (never a blank frame).
     // FOLLOW-UPS (not in v1): the weather-based living accent (§6) and a day-
     // boundary photo cross-dissolve — the accent stays time-based, the photo holds
-    // for the session. Default OFF -> byte-identical (aurora returns, no photo).
-    // One-line revert (-> false).
-    awakeGround: false
+    // for the session. Pi-verified 2026-07-13 (f6502b0 flag-off → default-on here):
+    // awake home renders content over a real Immich family photo lit by the weather
+    // tint + readability gradient (top row / concierge hero legible); aurora
+    // retired; gpu-process 0% over 25s in Mode 0 (idle-freeze intact) AND 0% awake-
+    // idle (the retired aurora loop = a net GPU reduction). Now default-on; flag-off
+    // byte-identical (aurora returns, no photo). One-line revert (-> false).
+    awakeGround: true
   },
 
   /* --------------------------------------------------------------
