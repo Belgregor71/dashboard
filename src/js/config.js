@@ -260,7 +260,18 @@ window.CONFIG = {
     // retired; gpu-process 0% over 25s in Mode 0 (idle-freeze intact) AND 0% awake-
     // idle (the retired aurora loop = a net GPU reduction). Now default-on; flag-off
     // byte-identical (aurora returns, no photo). One-line revert (-> false).
-    awakeGround: true
+    awakeGround: true,
+
+    // Design-system rollout WP-E (docs/design/DESIGN_ROLLOUT.md) — the captioned
+    // memory whisper: the Mode-0 bottom-right "on this day" surface (the non-tender
+    // counterpart to the shipped wordless tender lane). Elevates the existing
+    // screensaver on-this-day footer line into the study-01 whisper treatment
+    // (DESIGN_SYSTEM.md §2.1): a faint eyebrow (🕰 ON THIS DAY) + a display title,
+    // right-aligned, surfacing on the 60s settle. When on, the footer drops the
+    // on-this-day line (it moves to the whisper). Pure opacity/type — no loop, GPU
+    // stays 0% at rest. Default OFF -> byte-identical (the footer keeps the line,
+    // no whisper element). One-line revert (-> false).
+    memoryWhisper: false
   },
 
   /* --------------------------------------------------------------

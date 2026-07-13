@@ -318,6 +318,56 @@
   opacity: 0.5;
 }
 
+/* ── Captioned memory whisper (features.memoryWhisper, WP-E) ────
+   docs/design/DESIGN_SYSTEM.md §2.1. The Mode-0 "on this day" surface — a quiet
+   counterweight to the clock, bottom-right, right-aligned: a faint eyebrow
+   (🕰 ON THIS DAY) + a display title. The non-tender counterpart to the wordless
+   tender lane. Surfaces on the 60s settle; hidden when today has no anniversary
+   (silence is the default). Opacity/type only — no motion, GPU stays 0% at rest.
+   The element is only in the DOM when the flag is on (byte-identical off). */
+.screensaver__memory {
+  position: absolute;
+  right: clamp(16px, 4%, 40px);
+  bottom: clamp(16px, 4%, 40px);
+  max-width: 52%;
+  text-align: right;
+  opacity: 0;
+  transition: opacity var(--t-settle, 60s) ease;
+  pointer-events: none;
+}
+
+.screensaver__memory.is-visible {
+  opacity: 1;
+}
+
+.screensaver__memory-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3, 10px);
+  justify-content: flex-end;
+  font-family: var(--font-body);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(238, 243, 251, 0.42);
+}
+
+.screensaver__memory-eyebrow .ic {
+  font-size: 0.95em;
+  opacity: 0.8;
+}
+
+.screensaver__memory-title {
+  margin-top: var(--space-3, 10px);
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 44px;
+  line-height: 1.02;
+  letter-spacing: 0.01em;
+  color: rgba(238, 243, 251, 0.72);
+}
+
 /* ── Hide dashboard content while screensaver is active ────── */
 
 body.screensaver-active > *:not(#screensaver) {

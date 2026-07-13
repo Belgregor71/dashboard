@@ -204,7 +204,9 @@ export function startApp() {
     // Study 05 (WP1) — ambient-clock treatment: tabular face + sun-altitude dim (docs/design/).
     ambientClockEnabled: isEnabled("ambientClock", false),
     // Study 01 (WP4) — the tender ambient memory lane: wordless Mode-0 surface (docs/design/).
-    ambientMemoryEnabled: isEnabled("ambientMemory", false)
+    ambientMemoryEnabled: isEnabled("ambientMemory", false),
+    // Rollout WP-E — the captioned Mode-0 "on this day" memory whisper (docs/design/).
+    memoryWhisperEnabled: isEnabled("memoryWhisper", false)
   });
   initFocusHero({
     attentionEnabled: isEnabled("attentionEngine", false),

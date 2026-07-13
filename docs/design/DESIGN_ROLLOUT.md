@@ -149,8 +149,12 @@ the weather-based living accent (§6, accent stays time-based) and a day-boundar
 ## Decisions
 
 **Confirmed (2026-07-13):**
-1. **Retired views** — ✅ **Delete** `weather` / `briefing` / `system` entirely; keep `cameras`
-   force-only (doorbell/voice), removed from navigation. (WP-E)
+1. **Retired views** — ✅ **REVISED: restyle, don't delete.** Investigation found all three are still
+   actively triggered — `weather` ← voice/AI, `briefing` ← the scheduled morning/evening briefing
+   (`morningBriefing.js`, which also speaks) + voice, `status` ← HA system alerts (`homeAssistant/
+   events.js`), `cameras` ← doorbell/voice. Deleting them would break/degrade those features, so
+   instead bring their CSS onto the design tokens (consistent when they do appear); keep the views +
+   triggers working. (WP-E)
 2. **Awake photo** — ✅ **Static at rest**: one held photo, crossfades only on weather/day change
    (60 s), no rotation timer while awake. (WP-D)
 

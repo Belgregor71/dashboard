@@ -43,6 +43,8 @@ let datelineEl  = null;
 let infoEl      = null;
 let footerEl    = null;
 let tenderMarkEl = null; // study 01 (WP4): the faint 🕯, present only when the flag is on
+let memoryEl = null;      // rollout WP-E: the captioned "on this day" whisper (flag-gated)
+let memoryTitleEl = null;
 
 let idleTimer   = null;
 let photoTimer  = null;
@@ -82,6 +84,10 @@ let ambientClockEnabled = false;
 // surfaces wordlessly in Mode 0 (its photo + the 🕯 mark, held longer). Off →
 // tender memories stay dropped (memoryRuntime), no mark element, byte-identical.
 let ambientMemoryEnabled = false;
+// Rollout WP-E: the captioned "on this day" memory whisper (bottom-right, eyebrow
+// + title). Elevates the footer on-this-day line to the study-01 whisper. Off →
+// no whisper element, the footer keeps the line, byte-identical.
+let memoryWhisperEnabled = false;
 const CLOCK_DIM_DAY   = 0.9;  // sun well up → full ambient brightness
 const CLOCK_DIM_NIGHT = 0.3;  // the small-hours floor — dim, never off
 const CLOCK_ALT_DAY   = 6;    // ° above horizon mapped to CLOCK_DIM_DAY
@@ -121,6 +127,7 @@ function build() {
       <div class="screensaver__footer"></div>
     </div>
     ${ambientMemoryEnabled ? `<div class="screensaver__tender-mark" aria-hidden="true">🕯</div>` : ""}
+    ${memoryWhisperEnabled ? `<div class="screensaver__memory"><span class="screensaver__memory-eyebrow"><span class="ic">🕰</span> On this day</span><div class="screensaver__memory-title"></div></div>` : ""}
   `;
   document.body.appendChild(el);
   photoEl    = el.querySelector(".screensaver__photo");
@@ -130,6 +137,8 @@ function build() {
   infoEl     = el.querySelector(".screensaver__info");
   footerEl   = el.querySelector(".screensaver__footer");
   tenderMarkEl = el.querySelector(".screensaver__tender-mark"); // null when flag off
+  memoryEl      = el.querySelector(".screensaver__memory");        // null when flag off
+  memoryTitleEl = el.querySelector(".screensaver__memory-title");
 }
 
 const immichThumb = (id) => `/api/immich/asset/${encodeURIComponent(id)}/thumb`;
@@ -284,7 +293,7 @@ function readTodayCountLine() {
 // Mode 0 frame — today's birthday/anniversary markers, same grounded source
 // and regex as the onThisDay predictive candidate (briefingData.js). Only ever
 // present on days that actually have one, so it reads as occasional by nature.
-function readOnThisDayLine() {
+function readOnThisDayTitle() {
   const events = window.__CAL_EVENTS__;
   if (!Array.isArray(events)) return null;
   const todayStr = new Date().toDateString();
@@ -293,8 +302,26 @@ function readOnThisDayLine() {
     new Date(ev.start).toDateString() === todayStr &&
     ANNIVERSARY_RE.test(String(ev.title ?? ev.summary ?? ""))
   );
-  const title = String(match?.title ?? match?.summary ?? "").trim();
+  return String(match?.title ?? match?.summary ?? "").trim() || null;
+}
+
+function readOnThisDayLine() {
+  const title = readOnThisDayTitle();
   return title ? `🎉 ${title}` : null;
+}
+
+// WP-E: the captioned "on this day" whisper (bottom-right, eyebrow + title). When
+// on, it carries the on-this-day surface and the footer drops its line. Fades on
+// the 60s settle; hidden when today has no anniversary (silence is the default).
+function updateMemoryWhisper() {
+  if (!memoryWhisperEnabled || !memoryEl || !memoryTitleEl) return;
+  const title = readOnThisDayTitle();
+  if (title) {
+    memoryTitleEl.textContent = title;
+    memoryEl.classList.add("is-visible");
+  } else {
+    memoryEl.classList.remove("is-visible");
+  }
 }
 
 function updateInfo() {
@@ -309,9 +336,13 @@ function updateInfo() {
 
   infoEl.innerHTML = lines.map(line => `<div class="screensaver__info-line">${line}</div>`).join("");
 
-  // The earned memory (flag-gated) takes the quiet footer slot when today has
-  // one; otherwise the footer keeps its plain event-count line.
-  const footer = (atmosphereEnabled && readOnThisDayLine()) || readTodayCountLine();
+  updateMemoryWhisper();
+
+  // The earned memory takes the quiet footer slot when today has one; otherwise
+  // the footer keeps its plain event-count line. WP-E: when the memory whisper is
+  // on, the on-this-day moves there, so the footer stays on the count line.
+  const showFooterMemory = atmosphereEnabled && !memoryWhisperEnabled;
+  const footer = (showFooterMemory && readOnThisDayLine()) || readTodayCountLine();
   footerEl.textContent = footer || "";
 }
 
@@ -610,6 +641,9 @@ export async function initScreensaver(options = {}) {
   // mark element is only ever in the DOM when the flag is on → flag-off is
   // byte-identical).
   ambientMemoryEnabled = options.ambientMemoryEnabled === true;
+  // Rollout WP-E: the captioned "on this day" whisper (also set before build()
+  // so its element only exists when the flag is on).
+  memoryWhisperEnabled = options.memoryWhisperEnabled === true;
 
   build();
   // Feature marker — the study-05 CSS engages only under this class, so flag-off
