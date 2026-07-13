@@ -48,7 +48,6 @@ import { initMorningBriefing } from "../modules/morningBriefing.js";
 import { initOccasionPopup } from "../modules/occasionPopup.js";
 import { initBomWarningBanner } from "../modules/bomWarningBanner.js";
 import { initTonightsMenu } from "../modules/tonightsMenu.js";
-import { initNewsTicker } from "../modules/newsTicker.js";
 import { initHealthIndicator } from "../modules/healthIndicator.js";
 import { createStatusView } from "../modules/systemStatus.js";
 import { createBriefingView } from "../views/briefingView.js";
@@ -209,7 +208,6 @@ export function startApp() {
   });
   initBomWarningBanner();
   initTonightsMenu();
-  initNewsTicker();
   initHealthIndicator();
 
   if (isEnabled("homeAssistant", false)) {

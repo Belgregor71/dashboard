@@ -121,8 +121,7 @@ body.tint-night   #stars { opacity: 1; }
    re-composite the whole page at 60fps ≈ 1 GPU core on the Pi. Lotties are
    frozen from JS (lottie.freeze); these are CSS so they pause here. */
 body.screensaver-active #stars i,
-body.screensaver-active .aurora-blobs span,
-body.screensaver-active #news-ticker-run {
+body.screensaver-active .aurora-blobs span {
   animation-play-state: paused !important;
 }
 
