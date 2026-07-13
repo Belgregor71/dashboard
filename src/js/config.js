@@ -236,8 +236,12 @@ window.CONFIG = {
     // softer shadow, no glyph glow — so it reads as the house making conversation,
     // not a scored alert. The stack is bottom-anchored so it doesn't sit above the
     // centred hero. Relies on features.heroType (shipped) for the tier sizes.
-    // Default OFF -> byte-identical (the boxed hero returns). Revert (-> false).
-    bareHero: false
+    // Pi-verified 2026-07-13 (c51fe47 flag-off → default-on here): concierge hero
+    // rendered bare (backgroundImage none, borderTop none), fixed + centred (rect
+    // y587 h147 → centre 660 = 540 + 120px), matte (glyph no glow, ink .78),
+    // legible; no overlap with the legacy media panel. Now default-on; flag-off
+    // byte-identical (the boxed hero returns). Revert (-> false).
+    bareHero: true
   },
 
   /* --------------------------------------------------------------
