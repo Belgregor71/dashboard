@@ -201,9 +201,13 @@ window.CONFIG = {
     // memoryEngine.toSurface (ambientOnly/caption:null/longer hold) and re-checked
     // at the render boundary (the ambient lane refuses any non-tender surface).
     // Rides the memoryEngine flag for data + budget. Pure opacity/type, no loop —
-    // idle GPU stays frozen. Default OFF -> byte-identical (no mark element, tender
-    // memories stay dropped as today). One-line revert (-> false).
-    ambientMemory: false
+    // idle GPU stays frozen. Pi-verified 2026-07-13 (8ff58e8/e30e5f5 flag-off →
+    // default-on here): forced tender surface rendered wordless (🕯 mark opacity
+    // 0.5, no caption in the content), its photo filled the frame, held, budget
+    // spent (lastSurfacedDay set), a non-tender surface was refused by the lane,
+    // gpu-process 0% over 25s. Now default-on; flag-off stays byte-identical (no
+    // mark element, tender memories stay dropped). One-line revert (-> false).
+    ambientMemory: true
   },
 
   /* --------------------------------------------------------------
