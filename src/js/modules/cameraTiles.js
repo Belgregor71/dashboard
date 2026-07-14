@@ -375,10 +375,20 @@ function resolvePinnedCamera(camerasList) {
   return camerasList[0]?.id || null;
 }
 
+// Signature of the last-rendered camera set, so buildCameraList can skip a full
+// grid rebuild when nothing structural changed. buildCameraList is triggered
+// (debounced 250ms) on every camera.*/image.* HA state update — and image.*
+// entities update on every snapshot — so without this guard the whole tile grid
+// (every card + click listener + heat strip) was rebuilt ~4×/sec, churning and
+// leaking detached DOM nodes (renderer OOM → crash). Per-card content
+// (snapshots, status, heat) is updated in place by updateCameraCard/updateHero on
+// those same events, so skipping the rebuild loses nothing.
+let lastBuildSig = null;
+
 function buildCameraList() {
   const statesMap = getAllEntities();
   const nextCameras = buildCameraConfig(statesMap);
-  cameras = nextCameras.map((camera) => {
+  const merged = nextCameras.map((camera) => {
     const serverConfig = serverCameraConfig.get(camera.id);
     return {
       ...camera,
@@ -387,6 +397,21 @@ function buildCameraList() {
       serverEventImageEntity: serverConfig?.eventImageEntity || null
     };
   });
+
+  // Only the *structure* (which cameras/cards exist + their config) drives a
+  // rebuild; entity STATE churn does not. Skip when unchanged.
+  const sig = merged
+    .map((c) => [
+      c.id, c.name, c.hidden, c.pinnedHero ? 1 : 0,
+      c.motionEntity, c.personEntity, c.ringingEntity, c.petEntity,
+      c.soundEntity, c.cryingEntity, c.eventImageEntity,
+      c.snapshotRefreshMs, c.preferredSnapshot, c.serverEventImageEntity
+    ].join("|"))
+    .join(",");
+  if (sig === lastBuildSig) return;
+  lastBuildSig = sig;
+
+  cameras = merged;
   camerasById = new Map(cameras.map((camera) => [camera.id, camera]));
   const visibleCameras = cameras.filter((camera) => camera.hidden === false);
   const pinnedHero = cameras.find((camera) => camera.pinnedHero);
