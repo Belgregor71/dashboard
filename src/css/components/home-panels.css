@@ -14,6 +14,15 @@
   display: none;
 }
 
+/* The attention surface (hero + lean-in stack) belongs to the home view. Since
+   WP-C fixed-positions the hero, it would otherwise float over the force-only
+   views (weather / status / briefing); scope it to home so those views render
+   clean. Higher specificity than the base + the bare-hero rules → wins. */
+body:not([data-view="home"]) #focus-hero,
+body:not([data-view="home"]) #focus-stack {
+  display: none;
+}
+
 .focus-hero__icon {
   font-size: clamp(1.2rem, 1.4vw, 1.6rem);
 }

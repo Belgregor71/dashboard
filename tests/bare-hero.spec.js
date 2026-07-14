@@ -113,3 +113,29 @@ test("bare hero off: container intact, no concierge class (byte-identical)", asy
 
   expect(pageErrors, `uncaught page errors:\n${pageErrors.join("\n")}`).toHaveLength(0);
 });
+
+test("the attention surface is scoped to home — hidden on the force-only views", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (err) => pageErrors.push(err.message));
+  await enableFlags(true)(page);
+  await page.clock.setFixedTime(MIDDAY);
+
+  await page.goto("/");
+  await page.waitForFunction(() => typeof window.__forceCandidate === "function" && typeof window.__switchView === "function");
+
+  // A hero is up on home.
+  await page.evaluate(() => {
+    window.__forceCandidate([{ id: "t-a", source: "test", score: 80, icon: "🌧️", text: "Rain soon", cooldownMs: 0 }]);
+    window.__presence("dwell");
+  });
+  await expect.poll(() => page.evaluate(() => window.__attention().hero?.id)).toBe("t-a");
+  expect(await page.evaluate(() => getComputedStyle(document.getElementById("focus-hero")).display)).not.toBe("none");
+
+  // Force-navigate to the status view: the hero + stack must not bleed over it.
+  await page.evaluate(() => window.__switchView("status", { force: true }));
+  await expect.poll(() => page.evaluate(() => document.body.dataset.view)).toBe("status");
+  expect(await page.evaluate(() => getComputedStyle(document.getElementById("focus-hero")).display)).toBe("none");
+  expect(await page.evaluate(() => getComputedStyle(document.getElementById("focus-stack")).display)).toBe("none");
+
+  expect(pageErrors, `uncaught page errors:\n${pageErrors.join("\n")}`).toHaveLength(0);
+});
