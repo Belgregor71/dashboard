@@ -232,6 +232,23 @@ function loadMealLottie(container) {
   return anim;
 }
 
+// Destroy the lottie animations inside the given roots before their DOM is
+// cleared. Setting innerHTML="" detaches the .meal-lottie spans but does NOT stop
+// the lottie instance — its requestAnimationFrame loop keeps running and its SVG
+// + Float32Array animation data stay retained (a zombie lottie). renderTimeline
+// re-runs on every calendar refresh, so without this each pass leaked its meal
+// lotties → JS heap grew ~6MB/min → renderer OOM → the kiosk "website error"
+// crash. (CLAUDE.md 24/7 kiosk memory discipline.)
+function destroyMealLotties(...roots) {
+  for (const root of roots) {
+    if (!root) continue;
+    root.querySelectorAll(".meal-lottie").forEach((el) => {
+      try { el._lottieInstance?.destroy(); } catch { /* best-effort teardown */ }
+      el._lottieInstance = null;
+    });
+  }
+}
+
 function appendEventTitle(container, title) {
   const rawTitle = title?.rawTitle ?? title?.title ?? title ?? "";
   const displayTitle = (title?.displayTitle ?? rawTitle) || "(Untitled)";
@@ -866,6 +883,9 @@ function renderTimeline(events) {
     todayLabel.textContent = format.date(new Date());
   }
 
+  // Tear down the previous meal lotties before clearing, or they leak (see
+  // destroyMealLotties). This is the fix for the renderer OOM crash.
+  destroyMealLotties(rail, week, momentsEl);
   rail.innerHTML = "";
   week.innerHTML = "";
   if (momentsEl) momentsEl.innerHTML = "";
