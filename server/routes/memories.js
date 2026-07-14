@@ -56,6 +56,7 @@ router.get("/api/memories", async (_req, res) => {
 // ── write (portal only; confined to authored.json) ─────────────
 
 function slugify(s) {
+  if (s == null) return ""; // guard: String(undefined) would slug to "undefined" (truthy)
   return String(s)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")

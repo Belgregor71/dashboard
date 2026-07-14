@@ -300,6 +300,19 @@ test.describe("memories (Phase 9 memory engine)", () => {
     expect(gone.memories.some((m) => m.id === id)).toBe(false);
   });
 
+  test("POST without an id derives one from the title (never the string 'undefined')", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/memories", {
+      method: "post",
+      data: {
+        title: "a slugged title here",
+        photos: [{ immich: "b55feb89-5cbd-4e94-a9eb-613fc351634b" }]
+      }
+    });
+    expect(body.entry.id).not.toBe("undefined");
+    expect(body.entry.id).toMatch(/^a-slugged-title-here-/); // title slug + unique suffix
+    await request.delete(`/api/memories/${body.entry.id}`); // clean up
+  });
+
   test("DELETE of an unknown id is a JSON 404", async ({ request }) => {
     const { body } = await expectJson(request, "/api/memories/no-such-entry-xyz", {
       method: "delete",
