@@ -142,8 +142,14 @@ the weather-based living accent (§6, accent stays time-based) and a day-boundar
 - **E.2 spacing/type sweep** ✅ SHIPPED (`7b69fe3`) — near-empty: WP-A–E were built token-first, so
   the only migration was the bare-hero gap → `--space-7` (byte-identical). Legacy panels keep their
   tokens; the design type scale stays literal px (fixed-1920, documented in `DESIGN_SYSTEM.md §2.1`).
-- **E.3 retired views** — REVISED to **restyle, not delete** (see Decisions). Separate future pass:
-  bring `weather` / `briefing` / `status` CSS onto the design tokens; keep their triggers working.
+- **E.3 retired views** ✅ SHIPPED (Pi-verified 2026-07-14, `6f74bfd`) — **looking** at the force-only
+  views revealed they were **already token-coherent** (briefing 100% on tokens; status/weather mostly
+  glass + `--status-*` dots + mono, rendering over the WP-D photo ground). The actual inconsistency was
+  the **attention surface bleeding over them** — WP-C fixed-positions `#focus-hero`, so a live hero
+  (e.g. the folded menu candidate) floated over the status view. Fixed by scoping `#focus-hero` +
+  `#focus-stack` to home (`body:not([data-view="home"])`). Status view now renders clean; no big CSS
+  restyle was needed. (Weather's cinematic video bg can't be CDP-screenshotted; its chrome is
+  tokenized. Briefing was empty at capture but is fully tokenized.)
 
 | | |
 |---|---|
