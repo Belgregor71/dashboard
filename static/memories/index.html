@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Memory Studio</title>
+  <style>
+    :root {
+      --bg: #14161a;
+      --panel: #1c1f26;
+      --panel-2: #232733;
+      --ink: #eef1f6;
+      --ink-dim: #9aa3b2;
+      --line: #2c313d;
+      --accent: #7ca7ff;
+      --tender: #d9a441;
+      --danger: #e0655f;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      -webkit-text-size-adjust: 100%;
+    }
+    header {
+      padding: 18px 16px 10px;
+      border-bottom: 1px solid var(--line);
+      position: sticky; top: 0; z-index: 5;
+      background: rgba(20, 22, 26, 0.92);
+      backdrop-filter: blur(8px);
+    }
+    header h1 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: 0.2px; }
+    header p { margin: 3px 0 0; color: var(--ink-dim); font-size: 13px; }
+    main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    section { margin-bottom: 26px; }
+    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-dim); margin: 0 0 10px; font-weight: 600; }
+
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+    label { display: block; font-size: 12px; color: var(--ink-dim); margin-bottom: 5px; }
+    select, input[type="text"], input[type="date"], input[type="number"] {
+      background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+      border-radius: 10px; padding: 9px 11px; font-size: 15px; width: 100%;
+    }
+    .field { flex: 1 1 120px; min-width: 110px; }
+    button {
+      background: var(--accent); color: #0b1220; border: 0; border-radius: 10px;
+      padding: 10px 16px; font-size: 15px; font-weight: 600; cursor: pointer;
+    }
+    button.ghost { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); }
+    button.danger { background: transparent; color: var(--danger); border: 1px solid var(--line); padding: 6px 10px; font-size: 13px; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+    .thumb {
+      position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden;
+      background: var(--panel-2); cursor: pointer; border: 2px solid transparent;
+    }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .thumb.sel { border-color: var(--accent); }
+    .thumb.sel::after {
+      content: "\2713"; position: absolute; top: 4px; right: 6px;
+      background: var(--accent); color: #0b1220; width: 20px; height: 20px;
+      border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700;
+    }
+    .empty { color: var(--ink-dim); padding: 30px 6px; text-align: center; font-size: 14px; }
+
+    .editor { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+    .editor.hidden { display: none; }
+    .tagset { display: flex; gap: 7px; flex-wrap: wrap; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 999px;
+      border: 1px solid var(--line); background: var(--panel-2); color: var(--ink-dim);
+      cursor: pointer; font-size: 13px; user-select: none;
+    }
+    .chip.on { background: var(--accent); color: #0b1220; border-color: var(--accent); font-weight: 600; }
+    .chip.season.on { background: #6fae7c; border-color: #6fae7c; }
+    .stack > * + * { margin-top: 14px; }
+
+    .radios { display: flex; gap: 10px; }
+    .radio {
+      flex: 1; text-align: center; padding: 10px; border: 1px solid var(--line); border-radius: 10px;
+      background: var(--panel-2); cursor: pointer; font-size: 14px;
+    }
+    .radio.on { border-color: var(--accent); color: var(--ink); font-weight: 600; }
+    .radio.tender.on { border-color: var(--tender); color: var(--tender); }
+
+    .tender-note {
+      display: none; margin-top: 12px; padding: 12px 14px; border-radius: 10px;
+      background: rgba(217, 164, 65, 0.1); border: 1px solid rgba(217, 164, 65, 0.4); font-size: 13.5px; color: #e7cf9c;
+    }
+    .tender-note.show { display: block; }
+    .tender-note label { color: inherit; display: flex; gap: 9px; align-items: flex-start; margin: 10px 0 0; font-size: 13.5px; }
+    .tender-note input { width: auto; margin-top: 2px; }
+
+    .caption-preview { color: var(--ink-dim); font-size: 13px; font-style: italic; min-height: 18px; }
+
+    .entry { display: flex; gap: 12px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-bottom: 8px; }
+    .entry img { width: 54px; height: 54px; border-radius: 8px; object-fit: cover; background: var(--panel-2); flex: 0 0 auto; }
+    .entry .meta { flex: 1; min-width: 0; }
+    .entry .meta b { font-weight: 600; }
+    .entry .meta small { color: var(--ink-dim); display: block; margin-top: 2px; }
+    .badge { font-size: 11px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-dim); margin-left: 6px; }
+    .badge.tender { color: var(--tender); border-color: rgba(217,164,65,0.5); }
+
+    .toast {
+      position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%) translateY(30px);
+      background: var(--panel-2); border: 1px solid var(--line); color: var(--ink);
+      padding: 11px 18px; border-radius: 999px; opacity: 0; transition: all 0.25s; pointer-events: none; z-index: 20;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.err { border-color: var(--danger); color: #f3b3af; }
+    .count { color: var(--accent); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Memory Studio</h1>
+    <p>Pick a photo from a month, give it a memory. It stays on this house.</p>
+  </header>
+
+  <main>
+    <section>
+      <h2>1 &nbsp;Browse a month</h2>
+      <div class="row">
+        <div class="field"><label for="month">Month</label><select id="month"></select></div>
+        <div class="field"><label for="year">Year</label><select id="year"></select></div>
+        <div style="flex:0 0 auto"><button id="load">Load photos</button></div>
+      </div>
+      <div id="grid" class="grid" style="margin-top:14px"></div>
+      <div id="gridEmpty" class="empty">Choose a month and year, then Load photos.</div>
+    </section>
+
+    <section>
+      <h2>2 &nbsp;Make it a memory <span id="selCount" class="count"></span></h2>
+      <div id="editor" class="editor hidden">
+        <div class="stack">
+          <div>
+            <label for="title">Title — shows as <em>&ldquo;On this day &mdash; {title}.&rdquo;</em></label>
+            <input type="text" id="title" placeholder="that first morning at the beach" maxlength="120" />
+            <div class="caption-preview" id="captionPreview"></div>
+          </div>
+
+          <div class="row">
+            <div class="field"><label for="kind">Kind</label>
+              <select id="kind">
+                <option value="everyday">everyday</option>
+                <option value="trip">trip</option>
+                <option value="first">first</option>
+                <option value="milestone">milestone</option>
+                <option value="pet">pet</option>
+                <option value="photo">photo</option>
+              </select>
+            </div>
+            <div class="field"><label for="date">Date (from the photo)</label><input type="date" id="date" /></div>
+            <div class="field"><label for="cooldown">Repeat no sooner than (months)</label><input type="number" id="cooldown" min="1" max="24" value="6" /></div>
+          </div>
+
+          <label style="display:flex;gap:9px;align-items:center;color:var(--ink);font-size:14px">
+            <input type="checkbox" id="recurring" style="width:auto" /> Return every year on this date (anniversary)
+          </label>
+
+          <div>
+            <label>Season it happened in</label>
+            <div class="tagset" id="seasons"></div>
+          </div>
+          <div>
+            <label>Comes back on days that feel like&hellip; (optional)</label>
+            <div class="tagset" id="moods"></div>
+          </div>
+          <div>
+            <label>Day (optional)</label>
+            <div class="tagset" id="days"></div>
+          </div>
+
+          <div>
+            <label>Sensitivity</label>
+            <div class="radios">
+              <div class="radio on" data-sens="normal" id="sensNormal">Normal &mdash; a quiet caption</div>
+              <div class="radio tender" data-sens="tender" id="sensTender">Tender &mdash; wordless, held gently</div>
+            </div>
+            <div class="tender-note" id="tenderNote">
+              A tender memory appears <b>only on the quiet ambient screen</b>, <b>wordless</b> &mdash; just the
+              photo, held long, with a faint candle mark. The house never narrates grief. Choose one photo that
+              holds the whole feeling, and add it only when everyone&rsquo;s ready.
+              <label><input type="checkbox" id="tenderConfirm" /> Everyone in the house is ready for this to appear.</label>
+            </div>
+          </div>
+
+          <div class="row" style="justify-content:flex-end">
+            <button class="ghost" id="cancel">Clear</button>
+            <button id="save">Save memory</button>
+          </div>
+        </div>
+      </div>
+      <div id="editorEmpty" class="empty">Select one or more photos above to start a memory.</div>
+    </section>
+
+    <section>
+      <h2>Saved memories <span id="savedCount" class="count"></span></h2>
+      <div id="saved"></div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+  <script src="./app.js"></script>
+</body>
+</html>

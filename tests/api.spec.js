@@ -262,6 +262,51 @@ test.describe("memories (Phase 9 memory engine)", () => {
       expect(typeof m.id).toBe("string"); // every returned entry is identified
     }
   });
+
+  // Portal write path (Memory Studio). Writes are confined to authored.json; the
+  // round-trip cleans up its own entry so a repo/CI run leaves no residue.
+  test("POST rejects an entry with no photo (JSON 400)", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/memories", {
+      method: "post",
+      data: { title: "no photo here" },
+      statuses: [400]
+    });
+    expect(body).toHaveProperty("error");
+  });
+
+  test("POST → GET → DELETE round-trips one authored memory", async ({ request }) => {
+    const id = `test-studio-${Date.now()}`;
+    const { body: saved } = await expectJson(request, "/api/memories", {
+      method: "post",
+      data: {
+        id,
+        title: "a test memory",
+        photos: [{ immich: "b55feb89-5cbd-4e94-a9eb-613fc351634b" }],
+        date: "2016-07-14",
+        tags: ["winter", "grey"],
+        sensitivity: "normal"
+      }
+    });
+    expect(saved.ok).toBe(true);
+    expect(saved.entry.id).toBe(id);
+
+    const { body: after } = await expectJson(request, "/api/memories");
+    expect(after.memories.some((m) => m.id === id)).toBe(true);
+
+    const { body: del } = await expectJson(request, `/api/memories/${id}`, { method: "delete" });
+    expect(del.ok).toBe(true);
+
+    const { body: gone } = await expectJson(request, "/api/memories");
+    expect(gone.memories.some((m) => m.id === id)).toBe(false);
+  });
+
+  test("DELETE of an unknown id is a JSON 404", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/memories/no-such-entry-xyz", {
+      method: "delete",
+      statuses: [404]
+    });
+    expect(body).toHaveProperty("error");
+  });
 });
 
 test.describe("immich photo source (Phase 9.5)", () => {
@@ -274,6 +319,21 @@ test.describe("immich photo source (Phase 9.5)", () => {
 
   test("GET /api/immich/random returns { assets: array }", async ({ request }) => {
     const { body } = await expectJson(request, "/api/immich/random?count=5");
+    expect(Array.isArray(body.assets)).toBe(true);
+  });
+
+  test("GET /api/immich/browse without after/before is a JSON 400", async ({ request }) => {
+    // Params are validated before the config check, so the contract holds even
+    // on a machine with no Immich configured.
+    const { body } = await expectJson(request, "/api/immich/browse", { statuses: [400] });
+    expect(body).toHaveProperty("error");
+  });
+
+  test("GET /api/immich/browse with a valid window returns { assets: array }", async ({ request }) => {
+    const { body } = await expectJson(
+      request,
+      "/api/immich/browse?after=2016-07-01T00:00:00.000Z&before=2016-08-01T00:00:00.000Z"
+    );
     expect(Array.isArray(body.assets)).toBe(true);
   });
 

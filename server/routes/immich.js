@@ -2,7 +2,7 @@ import express from "express";
 import { readFile, writeFile, mkdir, readdir, stat, unlink } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import { isConfigured, searchRandom, onThisDay, fetchRendition } from "../services/immichClient.js";
+import { isConfigured, searchRandom, onThisDay, searchTaken, fetchRendition } from "../services/immichClient.js";
 
 // Dashboard-facing Immich proxy — Phase 9.5 (docs/vision/photo-source-immich.md).
 // The browser only ever talks to these three endpoints; the API key stays in the
@@ -18,6 +18,7 @@ const CACHE_DIR = path.join(__dirname, "..", "..", "data", "immich-cache");
 const CACHE_MAX_FILES = 500;             // ~50 KB each → ~25 MB ceiling
 const ON_THIS_DAY_TTL_MS = 60 * 60 * 1000;   // recompute at most hourly (day-stable anyway)
 const RANDOM_TTL_MS = 10 * 60 * 1000;
+const BROWSE_TTL_MS = 10 * 60 * 1000;        // a taken-date window is stable for a while
 const UUID_RE = /^[a-f0-9-]{36}$/i;
 
 const router = express.Router();
@@ -63,6 +64,25 @@ router.get("/api/immich/random", async (req, res) => {
   const cached = memGet(key, RANDOM_TTL_MS);
   if (cached) return res.json({ assets: cached });
   const assets = await searchRandom(count);
+  res.json({ assets: memSet(key, assets) });
+});
+
+// Browse assets by taken-date window — the authoring portal's month view. Params
+// are validated BEFORE the config check so the 400 contract holds on any machine,
+// Immich or not. Degrades to { assets: [] } when Immich is absent/unreachable.
+router.get("/api/immich/browse", async (req, res) => {
+  const after = String(req.query.after || "");
+  const before = String(req.query.before || "");
+  const valid = (s) => !Number.isNaN(Date.parse(s));
+  if (!valid(after) || !valid(before)) {
+    return res.status(400).json({ error: "after & before are required ISO timestamps" });
+  }
+  if (!isConfigured()) return res.json({ assets: [] });
+
+  const key = `browse:${after}:${before}`;
+  const cached = memGet(key, BROWSE_TTL_MS);
+  if (cached) return res.json({ assets: cached });
+  const assets = await searchTaken(after, before, 250);
   res.json({ assets: memSet(key, assets) });
 });
 

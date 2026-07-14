@@ -123,6 +123,39 @@ export async function onThisDay(now = new Date(), { yearsBack = 15 } = {}) {
 }
 
 /**
+ * Assets taken within an explicit [after, before) window, newest first — the feed
+ * the authoring portal browses by month. Same metadata search as on-this-day, just
+ * over a caller-chosen range. Empty when unconfigured/down.
+ * @param {string} afterISO  inclusive lower bound (ISO timestamp)
+ * @param {string} beforeISO exclusive upper bound (ISO timestamp)
+ * @param {number} size      max assets to return (Immich caps the page)
+ * @returns {Promise<Array<{id:string, localDateTime:string|null}>>}
+ */
+export async function searchTaken(afterISO, beforeISO, size = 250) {
+  const cfg = config();
+  if (!cfg) return [];
+  try {
+    const res = await fetchWithTimeout(
+      `${cfg.base}/api/search/metadata`,
+      {
+        method: "POST",
+        headers: headers(cfg.key),
+        body: JSON.stringify({ takenAfter: afterISO, takenBefore: beforeISO, size: Math.min(size, 1000) })
+      },
+      TIMEOUT_MS
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    const items = (data?.assets?.items ?? []).filter(usableImage).map(slim);
+    // Newest first — the way a person scans a month.
+    items.sort((a, b) => String(b.localDateTime || "").localeCompare(String(a.localDateTime || "")));
+    return items;
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Fetch a downscaled rendition (default the ~47 KB preview jpeg). Returns
  * { status, contentType, buffer } or null on failure. Never fetches the original.
  */
