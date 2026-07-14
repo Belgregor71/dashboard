@@ -80,6 +80,7 @@ export function nowPlayingCandidate({ nowPlayingActive, nowPlayingText, nowPlayi
     image: nowPlayingImage || null, // the album/movie art, rendered as the thumb when present
     text: nowPlayingText,
     score: 41,
+    stackOnly: true, // ambient "what's on" — rides the lean-in stack, never the centred hero
     cooldownMs: 0
   };
 }
@@ -98,6 +99,7 @@ export function plexCandidate({ plexActive, plexText, plexImage } = {}) {
     image: plexImage || null,
     text: plexText,
     score: 41,
+    stackOnly: true, // stack card only, never the centred hero (like now-playing)
     cooldownMs: 0
   };
 }
@@ -116,6 +118,7 @@ export function tonightsMenuCandidate({ menuActive, menuName } = {}) {
     icon: "🍽",
     text: `${menuName} for dinner`,
     score: 40,
+    stackOnly: true, // stack card only, never the centred hero
     cooldownMs: 0
   };
 }

@@ -65,6 +65,7 @@ test("fold home tiles on: dinner rides the queue, #home-stack hidden", async ({ 
   const menu = await page.evaluate(() => window.__attention().queue.find((c) => c.source === "tonightsMenu"));
   expect(menu.text).toContain("Steak Sandwich");
   expect(menu.score).toBeLessThan(41); // quietest low-band
+  expect(menu.stackOnly).toBe(true); // stack card only, never the centred hero
 
   const stackDisplay = await page.evaluate(() => getComputedStyle(document.getElementById("home-stack")).display);
   expect(stackDisplay).toBe("none");

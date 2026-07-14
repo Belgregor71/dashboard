@@ -72,6 +72,14 @@ export function selectForMode(queue, mode, { cooldowns = {}, now = new Date(), c
   // DWELL depth by presence, or granted early when the room is unhurried.
   const dwellDepth = mode === MODE.DWELL || (unhurried && mode === MODE.GLANCE);
   const depth = dwellDepth && !interruptOnly ? 3 : 1;
-  const stack = eligible.slice(0, depth);
-  return { hero: stack[0] ?? null, stack };
+
+  // The centred hero is the top eligible candidate that isn't `stackOnly`.
+  // Stack-only candidates (now-playing / plex / tonight's menu — ambient "what's
+  // on") only ever ride the lean-in stack, never the big hero line. The stack is
+  // the hero (if any) first, then the next candidates in rank order (which may
+  // include the stack-only ones), filling the mode depth.
+  const hero = eligible.find((c) => !c.stackOnly) ?? null;
+  const rest = eligible.filter((c) => c !== hero);
+  const stack = (hero ? [hero, ...rest] : rest).slice(0, depth);
+  return { hero, stack };
 }

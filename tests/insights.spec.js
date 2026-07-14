@@ -468,6 +468,33 @@ test.describe("attentionRank: ranking + presence gate", () => {
     expect(dwell.stack.map((c) => c.source)).toEqual(["bom", "insight", "nextEvent"]);
   });
 
+  test("stackOnly candidates never take the hero, but still ride the DWELL stack", () => {
+    const nowP = rankQueue(
+      [{ id: "np", source: "nowPlaying", score: 41, stackOnly: true, text: "x", cooldownMs: 0 }],
+      now
+    );
+    // The only candidate is stack-only → GLANCE has no hero (concierge fills it).
+    const glance = selectForMode(nowP, MODE.GLANCE, { now });
+    expect(glance.hero).toBeNull();
+    // DWELL surfaces it in the stack (as a card), still never as the hero.
+    const dwell = selectForMode(nowP, MODE.DWELL, { now });
+    expect(dwell.hero).toBeNull();
+    expect(dwell.stack.map((c) => c.id)).toEqual(["np"]);
+
+    // With a real candidate present, the hero skips the stack-only one but the
+    // stack still includes it.
+    const mixed = rankQueue(
+      [
+        commuteCandidate({ commuteActive: true, commuteText: "Greg 22 min" }), // 42, hero-eligible
+        { id: "np", source: "nowPlaying", score: 41, stackOnly: true, text: "x", cooldownMs: 0 }
+      ],
+      now
+    );
+    const sel = selectForMode(mixed, MODE.DWELL, { now });
+    expect(sel.hero.source).toBe("commute");
+    expect(sel.stack.map((c) => c.source)).toEqual(["commute", "nowPlaying"]);
+  });
+
   test("AMBIENT shows only interrupt candidates", () => {
     const withInterrupt = selectForMode(queue(), MODE.AMBIENT, { now });
     expect(withInterrupt.hero.source).toBe("bom");

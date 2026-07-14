@@ -38,7 +38,7 @@
   padding: 8px 14px;
   border-radius: var(--radius-pill);
   background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: var(--glass-border-hero);
 }
 
 .status-header-pill__label {
@@ -54,9 +54,11 @@
   font-weight: 600;
 }
 
+/* Alert states derive from the design status tokens (--status-warn / -error) so
+   the diagnostics view speaks the same semantic colour language as the rest. */
 .status-header-pill--alert {
-  background: rgba(89, 35, 24, 0.48);
-  border-color: rgba(255, 164, 121, 0.42);
+  background: color-mix(in oklch, var(--status-warn) 30%, rgba(10, 12, 18, 0.55));
+  border-color: color-mix(in oklch, var(--status-warn) 48%, transparent);
 }
 
 .status-panel {
@@ -87,8 +89,8 @@
 }
 
 .status-item--highlight {
-  background: rgba(255, 214, 102, 0.2);
-  box-shadow: 0 0 0 1px rgba(255, 214, 102, 0.45);
+  background: color-mix(in oklch, var(--status-warn) 20%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--status-warn) 45%, transparent);
   transition: background 220ms ease, box-shadow 220ms ease;
 }
 
@@ -97,8 +99,8 @@
   gap: 12px;
   padding: 12px 24px;
   border-radius: var(--glass-radius);
-  background: rgba(61, 18, 18, 0.65);
-  border: 1px solid rgba(255, 122, 122, 0.5);
+  background: color-mix(in oklch, var(--status-error) 30%, rgba(10, 12, 18, 0.6));
+  border: 1px solid color-mix(in oklch, var(--status-error) 50%, transparent);
   backdrop-filter: var(--glass-blur);
   opacity: 0;
   transform: translateY(8px);
@@ -219,7 +221,7 @@
   font-size: 1rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #ffd2d2;
+  color: color-mix(in oklch, var(--status-error) 45%, #ffffff);
 }
 
 .status-alerts__list {
@@ -227,7 +229,7 @@
   flex-wrap: wrap;
   gap: 16px;
   font-size: 1.1rem;
-  color: #fff3f3;
+  color: color-mix(in oklch, var(--status-error) 22%, #ffffff);
 }
 
 .status-ai-panel {

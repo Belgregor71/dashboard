@@ -250,7 +250,10 @@ function updateAttention(state, els) {
     } else {
       hideHero(els);
     }
-    renderStack([]);
+    // Stack-only candidates (now-playing / menu) still ride the lean-in stack
+    // even with no scored hero above them — but only on DWELL (GLANCE shows just
+    // the hero line, no cards).
+    renderStack(mode === "dwell" ? sel.stack : []);
     return;
   }
 

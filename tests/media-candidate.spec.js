@@ -75,11 +75,15 @@ test("media candidate on: now-playing rides the queue, standalone panel hidden",
   expect(np.text).toContain("The Parent Trap");
   expect(np.score).toBeLessThan(42); // lowest low-band
   expect(np.image).toBe("/media/art/parent-trap.jpg"); // carries the artwork
+  expect(np.stackOnly).toBe(true); // never the centred hero — a stack card only
 
-  // As the sole candidate it becomes the hero, rendered with the poster thumbnail.
-  await expect.poll(() => page.evaluate(() => window.__attention().hero?.source)).toBe("nowPlaying");
-  const heroArt = await page.evaluate(() => document.querySelector("#focus-hero-icon .focus-hero__art")?.getAttribute("src") ?? null);
-  expect(heroArt).toBe("/media/art/parent-trap.jpg");
+  // Stack-only: now-playing is never the hero. As the sole candidate the hero is
+  // null (concierge/none), and it rides the DWELL stack with its poster thumbnail.
+  await expect.poll(() => page.evaluate(() => window.__attention().hero?.source ?? null)).not.toBe("nowPlaying");
+  const stackThumb = await page.evaluate(
+    () => document.querySelector("#focus-stack .focus-stack__thumb")?.getAttribute("src") ?? null
+  );
+  expect(stackThumb).toBe("/media/art/parent-trap.jpg");
 
   // The standalone panels (media + plex) are hidden on the presence surface.
   const stackDisplay = await page.evaluate(() => getComputedStyle(document.getElementById("media-stack")).display);
