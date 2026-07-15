@@ -46,7 +46,6 @@ import { initArrivalGreeting } from "../modules/arrivalGreeting.js";
 import { initFuelPrices } from "../modules/fuelPrices.js";
 import { initMorningBriefing } from "../modules/morningBriefing.js";
 import { initOccasionPopup } from "../modules/occasionPopup.js";
-import { initBomWarningBanner } from "../modules/bomWarningBanner.js";
 import { initTonightsMenu } from "../modules/tonightsMenu.js";
 import { initHealthIndicator } from "../modules/healthIndicator.js";
 import { createStatusView } from "../modules/systemStatus.js";
@@ -229,7 +228,6 @@ export function startApp() {
     // Follow-up — fold Tonight's Menu into the attention queue (docs/design/).
     foldHomeTilesEnabled: isEnabled("foldHomeTiles", false)
   });
-  initBomWarningBanner();
   initTonightsMenu();
   initHealthIndicator();
 
