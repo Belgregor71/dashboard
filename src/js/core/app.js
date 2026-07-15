@@ -36,7 +36,6 @@ import { initArrActivity } from "../modules/arrActivity.js";
 import { initMediaStatus } from "../modules/mediaStatus.js";
 import { initCameraPopupOverlay } from "../modules/cameraPopupOverlay.js";
 import { initCameraTiles } from "../modules/cameraTiles.js";
-import { initHomeAssistantTodayPanel } from "../modules/haToday.js";
 import { initEnergySaver } from "../modules/energySaver.js";
 import { initScreensaver } from "../modules/screensaver.js";
 import { initDoorbellAlert } from "../modules/doorbellAlert.js";
@@ -232,7 +231,6 @@ export function startApp() {
   initHealthIndicator();
 
   if (isEnabled("homeAssistant", false)) {
-    initHomeAssistantTodayPanel();
     registerHAEvents();
     connectHA();
   } else {

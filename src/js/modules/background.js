@@ -152,7 +152,9 @@ function initAwakeGround() {
 }
 
 export function initBackground() {
-  initStars();
+  // Under awakeGround the aurora/stars layer is display:none behind the photo
+  // ground, so building the 90 star nodes just leaves dead DOM. Skip it.
+  if (!window.CONFIG?.features?.awakeGround) initStars();
   updateTint();
   setInterval(updateTint, 10 * 60 * 1000);
   void checkHoliday();

@@ -28,7 +28,11 @@
   height: 9px;
   border-radius: var(--radius-pill);
   background: var(--status-warn);
-  animation: pulse-soft 2.4s ease-in-out infinite;
+  /* Pulse a few times to draw the eye when a feed first goes degraded, then
+     settle — an infinite loop composites the whole page for the hours the chip
+     stays up. The chip is display:none while healthy, so the animation restarts
+     each time it re-appears. */
+  animation: pulse-soft 2.4s ease-in-out 3;
 }
 
 .health-indicator--error .health-indicator__dot {

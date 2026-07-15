@@ -294,7 +294,7 @@ philosophy section above.
 not in a component or view file. The current shared keyframes:
 
 ```css
-@keyframes status-lamp-pulse { … }   /* used by .ha-connection__dot in home-panels.css */
+@keyframes status-lamp-pulse { … }   /* used by .status-indicator--* in system.css */
 ```
 
 Never define a keyframe in a component file if it's already (or might be)
