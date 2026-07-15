@@ -187,8 +187,9 @@ window.CONFIG = {
     // interrupt candidate earns the 3px --status-warn stripe + warm icon glow
     // (never a coloured card), and a mono "+N more" resting note counts the
     // queue below the fold. Flag-off adds no class and renderStack keeps the
-    // one-line chips → byte-identical.
-    stackCards: false,
+    // one-line chips → byte-identical. Enabled 2026-07-15 after the 4663e71
+    // flag-off deploy; Pi live proof in the project memory. Revert (-> false).
+    stackCards: true,
 
     // Design study 03 "The Arrival card" (docs/design/homeos-arrival-card.html),
     // WP3 of docs/design/PLAN.md. The away->home greeting card gets the study
@@ -215,8 +216,9 @@ window.CONFIG = {
     // the NAME in --warm/600 (the handoff's sanctioned --warm text exception,
     // alongside the crown), status 24px/ink-60, event times warm tabular 600,
     // titles 26px/ink-85, padding 38/46. Flag-off adds no class → byte-identical
-    // (the shipped top-slide WP3 card stands).
-    arrivalBottom: false,
+    // (the shipped top-slide WP3 card stands). Enabled 2026-07-15 after the
+    // 4663e71 flag-off deploy; Pi live proof in the project memory. Revert (-> false).
+    arrivalBottom: true,
 
     // Design study 01 "The Ambient memory surface" (ambient half of
     // docs/design/homeos-component-studies.html), WP4 of docs/design/PLAN.md.
