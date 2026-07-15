@@ -262,6 +262,29 @@ window.CONFIG = {
     // byte-identical (aurora returns, no photo). One-line revert (-> false).
     awakeGround: true,
 
+    // WP-D follow-up #1 (DESIGN_SYSTEM.md §6) — the weather-based living accent.
+    // The atmosphere already tints the ground per condition (the shipped atmo-*
+    // substrate token); this makes --accent follow the same weather instead of
+    // the time-of-day tint-* cycle, so the ambient clock warms at golden hour,
+    // cools under rain/storm, and rests white on plain days — the wall lit by
+    // one light source, not two. Pure CSS: body.living-accent.atmo-* overrides
+    // the tint-* accent (background.css); the clock/dateline colour settles on
+    // --atmo-settle (60s) so it moves with the ground, not ahead of it. The
+    // golden warm value is the sanctioned §6 atmosphere accent, not --warm.
+    // Flag-off adds no body class → byte-identical (accent stays time-based).
+    livingAccent: false,
+
+    // WP-D follow-up #2 — the day-boundary photo cross-dissolve. The awake
+    // ground photo no longer holds for the whole session: when the calendar
+    // day flips, background.js fetches one new Immich photo and cross-fades it
+    // over the old on --t-settle (60s), then removes the old node (setTimeout,
+    // never transitionend — the hidden-element cleanup rule). STILL static at
+    // rest: no rotation timer, one slow settle per day — the 0%-GPU invariant
+    // holds. Immich down at the boundary → the old photo simply stays.
+    // __forcePhotoDissolve({settleMs}) debug hook. Flag-off → no day check, no
+    // hook; the photo holds for the session (WP-D v1 behaviour).
+    awakePhotoDissolve: false,
+
     // Design-system rollout WP-E (docs/design/DESIGN_ROLLOUT.md) — the captioned
     // memory whisper: the Mode-0 bottom-right "on this day" surface (the non-tender
     // counterpart to the shipped wordless tender lane). Elevates the existing

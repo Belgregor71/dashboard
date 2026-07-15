@@ -32,6 +32,26 @@ body.tint-day     { --accent: rgba(196, 230, 255, 0.97); --accent-2: #9fc4ff; }
 body.tint-evening { --accent: rgba(160, 176, 255, 0.95); --accent-2: #b3a0ff; }
 body.tint-night   { --accent: rgba(130, 215, 255, 0.92); --accent-2: #9fb6ff; }
 
+/* ── Living accent (features.livingAccent, WP-D follow-up) ─────
+   DESIGN_SYSTEM.md §6 "borrowed light": the accent follows the WEATHER (the
+   atmo-* substrate token the atmosphere mapper already writes to <body>),
+   overriding the time-based tint-* cycle above — so the ambient clock is lit
+   by the same source as the ground behind it: warm at golden hour, rain-cool
+   under weather, white on plain days. Two classes beat tint-*'s one, so these
+   win whenever an atmo token is present (i.e. whenever the substrate runs; no
+   token → the time-based accent stands, a graceful fallback). The golden value
+   is the sanctioned §6 atmosphere accent — deliberately NOT --warm, which
+   stays reserved for glyphs + the arrival name. --accent-2 stays time-based.
+   app.js adds body.living-accent only when the flag is on → flag-off matches
+   nothing here (byte-identical). */
+body.living-accent.atmo-clear-golden { --accent: rgba(255, 185, 130, 0.94); }
+body.living-accent.atmo-clear-day    { --accent: rgba(255, 255, 255, 0.95); }
+body.living-accent.atmo-cloudy       { --accent: rgba(255, 255, 255, 0.95); }
+body.living-accent.atmo-fog          { --accent: rgba(255, 255, 255, 0.95); }
+body.living-accent.atmo-rain         { --accent: rgba(196, 230, 255, 0.97); }
+body.living-accent.atmo-storm        { --accent: rgba(196, 230, 255, 0.97); }
+body.living-accent.atmo-night        { --accent: rgba(130, 215, 255, 0.92); }
+
 /* Night mode: deepen panel backgrounds and add a cool-blue atmosphere */
 body.tint-night .panel {
   background: linear-gradient(180deg, rgba(6, 10, 26, 0.70), rgba(2, 4, 14, 0.60));
@@ -194,7 +214,11 @@ body.awake-ground #background {
   background: linear-gradient(160deg, var(--sky-0), var(--sky-1) 55%, var(--sky-2));
 }
 
-body.awake-ground #awake-photo {
+/* Class-based (not #awake-photo) so the day-boundary cross-dissolve
+   (features.awakePhotoDissolve) can hold TWO imgs during the 60s fade — the
+   incoming photo is a later sibling, painting over the old, and takes the id
+   once the old node is removed. Single-photo rendering is unchanged. */
+body.awake-ground .awake-photo {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -204,7 +228,7 @@ body.awake-ground #awake-photo {
   pointer-events: none;
   transition: opacity var(--t-settle, 60s) ease;
 }
-body.awake-ground #awake-photo.is-loaded { opacity: 1; }
+body.awake-ground .awake-photo.is-loaded { opacity: 1; }
 
 /* Retire the animated aurora HUD + the time-of-day dim tint under the photo. */
 body.awake-ground #aurora-sky,

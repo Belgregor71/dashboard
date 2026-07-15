@@ -301,6 +301,21 @@
   opacity: calc(var(--clock-dim, 0.9) * 0.7);
 }
 
+/* ── Living accent settle (features.livingAccent) ─────────────
+   When the accent follows the weather (background.css body.living-accent.atmo-*),
+   the clock's colour must move on the same slow curve as the ground tint behind
+   it — a 2s colour pop over a 60s-settling wash would put the clock ahead of its
+   own light. One slow state change that comes to rest, never a loop (the same
+   idle-freeze contract as the tint itself). Flag-off adds no body class → the
+   2s transitions above stand. */
+body.living-accent .screensaver--ambient-clock .screensaver__time {
+  transition: color var(--atmo-settle, 60s) ease, opacity 2s ease, font-size 1s ease;
+}
+
+body.living-accent .screensaver--ambient-clock .screensaver__dateline {
+  transition: color var(--atmo-settle, 60s) ease;
+}
+
 /* ── Tender ambient memory mark (study 01, features.ambientMemory) ──
    docs/design/homeos-component-studies.html · WP4 of docs/design/PLAN.md.
    A tender memory surfaces wordlessly (screensaver.js surfaceTenderMemory): its

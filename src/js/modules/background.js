@@ -48,16 +48,77 @@ async function checkHoliday() {
 // element is only created when the flag is on → flag-off is byte-identical.
 const immichThumb = (id) => `/api/immich/asset/${encodeURIComponent(id)}/thumb`;
 
+async function fetchRandomAssetId() {
+  const res = await fetch("/api/immich/random?count=1", { signal: AbortSignal.timeout(8000) });
+  if (!res.ok) return null;
+  return ((await res.json()).assets ?? [])[0]?.id ?? null;
+}
+
 async function loadAwakePhoto(img) {
   try {
-    const res = await fetch("/api/immich/random?count=1", { signal: AbortSignal.timeout(8000) });
-    if (!res.ok) return;
-    const asset = ((await res.json()).assets ?? [])[0];
-    if (!asset?.id) return;
-    img.onload = () => img.classList.add("is-loaded");
-    img.src = immichThumb(asset.id);
+    const assetId = await fetchRandomAssetId();
+    if (!assetId) return;
+    img.onload = () => {
+      img.classList.add("is-loaded");
+      awakePhotoDay = localDayKey(); // the day this photo belongs to
+    };
+    img.src = immichThumb(assetId);
   } catch {
     /* Immich down/unreachable → the #background sky gradient shows through */
+  }
+}
+
+// ── Day-boundary cross-dissolve (features.awakePhotoDissolve) ──
+// WP-D follow-up: the photo no longer holds for the whole session — when the
+// local calendar day flips, fetch ONE new photo and fade it in over the old on
+// --t-settle (60s), then drop the old node. Still static at rest (no rotation
+// timer; one slow settle per day), so the 0%-GPU invariant holds. Local date
+// key, not toISOString — the UTC date mismatches "today" across midnight.
+const DISSOLVE_SETTLE_MS = 60 * 1000; // matches --t-settle in variables.css
+const DISSOLVE_CLEANUP_BUFFER_MS = 2000;
+
+let awakePhotoDay = null;
+let dissolveInFlight = false;
+
+const localDayKey = () => new Date().toDateString();
+
+async function dissolveAwakePhoto(settleMs = null) {
+  const old = document.getElementById("awake-photo");
+  if (!old || dissolveInFlight) return false;
+  dissolveInFlight = true;
+  let handedOff = false;
+  try {
+    const assetId = await fetchRandomAssetId();
+    if (!assetId) return false; // Immich down → keep the old photo, retry next check
+    const next = document.createElement("img");
+    next.className = "awake-photo";
+    next.alt = "";
+    next.decoding = "async";
+    if (settleMs) next.style.transition = `opacity ${settleMs}ms ease`; // debug-hook fast path
+    const holdMs = (settleMs || DISSOLVE_SETTLE_MS) + DISSOLVE_CLEANUP_BUFFER_MS;
+    next.onload = () => {
+      next.classList.add("is-loaded"); // fades in over the old (later sibling paints above)
+      awakePhotoDay = localDayKey();
+      // Cleanup on a timer, never transitionend — it never fires while the
+      // element is hidden (the 24/7-kiosk rule), and views hide constantly.
+      setTimeout(() => {
+        old.remove();
+        next.id = "awake-photo"; // the survivor is THE photo again
+        dissolveInFlight = false;
+      }, holdMs);
+    };
+    next.onerror = () => {
+      next.remove(); // broken load → keep the old photo, retry next check
+      dissolveInFlight = false;
+    };
+    old.after(next);
+    next.src = immichThumb(assetId);
+    handedOff = true; // onload/onerror now own the latch
+    return true;
+  } catch {
+    return false;
+  } finally {
+    if (!handedOff) dissolveInFlight = false;
   }
 }
 
@@ -67,10 +128,19 @@ function initAwakeGround() {
   if (!bg || document.getElementById("awake-photo")) return;
   const img = document.createElement("img");
   img.id = "awake-photo";
+  img.className = "awake-photo"; // styling is class-based so a dissolve can pair imgs
   img.alt = "";
   img.decoding = "async";
   bg.prepend(img); // the bottom layer of the ground (tint + readability sit above)
   loadAwakePhoto(img);
+
+  if (window.CONFIG?.features?.awakePhotoDissolve) {
+    // Init-once interval (allowed by the kiosk memory rules — no per-event timer).
+    setInterval(() => {
+      if (awakePhotoDay && localDayKey() !== awakePhotoDay) void dissolveAwakePhoto();
+    }, 10 * 60 * 1000);
+    window.__forcePhotoDissolve = ({ settleMs = null } = {}) => dissolveAwakePhoto(settleMs);
+  }
 }
 
 export function initBackground() {
