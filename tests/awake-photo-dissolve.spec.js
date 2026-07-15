@@ -28,10 +28,11 @@ test.beforeAll(() => {
 
 async function stubImmich(page) {
   let n = 0;
-  // Each random call hands out a fresh asset id, so the dissolved-in photo has
-  // a distinct src from the boot photo.
+  // The boot asset is always offered FIRST in every response — so the dissolve
+  // only lands on a fresh photo if its repeat-guard skips the current asset
+  // (a naive ids[0] pick would re-serve the boot photo and fail the src check).
   await page.route("**/api/immich/random**", (route) =>
-    route.fulfill({ json: { assets: [{ id: `dissolve-${++n}` }] } })
+    route.fulfill({ json: { assets: [{ id: "boot-asset" }, { id: `fresh-${++n}` }] } })
   );
   await page.route("**/api/immich/asset/**", (route) =>
     route.fulfill({ contentType: "image/png", body: PNG })

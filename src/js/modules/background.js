@@ -48,18 +48,19 @@ async function checkHoliday() {
 // element is only created when the flag is on → flag-off is byte-identical.
 const immichThumb = (id) => `/api/immich/asset/${encodeURIComponent(id)}/thumb`;
 
-async function fetchRandomAssetId() {
-  const res = await fetch("/api/immich/random?count=1", { signal: AbortSignal.timeout(8000) });
-  if (!res.ok) return null;
-  return ((await res.json()).assets ?? [])[0]?.id ?? null;
+async function fetchRandomAssetIds(count = 1) {
+  const res = await fetch(`/api/immich/random?count=${count}`, { signal: AbortSignal.timeout(8000) });
+  if (!res.ok) return [];
+  return ((await res.json()).assets ?? []).map((a) => a?.id).filter(Boolean);
 }
 
 async function loadAwakePhoto(img) {
   try {
-    const assetId = await fetchRandomAssetId();
+    const [assetId] = await fetchRandomAssetIds(1);
     if (!assetId) return;
     img.onload = () => {
       img.classList.add("is-loaded");
+      awakePhotoAssetId = assetId;
       awakePhotoDay = localDayKey(); // the day this photo belongs to
     };
     img.src = immichThumb(assetId);
@@ -78,6 +79,7 @@ const DISSOLVE_SETTLE_MS = 60 * 1000; // matches --t-settle in variables.css
 const DISSOLVE_CLEANUP_BUFFER_MS = 2000;
 
 let awakePhotoDay = null;
+let awakePhotoAssetId = null;
 let dissolveInFlight = false;
 
 const localDayKey = () => new Date().toDateString();
@@ -88,7 +90,12 @@ async function dissolveAwakePhoto(settleMs = null) {
   dissolveInFlight = true;
   let handedOff = false;
   try {
-    const assetId = await fetchRandomAssetId();
+    // Ask for two and prefer one that ISN'T the current photo — dissolving to
+    // the same asset would spend the day's settle on a visual no-op (and the
+    // server's 10-min rnd:N cache makes a repeat more likely than raw chance).
+    // A one-photo pool falls back to the repeat rather than never settling.
+    const ids = await fetchRandomAssetIds(2);
+    const assetId = ids.find((id) => id !== awakePhotoAssetId) ?? ids[0] ?? null;
     if (!assetId) return false; // Immich down → keep the old photo, retry next check
     const next = document.createElement("img");
     next.className = "awake-photo";
@@ -98,6 +105,7 @@ async function dissolveAwakePhoto(settleMs = null) {
     const holdMs = (settleMs || DISSOLVE_SETTLE_MS) + DISSOLVE_CLEANUP_BUFFER_MS;
     next.onload = () => {
       next.classList.add("is-loaded"); // fades in over the old (later sibling paints above)
+      awakePhotoAssetId = assetId;
       awakePhotoDay = localDayKey();
       // Cleanup on a timer, never transitionend — it never fires while the
       // element is hidden (the 24/7-kiosk rule), and views hide constantly.
