@@ -108,11 +108,14 @@
   position: absolute;
   inset: 0;
   background-color: transparent;
+  /* Spec readability gradient (handoff §atmosphere layer order) — same curve the
+     awake ground uses (background.css body.awake-ground::after), so Mode 0 and the
+     awake modes read as one room. */
   background-image: linear-gradient(
     to bottom,
-    rgba(0, 0, 0, 0.10) 0%,
-    rgba(0, 0, 0, 0.32) 55%,
-    rgba(0, 0, 0, 0.68) 100%
+    rgba(0, 0, 0, 0.08) 0%,
+    rgba(0, 0, 0, 0) 44%,
+    rgba(0, 0, 0, 0.70) 100%
   );
   opacity: 0;
   /* The atmosphere tint (background-color) settles over ~60s — a slow state
@@ -272,6 +275,10 @@
    Placed after the --night block so the graded dim overrides the binary night
    colour/opacity. Flag-off adds no class → this whole block is inert. */
 .screensaver--ambient-clock .screensaver__time {
+  /* Spec size (handoff §Mode-0): 192px / .82 on the fixed 1920 wall — the base
+     clamp resolved to 168px / 1.0, ~14% under and loose (2026-07-15 audit). */
+  font-size: 192px;
+  line-height: 0.82;
   font-weight: 500;
   letter-spacing: 0.008em;
   font-variant-numeric: tabular-nums;
@@ -288,6 +295,7 @@
 }
 
 .screensaver--ambient-clock .screensaver__dateline {
+  font-size: 26px; /* spec (handoff §Mode-0); the base clamp maxed at 22.4px */
   letter-spacing: 0.22em;
   color: var(--accent);
   opacity: calc(var(--clock-dim, 0.9) * 0.7);

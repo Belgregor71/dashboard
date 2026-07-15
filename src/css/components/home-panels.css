@@ -44,7 +44,7 @@ body:not([data-view="home"]) #focus-stack {
 .focus-hero.hero-type .focus-hero__text {
   font-weight: 500;
   font-size: var(--hero-fs, var(--fs-hero-line-b));
-  line-height: 0.98;
+  line-height: 0.96; /* spec (handoff §Mode-1); tier-c keeps its 1.02 override */
   letter-spacing: 0.006em;
   text-wrap: balance;
   text-shadow: 0 2px 34px rgba(0, 0, 0, 0.55);
