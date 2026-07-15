@@ -39,13 +39,17 @@ export function weatherSevereCandidate({ weatherCondition, weatherTemp } = {}) {
 }
 
 /** Next calendar event readout — medium band. */
-export function nextEventCandidate({ nextEventActive, nextEventText } = {}) {
+export function nextEventCandidate({ nextEventActive, nextEventText, nextEventTitle, nextEventSub } = {}) {
   if (!nextEventActive || !nextEventText) return null;
   return {
     id: `next-event:${nextEventText}`,
     source: "nextEvent",
     icon: "📅",
     text: nextEventText,
+    // Tier-1a rich-card slots (features.stackCards render-gated; inert otherwise):
+    // the event name and its relative line, already separate in the panel DOM.
+    title: nextEventTitle || null,
+    sub: nextEventSub || null,
     score: 50,
     cooldownMs: 0
   };
@@ -71,7 +75,7 @@ export function commuteCandidate({ commuteActive, commuteText } = {}) {
  * instead of a separate glass panel. Only present when the runtime reads it
  * (gated on features.mediaCandidate), so flag-off carries no candidate.
  */
-export function nowPlayingCandidate({ nowPlayingActive, nowPlayingText, nowPlayingImage } = {}) {
+export function nowPlayingCandidate({ nowPlayingActive, nowPlayingText, nowPlayingImage, nowPlayingTitle, nowPlayingSub } = {}) {
   if (!nowPlayingActive || !nowPlayingText) return null;
   return {
     id: `now-playing:${nowPlayingText}`,
@@ -79,6 +83,9 @@ export function nowPlayingCandidate({ nowPlayingActive, nowPlayingText, nowPlayi
     icon: "🎬",
     image: nowPlayingImage || null, // the album/movie art, rendered as the thumb when present
     text: nowPlayingText,
+    // Tier-1a rich-card slots: the media title and its room/source line.
+    title: nowPlayingTitle || null,
+    sub: nowPlayingSub || null,
     score: 41,
     stackOnly: true, // ambient "what's on" — rides the lean-in stack, never the centred hero
     cooldownMs: 0
@@ -98,6 +105,9 @@ export function plexCandidate({ plexActive, plexText, plexImage } = {}) {
     icon: "🎬",
     image: plexImage || null,
     text: plexText,
+    // Tier-1a rich-card slots: the stream title over its source.
+    title: plexText,
+    sub: "Plex",
     score: 41,
     stackOnly: true, // stack card only, never the centred hero (like now-playing)
     cooldownMs: 0
@@ -117,6 +127,9 @@ export function tonightsMenuCandidate({ menuActive, menuName } = {}) {
     source: "tonightsMenu",
     icon: "🍽",
     text: `${menuName} for dinner`,
+    // Tier-1a rich-card slots: the dish over its standing eyebrow.
+    title: menuName,
+    sub: "Tonight's menu",
     score: 40,
     stackOnly: true, // stack card only, never the centred hero
     cooldownMs: 0

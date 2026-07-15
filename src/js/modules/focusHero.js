@@ -18,6 +18,9 @@ const HERO_TIER_B_MAX = 40; // 17–40 chars → standard (the default)
 let conciergeText = null;
 let conciergeFetchedAt = 0;
 let attentionOn = false;
+// Tier-1a (features.stackCards, requires leanInStack): the rich spec card —
+// title/sub/meta slots, hero-glass top card, severity stripe, resting note.
+let stackCardsOn = false;
 let heroTypeOn = false;
 let leanInOn = false;
 let bareHeroOn = false;
@@ -60,7 +63,7 @@ function readNowPlaying() {
     const title = panel.querySelector(".media-panel__title")?.textContent?.trim();
     if (!title) continue;
     const image = panel.querySelector(".media-panel__image")?.getAttribute("src")?.trim() || null;
-    return { text: [source, title].filter(Boolean).join(" — "), image };
+    return { text: [source, title].filter(Boolean).join(" — "), image, title, sub: source || null };
   }
   return null;
 }
@@ -107,9 +110,17 @@ function readState() {
       document.getElementById("next-event-name")?.textContent?.trim(),
       document.getElementById("next-event-meta")?.textContent?.trim()
     ].filter(Boolean).join(" · "),
+    // Rich-card slots (stackCards): the panel already keeps name and the relative
+    // line apart. The name carries its category emoji — strip it; the card's icon
+    // slot owns the glyph.
+    nextEventTitle: (document.getElementById("next-event-name")?.textContent?.trim() || "")
+      .replace(/^\p{Extended_Pictographic}️?\s*/u, "") || null,
+    nextEventSub: document.getElementById("next-event-meta")?.textContent?.trim() || null,
     nowPlayingActive: Boolean(nowPlaying),
     nowPlayingText: nowPlaying?.text ?? null,
     nowPlayingImage: nowPlaying?.image ?? null,
+    nowPlayingTitle: nowPlaying?.title ?? null,
+    nowPlayingSub: nowPlaying?.sub ?? null,
     plexActive: Boolean(plex),
     plexText: plex?.text ?? null,
     plexImage: plex?.image ?? null,
@@ -195,7 +206,7 @@ function hideHero(els) {
 // Opacity-fade only (transform breaks fixed descendants) with a setTimeout
 // teardown — transitionend never fires while the node is hidden. See the
 // 2026-07 leak-audit memory.
-function renderStack(items) {
+function renderStack(items, { restingCount = 0 } = {}) {
   const stackEl = document.getElementById("focus-stack");
   if (!stackEl) return;
 
@@ -208,9 +219,13 @@ function renderStack(items) {
 
   clearTimeout(stackClearTimer);
   stackEl.replaceChildren(
-    ...items.map((c) => {
+    ...items.map((c, idx) => {
       const row = document.createElement("div");
       row.className = "focus-stack__item";
+      // Tier-1a (stackCards): the top card takes the brighter hero-glass variant,
+      // and an interrupt candidate earns the severity stripe (never a coloured card).
+      if (stackCardsOn && idx === 0) row.classList.add("focus-stack__item--hero-glass");
+      if (stackCardsOn && c.interrupt) row.classList.add("focus-stack__item--severe");
       const icon = document.createElement("span");
       icon.className = "focus-stack__icon";
       // Media/plex candidates show their artwork as a thumbnail (resized to fit
@@ -224,13 +239,54 @@ function renderStack(items) {
       } else {
         icon.textContent = c.icon;
       }
-      const text = document.createElement("span");
-      text.className = "focus-stack__text";
-      text.textContent = c.text;
-      row.append(icon, text);
+      if (!stackCardsOn) {
+        const text = document.createElement("span");
+        text.className = "focus-stack__text";
+        text.textContent = c.text;
+        row.append(icon, text);
+        return row;
+      }
+      // Rich card: title (the candidate's structured title, or its text — one
+      // type system either way) + optional sub, + an optional right meta block.
+      const bodyEl = document.createElement("span");
+      bodyEl.className = "focus-stack__body";
+      const titleEl = document.createElement("span");
+      titleEl.className = "focus-stack__title";
+      titleEl.textContent = c.title || c.text;
+      bodyEl.append(titleEl);
+      if (c.sub) {
+        const subEl = document.createElement("span");
+        subEl.className = "focus-stack__sub";
+        subEl.textContent = c.sub;
+        bodyEl.append(subEl);
+      }
+      row.append(icon, bodyEl);
+      if (c.meta) {
+        const metaEl = document.createElement("span");
+        metaEl.className = "focus-stack__meta";
+        const valueEl = document.createElement("span");
+        valueEl.className = "focus-stack__meta-value";
+        valueEl.textContent = c.meta;
+        metaEl.append(valueEl);
+        if (c.metaLabel) {
+          const labelEl = document.createElement("span");
+          labelEl.className = "focus-stack__meta-label";
+          labelEl.textContent = c.metaLabel;
+          metaEl.append(labelEl);
+        }
+        row.append(metaEl);
+      }
       return row;
     })
   );
+  // The mono resting note — how much of the queue stays below the fold. Rendered
+  // as a stack child so the replaceChildren teardown stays symmetric.
+  if (stackCardsOn && restingCount > 0) {
+    const note = document.createElement("div");
+    note.className = "focus-stack__note";
+    note.textContent = `+ ${restingCount} more candidate${restingCount === 1 ? "" : "s"} resting below the fold`;
+    stackEl.append(note);
+  }
   stackEl.classList.remove("is-hidden");
 }
 
@@ -253,12 +309,15 @@ function updateAttention(state, els) {
     // Stack-only candidates (now-playing / menu) still ride the lean-in stack
     // even with no scored hero above them — but only on DWELL (GLANCE shows just
     // the hero line, no cards).
-    renderStack(mode === "dwell" ? sel.stack : []);
+    const items = mode === "dwell" ? sel.stack : [];
+    renderStack(items, { restingCount: Math.max(0, (sel.queue?.length ?? 0) - items.length) });
     return;
   }
 
   showHero(els, sel.hero.icon, sel.hero.text, { image: sel.hero.image });
-  renderStack(sel.stack.slice(1)); // items 2..N — the hero already owns slot 1
+  const items = sel.stack.slice(1); // items 2..N — the hero already owns slot 1
+  // Resting note: everything ranked but not shown (the hero + the visible cards).
+  renderStack(items, { restingCount: Math.max(0, (sel.queue?.length ?? 0) - 1 - items.length) });
 }
 
 function update() {
@@ -288,10 +347,11 @@ function update() {
   showHero(els, focus.icon, focus.text);
 }
 
-export function initFocusHero({ attentionEnabled = false, heroTypeEnabled = false, leanInStackEnabled = false, bareHeroEnabled = false, mediaCandidateEnabled = false, foldHomeTilesEnabled = false } = {}) {
+export function initFocusHero({ attentionEnabled = false, heroTypeEnabled = false, leanInStackEnabled = false, stackCardsEnabled = false, bareHeroEnabled = false, mediaCandidateEnabled = false, foldHomeTilesEnabled = false } = {}) {
   attentionOn = attentionEnabled === true;
   heroTypeOn = heroTypeEnabled === true;
   leanInOn = leanInStackEnabled === true;
+  stackCardsOn = leanInOn && stackCardsEnabled === true; // rides on the glass
   bareHeroOn = bareHeroEnabled === true;
   mediaCandidateOn = mediaCandidateEnabled === true;
   foldHomeTilesOn = foldHomeTilesEnabled === true;
@@ -314,6 +374,8 @@ export function initFocusHero({ attentionEnabled = false, heroTypeEnabled = fals
   if (leanInOn) {
     const stackEl = document.getElementById("focus-stack");
     if (stackEl) stackEl.classList.add("lean-in-glass");
+    // Tier-1a — the rich spec card treatment layers on the glass.
+    if (stackCardsOn && stackEl) stackEl.classList.add("stack-cards");
     window.__leanInStack = () => {
       const item = document.querySelector("#focus-stack .focus-stack__item");
       const cs = item ? getComputedStyle(item) : null;

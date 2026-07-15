@@ -154,6 +154,85 @@
   to   { transform: scaleX(0); }
 }
 
+/* ── Bottom-center spec geometry (features.arrivalBottom, Tier-1b) ──
+   docs/design/design_handoff_homeos_home §Arrival: the card sits bottom-center
+   (bottom 8%, 760px) and slides UP into place (translateY 46px→0 + opacity on
+   the arrival timing) — the room's gravity, where the stack and memory surfaces
+   already live. Type steps up to the spec: welcome 64px/500/ink-94 with the
+   name in --warm/600 (the handoff's sanctioned --warm text exception, beside
+   the crown), status 24px/ink-60, event times warm tabular 600, titles
+   26px/ink-85, padding 38/46. arrivalGreeting.js adds .arrival-bottom only when
+   arrivalCard AND arrivalBottom are on → flag-off matches nothing here. */
+.arrival-greeting.arrival-card.arrival-bottom {
+  top: auto;
+  bottom: 8%;
+  width: min(760px, 90vw);
+  opacity: 0;
+  transform: translateX(-50%) translateY(46px);
+  transition:
+    transform var(--arrival-settle, 550ms) var(--arrival-ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    opacity var(--arrival-settle, 550ms) var(--arrival-ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.arrival-greeting.arrival-card.arrival-bottom.is-active {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.arrival-greeting.arrival-bottom .arrival-greeting__card {
+  padding: 38px 46px 0;
+}
+
+.arrival-greeting.arrival-bottom .arrival-greeting__welcome {
+  font-size: 64px;
+  font-weight: 500;
+  line-height: 1;
+  color: rgba(238, 243, 251, 0.94);
+  margin-bottom: 10px;
+}
+
+/* The name — the only --warm text in the system besides nothing (the crown is
+   an edge, the glyphs are glyphs). Sanctioned by the handoff spec. */
+.arrival-greeting.arrival-bottom .arrival-greeting__welcome b {
+  color: var(--warm);
+  font-weight: 600;
+}
+
+.arrival-greeting.arrival-bottom .arrival-greeting__status {
+  font-size: 24px;
+  color: rgba(238, 243, 251, 0.6);
+  margin-bottom: 0;
+}
+
+.arrival-greeting.arrival-bottom .arrival-greeting__events {
+  margin-top: 24px;
+  margin-bottom: 34px;
+  gap: 12px;
+}
+
+.arrival-greeting.arrival-bottom .arrival-greeting__events li {
+  font-size: 26px;
+  color: rgba(238, 243, 251, 0.85);
+}
+
+.arrival-greeting.arrival-bottom .arrival-greeting__time {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--warm);
+  min-width: 3.4em;
+  font-size: 1em;
+}
+
+.arrival-greeting.arrival-bottom .arrival-greeting__empty {
+  margin-top: 24px;
+  margin-bottom: 34px;
+}
+
+/* The drain track bleeds to the wider card edges. */
+.arrival-greeting.arrival-bottom .arrival-greeting__track {
+  margin: 0 -46px;
+}
+
 /* Warm variant — a ≥2-day absence trips the budgeted home-after-away delight.
    Warmth replaces logistics: the crown strengthens and the agenda drops away,
    leaving just the welcome. Budgeted upstream, so it stays rare. */

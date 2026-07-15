@@ -128,6 +128,110 @@ body:not([data-view="home"]) #focus-stack {
   opacity: 0.92;
 }
 
+/* ── Rich stack cards (features.stackCards, Tier-1a) ───────────
+   docs/design/design_handoff_homeos_home §Mode-2: the one-line chips become the
+   study's cards — 48px icon slot, a title/sub column, an optional right-hand
+   meta block; the top card takes the hero-glass variant; interrupt candidates
+   earn the severity stripe; a mono resting note counts the queue below the
+   fold. focusHero adds .stack-cards (and builds the rich DOM) only when the
+   flag is on atop leanInStack → flag-off matches nothing here. Static styling
+   only — the reveal stays the .focus-stack opacity fade, GPU 0% at rest. */
+.focus-stack.stack-cards {
+  gap: var(--space-5); /* 18px between cards */
+}
+
+/* Centred at the content measure. Must carry the id — the bare-hero anchor rule
+   (body.bare-hero #focus-stack) sets margin/padding at id specificity, which
+   would silently beat a class-only margin-inline:auto. */
+body.bare-hero #focus-stack.stack-cards {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 0;
+}
+
+.focus-stack.stack-cards .focus-stack__item {
+  gap: var(--space-6); /* 26px icon ↔ text */
+  padding: var(--space-6) var(--space-8); /* 26px 34px */
+}
+
+.focus-stack.stack-cards .focus-stack__icon {
+  font-size: 48px;
+  line-height: 1;
+}
+
+.focus-stack.stack-cards .focus-stack__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1); /* 4px title ↔ sub */
+  flex: 1;
+  min-width: 0;
+}
+
+.focus-stack.stack-cards .focus-stack__title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 44px;
+  line-height: 1.05;
+  color: var(--ink);
+}
+
+.focus-stack.stack-cards .focus-stack__sub {
+  font-family: var(--font-body);
+  font-size: 22px;
+  color: rgba(238, 243, 251, 0.56);
+}
+
+.focus-stack.stack-cards .focus-stack__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.focus-stack.stack-cards .focus-stack__meta-value {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 40px;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  color: rgba(238, 243, 251, 0.82);
+}
+
+.focus-stack.stack-cards .focus-stack__meta-label {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 17px;
+  color: rgba(238, 243, 251, 0.5);
+}
+
+/* The scored front of the stack — the brighter hero-glass recipe (WP-F tokens). */
+.focus-stack.stack-cards .focus-stack__item--hero-glass {
+  background: var(--glass-bg-hero);
+  border: var(--glass-border-hero);
+  box-shadow: var(--glass-shadow-hero);
+}
+
+/* Severity: a 3px warn stripe + a warm icon glow — never a coloured card. */
+.focus-stack.stack-cards .focus-stack__item--severe {
+  border-left: 3px solid var(--status-warn);
+  box-shadow: var(--glass-shadow), var(--glass-sheen), 0 0 14px rgba(255, 179, 71, 0.5);
+}
+
+.focus-stack.stack-cards .focus-stack__item--severe .focus-stack__icon {
+  filter: drop-shadow(0 0 12px rgba(255, 179, 71, 0.55));
+}
+
+/* The mono resting note — what stays below the fold. */
+.focus-stack.stack-cards .focus-stack__note {
+  margin-top: var(--space-4);
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  letter-spacing: 0.04em;
+  color: rgba(238, 243, 251, 0.4);
+}
+
 /* ══ Un-chromed hero (features.bareHero, WP-C) ═════════════════
    docs/design/DESIGN_SYSTEM.md §2.1 + docs/design/DESIGN_ROLLOUT.md. The scored
    line loses its container box and sits bare over the ground: glyph + text only,

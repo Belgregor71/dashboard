@@ -175,6 +175,21 @@ window.CONFIG = {
     // One-line revert (-> false).
     leanInStack: true,
 
+    // Tier-1a spec-fidelity upgrade of the lean-in stack (2026-07-15 conformance
+    // audit vs docs/design/design_handoff_homeos_home). Requires leanInStack for
+    // the glass. The one-line chips become the study's rich cards: candidates may
+    // carry optional {title, sub, meta, metaLabel} (sources with real parts emit
+    // them — media/plex source+title, menu name, next-event name+relative; the
+    // rest fall back to their text rendered in the title slot, one type system).
+    // Card: 48px icon slot, 44/600 title + 22/ink-56 sub, right meta block
+    // 40/600/tabular + 17/ink-50 label, padding 26/34, 18px stack gap, stack
+    // centred at --content-max. The top card takes the hero-glass variant, an
+    // interrupt candidate earns the 3px --status-warn stripe + warm icon glow
+    // (never a coloured card), and a mono "+N more" resting note counts the
+    // queue below the fold. Flag-off adds no class and renderStack keeps the
+    // one-line chips → byte-identical.
+    stackCards: false,
+
     // Design study 03 "The Arrival card" (docs/design/homeos-arrival-card.html),
     // WP3 of docs/design/PLAN.md. The away->home greeting card gets the study
     // treatment — the warmest surface in the system: the full glass overlay with
@@ -191,6 +206,17 @@ window.CONFIG = {
     // leak). Now default-on; flag-off stays byte-identical (cool card, JS drain).
     // One-line revert (-> false).
     arrivalCard: true,
+
+    // Tier-1b spec-fidelity reshape of the arrival card (2026-07-15 conformance
+    // audit vs docs/design/design_handoff_homeos_home). Requires arrivalCard.
+    // The card moves to the study geometry — bottom-center (bottom 8%, 760px),
+    // sliding UP (translateY 46px→0 + opacity on timing("arrival")) instead of
+    // dropping from the top — and takes the spec type: welcome 64px/500 with
+    // the NAME in --warm/600 (the handoff's sanctioned --warm text exception,
+    // alongside the crown), status 24px/ink-60, event times warm tabular 600,
+    // titles 26px/ink-85, padding 38/46. Flag-off adds no class → byte-identical
+    // (the shipped top-slide WP3 card stands).
+    arrivalBottom: false,
 
     // Design study 01 "The Ambient memory surface" (ambient half of
     // docs/design/homeos-component-studies.html), WP4 of docs/design/PLAN.md.

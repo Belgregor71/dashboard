@@ -15,6 +15,9 @@ const lastAwayAt = new Map(); // entityId → when they left home (Phase 10 away
 // Study 03 (WP3) — the glass-card treatment. Flag-gated so flag-off keeps the
 // current cool card + JS-width drain byte-identical.
 let arrivalCardOn = false;
+// Tier-1b spec reshape (features.arrivalBottom, requires arrivalCard): the card
+// sits bottom-center and slides up, welcome 64px with the name in --warm.
+let arrivalBottomOn = false;
 // Set synchronously when personalityRuntime fires the home-after-away delight
 // (emit is sync, so it lands before showCard reads it), then consumed once by the
 // very next card so a ≥2-day absence shows the warm, agenda-free variant.
@@ -124,6 +127,7 @@ function ensureOverlay() {
   // Flag-off: no class, no vars → the original cool card + JS drain, byte-identical.
   if (arrivalCardOn) {
     overlayEl.classList.add("arrival-card");
+    if (arrivalBottomOn) overlayEl.classList.add("arrival-bottom");
     const t = timing("arrival");
     overlayEl.style.setProperty("--arrival-settle", `${t.settleMs}ms`);
     overlayEl.style.setProperty("--arrival-ease", t.easing);
@@ -165,9 +169,13 @@ function showCard(name, others, events) {
 
   // Phase 10: the welcome headline speaks in the house's one voice (flag-off →
   // the literal string, byte-identical).
-  const welcome = personalityEnabled()
+  let welcome = personalityEnabled()
     ? phrase(getContext().intent, "arrival", { text: `Welcome home, ${name}!` })
     : `Welcome home, ${name}!`;
+  // Spec reshape: the name renders in --warm/600 (the handoff's sanctioned
+  // exception). phrase() may reword the line, so wrap the name only if it
+  // survived — a rewrite without it just renders plain.
+  if (arrivalBottomOn) welcome = welcome.replace(name, `<b>${name}</b>`);
 
   overlayEl.classList.toggle("arrival-greeting--warm", warm);
 
@@ -215,8 +223,9 @@ function hideCard() {
 
 // ── Init ──────────────────────────────────────────────────────
 
-export function initArrivalGreeting({ arrivalCardEnabled = false } = {}) {
+export function initArrivalGreeting({ arrivalCardEnabled = false, arrivalBottomEnabled = false } = {}) {
   arrivalCardOn = arrivalCardEnabled === true;
+  arrivalBottomOn = arrivalCardOn && arrivalBottomEnabled === true; // rides on the card
 
   // Study 03: a fired home-after-away delight (a ≥2-day absence, budgeted so it
   // stays rare) arms the warm variant for the card that's about to show. The

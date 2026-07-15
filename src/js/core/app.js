@@ -192,7 +192,10 @@ export function startApp() {
   initBinReminder();
   initTimeContext();
   // Study 03 (WP3) — away->home greeting gets the glass card treatment (docs/design/).
-  initArrivalGreeting({ arrivalCardEnabled: isEnabled("arrivalCard", false) });
+  initArrivalGreeting({
+    arrivalCardEnabled: isEnabled("arrivalCard", false),
+    arrivalBottomEnabled: isEnabled("arrivalBottom", false)
+  });
   initFuelPrices();
   initMorningBriefing();
   initOccasionPopup();
@@ -217,6 +220,8 @@ export function startApp() {
     heroTypeEnabled: isEnabled("heroType", false),
     // Study 01 (WP2) — DWELL stack cards get the full glass system (docs/design/).
     leanInStackEnabled: isEnabled("leanInStack", false),
+    // Tier-1a — the rich spec card (title/sub/meta) on the lean-in stack.
+    stackCardsEnabled: isEnabled("stackCards", false),
     // Rollout WP-C — un-chromed hero: tag the concierge fallback for its matte variant.
     bareHeroEnabled: isEnabled("bareHero", false),
     // Follow-up — fold "Now Playing" into the attention queue (docs/design/).

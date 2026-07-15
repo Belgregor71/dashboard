@@ -119,3 +119,81 @@ test("arrival card off: cool card, JS drain, no hooks (byte-identical)", async (
 
   expect(pageErrors, `uncaught page errors:\n${pageErrors.join("\n")}`).toHaveLength(0);
 });
+
+// ── Tier-1b spec reshape (features.arrivalBottom) ─────────────────────────────
+
+function forceArrivalFlags({ card, bottom }) {
+  return (page) =>
+    page.route("**/js/config.js", async (route) => {
+      const res = await route.fetch();
+      const body =
+        (await res.text()) +
+        `\nwindow.CONFIG.features.arrivalCard = ${card};` +
+        `\nwindow.CONFIG.features.arrivalBottom = ${bottom};\n`;
+      await route.fulfill({ response: res, body });
+    });
+}
+
+test("arrival bottom on: bottom-center geometry, 64px welcome, name in --warm", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (err) => pageErrors.push(err.message));
+  await forceArrivalFlags({ card: true, bottom: true })(page);
+  await page.clock.setFixedTime(MIDDAY);
+
+  await page.goto("/");
+  await page.waitForFunction(() => typeof window.__forceArrival === "function");
+  await page.evaluate(() => window.__forceArrival({ name: "Greg", warm: false }));
+
+  const overlay = page.locator("#arrival-greeting");
+  await expect(overlay).toHaveClass(/arrival-bottom/);
+
+  const probe = await page.evaluate(() => {
+    const el = document.getElementById("arrival-greeting");
+    const cs = getComputedStyle(el);
+    const welcome = el.querySelector(".arrival-greeting__welcome");
+    const nameEl = welcome.querySelector("b");
+    const time = el.querySelector(".arrival-greeting__time");
+    return {
+      bottomPx: parseFloat(cs.bottom),
+      expectedBottomPx: window.innerHeight * 0.08,
+      welcomeSize: getComputedStyle(welcome).fontSize,
+      nameColor: nameEl ? getComputedStyle(nameEl).color : "absent",
+      nameWeight: nameEl ? getComputedStyle(nameEl).fontWeight : "absent",
+      timeColor: time ? getComputedStyle(time).color : "absent"
+    };
+  });
+  expect(Math.abs(probe.bottomPx - probe.expectedBottomPx)).toBeLessThan(1);
+  expect(probe.welcomeSize).toBe("64px");
+  expect(probe.nameColor).toBe("rgb(255, 205, 140)"); // --warm — the sanctioned exception
+  expect(probe.nameWeight).toBe("600");
+  expect(probe.timeColor).toBe("rgb(255, 205, 140)"); // event times share the warmth
+
+  expect(pageErrors, `uncaught page errors:\n${pageErrors.join("\n")}`).toHaveLength(0);
+});
+
+test("arrival bottom off: the shipped top-slide card is unchanged", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (err) => pageErrors.push(err.message));
+  await forceArrivalFlags({ card: true, bottom: false })(page);
+  await page.clock.setFixedTime(MIDDAY);
+
+  await page.goto("/");
+  await page.waitForFunction(() => typeof window.__forceArrival === "function");
+  await page.evaluate(() => window.__forceArrival({ name: "Greg", warm: false }));
+
+  const overlay = page.locator("#arrival-greeting");
+  await expect(overlay).toHaveClass(/arrival-card/);
+  await expect(overlay).not.toHaveClass(/arrival-bottom/);
+  // Top-anchored (the WP3 geometry): explicit top 0, and no <b> in the welcome.
+  const probe = await page.evaluate(() => {
+    const el = document.getElementById("arrival-greeting");
+    return {
+      top: getComputedStyle(el).top,
+      hasNameMarkup: Boolean(el.querySelector(".arrival-greeting__welcome b"))
+    };
+  });
+  expect(probe.top).toBe("0px");
+  expect(probe.hasNameMarkup).toBe(false);
+
+  expect(pageErrors, `uncaught page errors:\n${pageErrors.join("\n")}`).toHaveLength(0);
+});
