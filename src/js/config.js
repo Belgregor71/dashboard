@@ -272,7 +272,12 @@ window.CONFIG = {
     // --atmo-settle (60s) so it moves with the ground, not ahead of it. The
     // golden warm value is the sanctioned §6 atmosphere accent, not --warm.
     // Flag-off adds no body class → byte-identical (accent stays time-based).
-    livingAccent: false,
+    // Pi-verified 2026-07-15 (634a616 flag-off → default-on here): live CDP probe
+    // walked every atmo token → the exact §6 accent (golden warm .94, rain/storm
+    // cool .97, night .92, clear/day white .95); the real evening state showed the
+    // point — tint-evening periwinkle vs atmo-night → the flag gives night blue,
+    // the clock lit by the actual sky. Revert (-> false).
+    livingAccent: true,
 
     // WP-D follow-up #2 — the day-boundary photo cross-dissolve. The awake
     // ground photo no longer holds for the whole session: when the calendar
@@ -283,7 +288,11 @@ window.CONFIG = {
     // holds. Immich down at the boundary → the old photo simply stays.
     // __forcePhotoDissolve({settleMs}) debug hook. Flag-off → no day check, no
     // hook; the photo holds for the session (WP-D v1 behaviour).
-    awakePhotoDissolve: false,
+    // Pi-verified 2026-07-15 (634a616 flag-off → default-on here): forced live
+    // dissolve → two .awake-photo imgs during the settle, old node removed on
+    // the timer, id handed to the survivor, latch released (second dissolve
+    // works), 0 page errors, DOM count flat. Revert (-> false).
+    awakePhotoDissolve: true,
 
     // Design-system rollout WP-E (docs/design/DESIGN_ROLLOUT.md) — the captioned
     // memory whisper: the Mode-0 bottom-right "on this day" surface (the non-tender
