@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HomeOS — Home Surface</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@200;300;400;500;600&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+   HomeOS — the presence-first home surface.
+   One continuous room; presence sets the floor.
+   Built from the product tokens (variables.css) + docs/design.
+   ============================================================ */
+:root{
+  /* fixed inks — never pure white, never shift with the accent */
+  --ink:#eef3fb; --ink-dim:#9fb0d4; --ink-faint:#5e6f96;
+  /* ground */
+  --sky-0:#070b18; --sky-1:#0e1530; --sky-2:#1a2148;
+  /* signals */
+  --status-ok:#4dd57b; --status-warn:#ffb347; --status-error:#ff6b6b; --status-info:#79b8ff;
+  --warm:#ffcd8c; --cool:#9fc4ff;
+  /* the five glass tokens — travel together, all or nothing */
+  --glass-bg:linear-gradient(180deg, rgba(24,28,40,.48), rgba(10,12,18,.34));
+  --glass-border:1px solid rgba(255,255,255,.10);
+  --glass-blur:blur(18px) brightness(.87);
+  --glass-shadow:0 8px 28px rgba(0,0,0,.30);
+  --glass-sheen:inset 0 1px 0 rgba(255,255,255,.07);
+  --glass-radius:18px;
+  /* type */
+  --font-display:"Barlow Condensed","Inter",sans-serif;
+  --font-body:"Inter",Arial,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,monospace;
+  /* motion — personality.timing() */
+  --t-hero:700ms cubic-bezier(.4,0,.2,1);
+  --t-settle:2500ms linear; /* production: 60s */
+  /* living accent — set per atmosphere by JS */
+  --accent:rgba(255,185,130,.94);
+}
+*{ box-sizing:border-box; }
+html,body{ height:100%; margin:0; background:#000; font-family:var(--font-body); }
+a{ color:var(--status-info); text-decoration:none; }
+a:hover{ color:var(--cool); }
+
+/* ---- stage / canvas scaler ---- */
+#stage{ position:fixed; inset:0; overflow:hidden; background:#000; }
+#canvas{
+  width:1920px; height:1080px; position:absolute; top:50%; left:50%;
+  transform-origin:center center; color:var(--ink); overflow:hidden;
+  background:linear-gradient(160deg,var(--sky-0),var(--sky-1) 55%,var(--sky-2));
+}
+
+/* ---- ground: photo → tint → readability gradient ---- */
+.layer{ position:absolute; inset:0; pointer-events:none; }
+.ph{ opacity:0; transition:opacity var(--t-settle); }
+.ph.on{ opacity:1; }
+.ph-golden{ background:radial-gradient(130% 92% at 82% 100%, rgba(255,198,120,.5), transparent 52%), linear-gradient(180deg,#14172a 0%,#2c2416 48%,#5c451f 80%,#8f6529 100%); }
+.ph-clear{ background:radial-gradient(120% 80% at 26% 8%, rgba(120,170,240,.24), transparent 55%), linear-gradient(180deg,#0a1836 0%,#143056 62%,#1d3f70 100%); }
+.ph-cloudy{ background:radial-gradient(110% 75% at 60% 12%, rgba(140,155,180,.16), transparent 58%), linear-gradient(180deg,#0d1220 0%,#1a2334 60%,#2a3548 100%); }
+.ph-rain{ background:radial-gradient(120% 80% at 70% 10%, rgba(110,150,200,.14), transparent 58%), linear-gradient(180deg,#081020 0%,#0f1e33 55%,#16304d 100%); }
+.ph-storm{ background:radial-gradient(110% 70% at 55% 16%, rgba(150,168,200,.12), transparent 58%), linear-gradient(180deg,#070b16 0%,#121b2c 52%,#1b2740 100%); }
+.ph-fog{ background:radial-gradient(120% 80% at 50% 20%, rgba(170,180,195,.18), transparent 60%), linear-gradient(180deg,#141a24 0%,#2a3140 60%,#3d4552 100%); }
+.ph-night{ background:radial-gradient(80% 55% at 22% 10%, rgba(120,180,255,.10), transparent 55%), linear-gradient(180deg,#04060f 0%,#070d1e 60%,#0b1226 100%); }
+
+/* real family photo — drag-and-drop, fills the wall */
+.photo-slot{ position:absolute; inset:0; pointer-events:none; }
+#canvas[data-mode="ambient"] .photo-slot{ pointer-events:auto; }
+image-slot{ color:rgba(238,243,251,.45); }
+#canvas:not([data-mode="ambient"]) image-slot::part(empty){ visibility:hidden; }
+
+.tint{ background:rgba(150,95,40,.20); transition:background var(--t-settle); }
+.read{ background:linear-gradient(180deg, rgba(0,0,0,.08) 0%, rgba(0,0,0,0) 44%, rgba(0,0,0,.70) 100%); }
+
+/* ---- mode layers: opacity-only exchanges on the hero curve ---- */
+.mode-layer{
+  position:absolute; inset:0; padding:108px; display:flex; flex-direction:column;
+  opacity:0; visibility:hidden; pointer-events:none;
+  transition:opacity var(--t-hero), visibility 0s linear 700ms;
+}
+.mode-layer.on{ opacity:1; visibility:visible; transition:opacity var(--t-hero), visibility 0s; }
+
+/* ============ MODE 0 · AMBIENT ============ */
+.amb-drift{ margin-top:auto; }
+@keyframes burnDrift{
+  0%{ transform:translate(0,0); } 25%{ transform:translate(18px,-10px); }
+  50%{ transform:translate(30px,6px); } 75%{ transform:translate(10px,14px); }
+  100%{ transform:translate(0,0); }
+}
+.amb-drift{ animation:burnDrift 240s ease-in-out infinite; }
+.amb-time{
+  font-family:var(--font-display); font-weight:500; font-size:192px; line-height:.82;
+  letter-spacing:.008em; font-variant-numeric:tabular-nums; color:var(--accent);
+  transition:color 2s linear, opacity 2s linear;
+}
+.amb-time .mer{ font-size:.34em; opacity:.72; font-weight:400; margin-left:.15em; }
+.amb-date{
+  font-family:var(--font-display); font-weight:500; letter-spacing:.22em; text-transform:uppercase;
+  font-size:26px; color:var(--ink); opacity:.6; margin-top:14px;
+}
+/* dim with the sky — set per atmosphere */
+.amb-clock{ opacity:.9; transition:opacity 2s linear; }
+#canvas[data-atmo="golden"] .amb-clock{ opacity:.66; }
+#canvas[data-atmo="night"] .amb-clock{ opacity:.5; }
+#canvas[data-atmo="storm"] .amb-clock{ opacity:.78; }
+
+/* tender — the grief-capable case. Ambient-only, never captioned, held longer.
+   The photo is the whole statement; the house steps back and says nothing. */
+.memory-photo{ opacity:0; transition:opacity var(--t-settle);
+  background:
+    radial-gradient(90% 70% at 50% 42%, rgba(255,214,170,.30), transparent 62%),
+    radial-gradient(140% 110% at 50% 50%, transparent 40%, rgba(4,6,14,.55) 100%),
+    linear-gradient(180deg,#181420 0%,#2b2030 52%,#40292a 100%); }
+#canvas[data-mode="ambient"][data-memory="tender"] .memory-photo{ opacity:1; }
+#canvas[data-mode="ambient"][data-memory="tender"] .ph{ opacity:0; }
+#canvas[data-mode="ambient"][data-memory="tender"] .amb-clock{ opacity:.32; }
+
+/* the memory whisper — a counterweight, bottom-right, deliberately faint */
+.memory{ position:absolute; right:108px; bottom:108px; max-width:52%; text-align:right;
+  opacity:0; transition:opacity var(--t-settle); }
+.memory.on{ opacity:1; }
+.memory__eyebrow{
+  display:inline-flex; align-items:center; gap:10px; justify-content:flex-end;
+  font-family:var(--font-body); font-size:19px; letter-spacing:.22em; text-transform:uppercase;
+  color:rgba(238,243,251,.42); font-weight:600;
+}
+.memory__eyebrow .ic{ font-size:.95em; opacity:.8; }
+.memory__title{
+  font-family:var(--font-display); font-weight:500; font-size:44px;
+  color:rgba(238,243,251,.72); line-height:1.02; margin-top:10px; letter-spacing:.01em;
+}
+
+/* ============ TOP ROW · shared by Glance + Lean-in ============ */
+.top-layer{ justify-content:flex-start; }
+.top-row{ display:flex; justify-content:space-between; align-items:flex-start; }
+.top-time{ font-family:var(--font-display); font-weight:500; font-size:64px; line-height:1;
+  font-variant-numeric:tabular-nums; color:var(--ink); }
+.top-time .mer{ font-size:.5em; color:rgba(238,243,251,.6); margin-left:.1em; }
+.top-wx{ text-align:right; display:flex; flex-direction:column; gap:8px; }
+.top-wx b{ font-family:var(--font-display); font-weight:600; font-size:64px; line-height:1; color:var(--ink); }
+.top-wx small{ font-family:var(--font-body); font-size:19px; font-weight:500; letter-spacing:.14em;
+  color:rgba(238,243,251,.6); }
+
+/* ============ MODE 1 · GLANCE — the hero line ============ */
+.hero-layer{ justify-content:center; }
+.hero-line{ display:flex; align-items:center; gap:28px; margin-top:120px; }
+.hero-line .g{ line-height:1; flex:none; filter:drop-shadow(0 0 24px rgba(120,160,220,.35)); }
+.hero-line .tx{
+  font-family:var(--font-display); font-weight:500; color:var(--ink);
+  line-height:.96; letter-spacing:.006em; max-width:26ch;
+  text-shadow:0 2px 34px rgba(0,0,0,.55); text-wrap:balance;
+  transition:opacity var(--t-hero);
+}
+/* length-responsive tiers — shorter goes bigger, never below the 4 m floor */
+.hero-line[data-tier="a"] .tx{ font-size:144px; } .hero-line[data-tier="a"] .g{ font-size:116px; }
+.hero-line[data-tier="b"] .tx{ font-size:104px; } .hero-line[data-tier="b"] .g{ font-size:84px; }
+.hero-line[data-tier="c"] .tx{ font-size:72px; line-height:1.02; } .hero-line[data-tier="c"] .g{ font-size:58px; }
+
+/* concierge — the idle fallback. Same tiers, but matte: no glow, lower ink.
+   Nothing scored is speaking; the house is just making conversation. */
+.hero-line.concierge .tx{ color:rgba(238,243,251,.78); text-shadow:0 2px 24px rgba(0,0,0,.4); }
+.hero-line.concierge .g{ filter:none; opacity:.8; }
+
+/* ============ MODE 2 · LEAN-IN — glass earns its edges ============ */
+.stack-layer{ justify-content:flex-end; }
+.stack{ display:grid; gap:18px; max-width:1240px; }
+.glass{
+  position:relative; display:flex; align-items:center; gap:26px;
+  padding:26px 34px; border-radius:var(--glass-radius);
+  background:var(--glass-bg); border:var(--glass-border);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+  box-shadow:var(--glass-shadow), var(--glass-sheen);
+  overflow:hidden;
+  opacity:0; transition:opacity var(--t-hero);
+}
+.mode-layer.on .glass{ opacity:1; }
+.mode-layer.on .glass:nth-child(2){ transition-delay:180ms; }
+.mode-layer.on .glass:nth-child(3){ transition-delay:360ms; }
+.glass .ic{ font-size:48px; line-height:1; flex:none; }
+.glass .body{ min-width:0; }
+.glass .body b{ display:block; font-family:var(--font-display); font-weight:600; font-size:44px;
+  letter-spacing:.01em; line-height:1.05; color:var(--ink); }
+.glass .body span{ display:block; font-family:var(--font-body); font-size:22px;
+  color:rgba(238,243,251,.56); margin-top:4px; }
+.glass .meta{ margin-left:auto; text-align:right; flex:none; font-family:var(--font-display);
+  font-weight:600; font-size:40px; font-variant-numeric:tabular-nums; letter-spacing:.01em;
+  color:rgba(238,243,251,.82); }
+.glass .meta small{ display:block; font-family:var(--font-body); font-weight:500; font-size:17px;
+  color:rgba(238,243,251,.5); letter-spacing:.04em; }
+/* the scored winner — brighter glass, stronger sheen */
+.glass--hero{ background:linear-gradient(180deg, rgba(42,47,66,.62), rgba(16,20,32,.48));
+  border-color:rgba(255,255,255,.14);
+  box-shadow:0 12px 30px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.09); }
+/* severity — a 3px stripe, never a coloured card */
+.glass--warn::before{ content:""; position:absolute; left:0; top:0; bottom:0; width:3px;
+  background:var(--status-warn); box-shadow:0 0 14px rgba(255,179,71,.5); }
+.glass--warn .ic{ filter:drop-shadow(0 0 8px rgba(255,179,71,.45)); }
+.resting{ margin-top:16px; text-align:center; max-width:1240px; font-family:var(--font-mono);
+  font-size:18px; color:rgba(238,243,251,.4); letter-spacing:.04em; }
+
+/* ============ MODE 3 · VOICE — reserved ============ */
+.voice-layer{ align-items:center; justify-content:center; }
+.voice-state{ text-align:center; }
+.wave{ display:flex; align-items:center; justify-content:center; gap:14px; height:120px; margin-bottom:34px; }
+.wave i{ width:8px; border-radius:8px; background:var(--cool); opacity:.85; }
+#canvas[data-mode="voice"] .wave i{ animation:wavep 1.4s ease-in-out infinite; }
+.wave i:nth-child(1){ height:40%; animation-delay:0s; } .wave i:nth-child(2){ height:75%; animation-delay:.15s; }
+.wave i:nth-child(3){ height:100%; animation-delay:.3s; } .wave i:nth-child(4){ height:60%; animation-delay:.45s; }
+.wave i:nth-child(5){ height:85%; animation-delay:.6s; } .wave i:nth-child(6){ height:45%; animation-delay:.75s; }
+@keyframes wavep{ 0%,100%{ transform:scaleY(.5); opacity:.4; } 50%{ transform:scaleY(1); opacity:.9; } }
+.voice-state .lbl{ font-family:var(--font-display); font-weight:500; font-size:56px;
+  letter-spacing:.02em; color:var(--ink); }
+.voice-state .sub{ font-family:var(--font-body); font-size:24px; color:rgba(238,243,251,.5); margin-top:12px; }
+.reserved-tag{ position:absolute; top:34px; right:34px; font-family:var(--font-mono); font-size:20px;
+  letter-spacing:.08em; text-transform:uppercase; color:rgba(238,243,251,.5); white-space:nowrap;
+  border:1px solid rgba(255,255,255,.14); padding:8px 18px; border-radius:999px; }
+
+/* ============ ARRIVAL — the exception the house earns ============ */
+.arrival{
+  position:absolute; left:50%; bottom:8%; width:760px; z-index:10;
+  transform:translateX(-50%) translateY(46px); opacity:0; pointer-events:none;
+  border-radius:var(--glass-radius);
+  background:linear-gradient(180deg, rgba(42,47,66,.62), rgba(16,20,32,.48));
+  border:1px solid rgba(255,255,255,.14);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+  box-shadow:0 12px 30px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.09);
+  padding:38px 46px 0; overflow:hidden;
+  transition:transform 550ms cubic-bezier(.22,1,.36,1), opacity 550ms cubic-bezier(.22,1,.36,1);
+}
+.arrival.on{ transform:translateX(-50%) translateY(0); opacity:1; }
+.arrival__welcome{ font-family:var(--font-display); font-weight:500; font-size:64px;
+  line-height:1; letter-spacing:.01em; color:rgba(238,243,251,.94); }
+.arrival__welcome b{ color:var(--warm); font-weight:600; }
+.arrival__status{ font-family:var(--font-body); font-size:24px; color:rgba(238,243,251,.6); margin-top:10px; }
+.arrival__events{ list-style:none; margin:24px 0 34px; padding:0; display:grid; gap:12px; }
+.arrival__events li{ display:flex; align-items:baseline; gap:18px; font-size:26px; font-family:var(--font-body); }
+.arrival__events .tm{ font-family:var(--font-display); font-weight:600; font-variant-numeric:tabular-nums;
+  color:var(--warm); min-width:3.4em; letter-spacing:.01em; }
+.arrival__events .tt{ color:rgba(238,243,251,.85); }
+.arrival__bar{ height:3px; margin:0 -46px; background:rgba(255,255,255,.08); }
+.arrival__bar i{ display:block; height:100%; width:100%;
+  background:linear-gradient(90deg, var(--warm), rgba(255,185,130,.94)); }
+.arrival.on .arrival__bar i{ animation:arrivalDrain 15s linear forwards; }
+@keyframes arrivalDrain{ from{ width:100%; } to{ width:0%; } }
+@media (prefers-reduced-motion:reduce){ .arrival.on .arrival__bar i{ animation:none; width:62%; } }
+
+/* ---- presence chip (presenter chrome — outside the canvas) ---- */
+#presence-chip{
+  position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:50;
+  display:flex; align-items:center; gap:4px; padding:6px;
+  background:rgba(10,14,24,.78); border:1px solid rgba(255,255,255,.12); border-radius:999px;
+  -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+  font-family:var(--font-mono); font-size:12px;
+  opacity:1; transition:opacity .6s ease;
+}
+#presence-chip.faded{ opacity:.22; }
+#presence-chip:hover{ opacity:1; }
+#presence-chip button{
+  appearance:none; border:0; background:transparent; color:rgba(238,243,251,.6);
+  font:inherit; padding:7px 14px; border-radius:999px; cursor:pointer; letter-spacing:.04em;
+  white-space:nowrap; flex:none;
+}
+#presence-chip button:hover{ color:var(--ink); }
+#presence-chip button.active{ background:rgba(255,255,255,.12); color:var(--ink); }
+#presence-chip .hint{ color:rgba(238,243,251,.38); padding:0 12px 0 8px; border-left:1px solid rgba(255,255,255,.1); margin-left:4px; white-space:nowrap; flex:none; }
+
+@media (prefers-reduced-motion: reduce){
+  *{ animation:none !important; transition:none !important; }
+}
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="canvas" data-screen-label="HomeOS Home" data-view="home" data-mode="glance" data-atmo="golden">
+
+    <!-- ground: photo stand-ins (production = Immich) -->
+    <div class="layer ph ph-golden on" data-ph="golden"></div>
+    <div class="layer ph ph-clear" data-ph="clear"></div>
+    <div class="layer ph ph-cloudy" data-ph="cloudy"></div>
+    <div class="layer ph ph-rain" data-ph="rain"></div>
+    <div class="layer ph ph-storm" data-ph="storm"></div>
+    <div class="layer ph ph-fog" data-ph="fog"></div>
+    <div class="layer ph ph-night" data-ph="night"></div>
+
+    <!-- tender memory — wordless photo stand-in (production = Immich, memoryEngine.toSurface) -->
+    <div class="layer memory-photo"></div>
+
+    <!-- real family photo — drag one in (interactive in Ambient) -->
+    <div class="photo-slot">
+      <image-slot id="family-photo" shape="rect" radius="0" placeholder="Drop a family photo — it becomes the wall"></image-slot>
+    </div>
+
+    <!-- borrowed light: the atmo-* wash, then the readability gradient -->
+    <div class="layer tint" id="tint"></div>
+    <div class="layer read"></div>
+
+    <!-- MODE 0 · AMBIENT -->
+    <div class="mode-layer ambient-layer" data-for="ambient">
+      <div class="amb-drift">
+        <div class="amb-clock">
+          <div class="amb-time"><span id="amb-digits">6:12</span><span class="mer" id="amb-mer">pm</span></div>
+          <div class="amb-date" id="amb-date">Sunday 12 July</div>
+        </div>
+      </div>
+      <div class="memory" id="memory">
+        <span class="memory__eyebrow"><span class="ic" id="memory-ic">🕰</span> <span id="memory-eyebrow">On this day</span></span>
+        <div class="memory__title" id="memory-title">Tasmania, the winter you drove the whole east coast.</div>
+      </div>
+    </div>
+
+    <!-- top row · Glance + Lean-in -->
+    <div class="mode-layer top-layer" data-for="glance lean-in">
+      <div class="top-row">
+        <div class="top-time"><span id="top-digits">6:12</span><span class="mer" id="top-mer">pm</span></div>
+        <div class="top-wx"><b id="top-temp">21°</b><small id="top-cond">NUDGEE · CLEAR</small></div>
+      </div>
+    </div>
+
+    <!-- MODE 1 · GLANCE — one scored hero -->
+    <div class="mode-layer hero-layer" data-for="glance">
+      <div class="hero-line" id="hero-line" data-tier="b">
+        <span class="g" id="hero-glyph">🌧</span>
+        <span class="tx" id="hero-text">Rain likely in about 15 minutes.</span>
+      </div>
+    </div>
+
+    <!-- MODE 2 · LEAN-IN — the next three things -->
+    <div class="mode-layer stack-layer" data-for="lean-in">
+      <div class="stack">
+        <div class="glass glass--hero" id="stack-hero">
+          <span class="ic" id="sh-ic">🌧</span>
+          <div class="body"><b id="sh-title">Rain likely in about 15 minutes</b><span id="sh-sub">bins are still out</span></div>
+          <div class="meta"><span id="sh-meta">60%</span><small id="sh-meta-sub">chance</small></div>
+        </div>
+        <div class="glass">
+          <span class="ic">📅</span>
+          <div class="body"><b>Dylan — pickup</b><span>Nudgee College</span></div>
+          <div class="meta">7:30<small>leave 7:05</small></div>
+        </div>
+        <div class="glass">
+          <span class="ic">🍝</span>
+          <div class="body"><b>Stuffed capsicums</b><span>tonight's dinner</span></div>
+          <div class="meta">▸<small>recipe</small></div>
+        </div>
+      </div>
+      <div class="resting">+ 5 more candidates resting below the fold</div>
+    </div>
+
+    <!-- ARRIVAL — a genuine away→home crossing, met by name, 15s, then gone -->
+    <div class="arrival" id="arrival" aria-live="polite">
+      <div class="arrival__welcome">Welcome home, <b>Greg</b>.</div>
+      <div class="arrival__status">Brett's already home.</div>
+      <ul class="arrival__events">
+        <li><span class="tm">7:30</span><span class="tt">Dylan — pickup, Nudgee College</span></li>
+        <li><span class="tm">tonight</span><span class="tt">Stuffed capsicums</span></li>
+      </ul>
+      <div class="arrival__bar"><i></i></div>
+    </div>
+
+    <!-- MODE 3 · VOICE — reserved -->
+    <div class="mode-layer voice-layer" data-for="voice">
+      <span class="reserved-tag">reserved · no mic yet</span>
+      <div class="voice-state">
+        <div class="wave"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="lbl">Listening…</div>
+        <div class="sub">full attention, then it recedes</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- presence chip — presenter chrome, unscaled -->
+<div id="presence-chip">
+  <button data-m="ambient">00 Ambient</button>
+  <button data-m="glance" class="active">01 Glance</button>
+  <button data-m="lean-in">02 Lean-in</button>
+  <button data-m="voice">03 Voice</button>
+  <span class="hint">keys 0–3 · A arrival · weather in Tweaks</span>
+</div>
+
+<div id="tweaks-root"></div>
+
+<script src="image-slot.js"></script>
+<script>
+/* ============================================================
+   HomeOS core — atmosphere, presence, the hero queue.
+   ============================================================ */
+(function(){
+  'use strict';
+
+  /* ---- canvas scaler ---- */
+  const canvas = document.getElementById('canvas');
+  function fit(){
+    const s = Math.min(innerWidth/1920, innerHeight/1080);
+    canvas.style.transform = 'translate(-50%,-50%) scale(' + s + ')';
+  }
+  addEventListener('resize', fit); fit();
+
+  /* ---- atmosphere set (atmo-* tints at Mode-0 strength) ---- */
+  const ATMO = {
+    golden:{ tint:'rgba(150,95,40,.20)',  accent:'rgba(255,185,130,.94)', temp:'21°', cond:'NUDGEE · CLEAR',
+      hero:{ g:'🚗', t:'Leave by 8:20 — 20 minute drive, 6 in traffic.' },
+      stack:{ sub:'traffic building on the Gateway', meta:'8:20', metaSub:'leave by', warn:false },
+      memory:{ ic:'🕰', eyebrow:'On this day', title:'Tasmania, the winter you drove the whole east coast.' } },
+    clear:{ tint:'rgba(30,66,120,.12)',   accent:'rgba(255,255,255,.95)', temp:'24°', cond:'NUDGEE · SUNNY',
+      hero:{ g:'☀️', t:'24° and clearing.' },
+      stack:{ sub:'UV high until 3pm', meta:'24°', metaSub:'feels 26°', warn:false },
+      memory:{ ic:'✦', eyebrow:'Nine years ago today', title:'This exact afternoon.' } },
+    cloudy:{ tint:'rgba(66,78,96,.24)',   accent:'rgba(255,255,255,.95)', temp:'18°', cond:'NUDGEE · OVERCAST',
+      hero:{ g:'✨', t:'Cold one tonight — 9° by the small hours.' },
+      stack:{ sub:'tomorrow — nothing on', meta:'9°', metaSub:'overnight', warn:false },
+      memory:null },
+    rain:{ tint:'rgba(36,66,98,.30)',     accent:'rgba(196,230,255,.97)', temp:'19°', cond:'NUDGEE · SHOWERS',
+      hero:{ g:'🌧', t:'Rain likely in about 15 minutes.' },
+      stack:{ sub:'bins are still out', meta:'60%', metaSub:'chance', warn:true },
+      memory:null },
+    storm:{ tint:'rgba(28,38,66,.38)',    accent:'rgba(196,230,255,.97)', temp:'22°', cond:'NUDGEE · STORM',
+      hero:{ g:'⛈', t:'Storm rolling in from the west.' },
+      stack:{ sub:'ETA about an hour', meta:'80%', metaSub:'chance', warn:true },
+      memory:null },
+    fog:{ tint:'rgba(120,130,145,.22)',   accent:'rgba(255,255,255,.95)', temp:'12°', cond:'NUDGEE · FOG',
+      hero:{ g:'🌫', t:'Fog until mid-morning.' },
+      stack:{ sub:'clearing by 10am', meta:'400m', metaSub:'visibility', warn:false },
+      memory:null },
+    night:{ tint:'rgba(4,10,28,.42)',     accent:'rgba(130,215,255,.92)', temp:'16°', cond:'NUDGEE · CLEAR',
+      hero:{ g:'🌙', t:'All quiet. Doors locked.' },
+      stack:{ sub:'alarm set · doors locked', meta:'✓', metaSub:'secure', warn:false },
+      memory:null },
+  };
+  const MODES = ['ambient','glance','lean-in','voice'];
+
+  /* ---- concierge — the idle fallback line. One dry sentence, ≤12 words,
+     weather/time only, never in Ambient or Voice. Production: Claude Haiku
+     via /api/ai/brief, refreshed at most every 20 min. ---- */
+  const CONCIERGE = {
+    golden:'Golden hour\u2019s on. The house looks better than it is.',
+    clear:'Stupidly sunny again. Glad I don\u2019t have skin in the game.',
+    cloudy:'Grey enough to cancel plans you didn\u2019t want anyway.',
+    rain:'Rain\u2019s back. The lawn wins this round.',
+    storm:'Big sky theatre tonight. Free admission.',
+    fog:'Can\u2019t see the back fence. It\u2019s probably still there.',
+    night:'Well past sensible bedtime, but who\u2019s counting.',
+  };
+
+  /* ---- length-responsive hero tier ---- */
+  function tierFor(text){
+    const n = text.length;
+    return n <= 18 ? 'a' : n <= 44 ? 'b' : 'c';
+  }
+
+  const $ = (id) => document.getElementById(id);
+  let state = { mode:'glance', atmo:'golden', memory:true, idle:false };
+
+  function apply(t){
+    state = Object.assign({}, state, t);
+    const a = ATMO[state.atmo] || ATMO.golden;
+
+    canvas.dataset.mode = state.mode;
+    canvas.dataset.atmo = state.atmo;
+    canvas.style.setProperty('--accent', a.accent);
+
+    /* idle — nothing scored: the concierge borrows the hero slot (awake modes only) */
+    const idle = !!state.idle;
+    const heroG = idle ? '\u2728' : a.hero.g;
+    const heroT = idle ? CONCIERGE[state.atmo] : a.hero.t;
+
+    /* ground */
+    document.querySelectorAll('.ph').forEach(el =>
+      el.classList.toggle('on', el.dataset.ph === state.atmo));
+    $('tint').style.background = a.tint;
+
+    /* mode layers — when idle, lean-in’s stack yields to the concierge line too */
+    document.querySelectorAll('.mode-layer').forEach(el => {
+      const forModes = el.dataset.for.split(' ');
+      let on = forModes.includes(state.mode);
+      if (idle && state.mode === 'lean-in'){
+        if (el.classList.contains('stack-layer')) on = false;
+        if (el.classList.contains('hero-layer')) on = true;
+      }
+      el.classList.toggle('on', on);
+    });
+
+    /* weather + hero */
+    $('top-temp').textContent = a.temp;
+    $('top-cond').textContent = a.cond;
+    $('hero-glyph').textContent = heroG;
+    $('hero-text').textContent = heroT;
+    $('hero-line').dataset.tier = tierFor(heroT);
+    $('hero-line').classList.toggle('concierge', idle);
+
+    /* lean-in stack hero */
+    $('sh-ic').textContent = a.hero.g;
+    $('sh-title').textContent = a.hero.t.replace(/\.$/, '');
+    $('sh-sub').textContent = a.stack.sub;
+    $('sh-meta').textContent = a.stack.meta;
+    $('sh-meta-sub').textContent = a.stack.metaSub;
+    $('stack-hero').classList.toggle('glass--warn', a.stack.warn);
+
+    /* memory — silence is the default; tender is ambient-only, never captioned, held longer */
+    const memMode = state.memory === true ? 'captioned' : (state.memory === false ? 'off' : state.memory);
+    canvas.dataset.memory = memMode === 'tender' ? 'tender' : '';
+    const mem = a.memory && memMode === 'captioned';
+    $('memory').classList.toggle('on', !!mem);
+    if (mem){
+      $('memory-ic').textContent = a.memory.ic;
+      $('memory-eyebrow').textContent = a.memory.eyebrow;
+      $('memory-title').textContent = a.memory.title;
+    }
+
+    /* presence chip */
+    document.querySelectorAll('#presence-chip button').forEach(b =>
+      b.classList.toggle('active', b.dataset.m === state.mode));
+  }
+  /* ---- arrival — self-contained overlay, symmetric teardown ---- */
+  const arrivalEl = document.getElementById('arrival');
+  let arrivalTimer = null;
+  function arrive(){
+    clearTimeout(arrivalTimer);
+    arrivalEl.classList.remove('on');
+    void arrivalEl.offsetWidth; /* restart drain */
+    arrivalEl.classList.add('on');
+    arrivalTimer = setTimeout(() => arrivalEl.classList.remove('on'), 15000);
+  }
+  window.HomeOS = { apply: apply, arrive: arrive };
+
+  /* ---- clock ---- */
+  function tick(){
+    const d = new Date();
+    let h = d.getHours(); const mer = h >= 12 ? 'pm' : 'am';
+    h = h % 12 || 12;
+    const t = h + ':' + String(d.getMinutes()).padStart(2,'0');
+    $('amb-digits').textContent = t; $('amb-mer').textContent = mer;
+    $('top-digits').textContent = t; $('top-mer').textContent = mer;
+    $('amb-date').textContent = d.toLocaleDateString('en-AU',
+      { weekday:'long', day:'numeric', month:'long' }).replace(/,/g,'');
+  }
+  tick(); setInterval(tick, 5000);
+
+  /* ---- presence controls (chip + keyboard) ---- */
+  function setMode(m){
+    if (window.__setTweak) window.__setTweak('mode', m);
+    else apply({ mode:m });
+  }
+  document.querySelectorAll('#presence-chip button').forEach(b =>
+    b.addEventListener('click', () => setMode(b.dataset.m)));
+  addEventListener('keydown', (e) => {
+    if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    if (e.key === 'a' || e.key === 'A') arrive();
+    else if (/^[0-3]$/.test(e.key)) setMode(MODES[+e.key]);
+    else if (e.key === 'ArrowRight') setMode(MODES[Math.min(3, MODES.indexOf(state.mode)+1)]);
+    else if (e.key === 'ArrowLeft') setMode(MODES[Math.max(0, MODES.indexOf(state.mode)-1)]);
+  });
+
+  /* chip fades once you know it's there */
+  const chip = document.getElementById('presence-chip');
+  setTimeout(() => chip.classList.add('faded'), 8000);
+
+  apply(state);
+})();
+</script>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="homeos-tweaks.jsx"></script>
+
+</body>
+</html>
