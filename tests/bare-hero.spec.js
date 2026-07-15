@@ -33,7 +33,13 @@ function enableFlags(bareHero) {
         (await res.text()) +
         "\nwindow.CONFIG.features.presenceRuntime = true;" +
         "\nwindow.CONFIG.features.attentionEngine = true;" +
-        `\nwindow.CONFIG.features.bareHero = ${bareHero};\n`;
+        `\nwindow.CONFIG.features.bareHero = ${bareHero};` +
+        // Pin the BOM warnings entity to one that never exists: a real live warning
+        // (via HA) is an interrupt-band candidate (95) that outranks the forced test
+        // candidates and breaks the hero assertions. Must go through __DASH_CONFIG__ —
+        // core/config.js builds the module CONFIG from it (bom.js never reads window.CONFIG).
+        '\nwindow.__DASH_CONFIG__ = Object.assign({}, window.__DASH_CONFIG__,' +
+        ' { weather: { bom: { warningsEntityId: "sensor.__no_live_warnings__" } } });\n';
       await route.fulfill({ response: res, body });
     });
 }

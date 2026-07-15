@@ -32,7 +32,14 @@ function enableFlags(page) {
     const body =
       (await res.text()) +
       "\nwindow.CONFIG.features.presenceRuntime = true;" +
-      "\nwindow.CONFIG.features.attentionEngine = true;\n";
+      "\nwindow.CONFIG.features.attentionEngine = true;" +
+      // Pin the BOM warnings entity to one that never exists: a real live warning
+      // (e.g. a QLD marine wind warning via HA) is an interrupt-band candidate (95)
+      // that outranks the forced test candidates and breaks the queue assertions.
+      // Must go through __DASH_CONFIG__ — core/config.js builds the module CONFIG
+      // from it (window.CONFIG is the separate static config; bom.js never reads it).
+      '\nwindow.__DASH_CONFIG__ = Object.assign({}, window.__DASH_CONFIG__,' +
+      ' { weather: { bom: { warningsEntityId: "sensor.__no_live_warnings__" } } });\n';
     await route.fulfill({ response: res, body });
   });
 }
@@ -105,7 +112,10 @@ test("a short-lived predictive candidate decays out of the queue", async ({ page
       (await res.text()) +
       "\nwindow.CONFIG.features.presenceRuntime = true;" +
       "\nwindow.CONFIG.features.attentionEngine = true;" +
-      "\nwindow.CONFIG.features.predictiveCandidates = true;\n";
+      "\nwindow.CONFIG.features.predictiveCandidates = true;" +
+      // Same live-BOM-warning pin as enableFlags above (this test rolls its own route).
+      '\nwindow.__DASH_CONFIG__ = Object.assign({}, window.__DASH_CONFIG__,' +
+      ' { weather: { bom: { warningsEntityId: "sensor.__no_live_warnings__" } } });\n';
     await route.fulfill({ response: res, body });
   });
 
