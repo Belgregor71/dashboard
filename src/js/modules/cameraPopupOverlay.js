@@ -16,6 +16,11 @@ const EVENT_IMAGE_FALLBACK_MS = 2500;
 const MOTION_REFRESH_DELAYS_MS = [700, 1500, 2500];
 const LIVE_RETRY_DELAY_MS = 3000;
 const LIVE_MAX_ATTEMPTS = 2;
+// Battery cameras take ~15-20s to wake and start their P2P stream, so live
+// often arrives near the end of the popup. Once it does connect, keep the
+// popup open at least this long so the live feed actually gets watched
+// instead of closing a few seconds later.
+const LIVE_MIN_VIEW_MS = 15000;
 
 function toPositiveSeconds(value, fallback = DEFAULT_DURATION_SECONDS) {
   const parsed = Number(value);
@@ -184,7 +189,9 @@ export function initCameraPopupOverlay() {
   let activeCameraKey = "";
   let liveCameraKey = "";
   let liveAttempts = 0;
+  let liveConnecting = false;
   let liveRetryTimer = null;
+  let autoCloseAt = 0;
   let activePriority = Number.NEGATIVE_INFINITY;
   let activeSnapshotTimestamp = 0;
   let lastRefreshAt = 0;
@@ -241,6 +248,10 @@ export function initCameraPopupOverlay() {
       updatedEl.textContent = "Live";
       return;
     }
+    if (liveConnecting) {
+      updatedEl.textContent = "Connecting live…";
+      return;
+    }
     if (!activeSnapshotTimestamp) {
       updatedEl.textContent = "";
       return;
@@ -254,6 +265,7 @@ export function initCameraPopupOverlay() {
     liveRetryTimer = null;
     liveCameraKey = "";
     liveAttempts = 0;
+    liveConnecting = false;
     overlayEl.classList.remove("is-live");
     // Emptying src aborts the /live request, which lets the server stop the
     // P2P stream once no viewers remain.
@@ -267,7 +279,9 @@ export function initCameraPopupOverlay() {
     stopLiveStream();
     liveCameraKey = cameraKey;
     liveAttempts = 1;
+    liveConnecting = true;
     liveEl.src = buildLiveUrl(cameraKey);
+    updateUpdatedBadge();
     logDebug("live stream requested", { camera: cameraKey });
   }
 
@@ -277,6 +291,8 @@ export function initCameraPopupOverlay() {
     overlayEl.classList.remove("is-live");
     updateUpdatedBadge();
     if (liveAttempts >= LIVE_MAX_ATTEMPTS) {
+      liveConnecting = false;
+      updateUpdatedBadge();
       logDebug("live stream gave up, snapshot fallback", { camera: cameraKey });
       return;
     }
@@ -299,6 +315,7 @@ export function initCameraPopupOverlay() {
     activePriority = Number.NEGATIVE_INFINITY;
     activeSnapshotTimestamp = 0;
     lastRefreshAt = 0;
+    autoCloseAt = 0;
     overlayEl.classList.remove("is-active");
     overlayEl.setAttribute("aria-hidden", "true");
     frameEl.src = "";
@@ -359,9 +376,19 @@ export function initCameraPopupOverlay() {
     updatedInterval = setInterval(updateUpdatedBadge, 1000);
 
     clearAutoCloseTimer();
-    autoCloseTimer = setTimeout(() => {
-      hideCameraPopup();
-    }, durationSeconds * 1000);
+    autoCloseAt = Date.now() + durationSeconds * 1000;
+    autoCloseTimer = setTimeout(hideCameraPopup, durationSeconds * 1000);
+  }
+
+  // Once the live stream finally connects (~15-20s in for a battery camera),
+  // keep the popup open long enough to actually watch it instead of closing
+  // moments later.
+  function ensureLiveViewingWindow() {
+    const now = Date.now();
+    if (autoCloseAt - now >= LIVE_MIN_VIEW_MS) return;
+    clearAutoCloseTimer();
+    autoCloseAt = now + LIVE_MIN_VIEW_MS;
+    autoCloseTimer = setTimeout(hideCameraPopup, LIVE_MIN_VIEW_MS);
   }
 
   function schedulePendingTriggerRefreshes(cameraKey) {
@@ -470,7 +497,10 @@ export function initCameraPopupOverlay() {
     // replace the image without re-firing it.
     liveEl.addEventListener("load", () => {
       if (!liveCameraKey || liveCameraKey !== activeCameraKey) return;
+      const wasLive = overlayEl.classList.contains("is-live");
       overlayEl.classList.add("is-live");
+      liveConnecting = false;
+      if (!wasLive) ensureLiveViewingWindow();
       updateUpdatedBadge();
       logDebug("live stream showing", { camera: liveCameraKey });
     });
