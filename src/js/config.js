@@ -371,8 +371,11 @@ window.CONFIG = {
     // lingering as fixed chrome, and the standalone pill is hidden (stays in the DOM;
     // the candidate reads the same module state the pill did). Rides
     // features.attentionEngine for the queue. Default OFF → the pill shows, no
-    // candidate (byte-identical). One-line revert (-> false).
-    cameraCandidate: false
+    // candidate (byte-identical). Flipped ON here 2026-07-16 (shipped flag-off in
+    // be69ebe → default-on) to fold the pill on the Pi; verify at the kiosk that a
+    // recent trigger rides the stack (📹 name · last triggered) and decays, and the
+    // standalone pill is display:none. One-line revert (-> false).
+    cameraCandidate: true
   },
 
   /* --------------------------------------------------------------
