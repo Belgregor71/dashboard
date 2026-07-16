@@ -118,7 +118,11 @@ body.bare-top-row #clock {
   letter-spacing: 0;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
-  text-shadow: none;
+  /* Soft halo so the bare time stays legible over a bright Immich photo under a
+     light atmosphere tint (clear-day/golden/fog) — the tint alone can't darken a
+     sunny frame enough. Matches the focus-hero's shadow treatment. Inherits to
+     .clock-ampm. */
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.6);
 }
 
 body.bare-top-row .clock-ampm {

@@ -94,6 +94,10 @@ body.bare-top-row #current-weather-panel {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   padding: 0;
+  /* Same legibility halo as the bare clock (top-bar.css) — keeps the temp,
+     location and condition readable over a bright photo + light atmosphere tint.
+     Inherits to #current-temp / #weather-home-location / #current-conditions. */
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.6);
   display: grid;
   grid-template-columns: auto auto;
   grid-template-areas:
