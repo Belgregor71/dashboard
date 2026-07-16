@@ -1,6 +1,5 @@
 import { wakeScreensaver, resetIdleTimer } from "./screensaver.js";
 import { speak } from "../core/tts.js";
-import { switchView } from "../core/viewManager.js";
 import { getEntity } from "../services/homeAssistant/state.js";
 
 const ACTIVE_STATES = new Set(["on", "ringing"]);
@@ -114,15 +113,15 @@ export function initDoorbellAlert() {
     if ((cooldowns.get(location.prefix) ?? 0) > now) return;
     cooldowns.set(location.prefix, now + COOLDOWN_MS);
 
-    // 1. Wake the screensaver and reset idle timer
+    // 1. Wake the screensaver and reset idle timer. We deliberately do NOT switch to
+    //    the cameras view — the camera popup overlay (cameraPopupOverlay.js) floats the
+    //    live-feed glass card over the ambient home surface instead of dumping to the
+    //    old full cameras grid. The doorbell's priority (100 in config, vs 20 for every
+    //    other camera) means its popup already overrides any lower one that's up.
     wakeScreensaver();
     resetIdleTimer();
 
-    // 2. Navigate to cameras view so the snapshot popup appears over camera feeds
-    //    (force past the Phase 7 substrate gate — a doorbell is an event surface)
-    switchView("cameras", { force: true });
-
-    // 3. Speak the alert — TTS runs async so navigation happens first
+    // 2. Speak the alert — TTS runs async
     const personName = getKnownPersonName(location.personNameEntity);
     const line = personName
       ? pickLine(location.knownLines, personName)

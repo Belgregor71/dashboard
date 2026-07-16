@@ -323,8 +323,10 @@ export function initCameraPopupOverlay() {
 
     wakeScreensaver();
     resetIdleTimer();
-    // Don't fight the doorbell/gate alert's switchView("cameras") - the popup
-    // overlay renders fine over the cameras view too.
+    // Float the popup over the ambient home surface. The only view we leave alone is
+    // the cameras view when someone deliberately opened it (voice "show cameras") —
+    // the popup renders fine over it too. A doorbell/motion event no longer switches
+    // to the old cameras grid; it lands here, over home.
     if (getCurrentView() !== "cameras") switchView("home");
 
     titleEl.textContent = title;
