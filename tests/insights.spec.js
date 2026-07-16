@@ -18,6 +18,8 @@ import {
   nowPlayingCandidate,
   plexCandidate,
   tonightsMenuCandidate,
+  cameraTriggerCandidate,
+  CAMERA_TRIGGER_FRESH_MS,
   collectSources
 } from "../src/js/services/candidateSources.js";
 import { rankQueue, selectForMode, MODE } from "../src/js/services/attentionRank.js";
@@ -327,6 +329,22 @@ test.describe("candidateSources score bands", () => {
     expect(c.score).toBeGreaterThanOrEqual(40);
     expect(c.score).toBeLessThan(41); // below now-playing (41)
     expect(c.text).toContain("Steak Sandwich");
+  });
+
+  test("camera trigger is a stack-only low-band candidate that decays via expiresAt", () => {
+    const at = new Date("2026-07-16T15:42:00").getTime();
+    const c = cameraTriggerCandidate({ cameraTriggerName: "Driveway", cameraTriggerAt: at, cameraTriggerLabel: "Last triggered 3:42pm" });
+    expect(c.source).toBe("cameraTrigger");
+    expect(c.stackOnly).toBe(true); // never the centred hero
+    expect(c.score).toBe(45); // low band, above commute (42)
+    expect(c.text).toBe("Driveway · Last triggered 3:42pm");
+    expect(c.title).toBe("Driveway");
+    expect(c.expiresAt).toBe(at + CAMERA_TRIGGER_FRESH_MS); // rankQueue drops it once stale
+  });
+
+  test("camera trigger with no recent event yields no candidate", () => {
+    expect(cameraTriggerCandidate({})).toBeNull();
+    expect(cameraTriggerCandidate({ cameraTriggerName: "Driveway" })).toBeNull(); // no timestamp
   });
 
   test("inactive/empty panels yield no candidate", () => {

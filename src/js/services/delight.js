@@ -61,6 +61,17 @@ export const DELIGHT_TRIGGERS = [
     })
   },
   {
+    // A fixed/moveable calendar occasion (Christmas, Easter, Halloween, ANZAC …),
+    // detected by occasions.js and read into ctx.occasion by the runtime. Retires
+    // the old full-screen occasionPopup: the same days now surface as a single
+    // house-voiced celebration line, budgeted once per occasion per year. Lower
+    // priority than a birthday/homecoming, which speak to a person.
+    id: "calendar-occasion",
+    detect: (ctx) => Boolean(ctx.occasion?.id),
+    budget: (ctx, now) => `occ:${year(now)}:${ctx.occasion?.id ?? ""}`,
+    occasion: (ctx) => ctx.occasion
+  },
+  {
     id: "first-rain-after-dry",
     detect: (ctx) =>
       Boolean(ctx.rainNow) && Number.isFinite(ctx.dryStreakDays) && ctx.dryStreakDays >= DRY_SPELL_DAYS,

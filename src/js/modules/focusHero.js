@@ -4,6 +4,7 @@ import { getAllEntities } from "../services/homeAssistant/state.js";
 import { getCurrentInsight, initInsightEngine } from "../services/insightEngine.js";
 import { initAttentionEngine, getSelection } from "../services/attentionEngine.js";
 import { collectSources } from "../services/candidateSources.js";
+import { getLastCameraTrigger } from "./cameraTiles.js";
 import { getMode } from "../core/presence.js";
 import { on } from "../core/eventBus.js";
 import { attentionWeights } from "../core/routineRuntime.js";
@@ -26,6 +27,7 @@ let leanInOn = false;
 let bareHeroOn = false;
 let mediaCandidateOn = false;
 let foldHomeTilesOn = false;
+let cameraCandidateOn = false;
 let stackClearTimer = null;
 let lastSelection = { hero: null, stack: [], queue: [] };
 
@@ -88,6 +90,17 @@ function readTonightsMenu() {
   return document.getElementById("menu-tile-name")?.textContent?.trim() || null;
 }
 
+// The most recent camera trigger { name, at, label } from the cameraTiles module
+// state, or null. Feeds the camera-trigger attention candidate when
+// features.cameraCandidate folds the old last-trigger pill into the queue. Matches
+// the pill's time format so the copy reads the same, just in the stack now.
+function readCameraTrigger() {
+  const t = getLastCameraTrigger();
+  if (!t?.cameraName || !t?.timestamp) return null;
+  const time = new Date(t.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return { name: t.cameraName, at: t.timestamp, label: `Last triggered ${time}` };
+}
+
 function readState() {
   // Now-playing (HA media + Plex) → attention candidates. Read only when the flag
   // is on, so flag-off carries no candidate (byte-identical) and the panels keep
@@ -95,6 +108,7 @@ function readState() {
   const nowPlaying = mediaCandidateOn ? readNowPlaying() : null;
   const plex = mediaCandidateOn ? readPlex() : null;
   const menuName = foldHomeTilesOn ? readTonightsMenu() : null;
+  const cameraTrigger = cameraCandidateOn ? readCameraTrigger() : null;
   return {
     bomWarning: getBomWarnings(getAllEntities()).summary || null,
     insight: getCurrentInsight(),
@@ -125,7 +139,10 @@ function readState() {
     plexText: plex?.text ?? null,
     plexImage: plex?.image ?? null,
     menuActive: Boolean(menuName),
-    menuName
+    menuName,
+    cameraTriggerName: cameraTrigger?.name ?? null,
+    cameraTriggerAt: cameraTrigger?.at ?? null,
+    cameraTriggerLabel: cameraTrigger?.label ?? null
   };
 }
 
@@ -347,7 +364,7 @@ function update() {
   showHero(els, focus.icon, focus.text);
 }
 
-export function initFocusHero({ attentionEnabled = false, heroTypeEnabled = false, leanInStackEnabled = false, stackCardsEnabled = false, bareHeroEnabled = false, mediaCandidateEnabled = false, foldHomeTilesEnabled = false } = {}) {
+export function initFocusHero({ attentionEnabled = false, heroTypeEnabled = false, leanInStackEnabled = false, stackCardsEnabled = false, bareHeroEnabled = false, mediaCandidateEnabled = false, foldHomeTilesEnabled = false, cameraCandidateEnabled = false } = {}) {
   attentionOn = attentionEnabled === true;
   heroTypeOn = heroTypeEnabled === true;
   leanInOn = leanInStackEnabled === true;
@@ -355,6 +372,7 @@ export function initFocusHero({ attentionEnabled = false, heroTypeEnabled = fals
   bareHeroOn = bareHeroEnabled === true;
   mediaCandidateOn = mediaCandidateEnabled === true;
   foldHomeTilesOn = foldHomeTilesEnabled === true;
+  cameraCandidateOn = cameraCandidateEnabled === true;
 
   // Study 02 — mark the feature on so the length-responsive CSS engages, and
   // expose a probe for the on-Pi 3–4 m legibility check. Flag-off: no class,

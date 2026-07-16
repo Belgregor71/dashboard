@@ -136,11 +136,40 @@ export function tonightsMenuCandidate({ menuActive, menuName } = {}) {
   };
 }
 
+/**
+ * The most recent camera trigger — folds the always-visible #camera-last-trigger-pill
+ * off the home surface into the one attention queue (docs/design/DESIGN_ROLLOUT.md
+ * follow-up). Low band, above the media/menu folds (a person at the door edges out
+ * "what's for dinner"), but stack-only so it never barges the centred hero. Decays
+ * on its own via expiresAt: rankQueue drops it once the trigger is no longer recent,
+ * so it "appears when relevant, then fades" rather than lingering like the old pill.
+ * Present only when the runtime reads it (gated on features.cameraCandidate).
+ */
+export const CAMERA_TRIGGER_FRESH_MS = 15 * 60 * 1000;
+
+export function cameraTriggerCandidate({ cameraTriggerName, cameraTriggerAt, cameraTriggerLabel } = {}) {
+  if (!cameraTriggerName || !cameraTriggerAt) return null;
+  return {
+    id: `camera-trigger:${cameraTriggerAt}`,
+    source: "cameraTrigger",
+    icon: "📹",
+    text: cameraTriggerLabel ? `${cameraTriggerName} · ${cameraTriggerLabel}` : cameraTriggerName,
+    // Tier-1a rich-card slots: the camera name over its trigger time.
+    title: cameraTriggerName,
+    sub: cameraTriggerLabel || null,
+    score: 45,
+    stackOnly: true, // rides the lean-in stack, never the centred hero
+    expiresAt: cameraTriggerAt + CAMERA_TRIGGER_FRESH_MS,
+    cooldownMs: 0
+  };
+}
+
 export const SOURCES = [
   bomCandidate,
   weatherSevereCandidate,
   nextEventCandidate,
   commuteCandidate,
+  cameraTriggerCandidate,
   nowPlayingCandidate,
   plexCandidate,
   tonightsMenuCandidate

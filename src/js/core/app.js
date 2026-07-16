@@ -44,7 +44,6 @@ import { initTimeContext } from "../modules/timeContext.js";
 import { initArrivalGreeting } from "../modules/arrivalGreeting.js";
 import { initFuelPrices } from "../modules/fuelPrices.js";
 import { initMorningBriefing } from "../modules/morningBriefing.js";
-import { initOccasionPopup } from "../modules/occasionPopup.js";
 import { initTonightsMenu } from "../modules/tonightsMenu.js";
 import { initHealthIndicator } from "../modules/healthIndicator.js";
 import { createStatusView } from "../modules/systemStatus.js";
@@ -87,6 +86,7 @@ export function startApp() {
   if (isEnabled("awakeGround", false)) document.body.classList.add("awake-ground");
   if (isEnabled("mediaCandidate", false)) document.body.classList.add("media-candidate");
   if (isEnabled("foldHomeTiles", false)) document.body.classList.add("fold-home-tiles");
+  if (isEnabled("cameraCandidate", false)) document.body.classList.add("camera-candidate");
   if (isEnabled("livingAccent", false)) document.body.classList.add("living-accent");
   initPresence({ enabled: presenceEnabled });
   // Phase 6 House Model — a pure reducer over slices the store already carries,
@@ -196,7 +196,6 @@ export function startApp() {
   });
   initFuelPrices();
   initMorningBriefing();
-  initOccasionPopup();
   initEnergySaver();
   initScreensaver({
     atmosphereEnabled: isEnabled("ambientAtmospherics", false),
@@ -225,7 +224,9 @@ export function startApp() {
     // Follow-up — fold "Now Playing" into the attention queue (docs/design/).
     mediaCandidateEnabled: isEnabled("mediaCandidate", false),
     // Follow-up — fold Tonight's Menu into the attention queue (docs/design/).
-    foldHomeTilesEnabled: isEnabled("foldHomeTiles", false)
+    foldHomeTilesEnabled: isEnabled("foldHomeTiles", false),
+    // Follow-up — fold the camera last-trigger pill into the attention queue.
+    cameraCandidateEnabled: isEnabled("cameraCandidate", false)
   });
   initTonightsMenu();
   initHealthIndicator();

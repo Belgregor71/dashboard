@@ -361,7 +361,18 @@ window.CONFIG = {
     // queue and #home-stack was display:none (tiles stayed in the DOM). Now
     // default-on; flag-off byte-identical (the tiles show, no menu candidate).
     // One-line revert (-> false).
-    foldHomeTiles: true
+    foldHomeTiles: true,
+
+    // Old-chrome audit (memory: project-next-session) — fold the near-always-visible
+    // #camera-last-trigger-pill ("Driveway · Last triggered 3:42pm") off the home
+    // surface into the one attention queue. With this on, a recent camera trigger
+    // rides the lean-in stack as a low-band stack-only candidate (📹 name · last
+    // triggered) that DECAYS on its own (expiresAt = trigger + 15 min) instead of
+    // lingering as fixed chrome, and the standalone pill is hidden (stays in the DOM;
+    // the candidate reads the same module state the pill did). Rides
+    // features.attentionEngine for the queue. Default OFF → the pill shows, no
+    // candidate (byte-identical). One-line revert (-> false).
+    cameraCandidate: false
   },
 
   /* --------------------------------------------------------------

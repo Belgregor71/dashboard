@@ -8,6 +8,7 @@ import {
   isBudgeted,
   budgetKeyFor
 } from "../services/delight.js";
+import { detectOccasion } from "../services/occasions.js";
 
 // The personality runtime — Phase 10 (docs/vision/phase-10-temperament.md). The
 // temperament (personality.js) is PURE and needs no runtime; the surfacing paths
@@ -172,7 +173,8 @@ function buildCtx(now) {
     dryBreakKey: dry.dryBreakKey,
     awayDays: awaySignal?.awayDays,
     awayReturnKey: awaySignal?.awayReturnKey,
-    awayName: awaySignal?.awayName
+    awayName: awaySignal?.awayName,
+    occasion: detectOccasion(now)
   };
 }
 

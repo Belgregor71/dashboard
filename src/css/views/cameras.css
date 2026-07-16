@@ -686,3 +686,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* features.cameraCandidate folds the last-trigger readout into the attention
+   queue (cameraTriggerCandidate), so the standalone pill hides. The element
+   stays in the DOM — the candidate reads the same module state the pill did.
+   Class added by app.js only when the flag is on → flag-off is byte-identical. */
+body.camera-candidate #camera-last-trigger-pill {
+  display: none;
+}

@@ -197,6 +197,27 @@ test.describe("delight registry — detection + hard budgets", () => {
     expect(pickDelight(ctx, {}, EVENING)).toBeNull(); // not a morning
   });
 
+  test("a calendar occasion fires once per occasion per year (retires occasionPopup)", () => {
+    const xmas = new Date("2026-12-25T09:00:00");
+    const ctx = { occasion: { id: "christmas", icon: "🎄", title: "Christmas", line: "Merry Christmas." } };
+    const fired = pickDelight(ctx, {}, xmas);
+    expect(fired.id).toBe("calendar-occasion");
+    expect(fired.budgetKey).toBe("occ:2026:christmas");
+    expect(fired.occasion.title).toBe("Christmas");
+
+    // Budget blocks a second fire for the same occasion this year.
+    const spent = spendBudget({}, fired);
+    expect(pickDelight(ctx, spent, xmas)).toBeNull();
+    // No occasion today → nothing.
+    expect(pickDelight({}, {}, xmas)).toBeNull();
+  });
+
+  test("a birthday still beats a same-day calendar occasion", () => {
+    // A person-named moment outranks the generic calendar line.
+    const ctx = { occasion: { id: "christmas", title: "Christmas", line: "Merry Christmas." }, birthdayName: "Greg" };
+    expect(pickDelight(ctx, {}, MORNING).id).toBe("birthday-morning");
+  });
+
   test("first-rain-after-dry needs both rain and a long dry spell", () => {
     const wet = { rainNow: true, dryStreakDays: DRY_SPELL_DAYS + 2, dryBreakKey: "2026-7-12" };
     expect(pickDelight(wet, {}, MORNING).id).toBe("first-rain-after-dry");
