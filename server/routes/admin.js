@@ -1,6 +1,7 @@
 import express from "express";
 import multer from "multer";
-import { readdir, unlink, mkdir } from "fs/promises";
+import crypto from "crypto";
+import { readdir, unlink, mkdir, open } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -9,6 +10,15 @@ const PHOTOS_DIR = path.resolve(__dirname, "..", "..", "static", "photos");
 const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif"]);
 
 const router = express.Router();
+
+// Constant-time string compare. timingSafeEqual requires equal-length
+// buffers, so an early length check is unavoidable (standard pattern).
+function safeEqual(a, b) {
+  const ab = Buffer.from(String(a), "utf8");
+  const bb = Buffer.from(String(b), "utf8");
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
 
 function basicAuth(req, res, next) {
   const password = process.env.ADMIN_PASSWORD;
@@ -25,7 +35,7 @@ function basicAuth(req, res, next) {
   const decoded = Buffer.from(auth.slice(6), "base64").toString();
   const colon = decoded.indexOf(":");
   const pass = colon >= 0 ? decoded.slice(colon + 1) : decoded;
-  if (pass !== password) {
+  if (!safeEqual(pass, password)) {
     res.set("WWW-Authenticate", 'Basic realm="Dashboard Admin"');
     res.status(401).send("Wrong password");
     return;
@@ -58,6 +68,43 @@ const upload = multer({
   }
 });
 
+// Validate real file content, not just the extension: read the leading bytes
+// and match known image signatures. Rejects a renamed non-image upload.
+function matchesImageSignature(b) {
+  if (b.length < 12) return false;
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return true;                 // JPEG
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return true; // PNG
+  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) return true; // GIF
+  if (b.toString("ascii", 0, 4) === "RIFF" && b.toString("ascii", 8, 12) === "WEBP") return true; // WEBP
+  if (b.toString("ascii", 4, 8) === "ftyp") {                                       // AVIF
+    const brand = b.toString("ascii", 8, 12);
+    if (brand === "avif" || brand === "avis") return true;
+  }
+  return false;
+}
+
+async function hasImageMagic(filepath) {
+  let fh;
+  try {
+    fh = await open(filepath, "r");
+    const { buffer, bytesRead } = await fh.read(Buffer.alloc(32), 0, 32, 0);
+    return matchesImageSignature(buffer.subarray(0, bytesRead));
+  } catch {
+    return false;
+  } finally {
+    await fh?.close();
+  }
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 async function listPhotos() {
   await mkdir(PHOTOS_DIR, { recursive: true });
   const entries = await readdir(PHOTOS_DIR, { withFileTypes: true });
@@ -80,9 +127,9 @@ router.get("/admin/photos", basicAuth, async (_req, res) => {
 
   const rows = files.map(name => `
     <li class="photo-row" id="row-${encodeURIComponent(name)}">
-      <img src="/photos/${encodeURIComponent(name)}" alt="${name}" loading="lazy" />
-      <span class="name">${name}</span>
-      <button onclick="del('${encodeURIComponent(name)}')" title="Delete">&#x2715; Delete</button>
+      <img src="/photos/${encodeURIComponent(name)}" alt="${escapeHtml(name)}" loading="lazy" />
+      <span class="name">${escapeHtml(name)}</span>
+      <button class="del-btn" data-name="${escapeHtml(name)}" title="Delete">&#x2715; Delete</button>
     </li>`).join("");
 
   res.type("html").send(`<!DOCTYPE html>
@@ -159,14 +206,23 @@ router.get("/admin/photos", basicAuth, async (_req, res) => {
       xhr.send(fd);
     }
 
-    async function del(encoded) {
-      if (!confirm('Delete ' + decodeURIComponent(encoded) + '?')) return;
-      const r = await fetch('/admin/photos/' + encoded, { method: 'DELETE' });
+    document.getElementById('list').addEventListener('click', e => {
+      const btn = e.target.closest('.del-btn');
+      if (btn) del(btn.dataset.name);
+    });
+
+    async function del(name) {
+      if (!confirm('Delete ' + name + '?')) return;
+      const enc = encodeURIComponent(name);
+      const r = await fetch('/admin/photos/' + enc, { method: 'DELETE' });
       if (r.ok) {
-        const row = document.getElementById('row-' + encoded);
+        const row = document.getElementById('row-' + enc);
         if (row) row.remove();
         if (!document.querySelector('#list li:not(.empty)')) {
-          document.getElementById('list').innerHTML = '<li class="empty">No photos yet.</li>';
+          const empty = document.createElement('li');
+          empty.className = 'empty';
+          empty.textContent = 'No photos yet.';
+          document.getElementById('list').appendChild(empty);
         }
       } else {
         alert('Delete failed.');
@@ -178,12 +234,27 @@ router.get("/admin/photos", basicAuth, async (_req, res) => {
       const empty = list.querySelector('.empty');
       if (empty) empty.remove();
       const enc = encodeURIComponent(name);
+
       const li = document.createElement('li');
       li.className = 'photo-row';
       li.id = 'row-' + enc;
-      li.innerHTML = '<img src="/photos/' + enc + '" alt="' + name + '" loading="lazy">' +
-        '<span class="name">' + name + '</span>' +
-        '<button onclick="del(\\'' + enc + '\\')">&#x2715; Delete</button>';
+
+      const img = document.createElement('img');
+      img.src = '/photos/' + enc;
+      img.alt = name;
+      img.loading = 'lazy';
+
+      const span = document.createElement('span');
+      span.className = 'name';
+      span.textContent = name;
+
+      const btn = document.createElement('button');
+      btn.className = 'del-btn';
+      btn.dataset.name = name;
+      btn.title = 'Delete';
+      btn.textContent = '\\u2715 Delete';
+
+      li.append(img, span, btn);
       list.appendChild(li);
     }
 
@@ -197,9 +268,17 @@ router.get("/admin/photos", basicAuth, async (_req, res) => {
 </html>`);
 });
 
-router.post("/admin/photos/upload", basicAuth, upload.array("photos", 50), (req, res) => {
-  const added = (req.files || []).map(f => f.filename);
+router.post("/admin/photos/upload", basicAuth, upload.array("photos", 50), async (req, res) => {
+  const added = [];
   const skipped = [];
+  for (const f of req.files || []) {
+    if (await hasImageMagic(f.path)) {
+      added.push(f.filename);
+    } else {
+      skipped.push(f.filename);
+      try { await unlink(f.path); } catch { /* best-effort cleanup */ }
+    }
+  }
   res.json({ added, skipped });
 });
 
