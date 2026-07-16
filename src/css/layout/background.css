@@ -226,6 +226,13 @@ body.awake-ground .awake-photo {
   object-fit: cover;
   opacity: 0;
   pointer-events: none;
+  /* The same clamp Mode 0 puts on .screensaver__photo (screensaver.css) — the
+     two modes are meant to read as one room, and the tint alone cannot carry
+     legibility over a blown-out frame: measured over a pure-white photo, the
+     top row read 1.17:1 and the hero 1.76:1 without it (3:1 is the bar for
+     text this size). brightness(0.62) holds a white sky to ~158 before the
+     tint lands, which is what makes the light tokens legible at all. */
+  filter: saturate(1.1) contrast(1.04) brightness(0.62);
   transition: opacity var(--t-settle, 60s) ease;
 }
 body.awake-ground .awake-photo.is-loaded { opacity: 1; }

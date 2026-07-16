@@ -58,11 +58,17 @@ test("awake ground on: photo layer created, aurora retired, readability gradient
   const photo = await page.evaluate(() => {
     const el = document.getElementById("awake-photo");
     const cs = getComputedStyle(el);
-    return { tag: el.tagName, objectFit: cs.objectFit, position: cs.position };
+    return { tag: el.tagName, objectFit: cs.objectFit, position: cs.position, filter: cs.filter };
   });
   expect(photo.tag).toBe("IMG");
   expect(photo.objectFit).toBe("cover");
   expect(photo.position).toBe("absolute");
+
+  // The brightness clamp Mode 0 already puts on .screensaver__photo. Without it
+  // a blown-out photo reaches the surface at full 255 and the light tokens go
+  // illegible — measured 1.17:1 on the top row, 1.76:1 on the hero, against a
+  // 3:1 bar. Not cosmetic: the tint/text-shadow alone cannot recover it.
+  expect(photo.filter).toContain("brightness(0.62)");
 
   // The animated aurora HUD + time tint are retired.
   expect(await disp(page, "#aurora-sky")).toBe("none");
