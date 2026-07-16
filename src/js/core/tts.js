@@ -85,8 +85,9 @@ export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0 } = {
       });
     });
   } catch (err) {
-    console.error("[TEMP-DEBUG] speak() caught error, falling back to browser TTS:", err?.name, err?.message); // TEMP DEBUG
-    // Non-fatal — fall back to robotic browser TTS rather than going silent
+    // Non-fatal — fall back to robotic browser TTS rather than going silent.
+    // Kept at warn level so a primary-TTS (Kokoro) outage is still visible.
+    console.warn("[TTS] Kokoro unavailable, using browser fallback:", err?.message);
     return speakWithBrowserTts(text, { rate, pitch, volume });
   }
 }

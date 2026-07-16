@@ -24,7 +24,8 @@ export default defineConfig({
       ...process.env,
       PORT: String(TEST_PORT),
       ANTHROPIC_API_KEY: "",
-      OLLAMA_URL: "http://127.0.0.1:1"
+      OLLAMA_URL: "http://127.0.0.1:1",
+      KOKORO_URL: "http://127.0.0.1:1"
     }
   }
 });

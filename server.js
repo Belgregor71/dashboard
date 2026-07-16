@@ -12,6 +12,7 @@ import { readHaConfig } from "./server/ha/haConfig.js";
 import { getHaWsManager } from "./server/ha/haWs.js";
 import { startHealthService } from "./server/services/healthService.js";
 import { startRecoveryService } from "./server/services/recoveryService.js";
+import { startTtsWarmer } from "./server/services/ttsWarmer.js";
 import { normalizeBaseUrl } from "./server/config.js";
 import arrRoutes from "./server/routes/arr.js";
 import { createHaRouter } from "./server/ha/haRoutes.js";
@@ -176,4 +177,7 @@ function attachHaProxy(appInstance) {
 
 app.listen(PORT, () => {
   console.log(`Dashboard listening on http://localhost:${PORT}`);
+  // Pre-warm the doorbell/side-gate TTS cache in the background so real rings
+  // play instantly instead of waiting on cold Kokoro synthesis.
+  startTtsWarmer();
 });

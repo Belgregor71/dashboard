@@ -36,42 +36,45 @@ function cachePathFor(text, speed) {
   return path.join(CACHE_DIR, `${key}.wav`);
 }
 
-router.post("/api/tts/speak", async (req, res) => {
+// Return a WAV buffer for text/speed — from the disk cache if present, else
+// synthesized via Kokoro and cached. Throws if Kokoro is unreachable/errors.
+// Shared by the /speak route and the boot-time cache warmer (ttsWarmer.js).
+export async function getOrSynthesizeTts(text, speed) {
+  const cachePath = cachePathFor(text, speed);
+  if (existsSync(cachePath)) {
+    return { buffer: readFileSync(cachePath), cached: true };
+  }
+
   const kokoroUrl = process.env.KOKORO_URL ?? "http://localhost:8880";
   const voice = process.env.KOKORO_VOICE ?? "bf_emma";
+  const upstream = await fetchWithTimeout(`${kokoroUrl}/v1/audio/speech`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "kokoro",
+      input: text,
+      voice,
+      response_format: "wav",
+      speed
+    })
+  }, 30_000);
+
+  if (!upstream.ok) throw new Error(`Kokoro HTTP ${upstream.status}`);
+  const buffer = Buffer.from(await upstream.arrayBuffer());
+  mkdirSync(CACHE_DIR, { recursive: true });
+  writeFileSync(cachePath, buffer);
+  return { buffer, cached: false };
+}
+
+router.post("/api/tts/speak", async (req, res) => {
   const { text, rate } = req.body ?? {};
   if (!text) { res.status(400).json({ error: "text is required" }); return; }
 
   const speed = Number.isFinite(rate) && rate > 0 ? rate : 1.0;
-  const cachePath = cachePathFor(text, speed);
-
-  if (existsSync(cachePath)) {
-    res.set("Content-Type", "audio/wav");
-    res.set("Cache-Control", "no-store");
-    res.send(readFileSync(cachePath));
-    return;
-  }
 
   try {
-    const upstream = await fetchWithTimeout(`${kokoroUrl}/v1/audio/speech`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "kokoro",
-        input: text,
-        voice,
-        response_format: "wav",
-        speed
-      })
-    }, 30_000);
-
-    if (!upstream.ok) throw new Error(`Kokoro HTTP ${upstream.status}`);
-    reportSuccess("tts");
-    const buffer = Buffer.from(await upstream.arrayBuffer());
-
-    mkdirSync(CACHE_DIR, { recursive: true });
-    writeFileSync(cachePath, buffer);
-
+    const { buffer, cached } = await getOrSynthesizeTts(text, speed);
+    if (!cached) reportSuccess("tts");
     res.set("Content-Type", "audio/wav");
     res.set("Cache-Control", "no-store");
     res.send(buffer);
