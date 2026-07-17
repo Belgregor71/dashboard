@@ -96,7 +96,7 @@ independently deployable and reversible via feature flag.
 1. **Name the engine** — presence FSM + context store orchestrating today's views; kill the click-cycle; behind a flag. No new surfaces. _(shipped — `phase-1-presence-runtime.md`)_
 2. **One hero, one queue** — generalise `insightRules` into the attention engine; retire per-widget show/hide; add dwell → lean-in reveal. _(shipped — `phase-2-attention-engine.md`)_
 3. **Anticipate** — predictive candidates (leave-by shipped, rain-incoming, bin night, package expected, garage-left-open); tasteful memory surfacing; dissolve first legacy views. _(shipped — `phase-3-anticipate.md`)_
-4. **Give it a voice** — add the mic; wake behaviour, conversational Mode 3 over Assist + Claude; graceful recede. _(**deferred — no mic on the Pi**; the engine's `MODE.VOICE` seam is reserved so it drops in later untouched)_
+4. **Give it a voice** — add the mic; wake behaviour, conversational Mode 3 over Assist + Claude; graceful recede. _(**infrastructure shipped flag-off 2026-07-17** — the full text loop (session FSM, MODE.VOICE, local → Assist → Claude lanes, linger/recede) is built and hardware-free-testable via `__voiceTranscript`; only the mic + wake word remain. See `phase-4-voice.md`)_
 5. **Make it feel alive** — ambient atmospherics at the edge of perception; retire the last legacy view + the dual CSS tree; every effect GPU-budgeted and proven on the Pi. _(shipped & enabled — `phase-5-atmospherics.md`)_
 
 _Order note (2026-07-11): Phase 4 is hardware-blocked, so Phase 5 is taken first. The two are independent — Phase 4 is Mode 3 (voice), Phase 5 is Mode 0 (ambient) — so reordering costs nothing._

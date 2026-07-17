@@ -396,6 +396,48 @@ test.describe("ai + tts", () => {
     expect(body).toHaveProperty("summary");
   });
 
+  // Phase 4 voice lanes (docs/vision/phase-4-voice.md). Assist proxies text to
+  // HA's conversation API (502 when HA is down/misconfigured); converse is the
+  // Claude house-voice (502 with reply:null when both AI upstreams are out,
+  // which is the stubbed test environment). Text-only — no audio endpoints.
+  test("POST /api/voice/assist without text is a JSON 400", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/voice/assist", {
+      method: "post",
+      data: {},
+      statuses: [400]
+    });
+    expect(body).toHaveProperty("error");
+  });
+
+  test("POST /api/voice/assist answers the lane contract", async ({ request }) => {
+    const { status, body } = await expectJson(request, "/api/voice/assist", {
+      method: "post",
+      data: { text: "hello" },
+      statuses: [200, 502]
+    });
+    expect(typeof body.handled).toBe("boolean");
+    expect(body).toHaveProperty("speech");
+    if (status === 502) expect(body.handled).toBe(false);
+  });
+
+  test("POST /api/voice/converse without text is a JSON 400", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/voice/converse", {
+      method: "post",
+      data: {},
+      statuses: [400]
+    });
+    expect(body).toHaveProperty("error");
+  });
+
+  test("POST /api/voice/converse answers with a reply key (AI stubbed off)", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/voice/converse", {
+      method: "post",
+      data: { text: "hello there", history: [] },
+      statuses: [200, 502]
+    });
+    expect(body).toHaveProperty("reply");
+  });
+
   // The frontend calls /api/ai/route from events.js (voice command routing)
   // and systemStatus.js (explain status), but the server never defined it —
   // both callers silently degrade on the 404 today. Un-fixme this test when

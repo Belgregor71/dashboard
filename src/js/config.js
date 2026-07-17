@@ -375,7 +375,23 @@ window.CONFIG = {
     // be69ebe → default-on) to fold the pill on the Pi; verify at the kiosk that a
     // recent trigger rides the stack (📹 name · last triggered) and decays, and the
     // standalone pill is display:none. One-line revert (-> false).
-    cameraCandidate: true
+    cameraCandidate: true,
+
+    // Phase 4 "Give it a voice" (docs/vision/phase-4-voice.md) — the Mode 3
+    // conversation infrastructure, built AHEAD of the hardware (no mic on the
+    // Pi yet). An explicit wake (Space-bar Web Speech today; the wake-word
+    // pipeline when the mic lands; __voiceTranscript over CDP) opens a voice
+    // session: presence enters MODE.VOICE (the attention gate stands down),
+    // the transcript walks three lanes — local commands → HA Assist device
+    // control (/api/voice/assist) → Claude house-voice (/api/voice/converse,
+    // Haiku primary / Ollama fallback) — the reply is spoken, the session
+    // lingers ~8s for a follow-up, then recedes to GLANCE. GUARDRAIL: text
+    // goes upstream only on explicit wake — there is no passive audio path.
+    // Default OFF → byte-identical (voiceCommands keeps today's local-only
+    // matching; unknown commands still dead-end at "Didn't catch that.").
+    // Flip ON when the mic lands — or to drive it hardware-free via
+    // __voiceTranscript("...") / __voiceSession(). One-line revert (-> false).
+    voiceSession: false
   },
 
   /* --------------------------------------------------------------

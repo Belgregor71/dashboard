@@ -13,6 +13,7 @@ import { initMemoryRuntime } from "./memoryRuntime.js";
 import { initPersonalityRuntime } from "./personalityRuntime.js";
 import { registerLifecycle } from "./lifecycle.js";
 import { initVoiceOverlay } from "./voiceOverlay.js";
+import { initVoiceSession } from "./voiceSession.js";
 import { initVoiceCommands } from "./voiceCommands.js";
 import { initMotionTrigger } from "./motionTrigger.js";
 
@@ -111,6 +112,10 @@ export function startApp() {
   initPersonalityRuntime({ enabled: isEnabled("personality", false) });
   registerLifecycle();
   initVoiceOverlay();
+  // Phase 4 — the Mode 3 voice session (docs/vision/phase-4-voice.md). Off by
+  // default until the mic lands; must init before initVoiceCommands so the
+  // local lane registration finds it armed.
+  initVoiceSession({ enabled: isEnabled("voiceSession", false) });
   initVoiceCommands();
   initMotionTrigger();
 

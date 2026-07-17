@@ -8,7 +8,7 @@ const router = express.Router();
 // a fallback so briefings degrade gracefully if the API (or the internet)
 // is unavailable. The example lines anchor the house voice on both models.
 // The register (docs/design/VOICE.md) in miniature — quoted by every prompt.
-const VOICE_REGISTER =
+export const VOICE_REGISTER =
   "Your voice: calm, brief, plainly Australian — the natural word (bins, arvo, tradie), never forced slang like 'mate' or 'ya'. " +
   "One dry observation at most, and only if the moment earns it — no sarcasm, no punchlines, no nagging, no scolding, no apologising, no exclamation marks, no chatbot cheer.";
 

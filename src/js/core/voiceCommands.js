@@ -1,5 +1,10 @@
 import { switchView, getCurrentView } from "./viewManager.js";
 import { setVoiceState } from "./voiceOverlay.js";
+import {
+  isVoiceSessionEnabled,
+  submitTranscripts,
+  registerLocalLane
+} from "./voiceSession.js";
 import { speak } from "./tts.js";
 import { resetIdleTimer } from "../modules/screensaver.js";
 import { triggerGoodnight } from "../modules/goodnightRoutine.js";
@@ -207,6 +212,49 @@ function matchNav(text) {
   return null;
 }
 
+// --- Transcript dispatch ---
+// The local command lanes (actions → questions → navigation) over a list of
+// recogniser alternatives. Handled turns set their own overlay state + TTS.
+// Exported as Phase 4's "local lane": the voice session tries this first,
+// then falls through to Assist/Claude (docs/vision/phase-4-voice.md).
+
+export async function dispatchTranscripts(transcripts) {
+  // Actions: routines that handle their own TTS internally
+  for (const text of transcripts) {
+    const action = matchAction(text);
+    if (action) {
+      setVoiceState("processing", action.overlay);
+      await action.handler();
+      setVoiceState("success", action.overlay);
+      return { handled: true };
+    }
+  }
+
+  // Questions: fetch data and speak the answer
+  for (const text of transcripts) {
+    const question = matchQuestion(text);
+    if (question) {
+      setVoiceState("processing", question.overlay);
+      const response = await question.handler();
+      setVoiceState("success", question.overlay);
+      speak(response);
+      return { handled: true };
+    }
+  }
+
+  for (const text of transcripts) {
+    const view = matchNav(text);
+    if (view) {
+      switchView(view, { force: true }); // voice nav — past the Phase 7 gate
+      setVoiceState("success", VIEW_LABELS[view]);
+      speak(VIEW_PHRASES[view]);
+      return { handled: true };
+    }
+  }
+
+  return { handled: false };
+}
+
 // --- Recognition lifecycle ---
 
 let recognition = null;
@@ -235,6 +283,9 @@ export function startListening() {
 }
 
 export function initVoiceCommands() {
+  // Phase 4: hand the session our local lanes (no-op while the flag is off).
+  registerLocalLane(dispatchTranscripts);
+
   const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRec) {
     console.info("Voice commands unavailable — SpeechRecognition not supported");
@@ -259,43 +310,20 @@ export function initVoiceCommands() {
       result[i].transcript.toLowerCase()
     );
 
+    // Phase 4: with the session enabled, it owns the turn — the local lanes
+    // run first inside it, then unmatched text falls through to Assist/Claude
+    // instead of dead-ending here.
+    if (isVoiceSessionEnabled()) {
+      await submitTranscripts(transcripts, { source: "webspeech" });
+      return;
+    }
+
     // Priority: actions → questions → navigation
-
-    // Actions: routines that handle their own TTS internally
-    for (const text of transcripts) {
-      const action = matchAction(text);
-      if (action) {
-        setVoiceState("processing", action.overlay);
-        await action.handler();
-        setVoiceState("success", action.overlay);
-        return;
-      }
+    const { handled } = await dispatchTranscripts(transcripts);
+    if (!handled) {
+      setVoiceState("error", "Unknown command");
+      speak("Didn't catch that.");
     }
-
-    // Questions: fetch data and speak the answer
-    for (const text of transcripts) {
-      const question = matchQuestion(text);
-      if (question) {
-        setVoiceState("processing", question.overlay);
-        const response = await question.handler();
-        setVoiceState("success", question.overlay);
-        speak(response);
-        return;
-      }
-    }
-
-    for (const text of transcripts) {
-      const view = matchNav(text);
-      if (view) {
-        switchView(view, { force: true }); // voice nav — past the Phase 7 gate
-        setVoiceState("success", VIEW_LABELS[view]);
-        speak(VIEW_PHRASES[view]);
-        return;
-      }
-    }
-
-    setVoiceState("error", "Unknown command");
-    speak("Didn't catch that.");
   };
 
   recognition.onerror = (event) => {
