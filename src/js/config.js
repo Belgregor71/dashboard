@@ -379,9 +379,9 @@ window.CONFIG = {
 
     // Phase 4 "Give it a voice" (docs/vision/phase-4-voice.md) — the Mode 3
     // conversation infrastructure, built AHEAD of the hardware (no mic on the
-    // Pi yet). An explicit wake (Space-bar Web Speech today; the wake-word
-    // pipeline when the mic lands; __voiceTranscript over CDP) opens a voice
-    // session: presence enters MODE.VOICE (the attention gate stands down),
+    // Pi yet). An explicit wake (the wake-word pipeline once the mic lands;
+    // until then __voiceTranscript over CDP, or Space-bar Web Speech on a DEV
+    // MACHINE only — the kiosk has no keyboard/mic) opens a voice session: presence enters MODE.VOICE (the attention gate stands down),
     // the transcript walks three lanes — local commands → HA Assist device
     // control (/api/voice/assist) → Claude house-voice (/api/voice/converse,
     // Haiku primary / Ollama fallback) — the reply is spoken, the session

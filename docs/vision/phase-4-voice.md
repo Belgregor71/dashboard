@@ -51,13 +51,25 @@ explicit wake ──► submitTranscripts(text)          src/js/core/voiceSessio
 
 ## Wake sources (who may call `submitTranscripts`)
 
-1. **Space-bar push-to-talk + Web Speech** — today's `voiceCommands.js` recogniser.
-   With the flag on, its transcripts route into the session instead of dead-ending
-   at "Didn't catch that."
-2. **`__voiceTranscript("...")` over CDP** — the hardware-free driver used by the
+**On the Pi kiosk, today, there is no user-facing wake — that is precisely the
+hardware block.** The kiosk has no keyboard and no microphone; nothing on the wall
+can open a session yet. The wake word IS the future "button": saying it will be the
+Pi's only wake action. Until then, the callers are:
+
+1. **`__voiceTranscript("...")` over CDP** — the hardware-free driver used by the
    Playwright spec (`tests/voice-session.spec.js`) and by Pi-side verification.
-   `__voiceSession()` probes {enabled, active, phase, turns, mode}.
-3. **The microphone, when it lands** — see below. It becomes just another caller.
+   `__voiceSession()` probes {enabled, active, phase, turns, mode}. Not a user surface.
+2. **Space-bar push-to-talk + Web Speech — DEV MACHINE ONLY.** Today's
+   `voiceCommands.js` recogniser needs a keyboard and a mic, which only a dev
+   laptop has. It exists so the whole loop can be exercised by a human before the
+   hardware lands; it is not, and never was, the Pi's wake path.
+3. **The wake word, when the mic lands** — see below. It becomes just another caller.
+4. **(Interim candidate, zero new hardware): the phones.** The HA companion app
+   already carries Assist — the phone's mic becomes the wake surface, HA does the
+   STT, and the transcript is forwarded to the kiosk (HA event → the dashboard's
+   existing websocket lane → `submitTranscripts`). The wall answers in the house
+   voice even though the mic was in a pocket. Not built yet — a candidate bridge
+   if voice should be usable before the mic hardware is chosen.
 
 ## When the hardware arrives (the seam)
 
