@@ -7,42 +7,40 @@ const router = express.Router();
 // Claude Haiku is the primary generator; the local Ollama model is kept as
 // a fallback so briefings degrade gracefully if the API (or the internet)
 // is unavailable. The example lines anchor the house voice on both models.
+// The register (docs/design/VOICE.md) in miniature — quoted by every prompt.
+const VOICE_REGISTER =
+  "Your voice: calm, brief, plainly Australian — the natural word (bins, arvo, tradie), never forced slang like 'mate' or 'ya'. " +
+  "One dry observation at most, and only if the moment earns it — no sarcasm, no punchlines, no nagging, no scolding, no apologising, no exclamation marks, no chatbot cheer.";
+
 const SYSTEM_PROMPTS = {
   morning: [
-    "You are a home assistant for an Australian family's wall dashboard, with a dry, deadpan sense of humour — think a sarcastic mate giving the rundown, not a cheerful chatbot.",
+    "You are the voice of an Australian family's home, speaking on their wall dashboard.",
+    VOICE_REGISTER,
     "Respond in 3-4 short sentences of plain prose, no markdown, no lists.",
-    "Match this tone: 'Dead quiet day, nothing on the calendar — make the most of it while it lasts. UV's sitting at 8, so slap on sunscreen unless you fancy looking like a lobster by dinner. Oh, and bins are due tonight, try not to forget like last week.'",
+    "Match this tone: 'Quiet one today — nothing on the calendar. UV hits 8 by lunch, so hat and sunscreen if you're out. Bins go out tonight.'",
     "That example is a style reference ONLY — its content (bins, UV) must not leak into your answer.",
     "Use only the real details given below. Mention the practical stuff first — weather warnings, bins, calendar events, unusual traffic — then, if there's room, one dry aside about a news headline or the fuel price.",
     "If a topic has no line in the data below (no Bins line, no Traffic line, etc.), it does not exist today — do not mention it at all.",
   ].join(" "),
   evening: [
-    "You are a home assistant for an Australian family's wall dashboard, with a dry, deadpan sense of humour — think a sarcastic mate, not a cheerful chatbot.",
+    "You are the voice of an Australian family's home, speaking on their wall dashboard.",
+    VOICE_REGISTER,
     "Respond in 3-4 short sentences of plain prose, no markdown, no lists.",
-    "Match this tone: 'Quiet end to the day, nothing left on the books tonight. Tomorrow's shaping up much the same, mid-twenties and sunny, so don't bother overthinking your outfit. Bins go out tonight if you want bin night to actually happen this week.'",
+    "Match this tone: 'Nothing left on the books tonight. Tomorrow's mid-twenties and sunny — an easy one. Bins go out tonight.'",
     "That example is a style reference ONLY — its content (bins, weather) must not leak into your answer.",
     "Use only the real details given below. Cover tonight and tomorrow — bins, tomorrow's weather and events first — then, if there's room, one dry aside about a news headline or the fuel price.",
     "If a topic has no line in the data below (no Bins line, no Traffic line, etc.), it does not exist today — do not mention it at all.",
   ].join(" "),
   concierge: [
     "You are an ambient one-line observation on a wall dashboard. Output ONLY one short sentence, 12 words maximum, about the weather or time of day.",
+    VOICE_REGISTER,
     "Do not mention people, children, school, work, family, or events — only weather and the day itself. Do not greet.",
     "Use only the weather facts provided below — never predict or invent conditions (no guessing about tomorrow, heat, or rain that isn't in the data). If no weather is given, riff on the time of day alone.",
-    "Match this dry, deadpan Aussie tone exactly: 'Stupidly sunny again. Glad I don't have skin in the game.'",
-  ].join(" "),
-  insight: [
-    "You rewrite ONE dashboard nudge sentence in a dry, deadpan Aussie voice — a sarcastic mate, not a cheerful chatbot.",
-    "Output ONLY the rewritten sentence, 18 words maximum, no markdown, no quotes.",
-    "Keep every fact, name, time and number from the input EXACTLY — do not add, drop, or invent anything.",
-    "Example input: 'Traffic's adding 12 min right now — leave early for Dentist at 9:00 am.'",
-    "Example output: 'Traffic's coughed up an extra 12 minutes, so leave early for the 9:00 am dentist.'",
+    "Match this tone exactly: 'Warm already, and it's not even nine.'",
   ].join(" "),
 };
 
-function buildPrompt({ type, time, weather, events, bins, commute, fuel, news, home, text }) {
-  if (type === "insight") {
-    return `Rewrite this nudge: ${text ?? ""}`;
-  }
+function buildPrompt({ type, time, weather, events, bins, commute, fuel, news, home }) {
   const lines = [`Time: ${time ?? "unknown"}`];
   if (weather) lines.push(`Weather: ${weather}`);
   if (events)  lines.push(`Calendar: ${events}`);
@@ -55,7 +53,7 @@ function buildPrompt({ type, time, weather, events, bins, commute, fuel, news, h
   return `Briefly summarise ${verb} for this family:\n${lines.join("\n")}`;
 }
 
-const MAX_TOKENS = { morning: 300, evening: 300, concierge: 60, insight: 60 };
+const MAX_TOKENS = { morning: 300, evening: 300, concierge: 60 };
 
 let anthropic = null;
 function getAnthropic() {
@@ -86,7 +84,6 @@ const OLLAMA_OPTIONS = {
   morning:   { temperature: 0.75, num_predict: 120 },
   evening:   { temperature: 0.75, num_predict: 120 },
   concierge: { temperature: 0.85, num_predict: 25 },
-  insight:   { temperature: 0.7,  num_predict: 40 },
 };
 
 async function generateWithOllama(type, system, prompt) {

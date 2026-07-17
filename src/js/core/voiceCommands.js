@@ -110,12 +110,12 @@ function answerNextEvent() {
 
 async function answerBriefing() {
   switchView("briefing", { force: true }); // voice request — past the Phase 7 gate
-  await speak("Generating your briefing, one moment.");
+  await speak("One moment.");
   try {
     const summary = await generateBriefing();
-    return summary ?? "I couldn't generate a briefing right now.";
+    return summary ?? "The briefing isn't available right now.";
   } catch {
-    return "I couldn't reach the AI server right now.";
+    return "The briefing isn't available right now.";
   }
 }
 
@@ -295,7 +295,7 @@ export function initVoiceCommands() {
     }
 
     setVoiceState("error", "Unknown command");
-    speak("Sorry, I didn't catch that.");
+    speak("Didn't catch that.");
   };
 
   recognition.onerror = (event) => {

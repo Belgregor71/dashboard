@@ -89,7 +89,7 @@ async function getRemainingTodayEvents() {
 // ── Speech ────────────────────────────────────────────────────
 
 function buildSpeech(name, others, events) {
-  let msg = `Welcome home, ${name}!`;
+  let msg = `Welcome home, ${name}.`;
 
   if (events.length === 1) {
     const e = events[0];
@@ -170,8 +170,8 @@ function showCard(name, others, events) {
   // Phase 10: the welcome headline speaks in the house's one voice (flag-off →
   // the literal string, byte-identical).
   let welcome = personalityEnabled()
-    ? phrase(getContext().intent, "arrival", { text: `Welcome home, ${name}!` })
-    : `Welcome home, ${name}!`;
+    ? phrase(getContext().intent, "arrival", { text: `Welcome home, ${name}.` })
+    : `Welcome home, ${name}.`;
   // Spec reshape: the name renders in --warm/600 (the handoff's sanctioned
   // exception). phrase() may reword the line, so wrap the name only if it
   // survived — a rewrite without it just renders plain.

@@ -41,18 +41,20 @@ function nthWeekday(year, month, nth, weekday) {
   return 1 + offset + (nth - 1) * 7;
 }
 
-// Warm, short lines in the house register — celebrate() speaks them through
-// `phrase`, and uses the title as the card caption.
+// Warm, short lines in the house register (docs/design/VOICE.md) — one
+// observed beat per occasion where something true improves the greeting;
+// solemn days (ANZAC) and the biggest days (Christmas) stay plain.
+// celebrate() speaks them through `phrase`, and uses the title as the caption.
 const OCCASIONS = {
-  newyear:        { icon: "🥂", title: "New Year",          line: "Happy New Year." },
+  newyear:        { icon: "🥂", title: "New Year",          line: "Happy New Year — clean slate." },
   valentine:      { icon: "💝", title: "Valentine's Day",   line: "Happy Valentine's Day." },
   goodfriday:     { icon: "🌺", title: "Good Friday",       line: "Good Friday — the long weekend's here." },
-  eastersaturday: { icon: "🥚", title: "Easter Saturday",   line: "Easter Saturday." },
-  easter:         { icon: "🐣", title: "Easter",            line: "Happy Easter." },
+  eastersaturday: { icon: "🥚", title: "Easter Saturday",   line: "Easter Saturday — the quiet middle of the long weekend." },
+  easter:         { icon: "🐣", title: "Easter",            line: "Happy Easter — the eggs won't find themselves." },
   anzac:          { icon: "🌺", title: "ANZAC Day",         line: "ANZAC Day — lest we forget." },
-  mothers:        { icon: "💐", title: "Mother's Day",      line: "Happy Mother's Day." },
-  fathers:        { icon: "🏆", title: "Father's Day",      line: "Happy Father's Day." },
-  halloween:      { icon: "🎃", title: "Halloween",         line: "Happy Halloween." },
+  mothers:        { icon: "💐", title: "Mother's Day",      line: "Happy Mother's Day — breakfast is someone else's job today." },
+  fathers:        { icon: "🏆", title: "Father's Day",      line: "Happy Father's Day — go on, make a fuss." },
+  halloween:      { icon: "🎃", title: "Halloween",         line: "Halloween tonight — expect small visitors." },
   newyeareve:     { icon: "🎆", title: "New Year's Eve",    line: "Last night of the year." },
   christmas:      { icon: "🎄", title: "Christmas",         line: "Merry Christmas." }
 };

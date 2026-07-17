@@ -87,7 +87,7 @@ export const DELIGHT_TRIGGERS = [
     budget: (_ctx, now) => `xmas:${year(now)}`,
     occasion: () => ({
       id: "christmas-eve", icon: "🎄", title: "Christmas Eve",
-      line: "It's Christmas Eve."
+      line: "Christmas Eve — nearly there."
     })
   },
   {

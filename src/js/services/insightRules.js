@@ -60,7 +60,7 @@ export function binWeatherClash(ctx, now) {
     id: `bin-weather:${dateKey(now)}`,
     icon: "🗑️",
     score: 60,
-    text: `Bins out tonight${colours ? ` (${colours})` : ""} and rain's on the way — get them out before it hits.`,
+    text: `Bins out tonight${colours ? ` (${colours})` : ""} — rain's coming, worth beating it.`,
     cooldownMs: 12 * 60 * 60 * 1000
   };
 }
@@ -86,7 +86,7 @@ export function fuelCycleLow(ctx, now, { fuelHistory = {} } = {}) {
     id: `fuel-low:${dateKey(now)}`,
     icon: "⛽",
     score: 55,
-    text: `Unleaded's ${price}c at ${ctx.fuel.name} — that's the bottom of the price cycle.`,
+    text: `Unleaded's ${price}c at ${ctx.fuel.name} — bottom of the cycle.`,
     cooldownMs: 48 * 60 * 60 * 1000
   };
 }

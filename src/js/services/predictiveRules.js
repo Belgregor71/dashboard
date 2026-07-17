@@ -58,8 +58,8 @@ export function rainIncoming(ctx, now) {
 
   const binsOut = Boolean(ctx.bins?.eve || ctx.bins?.due);
   const text = binsOut
-    ? `Rain likely in about ${rounded} min (${prob}%) — bins are still out.`
-    : `Rain likely in about ${rounded} min — ${prob}% chance.`;
+    ? `Rain in about ${rounded} min (${prob}%) — bins are still out.`
+    : `Rain in about ${rounded} min — ${prob}% chance.`;
 
   return {
     id: `rain-incoming:${quarterKey(startAt)}`,
