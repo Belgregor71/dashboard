@@ -40,13 +40,20 @@ test("dashboard boots with no uncaught exceptions and core panels render", async
   // Let startup work settle (weather fetch, lottie load, HA connect attempt).
   await page.waitForTimeout(5_000);
 
-  // Living-window flags ship off: no effect nodes, no body class (byte-identity).
+  // Living-window byte-identity contract: the fx nodes and body class exist
+  // iff a weatherFx* flag is on — flag-off must leave zero DOM footprint, and
+  // the canvas rests hidden between episodes either way.
   const atmoFx = await page.evaluate(() => ({
+    on: Boolean(window.CONFIG?.features?.weatherFxRain || window.CONFIG?.features?.weatherFxLightning),
     canvas: Boolean(document.getElementById("atmo-fx-canvas")),
     veil: Boolean(document.getElementById("atmo-fx-veil")),
-    bodyClass: document.body.classList.contains("weather-fx")
+    bodyClass: document.body.classList.contains("weather-fx"),
+    canvasResting: document.getElementById("atmo-fx-canvas")?.style.display ?? "none"
   }));
-  expect(atmoFx).toEqual({ canvas: false, veil: false, bodyClass: false });
+  expect(atmoFx.canvas).toBe(atmoFx.on);
+  expect(atmoFx.veil).toBe(atmoFx.on);
+  expect(atmoFx.bodyClass).toBe(atmoFx.on);
+  expect(atmoFx.canvasResting).toBe("none");
 
   expect(pageErrors, `uncaught page errors:\n${pageErrors.join("\n")}`).toHaveLength(0);
 });
