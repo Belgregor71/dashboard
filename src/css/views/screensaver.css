@@ -373,7 +373,11 @@ body.living-accent .screensaver--ambient-clock .screensaver__dateline {
   font-weight: 600;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: rgba(238, 243, 251, 0.42);
+  /* 0.50 not 0.42 — legibility sweep 2026-07-18: over a worst-case white photo
+     the 0.42 eyebrow measured 2.92:1 (baseline) / 2.97:1 (atmo-fog) against the
+     3:1 bar. 0.50 clears every token with margin (~3.3:1 worst) while staying
+     the quiet element of the pair. */
+  color: rgba(238, 243, 251, 0.50);
 }
 
 .screensaver__memory-eyebrow .ic {

@@ -61,6 +61,13 @@ test("memory whisper on: eyebrow + title surface bottom-right for today's annive
   const footer = await page.evaluate(() => document.querySelector("#screensaver .screensaver__footer")?.textContent ?? "");
   expect(footer).not.toContain("Mum & Dad");
 
+  // Legibility guardrail (sweep 2026-07-18): at 0.42 the eyebrow measured 2.92:1
+  // over a worst-case white photo against the 3:1 bar; 0.50 clears every atmo-*
+  // token (3.48:1 worst). Pin the fixed ink so a restyle can't quietly regress it.
+  const eyebrowColor = await page.evaluate(() =>
+    getComputedStyle(document.querySelector("#screensaver .screensaver__memory-eyebrow")).color);
+  expect(eyebrowColor).toBe("rgba(238, 243, 251, 0.5)");
+
   expect(pageErrors, `uncaught page errors:\n${pageErrors.join("\n")}`).toHaveLength(0);
 });
 
