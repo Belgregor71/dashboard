@@ -4,6 +4,15 @@
   box-sizing: border-box;
 }
 
+/* Kiosk display has no pointer device — hide the cursor entirely.
+   labwc/Wayland has no unclutter, but Chromium is the only fullscreen
+   surface, so cursor:none over the page hides it everywhere. !important
+   beats the cursor:pointer hover rules on clickable elements (nobody
+   clicks — those cues are for a mouse that isn't here). */
+*, *::before, *::after {
+  cursor: none !important;
+}
+
 body {
   font-family: var(--font-body);
   color: var(--ink);
