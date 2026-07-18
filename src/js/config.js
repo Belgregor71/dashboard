@@ -429,17 +429,17 @@ window.CONFIG = {
     // body.sky-ramp.substrate::before color-mixes up to 22% warm into the
     // substrate tint, so golden hour arrives gradually instead of on the
     // mapper's hour-band edge (which stays as the flag-off fallback).
-    // One-line revert (-> false).
-    skyRamp: false,
+    // Shipped OFF 7023304 → flipped ON 2026-07-18. One-line revert (-> false).
+    skyRamp: true,
 
     // Living-window Phase 3 — clear-night sky. The atmosphere mapper names
     // clear nights atmo-night-clear (opt-in via nightClear, so flag-off keeps
     // atmo-night) and the atmoFx canvas holds a static painted starfield
     // between episodes — a static composited layer, GPU-free like the rain
     // hold. The planner adds a twinkle moment (2–4 stars, ~2.5s) every 3–6
-    // min, ambient-only. __forceAtmoEpisode("twinkle") to verify. One-line
-    // revert (-> false).
-    nightSky: false
+    // min, ambient-only. __forceAtmoEpisode("twinkle") to verify. Shipped OFF
+    // 7023304 → flipped ON 2026-07-18. One-line revert (-> false).
+    nightSky: true
   },
 
   /* --------------------------------------------------------------
