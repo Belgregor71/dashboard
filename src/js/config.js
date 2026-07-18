@@ -398,18 +398,19 @@ window.CONFIG = {
     // "moments" on a front canvas, then hides it: the GPU-0% ambient baseline
     // is structural (display:none between episodes), honouring the idle-freeze
     // law "moments, not loops". Budgets live in atmoFx/planner.js as exported
-    // constants with unit tests. Default OFF → initAtmoFx returns before any
-    // DOM: byte-identical. Verify via __forceAtmoEpisode("rain-moment") +
-    // /kiosk-metrics before flipping. One-line revert (-> false).
-    weatherFxRain: false,
+    // constants with unit tests. Shipped OFF 9c851e6 (byte-identical proof
+    // deploy) → flipped ON 2026-07-18; verify via __forceAtmoEpisode
+    // ("rain-moment"/"rain-heavy") + /kiosk-metrics (ambient must sit at GPU 0%
+    // between episodes). One-line revert (-> false).
+    weatherFxRain: true,
 
     // Living-window Phase 1 — storm lightning. One-shot CSS keyframes on a
     // screen-blend horizon veil (zero rAF; utils/atmo-fx.css), big strike then
     // 0–2 weaker flickers, randomized 40–160s apart while thunder is live.
     // Shares the atmoFx runtime with weatherFxRain; either flag alone inits it.
-    // Default OFF → byte-identical. __forceAtmoEpisode("lightning") to verify.
-    // One-line revert (-> false).
-    weatherFxLightning: false
+    // Shipped OFF 9c851e6 → flipped ON 2026-07-18. __forceAtmoEpisode
+    // ("lightning") to verify. One-line revert (-> false).
+    weatherFxLightning: true
   },
 
   /* --------------------------------------------------------------
