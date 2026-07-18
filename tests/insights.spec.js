@@ -29,7 +29,7 @@ import {
   onThisDay,
   evaluatePredictive
 } from "../src/js/services/predictiveRules.js";
-import { atmosphereFor, ATMOSPHERE_TOKENS } from "../src/js/services/atmosphere.js";
+import { atmosphereFor, ATMOSPHERE_TOKENS, skyWarmthFor, SKY_WARMTH_ALT_HIGH, SKY_WARMTH_ALT_LOW } from "../src/js/services/atmosphere.js";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 
@@ -571,6 +571,29 @@ test.describe("atmosphere mapper (Phase 5)", () => {
     expect(atmosphereFor({ condition: undefined, isNight: false, hour: 12 })).toBe("atmo-clear-day");
     expect(atmosphereFor({ condition: "snow", isNight: false, hour: 12 })).toBe("atmo-clear-day");
     expect(atmosphereFor({})).toBe("atmo-clear-day");
+  });
+
+  test("nightClear opt-in: clear nights earn the starfield token, others stay night", () => {
+    // Phase 3 nightSky — opt-in only, so flag-off callers keep atmo-night.
+    expect(atmosphereFor({ condition: "clear", isNight: true, nightClear: true })).toBe("atmo-night-clear");
+    expect(atmosphereFor({ condition: "cloudy", isNight: true, nightClear: true })).toBe("atmo-night");
+    expect(atmosphereFor({ condition: "rain", isNight: true, nightClear: true })).toBe("atmo-night");
+    expect(atmosphereFor({ condition: "clear", isNight: true })).toBe("atmo-night");
+    expect(atmosphereFor({ condition: "clear", isNight: true, nightClear: false })).toBe("atmo-night");
+  });
+
+  test("skyWarmthFor: peaks at the horizon, gone at high sun and deep night", () => {
+    expect(skyWarmthFor(0)).toBe(1);
+    expect(skyWarmthFor(SKY_WARMTH_ALT_HIGH)).toBe(0);
+    expect(skyWarmthFor(SKY_WARMTH_ALT_LOW)).toBe(0);
+    expect(skyWarmthFor(45)).toBe(0);
+    expect(skyWarmthFor(-30)).toBe(0);
+    // Monotonic on each side of the peak.
+    expect(skyWarmthFor(3)).toBeGreaterThan(skyWarmthFor(9));
+    expect(skyWarmthFor(-2)).toBeGreaterThan(skyWarmthFor(-5));
+    // Bounded and sane on garbage.
+    expect(skyWarmthFor(NaN)).toBe(0);
+    expect(skyWarmthFor(undefined)).toBe(0);
   });
 
   test("every emitted token is a declared token", () => {

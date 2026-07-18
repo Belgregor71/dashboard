@@ -421,7 +421,25 @@ window.CONFIG = {
     // body.fx-lightning-active from the Phase-1 strike path (box-shadow 150ms
     // in / 1s out — finite transitions, zero rAF). Shipped OFF 75c214c →
     // flipped ON 2026-07-18. One-line revert (-> false).
-    reactiveGlass: true
+    reactiveGlass: true,
+
+    // Living-window Phase 3 — sunrise/sunset sky ramp. syncNight steps
+    // --sky-warmth on <body> once a minute from the sun altitude (pure
+    // skyWarmthFor in atmosphere.js; the --clock-dim pattern, zero loops);
+    // body.sky-ramp.substrate::before color-mixes up to 22% warm into the
+    // substrate tint, so golden hour arrives gradually instead of on the
+    // mapper's hour-band edge (which stays as the flag-off fallback).
+    // One-line revert (-> false).
+    skyRamp: false,
+
+    // Living-window Phase 3 — clear-night sky. The atmosphere mapper names
+    // clear nights atmo-night-clear (opt-in via nightClear, so flag-off keeps
+    // atmo-night) and the atmoFx canvas holds a static painted starfield
+    // between episodes — a static composited layer, GPU-free like the rain
+    // hold. The planner adds a twinkle moment (2–4 stars, ~2.5s) every 3–6
+    // min, ambient-only. __forceAtmoEpisode("twinkle") to verify. One-line
+    // revert (-> false).
+    nightSky: false
   },
 
   /* --------------------------------------------------------------

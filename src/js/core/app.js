@@ -121,12 +121,18 @@ export function startApp() {
   // (layout/background.css); the runtime pulses the sheen on lightning strikes.
   const reactiveGlass = isEnabled("reactiveGlass", false);
   if (reactiveGlass) document.body.classList.add("reactive-glass");
-  if (weatherFxRain || weatherFxLightning) {
+  // Living-window Phase 3 — sunrise/sunset warmth on the substrate (CSS reads
+  // --sky-warmth, stepped by the screensaver's syncNight) + clear-night starfield.
+  const skyRamp = isEnabled("skyRamp", false);
+  if (skyRamp) document.body.classList.add("sky-ramp");
+  const nightSky = isEnabled("nightSky", false);
+  if (weatherFxRain || weatherFxLightning || nightSky) {
     document.body.classList.add("weather-fx");
     initAtmoFx({
       rainEnabled: weatherFxRain,
       lightningEnabled: weatherFxLightning,
-      glassEnabled: reactiveGlass
+      glassEnabled: reactiveGlass,
+      nightSkyEnabled: nightSky
     });
   }
   registerLifecycle();
@@ -233,7 +239,10 @@ export function startApp() {
     // Study 01 (WP4) — the tender ambient memory lane: wordless Mode-0 surface (docs/design/).
     ambientMemoryEnabled: isEnabled("ambientMemory", false),
     // Rollout WP-E — the captioned Mode-0 "on this day" memory whisper (docs/design/).
-    memoryWhisperEnabled: isEnabled("memoryWhisper", false)
+    memoryWhisperEnabled: isEnabled("memoryWhisper", false),
+    // Living Window Phase 3 — sun-altitude substrate warmth + clear-night token.
+    skyRampEnabled: isEnabled("skyRamp", false),
+    nightSkyEnabled: isEnabled("nightSky", false)
   });
   initFocusHero({
     attentionEnabled: isEnabled("attentionEngine", false),

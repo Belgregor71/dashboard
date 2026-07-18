@@ -3,7 +3,8 @@ import {
   planNextEpisode,
   BUDGETS,
   RAIN_GAP_MS,
-  LIGHTNING_GAP_MS
+  LIGHTNING_GAP_MS,
+  TWINKLE_GAP_MS
 } from "../src/js/services/atmoFx/planner.js";
 import {
   categoryForWeatherCode,
@@ -123,6 +124,35 @@ test.describe("atmoFx planner", () => {
         rng: mulberry32(3)
       });
       expect(ep.type).toBe(expected);
+    }
+  });
+
+  test("twinkle lane: only a clear ambient night plans a twinkle", () => {
+    const clear = { category: "clear", intensity: null, thunder: false };
+    const twinkle = planNextEpisode({ weather: clear, mode: "ambient", now: NOW, night: true, rng: mulberry32(5) });
+    expect(twinkle.type).toBe("twinkle");
+
+    // Not night → the pre-Phase-3 null (default arg keeps old callers intact).
+    expect(planNextEpisode({ weather: clear, mode: "ambient", now: NOW, rng: mulberry32(5) })).toBe(null);
+    // Awake → the field is a Mode-0 scene; no twinkles over the dashboard.
+    expect(planNextEpisode({ weather: clear, mode: "awake", now: NOW, night: true, rng: mulberry32(5) })).toBe(null);
+    // Clouded-over night → no stars to twinkle.
+    expect(
+      planNextEpisode({ weather: { category: "cloudy", intensity: null, thunder: false }, mode: "ambient", now: NOW, night: true, rng: mulberry32(5) })
+    ).toBe(null);
+  });
+
+  test("twinkle budget invariants hold across 200 seeds", () => {
+    const weather = { category: "clear", intensity: null, thunder: false };
+    for (let seed = 0; seed < 200; seed++) {
+      const ep = planNextEpisode({ weather, mode: "ambient", now: NOW, night: true, rng: mulberry32(seed) });
+      expect(ep.type).toBe("twinkle");
+      expect(ep.durationMs).toBeLessThanOrEqual(BUDGETS.twinkle.maxActiveMs);
+      expect(ep.params.count).toBeGreaterThanOrEqual(2);
+      expect(ep.params.count).toBeLessThanOrEqual(BUDGETS.twinkle.maxStars);
+      const gap = ep.startAt - NOW;
+      expect(gap).toBeGreaterThanOrEqual(TWINKLE_GAP_MS[0]);
+      expect(gap).toBeLessThanOrEqual(TWINKLE_GAP_MS[1]);
     }
   });
 

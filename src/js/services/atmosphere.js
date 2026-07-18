@@ -13,6 +13,7 @@
 // tint states in src/css/views/screensaver.css.
 export const ATMOSPHERE_TOKENS = [
   "atmo-night",
+  "atmo-night-clear",
   "atmo-clear-golden",
   "atmo-clear-day",
   "atmo-cloudy",
@@ -35,12 +36,18 @@ const GOLDEN_EVENING_FROM = 16;  // 4pm onward
  *   on the calm daytime tint.
  * @param {boolean} [input.isNight] sunset→sunrise (screensaver's suncalc view).
  * @param {number} [input.hour] local hour 0–23, for the golden-hour warmth.
+ * @param {boolean} [input.nightClear] Phase 3 nightSky opt-in: a clear night
+ *   names atmo-night-clear (the starfield's resting state) instead of the
+ *   generic night token. Default false → the pre-Phase-3 mapping, so the flag
+ *   off is byte-identical.
  * @returns {string} a token from ATMOSPHERE_TOKENS.
  */
-export function atmosphereFor({ condition, isNight, hour } = {}) {
+export function atmosphereFor({ condition, isNight, hour, nightClear } = {}) {
   // Night owns the scene — the dim clock (screensaver--night) already governs
   // the wash; atmosphere just names the state so it composes cleanly.
-  if (isNight) return "atmo-night";
+  if (isNight) {
+    return nightClear === true && condition === "clear" ? "atmo-night-clear" : "atmo-night";
+  }
 
   switch (condition) {
     case "rain":
@@ -59,4 +66,25 @@ export function atmosphereFor({ condition, isNight, hour } = {}) {
       return golden ? "atmo-clear-golden" : "atmo-clear-day";
     }
   }
+}
+
+// ── Sky-warmth ramp (Phase 3 skyRamp) ──────────────────────────
+// Sun-altitude → 0..1 warmth, peaking at the horizon and gone once the sun is
+// well up or civil twilight has fully faded. The screensaver's per-minute
+// syncNight() steps the value onto <body> as --sky-warmth (the --clock-dim
+// pattern: a data-driven ambient level the CSS settles toward, never a loop);
+// body.sky-ramp.substrate::before mixes it into the substrate tint.
+export const SKY_WARMTH_ALT_HIGH = 12; // ° — sun this high, the warmth is gone
+export const SKY_WARMTH_ALT_LOW = -6;  // ° — civil twilight over, warmth gone
+
+/**
+ * @param {number} altitudeDeg sun altitude in degrees (suncalc).
+ * @returns {number} warmth 0..1 — a triangular ramp peaking at the horizon.
+ */
+export function skyWarmthFor(altitudeDeg) {
+  const a = Number(altitudeDeg);
+  if (!Number.isFinite(a)) return 0;
+  if (a >= SKY_WARMTH_ALT_HIGH || a <= SKY_WARMTH_ALT_LOW) return 0;
+  const t = a >= 0 ? 1 - a / SKY_WARMTH_ALT_HIGH : 1 - a / SKY_WARMTH_ALT_LOW;
+  return Math.max(0, Math.min(1, t));
 }

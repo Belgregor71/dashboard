@@ -15,7 +15,11 @@
 export const BUDGETS = {
   ambient: { maxActiveMs: 8000, maxDroplets: 20, maxStreaks: 60, maxHoldMs: 40000 },
   awake: { maxActiveMs: 12000, maxDroplets: 24, maxStreaks: 120, maxHoldMs: 40000 },
-  lightning: { maxSequenceMs: 4000, maxAftershocks: 2 }
+  lightning: { maxSequenceMs: 4000, maxAftershocks: 2 },
+  // Phase 3 nightSky: a twinkle moment is 2–4 stars breathing once over ~2.5s
+  // on the otherwise-static starfield. Ambient-only (the field is a Mode-0
+  // scene) and the rarest lane by far.
+  twinkle: { maxActiveMs: 3000, maxStars: 4 }
 };
 
 // Randomized gap bands (ms) between rain episodes — never metronomic. Ambient
@@ -28,6 +32,10 @@ export const RAIN_GAP_MS = {
 
 // Gap band between lightning sequences during a thunderstorm.
 export const LIGHTNING_GAP_MS = [40000, 160000];
+
+// Gap band between twinkle moments on a clear night (3–6 min — rare enough
+// that the wall reads as a still sky that occasionally breathes).
+export const TWINKLE_GAP_MS = [180000, 360000];
 
 // CSS decay time of one strike (matches the fx-lightning keyframes' tail) —
 // used to size the sequence duration for the runtime's cleanup timeout.
@@ -119,6 +127,19 @@ function planLightning(now, rng) {
   };
 }
 
+function planTwinkle(now, rng) {
+  // 2–4 stars brighten and dim once over ~2.5s — the runtime modulates stars it
+  // picks from the painted field; the planner only sizes the moment.
+  return {
+    type: "twinkle",
+    startAt: now + pick(rng, TWINKLE_GAP_MS),
+    durationMs: 2500, // < BUDGETS.twinkle.maxActiveMs
+    params: {
+      count: pickInt(rng, [2, BUDGETS.twinkle.maxStars])
+    }
+  };
+}
+
 /**
  * Plan the single next effect episode, or null when current weather earns none.
  * Stateless: the runtime executes the returned episode, then calls again — the
@@ -129,10 +150,13 @@ function planLightning(now, rng) {
  *   { category, intensity, thunder, windKph, tempC } (null before first render).
  * @param {string} [input.mode] "ambient" (screensaver up) | "awake".
  * @param {number} [input.now] epoch ms.
+ * @param {boolean} [input.night] Phase 3 nightSky: true when the clear-night
+ *   starfield is live (flag on + isNight). The twinkle lane only exists then,
+ *   and only ambient — the field is a Mode-0 scene.
  * @param {() => number} [input.rng] uniform [0,1) source, injectable for tests.
  * @returns {{type:string,startAt:number,durationMs:number,params:object}|null}
  */
-export function planNextEpisode({ weather, mode = "ambient", now = 0, rng = Math.random } = {}) {
+export function planNextEpisode({ weather, mode = "ambient", now = 0, night = false, rng = Math.random } = {}) {
   if (!weather || typeof weather !== "object") return null;
   const m = mode === "awake" ? "awake" : "ambient";
 
@@ -140,9 +164,14 @@ export function planNextEpisode({ weather, mode = "ambient", now = 0, rng = Math
     ? planRain(weather, m, now, rng)
     : null;
   const lightning = weather.thunder === true ? planLightning(now, rng) : null;
+  const twinkle = night === true && m === "ambient" && weather.category === "clear"
+    ? planTwinkle(now, rng)
+    : null;
 
-  // Both lanes live: whichever is due sooner goes next; the other lane gets its
-  // turn on the following plan. One episode in flight, ever.
-  if (rains && lightning) return rains.startAt <= lightning.startAt ? rains : lightning;
-  return rains || lightning;
+  // All live lanes race: whichever is due sooner goes next; the others get
+  // their turn on the following plan. One episode in flight, ever.
+  const lanes = [rains, lightning, twinkle].filter(Boolean);
+  if (!lanes.length) return null;
+  lanes.sort((a, b) => a.startAt - b.startAt);
+  return lanes[0];
 }

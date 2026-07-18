@@ -21,10 +21,13 @@ import { on } from "../../core/eventBus.js";
 const CANVAS_FADE_MS = 1400;   // matches the opacity transition in atmo-fx.css
 const VEIL_SETTLE_MS = 400;    // margin after the last strike's decay ends
 const GLASS_PULSE_MS = 450;    // sheen held per strike; the 1s-out transition decays it
+const STAR_COUNT = 110;        // painted starfield size — a render detail, not a budget
+                               // (the planner budget caps how many may twinkle at once)
 
 let enabledRain = false;
 let enabledLightning = false;
 let enabledGlass = false;      // Phase 2 reactiveGlass: strikes pulse --glass-sheen
+let enabledNightSky = false;   // Phase 3 nightSky: clear-night starfield + twinkles
 let glassPulseTimer = null;    // the pending body-class release for the current pulse
 let canvas = null;
 let ctx = null;
@@ -35,6 +38,9 @@ let phaseTimers = new Set();   // every in-flight timeout inside an episode
 let rafId = null;
 let running = null;            // the episode currently executing, or null
 let lastWeather = null;        // last store slice we planned against
+let lastIsNight = null;        // last day/night boundary we synced against
+let stars = null;              // the painted field [{x,y,r,a}] while the sky is up
+let nightLive = false;         // the starfield currently owns the resting canvas
 let unsubscribeStore = null;
 
 // ── tiny helpers ────────────────────────────────────────────────
@@ -74,6 +80,14 @@ function flaggedWeather(weather) {
   };
 }
 
+// Phase 3 nightSky: the twinkle lane (and the resting starfield) exist only on
+// a clear night in ambient mode while the flag is on.
+function nightSkyWanted() {
+  const c = getContext();
+  return enabledNightSky && mode === "ambient" && c.isNight === true &&
+    Boolean(c.weather) && c.weather.category === "clear";
+}
+
 function replan() {
   if (planTimer) {
     clearTimeout(planTimer);
@@ -83,7 +97,8 @@ function replan() {
   const episode = planNextEpisode({
     weather: flaggedWeather(getContext().weather),
     mode,
-    now: Date.now()
+    now: Date.now(),
+    night: nightSkyWanted()
   });
   if (!episode) return;
   planTimer = setTimeout(() => {
@@ -94,6 +109,7 @@ function replan() {
 
 function finish() {
   running = null;
+  syncNightSky(); // reconcile the resting canvas: starfield back up, or cleared
   replan();
 }
 
@@ -101,6 +117,8 @@ function execute(episode) {
   running = episode;
   if (episode.type === "lightning") {
     runLightning(episode);
+  } else if (episode.type === "twinkle") {
+    runTwinkle(episode);
   } else {
     runRain(episode);
   }
@@ -129,6 +147,7 @@ function cancelAll() {
   }
   glassPulseTimer = null; // its timeout died with clearPhaseTimers above
   document.body.classList.remove("fx-lightning-active");
+  nightLive = false; // the resting canvas is gone; syncNightSky repaints if earned
   running = null;
 }
 
@@ -355,22 +374,120 @@ function runRain(episode) {
   rafId = requestAnimationFrame(frame);
 }
 
-// ── wiring ──────────────────────────────────────────────────────
+// ── night sky (Phase 3 — static starfield + twinkle moments) ────
+// On a clear night in Mode 0 the canvas holds a painted starfield *between*
+// episodes instead of hiding: a static composited layer costs nothing per
+// frame (the Phase-1 hold precedent), so the GPU-0% ambient baseline stands.
+// Only twinkle episodes ever run rAF, and only for ~2.5s every 3–6 min.
 
-function onStoreChange(state) {
-  if (state.weather !== lastWeather) {
-    lastWeather = state.weather;
-    // Weather moved: re-plan the pending gap. A running episode (≤12s active)
-    // is left to finish — the weather signal is 10-min coarse anyway.
-    if (!running) replan();
+function drawStarField(twinkles, phase) {
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  for (let i = 0; i < stars.length; i++) {
+    const s = stars[i];
+    let a = s.a;
+    if (twinkles) {
+      const boost = twinkles.get(i);
+      if (boost) a = Math.min(1, s.a + boost * Math.sin(Math.PI * phase));
+    }
+    ctx.beginPath();
+    ctx.arc(s.x * w, s.y * h, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(225, 235, 255, ${a.toFixed(3)})`;
+    ctx.fill();
   }
 }
 
-export function initAtmoFx({ rainEnabled = false, lightningEnabled = false, glassEnabled = false } = {}) {
-  if (!rainEnabled && !lightningEnabled) return; // flag-off: byte-identical, no DOM
+function paintStarfield() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  if (!stars) {
+    stars = [];
+    for (let i = 0; i < STAR_COUNT; i++) {
+      stars.push({
+        x: rand(0.02, 0.98),
+        y: rand(0.02, 0.72), // the sky region — keep the lower frame quiet
+        r: rand(0.5, 1.5),
+        a: rand(0.2, 0.7)
+      });
+    }
+  }
+  drawStarField(null, 0);
+  canvas.style.display = "block";
+  void canvas.offsetWidth;
+  canvas.classList.add("fx-visible");
+}
+
+// Reconcile the resting canvas with reality: paint the field when a clear
+// ambient night earns it, clear it when not. Never touches a running episode —
+// finish() calls back in when the canvas is free again.
+function syncNightSky() {
+  if (!canvas || running) return;
+  const want = nightSkyWanted();
+  if (want && !nightLive) {
+    nightLive = true;
+    paintStarfield();
+  } else if (!want && nightLive) {
+    nightLive = false;
+    stars = null;
+    canvas.classList.remove("fx-visible");
+    canvas.style.display = "none";
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+}
+
+function runTwinkle(episode) {
+  if (reducedMotion()) {
+    finish();
+    return;
+  }
+  // A forced twinkle may land before (or without) the field: paint it first.
+  if (!nightLive || !stars) {
+    nightLive = true;
+    paintStarfield();
+  }
+  const twinkles = new Map();
+  while (twinkles.size < episode.params.count) {
+    twinkles.set(Math.floor(rand(0, stars.length)), rand(0.3, 0.6));
+  }
+  const dur = episode.durationMs;
+  let t0 = null;
+  function frame(now) {
+    if (t0 === null) t0 = now;
+    const t = now - t0;
+    drawStarField(twinkles, Math.min(1, t / dur));
+    if (t < dur) {
+      rafId = requestAnimationFrame(frame);
+    } else {
+      rafId = null;
+      drawStarField(null, 0); // back to the static resting frame
+      finish(); // syncNightSky tears the field down if it wasn't earned
+    }
+  }
+  rafId = requestAnimationFrame(frame);
+}
+
+// ── wiring ──────────────────────────────────────────────────────
+
+function onStoreChange(state) {
+  const weatherMoved = state.weather !== lastWeather;
+  const nightMoved = state.isNight !== lastIsNight;
+  if (!weatherMoved && !nightMoved) return;
+  lastWeather = state.weather;
+  lastIsNight = state.isNight;
+  // Weather or the day/night boundary moved: reconcile the starfield and
+  // re-plan the pending gap. A running episode (≤12s active) is left to
+  // finish — the weather signal is 10-min coarse anyway.
+  syncNightSky();
+  if (!running) replan();
+}
+
+export function initAtmoFx({ rainEnabled = false, lightningEnabled = false, glassEnabled = false, nightSkyEnabled = false } = {}) {
+  if (!rainEnabled && !lightningEnabled && !nightSkyEnabled) return; // flag-off: byte-identical, no DOM
   enabledRain = rainEnabled;
   enabledLightning = lightningEnabled;
   enabledGlass = glassEnabled;
+  enabledNightSky = nightSkyEnabled;
 
   canvas = document.createElement("canvas");
   canvas.id = "atmo-fx-canvas";
@@ -382,15 +499,18 @@ export function initAtmoFx({ rainEnabled = false, lightningEnabled = false, glas
   document.body.append(canvas, veil);
 
   lastWeather = getContext().weather;
+  lastIsNight = getContext().isNight;
   unsubscribeStore = subscribeContext(onStoreChange);
   on("screensaver:changed", ({ active }) => {
     const next = active ? "ambient" : "awake";
     if (next === mode) return;
     mode = next;
     cancelAll();
+    syncNightSky(); // ambient again on a clear night → the field comes back
     replan();
   });
 
+  syncNightSky();
   replan();
 
   // Pi verification hooks (same pattern as __forcePhotoDissolve): run one
@@ -399,8 +519,17 @@ export function initAtmoFx({ rainEnabled = false, lightningEnabled = false, glas
     const synthetic =
       type === "lightning"
         ? { category: "clear", intensity: null, thunder: true }
-        : { category: "rain", intensity: type === "rain-heavy" ? "heavy" : "moderate", thunder: false };
-    const episode = planNextEpisode({ weather: synthetic, mode, now: Date.now() });
+        : type === "twinkle"
+          ? { category: "clear", intensity: null, thunder: false }
+          : { category: "rain", intensity: type === "rain-heavy" ? "heavy" : "moderate", thunder: false };
+    const episode = planNextEpisode({
+      weather: synthetic,
+      // A forced twinkle plans as ambient so it works from an awake CDP session;
+      // finish() → syncNightSky clears the field unless the night truly earns it.
+      mode: type === "twinkle" ? "ambient" : mode,
+      now: Date.now(),
+      night: type === "twinkle" && enabledNightSky
+    });
     if (!episode) return null;
     cancelAll();
     execute(episode);
@@ -411,7 +540,8 @@ export function initAtmoFx({ rainEnabled = false, lightningEnabled = false, glas
     running: running ? running.type : null,
     scheduled: Boolean(planTimer),
     canvasVisible: canvas.style.display !== "none",
-    enabled: { rain: enabledRain, lightning: enabledLightning, glass: enabledGlass }
+    night: { live: nightLive, stars: stars ? stars.length : 0 },
+    enabled: { rain: enabledRain, lightning: enabledLightning, glass: enabledGlass, nightSky: enabledNightSky }
   });
 }
 
@@ -431,6 +561,9 @@ export function stopAtmoFx() {
   enabledRain = false;
   enabledLightning = false;
   enabledGlass = false;
+  enabledNightSky = false;
+  stars = null;
+  lastIsNight = null;
   delete window.__forceAtmoEpisode;
   delete window.__atmoFx;
 }

@@ -5,7 +5,7 @@ import { freezeLotties, unfreezeLotties } from "../helpers/lottie.js";
 import { getTimes as getSunTimes, getPosition as getSunPosition } from "../vendor/suncalc.js";
 import { WEATHER_LAT, WEATHER_LON } from "../config/constants.js";
 import { get as getContext, set as setContext, subscribe as subscribeContext } from "../core/contextStore.js";
-import { atmosphereFor, ATMOSPHERE_TOKENS } from "../services/atmosphere.js";
+import { atmosphereFor, ATMOSPHERE_TOKENS, skyWarmthFor } from "../services/atmosphere.js";
 import { collectAmbientMemory, spendMemoryBudget } from "../core/memoryRuntime.js";
 import { photosForToday } from "../services/photoMemory.js";
 
@@ -88,6 +88,15 @@ let ambientMemoryEnabled = false;
 // + title). Elevates the footer on-this-day line to the study-01 whisper. Off →
 // no whisper element, the footer keeps the line, byte-identical.
 let memoryWhisperEnabled = false;
+// ─── Sky ramp (Living Window Phase 3, flag-gated) ─────────────
+// When on, syncNight() steps --sky-warmth on <body> once a minute from the sun
+// altitude (the --clock-dim pattern: a data-driven level the substrate's 60s
+// settle eases toward — zero loops); background.css mixes it into the substrate
+// tint so sunrise/sunset warm the room gradually, not on the hour-band edge.
+let skyRampEnabled = false;
+// Phase 3 nightSky: opts the atmosphere mapper into the atmo-night-clear token
+// on clear nights (the starfield's resting state — atmoFx/runtime.js paints it).
+let nightSkyEnabled = false;
 const CLOCK_DIM_DAY   = 0.9;  // sun well up → full ambient brightness
 const CLOCK_DIM_NIGHT = 0.3;  // the small-hours floor — dim, never off
 const CLOCK_ALT_DAY   = 6;    // ° above horizon mapped to CLOCK_DIM_DAY
@@ -106,6 +115,13 @@ function applyClockDim() {
   const t = Math.min(1, Math.max(0, (sunAltitudeDeg() - CLOCK_ALT_NIGHT) / (CLOCK_ALT_DAY - CLOCK_ALT_NIGHT)));
   const dim = CLOCK_DIM_NIGHT + t * (CLOCK_DIM_DAY - CLOCK_DIM_NIGHT);
   el.style.setProperty("--clock-dim", dim.toFixed(3));
+}
+
+// Phase 3 skyRamp: step the sun-altitude warmth onto the shared root. Runs on
+// every syncNight tick (awake or not — the substrate is an awake surface too).
+function applySkyWarmth() {
+  if (!skyRampEnabled) return;
+  document.body.style.setProperty("--sky-warmth", skyWarmthFor(sunAltitudeDeg()).toFixed(3));
 }
 
 // ─── DOM build ────────────────────────────────────────────────
@@ -473,7 +489,8 @@ function computeToken() {
   return atmosphereFor({
     condition: getContext().condition,
     isNight: isNight(),
-    hour: new Date().getHours()
+    hour: new Date().getHours(),
+    nightClear: nightSkyEnabled
   });
 }
 
@@ -520,6 +537,7 @@ function syncNight() {
   // syncNight runs at init + every minute + on the boundary, so the slice stays
   // current. (The slice was declared in Phase 5 but never actually written.)
   setContext({ isNight: night });
+  applySkyWarmth(); // steps once a minute, awake or not (flag-gated inside)
   if (!active) {
     if (night) engageScreensaver();
     return;
@@ -644,6 +662,9 @@ export async function initScreensaver(options = {}) {
   // Rollout WP-E: the captioned "on this day" whisper (also set before build()
   // so its element only exists when the flag is on).
   memoryWhisperEnabled = options.memoryWhisperEnabled === true;
+  // Living Window Phase 3: sun-altitude substrate warmth + the clear-night token.
+  skyRampEnabled = options.skyRampEnabled === true;
+  nightSkyEnabled = options.nightSkyEnabled === true;
 
   build();
   // Feature marker — the study-05 CSS engages only under this class, so flag-off
@@ -700,7 +721,12 @@ export async function initScreensaver(options = {}) {
     }
     const token = el ? [...el.classList].find(c => c.startsWith("atmo-")) ?? null : null;
     const bodyToken = [...document.body.classList].find(c => c.startsWith("atmo-")) ?? null;
-    return { enabled: atmosphereEnabled, substrate: substrateEnabled, active, token, bodyToken };
+    return {
+      enabled: atmosphereEnabled, substrate: substrateEnabled, active, token, bodyToken,
+      // Phase 3 skyRamp — the live warmth step, for CDP verification.
+      skyRamp: skyRampEnabled,
+      skyWarmth: document.body.style.getPropertyValue("--sky-warmth") || null
+    };
   };
 
   await loadPhotos();
