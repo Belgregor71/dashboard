@@ -419,8 +419,9 @@ window.CONFIG = {
     // adds a faint cool glow. Recolor/re-alpha only, blur radius never rises.
     // A lightning strike additionally pulses --glass-sheen via a short-lived
     // body.fx-lightning-active from the Phase-1 strike path (box-shadow 150ms
-    // in / 1s out — finite transitions, zero rAF). One-line revert (-> false).
-    reactiveGlass: false
+    // in / 1s out — finite transitions, zero rAF). Shipped OFF 75c214c →
+    // flipped ON 2026-07-18. One-line revert (-> false).
+    reactiveGlass: true
   },
 
   /* --------------------------------------------------------------
