@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "test": "playwright test",
     "test:ha-ws-proxy": "node scripts/test-ha-ws-proxy.js",
-    "pregen:tts": "node scripts/pregenerate-tts-cache.js"
+    "pregen:tts": "node scripts/pregenerate-tts-cache.js",
+    "verify:contrast": "playwright test --config playwright.verify.config.js",
+    "verify:flags": "node scripts/verify/flag-reversibility.mjs",
+    "verify:patterns": "node scripts/verify/scan-patterns.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",

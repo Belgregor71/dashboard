@@ -8,6 +8,10 @@ const TEST_PORT = 3210;
 
 export default defineConfig({
   testDir: "tests",
+  // tests/verify/** are the heavier pre-push gates (playwright.verify.config.js).
+  // Kept out of `npm test` so the everyday suite stays fast, and so the pre-push
+  // hook does not run the contrast sweep twice.
+  testIgnore: "verify/**",
   timeout: 30_000,
   fullyParallel: false,
   reporter: [["list"]],
