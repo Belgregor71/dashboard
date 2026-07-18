@@ -6,9 +6,15 @@
 #   3. known-defect patterns in the outgoing diff (slug guards, hook order,
 #      brightness clamps) must be absent
 #   4. worst-case text contrast across all 8 atmosphere tokens must clear WCAG AA
-#   5. any ON flag whose code this diff touches must still be cleanly flippable off
 #
-# Gates 1-5 are everything checkable WITHOUT the Pi. The Pi cannot be verified
+# Target: ~60s. A gate slow enough to be annoying gets bypassed with
+# --no-verify, which disables ALL of them — so flag reversibility deliberately
+# does NOT run here. It ran here once at ~7 min of a 7m47s hook and mostly
+# re-tested flags the diff never touched. It lives in `/flag-flip` instead,
+# where a flag default actually changes:
+#     node scripts/verify/flag-reversibility.mjs --flag <name>
+#
+# Gates 1-4 are everything checkable WITHOUT the Pi. The Pi cannot be verified
 # here at all: deploys are pull-based from origin/main, so the Pi has no way to
 # see this code until after the push succeeds. Live kiosk verification is the
 # `/verify-push` skill, run immediately after pushing.
@@ -18,20 +24,30 @@
 
 set -e
 
-echo "[pre-push] 1/5 build gate (the Pi runs this same build on deploy)"
+# Gate 0: never ship a flag left flipped by an interrupted reversibility run.
+# On Windows a killed run cannot restore config.js (no real SIGINT delivery), so
+# the marker can survive in the tree. Pushing `clock: false` would disable the
+# clock on the kiosk — cheap check, catastrophic miss.
+if grep -q "TEMPORARILY FLIPPED" src/js/config.js; then
+  echo "[pre-push] ABORT: src/js/config.js holds a TEMPORARILY FLIPPED flag from an"
+  echo "           interrupted flag-reversibility run. Pushing this would deploy a"
+  echo "           DISABLED feature to the kiosk. Restore it first:"
+  echo ""
+  echo "             git checkout src/js/config.js && npm run build"
+  exit 1
+fi
+
+echo "[pre-push] 1/4 build gate (the Pi runs this same build on deploy)"
 npm run build
 
-echo "[pre-push] 2/5 API contract + browser smoke tests"
+echo "[pre-push] 2/4 API contract + browser smoke tests"
 npm test
 
-echo "[pre-push] 3/5 known-defect pattern scan"
+echo "[pre-push] 3/4 known-defect pattern scan"
 node scripts/verify/scan-patterns.mjs
 
-echo "[pre-push] 4/5 worst-case contrast sweep (8 atmosphere tokens)"
+echo "[pre-push] 4/4 worst-case contrast sweep (8 atmosphere tokens)"
 npm run verify:contrast
-
-echo "[pre-push] 5/5 flag reversibility (diff-scoped)"
-node scripts/verify/flag-reversibility.mjs
 
 echo ""
 echo "[pre-push] all local gates passed."
