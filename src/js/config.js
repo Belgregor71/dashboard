@@ -449,8 +449,9 @@ window.CONFIG = {
     // ≤30 blobs/≤10s; rare heat-pulse warm veil breath, zero rAF), windKph
     // leaning every rain/fog motion (pure streakAngleFor), and winter/summer
     // substrate hue biases riding body.season-*. __forceAtmoEpisode("fog"|
-    // "heat-pulse") to verify. One-line revert (-> false).
-    atmoTextures: false
+    // "heat-pulse") to verify. Shipped OFF a95beff → flipped ON 2026-07-18.
+    // One-line revert (-> false).
+    atmoTextures: true
   },
 
   /* --------------------------------------------------------------
