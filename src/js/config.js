@@ -410,7 +410,17 @@ window.CONFIG = {
     // Shares the atmoFx runtime with weatherFxRain; either flag alone inits it.
     // Shipped OFF 9c851e6 → flipped ON 2026-07-18. __forceAtmoEpisode
     // ("lightning") to verify. One-line revert (-> false).
-    weatherFxLightning: true
+    weatherFxLightning: true,
+
+    // Living-window Phase 2 — reactive glass. Pure CSS on the two-class
+    // pattern (the living-accent precedent, layout/background.css): the atmo-*
+    // token recolors the shared glass tokens — rain cools/darkens, storm
+    // darker still, golden hour warms border+sheen (§6 borrowed light), night
+    // adds a faint cool glow. Recolor/re-alpha only, blur radius never rises.
+    // A lightning strike additionally pulses --glass-sheen via a short-lived
+    // body.fx-lightning-active from the Phase-1 strike path (box-shadow 150ms
+    // in / 1s out — finite transitions, zero rAF). One-line revert (-> false).
+    reactiveGlass: false
   },
 
   /* --------------------------------------------------------------

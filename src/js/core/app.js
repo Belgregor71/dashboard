@@ -117,9 +117,17 @@ export function startApp() {
   // runtime; both off → no body class, no DOM, byte-identical.
   const weatherFxRain = isEnabled("weatherFxRain", false);
   const weatherFxLightning = isEnabled("weatherFxLightning", false);
+  // Living-window Phase 2 — the atmo-* token retunes the shared glass tokens
+  // (layout/background.css); the runtime pulses the sheen on lightning strikes.
+  const reactiveGlass = isEnabled("reactiveGlass", false);
+  if (reactiveGlass) document.body.classList.add("reactive-glass");
   if (weatherFxRain || weatherFxLightning) {
     document.body.classList.add("weather-fx");
-    initAtmoFx({ rainEnabled: weatherFxRain, lightningEnabled: weatherFxLightning });
+    initAtmoFx({
+      rainEnabled: weatherFxRain,
+      lightningEnabled: weatherFxLightning,
+      glassEnabled: reactiveGlass
+    });
   }
   registerLifecycle();
   initVoiceOverlay();

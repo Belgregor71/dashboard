@@ -52,6 +52,64 @@ body.living-accent.atmo-rain         { --accent: rgba(196, 230, 255, 0.97); }
 body.living-accent.atmo-storm        { --accent: rgba(196, 230, 255, 0.97); }
 body.living-accent.atmo-night        { --accent: rgba(130, 215, 255, 0.92); }
 
+/* ── Reactive glass (features.reactiveGlass, Living Window Phase 2) ─────
+   The same two-class pattern as living-accent above: the atmo-* token the
+   atmosphere mapper writes to <body> retunes the shared glass tokens
+   (base values in base/variables.css) so the panels' glass answers the
+   weather — rain cools and darkens it, storm darker still, golden hour
+   warms the border + sheen (DESIGN_SYSTEM §6 borrowed light), night adds
+   a faint cool glow to the shadow. Recolor/re-alpha ONLY: the blur radius
+   never rises above the base 18px — radius is the expensive axis on the
+   Pi 4; brightness inside the same backdrop-filter is free. app.js adds
+   body.reactive-glass only when the flag is on → flag-off matches nothing
+   here (byte-identical). Tokens not named keep the base glass. */
+body.reactive-glass.atmo-rain {
+  --glass-blur: blur(18px) brightness(0.8);
+  --glass-sheen: inset 0 1px 0 rgba(190, 214, 245, 0.11);
+}
+body.reactive-glass.atmo-storm {
+  --glass-blur: blur(18px) brightness(0.74);
+  --glass-border: 1px solid rgba(198, 216, 250, 0.12);
+  --glass-sheen: inset 0 1px 0 rgba(182, 205, 245, 0.13);
+}
+body.reactive-glass.atmo-clear-golden {
+  --glass-border: 1px solid rgba(255, 205, 150, 0.16);
+  --glass-sheen: inset 0 1px 0 rgba(255, 212, 165, 0.13);
+}
+body.reactive-glass.atmo-night {
+  --glass-sheen: inset 0 1px 0 rgba(150, 195, 255, 0.09);
+  --glass-shadow: 0 8px 28px rgba(0, 0, 0, 0.3), 0 0 20px rgba(90, 140, 220, 0.07);
+}
+
+/* Lightning reflection: the Phase-1 strike path (atmoFx/runtime.js) holds
+   body.fx-lightning-active for ~450ms per strike; the sheen jumps to a
+   bright cool glint and the consuming cards' box-shadow transitions carry
+   it — 150ms in, ~1s out. Finite transitions only (the idle-freeze law):
+   nothing here runs unless a strike lands. Declared after the token
+   variants so a strike outshines the storm sheen it lands on. */
+body.reactive-glass.fx-lightning-active {
+  --glass-sheen: inset 0 1px 0 rgba(222, 236, 255, 0.32);
+}
+
+/* The glint's ride: the shared glass surfaces ease box-shadow slowly by
+   default (also softens weather-token sheen changes) and snap fast while
+   the strike class is on. .panel restates its base opacity/transform pair
+   (panels.css) — a transition list replaces, never merges. */
+body.reactive-glass .panel {
+  transition: opacity 0.45s ease, transform 0.45s ease, box-shadow 1s ease;
+}
+body.reactive-glass .focus-stack.lean-in-glass .focus-stack__item,
+body.reactive-glass .arrival-greeting__card {
+  transition: box-shadow 1s ease;
+}
+body.reactive-glass.fx-lightning-active .panel {
+  transition: opacity 0.45s ease, transform 0.45s ease, box-shadow 0.15s ease;
+}
+body.reactive-glass.fx-lightning-active .focus-stack.lean-in-glass .focus-stack__item,
+body.reactive-glass.fx-lightning-active .arrival-greeting__card {
+  transition: box-shadow 0.15s ease;
+}
+
 /* Night mode: deepen panel backgrounds and add a cool-blue atmosphere */
 body.tint-night .panel {
   background: linear-gradient(180deg, rgba(6, 10, 26, 0.70), rgba(2, 4, 14, 0.60));

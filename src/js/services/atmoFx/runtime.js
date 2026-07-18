@@ -20,9 +20,12 @@ import { on } from "../../core/eventBus.js";
 
 const CANVAS_FADE_MS = 1400;   // matches the opacity transition in atmo-fx.css
 const VEIL_SETTLE_MS = 400;    // margin after the last strike's decay ends
+const GLASS_PULSE_MS = 450;    // sheen held per strike; the 1s-out transition decays it
 
 let enabledRain = false;
 let enabledLightning = false;
+let enabledGlass = false;      // Phase 2 reactiveGlass: strikes pulse --glass-sheen
+let glassPulseTimer = null;    // the pending body-class release for the current pulse
 let canvas = null;
 let ctx = null;
 let veil = null;
@@ -124,6 +127,8 @@ function cancelAll() {
     veil.classList.remove("fx-strike");
     veil.style.display = "none";
   }
+  glassPulseTimer = null; // its timeout died with clearPhaseTimers above
+  document.body.classList.remove("fx-lightning-active");
   running = null;
 }
 
@@ -134,6 +139,24 @@ function strike(peak) {
   void veil.offsetWidth; // restart the one-shot animation
   veil.style.setProperty("--flash-peak", peak.toFixed(2));
   veil.classList.add("fx-strike");
+  pulseGlass();
+}
+
+// Phase 2 reactive glass: each strike briefly holds body.fx-lightning-active,
+// which raises --glass-sheen (layout/background.css); the consuming cards'
+// box-shadow transitions carry the 150ms-in / 1s-out reflection. An aftershock
+// landing mid-pulse just extends the hold.
+function pulseGlass() {
+  if (!enabledGlass) return;
+  document.body.classList.add("fx-lightning-active");
+  if (glassPulseTimer) {
+    clearTimeout(glassPulseTimer);
+    phaseTimers.delete(glassPulseTimer);
+  }
+  glassPulseTimer = addTimer(GLASS_PULSE_MS, () => {
+    glassPulseTimer = null;
+    document.body.classList.remove("fx-lightning-active");
+  });
 }
 
 function runLightning(episode) {
@@ -343,10 +366,11 @@ function onStoreChange(state) {
   }
 }
 
-export function initAtmoFx({ rainEnabled = false, lightningEnabled = false } = {}) {
+export function initAtmoFx({ rainEnabled = false, lightningEnabled = false, glassEnabled = false } = {}) {
   if (!rainEnabled && !lightningEnabled) return; // flag-off: byte-identical, no DOM
   enabledRain = rainEnabled;
   enabledLightning = lightningEnabled;
+  enabledGlass = glassEnabled;
 
   canvas = document.createElement("canvas");
   canvas.id = "atmo-fx-canvas";
@@ -387,7 +411,7 @@ export function initAtmoFx({ rainEnabled = false, lightningEnabled = false } = {
     running: running ? running.type : null,
     scheduled: Boolean(planTimer),
     canvasVisible: canvas.style.display !== "none",
-    enabled: { rain: enabledRain, lightning: enabledLightning }
+    enabled: { rain: enabledRain, lightning: enabledLightning, glass: enabledGlass }
   });
 }
 
@@ -406,6 +430,7 @@ export function stopAtmoFx() {
   lastWeather = null;
   enabledRain = false;
   enabledLightning = false;
+  enabledGlass = false;
   delete window.__forceAtmoEpisode;
   delete window.__atmoFx;
 }
