@@ -391,7 +391,25 @@ window.CONFIG = {
     // matching; unknown commands still dead-end at "Didn't catch that.").
     // Flip ON when the mic lands — or to drive it hardware-free via
     // __voiceTranscript("...") / __voiceSession(). One-line revert (-> false).
-    voiceSession: false
+    voiceSession: false,
+
+    // Living-window Phase 1 (plan: review-the-design-scheme) — rain on glass.
+    // A shared episode runtime (services/atmoFx/) draws bounded droplet/streak
+    // "moments" on a front canvas, then hides it: the GPU-0% ambient baseline
+    // is structural (display:none between episodes), honouring the idle-freeze
+    // law "moments, not loops". Budgets live in atmoFx/planner.js as exported
+    // constants with unit tests. Default OFF → initAtmoFx returns before any
+    // DOM: byte-identical. Verify via __forceAtmoEpisode("rain-moment") +
+    // /kiosk-metrics before flipping. One-line revert (-> false).
+    weatherFxRain: false,
+
+    // Living-window Phase 1 — storm lightning. One-shot CSS keyframes on a
+    // screen-blend horizon veil (zero rAF; utils/atmo-fx.css), big strike then
+    // 0–2 weaker flickers, randomized 40–160s apart while thunder is live.
+    // Shares the atmoFx runtime with weatherFxRain; either flag alone inits it.
+    // Default OFF → byte-identical. __forceAtmoEpisode("lightning") to verify.
+    // One-line revert (-> false).
+    weatherFxLightning: false
   },
 
   /* --------------------------------------------------------------

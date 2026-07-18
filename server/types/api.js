@@ -28,13 +28,13 @@
 /**
  * @typedef {Object} WeatherNowNormalized
  * @property {{name:string,tz:string}} location
- * @property {{temp_c:number|null,feels_like_c:number|null,condition:{code:number|null,label:string|null,icon:string|null},wind_kph:number|null,humidity_pct:number|null,uv:number|null,rain_chance_pct:number|null}} now
+ * @property {{temp_c:number|null,feels_like_c:number|null,condition:{code:number|null,label:string|null,icon:string|null,intensity:"light"|"moderate"|"heavy"|null,thunder:boolean},wind_kph:number|null,humidity_pct:number|null,uv:number|null,rain_chance_pct:number|null}} now
  * @property {{high_c:number|null,low_c:number|null,sunrise:string|null,sunset:string|null}} day
  */
 
 /**
  * @typedef {Object} WeatherForecastNormalized
- * @property {{date:string,high_c:number|null,low_c:number|null,condition:{code:number|null,label:string|null,icon:string|null},rain_chance_pct:number|null}[]} days
+ * @property {{date:string,high_c:number|null,low_c:number|null,condition:{code:number|null,label:string|null,icon:string|null,intensity:"light"|"moderate"|"heavy"|null,thunder:boolean},rain_chance_pct:number|null}[]} days
  */
 
 export {};

@@ -40,6 +40,14 @@ test("dashboard boots with no uncaught exceptions and core panels render", async
   // Let startup work settle (weather fetch, lottie load, HA connect attempt).
   await page.waitForTimeout(5_000);
 
+  // Living-window flags ship off: no effect nodes, no body class (byte-identity).
+  const atmoFx = await page.evaluate(() => ({
+    canvas: Boolean(document.getElementById("atmo-fx-canvas")),
+    veil: Boolean(document.getElementById("atmo-fx-veil")),
+    bodyClass: document.body.classList.contains("weather-fx")
+  }));
+  expect(atmoFx).toEqual({ canvas: false, veil: false, bodyClass: false });
+
   expect(pageErrors, `uncaught page errors:\n${pageErrors.join("\n")}`).toHaveLength(0);
 });
 

@@ -9,6 +9,11 @@ const state = {
   lastMotionAt: 0,      // epoch ms of the last kitchen motion signal
   isNight: false,       // sunset→sunrise (mirrors screensaver's suncalc view)
   condition: null,      // base weather category (clear|cloudy|rain|storm|fog)
+  // Living-window weather slice — richer than `condition` so the atmoFx
+  // planner can scale effects: { category, intensity: light|moderate|heavy|null,
+  // thunder: boolean, windKph: number|null, tempC: number|null }. Written by
+  // weather/renderer.js only when a field changes; null until first render.
+  weather: null,
   // Phase 6 House Model posture — a neutral resting value until intentEngine
   // (flag-gated) writes a derived one; flag off, it stays neutral and no reader
   // acts on it, so behaviour is byte-identical to Phase 5.

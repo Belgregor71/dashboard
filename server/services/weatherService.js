@@ -7,17 +7,40 @@ import { reportFailure, reportSuccess } from "./healthService.js";
 
 const REQUEST_TIMEOUT_MS = 6000;
 
+// WMO weathercode → [label, category, intensity, thunder]. Full practical set —
+// the old 10-entry map left common codes (53/55/63/65/80–82/96/99) labelled
+// "Unavailable" and mislabelled 71 snow as storm. Intensity tiers drive the
+// living-window effects (droplet/streak density); thunder marks the lightning
+// lane. Non-precip codes carry intensity null.
 const CODE_LABELS = new Map([
-  [0, ["Clear", "clear"]],
-  [1, ["Mostly clear", "clear"]],
-  [2, ["Partly cloudy", "cloudy"]],
-  [3, ["Cloudy", "cloudy"]],
-  [45, ["Fog", "fog"]],
-  [48, ["Fog", "fog"]],
-  [51, ["Drizzle", "rain"]],
-  [61, ["Rain", "rain"]],
-  [71, ["Snow", "storm"]],
-  [95, ["Thunderstorm", "storm"]]
+  [0, ["Clear", "clear", null, false]],
+  [1, ["Mostly clear", "clear", null, false]],
+  [2, ["Partly cloudy", "cloudy", null, false]],
+  [3, ["Cloudy", "cloudy", null, false]],
+  [45, ["Fog", "fog", null, false]],
+  [48, ["Fog", "fog", null, false]],
+  [51, ["Light drizzle", "rain", "light", false]],
+  [53, ["Drizzle", "rain", "moderate", false]],
+  [55, ["Heavy drizzle", "rain", "heavy", false]],
+  [56, ["Freezing drizzle", "rain", "light", false]],
+  [57, ["Freezing drizzle", "rain", "heavy", false]],
+  [61, ["Light rain", "rain", "light", false]],
+  [63, ["Rain", "rain", "moderate", false]],
+  [65, ["Heavy rain", "rain", "heavy", false]],
+  [66, ["Freezing rain", "rain", "light", false]],
+  [67, ["Freezing rain", "rain", "heavy", false]],
+  [71, ["Light snow", "snow", "light", false]],
+  [73, ["Snow", "snow", "moderate", false]],
+  [75, ["Heavy snow", "snow", "heavy", false]],
+  [77, ["Snow grains", "snow", "light", false]],
+  [80, ["Light showers", "rain", "light", false]],
+  [81, ["Showers", "rain", "moderate", false]],
+  [82, ["Heavy showers", "rain", "heavy", false]],
+  [85, ["Snow showers", "snow", "light", false]],
+  [86, ["Snow showers", "snow", "heavy", false]],
+  [95, ["Thunderstorm", "storm", "moderate", true]],
+  [96, ["Thunderstorm with hail", "storm", "heavy", true]],
+  [99, ["Thunderstorm with heavy hail", "storm", "heavy", true]]
 ]);
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
@@ -52,9 +75,9 @@ export async function fetchWeatherRaw({ lat, lon }) {
   return response.json();
 }
 
-function conditionFor(code) {
-  const [label, icon] = CODE_LABELS.get(code) || ["Unavailable", null];
-  return { code: Number.isFinite(code) ? code : null, label, icon };
+export function conditionFor(code) {
+  const [label, icon, intensity, thunder] = CODE_LABELS.get(code) || ["Unavailable", null, null, false];
+  return { code: Number.isFinite(code) ? code : null, label, icon, intensity, thunder };
 }
 
 /** @returns {WeatherNowNormalized} */
@@ -152,7 +175,7 @@ export function weatherFallbackNow() {
     now: {
       temp_c: null,
       feels_like_c: null,
-      condition: { code: null, label: "Unavailable", icon: null },
+      condition: { code: null, label: "Unavailable", icon: null, intensity: null, thunder: false },
       wind_kph: null,
       humidity_pct: null,
       uv: null,

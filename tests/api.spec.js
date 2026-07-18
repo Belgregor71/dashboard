@@ -106,6 +106,10 @@ test.describe("weather", () => {
     expect(body).toHaveProperty("now");
     expect(body.now).toHaveProperty("temp_c");
     expect(typeof body.now.condition.label).toBe("string");
+    // Living-window fields: intensity is a tier or null, thunder is always a boolean —
+    // including on the 502 fallback shape.
+    expect([null, "light", "moderate", "heavy"]).toContain(body.now.condition.intensity);
+    expect(typeof body.now.condition.thunder).toBe("boolean");
     expect(body).toHaveProperty("day");
   });
 

@@ -1,0 +1,69 @@
+/* Living-window effects — Phase 1 (rain on glass + storm lightning).
+   Companion CSS for src/js/services/atmoFx/runtime.js. Everything here is
+   gated behind body.weather-fx (added by app.js only when a weatherFx* flag is
+   on) and the two runtime-created nodes — flag-off, nothing matches.
+
+   GUARDRAIL (tests/atmo-fx.spec.js): no rule in this file may declare an
+   infinite animation, and every keyframes consumer must fill `forwards` — the
+   idle-freeze law. The lightning strike is a one-shot; the flicker bumps are
+   encoded inside its decay, never a repeat. */
+
+/* The window glass: droplets/streaks paint here. Shown only while an episode
+   runs or holds its final static frame; the runtime display:nones it after the
+   fade-out timeout. Sits above every surface (screensaver is z-index 200) so
+   rain reads as weather on the room's glass, not one view's effect. */
+body.weather-fx #atmo-fx-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 390;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+body.weather-fx #atmo-fx-canvas.fx-visible {
+  opacity: 1;
+  transition: opacity 0.4s ease;
+}
+
+/* The lightning illumination veil: a bottom-weighted horizon glow that
+   screen-blends over everything beneath it — brightens the panels and the
+   photo like distant lightning, never a white camera flash. --flash-x places
+   the glow along the horizon; --flash-peak scales the strike's brightness. */
+body.weather-fx #atmo-fx-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0;
+  background: radial-gradient(
+    ellipse 90% 55% at calc(var(--flash-x, 0.5) * 100%) 100%,
+    rgba(215, 230, 255, 0.6),
+    rgba(160, 190, 255, 0.22) 45%,
+    rgba(120, 150, 220, 0.08) 65%,
+    transparent 80%
+  );
+}
+
+/* One strike: fast attack (~80ms of the 1.6s), natural decay with a flicker
+   bump inside the falloff. One-shot, forwards fill — the runtime restarts it
+   per aftershock at a lower --flash-peak via class re-add + reflow. */
+body.weather-fx #atmo-fx-veil.fx-strike {
+  animation: fx-lightning-strike 1.6s ease-out forwards;
+}
+
+@keyframes fx-lightning-strike {
+  0% { opacity: 0; }
+  5% { opacity: var(--flash-peak, 0.9); }
+  12% { opacity: calc(var(--flash-peak, 0.9) * 0.45); }
+  20% { opacity: calc(var(--flash-peak, 0.9) * 0.75); }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.weather-fx #atmo-fx-veil.fx-strike {
+    animation: none;
+    opacity: 0;
+  }
+}

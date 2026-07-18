@@ -11,6 +11,7 @@ import { initIntent } from "./intentEngine.js";
 import { initRoutineRuntime } from "./routineRuntime.js";
 import { initMemoryRuntime } from "./memoryRuntime.js";
 import { initPersonalityRuntime } from "./personalityRuntime.js";
+import { initAtmoFx } from "../services/atmoFx/runtime.js";
 import { registerLifecycle } from "./lifecycle.js";
 import { initVoiceOverlay } from "./voiceOverlay.js";
 import { initVoiceSession } from "./voiceSession.js";
@@ -110,6 +111,16 @@ export function startApp() {
   // for the attention queue. Off by default → every path keeps its current tone.
   // See docs/vision/phase-10-temperament.md.
   initPersonalityRuntime({ enabled: isEnabled("personality", false) });
+  // Living-window Phase 1 — bounded weather "moments" on a front canvas + a
+  // lightning veil ("moments, not loops": display:none between episodes keeps
+  // the ambient GPU-0% baseline structural). Either flag alone inits the shared
+  // runtime; both off → no body class, no DOM, byte-identical.
+  const weatherFxRain = isEnabled("weatherFxRain", false);
+  const weatherFxLightning = isEnabled("weatherFxLightning", false);
+  if (weatherFxRain || weatherFxLightning) {
+    document.body.classList.add("weather-fx");
+    initAtmoFx({ rainEnabled: weatherFxRain, lightningEnabled: weatherFxLightning });
+  }
   registerLifecycle();
   initVoiceOverlay();
   // Phase 4 — the Mode 3 voice session (docs/vision/phase-4-voice.md). Off by

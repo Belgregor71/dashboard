@@ -22,11 +22,13 @@ export const weatherNowSchema = {
         feels_like_c: nullableNumber,
         condition: {
           type: "object",
-          required: ["code", "label", "icon"],
+          required: ["code", "label", "icon", "intensity", "thunder"],
           properties: {
             code: nullableNumber,
             label: nullableString,
-            icon: nullableString
+            icon: nullableString,
+            intensity: { anyOf: [{ enum: ["light", "moderate", "heavy"] }, { type: "null" }] },
+            thunder: { type: "boolean" }
           },
           additionalProperties: false
         },
@@ -67,11 +69,13 @@ export const weatherForecastSchema = {
           low_c: nullableNumber,
           condition: {
             type: "object",
-            required: ["code", "label", "icon"],
+            required: ["code", "label", "icon", "intensity", "thunder"],
             properties: {
               code: nullableNumber,
               label: nullableString,
-              icon: nullableString
+              icon: nullableString,
+              intensity: { anyOf: [{ enum: ["light", "moderate", "heavy"] }, { type: "null" }] },
+              thunder: { type: "boolean" }
             },
             additionalProperties: false
           },

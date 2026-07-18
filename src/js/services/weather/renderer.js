@@ -13,12 +13,12 @@ import { loadLottieAnimation, syncLottiePlayback } from "../../helpers/lottie.js
 import { emit, on } from "../../core/eventBus.js";
 import { CONFIG } from "../../core/config.js";
 import { startWeatherMotion, stopWeatherMotion } from "../../weatherMotion.js";
-import { categoryForWeatherCode } from "../../weatherPrompts.js";
+import { categoryForWeatherCode, intensityForWeatherCode, isThunderCode } from "../../weatherPrompts.js";
 import { WEATHER_LAT, WEATHER_LON } from "../../config/config.js";
 import { getTimes as getSunTimesFromCalc } from "../../vendor/suncalc.js";
 import { clearWeatherFxOverlay, setWeatherFxOverlay } from "./fxOverlay.js";
 import { refreshAirQuality } from "./airQuality.js";
-import { set as setContext } from "../../core/contextStore.js";
+import { set as setContext, get as getContext } from "../../core/contextStore.js";
 import { getAllEntities } from "../homeAssistant/state.js";
 import {
   getBomForecastBundle,
@@ -455,8 +455,23 @@ function renderCurrent(data) {
   }
 
   // Feed the shared store's weather slice so the ambient atmosphere (Phase 5)
-  // reads the real condition from one place instead of re-fetching.
-  setContext({ condition: getBaseCategory(current.weathercode) });
+  // reads the real condition from one place instead of re-fetching. The richer
+  // `weather` object (living-window effects) only writes when a field actually
+  // changed — the store's shallow !== compare would otherwise fire subscribers
+  // on every render for an identical fresh object.
+  const category = getBaseCategory(current.weathercode);
+  const weather = {
+    category,
+    intensity: intensityForWeatherCode(current.weathercode),
+    thunder: isThunderCode(current.weathercode),
+    windKph: current.windspeed ?? null,
+    tempC: current.temperature ?? null
+  };
+  const prevWeather = getContext().weather;
+  const weatherChanged =
+    !prevWeather ||
+    Object.keys(weather).some(key => prevWeather[key] !== weather[key]);
+  setContext(weatherChanged ? { condition: category, weather } : { condition: category });
 
   const isDay = isDaytime(data);
   const animFile = weatherAnimation(current.weathercode, isDay);

@@ -22,6 +22,7 @@
 @import './components/popover.css';
 @import './utils/helpers.css';
 @import './utils/weather-fx.css';
+@import './utils/atmo-fx.css';
 @import './components/fuel-prices.css';
 @import './components/arrival-greeting.css';
 @import './views/screensaver.css';
