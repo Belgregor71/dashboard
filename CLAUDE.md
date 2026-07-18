@@ -13,6 +13,15 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 - Pi access: `ssh pi-dashboard` (192.168.0.183, user `dashboard`, repo at `/home/dashboard/dashboard`). Dashboard serves on port 3000 on the Pi (systemd sets `PORT=3000`; the 3001 in `.env.example` is not what runs). Kiosk Chromium exposes CDP on 127.0.0.1:9222 (localhost only — run a node script on the Pi to reach it).
 - During long sessions, commit working progress locally in small checkpoints — but don't push until verified, because pushing to main deploys to the Pi.
 
+### Feature Flags
+
+- Ship new dashboard features flag-gated and default-off; the flag-off build should be
+  byte-identical (or behaviorally identical) to before. Flip the default to on only after
+  live Pi verification.
+- Every flag must be cleanly reversible — flipping it off is the rollback path, so verify
+  the off state still passes tests after the flip (flag flips have broken tests that
+  assumed the old default).
+
 ### Testing & Pre-Push Gate
 
 - `npm test` runs the Playwright suite: API contract tests (`tests/api.spec.js`) and a
@@ -24,6 +33,10 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 - Contract-test philosophy: upstreams (HA, Sonarr, calendars) may be down on any machine,
   so tests assert known status sets + JSON shapes, never live data. When adding a server
   route, add its contract test in the same change.
+- Root-cause test flakes rather than retrying them. Recurring causes: hooks registered
+  after an async load completes (register before `await`), and time-of-day dependence
+  (screensaver auto-engages after sunset; sunrise/briefing windows) — pin the clock
+  (e.g. MIDDAY) in specs that assume the awake view.
 - New-bug pattern the suite exists to catch: uncaught page errors on the kiosk. Note
   `.finally()` re-throws rejections on a fresh unhandled chain — use a two-handler
   `.then(fn, fn)` for cleanup on promises whose rejection is handled elsewhere.
