@@ -126,13 +126,20 @@ export function startApp() {
   const skyRamp = isEnabled("skyRamp", false);
   if (skyRamp) document.body.classList.add("sky-ramp");
   const nightSky = isEnabled("nightSky", false);
-  if (weatherFxRain || weatherFxLightning || nightSky) {
+  // Living-window Phase 4 — fog/heat/cold textures (runtime-synced fx-* body
+  // states + fog-drift/heat-pulse episodes) and seasonal substrate hues (the
+  // body.fx-textures marker gates the season CSS; fx- prefix — "atmo-" is
+  // reserved for the mapper tokens that probes scan by prefix).
+  const atmoTextures = isEnabled("atmoTextures", false);
+  if (atmoTextures) document.body.classList.add("fx-textures");
+  if (weatherFxRain || weatherFxLightning || nightSky || atmoTextures) {
     document.body.classList.add("weather-fx");
     initAtmoFx({
       rainEnabled: weatherFxRain,
       lightningEnabled: weatherFxLightning,
       glassEnabled: reactiveGlass,
-      nightSkyEnabled: nightSky
+      nightSkyEnabled: nightSky,
+      texturesEnabled: atmoTextures
     });
   }
   registerLifecycle();

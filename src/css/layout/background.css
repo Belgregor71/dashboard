@@ -237,8 +237,10 @@ body.substrate::before {
   pointer-events: none;
   /* The token rules below set --substrate-tint; routing the color through one
      custom property gives the Phase 3 sky ramp a single place to warm it.
-     No token → transparent, exactly the pre-token resting state. */
-  background-color: var(--substrate-tint, transparent);
+     Phase 4 seasons re-point --substrate-base (a biased mix of the tint);
+     unset, the chain falls straight through to the raw token tint. No token →
+     transparent, exactly the pre-token resting state. */
+  background-color: var(--substrate-base, var(--substrate-tint, transparent));
   /* Settle duration from the Phase 10 temperament authority when its flag is on
      (--atmo-settle); unset → the literal 60s (byte-identical to Phase 7). */
   transition: background-color var(--atmo-settle, 60s) ease;
@@ -264,9 +266,72 @@ body.substrate.atmo-night-clear::before   { --substrate-tint: rgba(2, 8, 26, 0.3
 body.sky-ramp.substrate::before {
   background-color: color-mix(
     in oklch,
-    var(--substrate-tint, transparent),
+    var(--substrate-base, var(--substrate-tint, transparent)),
     rgba(214, 132, 52, 0.24) calc(var(--sky-warmth, 0) * 22%)
   );
+}
+
+/* ── Atmosphere textures (features.atmoTextures, Living Window Phase 4) ──
+   Static body states the atmoFx runtime syncs from the weather slice (pure
+   texturesFor in atmoFx/planner.js: fog category / ≥32°C / ≤8°C). Every rule
+   here is a resting gradient or filter — no animation, no new surface; the
+   fx-* classes only ever exist while the flag is on, and the seasonal rules
+   are gated on the body.fx-textures marker app.js adds with the flag ("atmo-"
+   stays reserved for mapper tokens) → flag-off matches nothing (byte-identical).
+
+   The vignette layers ride the substrate ::before as background-image, so
+   fog/heat/cold cost nothing beyond the tint layer that already composites.
+   When two states coincide (a cold fog morning) the later rule's image wins —
+   fog last: it is the visually dominant story. */
+
+/* Heat: a faint warm bloom along the top + a drier, washed photo. */
+body.fx-heat.substrate::before {
+  background-image:
+    radial-gradient(140% 50% at 50% -20%, rgba(255, 190, 120, 0.1), transparent 65%);
+}
+body.fx-heat.awake-ground .awake-photo {
+  /* Same brightness clamp as the base rule — 0.62 is the measured legibility
+     floor over a blown-out frame; heat reads via the desaturation. */
+  filter: saturate(0.84) contrast(1.03) brightness(0.62);
+}
+
+/* Cold: frost gathers in the corners; the glass cools (composes with the
+   Phase 2 reactive-glass tokens when that flag is on too). */
+body.fx-cold.substrate::before {
+  background-image:
+    radial-gradient(55% 45% at -8% -10%, rgba(195, 220, 248, 0.15), transparent 70%),
+    radial-gradient(55% 45% at 108% 112%, rgba(195, 220, 248, 0.13), transparent 70%);
+}
+body.reactive-glass.fx-cold {
+  --glass-sheen: inset 0 1px 0 rgba(205, 228, 255, 0.12);
+}
+
+/* Fog: edge mist presses in top and bottom, the photo loses contrast, and the
+   fog tint itself sits a step heavier than the plain atmo-fog resting state. */
+body.fx-fog.substrate::before {
+  /* Top mist stays lighter than the bottom bank: a light wash under the top
+     row lifts the backdrop toward the light ink — 0.14 holds the 3:1 bar the
+     photo brightness clamp was measured against; the bottom sits over the
+     0.70 readability gradient with margin to spare. */
+  background-image:
+    radial-gradient(140% 55% at 50% -18%, rgba(165, 176, 190, 0.14), transparent 65%),
+    radial-gradient(140% 55% at 50% 118%, rgba(165, 176, 190, 0.26), transparent 65%);
+}
+body.fx-fog.substrate.atmo-fog::before { --substrate-tint: rgba(120, 130, 145, 0.26); }
+body.fx-fog.awake-ground .awake-photo {
+  filter: saturate(0.95) contrast(0.9) brightness(0.62);
+}
+
+/* Seasons: a whisper of hue under every token — winter leans the substrate
+   cool, summer warm. Mixed in oklab (no hue-path surprises) at single-digit
+   strength; alpha-matched bias colors keep the tint weight unchanged. The
+   sky-ramp and season levers compose: seasons re-point --substrate-base,
+   the ramp mixes on top of it. Autumn/spring rest neutral. */
+body.fx-textures.season-winter.substrate::before {
+  --substrate-base: color-mix(in oklab, var(--substrate-tint, transparent), rgba(70, 100, 150, 0.22) 10%);
+}
+body.fx-textures.season-summer.substrate::before {
+  --substrate-base: color-mix(in oklab, var(--substrate-tint, transparent), rgba(210, 150, 70, 0.2) 8%);
 }
 
 /* ── Living background: season + holiday ──────────────────────── */

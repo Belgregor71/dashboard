@@ -439,7 +439,18 @@ window.CONFIG = {
     // hold. The planner adds a twinkle moment (2–4 stars, ~2.5s) every 3–6
     // min, ambient-only. __forceAtmoEpisode("twinkle") to verify. Shipped OFF
     // 7023304 → flipped ON 2026-07-18. One-line revert (-> false).
-    nightSky: true
+    nightSky: true,
+
+    // Living-window Phase 4 (final) — atmosphere textures. Static body states
+    // synced from the weather slice by the atmoFx runtime (pure texturesFor:
+    // fog category → fx-fog vignette + photo contrast drop; ≥32°C → fx-heat
+    // warm top glow + desaturated photo; ≤8°C → fx-cold frost corners +
+    // cooler reactive glass), two new bounded episode lanes (awake fog-drift
+    // ≤30 blobs/≤10s; rare heat-pulse warm veil breath, zero rAF), windKph
+    // leaning every rain/fog motion (pure streakAngleFor), and winter/summer
+    // substrate hue biases riding body.season-*. __forceAtmoEpisode("fog"|
+    // "heat-pulse") to verify. One-line revert (-> false).
+    atmoTextures: false
   },
 
   /* --------------------------------------------------------------

@@ -19,7 +19,12 @@ export const BUDGETS = {
   // Phase 3 nightSky: a twinkle moment is 2–4 stars breathing once over ~2.5s
   // on the otherwise-static starfield. Ambient-only (the field is a Mode-0
   // scene) and the rarest lane by far.
-  twinkle: { maxActiveMs: 3000, maxStars: 4 }
+  twinkle: { maxActiveMs: 3000, maxStars: 4 },
+  // Phase 4 atmoTextures: a fog drift is ≤30 soft blobs crossing for ≤10s,
+  // awake-only (ambient fog is the static vignette alone); a heat pulse is a
+  // one-shot warm veil (zero rAF, like lightning) capped well under a strike.
+  fog: { maxActiveMs: 10000, maxBlobs: 30 },
+  heatPulse: { maxSequenceMs: 4000, maxPeak: 0.3 }
 };
 
 // Randomized gap bands (ms) between rain episodes — never metronomic. Ambient
@@ -36,6 +41,55 @@ export const LIGHTNING_GAP_MS = [40000, 160000];
 // Gap band between twinkle moments on a clear night (3–6 min — rare enough
 // that the wall reads as a still sky that occasionally breathes).
 export const TWINKLE_GAP_MS = [180000, 360000];
+
+// Phase 4 texture pacing: fog drifts are an awake flourish (the room is being
+// looked at); heat pulses are rare — a warm breath every few minutes at most.
+export const FOG_GAP_MS = [40000, 80000];
+export const HEAT_PULSE_GAP_MS = [180000, 420000];
+
+// Phase 4 static-texture thresholds (°C) — the single authority the runtime's
+// body-class sync reads. Brisbane numbers: 32° is a hot day, 8° a cold night.
+export const HEAT_TEMP_C = 32;
+export const COLD_TEMP_C = 8;
+
+/**
+ * Map the weather slice to the static texture classes the body should carry.
+ * Pure — the runtime just diffs the result onto document.body when the
+ * atmoTextures flag is on. Fog and cold can coexist (a winter fog morning);
+ * heat and cold are exclusive by threshold.
+ *
+ * @param {object} [weather] contextStore weather slice.
+ * @returns {string[]} zero or more of "fx-fog" | "fx-heat" | "fx-cold".
+ */
+export function texturesFor(weather) {
+  if (!weather || typeof weather !== "object") return [];
+  const out = [];
+  if (weather.category === "fog") out.push("fx-fog");
+  const t = weather.tempC;
+  // Strict type check — Number(null) is 0, which would read as freezing.
+  if (typeof t === "number" && Number.isFinite(t)) {
+    if (t >= HEAT_TEMP_C) out.push("fx-heat");
+    else if (t <= COLD_TEMP_C) out.push("fx-cold");
+  }
+  return out;
+}
+
+/**
+ * Wind bias for the rain streak pass: 0–50 kph maps the fall angle from a
+ * near-vertical −0.35 rad to a driven −0.9 rad, clamped at both ends. The
+ * slice carries speed only (no bearing), so the lean direction is fixed and
+ * every wind-biased motion (streaks, droplet slide, fog drift) agrees with it.
+ *
+ * @param {number} [windKph]
+ * @returns {number} streak angle in radians.
+ */
+export function streakAngleFor(windKph) {
+  // Strict type check — Number(null) is 0, which would read as dead calm.
+  const t = typeof windKph === "number" && Number.isFinite(windKph)
+    ? Math.max(0, Math.min(1, windKph / 50))
+    : 0.5; // no data → the Phase-1 middle lean
+  return -(0.35 + t * 0.55);
+}
 
 // CSS decay time of one strike (matches the fx-lightning keyframes' tail) —
 // used to size the sequence duration for the runtime's cleanup timeout.
@@ -58,6 +112,10 @@ function planRain(weather, mode, now, rng) {
   const intensity = normalizeIntensity(weather.intensity);
   const gapMs = pick(rng, RAIN_GAP_MS[mode][intensity]);
 
+  // Phase 4 wind: the slice's windKph leans the whole episode — streak pass
+  // and droplet slide agree on one angle.
+  const streakAngle = streakAngleFor(weather.windKph);
+
   if (intensity === "heavy") {
     // Heavy variant: more droplets plus one diagonal streak pass before settle.
     const fadeInMs = 1500;
@@ -74,6 +132,7 @@ function planRain(weather, mode, now, rng) {
         fadeInMs,
         streakMs,
         slideMs,
+        streakAngle,
         holdMs: Math.min(pickInt(rng, [15000, 30000]), budget.maxHoldMs)
       }
     };
@@ -94,6 +153,7 @@ function planRain(weather, mode, now, rng) {
       fadeInMs,
       streakMs: 0,
       slideMs,
+      streakAngle,
       holdMs: Math.min(pickInt(rng, [20000, 40000]), budget.maxHoldMs)
     }
   };
@@ -127,6 +187,39 @@ function planLightning(now, rng) {
   };
 }
 
+function planFog(weather, now, rng) {
+  // A slow bank of soft blobs drifts across once, then the frame clears —
+  // awake-only (planNextEpisode gates it): ambient fog is the static vignette.
+  const activeMs = pickInt(rng, [7000, BUDGETS.fog.maxActiveMs]);
+  const angle = streakAngleFor(weather.windKph);
+  return {
+    type: "fog-drift",
+    startAt: now + pick(rng, FOG_GAP_MS),
+    durationMs: activeMs,
+    params: {
+      blobs: pickInt(rng, [18, BUDGETS.fog.maxBlobs]),
+      // Wind carries the bank: drift speed grows with the same lean the rain
+      // streaks use, so all weather motion reads as one sky.
+      driftSpeed: 0.4 + Math.abs(angle + 0.35) * 1.6,
+      holdMs: 0
+    }
+  };
+}
+
+function planHeatPulse(now, rng) {
+  // One slow warm breath on the veil — reuses the lightning layer with a
+  // gentler one-shot keyframe. Zero rAF frames, capped low and rare.
+  return {
+    type: "heat-pulse",
+    startAt: now + pick(rng, HEAT_PULSE_GAP_MS),
+    durationMs: BUDGETS.heatPulse.maxSequenceMs,
+    params: {
+      peak: pick(rng, [0.15, BUDGETS.heatPulse.maxPeak]),
+      x: pick(rng, [0.3, 0.7])
+    }
+  };
+}
+
 function planTwinkle(now, rng) {
   // 2–4 stars brighten and dim once over ~2.5s — the runtime modulates stars it
   // picks from the painted field; the planner only sizes the moment.
@@ -153,10 +246,12 @@ function planTwinkle(now, rng) {
  * @param {boolean} [input.night] Phase 3 nightSky: true when the clear-night
  *   starfield is live (flag on + isNight). The twinkle lane only exists then,
  *   and only ambient — the field is a Mode-0 scene.
+ * @param {boolean} [input.textures] Phase 4 atmoTextures: opens the fog-drift
+ *   (awake fog) and heat-pulse (≥ HEAT_TEMP_C) episode lanes.
  * @param {() => number} [input.rng] uniform [0,1) source, injectable for tests.
  * @returns {{type:string,startAt:number,durationMs:number,params:object}|null}
  */
-export function planNextEpisode({ weather, mode = "ambient", now = 0, night = false, rng = Math.random } = {}) {
+export function planNextEpisode({ weather, mode = "ambient", now = 0, night = false, textures = false, rng = Math.random } = {}) {
   if (!weather || typeof weather !== "object") return null;
   const m = mode === "awake" ? "awake" : "ambient";
 
@@ -167,10 +262,16 @@ export function planNextEpisode({ weather, mode = "ambient", now = 0, night = fa
   const twinkle = night === true && m === "ambient" && weather.category === "clear"
     ? planTwinkle(now, rng)
     : null;
+  const fog = textures === true && m === "awake" && weather.category === "fog"
+    ? planFog(weather, now, rng)
+    : null;
+  const heat = textures === true && texturesFor(weather).includes("fx-heat")
+    ? planHeatPulse(now, rng)
+    : null;
 
   // All live lanes race: whichever is due sooner goes next; the others get
   // their turn on the following plan. One episode in flight, ever.
-  const lanes = [rains, lightning, twinkle].filter(Boolean);
+  const lanes = [rains, lightning, twinkle, fog, heat].filter(Boolean);
   if (!lanes.length) return null;
   lanes.sort((a, b) => a.startAt - b.startAt);
   return lanes[0];

@@ -14,7 +14,7 @@
 // it doesn't fire under display:none); stopAtmoFx() is the full symmetric
 // teardown. Flag-off, initAtmoFx() returns before touching the DOM.
 
-import { planNextEpisode } from "./planner.js";
+import { planNextEpisode, texturesFor } from "./planner.js";
 import { get as getContext, subscribe as subscribeContext } from "../../core/contextStore.js";
 import { on } from "../../core/eventBus.js";
 
@@ -24,10 +24,13 @@ const GLASS_PULSE_MS = 450;    // sheen held per strike; the 1s-out transition d
 const STAR_COUNT = 110;        // painted starfield size — a render detail, not a budget
                                // (the planner budget caps how many may twinkle at once)
 
+const TEXTURE_CLASSES = ["fx-fog", "fx-heat", "fx-cold"]; // Phase 4 static body states
+
 let enabledRain = false;
 let enabledLightning = false;
 let enabledGlass = false;      // Phase 2 reactiveGlass: strikes pulse --glass-sheen
 let enabledNightSky = false;   // Phase 3 nightSky: clear-night starfield + twinkles
+let enabledTextures = false;   // Phase 4 atmoTextures: fog/heat/cold states + episodes
 let glassPulseTimer = null;    // the pending body-class release for the current pulse
 let canvas = null;
 let ctx = null;
@@ -88,6 +91,17 @@ function nightSkyWanted() {
     Boolean(c.weather) && c.weather.category === "clear";
 }
 
+// Phase 4: diff the pure texture mapping onto <body>. Change-guarded class
+// swaps on an existing node — no new surface, no loop (the atmosphere-token
+// precedent). Flag-off, the classes never exist.
+function syncTextures() {
+  if (!enabledTextures) return;
+  const want = texturesFor(getContext().weather);
+  for (const cls of TEXTURE_CLASSES) {
+    document.body.classList.toggle(cls, want.includes(cls));
+  }
+}
+
 function replan() {
   if (planTimer) {
     clearTimeout(planTimer);
@@ -98,7 +112,8 @@ function replan() {
     weather: flaggedWeather(getContext().weather),
     mode,
     now: Date.now(),
-    night: nightSkyWanted()
+    night: nightSkyWanted(),
+    textures: enabledTextures
   });
   if (!episode) return;
   planTimer = setTimeout(() => {
@@ -119,6 +134,10 @@ function execute(episode) {
     runLightning(episode);
   } else if (episode.type === "twinkle") {
     runTwinkle(episode);
+  } else if (episode.type === "fog-drift") {
+    runFog(episode);
+  } else if (episode.type === "heat-pulse") {
+    runHeatPulse(episode);
   } else {
     runRain(episode);
   }
@@ -142,7 +161,7 @@ function cancelAll() {
     ctx?.clearRect(0, 0, canvas.width, canvas.height);
   }
   if (veil) {
-    veil.classList.remove("fx-strike");
+    veil.classList.remove("fx-strike", "fx-warm", "fx-warm-pulse");
     veil.style.display = "none";
   }
   glassPulseTimer = null; // its timeout died with clearPhaseTimers above
@@ -289,9 +308,13 @@ function runRain(episode) {
   const streakStart = params.fadeInMs;
   const slideStart = params.fadeInMs + params.streakMs;
   const activeMs = episode.durationMs;
-  const STREAK_ANGLE = -0.6; // rad — Phase 4 will bias this by windKph
-  const vx = Math.cos(STREAK_ANGLE) * 2.4;
-  const vy = -Math.sin(STREAK_ANGLE) * 2.4;
+  // Phase 4 wind: the planner leans the whole episode by windKph (pure
+  // streakAngleFor; −0.6 was Phase 1's fixed angle and remains the no-data
+  // fallback). Sliders drift sideways on the same lean the streaks fall at.
+  const streakAngle = params.streakAngle ?? -0.6;
+  const vx = Math.cos(streakAngle) * 2.4;
+  const vy = -Math.sin(streakAngle) * 2.4;
+  const slideDriftRatio = Math.tan(Math.max(0, Math.abs(streakAngle) - 0.35));
 
   canvas.style.display = "block";
   void canvas.offsetWidth;
@@ -328,7 +351,7 @@ function runRain(episode) {
       const p = Math.min(1, (t - slideStart) / params.slideMs);
       for (const d of sliders) {
         d.y = d.trailY0 + d.slideDist * p * p;
-        d.x += Math.sin(p * 9 + d.seed) * 0.25;
+        d.x += Math.sin(p * 9 + d.seed) * 0.25 + slideDriftRatio * d.slideDist * (2 * p) * (16.67 / params.slideMs) * dt;
         for (const s of statics) {
           if (s.merged) continue;
           const dx = d.x - s.x;
@@ -467,6 +490,91 @@ function runTwinkle(episode) {
   rafId = requestAnimationFrame(frame);
 }
 
+// ── Phase 4 textures: fog drift + heat pulse ────────────────────
+
+// A slow bank of soft blobs crosses the glass once (awake-only — the planner
+// gates the lane), then the frame clears. Adapted from weatherMotion.js:86-99.
+function runFog(episode) {
+  if (reducedMotion()) {
+    finish();
+    return;
+  }
+  const { params } = episode;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  canvas.width = w;
+  canvas.height = h;
+
+  const blobs = [];
+  for (let i = 0; i < params.blobs; i++) {
+    blobs.push({
+      x: rand(-0.1, 1.1) * w,
+      y: rand(0.1, 0.95) * h,
+      z: rand(0.3, 1),
+      r: rand(70, 170)
+    });
+  }
+  const activeMs = episode.durationMs;
+
+  canvas.style.display = "block";
+  void canvas.offsetWidth;
+  canvas.classList.add("fx-visible");
+
+  let lastT = null;
+  function frame(now) {
+    if (lastT === null) lastT = now;
+    const t = now - (frame.t0 ?? (frame.t0 = now));
+    const dt = Math.min((now - lastT) / 16.67, 2);
+    lastT = now;
+
+    // Envelope: ease the whole bank in and out inside the episode.
+    const env = smoothstep(t / 1500) * smoothstep((activeMs - t) / 1800);
+    ctx.clearRect(0, 0, w, h);
+    for (const b of blobs) {
+      b.x += params.driftSpeed * dt * (0.6 + b.z);
+      if (b.x > w + 200) b.x = -200;
+      const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r * b.z);
+      g.addColorStop(0, `rgba(235,240,248,${(0.055 * env).toFixed(3)})`);
+      g.addColorStop(1, "rgba(235,240,248,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r * b.z, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (t < activeMs) {
+      rafId = requestAnimationFrame(frame);
+    } else {
+      rafId = null;
+      canvas.classList.remove("fx-visible");
+      addTimer(CANVAS_FADE_MS, () => {
+        canvas.style.display = "none";
+        ctx.clearRect(0, 0, w, h);
+        finish();
+      });
+    }
+  }
+  rafId = requestAnimationFrame(frame);
+}
+
+// One slow warm breath on the veil — the lightning layer wearing its Phase 4
+// warm gradient (atmo-fx.css .fx-warm) with a gentler one-shot keyframe.
+// Zero rAF frames, same settle discipline as a strike.
+function runHeatPulse(episode) {
+  const { peak, x } = episode.params;
+  veil.style.setProperty("--flash-x", x.toFixed(3));
+  veil.style.setProperty("--flash-peak", peak.toFixed(2));
+  veil.classList.add("fx-warm");
+  veil.style.display = "block";
+  void veil.offsetWidth;
+  veil.classList.add("fx-warm-pulse");
+  addTimer(episode.durationMs + VEIL_SETTLE_MS, () => {
+    veil.classList.remove("fx-warm", "fx-warm-pulse");
+    veil.style.display = "none";
+    finish();
+  });
+}
+
 // ── wiring ──────────────────────────────────────────────────────
 
 function onStoreChange(state) {
@@ -475,19 +583,21 @@ function onStoreChange(state) {
   if (!weatherMoved && !nightMoved) return;
   lastWeather = state.weather;
   lastIsNight = state.isNight;
-  // Weather or the day/night boundary moved: reconcile the starfield and
-  // re-plan the pending gap. A running episode (≤12s active) is left to
-  // finish — the weather signal is 10-min coarse anyway.
+  // Weather or the day/night boundary moved: reconcile the starfield and the
+  // static texture classes, then re-plan the pending gap. A running episode
+  // (≤12s active) is left to finish — the weather signal is 10-min coarse.
   syncNightSky();
+  syncTextures();
   if (!running) replan();
 }
 
-export function initAtmoFx({ rainEnabled = false, lightningEnabled = false, glassEnabled = false, nightSkyEnabled = false } = {}) {
-  if (!rainEnabled && !lightningEnabled && !nightSkyEnabled) return; // flag-off: byte-identical, no DOM
+export function initAtmoFx({ rainEnabled = false, lightningEnabled = false, glassEnabled = false, nightSkyEnabled = false, texturesEnabled = false } = {}) {
+  if (!rainEnabled && !lightningEnabled && !nightSkyEnabled && !texturesEnabled) return; // flag-off: byte-identical, no DOM
   enabledRain = rainEnabled;
   enabledLightning = lightningEnabled;
   enabledGlass = glassEnabled;
   enabledNightSky = nightSkyEnabled;
+  enabledTextures = texturesEnabled;
 
   canvas = document.createElement("canvas");
   canvas.id = "atmo-fx-canvas";
@@ -511,24 +621,29 @@ export function initAtmoFx({ rainEnabled = false, lightningEnabled = false, glas
   });
 
   syncNightSky();
+  syncTextures();
   replan();
 
   // Pi verification hooks (same pattern as __forcePhotoDissolve): run one
-  // episode immediately, regardless of live weather.
+  // episode immediately, regardless of live weather. "fog" plans a fog-drift,
+  // "heat-pulse" the warm veil breath (both need the atmoTextures flag).
   window.__forceAtmoEpisode = (type = "rain-moment") => {
-    const synthetic =
-      type === "lightning"
-        ? { category: "clear", intensity: null, thunder: true }
-        : type === "twinkle"
-          ? { category: "clear", intensity: null, thunder: false }
-          : { category: "rain", intensity: type === "rain-heavy" ? "heavy" : "moderate", thunder: false };
+    const synthetic = {
+      lightning: { category: "clear", intensity: null, thunder: true },
+      twinkle: { category: "clear", intensity: null, thunder: false },
+      fog: { category: "fog", intensity: null, thunder: false, windKph: 18 },
+      "heat-pulse": { category: "clear", intensity: null, thunder: false, tempC: 36 },
+      "rain-heavy": { category: "rain", intensity: "heavy", thunder: false, windKph: 30 }
+    }[type] ?? { category: "rain", intensity: "moderate", thunder: false };
     const episode = planNextEpisode({
       weather: synthetic,
-      // A forced twinkle plans as ambient so it works from an awake CDP session;
-      // finish() → syncNightSky clears the field unless the night truly earns it.
-      mode: type === "twinkle" ? "ambient" : mode,
+      // Forced lanes plan in the mode that owns them so they work from any CDP
+      // session: twinkle is ambient-only, fog awake-only; finish() reconciles
+      // the resting canvas against the real conditions afterwards.
+      mode: type === "twinkle" ? "ambient" : type === "fog" ? "awake" : mode,
       now: Date.now(),
-      night: type === "twinkle" && enabledNightSky
+      night: type === "twinkle" && enabledNightSky,
+      textures: (type === "fog" || type === "heat-pulse") && enabledTextures
     });
     if (!episode) return null;
     cancelAll();
@@ -541,7 +656,8 @@ export function initAtmoFx({ rainEnabled = false, lightningEnabled = false, glas
     scheduled: Boolean(planTimer),
     canvasVisible: canvas.style.display !== "none",
     night: { live: nightLive, stars: stars ? stars.length : 0 },
-    enabled: { rain: enabledRain, lightning: enabledLightning, glass: enabledGlass, nightSky: enabledNightSky }
+    textures: TEXTURE_CLASSES.filter(c => document.body.classList.contains(c)),
+    enabled: { rain: enabledRain, lightning: enabledLightning, glass: enabledGlass, nightSky: enabledNightSky, textures: enabledTextures }
   });
 }
 
@@ -558,10 +674,12 @@ export function stopAtmoFx() {
   ctx = null;
   veil = null;
   lastWeather = null;
+  document.body.classList.remove(...TEXTURE_CLASSES);
   enabledRain = false;
   enabledLightning = false;
   enabledGlass = false;
   enabledNightSky = false;
+  enabledTextures = false;
   stars = null;
   lastIsNight = null;
   delete window.__forceAtmoEpisode;

@@ -4,7 +4,13 @@ import {
   BUDGETS,
   RAIN_GAP_MS,
   LIGHTNING_GAP_MS,
-  TWINKLE_GAP_MS
+  TWINKLE_GAP_MS,
+  FOG_GAP_MS,
+  HEAT_PULSE_GAP_MS,
+  HEAT_TEMP_C,
+  COLD_TEMP_C,
+  texturesFor,
+  streakAngleFor
 } from "../src/js/services/atmoFx/planner.js";
 import {
   categoryForWeatherCode,
@@ -153,6 +159,79 @@ test.describe("atmoFx planner", () => {
       const gap = ep.startAt - NOW;
       expect(gap).toBeGreaterThanOrEqual(TWINKLE_GAP_MS[0]);
       expect(gap).toBeLessThanOrEqual(TWINKLE_GAP_MS[1]);
+    }
+  });
+
+  test("texturesFor: fog by category, heat/cold by threshold, composable", () => {
+    expect(texturesFor(null)).toEqual([]);
+    expect(texturesFor({ category: "clear", tempC: 20 })).toEqual([]);
+    expect(texturesFor({ category: "fog", tempC: 15 })).toEqual(["fx-fog"]);
+    expect(texturesFor({ category: "clear", tempC: HEAT_TEMP_C })).toEqual(["fx-heat"]);
+    expect(texturesFor({ category: "clear", tempC: COLD_TEMP_C })).toEqual(["fx-cold"]);
+    // A cold fog morning carries both; heat and cold are threshold-exclusive.
+    expect(texturesFor({ category: "fog", tempC: 5 })).toEqual(["fx-fog", "fx-cold"]);
+    expect(texturesFor({ category: "clear", tempC: null })).toEqual([]);
+    expect(texturesFor({ category: "clear" })).toEqual([]);
+  });
+
+  test("streakAngleFor: 0–50 kph maps −0.35..−0.9 rad, clamped, mid fallback", () => {
+    expect(streakAngleFor(0)).toBeCloseTo(-0.35, 5);
+    expect(streakAngleFor(50)).toBeCloseTo(-0.9, 5);
+    expect(streakAngleFor(90)).toBeCloseTo(-0.9, 5); // clamped past the band
+    expect(streakAngleFor(25)).toBeCloseTo(-0.625, 5);
+    expect(streakAngleFor(null)).toBeCloseTo(-0.625, 5); // no data → the Phase-1 middle
+    // More wind always leans harder.
+    expect(streakAngleFor(40)).toBeLessThan(streakAngleFor(10));
+  });
+
+  test("rain plans carry the wind lean", () => {
+    const calm = planNextEpisode({
+      weather: { category: "rain", intensity: "heavy", thunder: false, windKph: 0 },
+      mode: "awake", now: NOW, rng: mulberry32(9)
+    });
+    const gale = planNextEpisode({
+      weather: { category: "rain", intensity: "heavy", thunder: false, windKph: 45 },
+      mode: "awake", now: NOW, rng: mulberry32(9)
+    });
+    expect(calm.params.streakAngle).toBeCloseTo(-0.35, 5);
+    expect(gale.params.streakAngle).toBeLessThan(calm.params.streakAngle);
+  });
+
+  test("texture lanes: fog is awake-only, heat needs the threshold, both need the flag", () => {
+    const fogWeather = { category: "fog", intensity: null, thunder: false, windKph: 10, tempC: 14 };
+    const fog = planNextEpisode({ weather: fogWeather, mode: "awake", now: NOW, textures: true, rng: mulberry32(2) });
+    expect(fog.type).toBe("fog-drift");
+    expect(planNextEpisode({ weather: fogWeather, mode: "ambient", now: NOW, textures: true, rng: mulberry32(2) })).toBe(null);
+    expect(planNextEpisode({ weather: fogWeather, mode: "awake", now: NOW, rng: mulberry32(2) })).toBe(null);
+
+    const hot = { category: "clear", intensity: null, thunder: false, tempC: HEAT_TEMP_C + 2 };
+    const heat = planNextEpisode({ weather: hot, mode: "ambient", now: NOW, textures: true, rng: mulberry32(2) });
+    expect(heat.type).toBe("heat-pulse");
+    expect(planNextEpisode({ weather: { ...hot, tempC: HEAT_TEMP_C - 1 }, mode: "ambient", now: NOW, textures: true, rng: mulberry32(2) })).toBe(null);
+    expect(planNextEpisode({ weather: hot, mode: "ambient", now: NOW, rng: mulberry32(2) })).toBe(null);
+  });
+
+  test("fog + heat budget invariants hold across 200 seeds", () => {
+    const fogWeather = { category: "fog", intensity: null, thunder: false, windKph: 30, tempC: 12 };
+    const hot = { category: "clear", intensity: null, thunder: false, tempC: 38 };
+    for (let seed = 0; seed < 200; seed++) {
+      const fog = planNextEpisode({ weather: fogWeather, mode: "awake", now: NOW, textures: true, rng: mulberry32(seed) });
+      expect(fog.type).toBe("fog-drift");
+      expect(fog.durationMs).toBeLessThanOrEqual(BUDGETS.fog.maxActiveMs);
+      expect(fog.params.blobs).toBeLessThanOrEqual(BUDGETS.fog.maxBlobs);
+      expect(fog.params.driftSpeed).toBeGreaterThan(0);
+      let gap = fog.startAt - NOW;
+      expect(gap).toBeGreaterThanOrEqual(FOG_GAP_MS[0]);
+      expect(gap).toBeLessThanOrEqual(FOG_GAP_MS[1]);
+
+      const heat = planNextEpisode({ weather: hot, mode: "ambient", now: NOW, textures: true, rng: mulberry32(seed) });
+      expect(heat.type).toBe("heat-pulse");
+      expect(heat.durationMs).toBeLessThanOrEqual(BUDGETS.heatPulse.maxSequenceMs);
+      expect(heat.params.peak).toBeLessThanOrEqual(BUDGETS.heatPulse.maxPeak);
+      expect(heat.params.peak).toBeGreaterThan(0);
+      gap = heat.startAt - NOW;
+      expect(gap).toBeGreaterThanOrEqual(HEAT_PULSE_GAP_MS[0]);
+      expect(gap).toBeLessThanOrEqual(HEAT_PULSE_GAP_MS[1]);
     }
   });
 

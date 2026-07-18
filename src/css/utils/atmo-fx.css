@@ -61,8 +61,32 @@ body.weather-fx #atmo-fx-veil.fx-strike {
   100% { opacity: 0; }
 }
 
+/* Phase 4 heat pulse: the veil wearing a warm dusk gradient instead of the
+   cool strike glow. Same one-shot discipline — a slow breath in, a slower
+   release, filled forwards; the runtime removes the classes on its timeout. */
+body.weather-fx #atmo-fx-veil.fx-warm {
+  background: radial-gradient(
+    ellipse 100% 60% at calc(var(--flash-x, 0.5) * 100%) 100%,
+    rgba(255, 190, 120, 0.5),
+    rgba(255, 160, 90, 0.18) 45%,
+    rgba(230, 130, 70, 0.06) 65%,
+    transparent 80%
+  );
+}
+
+body.weather-fx #atmo-fx-veil.fx-warm-pulse {
+  animation: fx-heat-pulse 4s ease-in-out forwards;
+}
+
+@keyframes fx-heat-pulse {
+  0% { opacity: 0; }
+  45% { opacity: var(--flash-peak, 0.25); }
+  100% { opacity: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  body.weather-fx #atmo-fx-veil.fx-strike {
+  body.weather-fx #atmo-fx-veil.fx-strike,
+  body.weather-fx #atmo-fx-veil.fx-warm-pulse {
     animation: none;
     opacity: 0;
   }
