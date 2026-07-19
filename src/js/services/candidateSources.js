@@ -147,14 +147,39 @@ export function tonightsMenuCandidate({ menuActive, menuName } = {}) {
  */
 export const CAMERA_TRIGGER_FRESH_MS = 15 * 60 * 1000;
 
-export function cameraTriggerCandidate({ cameraTriggerName, cameraTriggerAt, cameraTriggerLabel } = {}) {
+// The event image does NOT exist at trigger time. Battery cameras upload via the
+// Eufy cloud, measured at 1min+ behind the event (the same lag that made the popup
+// show stale frames — see cameraPopupOverlay PENDING_TRIGGER_WINDOW_MS = 150s). So
+// pinning the URL to the trigger stamp would risk showing the PREVIOUS event's
+// frame: re-bust on a coarse bucket while the image is still settling, so the
+// thumbnail converges onto the real frame, then pin once it has settled.
+//
+// The snapshot route is the real freshness guarantee (it refetches from HA per
+// request and sends no-store), and renderStack rebuilds the <img> every 30s tick,
+// so pinning stops URL churn — not re-fetching. The ?ts= bust matches the pattern
+// cameraTiles/cameraPopupOverlay already use, for caches that ignore no-store.
+export const CAMERA_IMAGE_SETTLE_MS = 150 * 1000;
+export const CAMERA_IMAGE_BUCKET_MS = 15 * 1000;
+
+export function cameraSnapshotUrl({ cameraId, at, now = Date.now() } = {}) {
+  if (!cameraId || !at) return null;
+  const age = now - at;
+  const settling = age >= 0 && age <= CAMERA_IMAGE_SETTLE_MS;
+  const ts = settling ? Math.floor(now / CAMERA_IMAGE_BUCKET_MS) * CAMERA_IMAGE_BUCKET_MS : at;
+  return `/api/camera/${encodeURIComponent(cameraId)}/snapshot?ts=${ts}`;
+}
+
+export function cameraTriggerCandidate({ cameraTriggerName, cameraTriggerAt, cameraTriggerLabel, cameraTriggerImage } = {}) {
   if (!cameraTriggerName || !cameraTriggerAt) return null;
   return {
     id: `camera-trigger:${cameraTriggerAt}`,
     source: "cameraTrigger",
     icon: "📹",
     text: cameraTriggerLabel ? `${cameraTriggerName} · ${cameraTriggerLabel}` : cameraTriggerName,
-    // Tier-1a rich-card slots: the camera name over its trigger time.
+    // Tier-1a rich-card slots: the camera name over its trigger time. The snapshot
+    // rides the existing c.image thumbnail slot (media/plex artwork uses it too);
+    // null falls back to the 📹 glyph, so a camera with no id still renders.
+    image: cameraTriggerImage || null,
     title: cameraTriggerName,
     sub: cameraTriggerLabel || null,
     score: 45,

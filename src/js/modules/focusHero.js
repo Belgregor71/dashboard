@@ -3,7 +3,7 @@ import { getBomWarnings } from "../services/weather/bom.js";
 import { getAllEntities } from "../services/homeAssistant/state.js";
 import { getCurrentInsight, initInsightEngine } from "../services/insightEngine.js";
 import { initAttentionEngine, getSelection } from "../services/attentionEngine.js";
-import { collectSources } from "../services/candidateSources.js";
+import { collectSources, cameraSnapshotUrl } from "../services/candidateSources.js";
 import { getLastCameraTrigger } from "./cameraTiles.js";
 import { getMode } from "../core/presence.js";
 import { on } from "../core/eventBus.js";
@@ -98,7 +98,13 @@ function readCameraTrigger() {
   const t = getLastCameraTrigger();
   if (!t?.cameraName || !t?.timestamp) return null;
   const time = new Date(t.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  return { name: t.cameraName, at: t.timestamp, label: `Last triggered ${time}` };
+  return {
+    name: t.cameraName,
+    at: t.timestamp,
+    label: `Last triggered ${time}`,
+    // The card shows the triggered camera's own frame instead of a generic glyph.
+    image: cameraSnapshotUrl({ cameraId: t.cameraId, at: t.timestamp })
+  };
 }
 
 function readState() {
@@ -142,7 +148,8 @@ function readState() {
     menuName,
     cameraTriggerName: cameraTrigger?.name ?? null,
     cameraTriggerAt: cameraTrigger?.at ?? null,
-    cameraTriggerLabel: cameraTrigger?.label ?? null
+    cameraTriggerLabel: cameraTrigger?.label ?? null,
+    cameraTriggerImage: cameraTrigger?.image ?? null
   };
 }
 

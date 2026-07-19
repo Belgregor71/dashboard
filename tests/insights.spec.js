@@ -19,7 +19,9 @@ import {
   plexCandidate,
   tonightsMenuCandidate,
   cameraTriggerCandidate,
+  cameraSnapshotUrl,
   CAMERA_TRIGGER_FRESH_MS,
+  CAMERA_IMAGE_SETTLE_MS,
   collectSources
 } from "../src/js/services/candidateSources.js";
 import { rankQueue, selectForMode, MODE } from "../src/js/services/attentionRank.js";
@@ -345,6 +347,41 @@ test.describe("candidateSources score bands", () => {
   test("camera trigger with no recent event yields no candidate", () => {
     expect(cameraTriggerCandidate({})).toBeNull();
     expect(cameraTriggerCandidate({ cameraTriggerName: "Driveway" })).toBeNull(); // no timestamp
+  });
+
+  test("camera trigger carries the snapshot through to the card thumbnail", () => {
+    const at = new Date("2026-07-19T15:42:00").getTime();
+    const c = cameraTriggerCandidate({
+      cameraTriggerName: "Driveway",
+      cameraTriggerAt: at,
+      cameraTriggerImage: "/api/camera/driveway/snapshot?ts=1"
+    });
+    expect(c.image).toBe("/api/camera/driveway/snapshot?ts=1");
+    // No id → no URL → the card falls back to the 📹 glyph rather than a broken img.
+    expect(cameraTriggerCandidate({ cameraTriggerName: "Driveway", cameraTriggerAt: at }).image).toBeNull();
+  });
+
+  test("snapshot url re-busts while the event image is still settling, then freezes", () => {
+    const at = new Date("2026-07-19T15:42:00").getTime();
+    const url = (now) => cameraSnapshotUrl({ cameraId: "driveway", at, now });
+
+    // Battery cameras upload 1min+ after the trigger, so a URL pinned at t=0 would
+    // serve the PREVIOUS event's frame for the card's whole life. Inside the settle
+    // window the bucket advances, so the thumbnail converges onto the real frame.
+    const early = url(at + 1000);
+    const later = url(at + 40 * 1000);
+    expect(early).not.toBe(later);
+    expect(early).toContain("/api/camera/driveway/snapshot?ts=");
+
+    // Same bucket → same URL, so a 30s re-render inside one bucket adds no churn.
+    expect(url(at + 1000)).toBe(url(at + 2000));
+
+    // Past the settle window it pins to the trigger stamp and stops re-fetching.
+    expect(url(at + CAMERA_IMAGE_SETTLE_MS + 60_000)).toBe(`/api/camera/driveway/snapshot?ts=${at}`);
+    expect(url(at + 10 * 60 * 1000)).toBe(`/api/camera/driveway/snapshot?ts=${at}`);
+
+    expect(cameraSnapshotUrl({ at })).toBeNull();
+    expect(cameraSnapshotUrl({ cameraId: "driveway" })).toBeNull();
   });
 
   test("inactive/empty panels yield no candidate", () => {
