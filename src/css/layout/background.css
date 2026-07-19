@@ -397,5 +397,11 @@ body.awake-ground::after {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.08) 0%, rgba(0, 0, 0, 0) 44%, rgba(0, 0, 0, 0.70) 100%);
+  /* Top stop is 0.25, not the token 0.08 it started at: the bare top row sits in
+     this band, and a mid-grey photo region is the worst case for light ink — even
+     fully opaque the ink only reaches 3.83:1 there, under the 4.5 bar. Measured on
+     the kiosk over a real photo (scripts/verify/live-contrast.cjs); pairs with the
+     0.85 ink on the dimmed top-row labels. Paints above the substrate ::before, so
+     it also counteracts fog's light top wash. */
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0) 44%, rgba(0, 0, 0, 0.70) 100%);
 }

@@ -136,7 +136,9 @@ body.bare-top-row #current-conditions {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink);
-  opacity: 0.6;
+  /* 0.85: at 19px these need the full 4.5 bar, and 0.6 measured 2.27:1 over a
+     mid-grey photo region on the kiosk. See background.css readability gradient. */
+  opacity: 0.85;
 }
 
 /* the middot between LOCATION and CONDITION */
