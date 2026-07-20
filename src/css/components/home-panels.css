@@ -248,7 +248,10 @@ body.bare-hero #focus-hero {
   left: 0;
   right: 0;
   top: 50%;
-  transform: translateY(calc(-50% + var(--hero-offset)));
+  /* --hero-lift is set by focusHero.js when a populated stack would collide with
+     the centred line (both surfaces are fixed with independent anchors, so
+     nothing reserves space between them); 0 when there's room. */
+  transform: translateY(calc(-50% + var(--hero-offset) - var(--hero-lift, 0px)));
   margin: 0;
   padding: 0 var(--safe-margin);
   gap: var(--space-7); /* 28px — the design hero glyph↔text gap */

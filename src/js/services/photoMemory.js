@@ -45,6 +45,21 @@ function dateKey(d) {
 }
 
 /**
+ * A memory photo ref → a URL, or null when there's no ref. Immich assets are
+ * { immich: id }; authored entries are string paths (absolute/rooted as-is,
+ * bare names under /photos/).
+ */
+export function memoryPhotoSrc(ref) {
+  if (ref && typeof ref === "object" && ref.immich) {
+    return `/api/immich/asset/${encodeURIComponent(ref.immich)}/thumb`;
+  }
+  const s = String(ref ?? "");
+  if (!s) return null;
+  if (/^(https?:|\/)/.test(s)) return s;
+  return `/photos/${s.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+/**
  * Build a single "on this day" memory entry from the Immich feed, or null when
  * there's nothing from a past year today. Anchored to today so pickMemory scores
  * it as an anniversary; photos are the past-years images (renderer shows one).

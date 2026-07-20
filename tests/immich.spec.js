@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { photosForToday, buildOnThisDayMemory } from "../src/js/services/photoMemory.js";
+import { photosForToday, buildOnThisDayMemory, memoryPhotoSrc } from "../src/js/services/photoMemory.js";
 
 // Pure unit tests for the Immich on-this-day mapping — Phase 9.5
 // (docs/vision/photo-source-immich.md). photoMemory.js has no DOM/IO, so these
@@ -50,5 +50,28 @@ test.describe("buildOnThisDayMemory — a photo-backed memory entry", () => {
     expect(entry.photos).toEqual([{ immich: "a" }, { immich: "b" }]);
     expect(entry.sensitivity).toBe("normal");
     expect(entry.tags).toContain("winter"); // Southern-Hemisphere July
+  });
+});
+
+// The memory's picture reaches the awake card/hero as `image` (memoryRuntime
+// withPhoto → focusHero's thumb slot). Before this, surface.photos was read only
+// by the wordless tender lane, so a normal memory rode over an unrelated ground.
+test.describe("memoryPhotoSrc — a photo ref → a URL", () => {
+  test("Immich refs go through the asset proxy, ids encoded", () => {
+    expect(memoryPhotoSrc({ immich: "597169b2-5315-4a67-8df8-509694364cd4" }))
+      .toBe("/api/immich/asset/597169b2-5315-4a67-8df8-509694364cd4/thumb");
+    expect(memoryPhotoSrc({ immich: "a b/c" })).toBe("/api/immich/asset/a%20b%2Fc/thumb");
+  });
+
+  test("authored paths: rooted/absolute as-is, bare names under /photos/", () => {
+    expect(memoryPhotoSrc("/photos/x.jpg")).toBe("/photos/x.jpg");
+    expect(memoryPhotoSrc("https://example.test/x.jpg")).toBe("https://example.test/x.jpg");
+    expect(memoryPhotoSrc("tasmania/cradle mountain.jpg")).toBe("/photos/tasmania/cradle%20mountain.jpg");
+  });
+
+  test("no ref → null (the card keeps its glyph, never a broken <img>)", () => {
+    expect(memoryPhotoSrc(undefined)).toBeNull();
+    expect(memoryPhotoSrc(null)).toBeNull();
+    expect(memoryPhotoSrc("")).toBeNull();
   });
 });

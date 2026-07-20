@@ -314,6 +314,31 @@ function renderStack(items, { restingCount = 0 } = {}) {
   stackEl.classList.remove("is-hidden");
 }
 
+// ── Hero/stack collision guard ────────────────────────────────
+// Under bareHero the hero is fixed-centred (50% + --hero-offset) and the stack is
+// fixed to the bottom, on independent anchors — so a two-line hero over a full
+// stack overlaps (measured 104px at 1920x1080: hero 522–798, stack 694–972).
+// Measure both after each render and lift the hero by exactly the shortfall,
+// clamped so it never climbs into the bare top row. One synchronous measure per
+// update tick — no listener, no loop, nothing animated.
+const HERO_STACK_GAP = 24; // breathing room between the line and the top card
+const HERO_MIN_TOP = 180;  // keep clear of the clock / weather row
+
+function syncHeroLift(hero) {
+  if (!bareHeroOn) return;
+  document.body.style.setProperty("--hero-lift", "0px"); // measure unlifted
+  const stackEl = document.getElementById("focus-stack");
+  if (hero.classList.contains("is-hidden")) return;
+  if (!stackEl || stackEl.classList.contains("is-hidden") || !stackEl.firstChild) return;
+
+  const h = hero.getBoundingClientRect();
+  const s = stackEl.getBoundingClientRect();
+  const shortfall = h.bottom + HERO_STACK_GAP - s.top;
+  if (shortfall <= 0) return;
+  const lift = Math.min(shortfall, Math.max(0, h.top - HERO_MIN_TOP));
+  if (lift > 0) document.body.style.setProperty("--hero-lift", `${Math.round(lift)}px`);
+}
+
 function updateAttention(state, els) {
   const mode = getMode();
   const sources = collectSources(state);
@@ -352,6 +377,7 @@ function update() {
 
   if (attentionOn) {
     updateAttention(state, els);
+    syncHeroLift(els.hero); // after the hero + stack have both rendered
     return;
   }
 

@@ -2,7 +2,7 @@ import { on } from "./eventBus.js";
 import { get as getContext } from "./contextStore.js";
 import { pickMemory, toSurface, moodOf } from "../services/memoryEngine.js";
 import { seasonOf, dayCharacterOf } from "../services/houseModel.js";
-import { buildOnThisDayMemory } from "../services/photoMemory.js";
+import { buildOnThisDayMemory, memoryPhotoSrc } from "../services/photoMemory.js";
 
 // The memory runtime — Phase 9 (docs/vision/phase-9-remember.md). It owns every
 // side effect the pure selector (memoryEngine.js) refuses to touch: it loads the
@@ -133,6 +133,15 @@ function selectMemory(briefingCtx, now) {
   return pickMemory(all, ctx, history, now);
 }
 
+// The memory's own picture rides with it as `image`, which focusHero renders in
+// the glyph slot (the thumb path media/Plex candidates already use). Without it
+// the card is words only over whatever random photo the awake ground drew that
+// day, which reads as a mismatched memory. Photo-less entries keep the 🕰 glyph.
+function withPhoto(surface) {
+  const image = memoryPhotoSrc(surface.photos?.[0]);
+  return image ? { ...surface, image } : surface;
+}
+
 /**
  * The attention engine calls this each refresh (behind the flag). Returns [] or a
  * single-element array with the chosen Low-band, non-interrupt memory candidate —
@@ -146,7 +155,7 @@ export function collectMemory(briefingCtx = {}, now = new Date()) {
   // When unsure, silence: a grief anchor stays out of a passing text line by
   // construction.
   if (!surface || surface.ambientOnly) return [];
-  return [surface];
+  return [withPhoto(surface)];
 }
 
 /**
@@ -209,7 +218,7 @@ export function initMemoryRuntime(options = {}) {
     const surface = toSurface(entry, new Date());
     // A tender surface is ambient-only (no text hero) — return it for inspection
     // (caption:null, ambientOnly:true) but do not inject it into the text queue.
-    if (!surface.ambientOnly) window.__forceCandidate?.(surface);
+    if (!surface.ambientOnly) window.__forceCandidate?.(withPhoto(surface));
     return surface;
   };
 }

@@ -145,3 +145,49 @@ test("the attention surface is scoped to home — hidden on the force-only views
 
   expect(pageErrors, `uncaught page errors:\n${pageErrors.join("\n")}`).toHaveLength(0);
 });
+
+test("a populated stack never overlaps the centred hero", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (err) => pageErrors.push(err.message));
+  await enableFlags(true)(page);
+  await page.clock.setFixedTime(MIDDAY);
+
+  await page.goto("/");
+  await page.waitForFunction(
+    () => typeof window.__attention === "function" && typeof window.__forceCandidate === "function"
+  );
+
+  // The shape from the 2026-07-20 kiosk photo: a hero long enough to wrap to two
+  // lines, plus two cards and the resting note under it. Unguarded this measured
+  // 104px of overlap (hero 522–798 vs stack 694–972 at 1920x1080).
+  await page.evaluate(() => {
+    window.__forceCandidate([
+      { id: "t-hero", source: "test", score: 90, icon: "⚠️", text: "Marine Wind Warning for Queensland", cooldownMs: 0 },
+      { id: "t-b", source: "test", score: 80, icon: "🚗", title: "Greg – 11 min · Brett – 17 min", text: "Greg – 11 min · Brett – 17 min", cooldownMs: 0 },
+      { id: "t-c", source: "test", score: 70, icon: "🕰️", title: "On this day — Dean and Brett up to no good.", text: "On this day — Dean and Brett up to no good.", cooldownMs: 0 }
+    ]);
+    window.__presence("dwell");
+  });
+  await expect.poll(() => page.evaluate(() => window.__attention().hero?.id)).toBe("t-hero");
+  await expect.poll(() => page.evaluate(() => document.querySelectorAll("#focus-stack .focus-stack__item").length)).toBe(2);
+
+  const geom = await page.evaluate(() => {
+    const h = document.getElementById("focus-hero").getBoundingClientRect();
+    const s = document.getElementById("focus-stack").getBoundingClientRect();
+    return { heroTop: h.top, heroBottom: h.bottom, stackTop: s.top, lines: h.height };
+  });
+  expect(geom.heroBottom, `hero bottom ${geom.heroBottom} must clear stack top ${geom.stackTop}`)
+    .toBeLessThanOrEqual(geom.stackTop);
+  expect(geom.heroTop).toBeGreaterThanOrEqual(180); // never climbs into the top row
+
+  // With no stack the design offset is untouched — the lift resets to 0.
+  await page.evaluate(() => {
+    window.__forceCandidate([{ id: "t-hero", source: "test", score: 90, icon: "⚠️", text: "Marine Wind Warning for Queensland", cooldownMs: 0 }]);
+    window.__presence("glance");
+  });
+  await expect
+    .poll(() => page.evaluate(() => getComputedStyle(document.body).getPropertyValue("--hero-lift").trim()))
+    .toBe("0px");
+
+  expect(pageErrors, `uncaught page errors:\n${pageErrors.join("\n")}`).toHaveLength(0);
+});
