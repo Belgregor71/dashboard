@@ -107,6 +107,40 @@ body.bare-top-row #current-weather-panel {
   align-items: baseline;
   column-gap: 0;
   row-gap: var(--space-1);
+  /* for the local scrim below; isolate so its z-index:-1 stays inside the panel
+     and cannot sink behind the photo */
+  position: relative;
+  isolation: isolate;
+}
+
+/* Local readability scrim — darkens ONLY the photo under this corner, instead of
+   dimming the whole top band harder.
+   Measured on the kiosk 2026-07-20 (scripts/verify/live-contrast.cjs glance): the
+   19px LOCATION/CONDITION labels read 3.71-3.72:1 against a 4.5 bar. Opacity was
+   already spent — the ink is rgb(238,243,251) (luminance .892), so over that
+   backdrop even FULLY OPAQUE it tops out at 4.44:1, and pure-white ink at .85 only
+   ~4.10:1. The backdrop had to come down instead.
+   Worst case is bounded and we are close to it: .awake-photo is clamped to
+   brightness(0.62), so the brightest possible photo lands at 158, and the 0.25 top
+   stop of the background.css gradient takes that to ~119 — today measured
+   rgb(115,112,103). A further 0.24 black there predicts ~4.98:1.
+   Deliberately a soft edgeless ellipse, not a panel: the bare top row's whole point
+   is that the glass card is gone (DESIGN_SYSTEM §2.1). Re-measure if the ink,
+   the 0.62 clamp, or the top gradient stop changes. */
+body.bare-top-row #current-weather-panel::before {
+  content: "";
+  position: absolute;
+  /* reaches past the panel to the screen corner (#top-bar pads 20px/40px) and
+     fades inward toward the photo */
+  inset: -34px -52px -30px -96px;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 80% 72% at 76% 60%,
+    rgba(0, 0, 0, 0.24) 0%,
+    rgba(0, 0, 0, 0.24) 52%,
+    rgba(0, 0, 0, 0) 100%
+  );
 }
 
 body.bare-top-row .weather-column { display: contents; }
