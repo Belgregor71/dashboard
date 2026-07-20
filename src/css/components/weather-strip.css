@@ -123,22 +123,37 @@ body.bare-top-row #current-weather-panel {
    Worst case is bounded and we are close to it: .awake-photo is clamped to
    brightness(0.62), so the brightest possible photo lands at 158, and the 0.25 top
    stop of the background.css gradient takes that to ~119 — today measured
-   rgb(115,112,103). A further 0.24 black there predicts ~4.98:1.
+   rgb(115,112,103). Peak 0.30 measured over a synthetic white ground (the bounded
+   worst case, and reproducible after dark — the kiosk does not even render these
+   labels at night): labels 5.04-5.71:1 across no-token baseline + clear-day + fog
+   + cloudy, temp 6.33-7.26. The untinted baseline is the thinnest of those, since
+   every atmo tint is darker than the 0.62-clamped white.
    Deliberately a soft edgeless ellipse, not a panel: the bare top row's whole point
    is that the glass card is gone (DESIGN_SYSTEM §2.1). Re-measure if the ink,
    the 0.62 clamp, or the top gradient stop changes. */
 body.bare-top-row #current-weather-panel::before {
   content: "";
   position: absolute;
-  /* reaches past the panel to the screen corner (#top-bar pads 20px/40px) and
-     fades inward toward the photo */
-  inset: -34px -52px -30px -96px;
+  /* A gradient clipped by its own box paints a hard rectangle, which reads as
+     the glass card the bare row exists to remove.
+     The panel box is NOT at the screen corner — it is grid column 3 of #top-bar,
+     so it measures x1244 y108 w568, leaving 108px to the right edge and 108px
+     above. The first cut assumed the 20/40 padding and clipped the gradient into
+     a visible rectangle (a scanline A/B caught a 0→26 step at the box's top
+     edge). Top/right insets now clear the screen so any clipping there is
+     off-screen; left/bottom are where the fade must complete on its own. */
+  inset: -140px -140px -220px -320px;
   z-index: -1;
   pointer-events: none;
+  /* Radii chosen against the measured box (1028x451): the fade reaches zero
+     ~56px inside the left edge and ~38px above the bottom edge. The vertical
+     radius is deliberately the slacker of the two — the panel's height moves
+     with the weather string, and a clipped bottom is what would put a straight
+     line across the photo. */
   background: radial-gradient(
-    ellipse 80% 72% at 76% 60%,
-    rgba(0, 0, 0, 0.24) 0%,
-    rgba(0, 0, 0, 0.24) 52%,
+    ellipse 70% 50% at 75% 41%,
+    rgba(0, 0, 0, 0.30) 0%,
+    rgba(0, 0, 0, 0.30) 34%,
     rgba(0, 0, 0, 0) 100%
   );
 }
