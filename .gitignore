@@ -16,6 +16,7 @@ data/routines/
 data/memories/
 data/immich-cache/
 data/delight/
+data/recipe-cache/
 
 # Playwright MCP tool artifacts
 .playwright-mcp/

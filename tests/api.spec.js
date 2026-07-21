@@ -161,6 +161,26 @@ test.describe("calendar", () => {
   });
 });
 
+test.describe("recipe", () => {
+  // Web-search-backed recipe lookup, cached to data/recipe-cache. The test
+  // server has no ANTHROPIC_API_KEY, so a cache miss degrades to 502 with the
+  // same {title, ingredients, steps} shape — no API spend, no network.
+  test("GET /api/recipe keeps its shape and degrades when upstream is down", async ({ request }) => {
+    const { status, body } = await expectJson(request, "/api/recipe?dish=test-dish", { statuses: [200, 502] });
+    expect(body.title === null || typeof body.title === "string").toBe(true);
+    expect(Array.isArray(body.ingredients)).toBe(true);
+    expect(Array.isArray(body.steps)).toBe(true);
+    if (status === 200) {
+      expect(body.ingredients.length).toBeGreaterThan(0);
+      expect(body.steps.length).toBeGreaterThan(0);
+    }
+  });
+
+  test("GET /api/recipe rejects a missing dish", async ({ request }) => {
+    await expectJson(request, "/api/recipe", { statuses: [400] });
+  });
+});
+
 test.describe("feeds", () => {
   test("GET /api/news", async ({ request }) => {
     const { status, body } = await expectJson(request, "/api/news", { statuses: [200, 500, 502] });

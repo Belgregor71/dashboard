@@ -453,7 +453,16 @@ window.CONFIG = {
     // substrate hue biases riding body.season-*. __forceAtmoEpisode("fog"|
     // "heat-pulse") to verify. Shipped OFF a95beff → flipped ON 2026-07-18.
     // One-line revert (-> false).
-    atmoTextures: true
+    atmoTextures: true,
+
+    // Dinner recipe panel. One hour before a Meal:-prefixed calendar dinner, a
+    // glass panel slides in from the right with that night's recipe (title,
+    // ingredients, method) fetched via /api/recipe (Claude web search, cached
+    // to data/recipe-cache so a dish is searched once). Two-column, 2m-legible
+    // (72px method floor), auto-scroll on overflow, auto-dismiss at dinner+45m.
+    // Ships OFF (flag-off = no module, byte-identical); verify on the Pi via
+    // window.__recipePanel("<dish>") then flip. One-line revert (-> false).
+    recipePanel: false
   },
 
   /* --------------------------------------------------------------

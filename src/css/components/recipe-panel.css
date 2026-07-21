@@ -1,0 +1,169 @@
+/* ============================================================
+   RECIPE PANEL (features.recipePanel)
+   One hour before a Meal:-prefixed dinner, slides in from the RIGHT
+   with that night's recipe (recipePanel.js). Two columns — ingredients
+   | method — sized for reading while cooking ~2m away. Consumes the
+   shared 5-token glass so body.reactive-glass recolours it for free.
+   Slide formula mirrors arrival-greeting.css, on the X axis.
+   ============================================================ */
+
+.recipe-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: min(46vw, 900px);
+  z-index: 88; /* below arrival (90) + camera/doorbell alerts */
+  pointer-events: none;
+  transform: translateX(100%);
+  transition: transform var(--t-arrival);
+}
+
+.recipe-panel.is-active {
+  transform: translateX(0);
+}
+
+/* ── Card ──────────────────────────────────────────────────── */
+
+.recipe-panel__card {
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-9) var(--space-9) var(--space-8);
+  background: var(--glass-bg);
+  border-left: var(--glass-border);
+  border-radius: var(--glass-radius) 0 0 var(--glass-radius);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow), var(--glass-sheen);
+}
+
+/* ── Head ──────────────────────────────────────────────────── */
+
+.recipe-panel__head {
+  flex-shrink: 0;
+  margin-bottom: var(--space-7);
+}
+
+.recipe-panel__eyebrow {
+  font-size: 1.15rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: var(--space-3);
+}
+
+.recipe-panel__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(2.2rem, 3vw, 3.4rem);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin: 0;
+}
+
+.recipe-panel__servings {
+  margin-top: var(--space-3);
+  font-size: 1.5rem;
+  color: var(--ink-dim);
+}
+
+/* ── Two columns ───────────────────────────────────────────── */
+
+.recipe-panel__cols {
+  flex: 1;
+  min-height: 0; /* let the scroll region shrink instead of overflowing the card */
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: var(--space-9);
+}
+
+.recipe-panel__col {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.recipe-panel__label {
+  flex-shrink: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 var(--space-4);
+}
+
+/* Scroll regions — overflow is hidden and driven by the JS ping-pong
+   auto-scroll (recipePanel.js); the mask fades cut-off text at the edges
+   so partial lines read as intentional, not clipped. */
+.recipe-panel__ingredients,
+.recipe-panel__method {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 36px, #000 calc(100% - 36px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 36px, #000 calc(100% - 36px), transparent 100%);
+}
+
+/* ── Ingredients — a notch smaller than the method ─────────── */
+
+.recipe-panel__ingredients ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.recipe-panel__ingredients li {
+  position: relative;
+  padding-left: 1.1em;
+  margin-bottom: 0.5em;
+  font-size: clamp(1.7rem, 2.1vw, 2.3rem);
+  line-height: 1.35;
+  color: var(--ink-dim);
+}
+
+.recipe-panel__ingredients li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 0.32em;
+  height: 0.32em;
+  border-radius: 50%;
+  background: var(--ink-faint);
+}
+
+/* ── Method — the primary read; big + numbered ─────────────── */
+
+.recipe-panel__method ol {
+  list-style: none;
+  counter-reset: step;
+  margin: 0;
+  padding: 0;
+}
+
+.recipe-panel__method li {
+  counter-increment: step;
+  position: relative;
+  padding-left: 2.4em;
+  margin-bottom: 0.75em;
+  /* A deliberate step down from the 72px single-hero-line floor (--fs-hero-line-c):
+     this is a multi-line list read at ~2m, where ~2.6rem stays comfortably legible
+     while showing more than one step before the auto-scroll cycles. */
+  font-size: clamp(2rem, 2.6vw, 2.8rem);
+  line-height: 1.32;
+  color: var(--ink);
+}
+
+.recipe-panel__method li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  color: var(--ink-faint);
+}

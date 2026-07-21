@@ -47,6 +47,7 @@ import { initArrivalGreeting } from "../modules/arrivalGreeting.js";
 import { initFuelPrices } from "../modules/fuelPrices.js";
 import { initMorningBriefing } from "../modules/morningBriefing.js";
 import { initTonightsMenu } from "../modules/tonightsMenu.js";
+import { initRecipePanel } from "../modules/recipePanel.js";
 import { initHealthIndicator } from "../modules/healthIndicator.js";
 import { createStatusView } from "../modules/systemStatus.js";
 import { createBriefingView } from "../views/briefingView.js";
@@ -269,6 +270,7 @@ export function startApp() {
     cameraCandidateEnabled: isEnabled("cameraCandidate", false)
   });
   initTonightsMenu();
+  initRecipePanel({ enabled: isEnabled("recipePanel", false) });
   initHealthIndicator();
 
   if (isEnabled("homeAssistant", false)) {
