@@ -442,6 +442,29 @@ test.describe("ai + tts", () => {
     expect(body).toHaveProperty("reply");
   });
 
+  // Mic-bridge transcript injection (project-voice-mic-bridge): the on-device
+  // wake/STT agent POSTs the finished transcript here (loopback only); the
+  // server fans it out over /api/voice/stream to the kiosk. Audio never reaches
+  // the server — text only. Tests run from loopback so they clear the guard.
+  test("POST /api/voice/transcript without text is a JSON 400", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/voice/transcript", {
+      method: "post",
+      data: {},
+      statuses: [400]
+    });
+    expect(body).toHaveProperty("error");
+  });
+
+  test("POST /api/voice/transcript accepts a transcript from loopback", async ({ request }) => {
+    const { status, body } = await expectJson(request, "/api/voice/transcript", {
+      method: "post",
+      data: { text: "what time is it" },
+      statuses: [200]
+    });
+    expect(status).toBe(200);
+    expect(body).toHaveProperty("ok", true);
+  });
+
   // The frontend calls /api/ai/route from events.js (voice command routing)
   // and systemStatus.js (explain status), but the server never defined it —
   // both callers silently degrade on the 404 today. Un-fixme this test when

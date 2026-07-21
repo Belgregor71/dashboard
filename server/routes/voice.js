@@ -1,4 +1,5 @@
 import express from "express";
+import { EventEmitter } from "node:events";
 import Anthropic from "@anthropic-ai/sdk";
 import { haPost } from "../ha/haRest.js";
 import { reportFailure, reportSuccess } from "../services/healthService.js";
@@ -118,6 +119,52 @@ router.post("/api/voice/converse", async (req, res) => {
     reportFailure("ai", err.message);
     return res.status(502).json({ reply: null });
   }
+});
+
+// --- Mic bridge: transcript injection + SSE fan-out to the kiosk page ---
+// The mic's last mile (project-voice-mic-bridge): the Pi's on-device wake/STT
+// agent (openWakeWord + whisper) POSTs the FINISHED TRANSCRIPT here, and we fan
+// it out over an SSE stream the kiosk subscribes to, which then calls
+// submitTranscripts(). Audio never reaches this server — only the final text,
+// and only from loopback (the agent runs on the Pi; the dashboard also serves
+// on the LAN, so the guard keeps arbitrary LAN clients from injecting speech).
+// GUARDRAIL unchanged: text arrives only after an explicit on-device wake.
+
+const voiceBus = new EventEmitter();
+
+function toSse(event, data) {
+  return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+}
+
+function isLoopback(req) {
+  const ip = req.socket?.remoteAddress ?? "";
+  return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+}
+
+router.post("/api/voice/transcript", (req, res) => {
+  if (!isLoopback(req)) return res.status(403).json({ error: "loopback only" });
+  const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+  if (!text) return res.status(400).json({ error: "text is required" });
+  voiceBus.emit("transcript", { text, source: "mic" });
+  return res.json({ ok: true });
+});
+
+router.get("/api/voice/stream", (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+  res.write(": voice-stream open\n\n");
+
+  const onTranscript = (payload) => res.write(toSse("voice_transcript", payload));
+  voiceBus.on("transcript", onTranscript);
+
+  const heartbeat = setInterval(() => res.write(": ping\n\n"), 20_000);
+
+  req.on("close", () => {
+    clearInterval(heartbeat);
+    voiceBus.off("transcript", onTranscript); // symmetric teardown per SSE client
+  });
 });
 
 export default router;

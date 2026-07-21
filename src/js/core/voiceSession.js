@@ -29,6 +29,8 @@ let history = [];          // [{ role: "user"|"assistant", text }] — bounded
 let assistConversationId = null;
 let lingerTimer = null;
 let localLane = null;      // registered by voiceCommands (keeps imports acyclic)
+let transcriptStream = null;
+let streamOpen = false;    // is the mic-bridge SSE connected?
 
 export function isVoiceSessionEnabled() {
   return enabled;
@@ -147,6 +149,30 @@ export async function submitTranscripts(transcripts, { source = "unknown" } = {}
   }
 }
 
+// The mic bridge (project-voice-mic-bridge): the Pi's wake/STT agent POSTs the
+// finished transcript to /api/voice/transcript; the server fans it out here. An
+// init-once EventSource (native auto-reconnect) — the mic simply becomes another
+// caller of submitTranscripts, exactly as the FSM was built to expect. Opened
+// only when the flag is on, so flag-off stays byte-identical (no new connection).
+function initTranscriptStream() {
+  try {
+    transcriptStream = new EventSource("/api/voice/stream");
+  } catch {
+    return;
+  }
+  transcriptStream.onopen = () => { streamOpen = true; };
+  transcriptStream.onerror = () => { streamOpen = false; };
+  transcriptStream.addEventListener("voice_transcript", (event) => {
+    try {
+      const { text } = JSON.parse(event.data);
+      const clean = typeof text === "string" ? text.trim().toLowerCase() : "";
+      if (clean) submitTranscripts([clean], { source: "mic" });
+    } catch {
+      // ignore malformed frames
+    }
+  });
+}
+
 export function initVoiceSession({ enabled: on = false } = {}) {
   enabled = on === true;
 
@@ -158,10 +184,14 @@ export function initVoiceSession({ enabled: on = false } = {}) {
     phase,
     turns: history.length,
     conversationId: assistConversationId,
+    streamOpen,
     mode: getMode()
   });
   window.__voiceTranscript = (text) =>
     submitTranscripts([String(text ?? "").toLowerCase().trim()], { source: "debug" });
 
-  if (enabled) console.info("Voice session ready — Mode 3 lanes armed (local → assist → converse)");
+  if (enabled) {
+    initTranscriptStream();
+    console.info("Voice session ready — Mode 3 lanes armed (local → assist → converse)");
+  }
 }

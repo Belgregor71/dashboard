@@ -79,6 +79,31 @@ test("on: a local command is handled in-session, enters MODE.VOICE, then recedes
   expect(pageErrors).toEqual([]);
 });
 
+test("on: a transcript POSTed to the mic bridge drives a turn over SSE", async ({ page, request }) => {
+  const pageErrors = await boot(page, { voiceSession: true });
+
+  // The kiosk opens the mic-bridge SSE on init; wait for it to connect so the
+  // server fan-out has a listener (the bus does not buffer past emissions).
+  await expect
+    .poll(() => page.evaluate(() => window.__voiceSession().streamOpen), { timeout: 10_000 })
+    .toBe(true);
+
+  // The Pi's on-device wake/STT agent would POST the finished transcript here.
+  const resp = await request.post("/api/voice/transcript", { data: { text: "what time is it" } });
+  expect(resp.status()).toBe(200);
+  expect(await resp.json()).toEqual({ ok: true });
+
+  // It arrives over SSE → submitTranscripts → local lane → MODE.VOICE.
+  await expect
+    .poll(() => page.evaluate(() => window.__voiceSession().mode), { timeout: 10_000 })
+    .toBe("voice");
+  const state = await page.evaluate(() => window.__voiceSession());
+  expect(state.active).toBe(true);
+  expect(state.phase).toBe("linger");
+
+  expect(pageErrors).toEqual([]);
+});
+
 test("on: unmatched text falls through assist → converse and keeps bounded context", async ({ page }) => {
   const converseBodies = [];
   await page.route("**/api/voice/assist", (route) =>
