@@ -36,31 +36,52 @@ function cachePathFor(text, speed) {
   return path.join(CACHE_DIR, `${key}.wav`);
 }
 
+const KOKORO_VOICE = process.env.KOKORO_VOICE ?? "bf_emma";
+
+async function synthViaKokoro(url, text, speed, timeoutMs) {
+  const upstream = await fetchWithTimeout(`${url}/v1/audio/speech`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "kokoro",
+      input: text,
+      voice: KOKORO_VOICE,
+      response_format: "wav",
+      speed
+    })
+  }, timeoutMs);
+
+  if (!upstream.ok) throw new Error(`Kokoro HTTP ${upstream.status}`);
+  return Buffer.from(await upstream.arrayBuffer());
+}
+
 // Return a WAV buffer for text/speed — from the disk cache if present, else
 // synthesized via Kokoro and cached. Throws if Kokoro is unreachable/errors.
 // Shared by the /speak route and the boot-time cache warmer (ttsWarmer.js).
+//
+// Primary = the fast PC Kokoro (project-voice-mic-bridge, ~1s vs the NAS's
+// ~18s for dynamic text); optional KOKORO_FALLBACK_URL = the always-on NAS
+// Kokoro for when the PC is off. When a fallback is configured the primary gets
+// a short timeout so failover is quick — a sleeping PC must not stall every
+// reply; with no fallback set, behaviour is exactly as before (single upstream).
 export async function getOrSynthesizeTts(text, speed) {
   const cachePath = cachePathFor(text, speed);
   if (existsSync(cachePath)) {
     return { buffer: readFileSync(cachePath), cached: true };
   }
 
-  const kokoroUrl = process.env.KOKORO_URL ?? "http://localhost:8880";
-  const voice = process.env.KOKORO_VOICE ?? "bf_emma";
-  const upstream = await fetchWithTimeout(`${kokoroUrl}/v1/audio/speech`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "kokoro",
-      input: text,
-      voice,
-      response_format: "wav",
-      speed
-    })
-  }, 30_000);
+  const primary = process.env.KOKORO_URL ?? "http://localhost:8880";
+  const fallback = process.env.KOKORO_FALLBACK_URL;
 
-  if (!upstream.ok) throw new Error(`Kokoro HTTP ${upstream.status}`);
-  const buffer = Buffer.from(await upstream.arrayBuffer());
+  let buffer;
+  try {
+    buffer = await synthViaKokoro(primary, text, speed, fallback ? 6_000 : 30_000);
+  } catch (err) {
+    if (!fallback) throw err;
+    console.warn(`[TTS] primary Kokoro (${primary}) failed: ${err.message} — using fallback`);
+    buffer = await synthViaKokoro(fallback, text, speed, 30_000);
+  }
+
   mkdirSync(CACHE_DIR, { recursive: true });
   writeFileSync(cachePath, buffer);
   return { buffer, cached: false };
