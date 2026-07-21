@@ -387,11 +387,13 @@ window.CONFIG = {
     // Haiku primary / Ollama fallback) — the reply is spoken, the session
     // lingers ~8s for a follow-up, then recedes to GLANCE. GUARDRAIL: text
     // goes upstream only on explicit wake — there is no passive audio path.
-    // Default OFF → byte-identical (voiceCommands keeps today's local-only
-    // matching; unknown commands still dead-end at "Didn't catch that.").
-    // Flip ON when the mic lands — or to drive it hardware-free via
-    // __voiceTranscript("...") / __voiceSession(). One-line revert (-> false).
-    voiceSession: false,
+    // Flipped ON 2026-07-21 (USB mic acquired) to run the live software-loop
+    // verification on the Pi — the mic's own bridge into submitTranscripts is
+    // not built yet, so with the flag on the lanes sit ARMED and are driven via
+    // __voiceTranscript("...") over CDP for proof; no user-facing wake path
+    // exists on the kiosk until the STT→forward bridge lands, so on is inert
+    // for users. One-line revert (-> false) is the rollback path.
+    voiceSession: true,
 
     // Living-window Phase 1 (plan: review-the-design-scheme) — rain on glass.
     // A shared episode runtime (services/atmoFx/) draws bounded droplet/streak
