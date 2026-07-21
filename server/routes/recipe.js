@@ -34,6 +34,7 @@ const RECIPE_SYSTEM = [
 ].join(" ");
 
 function slugFor(dish) {
+  if (dish == null) return "";
   return String(dish)
     .toLowerCase()
     .trim()
