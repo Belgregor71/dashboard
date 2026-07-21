@@ -26,8 +26,10 @@ test-results/
 playwright-report/
 flag-reversibility-failure.log
 
-# PC-side voice services (Stage B, project-voice-mic-bridge) — venv/models/caches
+# PC-side voice services (Stage B, project-voice-mic-bridge) — venv/models/caches/logs
 tools/voice-pc/.venv/
 tools/voice-pc/models/
+tools/voice-pc/*.log
+tools/voice-agent/*.log
 **/__pycache__/
 *.pyc
