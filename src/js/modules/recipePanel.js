@@ -75,8 +75,10 @@ function ensureOverlay() {
 function recipeHtml(recipe) {
   const ingredients = recipe.ingredients.map((i) => `<li>${escapeHtml(i)}</li>`).join("");
   const steps = recipe.steps.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
-  const servings = recipe.servings
-    ? `<div class="recipe-panel__servings">${escapeHtml(recipe.servings)}</div>`
+  const servingsText = String(recipe.servings ?? "").trim();
+  const servingsLabel = /serv/i.test(servingsText) ? servingsText : `Serves ${servingsText}`;
+  const servings = servingsText
+    ? `<div class="recipe-panel__servings">${escapeHtml(servingsLabel)}</div>`
     : "";
   return `
     <div class="recipe-panel__card">
