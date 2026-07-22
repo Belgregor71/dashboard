@@ -399,7 +399,14 @@ body.living-accent .screensaver--ambient-clock .screensaver__dateline {
 }
 
 /* ── Hide dashboard content while screensaver is active ────── */
+/* The dinner recipe panel is exempt: it slides in OVER the screensaver (which
+   stays as its dim-at-night / bright-by-day photo backdrop). */
+body.screensaver-active > *:not(#screensaver):not(.recipe-panel) {
+  visibility: hidden;
+}
 
-body.screensaver-active > *:not(#screensaver) {
+/* While the recipe is up, drop the screensaver's centred clock so the panel
+   (right ~46vw) doesn't clip it — the dimmed photo remains as the backdrop. */
+body.recipe-active.screensaver-active .screensaver__content {
   visibility: hidden;
 }

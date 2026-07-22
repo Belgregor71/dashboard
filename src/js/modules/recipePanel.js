@@ -1,5 +1,4 @@
 import { on } from "../core/eventBus.js";
-import { holdScreensaverAwake } from "./screensaver.js";
 
 // One hour before a Meal:-prefixed dinner, slide a recipe panel in from the
 // right; keep it up through cooking and auto-dismiss 45 min after the dinner
@@ -134,9 +133,10 @@ function showPanel(recipe, hideAt) {
   clearTimeout(dismissTimer);
   stopAutoScroll();
 
-  // Keep the screen awake so the panel is seen over the ambient home rather than
-  // blanked behind the night screensaver (it triggers deep in the idle window).
-  holdScreensaverAwake(true);
+  // Show over the screensaver (CSS exempts the panel from the blank rule and
+  // hides the screensaver's centred clock so it doesn't clip). The panel is dark
+  // glass, so it stays calm over the dim night backdrop and bright by daylight.
+  document.body.classList.add("recipe-active");
 
   overlayEl.innerHTML = recipeHtml(recipe);
   requestAnimationFrame(() => overlayEl.classList.add("is-active"));
@@ -151,7 +151,7 @@ function hidePanel() {
   stopAutoScroll();
   overlayEl?.classList.remove("is-active");
   shownKey = null;
-  holdScreensaverAwake(false); // release the awake hold → normal idle-to-sleep
+  document.body.classList.remove("recipe-active"); // restore the screensaver clock
 }
 
 // ── Trigger loop ──────────────────────────────────────────────

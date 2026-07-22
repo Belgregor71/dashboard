@@ -13,7 +13,7 @@
   right: 0;
   height: 100vh;
   width: min(46vw, 900px);
-  z-index: 88; /* below arrival (90) + camera/doorbell alerts */
+  z-index: 201; /* above the screensaver (200) so the panel shows over it */
   pointer-events: none;
   transform: translateX(100%);
   transition: transform var(--t-arrival);
