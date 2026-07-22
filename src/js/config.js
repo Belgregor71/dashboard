@@ -460,9 +460,10 @@ window.CONFIG = {
     // ingredients, method) fetched via /api/recipe (Claude web search, cached
     // to data/recipe-cache so a dish is searched once). Two-column, 2m-legible
     // (72px method floor), auto-scroll on overflow, auto-dismiss at dinner+45m.
-    // Ships OFF (flag-off = no module, byte-identical); verify on the Pi via
-    // window.__recipePanel("<dish>") then flip. One-line revert (-> false).
-    recipePanel: false
+    // Flipped ON 2026-07-22 (deadlock-break: flag-off has no verify hook, so
+    // the only way to eyeball it live is a flag-on deploy). Verify on the Pi
+    // via window.__recipePanel("<dish>"). One-line revert (-> false).
+    recipePanel: true,
   },
 
   /* --------------------------------------------------------------
