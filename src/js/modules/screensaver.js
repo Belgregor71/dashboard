@@ -54,6 +54,7 @@ let driftTimer  = null;
 let tenderTimer = null; // WP4: holds a tender memory's photo, then resumes rotation
 let driftIndex  = 0;
 let active      = false;
+let awakeHold   = false; // an overlay (e.g. the dinner recipe) is holding the screen awake
 let photos      = [];
 
 // ─── Ambient atmosphere (Phase 5, flag-gated) ─────────────────
@@ -572,7 +573,7 @@ export function engageScreensaver() {
 }
 
 function enter() {
-  if (active) return;
+  if (active || awakeHold) return;
   active = true;
 
   el.dataset.mode = photos.length > 0 ? "photo" : "minimal";
@@ -639,9 +640,24 @@ function exit() {
 
 export function resetIdleTimer() {
   clearTimeout(idleTimer);
-  if (active) return;
+  if (active || awakeHold) return;
   // At night, settle back to the dim clock quickly rather than waiting 5 min.
   idleTimer = setTimeout(enter, isNight() ? NIGHT_IDLE_MS : IDLE_MS);
+}
+
+// Hold the screen awake (or release it). The dinner recipe panel calls this so
+// its glass card is seen over the ambient home instead of being blanked behind
+// the screensaver — the panel triggers ~1h before dinner, squarely in the night
+// idle window. While held, every engage path (idle timer, the once-a-minute
+// night sync, goodnight) is refused via the enter()/resetIdleTimer() guards.
+export function holdScreensaverAwake(on) {
+  awakeHold = !!on;
+  if (awakeHold) {
+    clearTimeout(idleTimer);
+    if (active) exit();     // reveal the awake surface right now
+  } else {
+    resetIdleTimer();       // resume normal idle-to-sleep
+  }
 }
 
 // ─── Init ─────────────────────────────────────────────────────
