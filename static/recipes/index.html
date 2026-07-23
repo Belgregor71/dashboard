@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Recipe Book</title>
+  <style>
+    :root {
+      --bg: #14161a;
+      --panel: #1c1f26;
+      --panel-2: #232733;
+      --ink: #eef1f6;
+      --ink-dim: #9aa3b2;
+      --line: #2c313d;
+      --accent: #7ca7ff;
+      --authored: #6fae7c;
+      --danger: #e0655f;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      -webkit-text-size-adjust: 100%;
+    }
+    header {
+      padding: 18px 16px 10px;
+      border-bottom: 1px solid var(--line);
+      position: sticky; top: 0; z-index: 5;
+      background: rgba(20, 22, 26, 0.92);
+      backdrop-filter: blur(8px);
+    }
+    header h1 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: 0.2px; }
+    header p { margin: 3px 0 0; color: var(--ink-dim); font-size: 13px; }
+    main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    section { margin-bottom: 26px; }
+    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-dim); margin: 0 0 10px; font-weight: 600; }
+
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+    label { display: block; font-size: 12px; color: var(--ink-dim); margin-bottom: 5px; }
+    select, input[type="text"], textarea {
+      background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+      border-radius: 10px; padding: 9px 11px; font-size: 15px; width: 100%;
+      font-family: inherit;
+    }
+    textarea { resize: vertical; min-height: 150px; line-height: 1.5; }
+    .field { flex: 1 1 120px; min-width: 110px; }
+    button {
+      background: var(--accent); color: #0b1220; border: 0; border-radius: 10px;
+      padding: 10px 16px; font-size: 15px; font-weight: 600; cursor: pointer;
+    }
+    button.ghost { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); }
+    button.danger { background: transparent; color: var(--danger); border: 1px solid var(--line); padding: 6px 10px; font-size: 13px; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .editor { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+    .stack > * + * { margin-top: 14px; }
+    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 620px) { .cols { grid-template-columns: 1fr; } }
+    .hint { color: var(--ink-dim); font-size: 12px; margin-top: 5px; }
+
+    .empty { color: var(--ink-dim); padding: 30px 6px; text-align: center; font-size: 14px; }
+
+    .entry { display: flex; gap: 12px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 8px; cursor: pointer; }
+    .entry:hover { border-color: var(--accent); }
+    .entry .meta { flex: 1; min-width: 0; }
+    .entry .meta b { font-weight: 600; }
+    .entry .meta small { color: var(--ink-dim); display: block; margin-top: 2px; }
+    .badge { font-size: 11px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-dim); margin-left: 6px; }
+    .badge.authored { color: var(--authored); border-color: rgba(111,174,124,0.5); }
+
+    .toast {
+      position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%) translateY(30px);
+      background: var(--panel-2); border: 1px solid var(--line); color: var(--ink);
+      padding: 11px 18px; border-radius: 999px; opacity: 0; transition: all 0.25s; pointer-events: none; z-index: 20;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.err { border-color: var(--danger); color: #f3b3af; }
+    .count { color: var(--accent); font-weight: 600; }
+    #editingSlug { color: var(--authored); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Recipe Book</h1>
+    <p>Add a recipe once, and it shows on the dashboard an hour before its <em>Meal:</em> dinner.</p>
+  </header>
+
+  <main>
+    <section>
+      <h2>Add or edit a recipe <span id="editingSlug"></span></h2>
+      <div class="editor">
+        <div class="stack">
+          <div class="row">
+            <div class="field" style="flex:3 1 240px">
+              <label for="title">Dish name — match the calendar's <em>Meal: {name}</em></label>
+              <input type="text" id="title" placeholder="Spaghetti Bolognese" maxlength="120" />
+            </div>
+            <div class="field" style="flex:1 1 120px">
+              <label for="servings">Serves (optional)</label>
+              <input type="text" id="servings" placeholder="4" maxlength="40" />
+            </div>
+          </div>
+
+          <div class="cols">
+            <div>
+              <label for="ingredients">Ingredients — one per line</label>
+              <textarea id="ingredients" placeholder="400g spaghetti&#10;500g beef mince&#10;1 onion, diced"></textarea>
+            </div>
+            <div>
+              <label for="steps">Method — one step per line</label>
+              <textarea id="steps" placeholder="Brown the mince in a large pan.&#10;Add the onion and cook until soft.&#10;Stir through the sauce and simmer 20 min."></textarea>
+            </div>
+          </div>
+
+          <div class="row" style="justify-content:flex-end">
+            <button class="ghost" id="cancel">Clear</button>
+            <button id="save">Save recipe</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Recipes <span id="savedCount" class="count"></span></h2>
+      <div id="saved"></div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+  <script src="./app.js"></script>
+</body>
+</html>

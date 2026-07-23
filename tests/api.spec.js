@@ -179,6 +179,47 @@ test.describe("recipe", () => {
   test("GET /api/recipe rejects a missing dish", async ({ request }) => {
     await expectJson(request, "/api/recipe", { statuses: [400] });
   });
+
+  // The Recipe Book portal (static/recipes/) writes hand-added recipes into the
+  // same cache, so a saved dish is found for free when its Meal: event fires.
+  test("GET /api/recipes lists cached recipes in a stable shape", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/recipes");
+    expect(Array.isArray(body.recipes)).toBe(true);
+    for (const r of body.recipes) {
+      expect(typeof r.slug).toBe("string");
+      expect(typeof r.title).toBe("string");
+      expect(Array.isArray(r.ingredients)).toBe(true);
+      expect(Array.isArray(r.steps)).toBe(true);
+      expect(typeof r.authored).toBe("boolean");
+    }
+  });
+
+  test("POST /api/recipe saves, appears in the list, then DELETE removes it", async ({ request }) => {
+    const dish = { title: "Test Portal Dish", servings: "4", ingredients: ["400g pasta"], steps: ["Boil it."] };
+    const { body: saved } = await expectJson(request, "/api/recipe", { method: "post", data: dish, statuses: [200] });
+    expect(saved.ok).toBe(true);
+    expect(saved.slug).toBe("test-portal-dish");
+    expect(saved.recipe.authored).toBe(true);
+
+    const { body: list } = await expectJson(request, "/api/recipes");
+    expect(list.recipes.some((r) => r.slug === "test-portal-dish" && r.authored)).toBe(true);
+
+    // It must also resolve through the panel's read path.
+    const { body: fetched } = await expectJson(request, "/api/recipe?dish=Test%20Portal%20Dish", { statuses: [200] });
+    expect(fetched.title).toBe("Test Portal Dish");
+
+    await expectJson(request, "/api/recipe/test-portal-dish", { method: "delete", statuses: [200] });
+    await expectJson(request, "/api/recipe/test-portal-dish", { method: "delete", statuses: [404] });
+  });
+
+  test("POST /api/recipe rejects an empty or shapeless recipe", async ({ request }) => {
+    await expectJson(request, "/api/recipe", { method: "post", data: {}, statuses: [400] });
+    await expectJson(request, "/api/recipe", { method: "post", data: { title: "No Steps", ingredients: ["x"], steps: [] }, statuses: [400] });
+  });
+
+  test("DELETE /api/recipe rejects a path-traversal slug", async ({ request }) => {
+    await expectJson(request, "/api/recipe/..%2F..%2Fsecret", { method: "delete", statuses: [400, 404] });
+  });
 });
 
 test.describe("feeds", () => {

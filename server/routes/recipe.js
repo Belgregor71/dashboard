@@ -1,5 +1,5 @@
 import express from "express";
-import { readFile, stat, writeFile, mkdir } from "fs/promises";
+import { readFile, readdir, stat, writeFile, mkdir, unlink } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import Anthropic from "@anthropic-ai/sdk";
@@ -162,6 +162,100 @@ router.get("/api/recipe", async (req, res) => {
 
   // No key (getAnthropic null) or unparseable result, and nothing cached.
   return res.status(502).json({ ...NULL_RECIPE });
+});
+
+// ── Recipe portal (static/recipes/) ───────────────────────────
+// A LAN authoring page so the household can hand-add recipes and browse the
+// cache, mirroring the Memory Studio (static/memories/). Authored recipes are
+// written into the SAME recipe-cache with an `authored: true` marker, so a
+// hand-added dish is found for free by GET /api/recipe when its Meal: event
+// fires — no web search, no spend. The marker is an extra field the panel and
+// isValidRecipe ignore.
+
+const SLUG_RE = /^[a-z0-9-]+$/;
+const MAX_ITEMS = 60;      // ingredients or steps
+const MAX_ITEM_LEN = 300;  // one ingredient/step line
+
+// Turn a portal payload into a valid recipe, or { error }. Kept strict: it is
+// written to disk and read back by the dinner panel, so a bad shape is rejected
+// here, not discovered on the glass.
+function sanitizeAuthoredRecipe(body) {
+  if (!body || typeof body !== "object") return { error: "body must be an object" };
+
+  const title = String(body.title || "").trim();
+  if (!title || title.length > 120) return { error: "title is required (1–120 chars)" };
+
+  const slug = slugFor(body.slug || title);
+  if (!slug) return { error: "title must contain letters or numbers" };
+
+  const clean = (arr) =>
+    (Array.isArray(arr) ? arr : [])
+      .map((s) => String(s ?? "").trim().slice(0, MAX_ITEM_LEN))
+      .filter(Boolean)
+      .slice(0, MAX_ITEMS);
+
+  const ingredients = clean(body.ingredients);
+  const steps = clean(body.steps);
+  if (ingredients.length === 0) return { error: "at least one ingredient is required" };
+  if (steps.length === 0) return { error: "at least one step is required" };
+
+  const recipe = { title, ingredients, steps, authored: true };
+  const servings = String(body.servings ?? "").trim();
+  if (servings) recipe.servings = servings.slice(0, 40);
+
+  return { slug, recipe };
+}
+
+// List every cached recipe (authored + AI-scraped) for the portal.
+router.get("/api/recipes", async (_req, res) => {
+  let files = [];
+  try {
+    files = (await readdir(RECIPE_CACHE_DIR)).filter((f) => f.toLowerCase().endsWith(".json"));
+  } catch {
+    return res.json({ recipes: [] }); // no cache dir yet — cold start
+  }
+
+  const recipes = [];
+  for (const file of files) {
+    const slug = file.replace(/\.json$/i, "");
+    const parsed = await readRecipeCache(slug);
+    if (!parsed) continue; // skip anything malformed/invalid
+    recipes.push({
+      slug,
+      title: parsed.title,
+      servings: parsed.servings ?? "",
+      ingredients: parsed.ingredients,
+      steps: parsed.steps,
+      authored: parsed.authored === true,
+    });
+  }
+  recipes.sort((a, b) => a.title.localeCompare(b.title));
+  res.json({ recipes });
+});
+
+router.post("/api/recipe", async (req, res) => {
+  const { slug, recipe, error } = sanitizeAuthoredRecipe(req.body);
+  if (error) return res.status(400).json({ error });
+
+  try {
+    await writeRecipeCache(slug, recipe); // upsert by slug
+    return res.json({ ok: true, slug, recipe });
+  } catch {
+    return res.status(500).json({ error: "could not save the recipe" });
+  }
+});
+
+router.delete("/api/recipe/:slug", async (req, res) => {
+  const slug = String(req.params.slug || "").toLowerCase();
+  if (!SLUG_RE.test(slug)) return res.status(400).json({ error: "invalid slug" });
+
+  try {
+    await unlink(path.join(RECIPE_CACHE_DIR, `${slug}.json`));
+    return res.json({ ok: true, slug });
+  } catch (err) {
+    if (err.code === "ENOENT") return res.status(404).json({ error: "no recipe with that slug" });
+    return res.status(500).json({ error: "could not delete the recipe" });
+  }
 });
 
 export default router;
