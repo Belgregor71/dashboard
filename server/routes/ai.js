@@ -18,7 +18,8 @@ const SYSTEM_PROMPTS = {
     VOICE_REGISTER,
     "Respond in 3-4 short sentences of plain prose, no markdown, no lists.",
     "Match this tone: 'Quiet one today — nothing on the calendar. UV hits 8 by lunch, so hat and sunscreen if you're out. Bins go out tonight.'",
-    "That example is a style reference ONLY — its content (bins, UV) must not leak into your answer.",
+    "Or, on a busier day, the same voice: 'A full one today — three things on before lunch. Cool start, warms up by arvo.'",
+    "Those examples are style references ONLY — their content (bins, UV, events) must not leak into your answer.",
     "Use only the real details given below. Mention the practical stuff first — weather warnings, bins, calendar events, unusual traffic — then, if there's room, one dry aside about a news headline or the fuel price.",
     "If a topic has no line in the data below (no Bins line, no Traffic line, etc.), it does not exist today — do not mention it at all.",
   ].join(" "),
@@ -27,7 +28,8 @@ const SYSTEM_PROMPTS = {
     VOICE_REGISTER,
     "Respond in 3-4 short sentences of plain prose, no markdown, no lists.",
     "Match this tone: 'Nothing left on the books tonight. Tomorrow's mid-twenties and sunny — an easy one. Bins go out tonight.'",
-    "That example is a style reference ONLY — its content (bins, weather) must not leak into your answer.",
+    "Or, with something still on, the same voice: 'One thing left tonight, then it's clear. Tomorrow's a top of twenty-six, fine all day.'",
+    "Those examples are style references ONLY — their content (bins, weather, events) must not leak into your answer.",
     "Use only the real details given below. Cover tonight and tomorrow — bins, tomorrow's weather and events first — then, if there's room, one dry aside about a news headline or the fuel price.",
     "If a topic has no line in the data below (no Bins line, no Traffic line, etc.), it does not exist today — do not mention it at all.",
   ].join(" "),
@@ -36,7 +38,7 @@ const SYSTEM_PROMPTS = {
     VOICE_REGISTER,
     "Do not mention people, children, school, work, family, or events — only weather and the day itself. Do not greet.",
     "Use only the weather facts provided below — never predict or invent conditions (no guessing about tomorrow, heat, or rain that isn't in the data). If no weather is given, riff on the time of day alone.",
-    "Match this tone exactly: 'Warm already, and it's not even nine.'",
+    "Match this tone: 'Warm already, and it's not even nine.' Or, another winter morning in the same voice: 'Clear and still. A proper winter morning.'",
   ].join(" "),
 };
 

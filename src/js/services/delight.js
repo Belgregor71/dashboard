@@ -19,6 +19,12 @@ function year(now) {
   return String(now.getFullYear());
 }
 
+// Rotate a line pool without randomness: a stable per-day index keeps the module
+// pure/testable and lets a rare moment's phrasing vary between firings.
+function pickLine(lines, now) {
+  return lines[Math.floor(now.getTime() / 86400000) % lines.length];
+}
+
 // The gentle window a morning moment may greet in (local hour).
 function isMorning(now) {
   const h = now.getHours();
@@ -36,28 +42,47 @@ export const DELIGHT_TRIGGERS = [
     id: "power-restored",
     detect: (ctx) => Boolean(ctx.outageRecovered),
     budget: (ctx) => `boot:${ctx.bootKey ?? ""}`,
-    occasion: () => ({
+    occasion: (_ctx, now) => ({
       id: "power-restored", icon: "🔌", title: "Back on",
-      line: "Power's back — the house is up and waiting."
+      line: pickLine([
+        "Power's back — the house is up and waiting.",
+        "Power's back on — the house is awake again."
+      ], now)
     })
   },
   {
     id: "home-after-away",
     detect: (ctx) => Number.isFinite(ctx.awayDays) && ctx.awayDays >= AWAY_DAYS,
     budget: (ctx) => `away:${ctx.awayReturnKey ?? ""}`,
-    occasion: (ctx) => ({
+    occasion: (ctx, now) => ({
       id: "home-after-away", icon: "🏡", title: "Home again",
-      line: ctx.awayName ? `Welcome back, ${ctx.awayName} — the house missed you.` : "Welcome back — the house missed you."
+      line: ctx.awayName
+        ? pickLine([
+            `Welcome back, ${ctx.awayName} — the house missed you.`,
+            `${ctx.awayName}'s home — the house missed the noise.`
+          ], now)
+        : pickLine([
+            "Welcome back — the house missed you.",
+            "Welcome home — the house has missed the noise."
+          ], now)
     })
   },
   {
     id: "birthday-morning",
     detect: (ctx, now) => Boolean(ctx.birthdayName) && isMorning(now),
     budget: (ctx, now) => `bday:${year(now)}:${ctx.birthdayName ?? ""}`,
-    occasion: (ctx) => ({
+    occasion: (ctx, now) => ({
       id: "birthday-morning", icon: "🎂",
       title: ctx.birthdayName ? `${ctx.birthdayName}'s birthday` : "Birthday",
-      line: ctx.birthdayName ? `Happy birthday, ${ctx.birthdayName}.` : "Happy birthday."
+      line: ctx.birthdayName
+        ? pickLine([
+            `Happy birthday, ${ctx.birthdayName}.`,
+            `Happy birthday, ${ctx.birthdayName} — make it a good one.`
+          ], now)
+        : pickLine([
+            "Happy birthday.",
+            "Happy birthday — make it a good one."
+          ], now)
     })
   },
   {
@@ -76,27 +101,24 @@ export const DELIGHT_TRIGGERS = [
     detect: (ctx) =>
       Boolean(ctx.rainNow) && Number.isFinite(ctx.dryStreakDays) && ctx.dryStreakDays >= DRY_SPELL_DAYS,
     budget: (ctx) => `rain:${ctx.dryBreakKey ?? ""}`,
-    occasion: () => ({
+    occasion: (_ctx, now) => ({
       id: "first-rain-after-dry", icon: "🌧️", title: "First rain",
-      line: "First rain in a while — the garden's grateful."
+      line: pickLine([
+        "First rain in a while — the garden's grateful.",
+        "First rain in a while — the garden needed that."
+      ], now)
     })
   },
   {
     id: "christmas-eve",
     detect: (_ctx, now) => now.getMonth() === 11 && now.getDate() === 24,
     budget: (_ctx, now) => `xmas:${year(now)}`,
-    occasion: () => ({
+    occasion: (_ctx, now) => ({
       id: "christmas-eve", icon: "🎄", title: "Christmas Eve",
-      line: "Christmas Eve — nearly there."
-    })
-  },
-  {
-    id: "dst-sunrise",
-    detect: (ctx, now) => Boolean(ctx.dstJustChanged) && isMorning(now),
-    budget: (_ctx, now) => `dst:${year(now)}`,
-    occasion: () => ({
-      id: "dst-sunrise", icon: "🌅", title: "Longer days",
-      line: "The clocks changed — longer evenings from here."
+      line: pickLine([
+        "Christmas Eve — nearly there.",
+        "One more sleep."
+      ], now)
     })
   }
 ];

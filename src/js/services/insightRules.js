@@ -66,21 +66,31 @@ export function binWeatherClash(ctx, now) {
 }
 
 /**
- * Fuel near the bottom of the local price cycle.
+ * True when `price` sits near the bottom of the recent price cycle.
  * `fuelHistory` is a { "yyyy-m-d": price } map maintained by the runtime.
+ * The single source of truth for "cheap enough to mention" — the insight rule
+ * below and the AI briefing both gate on it, so fuel only ever surfaces at the
+ * bottom of the cycle, not every day.
  */
-export function fuelCycleLow(ctx, now, { fuelHistory = {} } = {}) {
-  const price = ctx.fuel?.price;
-  if (price == null) return null;
+export function isFuelCycleLow(price, fuelHistory = {}) {
+  if (price == null) return false;
 
   const prices = Object.values(fuelHistory).filter((p) => Number.isFinite(p));
-  if (prices.length < 7) return null; // not enough cycle history yet
+  if (prices.length < 7) return false; // not enough cycle history yet
 
   const min = Math.min(...prices);
   const max = Math.max(...prices);
   const range = max - min;
-  if (range < 12) return null; // flat fortnight — no cycle to call
-  if (price > min + range * 0.2) return null;
+  if (range < 12) return false; // flat fortnight — no cycle to call
+  return price <= min + range * 0.2;
+}
+
+/**
+ * Fuel near the bottom of the local price cycle.
+ */
+export function fuelCycleLow(ctx, now, { fuelHistory = {} } = {}) {
+  const price = ctx.fuel?.price;
+  if (!isFuelCycleLow(price, fuelHistory)) return null;
 
   return {
     id: `fuel-low:${dateKey(now)}`,

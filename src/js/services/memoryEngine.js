@@ -128,6 +128,21 @@ export function toSurface(entry, now = new Date()) {
   const tender = entry.sensitivity === "tender";
   const title = String(entry.title ?? "").trim();
 
+  // Tender → no caption (the photo carries it; we do not narrate grief).
+  // Normal → a quiet one-line caption, rotated by day so it varies over time
+  // (stable within a day, so it never changes under a re-render).
+  const day = Math.floor(now.getTime() / 86400000);
+  const pick = (lines) => lines[day % lines.length];
+  const caption = tender
+    ? null
+    : title
+      ? pick([
+          `On this day — ${title}.`,
+          `A memory from today — ${title}.`,
+          `${title} — on this day.`
+        ])
+      : pick(["On this day.", "A memory for today."]);
+
   return {
     id: `memory:${entry.id}`,
     entryId: entry.id,
@@ -135,10 +150,8 @@ export function toSurface(entry, now = new Date()) {
     kind: entry.kind ?? "memory",
     sensitivity: tender ? "tender" : "normal",
     icon: tender ? "🕯️" : "🕰️",
-    // Tender → no caption (the photo carries it; we do not narrate grief).
-    // Normal → a quiet one-line caption.
-    caption: tender ? null : (title ? `On this day — ${title}.` : "On this day."),
-    text: tender ? "" : (title ? `On this day — ${title}.` : "On this day."),
+    caption,
+    text: caption ?? "",
     photos: Array.isArray(entry.photos) ? entry.photos : [],
     ambientOnly: tender,          // tender memories only ever belong to the quiet ambient frame
     holdMs: tender ? TENDER_HOLD_MS : NORMAL_HOLD_MS,

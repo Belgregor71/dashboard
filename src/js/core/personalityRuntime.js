@@ -34,7 +34,6 @@ const CELEBRATION_TTL_MS = 3 * 60 * 60 * 1000; // a fired moment stays offerable
 
 const HEARTBEAT_KEY = "dashboard:last-heartbeat";
 const DRY_KEY = "dashboard:dry-streak";
-const TZ_KEY = "dashboard:last-tz-offset";
 
 let enabled = false;
 let budgets = {};                 // { [triggerId]: budgetKey } — persisted to /api/delight
@@ -43,7 +42,6 @@ let birthdayName = null;          // today's birthday person, from the calendar 
 let awaySignal = null;            // { awayDays, awayReturnKey, awayName } from arrivalGreeting, consumed once
 let outageRecovered = false;      // set once at boot if downtime exceeded OUTAGE_MS
 let bootKey = null;               // dedupes the power-restored moment to this boot
-let dstJustChanged = false;       // set once at boot if the tz offset moved since last run
 
 function readJson(key, fallback) {
   try {
@@ -98,10 +96,6 @@ function detectBootSignals(now) {
     outageRecovered = true;
     bootKey = String(Math.floor(now.getTime() / OUTAGE_MS)); // one key per outage window
   }
-  const offset = now.getTimezoneOffset();
-  const lastOffset = readJson(TZ_KEY, null);
-  if (lastOffset != null && lastOffset !== offset) dstJustChanged = true;
-  writeJson(TZ_KEY, offset);
 }
 
 // First-rain-after-dry: a per-day dry counter driven off the shared weather
@@ -166,7 +160,6 @@ function buildCtx(now) {
   return {
     outageRecovered,
     bootKey,
-    dstJustChanged,
     birthdayName,
     rainNow: dry.rainNow,
     dryStreakDays: dry.dryStreakDays,

@@ -1,9 +1,9 @@
 // Pure calendar-occasion detection for the delight registry — Phase 10
-// (docs/vision/phase-10-temperament.md). The date math (Easter + Nth-weekday for
-// the AU-specific Mother's/Father's Day) is lifted verbatim from the retired
-// occasionPopup so the rules are unchanged; only the full-screen confetti scene is
-// gone. The occasion now rides the delight budget as a house-voiced celebration
-// line on the focus-hero, once per year, instead of a 17-animation overlay.
+// (docs/vision/phase-10-temperament.md). The Easter date math is lifted verbatim
+// from the retired occasionPopup so the rules are unchanged; only the full-screen
+// confetti scene is gone. The occasion now rides the delight budget as a
+// house-voiced celebration line on the focus-hero, once per year, instead of a
+// 17-animation overlay.
 //
 // No imports, no DOM, no IO — same discipline as delight.js, so it unit-tests in
 // plain node (tests/occasions.spec.js). The runtime (personalityRuntime) reads
@@ -35,29 +35,26 @@ function addDays(year, month, day, offset) {
   return { month: d.getMonth() + 1, day: d.getDate() };
 }
 
-function nthWeekday(year, month, nth, weekday) {
-  const firstDay = new Date(year, month - 1, 1).getDay();
-  const offset = (weekday - firstDay + 7) % 7;
-  return 1 + offset + (nth - 1) * 7;
-}
-
 // Warm, short lines in the house register (docs/design/VOICE.md) — one
 // observed beat per occasion where something true improves the greeting;
 // solemn days (ANZAC) and the biggest days (Christmas) stay plain.
 // celebrate() speaks them through `phrase`, and uses the title as the caption.
 const OCCASIONS = {
-  newyear:        { icon: "🥂", title: "New Year",          line: "Happy New Year — clean slate." },
-  valentine:      { icon: "💝", title: "Valentine's Day",   line: "Happy Valentine's Day." },
-  goodfriday:     { icon: "🌺", title: "Good Friday",       line: "Good Friday — the long weekend's here." },
-  eastersaturday: { icon: "🥚", title: "Easter Saturday",   line: "Easter Saturday — the quiet middle of the long weekend." },
-  easter:         { icon: "🐣", title: "Easter",            line: "Happy Easter — the eggs won't find themselves." },
-  anzac:          { icon: "🌺", title: "ANZAC Day",         line: "ANZAC Day — lest we forget." },
-  mothers:        { icon: "💐", title: "Mother's Day",      line: "Happy Mother's Day — breakfast is someone else's job today." },
-  fathers:        { icon: "🏆", title: "Father's Day",      line: "Happy Father's Day — go on, make a fuss." },
-  halloween:      { icon: "🎃", title: "Halloween",         line: "Halloween tonight — expect small visitors." },
-  newyeareve:     { icon: "🎆", title: "New Year's Eve",    line: "Last night of the year." },
-  christmas:      { icon: "🎄", title: "Christmas",         line: "Merry Christmas." }
+  newyear:        { icon: "🥂", title: "New Year",          lines: ["Happy New Year — clean slate.", "Happy New Year — a fresh page."] },
+  valentine:      { icon: "💝", title: "Valentine's Day",   lines: ["Happy Valentine's Day.", "Happy Valentine's Day — go on, say it."] },
+  goodfriday:     { icon: "🌺", title: "Good Friday",       lines: ["Good Friday — the long weekend's here.", "Good Friday — four days to enjoy."] },
+  easter:         { icon: "🐣", title: "Easter",            lines: ["Happy Easter — the eggs won't find themselves.", "Happy Easter — hope the Easter Bunny found the good hiding spots."] },
+  anzac:          { icon: "🌺", title: "ANZAC Day",         lines: ["ANZAC Day — lest we forget."] },
+  halloween:      { icon: "🎃", title: "Halloween",         lines: ["Halloween tonight — expect small visitors.", "Halloween tonight — the lolly bowl's earning its keep."] },
+  newyeareve:     { icon: "🎆", title: "New Year's Eve",    lines: ["Last night of the year.", "Last night of the year — see it out."] },
+  christmas:      { icon: "🎄", title: "Christmas",         lines: ["Merry Christmas."] }
 };
+
+// Rotate a line pool without randomness: a stable per-day index keeps the module
+// pure/testable and gives a different phrasing across the years it recurs.
+function pickLine(lines, now) {
+  return lines[Math.floor(now.getTime() / 86400000) % lines.length];
+}
 
 /**
  * Today's fixed/moveable calendar occasion as a delight occasion object
@@ -70,22 +67,18 @@ export function detectOccasion(now = new Date()) {
 
   const easter = calcEaster(year);
   const goodFriday = addDays(year, easter.month, easter.day, -2);
-  const easterSat = addDays(year, easter.month, easter.day, -1);
-  const mothersDay = nthWeekday(year, 5, 2, 0);   // AU: 2nd Sunday May
-  const fathersDay = nthWeekday(year, 9, 1, 0);   // AU: 1st Sunday September
 
   let id = null;
   if (month === 1  && day === 1)  id = "newyear";
   else if (month === 2 && day === 14) id = "valentine";
   else if (month === goodFriday.month && day === goodFriday.day) id = "goodfriday";
-  else if (month === easterSat.month && day === easterSat.day) id = "eastersaturday";
   else if (month === easter.month && day === easter.day) id = "easter";
   else if (month === 4 && day === 25) id = "anzac";
-  else if (month === 5 && day === mothersDay) id = "mothers";
-  else if (month === 9 && day === fathersDay) id = "fathers";
   else if (month === 10 && day === 31) id = "halloween";
   else if (month === 12 && day === 31) id = "newyeareve";
   else if (month === 12 && day === 25) id = "christmas";
 
-  return id ? { id, ...OCCASIONS[id] } : null;
+  if (!id) return null;
+  const occ = OCCASIONS[id];
+  return { id, icon: occ.icon, title: occ.title, line: pickLine(occ.lines, now) };
 }

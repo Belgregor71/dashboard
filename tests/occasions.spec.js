@@ -18,16 +18,10 @@ test.describe("detectOccasion — fixed and moveable calendar days", () => {
     expect(detectOccasion(local("2026-12-25")).id).toBe("christmas");
   });
 
-  test("Easter weekend 2026 (Sun 5 Apr) resolves Good Friday / Saturday / Sunday", () => {
+  test("Easter weekend 2026 (Sun 5 Apr) resolves Good Friday and Sunday", () => {
     expect(detectOccasion(local("2026-04-03")).id).toBe("goodfriday");
-    expect(detectOccasion(local("2026-04-04")).id).toBe("eastersaturday");
     expect(detectOccasion(local("2026-04-05")).id).toBe("easter");
-  });
-
-  test("AU Mother's Day (2nd Sun May) and Father's Day (1st Sun Sep) 2026", () => {
-    expect(detectOccasion(local("2026-05-10")).id).toBe("mothers"); // 2nd Sunday
-    expect(detectOccasion(local("2026-09-06")).id).toBe("fathers"); // 1st Sunday
-    expect(detectOccasion(local("2026-05-03"))).toBeNull(); // 1st Sunday — not it
+    expect(detectOccasion(local("2026-04-04"))).toBeNull(); // Easter Saturday not observed here
   });
 
   test("carries an icon, a title caption, and a warm line", () => {

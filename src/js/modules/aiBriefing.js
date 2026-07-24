@@ -1,4 +1,14 @@
 import { gatherBriefingContext } from "./briefingData.js";
+import { isFuelCycleLow } from "../services/insightRules.js";
+
+// Same rolling price map the insight engine records (attentionEngine /
+// insightEngine keep it fresh); read-only here.
+const FUEL_HISTORY_KEY = "dashboard:fuel-history";
+
+function readFuelHistory() {
+  try { return JSON.parse(localStorage.getItem(FUEL_HISTORY_KEY)) || {}; }
+  catch { return {}; }
+}
 
 // Builds the AI prompt payload from the shared briefing context and calls
 // /api/ai/brief. Summaries are cached so the scheduled speech, the view's
@@ -74,7 +84,10 @@ function commuteText(ctx) {
 
 function fuelText(ctx) {
   if (!ctx.fuel) return null;
-  return `cheapest unleaded ${ctx.fuel.price}c/L at ${ctx.fuel.name} (${ctx.fuel.distanceKm} km away)`;
+  // Only worth a mention at the bottom of the cycle — otherwise the price is
+  // just noise the briefing would repeat every day.
+  if (!isFuelCycleLow(ctx.fuel.price, readFuelHistory())) return null;
+  return `cheapest unleaded ${ctx.fuel.price}c/L at ${ctx.fuel.name} (${ctx.fuel.distanceKm} km away), near the bottom of the cycle`;
 }
 
 function homeText(ctx) {
