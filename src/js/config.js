@@ -125,9 +125,11 @@ window.CONFIG = {
     // "year · place, region" caption, plus a small static map tile for travel
     // photos (taken outside Australia — needs MAP_API_KEY in .env). Rides on top of
     // immichPhotos; when its frozen set is empty (Immich down / no memories) it
-    // falls back to the immichPhotos blend. Default OFF -> byte-identical (no place
-    // element, the 6-hour blend stands). Revert (-> false).
-    dailyMemories: false,
+    // falls back to the immichPhotos blend. Enabled 2026-07-24: route live-verified
+    // with real exif on the Pi (captions + travel gate correct), MAP_API_KEY added,
+    // screensaver surface proven live via __ssPlace. Revert (-> false) restores the
+    // immichPhotos blend exactly (routes/scheduler stay inert, build-on-demand only).
+    dailyMemories: true,
 
     // Phase 10 "One Character" (docs/vision/phase-10-temperament.md). One
     // temperament authority (personality.js) every surfacing path routes through,
