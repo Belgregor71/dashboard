@@ -45,6 +45,9 @@ let footerEl    = null;
 let tenderMarkEl = null; // study 01 (WP4): the faint 🕯, present only when the flag is on
 let memoryEl = null;      // rollout WP-E: the captioned "on this day" whisper (flag-gated)
 let memoryTitleEl = null;
+let placeEl = null;        // Daily Memories: bottom-left year+location cluster (flag-gated)
+let placeMapEl = null;     // the small travel map tile (non-AU photos only)
+let placeCaptionEl = null;
 
 let idleTimer   = null;
 let photoTimer  = null;
@@ -73,6 +76,13 @@ let substrateEnabled = false;
 // downscaled). Flag off → this block is inert and photos come from static/photos.
 let immichEnabled = false;
 const ANNIVERSARY_RE = /\b(birthday|bday|anniversary)\b/i; // "on this day" earned memory
+// ─── Daily Memories (features.dailyMemories, flag-gated) ──────
+// When on, the ambient rotation is the FROZEN per-day "on this day" set from the
+// server (/api/immich/daily-set) — stable all day, each frame carrying a subtle
+// year+location caption (+ a small map tile for travel photos) shown bottom-left.
+// Off → this block is inert and photos come from the immichPhotos blend / static.
+let dailyMemoriesEnabled = false;
+let loadedDay = null; // the toDateString() the current pool was built for (day-stable reload)
 
 // ─── Ambient clock (study 05, flag-gated) ─────────────────────
 // When on, the Mode 0 clock gets the study-05 treatment: tabular figures + a
@@ -144,6 +154,7 @@ function build() {
     </div>
     ${ambientMemoryEnabled ? `<div class="screensaver__tender-mark" aria-hidden="true">🕯</div>` : ""}
     ${memoryWhisperEnabled ? `<div class="screensaver__memory"><span class="screensaver__memory-eyebrow"><span class="ic">🕰</span> On this day</span><div class="screensaver__memory-title"></div></div>` : ""}
+    ${dailyMemoriesEnabled ? `<div class="screensaver__place"><img class="screensaver__place-map" alt="" /><div class="screensaver__place-caption"></div></div>` : ""}
   `;
   document.body.appendChild(el);
   photoEl    = el.querySelector(".screensaver__photo");
@@ -155,6 +166,9 @@ function build() {
   tenderMarkEl = el.querySelector(".screensaver__tender-mark"); // null when flag off
   memoryEl      = el.querySelector(".screensaver__memory");        // null when flag off
   memoryTitleEl = el.querySelector(".screensaver__memory-title");
+  placeEl        = el.querySelector(".screensaver__place");         // null when flag off
+  placeMapEl     = el.querySelector(".screensaver__place-map");
+  placeCaptionEl = el.querySelector(".screensaver__place-caption");
 }
 
 const immichThumb = (id) => `/api/immich/asset/${encodeURIComponent(id)}/thumb`;
@@ -181,6 +195,25 @@ async function loadImmichPhotos() {
   }
 }
 
+// Daily Memories: the frozen per-day set. Each frame is an object carrying its
+// caption + optional travel-map URL (unlike the blend's bare src strings). Empty
+// when the server has no set (Immich down / no memories) → caller falls back.
+async function loadDailyMemories() {
+  try {
+    const res = await fetch("/api/immich/daily-set");
+    if (!res.ok) return [];
+    const items = (await res.json()).photos ?? [];
+    if (!Array.isArray(items) || items.length === 0) return [];
+    return items.map((p) => ({
+      src: immichThumb(p.id),
+      caption: p.caption || null,
+      mapUrl: p.map ? `/api/immich/map?lat=${encodeURIComponent(p.lat)}&lng=${encodeURIComponent(p.lng)}` : null
+    }));
+  } catch {
+    return [];
+  }
+}
+
 async function loadStaticPhotos() {
   try {
     const res = await fetch("/api/photos");
@@ -196,6 +229,12 @@ async function loadStaticPhotos() {
 }
 
 async function loadPhotos() {
+  loadedDay = new Date().toDateString();
+  if (dailyMemoriesEnabled) {
+    const daily = await loadDailyMemories();
+    if (daily.length > 0) { photos = daily; return; }
+    // No frozen set today → fall through to the immichPhotos blend / static.
+  }
   if (immichEnabled) {
     const immich = await loadImmichPhotos();
     if (immich.length > 0) { photos = immich; return; }
@@ -389,16 +428,47 @@ function pickKbVariant() {
   return variant;
 }
 
+// Update the bottom-left year+location cluster for a Daily Memories frame. A bare
+// string (tender lane / blend) or a captionless frame clears it. Inert (placeEl
+// null) when the flag is off. Night hiding is handled in CSS.
+function updatePlace(frame) {
+  if (!placeEl) return;
+  const caption = frame && typeof frame === "object" ? frame.caption : null;
+  const mapUrl  = frame && typeof frame === "object" ? frame.mapUrl : null;
+  if (!caption) {
+    placeEl.classList.remove("is-visible");
+    placeMapEl.classList.remove("is-visible");
+    return;
+  }
+  placeCaptionEl.textContent = caption;
+  if (mapUrl) {
+    // Only reveal the tile once it actually loads — a 404/502 (no key / unreachable)
+    // hides it rather than showing a broken-image box; the caption still stands.
+    placeMapEl.onload = () => placeMapEl.classList.add("is-visible");
+    placeMapEl.onerror = () => placeMapEl.classList.remove("is-visible");
+    placeMapEl.classList.remove("is-visible");
+    placeMapEl.src = mapUrl;
+  } else {
+    placeMapEl.classList.remove("is-visible");
+    placeMapEl.removeAttribute("src");
+  }
+  placeEl.classList.add("is-visible");
+}
+
 // Swap the frame to a specific image with a fresh Ken Burns move. Shared by the
-// random slideshow and the tender-memory lane (WP4).
-function setPhoto(src) {
+// random slideshow and the tender-memory lane (WP4). `frame` is a src string or a
+// Daily Memories object { src, caption, mapUrl }.
+function setPhoto(frame) {
   if (!photoEl) return;
+  const src = typeof frame === "string" ? frame : frame?.src;
+  if (!src) return;
   photoEl.classList.remove("screensaver__photo--visible", ...KB_VARIANTS);
   photoEl.src = src;
   photoEl.onload = () => {
     void photoEl.offsetWidth; // reflow so the re-added class replays from frame 0
     photoEl.classList.add("screensaver__photo--visible", pickKbVariant());
   };
+  updatePlace(frame);
 }
 
 function showNextPhoto() {
@@ -532,6 +602,9 @@ function startPhotoTimer(night) {
 // moment night falls, and hand back to the dashboard at first light.
 function syncNight() {
   const night = isNight();
+  // Daily Memories: rebuild the frozen set once the calendar day rolls over
+  // (stable within a day, never the 6-hour reshuffle). Fire-and-forget.
+  if (dailyMemoriesEnabled && new Date().toDateString() !== loadedDay) loadPhotos();
   // Publish the day/night boundary to the shared store so consumers (Phase 6
   // House Model) read one authoritative value instead of recomputing suncalc.
   // syncNight runs at init + every minute + on the boundary, so the slice stays
@@ -653,6 +726,10 @@ export async function initScreensaver(options = {}) {
   substrateEnabled = atmosphereEnabled && options.substrateEnabled === true;
   // Phase 9.5: source the ambient photo pool from Immich when enabled.
   immichEnabled = options.immichEnabled === true;
+  // Daily Memories: the frozen per-day "on this day" set + bottom-left year/location
+  // caption (set before build() so the place element only exists when the flag is
+  // on → flag-off is byte-identical).
+  dailyMemoriesEnabled = options.dailyMemories === true;
   // Study 05: the ambient-clock treatment (tabular face + sun-altitude dim).
   ambientClockEnabled = options.ambientClockEnabled === true;
   // Study 01 (WP4): the tender ambient memory lane (set before build() so the
@@ -680,6 +757,13 @@ export async function initScreensaver(options = {}) {
   window.__wakeScreensaver = wakeScreensaver;
   window.__ssNextPhoto = showNextPhoto;
   window.__isNight = isNight;
+  // Daily Memories — inspect the live bottom-left caption/map over CDP (the Pi check).
+  window.__ssPlace = () => ({
+    enabled: dailyMemoriesEnabled,
+    count: photos.length,
+    caption: placeEl?.classList.contains("is-visible") ? (placeCaptionEl?.textContent || null) : null,
+    map: placeMapEl?.classList.contains("is-visible") ? (placeMapEl.getAttribute("src") || null) : null
+  });
   // Study 05 — inspect the live ambient-clock dim over CDP (the 3–4m/on-Pi check).
   window.__ambientClock = () => ({
     enabled: ambientClockEnabled,
@@ -747,8 +831,10 @@ export async function initScreensaver(options = {}) {
 
   // Phase 9.5: refresh the Immich pool a few times a day so on-this-day rolls
   // over and the random draw stays fresh. Init-once timer (CLAUDE.md kiosk
-  // discipline — no per-event teardown). Inert unless the flag is on.
-  if (immichEnabled) setInterval(loadPhotos, 6 * 60 * 60 * 1000);
+  // discipline — no per-event teardown). Inert unless the flag is on. Skipped
+  // under Daily Memories — its set is frozen per day and rebuilt on the day
+  // rollover (syncNight) instead of reshuffling every 6 hours.
+  if (immichEnabled && !dailyMemoriesEnabled) setInterval(loadPhotos, 6 * 60 * 60 * 1000);
 
   // Re-settle the tint whenever the shared weather slice shifts while Mode 0 is
   // up (the 10-min weather refresh feeds contextStore.condition). Init-once, so

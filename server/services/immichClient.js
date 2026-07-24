@@ -46,7 +46,19 @@ function usableImage(a) {
 }
 
 function slim(a) {
-  return { id: a.id, localDateTime: a.localDateTime || a.fileCreatedAt || null };
+  // Location rides along from exifInfo when present (the Daily Memories caption +
+  // travel-map need it); absent/GPS-less photos just come back null → year-only
+  // caption, no map. Kept null-safe so the random/browse callers are unaffected.
+  const ex = a.exifInfo || {};
+  return {
+    id: a.id,
+    localDateTime: a.localDateTime || a.fileCreatedAt || null,
+    city: ex.city ?? null,
+    state: ex.state ?? null,
+    country: ex.country ?? null,
+    lat: ex.latitude ?? null,
+    lng: ex.longitude ?? null
+  };
 }
 
 /** Random still images. Over-fetches then filters, since videos/trashed slip in. */
@@ -69,19 +81,26 @@ export async function searchRandom(count = 12) {
 }
 
 // One taken-date window (metadata search is a contiguous range, so on-this-day
-// is one narrow query per past year). Window is deliberately ±1 day around the
-// local calendar day to absorb TZ slop; the exact month/day match is done by the
-// pure frontend filter (photoMemory.js) on localDateTime.
-async function windowForYear(cfg, year, month, day) {
-  const after = new Date(year, month, day - 1);
-  const before = new Date(year, month, day + 2);
+// is one query per past year). The window is ±halfWindowDays around the local
+// calendar day — ±1 for the classic on-this-day (absorbs TZ slop), wider for the
+// Daily Memories set so neighbouring-date candidates are actually fetched. The
+// exact month/day match + nearest-day widening is done by the pure frontend
+// filters (photoMemory.js) on localDateTime. withExif carries location along.
+async function windowForYear(cfg, year, month, day, halfWindowDays = 1) {
+  const after = new Date(year, month, day - halfWindowDays);
+  const before = new Date(year, month, day + halfWindowDays + 1);
   try {
     const res = await fetchWithTimeout(
       `${cfg.base}/api/search/metadata`,
       {
         method: "POST",
         headers: headers(cfg.key),
-        body: JSON.stringify({ takenAfter: after.toISOString(), takenBefore: before.toISOString(), size: 40 })
+        body: JSON.stringify({
+          takenAfter: after.toISOString(),
+          takenBefore: before.toISOString(),
+          size: Math.min(20 + halfWindowDays * 20, 250),
+          withExif: true
+        })
       },
       TIMEOUT_MS
     );
@@ -95,10 +114,11 @@ async function windowForYear(cfg, year, month, day) {
 
 /**
  * Assets taken around today's month/day across prior years — the raw feed for
- * "on this day". Slightly over-fetched around each day; the caller (pure
- * photoMemory.js) makes the exact month/day match. Empty when unconfigured/down.
+ * "on this day" and the Daily Memories set. Over-fetched ±halfWindowDays around
+ * each day; the caller (pure photoMemory.js) makes the exact match + widening.
+ * Empty when unconfigured/down.
  */
-export async function onThisDay(now = new Date(), { yearsBack = 15 } = {}) {
+export async function memoriesFeed(now = new Date(), { yearsBack = 15, halfWindowDays = 1 } = {}) {
   const cfg = config();
   if (!cfg) return [];
   const month = now.getMonth();
@@ -108,7 +128,7 @@ export async function onThisDay(now = new Date(), { yearsBack = 15 } = {}) {
   const years = [];
   for (let y = thisYear - 1; y >= thisYear - yearsBack; y--) years.push(y);
 
-  const perYear = await Promise.all(years.map((y) => windowForYear(cfg, y, month, day)));
+  const perYear = await Promise.all(years.map((y) => windowForYear(cfg, y, month, day, halfWindowDays)));
   // Dedupe by id (a window can overlap another's edge).
   const seen = new Set();
   const out = [];
@@ -120,6 +140,12 @@ export async function onThisDay(now = new Date(), { yearsBack = 15 } = {}) {
     }
   }
   return out;
+}
+
+// The classic on-this-day feed (±1 day) — kept as a thin wrapper so the existing
+// /api/immich/on-this-day route and its callers are unchanged.
+export function onThisDay(now = new Date(), opts = {}) {
+  return memoriesFeed(now, { ...opts, halfWindowDays: 1 });
 }
 
 /**

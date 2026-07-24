@@ -117,6 +117,18 @@ window.CONFIG = {
     // 2026-07-12 (key added to the Pi's .env). Revert (-> false).
     immichPhotos: true,
 
+    // "Daily Memories" screensaver. Turns the ambient rotation into a curated,
+    // FROZEN per-day "on this day" set: today's month/day across past years,
+    // widened to the nearest neighbouring dates when a day is thin (up to 12), and
+    // chosen ahead in the evening (while the NAS is awake) so it serves all next
+    // day even after the Synology sleeps. Each frame carries a subtle bottom-left
+    // "year · place, region" caption, plus a small static map tile for travel
+    // photos (taken outside Australia — needs MAP_API_KEY in .env). Rides on top of
+    // immichPhotos; when its frozen set is empty (Immich down / no memories) it
+    // falls back to the immichPhotos blend. Default OFF -> byte-identical (no place
+    // element, the 6-hour blend stands). Revert (-> false).
+    dailyMemories: false,
+
     // Phase 10 "One Character" (docs/vision/phase-10-temperament.md). One
     // temperament authority (personality.js) every surfacing path routes through,
     // so the house speaks/moves/celebrates the same way every time: attention +

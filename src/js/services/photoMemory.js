@@ -44,6 +44,86 @@ function dateKey(d) {
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 }
 
+// ── Daily Memories set (features.dailyMemories) ────────────────
+// The curated per-day screensaver set: today's month/day across past years, and
+// when that specific day is thin, widening to the NEAREST neighbouring dates
+// (±1, ±2 … up to maxOffsetDays) until `target` photos are collected. Pure —
+// the server (dailyMemories.js) runs this over the exif-carrying slimmed feed,
+// then freezes the result. Real-Date arithmetic, so month boundaries / leap days
+// are handled by construction (never month/day + N modular maths).
+
+const MAX_OFFSET_DAYS = 8;
+
+// Nearest-first list of {month, day, offset} around `now`: k=0, then the day
+// before + after at k=1, and so on. Same-offset ties resolve day-before first.
+function candidateDays(now, maxOffsetDays) {
+  const out = [];
+  for (let k = 0; k <= maxOffsetDays; k++) {
+    const offsets = k === 0 ? [0] : [-k, k];
+    for (const off of offsets) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + off);
+      out.push({ month: d.getMonth() + 1, day: d.getDate(), offset: Math.abs(off) });
+    }
+  }
+  return out;
+}
+
+/**
+ * Select the curated daily set from an exif-carrying asset feed.
+ * @returns {Array<{id, year, offsetDays, city, state, country, lat, lng}>}
+ *          nearest day first, newest year first within a day, deduped, capped.
+ */
+export function selectDailyMemories(assets, now = new Date(), { target = MAX_PHOTOS, maxOffsetDays = MAX_OFFSET_DAYS } = {}) {
+  // Bucket assets by their local month/day (newest year first within a bucket).
+  const byMd = new Map();
+  for (const a of assets || []) {
+    const md = localMonthDay(a?.localDateTime);
+    if (!md || !a?.id) continue;
+    const key = `${md.month}-${md.day}`;
+    if (!byMd.has(key)) byMd.set(key, []);
+    byMd.get(key).push({ ...a, year: md.year });
+  }
+  for (const list of byMd.values()) list.sort((x, y) => y.year - x.year);
+
+  const seen = new Set();
+  const out = [];
+  for (const c of candidateDays(now, maxOffsetDays)) {
+    if (out.length >= target) break;
+    for (const a of byMd.get(`${c.month}-${c.day}`) || []) {
+      if (out.length >= target) break;
+      if (seen.has(a.id)) continue;
+      seen.add(a.id);
+      out.push({
+        id: a.id,
+        year: a.year,
+        offsetDays: c.offset,
+        city: a.city ?? null,
+        state: a.state ?? null,
+        country: a.country ?? null,
+        lat: a.lat ?? null,
+        lng: a.lng ?? null
+      });
+    }
+  }
+  return out;
+}
+
+// A photo is "travel" when it carries a country that isn't Australia — the gate
+// for showing the small map tile. No country (no GPS) → not travel.
+export function isTravel({ country } = {}) {
+  return Boolean(country) && !/austral/i.test(String(country));
+}
+
+// The subtle bottom-left caption: "year · place, region". Region is the country
+// for overseas photos, else the state (so "2019 · Kyoto, Japan" but "2018 · Byron
+// Bay, NSW"). Falls back to place/region alone when one is missing, and to the
+// bare year when there's no location at all (many photos lack GPS).
+export function captionFor({ year, city, state, country } = {}) {
+  const region = isTravel({ country }) ? country : (state || null);
+  const place = [city, region].filter(Boolean).join(", ");
+  return place ? `${year} · ${place}` : `${year ?? ""}`.trim();
+}
+
 /**
  * A memory photo ref → a URL, or null when there's no ref. Immich assets are
  * { immich: id }; authored entries are string paths (absolute/rooted as-is,

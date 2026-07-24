@@ -264,7 +264,8 @@
 }
 
 .screensaver--night .screensaver__info,
-.screensaver--night .screensaver__footer {
+.screensaver--night .screensaver__footer,
+.screensaver--night .screensaver__place {
   display: none;
 }
 
@@ -396,6 +397,56 @@ body.living-accent .screensaver--ambient-clock .screensaver__dateline {
   line-height: 1.02;
   letter-spacing: 0.01em;
   color: rgba(238, 243, 251, 0.72);
+}
+
+/* ── Daily Memories place caption (features.dailyMemories) ──────
+   The subtle bottom-left counterpart to the whisper: a small travel map tile
+   (non-AU photos only) above a faint "year · place, region" line. Updates per
+   photo (screensaver.js updatePlace). Static opacity, no motion → GPU stays 0%
+   at rest. Element only in the DOM when the flag is on (byte-identical off);
+   fades in on .is-visible, hidden at night with the other ambient lines. */
+.screensaver__place {
+  position: absolute;
+  left: clamp(16px, 4%, 40px);
+  bottom: clamp(16px, 4%, 40px);
+  max-width: 44%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3, 10px);
+  opacity: 0;
+  transition: opacity var(--t-settle, 60s) ease;
+  pointer-events: none;
+}
+
+.screensaver__place.is-visible {
+  opacity: 1;
+}
+
+.screensaver__place-map {
+  width: clamp(88px, 9vw, 132px);
+  height: auto;
+  border-radius: 8px;
+  opacity: 0;
+  /* A quiet frame so the tile reads as a small inset over any photo. */
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.55);
+  outline: 1px solid rgba(238, 243, 251, 0.14);
+  display: none;
+}
+
+.screensaver__place-map.is-visible {
+  display: block;
+  opacity: 0.9;
+}
+
+.screensaver__place-caption {
+  font-family: var(--font-body);
+  font-size: clamp(0.95rem, 1.15vw, 1.2rem);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  /* Same legibility guard as the whisper — perceptible over a bright photo. */
+  color: rgba(238, 243, 251, 0.72);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.55);
 }
 
 /* ── Hide dashboard content while screensaver is active ────── */

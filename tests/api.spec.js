@@ -426,6 +426,28 @@ test.describe("immich photo source (Phase 9.5)", () => {
     const ct = res.headers()["content-type"] || "";
     expect(ct.startsWith("image/") || ct.includes("application/json")).toBe(true);
   });
+
+  // Daily Memories — the frozen per-day set. With no Immich configured it degrades
+  // to { date, photos: [] } (the client then falls back to the random blend).
+  test("GET /api/immich/daily-set returns { date, photos: array }", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/immich/daily-set");
+    expect(typeof body.date).toBe("string");
+    expect(Array.isArray(body.photos)).toBe(true);
+  });
+
+  test("GET /api/immich/map without lat/lng is a JSON 400", async ({ request }) => {
+    // Coordinates are validated before the key check, so the contract holds on any
+    // machine (with or without MAP_API_KEY).
+    const { body } = await expectJson(request, "/api/immich/map", { statuses: [400] });
+    expect(body).toHaveProperty("error");
+  });
+
+  test("GET /api/immich/map with valid coords is image, 404 (no key), or 502 — never HTML", async ({ request }) => {
+    const res = await request.get("/api/immich/map?lat=35.0116&lng=135.7681");
+    expect([200, 404, 502]).toContain(res.status());
+    const ct = res.headers()["content-type"] || "";
+    expect(ct.startsWith("image/") || ct.includes("application/json")).toBe(true);
+  });
 });
 
 test.describe("home assistant", () => {

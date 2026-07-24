@@ -1,5 +1,12 @@
 import { test, expect } from "@playwright/test";
-import { photosForToday, buildOnThisDayMemory, memoryPhotoSrc } from "../src/js/services/photoMemory.js";
+import {
+  photosForToday,
+  buildOnThisDayMemory,
+  memoryPhotoSrc,
+  selectDailyMemories,
+  captionFor,
+  isTravel
+} from "../src/js/services/photoMemory.js";
 
 // Pure unit tests for the Immich on-this-day mapping — Phase 9.5
 // (docs/vision/photo-source-immich.md). photoMemory.js has no DOM/IO, so these
@@ -73,5 +80,92 @@ test.describe("memoryPhotoSrc — a photo ref → a URL", () => {
     expect(memoryPhotoSrc(undefined)).toBeNull();
     expect(memoryPhotoSrc(null)).toBeNull();
     expect(memoryPhotoSrc("")).toBeNull();
+  });
+});
+
+// ── Daily Memories set (features.dailyMemories) ────────────────
+test.describe("selectDailyMemories — the curated per-day set, widened when thin", () => {
+  test("exact-day only when there are already enough, nearest-year first", () => {
+    const feed = [
+      { id: "a", localDateTime: "2021-07-12T08:00:00.000Z" },
+      { id: "b", localDateTime: "2019-07-12T08:00:00.000Z" },
+      { id: "c", localDateTime: "2020-07-12T08:00:00.000Z" }
+    ];
+    const out = selectDailyMemories(feed, TODAY, { target: 3 });
+    expect(out.map((p) => p.id)).toEqual(["a", "c", "b"]); // 2021, 2020, 2019
+    expect(out.every((p) => p.offsetDays === 0)).toBe(true);
+  });
+
+  test("widens to the NEAREST neighbouring dates (day-before then day-after) to make up the target", () => {
+    const feed = [
+      { id: "exact", localDateTime: "2021-07-12T08:00:00.000Z" }, // offset 0
+      { id: "after1", localDateTime: "2020-07-13T08:00:00.000Z" }, // +1
+      { id: "before1", localDateTime: "2018-07-11T08:00:00.000Z" }, // -1
+      { id: "after2", localDateTime: "2017-07-14T08:00:00.000Z" }  // +2 (not needed)
+    ];
+    const out = selectDailyMemories(feed, TODAY, { target: 3 });
+    // exact first, then |offset| ascending with the day-before ahead of the day-after.
+    expect(out.map((p) => p.id)).toEqual(["exact", "before1", "after1"]);
+    expect(out.map((p) => p.offsetDays)).toEqual([0, 1, 1]);
+  });
+
+  test("caps at target, dedupes by id, empty/malformed feed → []", () => {
+    const many = Array.from({ length: 20 }, (_, i) => ({
+      id: `p${i}`,
+      localDateTime: `20${String(10 + i).padStart(2, "0")}-07-12T08:00:00.000Z`
+    }));
+    expect(selectDailyMemories(many, TODAY, { target: 12 })).toHaveLength(12);
+    const dup = [
+      { id: "z", localDateTime: "2019-07-12T08:00:00.000Z" },
+      { id: "z", localDateTime: "2020-07-11T08:00:00.000Z" } // same id, nearer day — still one entry
+    ];
+    expect(selectDailyMemories(dup, TODAY, { target: 12 }).map((p) => p.id)).toEqual(["z"]);
+    expect(selectDailyMemories([], TODAY)).toEqual([]);
+    expect(selectDailyMemories(null, TODAY)).toEqual([]);
+  });
+
+  test("crosses a month boundary correctly when widening (real-date arithmetic)", () => {
+    const firstOfAug = new Date("2026-08-01T12:00:00");
+    const feed = [{ id: "jul31", localDateTime: "2015-07-31T20:00:00.000Z" }]; // the day before Aug 1
+    const out = selectDailyMemories(feed, firstOfAug, { target: 12 });
+    expect(out.map((p) => p.id)).toEqual(["jul31"]);
+    expect(out[0].offsetDays).toBe(1);
+  });
+
+  test("carries location fields through for the caption/map", () => {
+    const feed = [{
+      id: "loc", localDateTime: "2019-07-12T08:00:00.000Z",
+      city: "Kyoto", state: "Kyoto Prefecture", country: "Japan", lat: 35.01, lng: 135.76
+    }];
+    const [p] = selectDailyMemories(feed, TODAY, { target: 12 });
+    expect(p).toMatchObject({ id: "loc", year: 2019, city: "Kyoto", country: "Japan", lat: 35.01, lng: 135.76 });
+  });
+});
+
+test.describe("captionFor — year · place, region", () => {
+  test("overseas photo uses the country as the region", () => {
+    expect(captionFor({ year: 2019, city: "Kyoto", state: "Kyoto Prefecture", country: "Japan" }))
+      .toBe("2019 · Kyoto, Japan");
+  });
+
+  test("Australian photo uses the state as the region", () => {
+    expect(captionFor({ year: 2018, city: "Byron Bay", state: "NSW", country: "Australia" }))
+      .toBe("2018 · Byron Bay, NSW");
+  });
+
+  test("region alone when the city is missing, year alone when there's no location", () => {
+    expect(captionFor({ year: 2020, country: "Japan" })).toBe("2020 · Japan");
+    expect(captionFor({ year: 2020, state: "QLD", country: "Australia" })).toBe("2020 · QLD");
+    expect(captionFor({ year: 2020 })).toBe("2020");
+  });
+});
+
+test.describe("isTravel — country present and not Australia", () => {
+  test("overseas → true, Australia (any case) → false, no country → false", () => {
+    expect(isTravel({ country: "Japan" })).toBe(true);
+    expect(isTravel({ country: "Australia" })).toBe(false);
+    expect(isTravel({ country: "australia" })).toBe(false);
+    expect(isTravel({ country: null })).toBe(false);
+    expect(isTravel({})).toBe(false);
   });
 });

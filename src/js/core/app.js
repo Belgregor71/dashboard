@@ -242,6 +242,8 @@ export function startApp() {
     substrateEnabled: isEnabled("ambientSubstrate", false),
     // Phase 9.5 — source the ambient photo pool from Immich (docs/vision/photo-source-immich.md).
     immichEnabled: isEnabled("immichPhotos", false),
+    // Daily Memories — the frozen per-day "on this day" set + bottom-left year/location caption.
+    dailyMemories: isEnabled("dailyMemories", false),
     // Study 05 (WP1) — ambient-clock treatment: tabular face + sun-altitude dim (docs/design/).
     ambientClockEnabled: isEnabled("ambientClock", false),
     // Study 01 (WP4) — the tender ambient memory lane: wordless Mode-0 surface (docs/design/).

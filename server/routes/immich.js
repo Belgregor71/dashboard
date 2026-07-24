@@ -3,6 +3,7 @@ import { readFile, writeFile, mkdir, readdir, stat, unlink } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { isConfigured, searchRandom, onThisDay, searchTaken, fetchRendition } from "../services/immichClient.js";
+import { getDailySet, getMapTile, hasMapKey, initDailyMemories } from "../services/dailyMemories.js";
 
 // Dashboard-facing Immich proxy — Phase 9.5 (docs/vision/photo-source-immich.md).
 // The browser only ever talks to these three endpoints; the API key stays in the
@@ -84,6 +85,34 @@ router.get("/api/immich/browse", async (req, res) => {
   if (cached) return res.json({ assets: cached });
   const assets = await searchTaken(after, before, 250);
   res.json({ assets: memSet(key, assets) });
+});
+
+// The frozen Daily Memories set for today (features.dailyMemories). Builds on
+// demand when the evening prefetch hasn't run yet; { date, photos: [] } when
+// Immich is unconfigured/unreachable so the client falls back to the random draw.
+router.get("/api/immich/daily-set", async (_req, res) => {
+  // Self-gating: the evening prefetch scheduler only starts once the client (with
+  // the flag on) actually asks for the set — flag-off means this is never hit and
+  // no extra NAS load ever happens. Idempotent, so repeated calls are free.
+  initDailyMemories();
+  res.json(await getDailySet(new Date()));
+});
+
+// A proxied + disk-cached static map tile for a travel photo's coordinates. The
+// map API key stays server-side; the browser only ever hits this endpoint.
+router.get("/api/immich/map", async (req, res) => {
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+    return res.status(400).json({ error: "lat & lng are required numbers" });
+  }
+  if (!hasMapKey()) return res.status(404).json({ error: "map not configured" });
+
+  const tile = await getMapTile(lat, lng);
+  if (!tile) return res.status(502).json({ error: "map unreachable" });
+  res.set("Content-Type", tile.contentType);
+  res.set("Cache-Control", "public, max-age=604800");
+  res.send(tile.buffer);
 });
 
 router.get("/api/immich/asset/:id/thumb", async (req, res) => {
