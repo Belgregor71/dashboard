@@ -22,9 +22,9 @@ const VIEW_LABELS = {
 };
 
 const VIEW_PHRASES = {
-  home:     "Switching to home.",
-  weather:  "Here's the weather.",
-  cameras:  "Showing cameras.",
+  home:     "Home, sweet home.",
+  weather:  "Here's the weather, gorgeous.",
+  cameras:  "Cameras coming up.",
   timeline: "Here's what's coming up.",
   status:   "Showing system status.",
   briefing: "Here's your briefing.",
@@ -322,7 +322,7 @@ export function initVoiceCommands() {
     const { handled } = await dispatchTranscripts(transcripts);
     if (!handled) {
       setVoiceState("error", "Unknown command");
-      speak("Didn't catch that.");
+      speak("Didn't catch that — try me again?");
     }
   };
 

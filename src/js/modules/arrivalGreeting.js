@@ -89,22 +89,22 @@ async function getRemainingTodayEvents() {
 // ── Speech ────────────────────────────────────────────────────
 
 function buildSpeech(name, others, events) {
-  let msg = `Welcome home, ${name}.`;
+  let msg = `Welcome home, ${name}!`;
 
   if (events.length === 1) {
     const e = events[0];
     msg += e.time
-      ? ` You have ${e.title} at ${e.time} this evening.`
-      : ` You have ${e.title} today.`;
+      ? ` You've got ${e.title} at ${e.time} tonight, so don't get too comfortable.`
+      : ` You've got ${e.title} on today.`;
   } else if (events.length > 1) {
     const parts = events.slice(0, 2).map(e => e.time ? `${e.title} at ${e.time}` : e.title);
-    msg += ` You have ${parts.join(", and ")} this evening.`;
+    msg += ` You've got ${parts.join(", and ")} tonight — busy little thing.`;
   } else {
-    msg += " Nothing else on the calendar tonight.";
+    msg += " Nothing else on tonight, lucky you.";
   }
 
-  if (others.length === 1)      msg += ` ${others[0]} is already home.`;
-  else if (others.length > 1)   msg += ` ${others.join(" and ")} are already home.`;
+  if (others.length === 1)      msg += ` ${others[0]}'s already here.`;
+  else if (others.length > 1)   msg += ` ${others.join(" and ")} are already here.`;
 
   return msg;
 }
@@ -170,7 +170,7 @@ function showCard(name, others, events) {
   // Phase 10: the welcome headline speaks in the house's one voice (flag-off →
   // the literal string, byte-identical).
   let welcome = personalityEnabled()
-    ? phrase(getContext().intent, "arrival", { text: `Welcome home, ${name}.` })
+    ? phrase(getContext().intent, "arrival", { text: `Welcome home, ${name} — look who finally showed up!` })
     : `Welcome home, ${name}.`;
   // Spec reshape: the name renders in --warm/600 (the handoff's sanctioned
   // exception). phrase() may reword the line, so wrap the name only if it

@@ -28,7 +28,9 @@ test.describe("detectOccasion — fixed and moveable calendar days", () => {
     const xmas = detectOccasion(local("2026-12-25"));
     expect(xmas.icon).toBe("🎄");
     expect(xmas.title).toBe("Christmas");
-    expect(xmas.line).toBe("Merry Christmas.");
+    // The line rotates by day across a pool, so assert the stable greeting it
+    // always opens with rather than one exact phrasing.
+    expect(xmas.line).toContain("Merry Christmas");
   });
 
   test("Christmas Eve is NOT here — it keeps its own christmas-eve delight trigger", () => {

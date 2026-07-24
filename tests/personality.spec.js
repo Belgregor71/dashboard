@@ -67,8 +67,8 @@ test.describe("phrase — the voice tidies tone, never facts", () => {
 
   test("never cuts a word in half at the length cap", () => {
     const long = "word ".repeat(40).trim(); // 200 chars, no punctuation
-    const out = phrase({}, "celebration", { text: long }); // celebration cap is 90
-    expect(out.length).toBeLessThanOrEqual(90);
+    const out = phrase({}, "celebration", { text: long }); // celebration cap is 140
+    expect(out.length).toBeLessThanOrEqual(140);
     expect(out.endsWith("word")).toBe(true); // trimmed at a word boundary
   });
 

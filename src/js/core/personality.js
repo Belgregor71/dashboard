@@ -19,10 +19,15 @@
 
 // Per-kind maximum length. Factual readouts (a bin/commute/weather line) get the
 // generous cap so nothing true is ever truncated; the softer kinds stay shorter.
-const MAX_LEN = { celebration: 90, memory: 110, arrival: 240, default: 140 };
+// The house is a big talker now — celebration lines get room for a beat after the
+// fact, so a punchline isn't clipped by trimToWord mid-joke.
+const MAX_LEN = { celebration: 140, memory: 110, arrival: 240, default: 140 };
 
-// Openers the house does not use — apology, self-narration ("I noticed…"), and
-// nagging preambles. Stripped from the FRONT of a line, then the remainder is
+// Openers the house still refuses. The sassy voice narrates in the first person
+// and reacts out loud, so "Oops", "Hey there" and "Heads up" are back in — but
+// the house never nags ("reminder", "don't forget") and never apologises
+// ("sorry", "apologies"), and self-narration ("I noticed…") stays out because it
+// reads as chore-policing. Stripped from the FRONT, then the remainder is
 // re-capitalised, so "Don't forget the bins are out" → "The bins are out."
 const BANNED_OPENERS = [
   /^i\s+noticed\b[\s,:—-]*/i,
@@ -32,10 +37,7 @@ const BANNED_OPENERS = [
   /^don'?t\s+forget\b[\s,:—-]*/i,
   /^(so\s+)?sorry\b[\s,:—-]*/i,
   /^apologies\b[\s,:—-]*/i,
-  /^oops\b[\s,:—-]*/i,
-  /^fyi\b[\s,:—-]*/i,
-  /^heads\s+up\b[\s,:—-]*/i,
-  /^hey\s+there\b[\s,:—-]*/i
+  /^fyi\b[\s,:—-]*/i
 ];
 
 // Nagging tails — "…again", "…like I said". Removed from the END.

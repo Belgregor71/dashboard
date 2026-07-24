@@ -137,11 +137,11 @@ export function toSurface(entry, now = new Date()) {
     ? null
     : title
       ? pick([
-          `On this day — ${title}.`,
-          `A memory from today — ${title}.`,
-          `${title} — on this day.`
+          `On this day — ${title}. Look at us, absolute legends.`,
+          `A memory from today — ${title}. Weren't we something.`,
+          `${title} — on this day. Iconic.`
         ])
-      : pick(["On this day.", "A memory for today."]);
+      : pick(["On this day.", "A little something from today."]);
 
   return {
     id: `memory:${entry.id}`,

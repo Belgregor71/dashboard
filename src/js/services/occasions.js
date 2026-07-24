@@ -35,19 +35,19 @@ function addDays(year, month, day, offset) {
   return { month: d.getMonth() + 1, day: d.getDate() };
 }
 
-// Warm, short lines in the house register (docs/design/VOICE.md) — one
-// observed beat per occasion where something true improves the greeting;
-// solemn days (ANZAC) and the biggest days (Christmas) stay plain.
+// Big, gossipy lines in the house register (docs/design/VOICE.md) — every
+// occasion gets a full moment now, not one careful beat. The ONE exception is
+// ANZAC Day: solemn days get none of this and stay plain (rule 8).
 // celebrate() speaks them through `phrase`, and uses the title as the caption.
 const OCCASIONS = {
-  newyear:        { icon: "🥂", title: "New Year",          lines: ["Happy New Year — clean slate.", "Happy New Year — a fresh page."] },
-  valentine:      { icon: "💝", title: "Valentine's Day",   lines: ["Happy Valentine's Day.", "Happy Valentine's Day — go on, say it."] },
-  goodfriday:     { icon: "🌺", title: "Good Friday",       lines: ["Good Friday — the long weekend's here.", "Good Friday — four days to enjoy."] },
-  easter:         { icon: "🐣", title: "Easter",            lines: ["Happy Easter — the eggs won't find themselves.", "Happy Easter — hope the Easter Bunny found the good hiding spots."] },
+  newyear:        { icon: "🥂", title: "New Year",          lines: ["Happy New Year! Clean slate, gorgeous — try not to wreck it by February.", "Happy New Year! New year, same fabulous you."] },
+  valentine:      { icon: "💝", title: "Valentine's Day",   lines: ["Happy Valentine's! Somebody say something nice before the day gets away.", "Valentine's Day. Go on — you know what to do."] },
+  goodfriday:     { icon: "🌺", title: "Good Friday",       lines: ["Good Friday! Four days off and I am thrilled about it.", "Good Friday's here — the long weekend, and doesn't it know it."] },
+  easter:         { icon: "🐣", title: "Easter",            lines: ["Happy Easter! The eggs won't hide themselves, and frankly neither will I.", "Happy Easter — hope the Bunny remembered the good hiding spots."] },
   anzac:          { icon: "🌺", title: "ANZAC Day",         lines: ["ANZAC Day — lest we forget."] },
-  halloween:      { icon: "🎃", title: "Halloween",         lines: ["Halloween tonight — expect small visitors.", "Halloween tonight — the lolly bowl's earning its keep."] },
-  newyeareve:     { icon: "🎆", title: "New Year's Eve",    lines: ["Last night of the year.", "Last night of the year — see it out."] },
-  christmas:      { icon: "🎄", title: "Christmas",         lines: ["Merry Christmas."] }
+  halloween:      { icon: "🎃", title: "Halloween",         lines: ["Halloween tonight! Small visitors incoming — the lolly bowl's about to earn its keep.", "Halloween tonight! Someone's a ghost, someone's a tradie, and honestly it's a toss-up."] },
+  newyeareve:     { icon: "🎆", title: "New Year's Eve",    lines: ["Last night of the year! Make it count, or at least make it loud.", "New Year's Eve — see it out in style, or in trackies, no judgement."] },
+  christmas:      { icon: "🎄", title: "Christmas",         lines: ["Merry Christmas! The good glass is out and I'm not apologising for it.", "Merry Christmas, gorgeous — try to look surprised."] }
 };
 
 // Rotate a line pool without randomness: a stable per-day index keeps the module

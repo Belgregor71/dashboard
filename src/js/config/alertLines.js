@@ -9,49 +9,53 @@
 
 export const ALERT_TTS_RATE = 0.92;
 
-// Voice: docs/design/VOICE.md — plain, dry wit rationed (one eyebrow per
-// pool), side gate matter-of-fact, family-tease licence on known names only.
+// Voice: docs/design/VOICE.md — big, gossipy, delighted-to-have-a-visitor.
+// SECURITY IS INFORMATION FIRST: every line still says WHAT and WHERE plainly.
+// Graduated intensity — the front door and any NAMED person get the full sass;
+// an UNKNOWN person at the SIDE gate stays clear and only lightly warm (never a
+// punchline), because that's the one that might one day be a real problem.
 
 // Front door, nobody identified — name-free, so pre-warmable.
 export const VISITOR_UNKNOWN_LINES = [
-  "Someone's at the front door.",
-  "There's someone at the front door.",
-  "Doorbell — someone's at the front door.",
-  "Someone's at the front door. Probably a parcel.",
-  "Someone's on the front porch.",
-  "Someone's out the front."
+  "Ooh — someone's at the front door!",
+  "Doorbell! Someone's here and we did not plan for this.",
+  "Someone's at the front door. Look important.",
+  "There's someone on the front porch — could be anyone.",
+  "Someone's at the front door, and I'm dying to know who.",
+  "Front door! Best behaviour, everyone."
 ];
 
 // Front door, person identified by name — depends on who, so never cacheable.
 export const VISITOR_KNOWN_LINES = [
-  name => `It's ${name} at the front door.`,
-  name => `${name}'s at the door.`,
-  name => `${name}'s here.`,
-  name => `${name}'s at the door. Act natural.`,
-  name => `${name}'s home.`,
-  name => `It's ${name}.`,
-  name => `Look who it is — ${name}.`
+  name => `${name}'s here! Look who decided to grace us.`,
+  name => `Ooh, it's ${name}. Get the good biscuits out.`,
+  name => `It's ${name} at the front door — the door's never looked better.`,
+  name => `${name}'s home! Someone tell the good cushions.`,
+  name => `Look who it is — ${name}, gorgeous as ever.`,
+  name => `It's ${name}, at the front door.`
 ];
 
-// Side gate, nobody identified — name-free, so pre-warmable.
+// Side gate, nobody identified — name-free, so pre-warmable. Deliberately the
+// calmest pool: clear and lightly warm, but no bit. (See the graduated-intensity
+// note above — an unknown figure at the side of the house isn't a punchline.)
 export const INTRUDER_UNKNOWN_LINES = [
-  "Someone's at the side gate.",
-  "There's movement at the side gate.",
-  "Someone's coming through the side gate.",
-  "Someone's at the side gate — worth a look.",
-  "Someone's near the side gate.",
+  "Someone's at the side gate — go and have a squiz.",
+  "There's movement at the side gate. Worth a look.",
+  "Someone's coming through the side gate, not the front.",
+  "Someone's at the side gate — not who we expected.",
+  "Someone's near the side gate. Have a look.",
   "Someone's at the side of the house."
 ];
 
 // Side gate, person identified by name — depends on who, so never cacheable.
+// A known face round the side is no mystery, so this pool gets the full tease.
 export const INTRUDER_KNOWN_LINES = [
-  name => `${name}'s coming round the side gate.`,
-  name => `It's ${name}, round the side as usual.`,
-  name => `${name}'s at the side gate.`,
-  name => `${name}'s taking the side way in.`,
-  name => `${name}'s at the side, not the front.`,
-  name => `${name}'s round the side.`,
-  name => `${name}'s taking their usual side-gate shortcut.`
+  name => `It's ${name}, round the side as usual — never the front.`,
+  name => `${name}'s coming round the side gate — course they are.`,
+  name => `${name}'s at the side gate. Creature of habit, that one.`,
+  name => `${name}'s taking the side way in, per usual.`,
+  name => `${name}'s at the side, not the front — bold choice.`,
+  name => `${name}'s doing the side-gate special, right on cue.`
 ];
 
 // Every name-free line — exactly what the server pre-warms into the TTS cache.

@@ -45,8 +45,8 @@ export const DELIGHT_TRIGGERS = [
     occasion: (_ctx, now) => ({
       id: "power-restored", icon: "🔌", title: "Back on",
       line: pickLine([
-        "Power's back — the house is up and waiting.",
-        "Power's back on — the house is awake again."
+        "The power's back on and so am I — did you miss me?",
+        "We're back! I was starting to think you'd all moved on without me."
       ], now)
     })
   },
@@ -58,12 +58,12 @@ export const DELIGHT_TRIGGERS = [
       id: "home-after-away", icon: "🏡", title: "Home again",
       line: ctx.awayName
         ? pickLine([
-            `Welcome back, ${ctx.awayName} — the house missed you.`,
-            `${ctx.awayName}'s home — the house missed the noise.`
+            `Welcome back, ${ctx.awayName} — the house has been positively lost without you.`,
+            `${ctx.awayName}'s home! Someone tell the fridge to look busy.`
           ], now)
         : pickLine([
-            "Welcome back — the house missed you.",
-            "Welcome home — the house has missed the noise."
+            "Welcome back — the house has been dying of boredom.",
+            "Welcome home — finally, someone worth talking to."
           ], now)
     })
   },
@@ -76,12 +76,12 @@ export const DELIGHT_TRIGGERS = [
       title: ctx.birthdayName ? `${ctx.birthdayName}'s birthday` : "Birthday",
       line: ctx.birthdayName
         ? pickLine([
-            `Happy birthday, ${ctx.birthdayName}.`,
-            `Happy birthday, ${ctx.birthdayName} — make it a good one.`
+            `Happy birthday, ${ctx.birthdayName}! You look amazing, and I'm not just saying that.`,
+            `Happy birthday, ${ctx.birthdayName}! Make today about you, for once.`
           ], now)
         : pickLine([
-            "Happy birthday.",
-            "Happy birthday — make it a good one."
+            "Happy birthday! Make it a big one.",
+            "Happy birthday — go on, milk it."
           ], now)
     })
   },
@@ -104,8 +104,8 @@ export const DELIGHT_TRIGGERS = [
     occasion: (_ctx, now) => ({
       id: "first-rain-after-dry", icon: "🌧️", title: "First rain",
       line: pickLine([
-        "First rain in a while — the garden's grateful.",
-        "First rain in a while — the garden needed that."
+        "First rain in ages — the garden's having an absolute moment out there.",
+        "It's raining! Finally — even the garden was starting to gossip about the drought."
       ], now)
     })
   },
@@ -116,8 +116,8 @@ export const DELIGHT_TRIGGERS = [
     occasion: (_ctx, now) => ({
       id: "christmas-eve", icon: "🎄", title: "Christmas Eve",
       line: pickLine([
-        "Christmas Eve — nearly there.",
-        "One more sleep."
+        "Christmas Eve! One more sleep and the good chaos begins.",
+        "Nearly there — Christmas Eve, and I can barely contain myself."
       ], now)
     })
   }

@@ -38,19 +38,19 @@ async function getTomorrowEvents() {
 }
 
 function buildMessage(events) {
-  let msg = "Goodnight.";
+  let msg = "Goodnight!";
 
   if (events.length === 0) {
-    msg += " Nothing on the calendar tomorrow.";
+    msg += " Nothing on the calendar tomorrow — a whole day with nothing to do, isn't that just decadent.";
   } else if (events.length === 1) {
-    msg += ` Tomorrow you have ${events[0]}.`;
+    msg += ` Tomorrow you've got ${events[0]}, so get some actual sleep for once.`;
   } else {
     const last = events[events.length - 1];
     const rest = events.slice(0, -1).join(", ");
-    msg += ` Tomorrow you have ${rest}, and ${last}.`;
+    msg += ` Tomorrow you've got ${rest}, and ${last} — big day, better rest up.`;
   }
 
-  msg += " Sleep well.";
+  msg += " Sleep well, gorgeous.";
   return msg;
 }
 
