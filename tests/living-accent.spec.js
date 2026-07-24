@@ -46,14 +46,34 @@ function readAccent(page) {
 // ambient-clock.spec / attention.spec).
 const MIDDAY = new Date("2026-07-06T12:00:00");
 
+const ATMO_TOKENS = [
+  "atmo-night", "atmo-night-clear", "atmo-clear-golden", "atmo-clear-day",
+  "atmo-cloudy", "atmo-rain", "atmo-storm", "atmo-fog",
+];
+
 function setAtmo(page, token) {
-  return page.evaluate((t) => {
-    document.body.classList.remove(
-      "atmo-night", "atmo-clear-golden", "atmo-clear-day",
-      "atmo-cloudy", "atmo-rain", "atmo-storm", "atmo-fog"
-    );
+  return page.evaluate(({ t, tokens }) => {
+    document.body.classList.remove(...tokens);
     if (t) document.body.classList.add(t);
-  }, token);
+  }, { t: token, tokens: ATMO_TOKENS });
+}
+
+// Set the atmo token AND read --accent in one synchronous evaluate. The app's
+// ambient substrate (screensaver.js) rewrites the body atmo token on every
+// context-store change, and page.clock.setFixedTime doesn't pause those event-
+// driven updates — so a two-round-trip "set then read" races the substrate
+// clobbering atmo-rain back to the MIDDAY default (atmo-clear-day). Doing both
+// in one call keeps the substrate callback (a separate task) from interleaving;
+// getComputedStyle forces the sync style flush that reflects the just-set class.
+function accentFor(page, token) {
+  return page.evaluate(({ t, tokens }) => {
+    document.body.classList.remove(...tokens);
+    if (t) document.body.classList.add(t);
+    return getComputedStyle(document.body)
+      .getPropertyValue("--accent")
+      .replace(/\s+/g, "")
+      .replace(/0\./g, ".");
+  }, { t: token, tokens: ATMO_TOKENS });
 }
 
 test("living accent on: the atmo token drives --accent over the tint cycle", async ({ page }) => {
@@ -66,21 +86,17 @@ test("living accent on: the atmo token drives --accent over the tint cycle", asy
   await page.waitForFunction(() => document.body.classList.contains("living-accent"));
 
   // Golden hour → the sanctioned §6 warm accent (not --warm).
-  await setAtmo(page, "atmo-clear-golden");
-  expect(await readAccent(page)).toBe("rgba(255,185,130,.94)");
+  expect(await accentFor(page, "atmo-clear-golden")).toBe("rgba(255,185,130,.94)");
 
   // Rain → the cool accent.
-  await setAtmo(page, "atmo-rain");
-  expect(await readAccent(page)).toBe("rgba(196,230,255,.97)");
+  expect(await accentFor(page, "atmo-rain")).toBe("rgba(196,230,255,.97)");
 
   // Night → the night accent (same value the tint cycle used — night unchanged).
-  await setAtmo(page, "atmo-night");
-  expect(await readAccent(page)).toBe("rgba(130,215,255,.92)");
+  expect(await accentFor(page, "atmo-night")).toBe("rgba(130,215,255,.92)");
 
   // No atmo token at all → the time-based tint-* accent stands (graceful
   // fallback). MIDDAY is pinned, so that's the tint-day value.
-  await setAtmo(page, null);
-  expect(await readAccent(page)).toBe("rgba(196,230,255,.97)");
+  expect(await accentFor(page, null)).toBe("rgba(196,230,255,.97)");
 
   expect(pageErrors).toEqual([]);
 });
