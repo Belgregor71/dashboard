@@ -1,14 +1,14 @@
 import { on } from "../core/eventBus.js";
 
 // One hour before a Meal:-prefixed dinner, slide a recipe panel in from the
-// right; keep it up through cooking and auto-dismiss 45 min after the dinner
+// right; keep it up through cooking and auto-dismiss 20 min after the dinner
 // time. Trigger loop borrowed from nextEventPanel.js; create-once slide overlay
 // + tracked-timer teardown borrowed from arrivalGreeting.js. Dinner detection
 // reuses the Meal: convention that tonightsMenu.js already reads.
 
 const MEAL_PREFIX = /^Meal:\s*/;
 const WINDOW_BEFORE_MS = 60 * 60 * 1000; // slide in 1h before dinner
-const WINDOW_AFTER_MS = 45 * 60 * 1000;  // auto-dismiss 45 min after dinner
+const WINDOW_AFTER_MS = 20 * 60 * 1000;  // auto-dismiss 20 min after dinner
 const TICK_MS = 30_000;
 const RETRY_BACKOFF_MS = 5 * 60 * 1000;  // after a failed fetch, back off before retrying
 
