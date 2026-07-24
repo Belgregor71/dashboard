@@ -36,16 +36,18 @@ function cachePathFor(text, speed) {
   return path.join(CACHE_DIR, `${key}.wav`);
 }
 
-const KOKORO_VOICE = process.env.KOKORO_VOICE ?? "bf_emma";
-
 async function synthViaKokoro(url, text, speed, timeoutMs) {
+  // Read per-call, not at module load: server.js imports this route before it
+  // calls dotenv.config(), so a module-level capture would freeze the default
+  // (KOKORO_URL below is read per-call for the same reason).
+  const voice = process.env.KOKORO_VOICE ?? "bf_emma";
   const upstream = await fetchWithTimeout(`${url}/v1/audio/speech`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "kokoro",
       input: text,
-      voice: KOKORO_VOICE,
+      voice,
       response_format: "wav",
       speed
     })

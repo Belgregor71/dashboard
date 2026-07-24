@@ -45,11 +45,29 @@ print(f"[tts] model ready in {time.time() - _t0:.1f}s", flush=True)
 
 def lang_for(voice: str) -> str:
     # Kokoro voice prefixes: b* = British English, everything else US English.
-    return "en-gb" if voice.startswith("b") else "en-us"
+    # For a blend the first named voice decides (our blends share one lang).
+    first = voice.split("+", 1)[0].strip()
+    return "en-gb" if first.startswith("b") else "en-us"
+
+
+_blend_cache = {}
+
+
+def resolve_voice(voice: str):
+    # A plain name passes straight through. "a+b(+c…)" is an equal-weight blend
+    # of the named voices' style vectors — same "+" syntax Kokoro-FastAPI uses on
+    # the NAS fallback, so both upstreams produce the identical blended voice.
+    if "+" not in voice:
+        return voice
+    if voice not in _blend_cache:
+        names = [n.strip() for n in voice.split("+") if n.strip()]
+        styles = [kokoro.get_voice_style(n) for n in names]
+        _blend_cache[voice] = sum(styles) / len(styles)
+    return _blend_cache[voice]
 
 
 def synth_wav(text: str, voice: str, speed: float) -> bytes:
-    samples, rate = kokoro.create(text, voice=voice, speed=speed, lang=lang_for(voice))
+    samples, rate = kokoro.create(text, voice=resolve_voice(voice), speed=speed, lang=lang_for(voice))
     pcm = np.clip(samples, -1.0, 1.0)
     pcm = (pcm * 32767.0).astype(np.int16)
     buf = io.BytesIO()
