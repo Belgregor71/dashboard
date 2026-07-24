@@ -38,7 +38,7 @@ async function getTomorrowEvents() {
 }
 
 function buildMessage(events) {
-  let msg = "Goodnight!";
+  let msg = "Goodnight.";
 
   if (events.length === 0) {
     msg += " Nothing on the calendar tomorrow.";
