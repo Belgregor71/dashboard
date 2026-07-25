@@ -6,6 +6,9 @@
 #   3. known-defect patterns in the outgoing diff (slug guards, hook order,
 #      brightness clamps) must be absent
 #   4. worst-case text contrast across all 8 atmosphere tokens must clear WCAG AA
+#   5. cross-layer contracts hold: no frontend fetch to an undeclared /api route,
+#      no eventBus subscription without an emitter. Whole-tree, not the diff —
+#      both halves of a contract rarely move in the same commit.
 #
 # Target: ~60s. A gate slow enough to be annoying gets bypassed with
 # --no-verify, which disables ALL of them — so flag reversibility deliberately
@@ -37,16 +40,19 @@ if grep -q "TEMPORARILY FLIPPED" src/js/config.js; then
   exit 1
 fi
 
-echo "[pre-push] 1/4 build gate (the Pi runs this same build on deploy)"
+echo "[pre-push] 1/5 cross-layer contract scan (~1s, runs first so it fails fast)"
+node scripts/verify/scan-contracts.mjs
+
+echo "[pre-push] 2/5 build gate (the Pi runs this same build on deploy)"
 npm run build
 
-echo "[pre-push] 2/4 API contract + browser smoke tests"
+echo "[pre-push] 3/5 API contract + browser smoke tests"
 npm test
 
-echo "[pre-push] 3/4 known-defect pattern scan"
+echo "[pre-push] 4/5 known-defect pattern scan"
 node scripts/verify/scan-patterns.mjs
 
-echo "[pre-push] 4/4 worst-case contrast sweep (8 atmosphere tokens)"
+echo "[pre-push] 5/5 worst-case contrast sweep (8 atmosphere tokens)"
 npm run verify:contrast
 
 echo ""
