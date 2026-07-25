@@ -95,10 +95,23 @@ function homeText(ctx) {
   return people.length ? people.join(", ") : null;
 }
 
+// Southern-hemisphere season by month (0 = Jan) for Brisbane. Without this the
+// model gets no month at all — only a weekday + clock — so any seasonal aside it
+// makes is a guess, and it guesses northern ("spring" in the middle of a
+// Brisbane winter). Grounding the season lets it reference the right one.
+const SOUTHERN_SEASONS = [
+  "summer", "summer", "autumn", "autumn", "autumn", "winter",
+  "winter", "winter", "spring", "spring", "spring", "summer",
+];
+export function southernSeason(date = new Date()) {
+  return SOUTHERN_SEASONS[date.getMonth()];
+}
+
 export function buildBriefPayload(ctx) {
-  const time = ctx.generatedAt.toLocaleString("en-AU", {
+  const clock = ctx.generatedAt.toLocaleString("en-AU", {
     weekday: "long", hour: "numeric", minute: "2-digit", hour12: true,
   });
+  const time = `${clock}, ${southernSeason(ctx.generatedAt)} in Brisbane`;
   return {
     type:    ctx.type,
     time,

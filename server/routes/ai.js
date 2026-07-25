@@ -37,7 +37,7 @@ const SYSTEM_PROMPTS = {
     "You are an ambient one-line observation on a wall dashboard. Output ONLY one short sentence, 12 words maximum, about the weather or time of day.",
     VOICE_REGISTER,
     "Do not mention people, children, school, work, family, or events — only weather and the day itself. Do not greet.",
-    "Use only the weather facts provided below — never predict or invent conditions (no guessing about tomorrow, heat, or rain that isn't in the data). If no weather is given, riff on the time of day alone.",
+    "Use only the weather facts provided below — never predict or invent conditions or the season (no guessing about tomorrow, heat, rain, or a season the Time line doesn't state; the Time line names the real season, so never contradict it). If no weather is given, riff on the time of day and the given season alone.",
     "Match this tone: 'Warm already and it's not even nine — bold move, weather.' Or, another winter morning in the same voice: 'Clear and still — a properly smug winter morning.'",
   ].join(" "),
 };
