@@ -22,6 +22,19 @@ const LIVE_MAX_ATTEMPTS = 2;
 // instead of closing a few seconds later.
 const LIVE_MIN_VIEW_MS = 15000;
 
+// Which detections are worth waking a battery camera into a live P2P stream.
+// Starting a P2P livestream flips a Eufy battery camera out of its low-power
+// event-clip mode into continuous streaming — the single biggest battery
+// drain — so plain motion/pet events (cars, shadows, a pet past the door)
+// show the free cached event snapshot instead of auto-starting live. Explicit
+// "show me the camera" requests still go live regardless (allowLive below).
+// Tighten to just "doorbell" for ring-only auto-live.
+const LIVE_WORTHY_DETECTIONS = new Set(["person", "doorbell"]);
+
+function isLiveWorthy(detection) {
+  return LIVE_WORTHY_DETECTIONS.has(String(detection || "").trim().toLowerCase());
+}
+
 function toPositiveSeconds(value, fallback = DEFAULT_DURATION_SECONDS) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
@@ -370,7 +383,9 @@ export function initCameraPopupOverlay() {
     overlayEl.classList.add("is-active");
     overlayEl.setAttribute("aria-hidden", "false");
 
-    startLiveStream(cameraKey);
+    // Only wake the camera into a live P2P stream for a live-worthy detection
+    // (ring/person) or an explicit request; plain motion rides the snapshot.
+    if (options.allowLive) startLiveStream(cameraKey);
 
     stopUpdatedTicker();
     updatedInterval = setInterval(updateUpdatedBadge, 1000);
@@ -538,7 +553,7 @@ export function initCameraPopupOverlay() {
         detection: trigger.detection,
         duration: trigger.duration
       },
-      { priority: trigger.priority }
+      { priority: trigger.priority, allowLive: isLiveWorthy(trigger.detection) }
     );
 
     schedulePendingTriggerRefreshes(trigger.camera);
@@ -547,7 +562,8 @@ export function initCameraPopupOverlay() {
   on("dashboard_command", (data) => {
     if (data?.command !== "show_camera_popup") return;
     showCameraPopup(data, {
-      priority: Number.POSITIVE_INFINITY
+      priority: Number.POSITIVE_INFINITY,
+      allowLive: true
     });
   });
 
@@ -557,7 +573,8 @@ export function initCameraPopupOverlay() {
     const detail = event?.detail;
     if (detail?.command !== "show_camera_popup") return;
     showCameraPopup(detail, {
-      priority: Number.POSITIVE_INFINITY
+      priority: Number.POSITIVE_INFINITY,
+      allowLive: true
     });
   });
 
