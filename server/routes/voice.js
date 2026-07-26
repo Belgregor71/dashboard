@@ -2,6 +2,7 @@ import express from "express";
 import { EventEmitter } from "node:events";
 import Anthropic from "@anthropic-ai/sdk";
 import { haPost } from "../ha/haRest.js";
+import { isLoopback, loopbackOnly } from "../middleware/security.js";
 import { reportFailure, reportSuccess } from "../services/healthService.js";
 import { shapeAssistResponse, buildConverseMessages } from "../services/voiceShape.js";
 import { VOICE_REGISTER } from "./ai.js";
@@ -94,7 +95,7 @@ async function converseWithOllama(messages) {
   return (data.message?.content ?? "").trim() || null;
 }
 
-router.post("/api/voice/converse", async (req, res) => {
+router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async (req, res) => {
   const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
   if (!text) return res.status(400).json({ error: "text is required" });
 
@@ -134,11 +135,6 @@ const voiceBus = new EventEmitter();
 
 function toSse(event, data) {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-}
-
-function isLoopback(req) {
-  const ip = req.socket?.remoteAddress ?? "";
-  return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
 }
 
 router.post("/api/voice/transcript", (req, res) => {

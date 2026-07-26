@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSy
 import path from "path";
 import { fileURLToPath } from "url";
 import { fetchWithTimeout } from "../utils/fetch.js";
+import { loopbackOnly } from "../middleware/security.js";
 import { reportFailure, reportSuccess } from "../services/healthService.js";
 
 const router = express.Router();
@@ -11,17 +12,44 @@ const router = express.Router();
 const CACHE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "../tts-cache");
 const CACHE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 const PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+// Age alone does not bound the cache: a burst of unique text fills the SD card
+// long before anything is 14 days old (audit 2026-07-26, S1). Steady state is
+// ~1 MB/day against a 14-day window, so 100 MB is ~5x headroom over normal use.
+const CACHE_MAX_BYTES = Number(process.env.TTS_CACHE_MAX_BYTES ?? 100 * 1024 * 1024);
+// Every legitimate line — alerts, briefings, concierge replies — is far under
+// this; it exists so one request cannot commission an audiobook.
+const MAX_TEXT_LENGTH = 400;
+
+function cacheEntries() {
+  return readdirSync(CACHE_DIR)
+    .filter((file) => file.endsWith(".wav"))
+    .map((file) => {
+      const filePath = path.join(CACHE_DIR, file);
+      const stat = statSync(filePath);
+      return { filePath, mtimeMs: stat.mtimeMs, size: stat.size };
+    });
+}
 
 // AI briefing text is unique every day, so without pruning the cache grows
-// without bound on the Pi's SD card (~1 MB/day observed).
+// without bound on the Pi's SD card (~1 MB/day observed). Two ceilings: age,
+// then total bytes with oldest-first (LRU) eviction.
 function pruneCache() {
   if (!existsSync(CACHE_DIR)) return;
   const cutoff = Date.now() - CACHE_MAX_AGE_MS;
   try {
-    for (const file of readdirSync(CACHE_DIR)) {
-      if (!file.endsWith(".wav")) continue;
-      const filePath = path.join(CACHE_DIR, file);
-      if (statSync(filePath).mtimeMs < cutoff) unlinkSync(filePath);
+    const kept = [];
+    for (const entry of cacheEntries()) {
+      if (entry.mtimeMs < cutoff) unlinkSync(entry.filePath);
+      else kept.push(entry);
+    }
+
+    let total = kept.reduce((sum, entry) => sum + entry.size, 0);
+    if (total <= CACHE_MAX_BYTES) return;
+    kept.sort((a, b) => a.mtimeMs - b.mtimeMs);
+    for (const entry of kept) {
+      if (total <= CACHE_MAX_BYTES) break;
+      unlinkSync(entry.filePath);
+      total -= entry.size;
     }
   } catch (err) {
     console.warn("[TTS] cache prune failed:", err.message);
@@ -86,12 +114,19 @@ export async function getOrSynthesizeTts(text, speed) {
 
   mkdirSync(CACHE_DIR, { recursive: true });
   writeFileSync(cachePath, buffer);
+  // Enforce the ceiling on write, not only on the 24 h timer — a burst of
+  // unique text is exactly the case the daily prune cannot catch in time.
+  pruneCache();
   return { buffer, cached: false };
 }
 
-router.post("/api/tts/speak", async (req, res) => {
+router.post("/api/tts/speak", loopbackOnly("TTS"), async (req, res) => {
   const { text, rate } = req.body ?? {};
   if (!text) { res.status(400).json({ error: "text is required" }); return; }
+  if (typeof text !== "string" || text.length > MAX_TEXT_LENGTH) {
+    res.status(400).json({ error: `text must be a string of at most ${MAX_TEXT_LENGTH} characters` });
+    return;
+  }
 
   const speed = Number.isFinite(rate) && rate > 0 ? rate : 1.0;
 

@@ -3,6 +3,7 @@ import { readFile, readdir, stat, writeFile, mkdir, unlink } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import Anthropic from "@anthropic-ai/sdk";
+import { loopbackOnly } from "../middleware/security.js";
 import { reportFailure, reportSuccess } from "../services/healthService.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -131,7 +132,10 @@ async function searchRecipe(dish) {
   return isValidRecipe(recipe) ? recipe : null;
 }
 
-router.get("/api/recipe", async (req, res) => {
+// Loopback-only: this is the billable leg (one Claude web search per NEW dish),
+// and the only caller is the kiosk's dinner panel. The portal browses the cache
+// through GET /api/recipes, which stays open to the LAN.
+router.get("/api/recipe", loopbackOnly("Recipe search"), async (req, res) => {
   const dish = String(req.query.dish ?? "").trim();
   if (!dish || dish.length > 120) {
     return res.status(400).json({ ...NULL_RECIPE, error: "dish query param required" });

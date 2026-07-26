@@ -59,6 +59,59 @@ test.describe("system", () => {
   });
 });
 
+// Audit 2026-07-26 S1/S2/S3. The billable routes are additionally gated to
+// loopback (server/middleware/security.js) — not asserted here because the test
+// client IS loopback; what these cover is that the gate did not break the
+// kiosk's own access, and that the headers/limiter are actually mounted.
+test.describe("security middleware", () => {
+  test("helmet headers are set on every response", async ({ request }) => {
+    const res = await request.get("/api/config");
+    const headers = res.headers();
+    expect(headers["x-content-type-options"]).toBe("nosniff");
+    expect(headers["x-frame-options"]).toBeTruthy();
+    expect(headers["referrer-policy"]).toBeTruthy();
+  });
+
+  test("CSP ships report-only and never upgrades to https on a LAN", async ({ request }) => {
+    const res = await request.get("/api/config");
+    const headers = res.headers();
+    // CSP_ENFORCE=1 flips this to the enforcing header; until a live Pi pass
+    // confirms zero violations, an enforcing CSP here is the regression.
+    const csp = headers["content-security-policy-report-only"];
+    expect(csp, "CSP should be report-only until verified on the Pi").toBeTruthy();
+    expect(headers["content-security-policy"]).toBeFalsy();
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).toContain("https://fonts.gstatic.com");
+    expect(csp).toContain("https://api.open-meteo.com");
+    // Plain HTTP on the LAN — this directive would break every asset.
+    expect(csp).not.toContain("upgrade-insecure-requests");
+  });
+
+  // The limiter is LAN-only. This asserts the exemption, not the ceiling: a
+  // 2000/min global ceiling was measured throttling the suite's own loopback
+  // traffic (~2,700 req/min peak), which on the Pi means a silent 429 to the
+  // kiosk. A burst well past any sane per-minute ceiling must still all pass.
+  test("loopback is never rate-limited", async ({ request }) => {
+    const statuses = await Promise.all(
+      Array.from({ length: 60 }, () => request.get("/api/config").then((r) => r.status()))
+    );
+    expect(statuses.every((s) => s === 200)).toBe(true);
+    expect(statuses).not.toContain(429);
+  });
+
+  test("a foreign origin gets no CORS grant", async ({ request }) => {
+    const res = await request.get("/api/config", { headers: { Origin: "http://evil.example" } });
+    expect(res.status()).toBe(200); // the response is made; the browser blocks the read
+    expect(res.headers()["access-control-allow-origin"]).toBeFalsy();
+
+    const preflight = await request.fetch("/api/config", {
+      method: "OPTIONS",
+      headers: { Origin: "http://evil.example", "Access-Control-Request-Method": "POST" }
+    });
+    expect(preflight.status()).toBe(403);
+  });
+});
+
 test.describe("document root", () => {
   // Phase 5 removed the legacy static/index.html fallback — `/` must serve the
   // Vite-built document unconditionally. Guards against a broken build or a
@@ -472,6 +525,17 @@ test.describe("ai + tts", () => {
       statuses: [400]
     });
     expect(body).toHaveProperty("error");
+  });
+
+  // S1: unbounded text is unbounded synthesis cost and SD-card writes. Every
+  // real line (alert, briefing, concierge reply) is well under 400 chars.
+  test("POST /api/tts/speak rejects text over the length cap", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/tts/speak", {
+      method: "post",
+      data: { text: "a".repeat(401) },
+      statuses: [400]
+    });
+    expect(body.error).toContain("400 characters");
   });
 
   test("POST /api/ai/brief answers with a summary key (AI stubbed off)", async ({ request }) => {

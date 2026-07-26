@@ -8,6 +8,7 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 import path from "path";
 import { fileURLToPath } from "url";
 
+import { applySecurity } from "./server/middleware/security.js";
 import { readHaConfig } from "./server/ha/haConfig.js";
 import { getHaWsManager } from "./server/ha/haWs.js";
 import { startHealthService } from "./server/services/healthService.js";
@@ -66,6 +67,9 @@ try {
 const PORT = process.env.PORT || 3000;
 
 const app = express();
+// Headers, CORS allowlist and the flood ceiling go on before anything parses a
+// body, so a rejected request never reaches a route (audit 2026-07-26, S3).
+applySecurity(app);
 app.use(express.json({ limit: "256kb" }));
 
 // Arr routes (Sonarr/Radarr/qBittorrent)

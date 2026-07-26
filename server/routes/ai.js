@@ -1,5 +1,6 @@
 import express from "express";
 import Anthropic from "@anthropic-ai/sdk";
+import { loopbackOnly } from "../middleware/security.js";
 import { reportFailure, reportSuccess } from "../services/healthService.js";
 
 const router = express.Router();
@@ -110,7 +111,7 @@ async function generateWithOllama(type, system, prompt) {
   return (data.response ?? "").trim() || null;
 }
 
-router.post("/api/ai/brief", async (req, res) => {
+router.post("/api/ai/brief", loopbackOnly("The briefing endpoint"), async (req, res) => {
   const body   = req.body ?? {};
   const type   = SYSTEM_PROMPTS[body.type] ? body.type : "morning";
   const system = SYSTEM_PROMPTS[type];
