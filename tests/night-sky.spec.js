@@ -40,6 +40,17 @@ function forceFlags(flags) {
 // screensaver auto-engage at boot).
 const LATE_GOLDEN = new Date("2026-07-06T16:45:00");
 
+// The nightSky tests below pin midday instead. A forced twinkle synthesises
+// ambient+night for the PLANNER (runtime.js:643-645), so the field paints at any
+// hour — but finish() reconciles the resting canvas against the REAL conditions,
+// and on a real clear night nightSkyWanted() stays true, so the field is
+// supposed to persist. The reconcile step then cannot pass: it wakes out of
+// ambient to falsify the one condition it controls, and at night the screensaver
+// simply re-engages. Measured as a 30 s timeout on the canvasVisible===false
+// wait, with the page reading "7:06pm · Clear". Midday makes the reconcile
+// deterministic — isNight is false, so the field is never re-earned.
+const MIDDAY = new Date("2026-07-06T12:00:00");
+
 test("sky ramp on: syncNight steps --sky-warmth and the substrate mixes it in", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
@@ -92,6 +103,7 @@ test("night sky on: a forced twinkle paints the field, then reconciles it away",
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
   await forceFlags({ nightSky: true })(page);
+  await page.clock.setFixedTime(MIDDAY);
 
   await page.goto("/");
   await page.waitForFunction(() => typeof window.__forceAtmoEpisode === "function");
@@ -144,6 +156,7 @@ test("night sky off (default): the planner never emits a twinkle", async ({ page
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
   await forceFlags({ nightSky: false })(page);
+  await page.clock.setFixedTime(MIDDAY);
 
   await page.goto("/");
   await page.waitForFunction(() => typeof window.__forceAtmoEpisode === "function");
