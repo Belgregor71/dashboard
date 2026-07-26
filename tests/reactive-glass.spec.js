@@ -41,6 +41,26 @@ function readGlassVar(page, name) {
       .replace(/0\./g, "."), name);
 }
 
+// Set the token and read the glass vars in ONE evaluate, because the body's
+// atmo-* class is not the test's to own: screensaver.js subscribes to the
+// weather slice and re-applies the real token (applySubstrateToken) whenever
+// /api/weather/now resolves. Split across two awaits, that callback lands
+// between set and read and the vars fall back to base — a flake whose victim
+// moved with upstream latency. Synchronous set+read cannot be preempted.
+function glassAfterAtmo(page, token, names) {
+  return page.evaluate(([t, ns]) => {
+    document.body.classList.remove(
+      "atmo-night", "atmo-clear-golden", "atmo-clear-day",
+      "atmo-cloudy", "atmo-rain", "atmo-storm", "atmo-fog"
+    );
+    if (t) document.body.classList.add(t);
+    const style = getComputedStyle(document.body);
+    return Object.fromEntries(
+      ns.map((n) => [n, style.getPropertyValue(n).replace(/\s+/g, "").replace(/0\./g, ".")])
+    );
+  }, [token, names]);
+}
+
 // Deterministic daytime (mirrors living-accent.spec / attention.spec).
 const MIDDAY = new Date("2026-07-06T12:00:00");
 
@@ -64,26 +84,26 @@ test("reactive glass on: the atmo token retunes the glass tokens", async ({ page
   await page.waitForFunction(() => document.body.classList.contains("reactive-glass"));
 
   // No token → the base glass (variables.css) stands untouched.
-  await setAtmo(page, null);
-  expect(await readGlassVar(page, "--glass-blur")).toBe("blur(18px)brightness(.87)");
+  const base = await glassAfterAtmo(page, null, ["--glass-blur"]);
+  expect(base["--glass-blur"]).toBe("blur(18px)brightness(.87)");
 
   // Rain cools and darkens the glass; the sheen goes cool.
-  await setAtmo(page, "atmo-rain");
-  expect(await readGlassVar(page, "--glass-blur")).toBe("blur(18px)brightness(.8)");
-  expect(await readGlassVar(page, "--glass-sheen")).toContain("rgba(190,214,245,.11)");
+  const rain = await glassAfterAtmo(page, "atmo-rain", ["--glass-blur", "--glass-sheen"]);
+  expect(rain["--glass-blur"]).toBe("blur(18px)brightness(.8)");
+  expect(rain["--glass-sheen"]).toContain("rgba(190,214,245,.11)");
 
   // Storm darker still.
-  await setAtmo(page, "atmo-storm");
-  expect(await readGlassVar(page, "--glass-blur")).toBe("blur(18px)brightness(.74)");
+  const storm = await glassAfterAtmo(page, "atmo-storm", ["--glass-blur"]);
+  expect(storm["--glass-blur"]).toBe("blur(18px)brightness(.74)");
 
   // Golden hour warms border + sheen but never touches the blur.
-  await setAtmo(page, "atmo-clear-golden");
-  expect(await readGlassVar(page, "--glass-border")).toContain("rgba(255,205,150,.16)");
-  expect(await readGlassVar(page, "--glass-blur")).toBe("blur(18px)brightness(.87)");
+  const golden = await glassAfterAtmo(page, "atmo-clear-golden", ["--glass-border", "--glass-blur"]);
+  expect(golden["--glass-border"]).toContain("rgba(255,205,150,.16)");
+  expect(golden["--glass-blur"]).toBe("blur(18px)brightness(.87)");
 
   // Night adds the faint cool glow to the shadow.
-  await setAtmo(page, "atmo-night");
-  expect(await readGlassVar(page, "--glass-shadow")).toContain("rgba(90,140,220,.07)");
+  const night = await glassAfterAtmo(page, "atmo-night", ["--glass-shadow"]);
+  expect(night["--glass-shadow"]).toContain("rgba(90,140,220,.07)");
 
   expect(pageErrors).toEqual([]);
 });
