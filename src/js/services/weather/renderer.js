@@ -19,7 +19,7 @@ import { getTimes as getSunTimesFromCalc } from "../../vendor/suncalc.js";
 import { clearWeatherFxOverlay, setWeatherFxOverlay } from "./fxOverlay.js";
 import { refreshAirQuality } from "./airQuality.js";
 import { set as setContext, get as getContext } from "../../core/contextStore.js";
-import { getAllEntities } from "../homeAssistant/state.js";
+import { getAllEntities, getEntitiesVersion } from "../homeAssistant/state.js";
 import {
   getBomForecastBundle,
   getBomHourlySeries,
@@ -987,10 +987,23 @@ on("view:changed", ({ view } = {}) => {
   syncLottiePlayback();
 });
 
+let cachedTrackedIds = null;
+let cachedTrackedVersion = -1;
+
+// Same reason as getTodoEntityIds: this ran once per entity on a snapshot
+// fan-out, rebuilding the same Set ~700 times.
+function bomTrackedEntityIds() {
+  const version = getEntitiesVersion();
+  if (cachedTrackedIds && cachedTrackedVersion === version) return cachedTrackedIds;
+  cachedTrackedIds = getBomRelatedEntityIds(getAllEntities());
+  cachedTrackedVersion = version;
+  return cachedTrackedIds;
+}
+
 document.addEventListener("ha:state-updated", (event) => {
   const entityId = event?.detail?.entity_id;
   if (!entityId) return;
-  const trackedIds = getBomRelatedEntityIds(getAllEntities());
+  const trackedIds = bomTrackedEntityIds();
   if (!trackedIds.has(entityId)) return;
   const warningsEntityId = CONFIG.weather?.bom?.warningsEntityId;
   const immediate = Boolean(warningsEntityId && entityId === warningsEntityId);
