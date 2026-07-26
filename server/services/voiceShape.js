@@ -47,3 +47,25 @@ export function buildConverseMessages(text, history) {
   }
   return messages;
 }
+
+// The converse system prompt, with or without house-knowledge context
+// (docs/design/VAULT.md). Lives here rather than in the route so the property
+// that matters is directly testable: with no context this is BYTE-IDENTICAL to
+// the pre-vault prompt, which is what makes the vault lane genuinely inert when
+// it is switched off rather than merely quiet.
+export const NO_KNOWLEDGE_LINE =
+  "If you don't know something about this specific house (device states, schedules), say so plainly rather than guessing.";
+
+export function buildConverseSystem(baseLines, context) {
+  const base = (Array.isArray(baseLines) ? baseLines : []).join(" ");
+  if (!context) return `${base} ${NO_KNOWLEDGE_LINE}`;
+
+  return [
+    base,
+    "",
+    "Here is what the household has written down that may be relevant:",
+    context,
+    "",
+    `Answer from these notes when they cover the question. ${NO_KNOWLEDGE_LINE}`
+  ].join("\n");
+}

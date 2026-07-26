@@ -29,7 +29,13 @@ export default defineConfig({
       PORT: String(TEST_PORT),
       ANTHROPIC_API_KEY: "",
       OLLAMA_URL: "http://127.0.0.1:1",
-      KOKORO_URL: "http://127.0.0.1:1"
+      KOKORO_URL: "http://127.0.0.1:1",
+      // The vault lane is default-OFF in production but ON here, so its routes
+      // are contract-covered. data/vault/ does not exist on a test machine, so
+      // what the suite exercises is the cold-start path (0 notes, no crash) —
+      // which is also the state the Pi is in before the vault repo is cloned.
+      // The OFF state is verified by running the suite with this line removed.
+      VAULT_ENABLED: "1"
     }
   }
 });

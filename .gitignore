@@ -17,6 +17,10 @@ data/memories/
 data/immich-cache/
 data/delight/
 data/recipe-cache/
+# The house knowledge base is a SEPARATE private git repo cloned in here
+# (docs/design/VAULT.md). Ignored so the nested clone never shows up as a
+# stray gitlink in this repo's status.
+data/vault/
 
 # Playwright MCP tool artifacts
 .playwright-mcp/

@@ -39,6 +39,8 @@ import memoriesRoutes from "./server/routes/memories.js";
 import immichRoutes from "./server/routes/immich.js";
 import delightRoutes from "./server/routes/delight.js";
 import recipeRoutes from "./server/routes/recipe.js";
+import vaultRoutes from "./server/routes/vault.js";
+import { startVaultIndex } from "./server/services/vaultIndex.js";
 
 // Node 20's Happy Eyeballs gives each address-family connect attempt only
 // 250ms; distant hosts (e.g. RainViewer in Germany, ~270ms RTT from here)
@@ -116,6 +118,13 @@ app.use(memoriesRoutes);
 app.use(immichRoutes);
 app.use(delightRoutes);
 app.use(recipeRoutes);
+
+// House knowledge base (docs/design/VAULT.md). Default-off: with VAULT_ENABLED
+// unset the router is never mounted, the index is never built, and the
+// concierge's system prompt is byte-identical to before — the lane is inert,
+// not merely idle. Unsetting it is the whole rollback path.
+const VAULT_ENABLED = process.env.VAULT_ENABLED === "1";
+if (VAULT_ENABLED) app.use(vaultRoutes);
 
 // Home Assistant image/camera proxy
 attachHaProxy(app);
@@ -216,4 +225,7 @@ app.listen(PORT, () => {
   // Pre-warm the doorbell/side-gate TTS cache in the background so real rings
   // play instantly instead of waiting on cold Kokoro synthesis.
   startTtsWarmer();
+  if (VAULT_ENABLED) {
+    startVaultIndex().catch((err) => console.error("[vault] initial index failed:", err.message));
+  }
 });

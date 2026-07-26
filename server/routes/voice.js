@@ -4,7 +4,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { haPost } from "../ha/haRest.js";
 import { isLoopback, loopbackOnly } from "../middleware/security.js";
 import { reportFailure, reportSuccess } from "../services/healthService.js";
-import { shapeAssistResponse, buildConverseMessages } from "../services/voiceShape.js";
+import { shapeAssistResponse, buildConverseMessages, buildConverseSystem } from "../services/voiceShape.js";
+import { searchVault, buildContext } from "../services/vaultIndex.js";
 import { VOICE_REGISTER } from "./ai.js";
 
 // Phase 4 "Give it a voice" — the server half of the Mode 3 conversation lanes
@@ -45,12 +46,30 @@ router.post("/api/voice/assist", loopbackOnly("The assist endpoint"), async (req
 
 // --- Lane 3: Claude house-voice (open conversation) ---
 
-const CONVERSE_SYSTEM = [
+const CONVERSE_BASE = [
   "You are the voice of an Australian family's home, answering a spoken question on their wall dashboard. Your reply is read aloud.",
   VOICE_REGISTER,
   "Answer in 1-2 short sentences of plain prose — no markdown, no lists, no follow-up questions unless one is genuinely needed.",
-  "If you don't know something about this specific house (device states, schedules), say so plainly rather than guessing.",
-].join(" ");
+];
+
+// The house knowledge base (docs/design/VAULT.md) is what makes the concierge's
+// "I don't know anything about this house" line answerable instead of a dead
+// end: notes the household wrote in Obsidian are retrieved against the question
+// and quoted in. Injected into the SYSTEM prompt rather than the messages array
+// so buildConverseMessages() stays pure and its existing tests hold.
+//
+// The env var is read HERE, per request, NOT at module load: server.js's static
+// imports all evaluate before its dotenv.config(), so a module-scope read would
+// see undefined on the Pi every time. (Exactly how KOKORO_VOICE was silently
+// ignored for weeks — see project-voice-blend.)
+//
+// With the vault off, or with no note clearing the score floor, the context is
+// empty and buildConverseSystem returns the original prompt byte for byte.
+function converseSystem(text) {
+  const context =
+    process.env.VAULT_ENABLED === "1" ? buildContext(searchVault(text)) : "";
+  return buildConverseSystem(CONVERSE_BASE, context);
+}
 
 const CONVERSE_MAX_TOKENS = 150;
 
@@ -66,20 +85,20 @@ function getAnthropic() {
   return anthropic;
 }
 
-async function converseWithClaude(messages) {
+async function converseWithClaude(messages, system) {
   const client = getAnthropic();
   if (!client) return null;
   const msg = await client.messages.create({
     model:      process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5",
     max_tokens: CONVERSE_MAX_TOKENS,
-    system:     CONVERSE_SYSTEM,
+    system,
     messages,
   });
   const text = msg.content.find(b => b.type === "text")?.text ?? "";
   return text.trim() || null;
 }
 
-async function converseWithOllama(messages) {
+async function converseWithOllama(messages, system) {
   const ollamaUrl   = process.env.OLLAMA_URL   ?? "http://localhost:11434";
   const ollamaModel = process.env.OLLAMA_MODEL ?? "llama3.2:1b";
 
@@ -88,7 +107,7 @@ async function converseWithOllama(messages) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model:    ollamaModel,
-      messages: [{ role: "system", content: CONVERSE_SYSTEM }, ...messages],
+      messages: [{ role: "system", content: system }, ...messages],
       stream:   false,
       options:  { temperature: 0.7, num_predict: 60 },
     }),
@@ -105,9 +124,12 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
   if (!text) return res.status(400).json({ error: "text is required" });
 
   const messages = buildConverseMessages(text, req.body?.history);
+  // Retrieved once and shared by both legs, so the Ollama fallback answers from
+  // the same notes rather than reverting to "I don't know".
+  const system = converseSystem(text);
 
   try {
-    const reply = await converseWithClaude(messages);
+    const reply = await converseWithClaude(messages, system);
     if (reply) {
       reportSuccess("ai");
       return res.json({ reply, source: "claude" });
@@ -117,7 +139,7 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
   }
 
   try {
-    const reply = await converseWithOllama(messages);
+    const reply = await converseWithOllama(messages, system);
     reportSuccess("ai");
     return res.json({ reply, source: "ollama" });
   } catch (err) {

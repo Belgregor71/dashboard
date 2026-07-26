@@ -567,6 +567,49 @@ test.describe("memories (Phase 9 memory engine)", () => {
   });
 });
 
+// House knowledge base (docs/design/VAULT.md). Read-only: the vault's write path
+// is Obsidian, so there is nothing to round-trip here. VAULT_ENABLED=1 is set by
+// playwright.config.js; data/vault/ does not exist on a test machine, so this
+// covers the COLD START — the same state the Pi is in before the vault is
+// cloned, and the one that must degrade to empty rather than crash.
+test.describe("vault (house knowledge base)", () => {
+  test("GET /api/vault/status reports counts, never content", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/vault/status");
+    expect(typeof body.notes).toBe("number");
+    expect(body.notes).toBeGreaterThanOrEqual(0);
+    // null before the first index pass, an ISO string after it — never absent.
+    expect(body.indexedAt === null || typeof body.indexedAt === "string").toBe(true);
+    // The status route is LAN-safe precisely because it leaks nothing.
+    expect(body).not.toHaveProperty("body");
+    expect(body).not.toHaveProperty("notesList");
+  });
+
+  test("GET /api/vault/search returns { query, notes: array }", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/vault/search?q=tasmania");
+    expect(body.query).toBe("tasmania");
+    expect(Array.isArray(body.notes)).toBe(true);
+    for (const n of body.notes) {
+      expect(typeof n.id).toBe("string");
+      expect(typeof n.title).toBe("string");
+      expect(Array.isArray(n.tags)).toBe(true);
+    }
+  });
+
+  // A 400 rather than a 403 is the assertion that matters: it proves the request
+  // got PAST loopbackOnly and into the handler. The test client is itself
+  // loopback, so the 403-from-LAN leg is proved live on the Pi, exactly as the
+  // cost routes were (see the security middleware block above).
+  test("GET /api/vault/search with no q is a JSON 400, not a 403", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/vault/search", { statuses: [400] });
+    expect(body).toHaveProperty("error");
+  });
+
+  test("a query matching nothing is an empty list, not an error", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/vault/search?q=zzzznotathing");
+    expect(body.notes).toEqual([]);
+  });
+});
+
 test.describe("immich photo source (Phase 9.5)", () => {
   // Read-only proxy. With no IMMICH_URL/KEY (the test machine) every endpoint
   // degrades to empty/404 — never a 500-to-HTML page, never a crash.
