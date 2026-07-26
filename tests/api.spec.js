@@ -110,6 +110,57 @@ test.describe("security middleware", () => {
     });
     expect(preflight.status()).toBe(403);
   });
+
+  // H4. CORS blocks the cross-origin READ; these cover the WRITE, which a
+  // `mode: 'no-cors'` fetch from a malicious LAN page lands regardless. Each of
+  // these would actuate real state if it got through.
+  const CROSS_ORIGIN_WRITES = [
+    ["post", "/api/ha/services/light/turn_on", {}],
+    ["post", "/api/ha/shopping_list", { name: "csrf" }],
+    ["put", "/api/routines", { routines: {} }],
+    ["put", "/api/delight", { budgets: {} }],
+    ["post", "/api/memories", { title: "csrf" }],
+    ["delete", "/api/memories/anything", undefined],
+    ["post", "/api/recipe", { title: "csrf" }],
+    ["delete", "/api/recipe/anything", undefined]
+  ];
+
+  for (const [method, path, data] of CROSS_ORIGIN_WRITES) {
+    test(`${method.toUpperCase()} ${path} rejects a foreign origin`, async ({ request }) => {
+      const res = await request[method](path, {
+        headers: { Origin: "http://evil.example" },
+        ...(data ? { data } : {})
+      });
+      expect(res.status(), `${path} let a cross-origin write through`).toBe(403);
+      expect((await res.json()).error).toContain("Cross-origin");
+    });
+  }
+
+  test("a browser that sends only Sec-Fetch-Site is still judged on it", async ({ request }) => {
+    const blocked = await request.put("/api/routines", {
+      headers: { "sec-fetch-site": "cross-site" },
+      data: { routines: {} }
+    });
+    expect(blocked.status()).toBe(403);
+
+    const allowed = await request.put("/api/routines", {
+      headers: { "sec-fetch-site": "same-origin" },
+      data: { routines: {} }
+    });
+    expect(allowed.status()).toBe(200);
+  });
+
+  // The guard must not cost the kiosk anything. Two shapes have to keep working:
+  // the page's own write (Origin === the host it was served from) and the
+  // header-less write every node-side caller makes — the pregenerate script, the
+  // mic bridge, and every other mutating test in this file.
+  test("the kiosk's own same-origin write is untouched", async ({ request, baseURL }) => {
+    const res = await request.put("/api/routines", {
+      headers: { Origin: new URL(baseURL).origin },
+      data: { routines: {} }
+    });
+    expect(res.status()).toBe(200);
+  });
 });
 
 test.describe("document root", () => {

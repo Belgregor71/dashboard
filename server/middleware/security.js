@@ -19,11 +19,62 @@ export function isLoopback(req) {
 
 // Gate a route to on-Pi callers. The kiosk page, the mic bridge and the
 // pregenerate script are all loopback; a LAN device is not. ALLOW_LAN_COST_ROUTES=1
-// re-opens them (e.g. to read the dashboard from a phone with TTS + AI intact).
+// re-opens them (e.g. to read the dashboard from a phone with TTS + AI intact,
+// or to talk to the house from it).
 export function loopbackOnly(label) {
   return (req, res, next) => {
     if (isLoopback(req) || process.env.ALLOW_LAN_COST_ROUTES === "1") return next();
     res.status(403).json({ error: `${label} is available to the kiosk only` });
+  };
+}
+
+// --- Cross-origin write guard (S3 cont. / H4) ---------------------------
+// CSRF, concretely: a malicious page open on any LAN device makes a write land
+// here. It never reads the response — it doesn't need to — and CORS only stops
+// the read. One landed POST actuates an allowlisted HA service.
+//
+// MEASURED 2026-07-26 with a real cross-origin page, because the vector is not
+// the one the audit named. Of the shapes an attacker page can fire:
+//   - `fetch(..., {mode:'no-cors'})` — Chrome refuses it before the wire when
+//     the target is a local address (net::ERR_FAILED, private-network access).
+//     Real, but not ours to rely on: another browser may not.
+//   - cross-origin `<form method=POST>` — NOT subject to that, and lands. This
+//     is the live hole. /api/ha/services acts on `req.body || {}`, so even a
+//     body express.json() can't parse still actuates. Now 403s here, verified
+//     server-side (origin=http://localhost:9931, sec-fetch-site=cross-site).
+//   - cross-origin PUT/DELETE — unreachable either way: illegal in no-cors
+//     mode, and in CORS mode the preflight is already refused by corsAllowlist.
+//     The guard covers them anyway; it costs nothing to be complete.
+//
+// No token is issued because there is no session to bind one to. Instead we
+// trust the two headers a browser sets itself and page JS cannot forge:
+// `Origin` (sent on every unsafe-method request, same-origin included) and
+// `Sec-Fetch-Site`. A request carrying NEITHER is not a browser — it is a node
+// script, the mic bridge or curl — and a non-browser client is out of CSRF's
+// reach by definition, so it passes. That is what keeps the pregenerate script,
+// scripts/fault-injection.mjs and the Playwright request fixture working.
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+function isTrustedWriteOrigin(req, allowed) {
+  const origin = req.headers.origin;
+  if (origin) {
+    // Compare against the host the client actually used, so localhost:3000 (the
+    // kiosk) and 192.168.x.x:3000 (the LAN portals) both resolve as same-origin
+    // with nothing to configure.
+    const host = req.headers.host;
+    return origin === `http://${host}` || origin === `https://${host}` || allowed.includes(origin);
+  }
+  const site = req.headers["sec-fetch-site"];
+  return !site || site === "same-origin" || site === "none";
+}
+
+// Global rather than per-route on purpose: the audit listed 8 mutating routes,
+// but the defect class is "someone adds a 9th and forgets the guard".
+function blockCrossOriginWrites(allowed) {
+  return (req, res, next) => {
+    if (SAFE_METHODS.has(req.method)) return next();
+    if (isTrustedWriteOrigin(req, allowed)) return next();
+    res.status(403).json({ error: "Cross-origin writes are not allowed" });
   };
 }
 
@@ -102,6 +153,10 @@ export function applySecurity(app) {
     .map((s) => s.trim())
     .filter(Boolean);
   app.use(corsAllowlist(allowed));
+
+  // Same allowlist: an origin trusted enough to read cross-origin is trusted to
+  // write. Mounted before express.json() so a rejected write is never parsed.
+  app.use(blockCrossOriginWrites(allowed));
 
   // LAN clients only. On-Pi callers are exempt because a single loopback IP is
   // legitimately bursty: the full test suite peaks at ~2,700 req/min and a cold

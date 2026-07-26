@@ -18,7 +18,12 @@ const router = express.Router();
 
 // --- Lane 2: HA Assist (device control + HA's built-in intents) ---
 
-router.post("/api/voice/assist", async (req, res) => {
+// Loopback-gated like the converse lane, for a different reason: this one is
+// free but it drives the house. It forwards to HA's conversation agent, which
+// honours no SAFE_SERVICES allowlist — "turn off the lights" is a sentence, not
+// a service call, so the careful gate on /api/ha/services routes around it.
+// The only legitimate caller is the kiosk page, which runs on the Pi.
+router.post("/api/voice/assist", loopbackOnly("The assist endpoint"), async (req, res) => {
   const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
   if (!text) return res.status(400).json({ error: "text is required" });
 
