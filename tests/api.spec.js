@@ -163,6 +163,60 @@ test.describe("security middleware", () => {
   });
 });
 
+// S5. The HA proxy mounts forward to HA with the bearer token attached, and
+// Express strips the mount prefix before http-proxy-middleware sees the path —
+// so before the pathFilter, everything below returned 200 with real HA data to
+// any LAN caller. The contract is the BLOCK, which is deterministic whether or
+// not this machine has HA configured: 404 when the proxy is mounted and the
+// filter declines (falls through to Express), 503 when HA_HOST is unset.
+test.describe("home assistant proxy path filter", () => {
+  const ESCAPES = [
+    "/api/image_proxy/api/",
+    "/api/image_proxy/api/states",
+    "/api/image_proxy/api/config",
+    "/api/image_proxy/api/services/light/turn_on",
+    "/api/camera_proxy/api/states",
+    "/api/camera_proxy/api/config",
+    // Traversal back out of an allowed prefix, percent-encoded so no client
+    // normalises it away before the wire — HPM's own string filters are a bare
+    // indexOf on an unnormalised path, which this would have satisfied.
+    "/api/image_proxy/api/media_player_proxy/%2e%2e/%2e%2e/states"
+  ];
+
+  for (const path of ESCAPES) {
+    test(`GET ${path} never reaches Home Assistant`, async ({ request }) => {
+      const res = await request.get(path);
+      expect([404, 503], `${path} escaped the proxy filter`).toContain(res.status());
+      // A 200 here would be HA's own JSON/config. Prove it is not.
+      expect(await res.text()).not.toContain("entity_id");
+    });
+  }
+
+  // Writes must not reach the proxy at all: express.json() has already drained
+  // the body, so a forwarded POST left HA waiting on a body forever and the
+  // socket hung open — a free way for a LAN client to pile up sockets.
+  test("POST to an otherwise-allowed proxy path is refused, not hung", async ({ request }) => {
+    const res = await request.post("/api/image_proxy/api/media_player_proxy/media_player.x", {
+      data: {},
+      timeout: 5000
+    });
+    expect([404, 503]).toContain(res.status());
+  });
+
+  // The one shape the dashboard genuinely needs (modules/mediaPanels.js prefixes
+  // this mount onto a media_player's entity_picture) must still be routed.
+  // Asserting routing, not content: HA may be unconfigured, down, or reject the
+  // token on any machine, so 404 — Express's fall-through, i.e. the filter
+  // declined — is the only failure. Anything else means the proxy took it.
+  test("a real media_player entity_picture path still proxies", async ({ request }) => {
+    const res = await request.get(
+      "/api/image_proxy/api/media_player_proxy/media_player.piano_room?token=probe",
+      { timeout: 10_000 }
+    );
+    expect(res.status(), "the live media-art path was filtered out").not.toBe(404);
+  });
+});
+
 test.describe("document root", () => {
   // Phase 5 removed the legacy static/index.html fallback — `/` must serve the
   // Vite-built document unconditionally. Guards against a broken build or a

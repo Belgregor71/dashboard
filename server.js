@@ -141,7 +141,33 @@ app.get("/", (_req, res) => {
   res.sendFile(path.join(__dirname, "dist", "index.html"));
 });
 
+// MEASURED on the Pi 2026-07-26 (audit S5), because the behaviour is not what
+// the mount paths suggest: Express strips the mount prefix before
+// http-proxy-middleware v3 reads req.url, and v3 (unlike the legacy factory)
+// does not restore it from req.originalUrl. So whatever follows the mount was
+// forwarded to HA verbatim, with the bearer token attached —
+// `/api/image_proxy/api/states` came back 200 with every entity in the house,
+// and `/api/image_proxy/api/config` with the full HA config, to any LAN caller.
+// That routes around the SAFE_SERVICES allowlist on /api/ha/services entirely.
+//
+// The only path the dashboard actually needs is HA's own token-scoped media
+// proxy: modules/mediaPanels.js prefixes this mount onto a media_player's
+// entity_picture, which HA serves as
+// `/api/media_player_proxy/media_player.piano_room?token=…&cache=…` (the live
+// shape, confirmed against HA's own /api/states). camera_proxy and image_proxy
+// are the same class of token-scoped image endpoint and cost nothing to allow.
+// Anchored end-to-end rather than prefix-matched so no `..` segment can ride
+// along — HPM's own string filters are a bare indexOf on an unnormalised path.
 function attachHaProxy(appInstance) {
+  const HA_MEDIA_PATH =
+    /^\/api\/(media_player_proxy|camera_proxy|image_proxy)\/[a-z0-9_]+\.[a-z0-9_]+$/;
+
+  // GET/HEAD only: these mounts serve images. A POST also used to hang the
+  // socket open indefinitely — express.json() drains the body first, so
+  // http-proxy forwarded a request whose body never arrived and HA waited on it.
+  const haMediaPathFilter = (pathname, req) =>
+    (req.method === "GET" || req.method === "HEAD") && HA_MEDIA_PATH.test(pathname);
+
   const HA_PROXY_DEBUG = process.env.DEBUG_HA_PROXY === "1";
   const haTarget = normalizeBaseUrl(process.env.HA_HOST || process.env.HA_URL);
 
@@ -162,7 +188,9 @@ function attachHaProxy(appInstance) {
   const baseProxyOptions = {
     target: haTarget,
     changeOrigin: true,
-    ws: true,
+    pathFilter: haMediaPathFilter,
+    // ws was on with no consumer: it subscribed a server-wide 'upgrade' handler
+    // that proxied matching WebSocket upgrades into HA. Images need no upgrade.
     on: {
       proxyReq: (proxyReq) => {
         const token = process.env.HA_TOKEN;
