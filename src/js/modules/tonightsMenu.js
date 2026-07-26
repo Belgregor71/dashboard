@@ -1,4 +1,5 @@
 import { on } from "../core/eventBus.js";
+import { escapeHtml } from "../core/escapeHtml.js";
 
 const MEAL_PREFIX = /^Meal:\s*/;
 const MEAL_EMOJI = [
@@ -51,7 +52,7 @@ function render() {
   document.getElementById("menu-tile-name").textContent = tonight.name || "Dinner";
   document.getElementById("menu-tile-sub").textContent = "Tonight's dinner";
   document.getElementById("menu-tile-upcoming").innerHTML = upcoming
-    .map(m => `<div class="m"><b>${m.date.toLocaleDateString("en-AU", { weekday: "short" })}</b> ${m.name}</div>`)
+    .map(m => `<div class="m"><b>${m.date.toLocaleDateString("en-AU", { weekday: "short" })}</b> ${escapeHtml(m.name)}</div>`)
     .join("");
 }
 

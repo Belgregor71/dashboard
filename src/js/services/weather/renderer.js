@@ -20,6 +20,7 @@ import { clearWeatherFxOverlay, setWeatherFxOverlay } from "./fxOverlay.js";
 import { refreshAirQuality } from "./airQuality.js";
 import { set as setContext, get as getContext } from "../../core/contextStore.js";
 import { getAllEntities, getEntitiesVersion } from "../homeAssistant/state.js";
+import { escapeHtml } from "../../core/escapeHtml.js";
 import {
   getBomForecastBundle,
   getBomHourlySeries,
@@ -771,7 +772,7 @@ function renderBarSparkline(target, series = [], maxHeight = 36) {
     .map((item) => {
       const normalized = (item.value ?? 0) / divisor;
       const height = Math.max(4, Math.round(normalized * maxHeight));
-      return `<span class="bar" style="height:${height}px" title="${item.label}: ${(item.value ?? 0).toFixed(1)}mm"></span>`;
+      return `<span class="bar" style="height:${height}px" title="${escapeHtml(item.label)}: ${(item.value ?? 0).toFixed(1)}mm"></span>`;
     })
     .join("");
   toggleSparkVisibility(target, true);

@@ -1,3 +1,5 @@
+import { escapeHtml } from "../core/escapeHtml.js";
+
 const ARR_REFRESH_MS = 10_000;
 const SERVICES = ["sonarr", "radarr", "lidarr"];
 
@@ -40,12 +42,12 @@ function renderArrPanel(data) {
       const row = document.createElement("div");
       row.className = "arr-row";
       row.innerHTML = `
-        <div class="arr-title">${item?.title || "Unknown title"}</div>
+        <div class="arr-title">${escapeHtml(item?.title || "Unknown title")}</div>
         <div class="arr-progress">
           <div class="arr-bar" style="width:${Math.max(0, Math.min(progress, 100))}%"></div>
         </div>
         <div class="arr-meta">
-          ${progress.toFixed(0)}%${item?.timeLeft ? ` • ETA ${item.timeLeft}` : ""}
+          ${progress.toFixed(0)}%${item?.timeLeft ? ` • ETA ${escapeHtml(item.timeLeft)}` : ""}
         </div>
       `;
       container.appendChild(row);

@@ -2,6 +2,7 @@ import { wakeScreensaver, resetIdleTimer } from "./screensaver.js";
 import { speak } from "../core/tts.js";
 import { getAllEntities } from "../services/homeAssistant/state.js";
 import { emit, on } from "../core/eventBus.js";
+import { escapeHtml } from "../core/escapeHtml.js";
 import { get as getContext } from "../core/contextStore.js";
 import { phrase, timing } from "../core/personality.js";
 
@@ -143,8 +144,8 @@ function eventsHtml(events) {
   }
   const items = events.map(e =>
     `<li>
-      ${e.time ? `<span class="arrival-greeting__time">${e.time}</span>` : ""}
-      <span class="arrival-greeting__event-title">${e.title}</span>
+      ${e.time ? `<span class="arrival-greeting__time">${escapeHtml(e.time)}</span>` : ""}
+      <span class="arrival-greeting__event-title">${escapeHtml(e.title)}</span>
     </li>`
   ).join("");
   return `<ul class="arrival-greeting__events">${items}</ul>`;
@@ -169,20 +170,27 @@ function showCard(name, others, events) {
 
   // Phase 10: the welcome headline speaks in the house's one voice (flag-off →
   // the literal string, byte-identical).
-  let welcome = personalityEnabled()
+  const welcome = personalityEnabled()
     ? phrase(getContext().intent, "arrival", { text: `Welcome home, ${name} — look who finally showed up!` })
     : `Welcome home, ${name}.`;
   // Spec reshape: the name renders in --warm/600 (the handoff's sanctioned
   // exception). phrase() may reword the line, so wrap the name only if it
   // survived — a rewrite without it just renders plain.
-  if (arrivalBottomOn) welcome = welcome.replace(name, `<b>${name}</b>`);
+  // Escape before the wrap, not after: `name` is an HA friendly name and
+  // `welcome` embeds it, so escaping afterwards would eat the <b> too. Matching
+  // the escaped name against the escaped line keeps the wrap working (audit S6/H6).
+  let welcomeHtml = escapeHtml(welcome);
+  if (arrivalBottomOn) {
+    const safeName = escapeHtml(name);
+    welcomeHtml = welcomeHtml.replace(safeName, `<b>${safeName}</b>`);
+  }
 
   overlayEl.classList.toggle("arrival-greeting--warm", warm);
 
   overlayEl.innerHTML = `
     <div class="arrival-greeting__card">
-      <div class="arrival-greeting__welcome">${welcome}</div>
-      <div class="arrival-greeting__status">${homeStatusText(others)}</div>
+      <div class="arrival-greeting__welcome">${welcomeHtml}</div>
+      <div class="arrival-greeting__status">${escapeHtml(homeStatusText(others))}</div>
       ${eventsHtml(events)}
       <div class="arrival-greeting__track">
         <div class="arrival-greeting__bar" id="arrival-bar"></div>

@@ -1,6 +1,7 @@
 import { getLastCameraTrigger } from "./cameraTiles.js";
 import { switchView } from "../core/viewManager.js";
 import { emit } from "../core/eventBus.js";
+import { escapeHtml } from "../core/escapeHtml.js";
 import { freezeLotties, unfreezeLotties } from "../helpers/lottie.js";
 import { getTimes as getSunTimes, getPosition as getSunPosition } from "../vendor/suncalc.js";
 import { WEATHER_LAT, WEATHER_LON } from "../config/config.js";
@@ -389,7 +390,10 @@ function updateInfo() {
     readNowPlayingLine()
   ].filter(Boolean).slice(0, 3);
 
-  infoEl.innerHTML = lines.map(line => `<div class="screensaver__info-line">${line}</div>`).join("");
+  // These lines are read back out of other panels' textContent, so an upstream
+  // title that arrived as markup is sitting here as literal text — interpolating
+  // it raw would re-parse it as HTML (audit S6/H6).
+  infoEl.innerHTML = lines.map(line => `<div class="screensaver__info-line">${escapeHtml(line)}</div>`).join("");
 
   updateMemoryWhisper();
 
