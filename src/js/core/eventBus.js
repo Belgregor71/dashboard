@@ -26,8 +26,11 @@ export function on(event, handler) {
 // console.error alone would have made every broken handler invisible to the
 // suite, trading a loud bug for a silent one.
 export function emit(event, payload = {}) {
-  const handlers = listeners[event];
-  if (!handlers) return;
+  if (!listeners[event]) return;
+  // Snapshot: for..of walks the live array, so a handler that calls on() for the
+  // event it is handling would extend the loop it is inside — forEach silently
+  // ignored those. Copying keeps dispatch stable against mutation either way.
+  const handlers = [...listeners[event]];
   for (const handler of handlers) {
     try {
       handler(payload);

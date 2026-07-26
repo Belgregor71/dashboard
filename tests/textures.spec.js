@@ -16,6 +16,15 @@ import { fileURLToPath } from "url";
 
 const distIndex = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dist", "index.html");
 
+// Pin the clock like presence/ui/reactive-glass do. Unpinned, this spec ran at
+// real local time and after sunset the screensaver auto-engages — measured
+// mid-test with isNight:true and the screensaver ACTIVE, which flips the atmoFx
+// runtime to "ambient" mode where the night starfield owns the canvas and a
+// forced episode does not behave like the awake-mode one under test. It failed
+// 0/3 in the afternoon, 2/6 at dusk and 6/6 after, with the victim assertion
+// moving between the fog canvas and the heat-pulse veil.
+const MIDDAY = new Date("2026-07-06T12:00:00");
+
 test.beforeAll(() => {
   if (!existsSync(distIndex)) {
     throw new Error("dist/index.html missing — run `npm run build` before `npm test`");
@@ -35,6 +44,7 @@ test("textures on: forced fog-drift and heat-pulse episodes run and clean up", a
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
   await forceFlag(true)(page);
+  await page.clock.setFixedTime(MIDDAY);
 
   await page.goto("/");
   await page.waitForFunction(() => typeof window.__forceAtmoEpisode === "function");
@@ -75,6 +85,7 @@ test("textures on: the static CSS contract (vignettes, photo filters, cold glass
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
   await forceFlag(true)(page);
+  await page.clock.setFixedTime(MIDDAY);
 
   await page.goto("/");
   await page.waitForFunction(() => document.body.classList.contains("fx-textures"));
@@ -143,6 +154,7 @@ test("textures off (default): no marker class, forced texture episodes refuse", 
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
   await forceFlag(false)(page);
+  await page.clock.setFixedTime(MIDDAY);
 
   await page.goto("/");
   await page.waitForFunction(() => typeof window.__forceAtmoEpisode === "function");
