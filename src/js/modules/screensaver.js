@@ -3,7 +3,7 @@ import { switchView } from "../core/viewManager.js";
 import { emit } from "../core/eventBus.js";
 import { freezeLotties, unfreezeLotties } from "../helpers/lottie.js";
 import { getTimes as getSunTimes, getPosition as getSunPosition } from "../vendor/suncalc.js";
-import { WEATHER_LAT, WEATHER_LON } from "../config/constants.js";
+import { WEATHER_LAT, WEATHER_LON } from "../config/config.js";
 import { get as getContext, set as setContext, subscribe as subscribeContext } from "../core/contextStore.js";
 import { atmosphereFor, ATMOSPHERE_TOKENS, skyWarmthFor } from "../services/atmosphere.js";
 import { collectAmbientMemory, spendMemoryBudget } from "../core/memoryRuntime.js";
