@@ -183,12 +183,23 @@ test.describe("home assistant proxy path filter", () => {
     "/api/image_proxy/api/media_player_proxy/%2e%2e/%2e%2e/states"
   ];
 
+  // "Did the filter decline?" is the real question, and status alone cannot
+  // answer it — HA answers 404 itself for a path it does not serve, so 404 is
+  // ambiguous. Express's fall-through 404 is an HTML error page; anything the
+  // proxy forwarded carries HA's own (here bodiless) response. Discriminate on
+  // that, not on the number.
+  const EXPRESS_FALLTHROUGH = "<!DOCTYPE html>";
+
   for (const path of ESCAPES) {
     test(`GET ${path} never reaches Home Assistant`, async ({ request }) => {
       const res = await request.get(path);
       expect([404, 503], `${path} escaped the proxy filter`).toContain(res.status());
+      const body = await res.text();
       // A 200 here would be HA's own JSON/config. Prove it is not.
-      expect(await res.text()).not.toContain("entity_id");
+      expect(body).not.toContain("entity_id");
+      if (res.status() === 404) {
+        expect(body, `${path} was forwarded rather than declined`).toContain(EXPRESS_FALLTHROUGH);
+      }
     });
   }
 
@@ -205,15 +216,26 @@ test.describe("home assistant proxy path filter", () => {
 
   // The one shape the dashboard genuinely needs (modules/mediaPanels.js prefixes
   // this mount onto a media_player's entity_picture) must still be routed.
-  // Asserting routing, not content: HA may be unconfigured, down, or reject the
-  // token on any machine, so 404 — Express's fall-through, i.e. the filter
-  // declined — is the only failure. Anything else means the proxy took it.
+  //
+  // Routing is the assertion, never the upstream's answer. An earlier version of
+  // this test asserted `status !== 404` and passed for the wrong reason: HA
+  // replies 404 to a bogus signed token, so the test tracked whatever
+  // media_player.piano_room happened to be doing that hour — a live-data
+  // dependency of exactly the kind the file header forbids. It duly broke the
+  // moment the entity stopped playing.
   test("a real media_player entity_picture path still proxies", async ({ request }) => {
     const res = await request.get(
       "/api/image_proxy/api/media_player_proxy/media_player.piano_room?token=probe",
       { timeout: 10_000 }
     );
-    expect(res.status(), "the live media-art path was filtered out").not.toBe(404);
+    // 503 = HA unconfigured on this machine, which is the mount answering, not
+    // Express. Otherwise: whatever HA said, as long as Express did not say it.
+    if (res.status() !== 503) {
+      expect(
+        await res.text(),
+        "the live media-art path was declined by the filter"
+      ).not.toContain(EXPRESS_FALLTHROUGH);
+    }
   });
 });
 

@@ -102,16 +102,29 @@ test("night sky on: a forced twinkle paints the field, then reconciles it away",
   expect(type).toBe("twinkle");
 
   // The field is up and painted: stars generated, canvas visible, real pixels.
-  await page.waitForFunction(() => window.__atmoFx().night.stars > 0);
-  expect(await page.evaluate(() => window.__atmoFx().canvasVisible)).toBe(true);
-  const painted = await page.evaluate(() => {
-    const c = document.getElementById("atmo-fx-canvas");
-    const data = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
-    let lit = 0;
-    for (let i = 3; i < data.length; i += 4) if (data[i] > 0) lit++;
-    return lit;
-  });
-  expect(painted).toBeGreaterThan(50); // a starfield, not an empty frame
+  //
+  // All three read in ONE evaluate, deliberately. Split across three awaits this
+  // raced the live weather slice: /api/weather/now resolves mid-test, the
+  // context updates, syncNightSky re-runs nightSkyWanted() and — for anything
+  // but a clear night — revokes the field between the stars check and the
+  // canvasVisible read. It failed ~1 in 3 FULL-SUITE runs and 0 in 6 standalone,
+  // because suite load is what moves the fetch into that window. Synchronous JS
+  // cannot be preempted by the subscriber, so the window is gone rather than
+  // narrowed — same fix as reactive-glass's glassAfterAtmo (c40e32a).
+  const field = await page
+    .waitForFunction(() => {
+      const state = window.__atmoFx();
+      if (!(state.night.stars > 0)) return null;
+      const c = document.getElementById("atmo-fx-canvas");
+      const data = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+      let lit = 0;
+      for (let i = 3; i < data.length; i += 4) if (data[i] > 0) lit++;
+      return { canvasVisible: state.canvasVisible, lit };
+    })
+    .then((handle) => handle.jsonValue());
+
+  expect(field.canvasVisible).toBe(true);
+  expect(field.lit).toBeGreaterThan(50); // a starfield, not an empty frame
 
   // Reconcile: weather is LIVE Open-Meteo here (contract philosophy — never
   // assert it), and a genuinely clear night would let the field persist. So
