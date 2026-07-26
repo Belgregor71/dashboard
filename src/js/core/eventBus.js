@@ -1,10 +1,32 @@
 const listeners = {};
 
+// Returns an unsubscribe function (audit 2026-07-26, P3/H8). Nothing calls it
+// yet and that is correct: all 39 subscriptions today sit in inits that run once
+// from core/app.js — audited, not assumed. The point is that leak-free code was
+// previously *unenforceable*, which on a display that runs for weeks is the
+// footgun that already cost this repo 709 zombie lottie wrappers. Any future
+// per-event path (a popup, a view re-init, a recovery re-arm) now has a teardown
+// to be symmetric with, per CLAUDE.md's kiosk memory discipline.
 export function on(event, handler) {
   if (!listeners[event]) {
     listeners[event] = [];
   }
   listeners[event].push(handler);
+  return () => off(event, handler);
+}
+
+// Removes one subscription. Takes effect from the NEXT emit: emit() dispatches
+// over a snapshot, so a handler removed while that same emit is in flight still
+// receives the event it is already part of. That is the trade for stable
+// iteration — the alternative, re-checking membership per handler, is O(n²) on
+// `ha:event:state_changed`, which the audit already flags as the hottest path
+// in the frontend (P1). Removal is what matters for leaks; one last delivery is
+// not a leak.
+export function off(event, handler) {
+  const handlers = listeners[event];
+  if (!handlers) return;
+  const index = handlers.indexOf(handler);
+  if (index !== -1) handlers.splice(index, 1);
 }
 
 // Handlers are isolated from each other (audit 2026-07-26, P2). MEASURED before

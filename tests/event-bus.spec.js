@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { on, emit } from "../src/js/core/eventBus.js";
+import { on, off, emit } from "../src/js/core/eventBus.js";
 
 // Pure unit tests for core/eventBus.js (no DOM — runs in plain node), covering
 // audit 2026-07-26 P2/H3: one throwing handler must not starve the handlers
@@ -108,4 +108,111 @@ test("the payload reaches every handler, and defaults to an object", () => {
   seen.length = 0;
   emit("test:payload");
   expect(seen).toEqual([{}, {}]);
+});
+
+// ── off() / unsubscribe (audit P3, H8) ────────────────────────────────
+// The point of these is teardown symmetry: a per-event path that subscribes on
+// every occurrence must be able to unsubscribe, or handlers accumulate for the
+// life of a page that runs for weeks.
+
+test("the function on() returns unsubscribes", () => {
+  const ran = [];
+  const unsubscribe = on("test:unsub", () => ran.push("x"));
+
+  emit("test:unsub");
+  expect(ran).toEqual(["x"]);
+
+  unsubscribe();
+  emit("test:unsub");
+  expect(ran).toEqual(["x"]);
+});
+
+test("off() removes only the handler passed, leaving its siblings subscribed", () => {
+  const ran = [];
+  const a = () => ran.push("a");
+  const b = () => ran.push("b");
+  const c = () => ran.push("c");
+  on("test:off", a);
+  on("test:off", b);
+  on("test:off", c);
+
+  off("test:off", b);
+  emit("test:off");
+  expect(ran).toEqual(["a", "c"]);
+});
+
+test("re-subscribing after off() restores delivery — the accumulate/teardown cycle", () => {
+  const ran = [];
+  const handler = () => ran.push("tick");
+
+  // Stands in for a per-event path that inits, tears down and inits again. The
+  // failure this guards against is the handler running twice on the second pass.
+  for (let i = 0; i < 3; i++) {
+    const unsubscribe = on("test:cycle", handler);
+    emit("test:cycle");
+    unsubscribe();
+    emit("test:cycle");
+  }
+  expect(ran).toEqual(["tick", "tick", "tick"]);
+});
+
+test("off() is a no-op for an unknown event or an unregistered handler", () => {
+  const ran = [];
+  const registered = () => ran.push("r");
+  on("test:noop", registered);
+
+  expect(() => off("test:never-registered", registered)).not.toThrow();
+  expect(() => off("test:noop", () => {})).not.toThrow();
+
+  emit("test:noop");
+  expect(ran).toEqual(["r"]);
+});
+
+test("unsubscribing twice removes one subscription, not a later duplicate", () => {
+  const ran = [];
+  const handler = () => ran.push("h");
+  const unsubscribe = on("test:double", handler);
+  unsubscribe();
+  unsubscribe(); // must not remove the fresh subscription registered below
+
+  on("test:double", handler);
+  emit("test:double");
+  expect(ran).toEqual(["h"]);
+});
+
+test("off() removes ONE registration, so a double-init needs a double teardown", () => {
+  // This is H8's own scenario: an init called twice registers the same function
+  // twice. Matching Node's removeListener, off() drops one instance — a filter-
+  // based rewrite would drop both and silently unsubscribe the live one too.
+  const ran = [];
+  const handler = () => ran.push("h");
+  on("test:dupe", handler);
+  on("test:dupe", handler);
+
+  off("test:dupe", handler);
+  emit("test:dupe");
+  expect(ran).toEqual(["h"]);
+
+  off("test:dupe", handler);
+  emit("test:dupe");
+  expect(ran).toEqual(["h"]);
+});
+
+test("a handler that unsubscribes mid-dispatch still gets the emit it is part of, then stops", () => {
+  // Documents the snapshot trade deliberately: emit() iterates a copy, so
+  // removal lands from the next emit. Pinned so the semantic is a decision, not
+  // an accident someone later "fixes" into an O(n^2) membership check.
+  const ran = [];
+  let unsubscribeB;
+  on("test:mid", () => {
+    ran.push("a");
+    unsubscribeB();
+  });
+  unsubscribeB = on("test:mid", () => ran.push("b"));
+
+  emit("test:mid");
+  expect(ran).toEqual(["a", "b"]);
+
+  emit("test:mid");
+  expect(ran).toEqual(["a", "b", "a"]);
 });
