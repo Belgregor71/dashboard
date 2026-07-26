@@ -232,17 +232,6 @@
   color: color-mix(in oklch, var(--status-error) 22%, #ffffff);
 }
 
-.status-ai-panel {
-  margin-top: var(--space-md);
-}
-
-.status-ai-panel__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--space-sm);
-}
-
 .status-ai-button {
   border: var(--glass-border);
   background: rgba(255,255,255,0.08);
@@ -251,9 +240,6 @@
   border-radius: var(--glass-radius-sm);
   cursor: pointer;
 }
-
-.status-ai-text { font-size: var(--fs-body); }
-.status-ai-action { font-size: var(--fs-small); opacity: 0.85; margin-top: var(--space-xs); }
 
 @media (max-width: 1200px) {
   .status-header-bar {

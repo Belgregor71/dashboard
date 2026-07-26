@@ -77,11 +77,6 @@ export function createStatusView() {
   const memoryValue = document.getElementById("status-memory-value");
   const uptimeValue = document.getElementById("status-uptime-value");
   const updateFrequencyValue = document.getElementById("status-update-frequency");
-  const aiPanel = document.getElementById("status-ai-panel");
-  const aiText = document.getElementById("status-ai-text");
-  const aiAction = document.getElementById("status-ai-action");
-  const aiRefreshButton = document.getElementById("status-ai-refresh");
-  const explainTriggerButton = document.getElementById("status-explain-trigger");
 
   let haConnected = false;
   let haLastMessage = null;
@@ -91,9 +86,7 @@ export function createStatusView() {
   let connectivityInterval = null;
   let metricsInterval = null;
   let rendered = false;
-  let latestAlertCount = 0;
   let serverHealthIssues = [];
-  let aiLoading = false;
   const modeEntityId = CONFIG.systemStatus?.modeEntityId;
 
   function setIndicator(target, level) {
@@ -183,31 +176,6 @@ export function createStatusView() {
   }
 
 
-
-  async function explainStatus() {
-    if (!aiPanel || aiLoading || latestAlertCount <= 0) return;
-    aiLoading = true;
-    aiPanel.hidden = false;
-    setText(aiText, "Analyzing system status…");
-    setText(aiAction, "");
-
-    try {
-      const response = await fetch("/api/ai/route", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: "Explain current dashboard system status and suggest one action." })
-      });
-      if (!response.ok) throw new Error("ai route failed");
-      const data = await response.json();
-      setText(aiText, data?.response || "System needs attention.");
-      setText(aiAction, data?.intent === "status_explain" ? "Suggested action: review highlighted warning rows." : "Suggested action: verify internet and Home Assistant connectivity.");
-    } catch (error) {
-      setText(aiText, "Unable to generate AI explanation right now.");
-      setText(aiAction, "Suggested action: check network and retry.");
-    } finally {
-      aiLoading = false;
-    }
-  }
 
   function highlightItem(target) {
     if (!target) return;
@@ -314,7 +282,6 @@ export function createStatusView() {
     });
 
     alertItems.push(...serverHealthIssues);
-    latestAlertCount = alertItems.length;
 
     if (!alertItems.length) {
       alertsPanel.classList.remove("is-visible");
@@ -322,7 +289,6 @@ export function createStatusView() {
       if (headerAlertBadge) headerAlertBadge.hidden = true;
       if (headerAlertCount) headerAlertCount.textContent = "0 issues";
       alertsList.textContent = "";
-      if (aiPanel) aiPanel.hidden = true;
       return;
     }
 
@@ -405,9 +371,16 @@ export function createStatusView() {
       updateAlerts();
     });
 
-    on("ha:message", ({ receivedAt } = {}) => {
-      haLastMessage = receivedAt || Date.now();
-      updateHaDisplay();
+    // The emitter for the old "ha:message" event was lost in a refactor, so the
+    // "Last message" readout sat on "Waiting for messages" forever. Every SSE
+    // state_changed frame is the liveness signal it was after — but the readout
+    // is minute-resolution, so only re-render when the minute actually turns
+    // (updateHaDisplay runs toLocaleTimeString, and this is a hot path).
+    on("ha:event:state_changed", () => {
+      const now = Date.now();
+      const minuteTurned = !haLastMessage || Math.floor(now / 60000) !== Math.floor(haLastMessage / 60000);
+      haLastMessage = now;
+      if (minuteTurned) updateHaDisplay();
     });
 
     on("calendar:refreshed", ({ timestamp } = {}) => {
@@ -428,14 +401,6 @@ export function createStatusView() {
     });
 
     on("status:highlight", ({ target } = {}) => highlightItem(target));
-    on("status:explain-requested", () => explainStatus());
-
-    aiRefreshButton?.addEventListener("click", () => {
-      explainStatus();
-    });
-    explainTriggerButton?.addEventListener("click", () => {
-      explainStatus();
-    });
 
     document.addEventListener("ha:state-updated", (event) => {
       if (!modeEntityId) return;

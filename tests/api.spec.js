@@ -547,16 +547,4 @@ test.describe("ai + tts", () => {
     expect(status).toBe(200);
     expect(body).toHaveProperty("ok", true);
   });
-
-  // The frontend calls /api/ai/route from events.js (voice command routing)
-  // and systemStatus.js (explain status), but the server never defined it —
-  // both callers silently degrade on the 404 today. Un-fixme this test when
-  // the endpoint is implemented.
-  test.fixme("POST /api/ai/route exists", async ({ request }) => {
-    await expectJson(request, "/api/ai/route", {
-      method: "post",
-      data: { text: "show cameras" },
-      statuses: [200]
-    });
-  });
 });

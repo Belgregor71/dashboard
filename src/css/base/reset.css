@@ -23,10 +23,6 @@ body {
   flex-direction: column;
 }
 
-body.is-overlay-active {
-  overflow: hidden;
-}
-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

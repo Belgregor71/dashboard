@@ -47,12 +47,6 @@ export function setVoiceState(state, text) {
   }
 }
 
-function handleVoiceState(payload = {}) {
-  const { state, text } = payload;
-  if (!state) return;
-  setVoiceState(state, text);
-}
-
 export function initVoiceOverlay() {
   if (overlayEl) return;
 
@@ -75,5 +69,4 @@ export function initVoiceOverlay() {
   on("dashboard_command", () => setVoiceState("processing"));
   on("command:executed", ({ message } = {}) => setVoiceState("success", message));
   on("command:unknown", ({ message } = {}) => setVoiceState("error", message));
-  on("voice:state", handleVoiceState);
 }

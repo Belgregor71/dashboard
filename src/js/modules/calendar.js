@@ -420,12 +420,6 @@ registerCalendarCommandHandlers({
   detailsForNextEvent: () => openFocusedDetails({ forceNext: true })
 });
 
-on("calendar:next-month", () => goToLater());
-on("calendar:previous-month", () => goToToday());
-on("calendar:go-today", () => goToToday());
-on("calendar:show-details", () => openFocusedDetails());
-on("calendar:close-details", () => closeDetailsPopover());
-
 on("timeline:scroll", ({ label } = {}) => {
   if (label) scrollTimelineToGroup(label);
 });

@@ -182,15 +182,6 @@
   opacity: 0.7;
 }
 
-.server-item {
-  padding: 6px 0;
-  font-size: 1rem;
-}
-
-.server-item .ok {
-  color: var(--status-ok);
-}
-
 /* ══ Now-Playing folded into the attention queue (features.mediaCandidate) ══
    docs/design/DESIGN_ROLLOUT.md follow-up. On the presence surface, what's
    playing rides the attention hero/stack as a candidate (candidateSources

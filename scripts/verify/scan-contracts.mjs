@@ -40,25 +40,11 @@ const VERBOSE = process.argv.includes("--verbose");
  * Deleting an entry is the fix landing. This list should only ever shrink.
  * ------------------------------------------------------------------ */
 const BASELINE = {
-  // Audit H1. Called from modules/systemStatus.js + services/homeAssistant/events.js.
-  // The server never defined it. Closing move: delete both call sites (the AI
-  // voice-routing feature was never finished) or implement the endpoint.
-  routes: ["/api/ai/route"],
-
-  // Audit M8. The calendar was once driven by voice/keyboard commands that
-  // emitted these; the emitters went, the handlers stayed. Closing move: delete
-  // the handlers in modules/calendar.js:423-427 and the three strays, or re-wire
-  // the commands that fed them.
-  listeners: [
-    "calendar:next-month",
-    "calendar:previous-month",
-    "calendar:go-today",
-    "calendar:show-details",
-    "calendar:close-details",
-    "calendar:weekRendered",  // services/weather/renderer.js:1007
-    "ha:message",             // modules/systemStatus.js:408
-    "voice:state"             // core/voiceOverlay.js:78 — the voice overlay never gets its state
-  ]
+  // Empty since audit H1 + M8 landed. Keep it that way: an entry here is a known
+  // defect shipping to the Pi, not a waiver. Add one only to unblock an unrelated
+  // push, with the closing move written next to it.
+  routes: [],
+  listeners: []
 };
 
 /* ------------------------------------------------------------------ *

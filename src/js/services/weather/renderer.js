@@ -29,7 +29,6 @@ import {
 } from "./bom.js";
 
 let activeLotties = [];
-let cachedDaily = null;
 let cachedWeather = null;
 let narrativeTimer = null;
 let lastAppliedCinematicCode = null;
@@ -395,7 +394,6 @@ export async function startWeather() {
     clearLotties();
     const data = await fetchWeatherData();
     cachedWeather = data;
-    cachedDaily = data?.daily || null;
     renderCurrent(data);
     renderWeekly(data.daily);
     emit("weather:refreshed", { timestamp: Date.now() });
@@ -969,11 +967,6 @@ export function stopWeatherView() {
   clearWeatherFxOverlay();
 }
 
-function rerenderWeeklyFromCache() {
-  if (!cachedDaily) return;
-  renderWeekly(cachedDaily);
-}
-
 /* 🔁 Cleanup on view change (prevents memory leaks) */
 on("view:changed", ({ view } = {}) => {
   clearLotties();
@@ -1002,8 +995,4 @@ document.addEventListener("ha:state-updated", (event) => {
   const warningsEntityId = CONFIG.weather?.bom?.warningsEntityId;
   const immediate = Boolean(warningsEntityId && entityId === warningsEntityId);
   scheduleBomPanelUpdate({ immediate });
-});
-
-on("calendar:weekRendered", () => {
-  rerenderWeeklyFromCache();
 });

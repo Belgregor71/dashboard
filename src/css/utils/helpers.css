@@ -34,7 +34,6 @@ body.dashboard-sleeping {
   background: #000;
 }
 
-body.dashboard-sleeping .dashboard-shell,
 body.dashboard-sleeping #timeline-view,
 body.dashboard-sleeping #cameras-view,
 body.dashboard-sleeping #weather-view {
