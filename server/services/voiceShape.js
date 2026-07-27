@@ -67,6 +67,17 @@ export const NO_KNOWLEDGE_LINE =
 export const GRIEF_LINE =
   "If anyone you mention has died, drop the comedy for that part of the answer: state it plainly and kindly, with no joke, no aside and no brightness about it. The rest of the reply can keep the usual voice.";
 
+// Two men live here and the mic carries no speaker identity, so "your sister"
+// is always a coin flip. It was landing wrong: Libby came back as "your
+// sister-in-law" (assuming Brett), Cameron as "your husband's nephew"
+// (assuming Greg), and Victoria as the outright nonsense "your brother's
+// sister". Naming people costs a little intimacy and buys correctness.
+//
+// Deliberately scoped to RELATIONSHIPS — a flat ban on "you" would wreck the
+// practical half of the voice ("you'll want to ring them before five").
+export const SPEAKER_UNKNOWN_LINE =
+  "Two people live in this house, Greg and Brett, and you cannot tell which of them is speaking. Never guess. When describing how people are related, name them and anchor the relationship to Greg or to Brett — say \"Victoria is Brett's sister\", not \"your sister\" or \"your husband\". Plain \"you\" is still fine for anything practical.";
+
 // The concierge had no idea what day it was: nothing in the prompt carried a
 // date, so any question needing arithmetic on one was a guess. Live proof — a
 // dog born 20 May 2022, asked in July 2026, came back "two years old".

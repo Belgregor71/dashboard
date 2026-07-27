@@ -9,7 +9,8 @@ import {
   buildConverseMessages,
   buildConverseSystem,
   todayLine,
-  GRIEF_LINE
+  GRIEF_LINE,
+  SPEAKER_UNKNOWN_LINE
 } from "../services/voiceShape.js";
 import { searchVault, buildContext } from "../services/vaultIndex.js";
 import { VOICE_REGISTER } from "./ai.js";
@@ -56,6 +57,7 @@ const CONVERSE_BASE = [
   "You are the voice of an Australian family's home, answering a spoken question on their wall dashboard. Your reply is read aloud.",
   VOICE_REGISTER,
   GRIEF_LINE,
+  SPEAKER_UNKNOWN_LINE,
   "Answer in 1-2 short sentences of plain prose — no markdown, no lists, no follow-up questions unless one is genuinely needed.",
 ];
 

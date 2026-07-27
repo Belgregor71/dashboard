@@ -5,6 +5,7 @@ import {
   buildConverseSystem,
   todayLine,
   GRIEF_LINE,
+  SPEAKER_UNKNOWN_LINE,
   MAX_TURNS,
   MAX_TURN_CHARS
 } from "../server/services/voiceShape.js";
@@ -160,5 +161,22 @@ test.describe("GRIEF_LINE — the comedy stops at a death", () => {
     const base = ["You are the voice of a home.", GRIEF_LINE];
     expect(buildConverseSystem(base, "")).toContain(GRIEF_LINE);
     expect(buildConverseSystem(base, "<note title=\"x\">y</note>")).toContain(GRIEF_LINE);
+  });
+});
+
+// The mic carries no speaker identity, so "your sister" is a coin flip between
+// two men. It was landing wrong often enough to garble ("your brother's sister").
+test.describe("SPEAKER_UNKNOWN_LINE — never guess who is talking", () => {
+  test("names both residents and forbids guessing", () => {
+    expect(SPEAKER_UNKNOWN_LINE).toContain("Greg");
+    expect(SPEAKER_UNKNOWN_LINE).toContain("Brett");
+    expect(SPEAKER_UNKNOWN_LINE).toMatch(/never guess/i);
+  });
+
+  // Scope is the whole point: a flat ban on "you" would gut the practical half
+  // of the voice, so the rule must apply to relationships only.
+  test("restricts the rule to relationships, not to the word 'you'", () => {
+    expect(SPEAKER_UNKNOWN_LINE).toMatch(/related/i);
+    expect(SPEAKER_UNKNOWN_LINE).toMatch(/still fine/i);
   });
 });
