@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import {
   parseNote,
   scoreNote,
+  stemVariants,
   retrieve,
   buildContext,
   buildIndex,
@@ -163,6 +164,35 @@ test.describe("tokenize + scoreNote — retrieval weighting", () => {
   test("each query term counts once — a long note cannot win on repetition", () => {
     const repetitive = { ...note, title: "x", tags: [], body: "bicheno ".repeat(200) };
     expect(scoreNote(repetitive, "bicheno")).toBe(2);
+  });
+
+  // Both of these are live regressions: "how old are the dogs" skipped a note
+  // tagged `dog`, and "when is Teddys birthday" missed a note titled `Teddy`.
+  test("a plural question finds a singular note", () => {
+    const dog = { title: "Benji", tags: ["dog"], body: "Border Collie." };
+    expect(scoreNote(dog, "how old are the dogs")).toBeGreaterThanOrEqual(SCORE_FLOOR);
+  });
+
+  test("a possessive without an apostrophe still finds the name", () => {
+    const teddy = { title: "Teddy (Theodore)", tags: [], body: "Born 20 May 2022." };
+    expect(scoreNote(teddy, "when is Teddys birthday")).toBeGreaterThanOrEqual(SCORE_FLOOR);
+  });
+
+  test("an apostrophe possessive needs no stemming — tokenize already splits it", () => {
+    expect(tokenize("what is Teddy's microchip")).toEqual(["teddy", "microchip"]);
+  });
+
+  test("stemming never double-counts a term that matches both ways", () => {
+    // "dogs" hits the title as-is AND as "dog"; it must still score one title hit.
+    expect(scoreNote({ title: "The dogs", tags: [], body: "" }, "dogs")).toBe(5);
+  });
+
+  test("short words are left alone, so 'gas' cannot match 'garage' via 'ga'", () => {
+    expect(stemVariants("gas")).toEqual(["gas"]);
+    expect(stemVariants("dogs")).toEqual(["dogs", "dog"]);
+    expect(stemVariants("teddys")).toEqual(["teddys", "teddy"]);
+    expect(stemVariants("rice")).toEqual(["rice"]); // no trailing s, untouched
+    expect(scoreNote({ title: "Garage", tags: [], body: "" }, "gas")).toBe(0);
   });
 
   test("an empty or stopword-only query scores nothing", () => {

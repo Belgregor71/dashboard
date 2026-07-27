@@ -192,9 +192,34 @@ export function tokenize(text) {
   );
 }
 
+// Matching is substring, which is asymmetric: a note saying "dogs" already
+// answers a question about "dog", but a note saying "dog" is invisible to
+// "dogs" — and "teddys" misses a note titled "Teddy" outright. Both were live
+// misses ("how old are the dogs", "when is Teddys birthday").
+//
+// Singularising the QUERY term closes the failing direction. Note text is left
+// alone, so this stays a pure scoring concern with nothing to reindex.
+//
+// The 4-character guard is what keeps it safe: "gas" must not become "ga",
+// which would substring-match "garage". Possessives with an apostrophe need no
+// help — tokenize() already splits "Teddy's" into "teddy" plus a 1-char "s"
+// that the length filter drops.
+//
+// Accepted cost: a stem can over-match ("cars" -> "car" also hits "carpet").
+// That is the same recall-over-precision trade SCORE_FLOOR already makes, and
+// only the top MAX_NOTES_RETURNED notes are ever quoted.
+const MIN_STEM_LENGTH = 4;
+
+export function stemVariants(term) {
+  const t = String(term || "");
+  if (t.length >= MIN_STEM_LENGTH && t.endsWith("s")) return [t, t.slice(0, -1)];
+  return [t];
+}
+
 // Distinct query terms matched per field, weighted by field. Counting DISTINCT
 // terms rather than occurrences is deliberate: occurrence counting would let one
-// long note beat a short, exactly-on-topic one just by being long.
+// long note beat a short, exactly-on-topic one just by being long. A term whose
+// stem and full form both hit still scores once, for the same reason.
 export function scoreNote(note, query) {
   const terms = tokenize(query);
   if (!note || terms.length === 0) return 0;
@@ -205,9 +230,10 @@ export function scoreNote(note, query) {
 
   let score = 0;
   for (const term of terms) {
-    if (title.includes(term)) score += 5;
-    else if (tags.includes(term)) score += 3;
-    else if (body.includes(term)) score += 2;
+    const variants = stemVariants(term);
+    if (variants.some((v) => title.includes(v))) score += 5;
+    else if (variants.some((v) => tags.includes(v))) score += 3;
+    else if (variants.some((v) => body.includes(v))) score += 2;
   }
   return score;
 }

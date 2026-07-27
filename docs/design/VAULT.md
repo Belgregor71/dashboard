@@ -70,6 +70,24 @@ The **body is what gets quoted** to the model, so write it as prose a person
 would say out loud. `[[Wikilinks]]` are not resolved; they are passed through as
 literal text, which reads fine in a sentence but is not a lookup.
 
+### How matching works, and what it can't do
+
+Query terms are matched as **substrings**, with one stemming step: a trailing
+`s` is stripped from query words of 4+ characters, so "dogs" finds a note
+tagged `dog` and "teddys" finds a note titled `Teddy`. Short words are left
+alone so "gas" can't match "garage".
+
+There is **no synonym handling**. A note saying *born* will not answer a
+question asking *birthday*; a note saying *fixed* will not answer *repaired*.
+Write the words people actually say, and put the obvious alternatives in `tags`:
+
+```markdown
+Born 20 May 2022, so his birthday is 20 May.
+```
+
+Both live misses that prompted this were of that shape — worth a moment's
+thought per note, because a miss is silent: the house just says it doesn't know.
+
 ## Privacy — read this before writing anything sensitive
 
 Retrieved note text is **sent to Anthropic** on the concierge's Claude leg.
