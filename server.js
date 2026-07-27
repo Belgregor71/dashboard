@@ -2,7 +2,6 @@ console.log(">>> DASHBOARD SERVER LOADED <<<");
 
 import dotenv from "dotenv";
 import express from "express";
-import { existsSync } from "fs";
 import net from "net";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import path from "path";
@@ -50,10 +49,14 @@ net.setDefaultAutoSelectFamilyAttemptTimeout(1500);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Try root .env first, then server/.env as fallback (legacy location)
-const envPath = existsSync(path.join(__dirname, ".env"))
-  ? path.join(__dirname, ".env")
-  : path.join(__dirname, "server", ".env");
+// The root .env is the only config location. There used to be a fallback to
+// server/.env (the pre-split legacy path), and it did exactly what a silent
+// fallback does: this dev machine had no root .env, so it ran for months off a
+// stale server/.env while the Pi ran off the root one. The aliases hid it only
+// halfway — haConfig accepts HA_URL, but /env.js reads HA_HOST alone, weather.js
+// reads WEATHER_LAT alone, and calendar.js wants the three split feed URLs, so
+// local dev silently had no calendars and no coordinates. One path, no guessing.
+const envPath = path.join(__dirname, ".env");
 const dotenvResult = dotenv.config({ path: envPath, quiet: true });
 if (dotenvResult.error && dotenvResult.error.code !== "ENOENT") {
   console.warn("Unable to load dashboard .env file:", dotenvResult.error.message);

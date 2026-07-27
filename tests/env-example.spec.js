@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, extname } from "node:path";
 
@@ -76,4 +76,32 @@ test(".env.example does not document keys nothing reads", () => {
     dead,
     `These keys are in .env.example but no code reads them:\n  ${dead.join("\n  ")}`
   ).toEqual([]);
+});
+
+// Audit 2026-07-26 S12: "server/.env.example and root .env.example both exist; the
+// dual-path dotenv fallback means a stale server/.env can silently shadow intent."
+// It was not hypothetical — this dev machine had no root .env and had been running
+// off a stale server/.env, which is why local dev had no calendars (calendar.js
+// reads the three split feed URLs; the legacy file had the combined list that
+// nothing reads) and no coordinates (weather.js reads WEATHER_LAT, not LAT).
+// Both halves have to stay dead: one example file, one load path.
+
+test("there is exactly one .env.example, at the repo root", () => {
+  expect(existsSync(join(root, ".env.example"))).toBe(true);
+  expect(
+    existsSync(join(root, "server", ".env.example")),
+    "server/.env.example is back. A second example file drifts from the real one — " +
+      "the deleted copy still advertised PORT=3001 and two keys no code reads."
+  ).toBe(false);
+});
+
+test("server.js loads exactly one .env path — no legacy fallback", () => {
+  const src = readFileSync(join(root, "server.js"), "utf8");
+  const loads = [...src.matchAll(/dotenv\.config\(/g)];
+
+  expect(loads.length, "server.js should call dotenv.config() exactly once").toBe(1);
+  expect(
+    /path\.join\(\s*__dirname\s*,\s*["']server["']\s*,\s*["']\.env["']\s*\)/.test(src),
+    "server.js references server/.env again — the silent-shadow fallback is back."
+  ).toBe(false);
 });
