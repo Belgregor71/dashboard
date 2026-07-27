@@ -56,6 +56,30 @@ export function buildConverseMessages(text, history) {
 export const NO_KNOWLEDGE_LINE =
   "If you don't know something about this specific house (device states, schedules), say so plainly rather than guessing.";
 
+// The concierge had no idea what day it was: nothing in the prompt carried a
+// date, so any question needing arithmetic on one was a guess. Live proof — a
+// dog born 20 May 2022, asked in July 2026, came back "two years old".
+//
+// The vault sharpens this rather than softening it: rego months, service
+// intervals, last-replaced dates and birthdays are precisely what a household
+// writes down, and every one of them invites a "how long ago" the model
+// otherwise cannot do.
+//
+// Brisbane explicitly, not the server's locale: the house is in QLD (which
+// never shifts for DST), and a UTC evening is already tomorrow here.
+export const HOUSE_TIME_ZONE = "Australia/Brisbane";
+
+export function todayLine(now = new Date()) {
+  const today = now.toLocaleDateString("en-AU", {
+    timeZone: HOUSE_TIME_ZONE,
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric"
+  });
+  return `Today is ${today}. Work out any age, duration or "how long ago" from that date rather than estimating.`;
+}
+
 export function buildConverseSystem(baseLines, context) {
   const base = (Array.isArray(baseLines) ? baseLines : []).join(" ");
   if (!context) return `${base} ${NO_KNOWLEDGE_LINE}`;

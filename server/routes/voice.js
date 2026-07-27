@@ -4,7 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { haPost } from "../ha/haRest.js";
 import { isLoopback, loopbackOnly } from "../middleware/security.js";
 import { reportFailure, reportSuccess } from "../services/healthService.js";
-import { shapeAssistResponse, buildConverseMessages, buildConverseSystem } from "../services/voiceShape.js";
+import { shapeAssistResponse, buildConverseMessages, buildConverseSystem, todayLine } from "../services/voiceShape.js";
 import { searchVault, buildContext } from "../services/vaultIndex.js";
 import { VOICE_REGISTER } from "./ai.js";
 
@@ -68,7 +68,9 @@ const CONVERSE_BASE = [
 function converseSystem(text) {
   const context =
     process.env.VAULT_ENABLED === "1" ? buildContext(searchVault(text)) : "";
-  return buildConverseSystem(CONVERSE_BASE, context);
+  // todayLine() is appended per request, not baked into CONVERSE_BASE — the
+  // date has to be current at answer time, and this route outlives midnight.
+  return buildConverseSystem([...CONVERSE_BASE, todayLine()], context);
 }
 
 const CONVERSE_MAX_TOKENS = 150;

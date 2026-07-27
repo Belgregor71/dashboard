@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import {
   shapeAssistResponse,
   buildConverseMessages,
+  todayLine,
   MAX_TURNS,
   MAX_TURN_CHARS
 } from "../server/services/voiceShape.js";
@@ -117,5 +118,26 @@ test.describe("buildConverseMessages — bounded rolling context", () => {
         expect(line.length).toBeLessThanOrEqual(MAX_TURN_CHARS);
       }
     }
+  });
+});
+
+// Regression: the concierge carried no date, so it aged a dog born 20 May 2022
+// to "two years old" when asked in July 2026. Anchored to a fixed instant so
+// this asserts the real thing rather than restating Date's own behaviour.
+test.describe("todayLine — the concierge has to know what day it is", () => {
+  test("states the date, in the house's own words", () => {
+    const line = todayLine(new Date("2026-07-27T06:00:00Z"));
+    expect(line).toContain("Monday 27 July 2026");
+    expect(line).toMatch(/how long ago/i); // the instruction, not just the date
+  });
+
+  test("Brisbane, not UTC — a UTC evening is already tomorrow here", () => {
+    // 15:00Z on the 27th is 01:00 on the 28th in Brisbane. Getting this wrong
+    // would make the house a day behind itself for ten hours of every day.
+    expect(todayLine(new Date("2026-07-27T15:00:00Z"))).toContain("28 July 2026");
+  });
+
+  test("defaults to now, so the route never has to pass a clock", () => {
+    expect(todayLine()).toMatch(/^Today is \w+ \d{1,2} \w+ \d{4}\./);
   });
 });
