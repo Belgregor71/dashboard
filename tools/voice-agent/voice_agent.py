@@ -33,7 +33,10 @@ FRAME = 1280                       # 80 ms @ 16 kHz — openWakeWord's chunk siz
 WAKE_MODEL = os.environ.get("WAKE_MODEL", "hey_jarvis")
 WAKE_THRESHOLD = float(os.environ.get("WAKE_THRESHOLD", "0.5"))
 MIC = os.environ.get("MIC_DEVICE", "plughw:3,0")
-STT_URL = os.environ.get("STT_URL", "http://192.168.0.197:8123/transcribe")
+# Resolved by name, not IP: the PC's DHCP address has drifted twice, and each
+# time the wake word kept firing while every turn died on "No route to host" —
+# which looks exactly like a dead mic from the glass.
+STT_URL = os.environ.get("STT_URL", "http://Mandragon.local:8123/transcribe")
 DASH_URL = os.environ.get("DASH_URL", "http://localhost:3000/api/voice/transcript")
 
 # Energy-based endpointing (dependency-free): capture until trailing silence.
