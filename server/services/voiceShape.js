@@ -56,6 +56,17 @@ export function buildConverseMessages(text, history) {
 export const NO_KNOWLEDGE_LINE =
   "If you don't know something about this specific house (device states, schedules), say so plainly rather than guessing.";
 
+// The house voice is deliberately loud (VOICE_REGISTER: "Kath & Kim energy"),
+// and the knowledge base now holds real deaths — including two children. The
+// register already bars sarcasm about the family but says nothing about death,
+// and the memory engine's tender-gating does not reach this lane.
+//
+// Scoped to "that part of the answer" on purpose: a question like "who are
+// Greg's brothers" lists four people of whom one has died. Quieting the whole
+// reply would be its own kind of wrong.
+export const GRIEF_LINE =
+  "If anyone you mention has died, drop the comedy for that part of the answer: state it plainly and kindly, with no joke, no aside and no brightness about it. The rest of the reply can keep the usual voice.";
+
 // The concierge had no idea what day it was: nothing in the prompt carried a
 // date, so any question needing arithmetic on one was a guess. Live proof — a
 // dog born 20 May 2022, asked in July 2026, came back "two years old".

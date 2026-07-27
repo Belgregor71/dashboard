@@ -4,7 +4,13 @@ import Anthropic from "@anthropic-ai/sdk";
 import { haPost } from "../ha/haRest.js";
 import { isLoopback, loopbackOnly } from "../middleware/security.js";
 import { reportFailure, reportSuccess } from "../services/healthService.js";
-import { shapeAssistResponse, buildConverseMessages, buildConverseSystem, todayLine } from "../services/voiceShape.js";
+import {
+  shapeAssistResponse,
+  buildConverseMessages,
+  buildConverseSystem,
+  todayLine,
+  GRIEF_LINE
+} from "../services/voiceShape.js";
 import { searchVault, buildContext } from "../services/vaultIndex.js";
 import { VOICE_REGISTER } from "./ai.js";
 
@@ -49,6 +55,7 @@ router.post("/api/voice/assist", loopbackOnly("The assist endpoint"), async (req
 const CONVERSE_BASE = [
   "You are the voice of an Australian family's home, answering a spoken question on their wall dashboard. Your reply is read aloud.",
   VOICE_REGISTER,
+  GRIEF_LINE,
   "Answer in 1-2 short sentences of plain prose — no markdown, no lists, no follow-up questions unless one is genuinely needed.",
 ];
 

@@ -2,7 +2,9 @@ import { test, expect } from "@playwright/test";
 import {
   shapeAssistResponse,
   buildConverseMessages,
+  buildConverseSystem,
   todayLine,
+  GRIEF_LINE,
   MAX_TURNS,
   MAX_TURN_CHARS
 } from "../server/services/voiceShape.js";
@@ -139,5 +141,24 @@ test.describe("todayLine — the concierge has to know what day it is", () => {
 
   test("defaults to now, so the route never has to pass a clock", () => {
     expect(todayLine()).toMatch(/^Today is \w+ \d{1,2} \w+ \d{4}\./);
+  });
+});
+
+// The house voice is deliberately loud, and the knowledge base now names real
+// deaths including two children. This pins the wording and that it survives
+// composition; whether the model actually obeys it is proved live, not here.
+test.describe("GRIEF_LINE — the comedy stops at a death", () => {
+  test("instructs plainness, and scopes it to part of the answer", () => {
+    expect(GRIEF_LINE).toMatch(/has died/i);
+    expect(GRIEF_LINE).toMatch(/no joke/i);
+    // Scope matters: "who are Greg's brothers" lists four, one of whom died.
+    // Flattening the whole reply would be its own kind of wrong.
+    expect(GRIEF_LINE).toMatch(/rest of the reply/i);
+  });
+
+  test("survives into the composed prompt, with and without vault context", () => {
+    const base = ["You are the voice of a home.", GRIEF_LINE];
+    expect(buildConverseSystem(base, "")).toContain(GRIEF_LINE);
+    expect(buildConverseSystem(base, "<note title=\"x\">y</note>")).toContain(GRIEF_LINE);
   });
 });
