@@ -1,6 +1,7 @@
-// Coordinates for Brisbane
-export const WEATHER_LAT = -27.4698;
-export const WEATHER_LON = 153.0251;
+// Nudgee, QLD — the suburb this dashboard reports on. Suburb centroid, not the
+// house: this file is public and ships in the browser bundle.
+export const WEATHER_LAT = -27.3691;
+export const WEATHER_LON = 153.0847;
 
 export const REFRESH_CALENDAR_MS = 5 * 60 * 1000;
 export const REFRESH_WEATHER_MS = 15 * 60 * 1000;

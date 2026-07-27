@@ -115,8 +115,8 @@ GO2RTC_HOST=http://192.168.0.x:1984
 # Required for weather (and the AI briefing/concierge context) — the frontend
 # has its own copy of these coordinates in src/js/config/config.js, but the
 # server does not read that file, so this is a separate, easy-to-forget setting.
-WEATHER_LAT=-27.4698
-WEATHER_LON=153.0251
+WEATHER_LAT=-27.3691
+WEATHER_LON=153.0847
 ```
 
 AI text (briefing + concierge) works out of the box via local Ollama; add

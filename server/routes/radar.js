@@ -4,11 +4,9 @@ import { fetchWithTimeout } from "../utils/fetch.js";
 const router = express.Router();
 
 // Nudgee, QLD — matches src/js/config/config.js's WEATHER_LAT/WEATHER_LON.
-// Hardcoded rather than env-driven since WEATHER_LAT/WEATHER_LON aren't
-// actually set in this project's .env (the frontend uses its own hardcoded
-// constant for the same reason).
-const DEFAULT_LAT = -27.4698;
-const DEFAULT_LON = 153.0251;
+// Only a fallback: WEATHER_LAT/WEATHER_LON in .env win (see the route below).
+const DEFAULT_LAT = -27.3691;
+const DEFAULT_LON = 153.0847;
 
 const RADAR_ZOOM = 7; // RainViewer's max zoom level
 const GRID_RADIUS = 1; // 1 -> 3x3 grid centered on the home tile

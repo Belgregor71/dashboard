@@ -25,8 +25,8 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 
 async function queryFuelPrices() {
   const key      = process.env.FUEL_API_KEY ?? "";
-  const lat      = parseFloat(process.env.WEATHER_LAT ?? process.env.LAT ?? "-27.4705");
-  const lon      = parseFloat(process.env.WEATHER_LON ?? process.env.LON ?? "153.0260");
+  const lat      = parseFloat(process.env.WEATHER_LAT ?? process.env.LAT ?? "-27.3691");
+  const lon      = parseFloat(process.env.WEATHER_LON ?? process.env.LON ?? "153.0847");
   const radiusKm = parseFloat(process.env.FUEL_RADIUS_KM ?? "10");
 
   const headers = {
