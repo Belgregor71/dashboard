@@ -269,6 +269,56 @@ export function buildContext(notes, { maxChars = MAX_CONTEXT_CHARS } = {}) {
   return blocks.join("\n");
 }
 
+// ── relationships (pure) ───────────────────────────────────────
+
+// A note tagged `kind: relationships` carries a list of "Name: what they are to
+// this house" lines in its BODY, not its frontmatter — 40-odd entries as an
+// Obsidian property would be miserable to edit, and in the body the same list
+// reads as prose to the concierge that quotes it.
+//
+// The separator is the first colon. Names may contain hyphens and apostrophes
+// (Perry-McHugh, Dee-Lewis, O'Brian) but never a colon, so this stays unambiguous
+// where a hyphen separator would not.
+const RELATIONSHIPS_KIND = "relationships";
+
+export function parseRelationships(body) {
+  const out = new Map();
+  for (const line of String(body || "").split(/\r?\n/)) {
+    const m = /^\s*[-*]\s+(.+)$/.exec(line);
+    if (!m) continue;
+
+    const sep = m[1].indexOf(":");
+    if (sep < 1) continue;
+
+    const name = m[1].slice(0, sep).trim().replace(/\s+/g, " ");
+    // Strip the backticks the note's own prose uses when it mentions a name.
+    const label = m[1].slice(sep + 1).trim().replace(/\s+/g, " ");
+    if (!name || !label || name.includes("`")) continue;
+
+    // First wins, so an earlier section is never overwritten by a later mention.
+    const key = name.toLowerCase();
+    if (!out.has(key)) out.set(key, label);
+  }
+  return out;
+}
+
+/** Every relationship note in the index, merged into one name → label map. */
+export function buildRelationshipMap(notes) {
+  const out = new Map();
+  for (const note of notes || []) {
+    if (note?.kind !== RELATIONSHIPS_KIND) continue;
+    for (const [name, label] of parseRelationships(note.body)) {
+      if (!out.has(name)) out.set(name, label);
+    }
+  }
+  return out;
+}
+
+/** The live index's relationship map. Empty when the vault lane is off. */
+export function getRelationships() {
+  return buildRelationshipMap(index.notes);
+}
+
 // ── index (the only I/O) ───────────────────────────────────────
 
 let index = { notes: [], indexedAt: null };

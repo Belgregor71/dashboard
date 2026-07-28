@@ -130,12 +130,16 @@ export function givenName(full) {
  * Weber), three Matts, two Laurens, two Megans — "Mark" names nobody in
  * particular, so those get their full name and everyone else stays informal.
  *
- * Only records carrying more than a given name are counted. A bare "Korina"
- * alongside "Korina Newsome-Smith" is Immich having split ONE person across two
- * face clusters, not two people; counting it would caption a single face
- * "Korina Newsome-Smith and Korina". Same for the exact-duplicate records the
- * library holds ("Chris" twice) — both are labelled Chris, so Chris is still the
- * best answer available.
+ * EVERY distinct record counts, including bare given-name ones. A bare "Korina"
+ * beside "Korina Newsome-Smith" is a SECOND Korina whose surname nobody could
+ * remember — not one person split across two face clusters. Same for the two
+ * Andrews and the two Damians. (This was assumed the other way round on the
+ * first pass and corrected: treating the bare record as a duplicate quietly
+ * captioned two different people with the same name.)
+ *
+ * Two records with the SAME full name ("Chris" twice, two real people) still
+ * resolve to one entry here, because nothing distinguishes them in a caption —
+ * "Chris" is the best answer available for either.
  */
 export function ambiguousGivenNames(allNames) {
   const byGiven = new Map();
@@ -144,12 +148,12 @@ export function ambiguousGivenNames(allNames) {
     const given = givenName(full);
     if (!given) continue;
     if (!byGiven.has(given)) byGiven.set(given, new Set());
-    if (full.includes(" ")) byGiven.get(given).add(full.toLowerCase());
+    byGiven.get(given).add(full.toLowerCase());
   }
 
   const out = new Set();
-  for (const [given, qualified] of byGiven) {
-    if (qualified.size > 1) out.add(given);
+  for (const [given, records] of byGiven) {
+    if (records.size > 1) out.add(given);
   }
   return out;
 }
@@ -182,7 +186,7 @@ const MAX_NAMES = 2;
  * hiding "Brett Lewis" must not also silence Brett Abdul. Someone tagged under
  * more than one person record needs each of them listed.
  */
-export function nameSegment(people, hideNames = [], ambiguous = new Set()) {
+export function nameSegment(people, hideNames = [], ambiguous = new Set(), relationships = null) {
   // Both sides are free text a person typed — Immich's name field and a comma
   // list in .env — so compare them on one normal form rather than hoping they
   // were typed identically.
@@ -191,18 +195,29 @@ export function nameSegment(people, hideNames = [], ambiguous = new Set()) {
   const hidden = new Set((hideNames || []).map(key).filter(Boolean));
   if (hidden.size === 0) return "";
 
-  const names = [];
+  const found = [];
   for (const full of people || []) {
     if (hidden.has(key(full))) continue;
-    // Dedupe on what will actually be SHOWN: two of Immich's records for one
-    // person collapse to a single "Korina", while two genuinely different Marks
-    // stay as "Mark Dee" and "Mark Weber".
+    // Dedupe on what will actually be SHOWN, so two records that render the
+    // same word never say it twice.
     const shown = displayName(full, ambiguous);
-    if (shown && !names.includes(shown)) names.push(shown);
+    if (shown && !found.some((f) => f.shown === shown)) found.push({ full, shown });
   }
+  const names = found.map((f) => f.shown);
 
   if (names.length === 0) return "";
-  if (names.length === 1) return names[0];
+
+  if (names.length === 1) {
+    // What the house calls them, but ONLY when they have the photo to
+    // themselves. "our niece Melanie" is a warm aside; "our niece Melanie and
+    // our nephew Symon" is an inventory, and this caption stays a whisper.
+    const label = relationships?.get(key(found[0].full));
+    // A relationship disambiguates harder than a surname does — "Brett's
+    // brother Matt" is unmistakable and "Brett's brother Matt Lewis" is just
+    // long — so a labelled name drops back to the given name.
+    return label ? `${label} ${givenName(found[0].full)}` : names[0];
+  }
+
   if (names.length <= MAX_NAMES) return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 
   const rest = names.length - MAX_NAMES;
@@ -214,10 +229,15 @@ export function nameSegment(people, hideNames = [], ambiguous = new Set()) {
 // "2018 · Byron Bay, NSW"). Names come last, the quietest element, and are
 // absent far more often than not. Every part falls away independently: a photo
 // with no GPS and no named face is still just its bare year.
-export function captionFor({ year, city, state, country, people } = {}, { hideNames = [], ambiguous } = {}) {
+export function captionFor(
+  { year, city, state, country, people } = {},
+  { hideNames = [], ambiguous, relationships } = {}
+) {
   const region = isTravel({ country }) ? country : (state || null);
   const place = [city, region].filter(Boolean).join(", ");
-  return [year ?? "", place, nameSegment(people, hideNames, ambiguous)].filter(Boolean).join(" · ");
+  return [year ?? "", place, nameSegment(people, hideNames, ambiguous, relationships)]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 /**

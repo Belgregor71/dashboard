@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { fetchWithTimeout } from "../utils/fetch.js";
 import { isConfigured, memoriesFeed, fetchRendition, fetchPeopleNames } from "./immichClient.js";
 import { selectDailyMemories, captionFor, isTravel, ambiguousGivenNames } from "../../src/js/services/photoMemory.js";
+import { getRelationships } from "./vaultIndex.js";
 
 // Daily Memories screensaver set — features.dailyMemories.
 // Picks a stable ~12-photo "on this day" set per day (today's month/day across
@@ -45,6 +46,14 @@ export function hasMapKey() {
 function hiddenNames() {
   const raw = envVal("IMMICH_CAPTION_HIDE_NAMES");
   return raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : [];
+}
+
+// Say what a person is to the house ("our niece Melanie"), read from the vault's
+// `kind: relationships` note. Off unless BOTH this and the vault lane are on, so
+// the default build never reaches into the vault at all. Read per build, never at
+// module load (the KOKORO_VOICE trap).
+function relationshipsEnabled() {
+  return envVal("IMMICH_CAPTION_RELATIONSHIPS") === "1" && envVal("VAULT_ENABLED") === "1";
 }
 
 // Mapbox Static Images API — a small dark map with a pin at the photo's coords.
@@ -141,10 +150,12 @@ async function buildDailySet(now, { warm = false } = {}) {
   // would see it, and the set is frozen for the day either way.
   const ambiguous = roster.length ? ambiguousGivenNames(roster) : { has: () => true };
 
+  const relationships = relationshipsEnabled() ? getRelationships() : null;
+
   const photos = selected.map((p) => ({
     id: p.id,
     year: p.year,
-    caption: captionFor(p, { hideNames, ambiguous }),
+    caption: captionFor(p, { hideNames, ambiguous, relationships }),
     map: isTravel(p) && p.lat != null && p.lng != null && hasMapKey(),
     lat: p.lat,
     lng: p.lng

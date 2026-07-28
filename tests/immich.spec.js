@@ -248,12 +248,13 @@ test.describe("ambiguousGivenNames — when a given name names nobody", () => {
     expect(amb.has("Sooty")).toBe(false);
   });
 
-  test("a bare record beside a fuller one is ONE split person, not two people", () => {
-    // Counting "Korina" would caption a single face "Korina Newsome-Smith and Korina".
-    expect(ambiguousGivenNames(ROSTER).has("Korina")).toBe(false);
+  test("a bare record beside a fuller one is a SECOND person, not a duplicate", () => {
+    // Confirmed by the household: bare records are people whose surname nobody
+    // could remember (two Andrews, two Damians), not split face clusters.
+    expect(ambiguousGivenNames(ROSTER).has("Korina")).toBe(true);
   });
 
-  test("exact-duplicate records are not ambiguity — both are labelled the same", () => {
+  test("same-name records collapse — nothing in a caption could tell them apart", () => {
     expect(ambiguousGivenNames(ROSTER).has("Chris")).toBe(false);
   });
 
@@ -267,7 +268,9 @@ test.describe("ambiguousGivenNames — when a given name names nobody", () => {
     const amb = ambiguousGivenNames(ROSTER);
     expect(displayName("Joe Perry-McHugh", amb)).toBe("Joe");
     expect(displayName("Mark Dee", amb)).toBe("Mark Dee");
-    expect(displayName("Korina Newsome-Smith", amb)).toBe("Korina");
+    expect(displayName("Korina Newsome-Smith", amb)).toBe("Korina Newsome-Smith");
+    // The surname-less Korina can only ever be "Korina" — nothing else exists.
+    expect(displayName("Korina", amb)).toBe("Korina");
   });
 });
 
@@ -287,8 +290,9 @@ test.describe("nameSegment — disambiguation in context", () => {
     expect(nameSegment(["Lauren Black"], RESIDENTS, AMB)).toBe("Lauren Black");
   });
 
-  test("one person split across two Immich records still collapses to one name", () => {
-    expect(nameSegment(["Korina Newsome-Smith", "Korina"], RESIDENTS, AMB)).toBe("Korina");
+  test("two Korinas in one photo stay two people, as far as the names allow", () => {
+    expect(nameSegment(["Korina Newsome-Smith", "Korina"], RESIDENTS, AMB))
+      .toBe("Korina Newsome-Smith and Korina");
   });
 
   test("two genuinely different Marks both stay in the caption", () => {
@@ -302,6 +306,41 @@ test.describe("nameSegment — disambiguation in context", () => {
   test("an unknown roster qualifies everything (the fail-soft path)", () => {
     const everything = { has: () => true };
     expect(nameSegment(["Joe Perry-McHugh"], RESIDENTS, everything)).toBe("Joe Perry-McHugh");
+  });
+});
+
+test.describe("nameSegment — what the house calls someone", () => {
+  const RESIDENTS = ["Greg Dee", "Brett Lewis"];
+  const REL = new Map([
+    ["melanie webber", "our niece"],
+    ["matt lewis", "Brett's brother"],
+    ["sooty dee-lewis", "our dog"]
+  ]);
+  const AMB = ambiguousGivenNames(["Matt Lewis", "Matt Bell", "Melanie Webber"]);
+
+  test("a person alone in the photo gets their relationship", () => {
+    expect(nameSegment(["Melanie Webber"], RESIDENTS, AMB, REL)).toBe("our niece Melanie");
+  });
+
+  test("a label beats a surname — it disambiguates harder and reads shorter", () => {
+    // "Matt" is ambiguous (Matt Lewis / Matt Bell), so without a label it would
+    // render "Matt Lewis"; "Brett's brother Matt" is unmistakable without it.
+    expect(nameSegment(["Matt Lewis"], RESIDENTS, AMB, REL)).toBe("Brett's brother Matt");
+    expect(nameSegment(["Matt Bell"], RESIDENTS, AMB, REL)).toBe("Matt Bell");
+  });
+
+  test("two people is a list, not an inventory of relationships", () => {
+    expect(nameSegment(["Melanie Webber", "Matt Bell"], RESIDENTS, AMB, REL))
+      .toBe("Melanie and Matt Bell");
+  });
+
+  test("someone with no entry is unaffected", () => {
+    expect(nameSegment(["Joe Perry-McHugh"], RESIDENTS, AMB, REL)).toBe("Joe");
+  });
+
+  test("no map at all → exactly the pre-relationship behaviour", () => {
+    expect(nameSegment(["Melanie Webber"], RESIDENTS, AMB)).toBe("Melanie");
+    expect(nameSegment(["Melanie Webber"], RESIDENTS, AMB, null)).toBe("Melanie");
   });
 });
 

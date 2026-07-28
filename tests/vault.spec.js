@@ -10,6 +10,8 @@ import {
   buildIndex,
   searchVault,
   tokenize,
+  parseRelationships,
+  buildRelationshipMap,
   SCORE_FLOOR,
   MAX_CONTEXT_CHARS
 } from "../server/services/vaultIndex.js";
@@ -335,5 +337,77 @@ test.describe("buildConverseSystem — the vault must be inert when off", () => 
     expect(out).toContain("Here is what the household has written down");
     // Retrieval must not license guessing about what the notes don't cover.
     expect(out).toContain(NO_KNOWLEDGE_LINE);
+  });
+});
+
+// The name → relationship list the Daily Memories caption reads, so a photo can
+// say "our niece Melanie" instead of "Melanie". It lives in a note's BODY rather
+// than its frontmatter: forty entries as an Obsidian property would be miserable
+// to edit, and in the body the same list reads as prose to the concierge.
+test.describe("parseRelationships — the who-is-who list", () => {
+  test("reads 'Name: label' bullets, keyed case-insensitively", () => {
+    const map = parseRelationships([
+      "## Greg's side",
+      "- Paddy Dee: Greg's brother",
+      "- Melanie Webber: our niece",
+      "* Sooty Dee-Lewis: our dog"
+    ].join("\n"));
+
+    expect(map.get("paddy dee")).toBe("Greg's brother");
+    expect(map.get("melanie webber")).toBe("our niece");
+    expect(map.get("sooty dee-lewis")).toBe("our dog");
+  });
+
+  test("names keep their hyphens and apostrophes — the separator is the COLON", () => {
+    // A hyphen separator would have split Perry-McHugh and Dee-Lewis in half.
+    const map = parseRelationships("- Joe Perry-McHugh: a friend\n- Lucas O'Brian: a friend");
+    expect(map.get("joe perry-mchugh")).toBe("a friend");
+    expect(map.get("lucas o'brian")).toBe("a friend");
+  });
+
+  test("prose, headings and colon-less bullets are ignored", () => {
+    const map = parseRelationships([
+      "One line per person, in the form Name: what they are.",
+      "## Dogs",
+      "- just a bullet with no colon",
+      "- `Akex Harmey` looks like a misspelling: fix it in Immich",
+      "- Real Person: our nephew"
+    ].join("\n"));
+
+    expect(map.size).toBe(1);
+    expect(map.get("real person")).toBe("our nephew");
+  });
+
+  test("the first mention wins, so a later aside cannot overwrite a roster line", () => {
+    const map = parseRelationships("- Rose: our niece\n- Rose: someone else");
+    expect(map.get("rose")).toBe("our niece");
+  });
+
+  test("empty / malformed input → empty map, never a throw", () => {
+    expect(parseRelationships("").size).toBe(0);
+    expect(parseRelationships(null).size).toBe(0);
+    expect(parseRelationships("- : no name").size).toBe(0);
+  });
+});
+
+test.describe("buildRelationshipMap — only notes that opt in", () => {
+  const notes = [
+    { id: "family/who-is-who", kind: "relationships", body: "- Paddy Dee: Greg's brother" },
+    { id: "house/bins", kind: "routine", body: "- Tuesday: yellow lid" },
+    { id: "house/teddy", kind: "pet", body: "- Teddy: a Border Collie" }
+  ];
+
+  test("reads only `kind: relationships` notes", () => {
+    const map = buildRelationshipMap(notes);
+    expect(map.get("paddy dee")).toBe("Greg's brother");
+    // A bins note listing "Tuesday: yellow lid" must not become a person.
+    expect(map.has("tuesday")).toBe(false);
+    expect(map.has("teddy")).toBe(false);
+  });
+
+  test("no such note (or no vault at all) → empty map, captions unchanged", () => {
+    expect(buildRelationshipMap(notes.slice(1)).size).toBe(0);
+    expect(buildRelationshipMap([]).size).toBe(0);
+    expect(buildRelationshipMap(null).size).toBe(0);
   });
 });
