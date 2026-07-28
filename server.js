@@ -62,11 +62,17 @@ if (dotenvResult.error && dotenvResult.error.code !== "ENOENT") {
   console.warn("Unable to load dashboard .env file:", dotenvResult.error.message);
 }
 
-try {
-  readHaConfig();
-} catch (error) {
-  console.error(error.message);
-  process.exit(1);
+// A bad HA env line used to be fatal here — readHaConfig() threw and the
+// process exited, taking weather, calendar, photos, recipes and the clock down
+// with it, none of which need HA. The kiosk showed nothing at all. It now
+// degrades into the state HA_ENABLED=0 already produces: /api/ha/* answers 503,
+// everything else boots (audit 2026-07-26, M1).
+const haConfig = readHaConfig({ requireConfig: false });
+if (!haConfig.enabled && process.env.HA_ENABLED !== "0") {
+  console.warn(
+    `[ha] integration disabled: missing ${haConfig.missing.join(", ")}. ` +
+      "The dashboard is running without Home Assistant — /api/ha/* will answer 503."
+  );
 }
 
 const PORT = process.env.PORT || 3000;
