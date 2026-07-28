@@ -59,12 +59,38 @@ Dataview properties can live in the same frontmatter freely.
 | Key | Type | Meaning |
 |---|---|---|
 | `title` | string | What the note is called. Falls back to the filename. |
-| `tags` | list | Retrieval keywords. `#trip` and `Trip` both normalise to `trip`. |
+| `tags` | list | Retrieval keywords. `#trip` and `Trip` both normalise to `trip`. Syntax rules below. |
 | `kind` | string | Free-form label. Carried through, not currently scored. |
 | `private` | boolean | **`true` excludes the note from the index entirely.** |
 
 Both YAML list forms work — `tags: [a, b]` and the indented `- a` block that
 Obsidian's property editor writes.
+
+### Tag syntax — Obsidian is stricter than this parser
+
+Two rules, both of them Obsidian's rather than ours:
+
+- **One word per tag, hyphenated if compound** — `chiang-mai`, never
+  `chiang mai`. An Obsidian tag cannot contain a space.
+- **Never a bare number** — `2026` is not a valid Obsidian tag. Put the year in
+  the `title`, which scores higher than a tag anyway (5 against 3), so the tag
+  was buying nothing.
+
+Neither rule costs retrieval anything. Hyphenating is free because `tokenize()`
+splits the *query* on non-alphanumerics: "chiang mai" becomes `chiang` + `mai`,
+and both substring-match inside `chiang-mai` for the identical score.
+
+**These mistakes are invisible to the test suite, and that is the point worth
+remembering.** `parseScalar()` splits `[a, b]` on commas only, and `scoreNote()`
+substring-matches `tags.join(" ")` — so a tag with a space in it retrieves
+perfectly well here. This was live (2026-07-28): fifteen trip notes shipped
+tagged `chiang mai` and `2026`, every retrieval probe passed, and the breakage
+showed up only in the editor. Retrieval tests can never catch this class, so
+check tag syntax by eye.
+
+The existing notes are the reference — they have used single-word tags with
+hyphenated compounds (`in-laws`, `dee-lewis`) from the start. Read a couple of
+`tags:` lines before authoring new ones.
 
 The **body is what gets quoted** to the model, so write it as prose a person
 would say out loud. `[[Wikilinks]]` are not resolved; they are passed through as
