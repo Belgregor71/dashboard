@@ -2,8 +2,8 @@ import { readFile, writeFile, mkdir, readdir, stat, unlink } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { fetchWithTimeout } from "../utils/fetch.js";
-import { isConfigured, memoriesFeed, fetchRendition } from "./immichClient.js";
-import { selectDailyMemories, captionFor, isTravel } from "../../src/js/services/photoMemory.js";
+import { isConfigured, memoriesFeed, fetchRendition, fetchPeopleNames } from "./immichClient.js";
+import { selectDailyMemories, captionFor, isTravel, ambiguousGivenNames } from "../../src/js/services/photoMemory.js";
 
 // Daily Memories screensaver set — features.dailyMemories.
 // Picks a stable ~12-photo "on this day" set per day (today's month/day across
@@ -130,10 +130,21 @@ async function buildDailySet(now, { warm = false } = {}) {
   const feed = await memoriesFeed(now, { halfWindowDays: MAX_OFFSET_DAYS });
   const selected = selectDailyMemories(feed, now, { target: TARGET, maxOffsetDays: MAX_OFFSET_DAYS });
   const hideNames = hiddenNames();
+
+  // Which given names are shared, so the caption knows when one needs a surname.
+  // One extra request per build (once a day), not per photo.
+  const roster = hideNames.length ? await fetchPeopleNames() : [];
+  // An empty roster means we could not ask — Immich down, or the key lost its
+  // `person.read` permission. Qualify every name in that case: verbose, never
+  // wrong, and visible enough that the misconfiguration gets noticed. Quietly
+  // reverting to bare given names would put the ambiguity back where no one
+  // would see it, and the set is frozen for the day either way.
+  const ambiguous = roster.length ? ambiguousGivenNames(roster) : { has: () => true };
+
   const photos = selected.map((p) => ({
     id: p.id,
     year: p.year,
-    caption: captionFor(p, { hideNames }),
+    caption: captionFor(p, { hideNames, ambiguous }),
     map: isTravel(p) && p.lat != null && p.lng != null && hasMapKey(),
     lat: p.lat,
     lng: p.lng

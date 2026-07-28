@@ -7,7 +7,9 @@ import {
   captionFor,
   isTravel,
   givenName,
-  nameSegment
+  nameSegment,
+  ambiguousGivenNames,
+  displayName
 } from "../src/js/services/photoMemory.js";
 
 // Pure unit tests for the Immich on-this-day mapping — Phase 9.5
@@ -218,6 +220,88 @@ test.describe("nameSegment — who is in the photo", () => {
     expect(givenName("  Lauren  Sae-Tieo ")).toBe("Lauren");
     expect(givenName("")).toBe("");
     expect(givenName(null)).toBe("");
+  });
+});
+
+// Drawn from the real library, which holds three Marks, two Laurens, a person
+// split across two records ("Korina" / "Korina Newsome-Smith") and exact
+// duplicates ("Chris" twice).
+test.describe("ambiguousGivenNames — when a given name names nobody", () => {
+  const ROSTER = [
+    "Mark Sokes", "Mark Dee", "Mark Weber",
+    "Lauren Sae-Tieo", "Lauren Black",
+    "Korina Newsome-Smith", "Korina",
+    "Chris", "Chris",
+    "Joe Perry-McHugh",
+    "Sooty Dee-Lewis"
+  ];
+
+  test("a given name shared by several people is ambiguous", () => {
+    const amb = ambiguousGivenNames(ROSTER);
+    expect(amb.has("Mark")).toBe(true);
+    expect(amb.has("Lauren")).toBe(true);
+  });
+
+  test("a unique given name is not", () => {
+    const amb = ambiguousGivenNames(ROSTER);
+    expect(amb.has("Joe")).toBe(false);
+    expect(amb.has("Sooty")).toBe(false);
+  });
+
+  test("a bare record beside a fuller one is ONE split person, not two people", () => {
+    // Counting "Korina" would caption a single face "Korina Newsome-Smith and Korina".
+    expect(ambiguousGivenNames(ROSTER).has("Korina")).toBe(false);
+  });
+
+  test("exact-duplicate records are not ambiguity — both are labelled the same", () => {
+    expect(ambiguousGivenNames(ROSTER).has("Chris")).toBe(false);
+  });
+
+  test("empty / malformed roster → nothing ambiguous, never a throw", () => {
+    expect(ambiguousGivenNames([]).size).toBe(0);
+    expect(ambiguousGivenNames(null).size).toBe(0);
+    expect(ambiguousGivenNames(["", "   ", null]).size).toBe(0);
+  });
+
+  test("displayName picks given or full accordingly", () => {
+    const amb = ambiguousGivenNames(ROSTER);
+    expect(displayName("Joe Perry-McHugh", amb)).toBe("Joe");
+    expect(displayName("Mark Dee", amb)).toBe("Mark Dee");
+    expect(displayName("Korina Newsome-Smith", amb)).toBe("Korina");
+  });
+});
+
+test.describe("nameSegment — disambiguation in context", () => {
+  const RESIDENTS = ["Greg Dee", "Brett Lewis"];
+  const AMB = ambiguousGivenNames([
+    "Mark Sokes", "Mark Dee", "Lauren Sae-Tieo", "Lauren Black",
+    "Korina Newsome-Smith", "Korina", "Joe Perry-McHugh"
+  ]);
+
+  test("only the colliding names carry a surname", () => {
+    expect(nameSegment(["Joe Perry-McHugh", "Mark Dee"], RESIDENTS, AMB)).toBe("Joe and Mark Dee");
+  });
+
+  test("the two Laurens stay distinguishable", () => {
+    expect(nameSegment(["Lauren Sae-Tieo"], RESIDENTS, AMB)).toBe("Lauren Sae-Tieo");
+    expect(nameSegment(["Lauren Black"], RESIDENTS, AMB)).toBe("Lauren Black");
+  });
+
+  test("one person split across two Immich records still collapses to one name", () => {
+    expect(nameSegment(["Korina Newsome-Smith", "Korina"], RESIDENTS, AMB)).toBe("Korina");
+  });
+
+  test("two genuinely different Marks both stay in the caption", () => {
+    expect(nameSegment(["Mark Dee", "Mark Sokes"], RESIDENTS, AMB)).toBe("Mark Dee and Mark Sokes");
+  });
+
+  test("no ambiguity set → given names, exactly as before this existed", () => {
+    expect(nameSegment(["Mark Dee", "Joe Perry-McHugh"], RESIDENTS)).toBe("Mark and Joe");
+  });
+
+  test("an unknown roster qualifies everything (the fail-soft path)", () => {
+    const everything = { has: () => true };
+    expect(nameSegment(["Joe Perry-McHugh"], RESIDENTS, everything)).toBe("Joe Perry-McHugh");
   });
 });
 

@@ -124,6 +124,45 @@ export function givenName(full) {
   return String(full || "").trim().split(/\s+/)[0] || "";
 }
 
+/**
+ * The given names that CANNOT stand alone in a caption, because more than one
+ * person in the library shares them. Live counts: three Marks (Sokes, Dee,
+ * Weber), three Matts, two Laurens, two Megans — "Mark" names nobody in
+ * particular, so those get their full name and everyone else stays informal.
+ *
+ * Only records carrying more than a given name are counted. A bare "Korina"
+ * alongside "Korina Newsome-Smith" is Immich having split ONE person across two
+ * face clusters, not two people; counting it would caption a single face
+ * "Korina Newsome-Smith and Korina". Same for the exact-duplicate records the
+ * library holds ("Chris" twice) — both are labelled Chris, so Chris is still the
+ * best answer available.
+ */
+export function ambiguousGivenNames(allNames) {
+  const byGiven = new Map();
+  for (const raw of allNames || []) {
+    const full = String(raw || "").trim().replace(/\s+/g, " ");
+    const given = givenName(full);
+    if (!given) continue;
+    if (!byGiven.has(given)) byGiven.set(given, new Set());
+    if (full.includes(" ")) byGiven.get(given).add(full.toLowerCase());
+  }
+
+  const out = new Set();
+  for (const [given, qualified] of byGiven) {
+    if (qualified.size > 1) out.add(given);
+  }
+  return out;
+}
+
+// What a photo actually calls someone: the given name normally, the full name
+// when that given name belongs to more than one person.
+export function displayName(full, ambiguous) {
+  const norm = String(full || "").trim().replace(/\s+/g, " ");
+  const given = givenName(norm);
+  if (!given) return "";
+  return ambiguous?.has(given) ? norm : given;
+}
+
 // Two names read as a caption; a party's worth reads as a list. Measured against
 // the live pool, 95% of named photos have one or two named faces anyway.
 const MAX_NAMES = 2;
@@ -143,7 +182,7 @@ const MAX_NAMES = 2;
  * hiding "Brett Lewis" must not also silence Brett Abdul. Someone tagged under
  * more than one person record needs each of them listed.
  */
-export function nameSegment(people, hideNames = []) {
+export function nameSegment(people, hideNames = [], ambiguous = new Set()) {
   // Both sides are free text a person typed — Immich's name field and a comma
   // list in .env — so compare them on one normal form rather than hoping they
   // were typed identically.
@@ -155,8 +194,11 @@ export function nameSegment(people, hideNames = []) {
   const names = [];
   for (const full of people || []) {
     if (hidden.has(key(full))) continue;
-    const given = givenName(full);
-    if (given && !names.includes(given)) names.push(given);
+    // Dedupe on what will actually be SHOWN: two of Immich's records for one
+    // person collapse to a single "Korina", while two genuinely different Marks
+    // stay as "Mark Dee" and "Mark Weber".
+    const shown = displayName(full, ambiguous);
+    if (shown && !names.includes(shown)) names.push(shown);
   }
 
   if (names.length === 0) return "";
@@ -172,10 +214,10 @@ export function nameSegment(people, hideNames = []) {
 // "2018 · Byron Bay, NSW"). Names come last, the quietest element, and are
 // absent far more often than not. Every part falls away independently: a photo
 // with no GPS and no named face is still just its bare year.
-export function captionFor({ year, city, state, country, people } = {}, { hideNames = [] } = {}) {
+export function captionFor({ year, city, state, country, people } = {}, { hideNames = [], ambiguous } = {}) {
   const region = isTravel({ country }) ? country : (state || null);
   const place = [city, region].filter(Boolean).join(", ");
-  return [year ?? "", place, nameSegment(people, hideNames)].filter(Boolean).join(" · ");
+  return [year ?? "", place, nameSegment(people, hideNames, ambiguous)].filter(Boolean).join(" · ");
 }
 
 /**

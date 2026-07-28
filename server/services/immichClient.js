@@ -192,6 +192,32 @@ export async function searchTaken(afterISO, beforeISO, size = 250) {
 }
 
 /**
+ * Every named person in the library. Only the names matter here — which given
+ * names are shared, so a caption knows when "Mark" names nobody in particular.
+ * Ids are not needed: the metadata search already carries each photo's people
+ * inline. [] when unconfigured, unreachable, or when the API key lacks the
+ * `person.read` permission (a 403), which the caller treats as "assume every
+ * name is ambiguous" rather than guessing.
+ */
+export async function fetchPeopleNames() {
+  const cfg = config();
+  if (!cfg) return [];
+  try {
+    const res = await fetchWithTimeout(
+      `${cfg.base}/api/people?withHidden=false&size=1000`,
+      { headers: headers(cfg.key, false) },
+      TIMEOUT_MS
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    const list = Array.isArray(data?.people) ? data.people : [];
+    return list.map((p) => String(p?.name || "").trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Fetch a downscaled rendition (default the ~47 KB preview jpeg). Returns
  * { status, contentType, buffer } or null on failure. Never fetches the original.
  */
