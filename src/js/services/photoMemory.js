@@ -101,7 +101,8 @@ export function selectDailyMemories(assets, now = new Date(), { target = MAX_PHO
         state: a.state ?? null,
         country: a.country ?? null,
         lat: a.lat ?? null,
-        lng: a.lng ?? null
+        lng: a.lng ?? null,
+        people: a.people ?? []
       });
     }
   }
@@ -114,14 +115,67 @@ export function isTravel({ country } = {}) {
   return Boolean(country) && !/austral/i.test(String(country));
 }
 
-// The subtle bottom-left caption: "year · place, region". Region is the country
-// for overseas photos, else the state (so "2019 · Kyoto, Japan" but "2018 · Byron
-// Bay, NSW"). Falls back to place/region alone when one is missing, and to the
-// bare year when there's no location at all (many photos lack GPS).
-export function captionFor({ year, city, state, country } = {}) {
+// Immich stores a person's name as whoever tagged the face typed it, which in
+// this library is uniformly a full name ("Greg Dee", "Joe Perry-McHugh"). A
+// caption wants what the house actually calls someone, so take the given name.
+// It also merges Immich's duplicate person records for free: the live library
+// carries both "Korina Newsome-Smith" and "Korina" for one person.
+export function givenName(full) {
+  return String(full || "").trim().split(/\s+/)[0] || "";
+}
+
+// Two names read as a caption; a party's worth reads as a list. Measured against
+// the live pool, 95% of named photos have one or two named faces anyway.
+const MAX_NAMES = 2;
+
+/**
+ * The "· Joe and Lee" tail of a caption, or "" when there is no one worth naming.
+ *
+ * `hideNames` is who must NEVER be named, and it doubles as the switch for this
+ * whole lane: with no one hidden there is no one to name *relative to*, so the
+ * caption stays exactly what it was before names existed. That is deliberate —
+ * in the live pool the two residents are in ~80 of the 91 named-face photos, so
+ * naming everyone would label almost every photo with the pair standing in front
+ * of the screen, which is the one thing they already know.
+ *
+ * Matching is on the FULL name, case-insensitively, NOT the given name: the
+ * household has two Bretts (the vault's own family notes call this out), so
+ * hiding "Brett Lewis" must not also silence Brett Abdul. Someone tagged under
+ * more than one person record needs each of them listed.
+ */
+export function nameSegment(people, hideNames = []) {
+  // Both sides are free text a person typed — Immich's name field and a comma
+  // list in .env — so compare them on one normal form rather than hoping they
+  // were typed identically.
+  const key = (n) => String(n || "").trim().replace(/\s+/g, " ").toLowerCase();
+
+  const hidden = new Set((hideNames || []).map(key).filter(Boolean));
+  if (hidden.size === 0) return "";
+
+  const names = [];
+  for (const full of people || []) {
+    if (hidden.has(key(full))) continue;
+    const given = givenName(full);
+    if (given && !names.includes(given)) names.push(given);
+  }
+
+  if (names.length === 0) return "";
+  if (names.length === 1) return names[0];
+  if (names.length <= MAX_NAMES) return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+
+  const rest = names.length - MAX_NAMES;
+  return `${names.slice(0, MAX_NAMES).join(", ")} and ${rest} other${rest === 1 ? "" : "s"}`;
+}
+
+// The subtle bottom-left caption: "year · place, region · who". Region is the
+// country for overseas photos, else the state (so "2019 · Kyoto, Japan" but
+// "2018 · Byron Bay, NSW"). Names come last, the quietest element, and are
+// absent far more often than not. Every part falls away independently: a photo
+// with no GPS and no named face is still just its bare year.
+export function captionFor({ year, city, state, country, people } = {}, { hideNames = [] } = {}) {
   const region = isTravel({ country }) ? country : (state || null);
   const place = [city, region].filter(Boolean).join(", ");
-  return place ? `${year} · ${place}` : `${year ?? ""}`.trim();
+  return [year ?? "", place, nameSegment(people, hideNames)].filter(Boolean).join(" · ");
 }
 
 /**

@@ -57,7 +57,13 @@ function slim(a) {
     state: ex.state ?? null,
     country: ex.country ?? null,
     lat: ex.latitude ?? null,
-    lng: ex.longitude ?? null
+    lng: ex.longitude ?? null,
+    // Named faces, for the caption's "· Joe and Lee" tail. Immich carries a
+    // person record for every recognised face cluster and leaves `name` empty
+    // until someone tags it, so unnamed clusters are dropped here — they can't
+    // caption anything. Only the daily-memories windows ask for withPeople, so
+    // this is [] for the random/browse callers.
+    people: (a.people || []).map((p) => String(p?.name || "").trim()).filter(Boolean)
   };
 }
 
@@ -99,7 +105,11 @@ async function windowForYear(cfg, year, month, day, halfWindowDays = 1) {
           takenAfter: after.toISOString(),
           takenBefore: before.toISOString(),
           size: Math.min(20 + halfWindowDays * 20, 250),
-          withExif: true
+          withExif: true,
+          // Named faces ride along on the search that already runs — Immich
+          // returns them inline, so captioning who is in a photo costs zero
+          // extra requests (a per-asset lookup would have cost one each).
+          withPeople: true
         })
       },
       TIMEOUT_MS

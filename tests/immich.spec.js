@@ -5,7 +5,9 @@ import {
   memoryPhotoSrc,
   selectDailyMemories,
   captionFor,
-  isTravel
+  isTravel,
+  givenName,
+  nameSegment
 } from "../src/js/services/photoMemory.js";
 
 // Pure unit tests for the Immich on-this-day mapping — Phase 9.5
@@ -140,6 +142,16 @@ test.describe("selectDailyMemories — the curated per-day set, widened when thi
     const [p] = selectDailyMemories(feed, TODAY, { target: 12 });
     expect(p).toMatchObject({ id: "loc", year: 2019, city: "Kyoto", country: "Japan", lat: 35.01, lng: 135.76 });
   });
+
+  test("carries named faces through, defaulting to [] when the feed has none", () => {
+    const feed = [
+      { id: "faces", localDateTime: "2019-07-12T08:00:00.000Z", people: ["Joe Perry-McHugh"] },
+      { id: "bare", localDateTime: "2018-07-12T08:00:00.000Z" }
+    ];
+    const out = selectDailyMemories(feed, TODAY, { target: 12 });
+    expect(out.find((p) => p.id === "faces").people).toEqual(["Joe Perry-McHugh"]);
+    expect(out.find((p) => p.id === "bare").people).toEqual([]);
+  });
 });
 
 test.describe("captionFor — year · place, region", () => {
@@ -157,6 +169,80 @@ test.describe("captionFor — year · place, region", () => {
     expect(captionFor({ year: 2020, country: "Japan" })).toBe("2020 · Japan");
     expect(captionFor({ year: 2020, state: "QLD", country: "Australia" })).toBe("2020 · QLD");
     expect(captionFor({ year: 2020 })).toBe("2020");
+  });
+});
+
+// Named faces in the caption. The suppression list doubles as the switch, so the
+// first thing pinned is that an unset list leaves every caption exactly as it was.
+test.describe("nameSegment — who is in the photo", () => {
+  const RESIDENTS = ["Greg Dee", "Brett Lewis"];
+
+  test("no hide list → no names at all (the lane is off, and this is the rollback)", () => {
+    expect(nameSegment(["Joe Perry-McHugh"], [])).toBe("");
+    expect(nameSegment(["Joe Perry-McHugh"])).toBe("");
+    expect(nameSegment(["Joe Perry-McHugh"], ["", "  "])).toBe("");
+  });
+
+  test("residents are never named; everyone else gets their given name", () => {
+    expect(nameSegment(["Greg Dee", "Brett Lewis"], RESIDENTS)).toBe("");
+    expect(nameSegment(["Greg Dee", "Joe Perry-McHugh"], RESIDENTS)).toBe("Joe");
+    expect(nameSegment(["Joe Perry-McHugh", "Lee Heyes"], RESIDENTS)).toBe("Joe and Lee");
+  });
+
+  test("matching is case/space-insensitive on the FULL name", () => {
+    expect(nameSegment(["  greg   dee  "], ["Greg Dee"])).toBe("");
+    // The household has two Bretts — hiding one must not silence the other.
+    expect(nameSegment(["Brett Abdul"], RESIDENTS)).toBe("Brett");
+  });
+
+  test("duplicate Immich person records collapse on the given name", () => {
+    expect(nameSegment(["Korina Newsome-Smith", "Korina"], RESIDENTS)).toBe("Korina");
+  });
+
+  test("a crowd is capped, not listed", () => {
+    const crowd = ["Joe Perry-McHugh", "Lee Heyes", "Troy Hinchscliff"];
+    expect(nameSegment(crowd, RESIDENTS)).toBe("Joe, Lee and 1 other");
+    expect(nameSegment([...crowd, "Dean Rohde", "Kym Burgess"], RESIDENTS))
+      .toBe("Joe, Lee and 3 others");
+  });
+
+  test("empty / malformed people → silence, never a throw", () => {
+    expect(nameSegment([], RESIDENTS)).toBe("");
+    expect(nameSegment(null, RESIDENTS)).toBe("");
+    expect(nameSegment(["", "   ", null, undefined], RESIDENTS)).toBe("");
+  });
+
+  test("givenName takes the first token", () => {
+    expect(givenName("Joe Perry-McHugh")).toBe("Joe");
+    expect(givenName("Korina")).toBe("Korina");
+    expect(givenName("  Lauren  Sae-Tieo ")).toBe("Lauren");
+    expect(givenName("")).toBe("");
+    expect(givenName(null)).toBe("");
+  });
+});
+
+test.describe("captionFor — names appended after the place", () => {
+  const RESIDENTS = ["Greg Dee", "Brett Lewis"];
+
+  test("names come last, after year · place", () => {
+    expect(captionFor(
+      { year: 2018, city: "Byron Bay", state: "NSW", country: "Australia", people: ["Joe Perry-McHugh", "Lee Heyes"] },
+      { hideNames: RESIDENTS }
+    )).toBe("2018 · Byron Bay, NSW · Joe and Lee");
+  });
+
+  test("each part falls away independently", () => {
+    expect(captionFor({ year: 2011, people: ["Joe Perry-McHugh"] }, { hideNames: RESIDENTS }))
+      .toBe("2011 · Joe");
+    expect(captionFor({ year: 2019, city: "Kyoto", country: "Japan", people: ["Greg Dee"] }, { hideNames: RESIDENTS }))
+      .toBe("2019 · Kyoto, Japan");
+    expect(captionFor({ people: ["Joe Perry-McHugh"] }, { hideNames: RESIDENTS })).toBe("Joe");
+  });
+
+  test("with no hide list every caption is byte-identical to the pre-names build", () => {
+    const photo = { year: 2018, city: "Byron Bay", state: "NSW", country: "Australia", people: ["Joe Perry-McHugh"] };
+    expect(captionFor(photo)).toBe("2018 · Byron Bay, NSW");
+    expect(captionFor(photo)).toBe(captionFor({ ...photo, people: [] }));
   });
 });
 

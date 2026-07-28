@@ -35,6 +35,18 @@ export function hasMapKey() {
   return envVal("MAP_API_KEY") != null;
 }
 
+// Who must never be named in a caption — normally just the two residents, who
+// are in the overwhelming majority of named-face photos, so naming them would
+// caption nearly every photo with whoever is standing in front of the screen.
+// The list doubles as the switch for names in captions: unset → captions are
+// byte-identical to the pre-names build, which is also the rollback (edit .env,
+// restart). Real names stay out of the tracked repo — this is env, not config.
+// Read per build, never at module load (the KOKORO_VOICE trap).
+function hiddenNames() {
+  const raw = envVal("IMMICH_CAPTION_HIDE_NAMES");
+  return raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : [];
+}
+
 // Mapbox Static Images API — a small dark map with a pin at the photo's coords.
 // One helper so the provider is swappable; the token stays server-side (the
 // browser only ever hits our /api/immich/map proxy).
@@ -117,10 +129,11 @@ async function buildDailySet(now, { warm = false } = {}) {
 
   const feed = await memoriesFeed(now, { halfWindowDays: MAX_OFFSET_DAYS });
   const selected = selectDailyMemories(feed, now, { target: TARGET, maxOffsetDays: MAX_OFFSET_DAYS });
+  const hideNames = hiddenNames();
   const photos = selected.map((p) => ({
     id: p.id,
     year: p.year,
-    caption: captionFor(p),
+    caption: captionFor(p, { hideNames }),
     map: isTravel(p) && p.lat != null && p.lng != null && hasMapKey(),
     lat: p.lat,
     lng: p.lng
