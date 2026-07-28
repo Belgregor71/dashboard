@@ -46,6 +46,13 @@ TRAIL_SILENCE_MS = int(os.environ.get("TRAIL_SILENCE_MS", "800"))
 MAX_UTTER_MS = int(os.environ.get("MAX_UTTER_MS", "8000"))
 COOLDOWN_S = float(os.environ.get("COOLDOWN_S", "1.5"))
 
+# Probe mode: never capture, just log every contiguous run of frames scoring
+# above PROBE_FLOOR. Answers whether a TV false-wake is a one-frame spike while
+# a spoken wake word holds — i.e. whether a consecutive-frame gate can separate
+# them, which the score alone cannot (both land in the 0.87-0.97 band).
+PROBE_ONLY = os.environ.get("PROBE_ONLY", "") == "1"
+PROBE_FLOOR = float(os.environ.get("PROBE_FLOOR", "0.3"))
+
 
 def log(*a):
     print(time.strftime("%H:%M:%S"), *a, flush=True)
@@ -155,7 +162,10 @@ def main():
     reset(oww)
     log(f"listening on {MIC} for '{WAKE_MODEL}' [{wake_key}] (threshold {WAKE_THRESHOLD})")
 
+    if PROBE_ONLY:
+        log(f"PROBE mode — logging runs above {PROBE_FLOOR}, capturing nothing")
     proc = arecord_stream()
+    run = []
     try:
         while True:
             frame = read_frame(proc)
@@ -166,6 +176,15 @@ def main():
                 reset(oww)
                 continue
             score = oww.predict(frame).get(wake_key, 0.0)
+            if PROBE_ONLY:
+                if score >= PROBE_FLOOR:
+                    run.append(score)
+                elif run:
+                    over = sum(1 for s in run if s >= WAKE_THRESHOLD)
+                    log(f"PROBE frames={len(run)} over={over} peak={max(run):.2f} "
+                        f"trace={[round(s, 2) for s in run]}")
+                    run = []
+                continue
             if score >= WAKE_THRESHOLD:
                 log(f"WAKE ({score:.2f}) — capturing…")
                 pcm = capture_utterance(proc)
