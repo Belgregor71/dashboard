@@ -1,4 +1,10 @@
 import { test, expect } from "@playwright/test";
+import { createHash } from "crypto";
+import { mkdir, rm, writeFile } from "fs/promises";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /**
  * API contract tests.
@@ -706,6 +712,31 @@ test.describe("ai + tts", () => {
       statuses: [400]
     });
     expect(body.error).toContain("400 characters");
+  });
+
+  // M2 converted the cache read from existsSync + readFileSync to a single
+  // async readFile. This pins the behaviour that conversion had to preserve:
+  // a hit is served verbatim, from disk, with no upstream involved (KOKORO_URL
+  // is stubbed unreachable, so a miss here could not return audio at all).
+  test("POST /api/tts/speak serves a cache hit from disk", async ({ request }) => {
+    const text = `cache hit contract probe ${Date.now()}`;
+    const speed = 1.25;
+    const key = createHash("sha256").update(`${text}::${speed}`).digest("hex");
+    const cacheDir = path.join(REPO_ROOT, "server", "tts-cache");
+    const cachePath = path.join(cacheDir, `${key}.wav`);
+    // Not real audio — the route is a byte pipe and never parses the WAV.
+    const payload = Buffer.from("RIFF....WAVEfmt cache-hit-probe");
+
+    await mkdir(cacheDir, { recursive: true });
+    await writeFile(cachePath, payload);
+    try {
+      const res = await request.post("/api/tts/speak", { data: { text, rate: speed } });
+      expect(res.status()).toBe(200);
+      expect(res.headers()["content-type"]).toContain("audio/wav");
+      expect(Buffer.from(await res.body()).equals(payload)).toBe(true);
+    } finally {
+      await rm(cachePath, { force: true });
+    }
   });
 
   test("POST /api/ai/brief answers with a summary key (AI stubbed off)", async ({ request }) => {
