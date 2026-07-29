@@ -30,8 +30,13 @@ from openwakeword.model import Model
 
 RATE = 16000
 FRAME = 1280                       # 80 ms @ 16 kHz — openWakeWord's chunk size
-WAKE_MODEL = os.environ.get("WAKE_MODEL", "hey_jarvis")
-WAKE_THRESHOLD = float(os.environ.get("WAKE_THRESHOLD", "0.5"))
+# hey_mycroft, not hey_jarvis: TV dialogue false-woke jarvis 9x in ~3h, scoring
+# 0.87-0.97 — the same band as genuine wakes, so no threshold could separate
+# them. Over 11h of the same TV, mycroft never scored above 0.3 while genuine
+# wakes peak 0.93-1.00. The Pi sets this via a systemd drop-in too; the default
+# matches so a lost drop-in doesn't silently reintroduce the false wakes.
+WAKE_MODEL = os.environ.get("WAKE_MODEL", "hey_mycroft")
+WAKE_THRESHOLD = float(os.environ.get("WAKE_THRESHOLD", "0.6"))
 MIC = os.environ.get("MIC_DEVICE", "plughw:3,0")
 # Resolved by name, not IP: the PC's DHCP address has drifted twice, and each
 # time the wake word kept firing while every turn died on "No route to host" —
