@@ -1,7 +1,34 @@
 // Drive the kiosk page via CDP: reload, or cycle views to exercise lottie churn.
 // Usage: node kiosk-drive.cjs reload | cycle
+//
+// ⚠ 2026-07-30 bugfix: `cycle` alternated __switchView("weather") / ("home") with
+// no options, and had been a TOTAL NO-OP since Phase 7 "Dissolve" shipped.
+// viewManager.js:97 drops passive navigation into RETIRED_VIEWS
+// (weather/cameras/briefing) whenever `ambientSubstrate` is on — it is — and :93
+// drops a switch to the view that is already current. So every one of the old
+// calls returned immediately while the script still printed "cycled 6x, back on
+// home", which is literally true and completely uninformative.
+//
+// The cost was not the wrong number, it was a disarmed tripwire: /kiosk-metrics
+// drives this specifically to churn lotties and catch the zombie-wrapper
+// regression (709 of them, 2026-07 leak audit). The lottie-heavy surface is the
+// `weather` view, so the churn stopped happening and the heap delta has been
+// measuring nothing.
+//
+// Two rules encoded here as a result:
+//   1. Force through every registered view. All six land with { force: true }
+//      (probed on the live kiosk); event/voice callers already reach them this
+//      way, so this is a real state, not a synthetic one.
+//   2. VERIFY every transition and exit non-zero if one does not land. A gate
+//      must never be able to read as success again.
 const http = require("http");
 const WebSocket = require("ws");
+
+// Ends on `home`, and every step is a genuine change of view. `weather` first
+// because it carries the heaviest lottie set (services/weather/renderer.js);
+// `timeline` also bears them via calendar.js.
+const CYCLE_VIEWS = ["weather", "cameras", "timeline", "briefing", "status", "home"];
+const DWELL_MS = 1800;
 
 function getJson(url) {
   return new Promise((resolve, reject) => {
@@ -44,23 +71,86 @@ async function main() {
     await send("Page.enable");
     await send("Page.reload", { ignoreCache: true });
     console.log("reloaded");
-  } else {
-    const result = await send("Runtime.evaluate", {
-      expression: `(async () => {
-        for (let i = 0; i < 6; i++) {
-          window.__switchView(i % 2 === 0 ? "weather" : "home");
-          await new Promise(r => setTimeout(r, 1800));
-        }
-        window.__switchView("home");
-        await new Promise(r => setTimeout(r, 1800));
-        return "cycled 6x, back on " + document.body.dataset.view;
-      })()`,
-      awaitPromise: true,
-      returnByValue: true
-    });
-    console.log(result.result.value);
+    ws.close();
+    return;
   }
+
+  const result = await send("Runtime.evaluate", {
+    expression: `(async () => {
+      const views = ${JSON.stringify(CYCLE_VIEWS)};
+      const dwell = ${DWELL_MS};
+      const sample = () => ({
+        view: document.body.dataset.view,
+        lottieWrappers: document.querySelectorAll(".lottie-fade").length,
+        lottieSvgs: document.querySelectorAll(".lottie-fade svg").length
+      });
+
+      // Start from a known view so every step below is a real transition —
+      // switchView() drops a switch to the current view, which would otherwise
+      // silently shorten the cycle depending on where the kiosk happened to be.
+      window.__switchView("home", { force: true });
+      await new Promise(r => setTimeout(r, dwell));
+
+      const steps = [];
+      for (const target of views) {
+        const before = sample();
+        window.__switchView(target, { force: true });
+        await new Promise(r => setTimeout(r, dwell));
+        const after = sample();
+        steps.push({
+          target,
+          from: before.view,
+          to: after.view,
+          landed: after.view === target,
+          lottieWrappers: after.lottieWrappers,
+          lottieSvgs: after.lottieSvgs
+        });
+      }
+
+      const final = sample();
+      return JSON.stringify({
+        steps,
+        landed: steps.filter(s => s.landed).length,
+        attempted: steps.length,
+        // wrappers > svgs is the zombie-wrapper signature the leak audit found.
+        maxLottieWrappers: Math.max(...steps.map(s => s.lottieWrappers)),
+        orphanedWrappers: steps.some(s => s.lottieWrappers > s.lottieSvgs),
+        finalView: final.view
+      });
+    })()`,
+    awaitPromise: true,
+    returnByValue: true
+  });
+
   ws.close();
+
+  const report = JSON.parse(result.result.value);
+  for (const s of report.steps) {
+    console.log(
+      `${s.landed ? "ok  " : "FAIL"} ${s.from} -> ${s.target}` +
+      `${s.landed ? "" : ` (stayed on ${s.to})`}` +
+      `  lottie ${s.lottieWrappers}w/${s.lottieSvgs}svg`
+    );
+  }
+  console.log(
+    `cycled ${report.landed}/${report.attempted} views, back on ${report.finalView}` +
+    `, peak lottie wrappers ${report.maxLottieWrappers}`
+  );
+
+  if (report.orphanedWrappers) {
+    console.error("WARN: a step had more .lottie-fade wrappers than svgs — zombie-wrapper regression?");
+  }
+  if (report.landed !== report.attempted) {
+    console.error(
+      `ERROR: ${report.attempted - report.landed} view(s) did not land. A silently gated ` +
+      `switch makes the lottie-churn leak test measure nothing — fix before trusting heap deltas.`
+    );
+    process.exit(1);
+  }
+  if (report.finalView !== "home") {
+    console.error(`ERROR: cycle ended on "${report.finalView}", expected "home"`);
+    process.exit(1);
+  }
 }
 
 main().catch((err) => { console.error("ERROR:", err.message); process.exit(1); });
