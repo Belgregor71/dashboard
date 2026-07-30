@@ -107,14 +107,22 @@ async function main() {
         });
       }
 
+      // Settle before the zombie check. wrappers > svgs is the leak signature,
+      // but it is ALSO the normal state for a few hundred ms while a view's
+      // lotties mount — the first step of a real run reported 5w/1svg and every
+      // later step 5w/5svg. Judging per-step cries wolf, and a warning that
+      // cries wolf gets ignored, so only the settled steady state counts.
+      await new Promise(r => setTimeout(r, 1500));
       const final = sample();
       return JSON.stringify({
         steps,
         landed: steps.filter(s => s.landed).length,
         attempted: steps.length,
-        // wrappers > svgs is the zombie-wrapper signature the leak audit found.
         maxLottieWrappers: Math.max(...steps.map(s => s.lottieWrappers)),
-        orphanedWrappers: steps.some(s => s.lottieWrappers > s.lottieSvgs),
+        finalWrappers: final.lottieWrappers,
+        finalSvgs: final.lottieSvgs,
+        orphanedWrappers: final.lottieWrappers > final.lottieSvgs,
+        transientImbalance: steps.some(s => s.lottieWrappers > s.lottieSvgs),
         finalView: final.view
       });
     })()`,
@@ -134,11 +142,17 @@ async function main() {
   }
   console.log(
     `cycled ${report.landed}/${report.attempted} views, back on ${report.finalView}` +
-    `, peak lottie wrappers ${report.maxLottieWrappers}`
+    `, peak lottie wrappers ${report.maxLottieWrappers}` +
+    `, settled ${report.finalWrappers}w/${report.finalSvgs}svg` +
+    (report.transientImbalance ? " (transient mount gap seen mid-cycle — expected)" : "")
   );
 
   if (report.orphanedWrappers) {
-    console.error("WARN: a step had more .lottie-fade wrappers than svgs — zombie-wrapper regression?");
+    console.error(
+      `WARN: settled state has ${report.finalWrappers} .lottie-fade wrappers but only ` +
+      `${report.finalSvgs} svgs — orphaned wrappers persist after the cycle, which is the ` +
+      `zombie-wrapper signature from the 2026-07 leak audit.`
+    );
   }
   if (report.landed !== report.attempted) {
     console.error(
