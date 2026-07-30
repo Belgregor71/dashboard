@@ -95,6 +95,34 @@ weather:
 
 Every one of these has a *time*. That is the point of decision 1.
 
+## A precondition you should know about: the substrate is uncurated
+
+Measured on the live wall at 07:05 on 31 July 2026. The ambient rotation served, as
+full-bleed Mode 0 wallpaper with the clock composited over it, **a screenshot of a car
+configurator web page** — browser tabs, a mouse cursor, a list of wheel options and prices.
+The Glance view behind the hero was a close-up of a gin bottle. At seven in the morning.
+
+This is not a rendering fault. The photo library contains screenshots, receipts and
+documents alongside photographs, and the random pool serves them all equally. It matters
+disproportionately here because **the substrate is the product**: no amount of per-pixel
+relighting rescues a photograph of a browser window, and the entire "is that a window or a
+screen?" effect collapses the moment one appears.
+
+It is being fixed independently of this brief — assume a curated pool of real photographs.
+But do not assume it silently. **State what your design needs from the substrate**, because
+the requirements are now technical as well as editorial:
+
+- If light has direction and photographs are relit per-pixel, the image must have
+  *derivable depth*. A flat screenshot has none. What happens when depth estimation fails?
+- What aspect ratios, subject distances and brightness ranges does your composition assume?
+  The pool is a family library — vertical phone shots, group photos, landscapes, close-ups.
+- Does a photograph ever need to be *rejected at render time*, and on what signal?
+- Is there a wrong photograph for a moment — and if so, is that a property of the image, the
+  hour, or the household's mood?
+
+A design that specifies its own substrate requirements is buildable. One that assumes
+beautiful photographs will simply be there is not.
+
 ## The hard problem, stated plainly
 
 The thesis says **one hero, never a grid**. The table above has eleven domains.
