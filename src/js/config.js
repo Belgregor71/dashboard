@@ -489,6 +489,15 @@ window.CONFIG = {
     // byte. Flip ON only after the Pi shows a real person event still waking.
     // One-line revert (-> false).
     motionWakeGate: false,
+
+    // Audit M11. The Pi's crontab already powers the panel down 21:00→05:00
+    // (`xset dpms force off`), so a doorbell ring at 3am currently speaks its
+    // alert and draws its popup to a dark screen. With this on, a live-worthy
+    // trigger (person/ring — NOT kitchen presence, and not plain motion) POSTs
+    // /api/display/wake, which lights the panel for DISPLAY_WAKE_HOLD_MS and
+    // then lets it fall back. Outside the window the route is a no-op.
+    // Default OFF = no fetch at all, byte-identical. One-line revert.
+    displayWake: false,
   },
 
   /* --------------------------------------------------------------

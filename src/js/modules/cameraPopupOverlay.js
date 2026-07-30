@@ -561,6 +561,16 @@ export function initCameraPopupOverlay() {
       return;
     }
 
+    // features.displayWake (audit M11): between 21:00 and 05:00 the Pi's crontab
+    // has the panel powered down via `xset dpms force off`, so a ring at 3am
+    // speaks its TTS and draws this popup to a dark screen. Ask the server to
+    // light the panel for a hold. Security events only — the same isLiveWorthy
+    // set as the wake gate above, so kitchen presence deliberately never lands
+    // here. Fire-and-forget: a failure must not cost the popup or the alert.
+    if (window.CONFIG?.features?.displayWake && isLiveWorthy(trigger.detection)) {
+      fetch("/api/display/wake", { method: "POST" }).catch(() => { /* non-fatal */ });
+    }
+
     logDebug("resolved camera id", { entityId, camera: trigger.camera });
     createPendingTrigger(trigger.camera, trigger, entityId);
 
