@@ -230,6 +230,10 @@ async function loadStaticPhotos() {
 }
 
 async function loadPhotos() {
+  // Claimed synchronously, before the first await: that is what makes
+  // syncNight's day check an in-flight guard rather than a race (audit SS1/M4
+  // — see tests/photo-reload.spec.js). Trade-off: a rebuild that fails still
+  // marks the day loaded, so the pool holds yesterday's photos until tomorrow.
   loadedDay = new Date().toDateString();
   if (dailyMemoriesEnabled) {
     const daily = await loadDailyMemories();
