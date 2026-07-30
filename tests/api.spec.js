@@ -3,6 +3,7 @@ import { createHash } from "crypto";
 import { mkdir, rm, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { pickSensorPath } from "../server/routes/system.js";
 
 const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -56,12 +57,61 @@ test.describe("system", () => {
     expect(typeof body.cpuLoadPercent).toBe("number");
     expect(body.memory.total).toBeGreaterThan(0);
     expect(typeof body.uptimeSeconds).toBe("number");
+    // tempC was entirely unasserted, so the System-view tile could go blank
+    // forever and no test would notice — which is exactly what a host migration
+    // does to a hardcoded sensor path. null is legitimate (this dev box has no
+    // readable CPU sensor), so pin the shape and the plausible range, not a value.
+    expect(body.tempC === null || typeof body.tempC === "number").toBe(true);
+    if (typeof body.tempC === "number") {
+      expect(body.tempC).toBeGreaterThan(20);
+      expect(body.tempC).toBeLessThan(120);
+    }
   });
 
   test("GET /api/system/ping", async ({ request }) => {
     const { body } = await expectJson(request, "/api/system/ping", { statuses: [200, 502] });
     expect(typeof body.ok).toBe("boolean");
     expect(typeof body.target).toBe("string");
+  });
+});
+
+/**
+ * pickSensorPath — CPU temperature sensor selection.
+ *
+ * The Pi reads /sys/class/thermal/thermal_zone0/temp; x86 exposes the CPU die
+ * under /sys/class/hwmon instead, where thermal_zone0 may be absent or a
+ * different sensor. The ordering is the part worth pinning, because getting it
+ * wrong means latching a board or fan sensor and rendering a confident wrong
+ * number instead of an honest blank. Tested without a filesystem, same as
+ * isWithinOffWindow.
+ */
+test.describe("pickSensorPath — portable CPU sensor selection", () => {
+  const entry = (name) => ({ name, path: `/sys/class/hwmon/${name}/temp1_input` });
+
+  test("prefers the AMD CPU sensor over a board sensor", () => {
+    // The G11's real shape: acpitz enumerates first but k10temp is the CPU die.
+    expect(pickSensorPath([entry("acpitz"), entry("k10temp")]))
+      .toBe("/sys/class/hwmon/k10temp/temp1_input");
+  });
+
+  test("prefers Intel coretemp over a board sensor", () => {
+    expect(pickSensorPath([entry("acpitz"), entry("coretemp")]))
+      .toBe("/sys/class/hwmon/coretemp/temp1_input");
+  });
+
+  test("resolves the Pi's own hwmon name, so rollback keeps reporting", () => {
+    expect(pickSensorPath([entry("cpu_thermal")]))
+      .toBe("/sys/class/hwmon/cpu_thermal/temp1_input");
+  });
+
+  test("falls back to acpitz when nothing better is present", () => {
+    expect(pickSensorPath([entry("acpitz")]))
+      .toBe("/sys/class/hwmon/acpitz/temp1_input");
+  });
+
+  test("returns null on no match, so the caller can try thermal_zone0", () => {
+    expect(pickSensorPath([entry("nvme"), entry("iwlwifi_1")])).toBeNull();
+    expect(pickSensorPath([])).toBeNull();
   });
 });
 
