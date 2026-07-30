@@ -1,7 +1,7 @@
 import { CONFIG } from "../core/config.js";
 import { on } from "../core/eventBus.js";
 import { switchView, getCurrentView } from "../core/viewManager.js";
-import { wakeScreensaver, resetIdleTimer } from "./screensaver.js";
+import { wakeScreensaver, resetIdleTimer, isScreensaverActive } from "./screensaver.js";
 
 
 const DEFAULT_DURATION_SECONDS = 30;
@@ -542,6 +542,24 @@ export function initCameraPopupOverlay() {
     }
 
     if (!isTriggerActive(popupConfig, event.detail?.state)) return;
+
+    // features.motionWakeGate (audit M5): while Mode 0 is up, plain motion no
+    // longer lights the panel. Measured 61 camera-driven wakes in 24h, 49 of
+    // them plain motion (driveway alone 33) — a 32" display waking for a car at
+    // 3am is not a more useful glance. Same isLiveWorthy rule the battery gate
+    // already applies to P2P: person/ring come through, motion waits for the
+    // next real glance. Skipped ENTIRELY rather than shown-without-waking —
+    // a popup drawn behind an active screensaver is invisible, so its snapshot
+    // fetch and 1s ticker would be pure work for nobody. Flag off → unchanged.
+    // Read off window.CONFIG, NOT the imported CONFIG — core/config.js has no
+    // `features` key at all, so `CONFIG.features?.x` is silently always
+    // undefined and any flag written that way is permanently off.
+    if (window.CONFIG?.features?.motionWakeGate
+        && isScreensaverActive()
+        && !isLiveWorthy(trigger.detection)) {
+      logDebug("plain motion suppressed while asleep", { entityId, camera: trigger.camera });
+      return;
+    }
 
     logDebug("resolved camera id", { entityId, camera: trigger.camera });
     createPendingTrigger(trigger.camera, trigger, entityId);

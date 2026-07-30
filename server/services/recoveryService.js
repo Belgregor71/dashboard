@@ -25,7 +25,17 @@ const RECOVERY_LOG_MAX = 50;
 
 // Only cameras whose motion feeds the dashboard's wake/popup features.
 // Indoor cams (piano room, tilt-pan) are deliberately off — do NOT add them.
-const DEFAULT_DETECTION_SWITCHES = ["switch.kitchen_motion_detection"];
+//
+// The type sub-switches are watched alongside the parent, and that is the whole
+// point: found 2026-07-30 with switch.kitchen_motion_detection ON while every
+// type beneath it except pet was OFF, so the kitchen sensors had been silent
+// for 5 days and this service reported healthy the entire time. Re-arming the
+// parent alone cannot restore human detection.
+const DEFAULT_DETECTION_SWITCHES = [
+  "switch.kitchen_motion_detection",
+  "switch.kitchen_motion_detection_type_human",
+  "switch.kitchen_motion_detection_type_human_recognition"
+];
 
 function watchedSwitches() {
   const raw = process.env.RECOVERY_DETECTION_SWITCHES;

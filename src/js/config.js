@@ -478,6 +478,17 @@ window.CONFIG = {
     // the only way to eyeball it live is a flag-on deploy). Verify on the Pi
     // via window.__recipePanel("<dish>"). One-line revert (-> false).
     recipePanel: true,
+
+    // Audit M5. Camera motion wakes the kiosk through the popup overlay
+    // (cameraPopupOverlay wakeScreensaver()), which fires for all six outdoor
+    // cameras on motion AND person — measured 61 wakes in 24h, 49 of them
+    // plain motion (driveway 33, doorbell 13). This gate suppresses a plain
+    // motion trigger outright while the screensaver is up; person and doorbell
+    // still wake and pop. Awake behaviour is untouched — the popup shows for
+    // everything, exactly as now. Default OFF = today's behaviour, byte-for-
+    // byte. Flip ON only after the Pi shows a real person event still waking.
+    // One-line revert (-> false).
+    motionWakeGate: false,
   },
 
   /* --------------------------------------------------------------
