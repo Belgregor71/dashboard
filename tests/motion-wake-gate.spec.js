@@ -33,6 +33,20 @@ async function stubLiveStream(page) {
   );
 }
 
+// playwright.config.js spreads `...process.env` into the test server and stubs
+// only the AI and Kokoro upstreams — HA_HOST is passed through real. So
+// /api/ha/stream carries LIVE house events into every browser spec, and this
+// spec asserts on the camera popup, which those events drive directly: a real
+// driveway motion (33/day, measured) landing inside the assertion window pops
+// the popup and fails a run that is otherwise correct. Caught by the pre-push
+// gate, not standalone, because it depends on the house doing something.
+// Every trigger here is dispatched synthetically, so the stream is pure noise.
+async function isolateFromRealHa(page) {
+  await page.route("**/api/ha/stream", (route) =>
+    route.fulfill({ status: 200, contentType: "text/event-stream", body: "" })
+  );
+}
+
 function forceGate(value) {
   return (page) =>
     page.route("**/js/config.js", async (route) => {
@@ -55,6 +69,7 @@ const DRIVEWAY_MOTION = "binary_sensor.driveway_motion_detected";
 const DRIVEWAY_PERSON = "binary_sensor.driveway_person_detected";
 
 async function bootAsleep(page, gateOn) {
+  await isolateFromRealHa(page);
   await stubLiveStream(page);
   await forceGate(gateOn)(page);
   await page.clock.setFixedTime(MIDDAY);
@@ -118,6 +133,7 @@ test("gate ON: motion while AWAKE still pops — the gate is asleep-only", async
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
 
+  await isolateFromRealHa(page);
   await stubLiveStream(page);
   await forceGate(true)(page);
   await page.clock.setFixedTime(MIDDAY);
