@@ -206,9 +206,23 @@ declared when the calm law was rewritten and then left **unmeasured**, because n
 had claimed it yet. `features.ambientArchive` is the first surface that does: Mode 0 now
 animates continuously, so this is the state the screen genuinely sits in for hours.
 
-**t0 = the page load at 2026-08-02 08:54 AEST**, commit `17da62e`. 24 h and 72 h readings
-must be taken **without reloading the kiosk** — a reload resets `uptimeMin`, the heap and
-every counter, and starts the soak again.
+**The 0 h numbers below are valid** — taken on a settled page, 12.5 min uptime, two
+agreeing 60 s windows. **The 72 h clock, however, had not started when they were taken**,
+and this is the part that matters operationally:
+
+> ⚠ **ANY deploy that changes the bundle ends the soak.** The kiosk reloads onto the new
+> hash, `uptimeMin` resets and the heap starts from zero. On 2026-08-02 the first attempt
+> died at 16 minutes because a *different, unrelated* change (`8281f3c`, a weather fix)
+> shipped from another session and the panel reloaded onto it.
+>
+> **A 72 h soak therefore needs 72 h of no bundle deploys.** That is a scheduling
+> commitment, not a technical one, and it is the reason this row stayed unmeasured for as
+> long as it did.
+
+**Self-check before trusting any 24 h / 72 h reading:** read `uptimeMin` first. If it is
+less than the hours elapsed since t0, the page reloaded and you are measuring a fresh
+process, not a soak. `heap-metrics.cjs` prints it on every sample — there is no excuse for
+recording a number without it.
 
 | Metric | 0 h | 24 h | 72 h | Judgement |
 |---|---|---|---|---|
