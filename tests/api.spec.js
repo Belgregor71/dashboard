@@ -4,6 +4,7 @@ import { mkdir, rm, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { pickSensorPath } from "../server/routes/system.js";
+import { isScreenshot } from "../server/services/immichClient.js";
 
 const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -861,5 +862,52 @@ test.describe("ai + tts", () => {
     });
     expect(status).toBe(200);
     expect(body).toHaveProperty("ok", true);
+  });
+});
+
+/**
+ * isScreenshot — keeping screenshots off the ambient substrate.
+ *
+ * A screenshot is not a photograph, and on the living window it wrecks the
+ * premise: the live rotation served a car-configurator web page, browser chrome
+ * and cursor included, as Mode-0 wallpaper.
+ *
+ * The cases below are the real shapes from a 621-image sample of the household
+ * library (2026-08-01), because the two obvious approaches both fail on real
+ * data: filenames are useless (iOS writes IMG_1234.PNG for screenshots AND
+ * camera shots — a library-wide search for "screenshot" returns zero), and
+ * "no camera EXIF" alone would drop 58 genuine photos whose EXIF was stripped
+ * by messaging apps. Those are exactly the pictures worth showing, so the
+ * false-positive cases here matter more than the true-positive ones.
+ */
+test.describe("isScreenshot — ambient pool curation", () => {
+  const png = (make) => ({
+    originalMimeType: "image/png",
+    exifInfo: make ? { make } : {}
+  });
+
+  test("drops iOS screenshots — PNG with no camera make", () => {
+    // Real sampled shapes: exact device dimensions, no make.
+    expect(isScreenshot(png(null))).toBe(true);
+    expect(isScreenshot({ originalMimeType: "image/PNG", exifInfo: {} })).toBe(true);
+  });
+
+  test("keeps a PNG that carries camera EXIF — the safety margin", () => {
+    // An edited export that kept its make is a photograph, not a screen grab.
+    expect(isScreenshot(png("Apple"))).toBe(false);
+  });
+
+  test("keeps EXIF-stripped photos — the case that must not regress", () => {
+    // 58 of these in the sample: forwarded and resized family pictures.
+    // Filtering on "no camera make" alone would have removed every one.
+    expect(isScreenshot({ originalMimeType: "image/jpeg", exifInfo: {} })).toBe(false);
+    expect(isScreenshot({ originalMimeType: "image/heic", exifInfo: {} })).toBe(false);
+    expect(isScreenshot({ originalMimeType: "image/tiff", exifInfo: {} })).toBe(false);
+  });
+
+  test("is null-safe on assets with no mime or no exif block", () => {
+    expect(isScreenshot({})).toBe(false);
+    expect(isScreenshot(null)).toBe(false);
+    expect(isScreenshot(undefined)).toBe(false);
   });
 });

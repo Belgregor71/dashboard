@@ -40,9 +40,55 @@ function headers(key, json = true) {
   return h;
 }
 
+/**
+ * Screenshots are not photographs, and on the ambient substrate they wreck the
+ * premise — the live rotation served a car-configurator web page (browser
+ * chrome, cursor, price list) as Mode-0 wallpaper.
+ *
+ * Derived from the real library (621 still images sampled 2026-08-01), not
+ * assumed:
+ *
+ *  - Filename is useless. iOS names screenshots `IMG_1234.PNG` — identical to
+ *    camera shots — and a search for "screenshot"/"Screen" across the library
+ *    returns literally zero (control: "IMG_1012" returns 4, so the filter works).
+ *  - "No camera EXIF" alone is far too aggressive. 58 no-make stills are real
+ *    photos: 3024x4032 camera frames, `Murder Mystery Dinner 012.JPG`, forwarded
+ *    and resized family pictures. Messaging apps strip EXIF, and those are
+ *    exactly the images worth showing.
+ *  - PNG + no camera make is exact here. All 9 PNGs in the sample were iOS
+ *    screenshots at precise device dimensions (750x1334, 640x1136, 1242x2208,
+ *    1170x2532, 1024x768) with no make. Real photographs arrive as JPEG/HEIC —
+ *    a phone camera never writes PNG. Cost: 1.4% of the pool.
+ *
+ * The make check is the safety margin: an edited PNG export that kept its
+ * camera EXIF stays in. Exported for the contract test (pickSensorPath precedent).
+ *
+ * Note it degrades to PNG-only on the ambient path: `searchRandom` deliberately
+ * does NOT request `withExif`, so `exifInfo` is absent and the make test is
+ * vacuously true. That is intended — adding `withExif` there would populate
+ * `slim()`'s city/state/country for the random caller and start rendering place
+ * captions on the ambient substrate, a behaviour change riding in on an
+ * unrelated flag. PNG-alone is exact for this library anyway (9/9 sampled).
+ */
+export function isScreenshot(a) {
+  const mime = String(a?.originalMimeType || "").toLowerCase();
+  if (!mime.includes("png")) return false;
+  return !String(a?.exifInfo?.make || "").trim();
+}
+
+// Read env INSIDE the function, never at module load: ES imports hoist above
+// server.js's dotenv.config(), so a module-level read freezes to its default and
+// the documented knob is silently unsettable (the KOKORO_VOICE / VAULT_ENABLED
+// trap, documented at display.js:31-34).
+function excludeScreenshots() {
+  return String(process.env.IMMICH_EXCLUDE_SCREENSHOTS || "").trim() === "1";
+}
+
 // A displayable still: a real image, not trashed/archived, with an id.
 function usableImage(a) {
-  return Boolean(a && a.id && a.type === "IMAGE" && !a.isTrashed && !a.isArchived);
+  if (!(a && a.id && a.type === "IMAGE" && !a.isTrashed && !a.isArchived)) return false;
+  if (excludeScreenshots() && isScreenshot(a)) return false;
+  return true;
 }
 
 function slim(a) {
