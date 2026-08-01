@@ -67,6 +67,39 @@ function enableFlags(page) {
   });
 }
 
+// Stage the temporal spine's day (features.temporalSpine, default-on since
+// 2026-08-01). The spine replaces the hero + stack as the awake surface, so from
+// here on the text this gate is really protecting is the spine's: an 84px
+// utterance and three 34px labels sitting low over a real photograph, which is
+// the worst-case backdrop in the system.
+//
+// The suite stubs the calendar feeds empty, and the spine draws its marks from
+// the calendar — so without this the DWELL surface renders one line and the
+// sweep measures almost nothing. Routing a synthetic day exercises the real
+// adapter path (dayModel.eventMark) rather than reaching past it with a hook.
+// Must be registered before goto.
+const SPINE_DAY = "2026-07-06"; // the MIDDAY pin's date
+function stageSpineDay(page) {
+  const ev = (h, m, title) => ({
+    id: `spine-${h}${m}`,
+    title,
+    start: `${SPINE_DAY}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`,
+    end: `${SPINE_DAY}T${String(h + 1).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`,
+    source: "contrast-gate"
+  });
+  return page.route("**/api/calendar/all*", (route) =>
+    route.fulfill({
+      json: [
+        ev(6, 40, "Dog walk"),        // an ember, left of now
+        ev(8, 5, "Drop-off"),         // an ember
+        ev(14, 30, "Physio"),         // ahead — takes a label
+        ev(17, 15, "Swim pickup"),    // ahead — takes a label
+        ev(18, 30, "Meal: Stuffed Capsicums") // the warm anchor — takes the top label
+      ]
+    })
+  );
+}
+
 // Stage the hero + stack so the DWELL surfaces actually exist to measure.
 // Long text on the hero forces tier C (the smallest hero type, 72px) — the
 // hero tier most likely to fail, not the most forgiving.
@@ -239,6 +272,7 @@ for (const token of TOKENS) {
     const pageErrors = [];
     page.on("pageerror", (err) => pageErrors.push(err.message));
     await enableFlags(page);
+    await stageSpineDay(page);
     await page.clock.setFixedTime(MIDDAY);
 
     await page.goto("/");
@@ -250,9 +284,15 @@ for (const token of TOKENS) {
     );
     await stageCandidates(page);
 
-    // DWELL is the deepest surface — hero + stack cards all on screen at once.
+    // DWELL is the deepest surface — the utterance and all three spine labels on
+    // screen at once (and, with the spine reverted, the hero + stack cards).
     await page.evaluate(() => window.__presence("dwell"));
     await expect.poll(() => page.evaluate(() => window.__attention().stack.length)).toBe(3);
+    // The spine draws asynchronously off calendar:refreshed, so wait for the day
+    // to have actually landed before measuring. Skipped when the flag is off.
+    if (await page.evaluate(() => typeof window.__spine === "function")) {
+      await expect.poll(() => page.evaluate(() => window.__spine().labels.length)).toBe(3);
+    }
 
     // Force the token directly rather than waiting on real weather: the whole
     // point is to measure all eight regardless of what the sky is doing.
