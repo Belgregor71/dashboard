@@ -555,20 +555,30 @@ window.CONFIG = {
     // no per-frame allocation — and the deck is six canvases allocated once,
     // so a day that fills up allocates nothing.
     //
-    // Default OFF and NOT yet seen on the panel. Do not flip this one on the
-    // way temporalSpine was flipped — the clock demotion is the most visible
-    // change in the package (the thing on screen twenty hours a day) and it
-    // goes in front of the owner on the kiosk BEFORE the flag moves. When it
-    // does move: re-run scripts/verify/flag-reversibility.mjs (the pinned-off
-    // state IS the rollback), pin the specs that assert the old Mode-0 surface
-    // (night-clock-mode, ambient-clock, memory-whisper, ambient-memory,
-    // daily-memories), and run /kiosk-metrics at 0h/24h/72h into
-    // docs/audit/HOST-BASELINES.md as a new "live ambient" row — the soak
-    // (heap-flat over 72h + fps constant) is the deliverable, not an
-    // afterthought. One-line revert (-> false): no archive element is built,
-    // the class is never set, and Mode 0 is exactly today's verified
-    // screensaver with the spine visible in it.
-    ambientArchive: false,
+    // Shipped flag-off in 7ef1f18 and deployed as a PROVEN no-op (2026-08-02:
+    // live kiosk showed 0 archive elements, no body marker, no hook, the 192px
+    // centred clock and the spine still painted in Mode 0).
+    //
+    // Flipped ON here 2026-08-02 as the deadlock-break — the recipePanel /
+    // temporalSpine precedent: a flag-off build renders no archive at all, so
+    // the ONLY way to put this in front of the owner on the real panel is a
+    // flag-on deploy. This flip is "come and look at it", NOT a sign-off.
+    //
+    // ⚠ NOT YET JUDGED ON THE PANEL. Two things need the owner's eye, and both
+    // have a one-line lever if they are wrong:
+    //   · the 64px corner clock — the ruling that supersedes "keep clock size"
+    //     for Mode 0, and the most visible change in the package;
+    //   · the -12deg yaw on the hour axis (--arch-deck-plane), which makes
+    //     morning read slightly narrower than evening.
+    // And the §8.5 soak is still owed: /kiosk-metrics at 0h/24h/72h into
+    // docs/audit/HOST-BASELINES.md as a new "live ambient" row (§5.4, <=25%
+    // sustained). heap-flat over 72h + fps constant IS the deliverable.
+    //
+    // One-line revert (-> false) is the rollback and it is cheap by
+    // construction: no archive element is built, the class is never set, the
+    // spine is not hidden, and Mode 0 is exactly the surface verified above.
+    // Proven green by scripts/verify/flag-reversibility.mjs at flip time.
+    ambientArchive: true,
 
     // Audit M11. The Pi's crontab already powers the panel down 21:00→05:00
     // (`xset dpms force off`), so a doorbell ring at 3am currently speaks its
