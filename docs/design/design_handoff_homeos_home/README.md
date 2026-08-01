@@ -19,7 +19,7 @@ The files in this bundle are **design references created in HTML** — a single 
 
 1. New `features.*` flag in `src/js/config.js`; flag-off byte-identical; one-line revert.
 2. Extend `variables.css`, don't fork. No parallel CSS tree.
-3. **0% GPU at rest is law** — `transform`/`opacity`/static `filter` only; no looping animation; verify Ambient stays 0% via `/kiosk-metrics`.
+3. ~~**0% GPU at rest is law**~~ — **SUPERSEDED 2026-08-01.** This bundle is a frozen conformance spec for what shipped under the *old* law; it is not being rewritten. New work follows `DESIGN_SYSTEM.md` §0 law 1 (*never move for a reason the room can't see*) and the §5.4 budget. Motion may now be continuous and may live on the resting surface if it reports an external cause.
 4. Code-not-taste invariants: silence is the default (`shouldSpeak`); one voice (`personality.phrase`); tender memories ambient-only + never captioned (`memoryEngine.toSurface`); glass is all-or-nothing (the 5 glass tokens travel together).
 5. Ship loop: `npm test` green → deploy flag-off → flip on the Pi → verify at 3–4 m + `/kiosk-metrics` flat → commit default-on.
 

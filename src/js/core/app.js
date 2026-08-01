@@ -27,6 +27,7 @@ import {
 import { initMiddleSlot } from "../modules/middleSlot.js";
 import { initNextEventPanel } from "../modules/nextEventPanel.js";
 import { initFocusHero } from "../modules/focusHero.js";
+import { initTemporalSpine } from "../modules/temporalSpine.js";
 
 import { refreshCalendar } from "../modules/calendar.js";
 import { startWeather } from "../services/weather/renderer.js";
@@ -271,6 +272,11 @@ export function startApp() {
     // Follow-up — fold the camera last-trigger pill into the attention queue.
     cameraCandidateEnabled: isEnabled("cameraCandidate", false)
   });
+  // "The Day, Rendered" v2 — the temporal spine. Must init AFTER initFocusHero
+  // so the scored queue (window.__attention) is live when the spine first reads
+  // the winner: the queue allocates the spine's language. Off by default → no
+  // DOM, no timer, no body class; the centred hero + stack render as today.
+  initTemporalSpine({ enabled: isEnabled("temporalSpine", false) });
   initTonightsMenu();
   initRecipePanel({ enabled: isEnabled("recipePanel", false) });
   initHealthIndicator();

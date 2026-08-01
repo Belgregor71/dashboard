@@ -23,7 +23,9 @@ photo), and `#news-ticker`. Panels below the hero (media/bins/menu/timeline/came
 
 1. One new `features.*` flag per WP in `src/js/config.js`; **flag-off byte-identical**; one-line revert.
 2. **Extend `variables.css`, don't fork.** Reference tokens; add the ones in `DESIGN_SYSTEM.md` §8.
-3. **0% GPU at rest** — verify Ambient/Glance stay 0% with `/kiosk-metrics` after each WP.
+3. **Motion passes the cause test** (`DESIGN_SYSTEM.md` §5.1) and lands inside the §5.4 budget —
+   verify with `/kiosk-metrics` after each WP. *(Was "0% GPU at rest"; revised 2026-08-01 for the
+   G11, see `DESIGN_SYSTEM.md` §0.1.)*
 4. Ship loop: `npm test` green → deploy flag-off (no-op) → flip on the Pi → verify at 3–4 m +
    `/kiosk-metrics` flat → commit default-on. Real photos, never gradients.
 5. Keep the code-not-taste invariants (`DESIGN_SYSTEM.md` §9) intact; add/keep a test per surface.
@@ -132,7 +134,7 @@ the weather-based living accent (§6, accent stays time-based) and a day-boundar
 | **Target** | `src/js/modules/background.js`, `src/js/modules/screensaver.js` (photo source is already here — `loadImmichPhotos`), `src/css/layout/background.css`, `src/js/services/atmosphere.js` |
 | **Do** | The biggest lift. Today only the screensaver draws an Immich photo; the awake modes show `#background` aurora/stars. Flag-on: draw a **single Immich photo held static while awake** + atmosphere **tint** + the readability gradient (`DESIGN_SYSTEM.md` §6 layer order) **behind the awake Glance/Lean-in layers**. **Decision (confirmed): static-at-rest** — the photo does **not** rotate on a timer while awake; it crossfades on `--t-settle` (60s) **only** when the weather/day changes (or on the awake→ambient boundary). This is the cheapest, GPU-safest option and the invariant the 0% gate depends on — no per-photo timer, no Ken-Burns while awake. Extend `atmosphere.js` to emit the **accent** (§6) so the clock color follows the weather awake too. Reuse the screensaver's photo pool. Retire `#aurora-sky`/`#stars`/`.aurora-blobs` behind the flag. |
 | **Verify** | Awake home shows a real photo under the bare top row + hero, lit by the weather; text legible over it (readability gradient). **`/kiosk-metrics` GPU 0% at rest is the gate** — a static awake photo must not reintroduce compositing cost. Flag-off byte-identical (aurora returns). |
-| **Risk** | **Highest.** Changes what's behind every awake surface + touches the GPU-idle-freeze that was hard-won. Verify 0% GPU exhaustively (Ambient *and* Glance at rest). Legibility of the bare hero/top-row (WP-B/C) over real photos is validated here — budget for a readability-gradient tune. |
+| **Risk** | **Highest.** Changes what's behind every awake surface + touches the GPU-idle-freeze that was hard-won. Verify quiescent ambient *and* Glance against the `DESIGN_SYSTEM.md` §5.4 budget. Legibility of the bare hero/top-row (WP-B/C) over real photos is validated here — budget for a readability-gradient tune. |
 
 ## WP-E — Memory whisper + polish sweep + retired-view cleanup ◀ PARTLY SHIPPED
 

@@ -31,7 +31,7 @@ import {
   onThisDay,
   evaluatePredictive
 } from "../src/js/services/predictiveRules.js";
-import { atmosphereFor, ATMOSPHERE_TOKENS, skyWarmthFor, SKY_WARMTH_ALT_HIGH, SKY_WARMTH_ALT_LOW } from "../src/js/services/atmosphere.js";
+import { atmosphereFor, ATMOSPHERE_TOKENS, CONDITION_TOKENS, LIGHT_TOKENS, skyWarmthFor, SKY_WARMTH_ALT_HIGH, SKY_WARMTH_ALT_LOW } from "../src/js/services/atmosphere.js";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 
@@ -646,21 +646,61 @@ test.describe("atmosphere mapper (Phase 5)", () => {
     for (const c of cases) expect(ATMOSPHERE_TOKENS).toContain(atmosphereFor(c));
   });
 
-  // The phase-critical guardrail (project-gpu-idle-freeze): no atmosphere token
-  // may map to a looping animation, or Mode 0 re-composites the whole page at
-  // ~1 GPU core forever. Assert the CSS gives each token a resting tint only —
-  // no `animation` on an atmo-* selector, no atmo-* @keyframes.
-  test("no atmosphere token maps to a looping-animation class", () => {
+  // The guardrail, rewritten 2026-08-01 for law 1 (DESIGN_SYSTEM.md §0.1, §5.6).
+  //
+  // It used to assert that NO atmo-* selector may animate — the "0% GPU at rest"
+  // law. That law is repealed: motion may now be continuous and may live on the
+  // resting ambient surface. What survives is the reason the rule existed, which
+  // was never stillness but attributability, so the assertion changes shape
+  // rather than disappearing: an animation on an atmosphere selector is legal
+  // ONLY if it is bound to a cause the room can see.
+  //
+  // The mapper is the authority for which tokens are causes. A weather condition
+  // is one — you can look out the window and see the rain the surface reports.
+  // The sky's light level is not: it is computed from the clock hour, and §5.1
+  // rules that the passage of time is not a cause. So a rule selecting only
+  // LIGHT_TOKENS may not animate, and that is where an accidental decorative
+  // loop still gets caught.
+  test("an animated atmosphere rule is bound to a live weather condition", () => {
     const cssPath = fileURLToPath(new URL("../src/css/views/screensaver.css", import.meta.url));
-    const css = readFileSync(cssPath, "utf8");
+    const css = readFileSync(cssPath, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+
     for (const token of ATMOSPHERE_TOKENS) {
       expect(css, `${token} should be styled`).toContain(`.${token}`);
-      expect(css, `${token} must not @keyframes`).not.toMatch(new RegExp(`@keyframes\s+${token}\b`));
     }
-    // No rule that selects an atmo-* class may declare an animation.
+    // The split must stay exhaustive, or a new token could dodge the check.
+    expect([...CONDITION_TOKENS, ...LIGHT_TOKENS].sort()).toEqual([...ATMOSPHERE_TOKENS].sort());
+
     const atmoRules = css.match(/\.atmo-[^{}]*\{[^}]*\}/g) || [];
     for (const rule of atmoRules) {
-      expect(rule, `atmo rule must not animate: ${rule}`).not.toMatch(/animation(-name)?\s*:/);
+      const [selector] = rule.split("{");
+      if (!/animation(-name)?\s*:/.test(rule)) continue;
+      const boundToCondition = CONDITION_TOKENS.some((t) => selector.includes(`.${t}`));
+      expect(
+        boundToCondition,
+        `an animated atmosphere rule must be bound to a live condition (${CONDITION_TOKENS.join(", ")}), ` +
+          `not to the sky's light level — the clock advancing is not a cause. Offending selector: ${selector.trim()}`
+      ).toBe(true);
+    }
+  });
+
+  // The other half of law 1: motion that IS bound to a cause must also end when
+  // the cause does. A condition-bound loop is fine (rain falls for an hour, rain
+  // may render for an hour) precisely because the mapper removes the token the
+  // moment the rain stops — so the loop may only ever hang off the token, never
+  // off a plain element that outlives it.
+  test("no looping animation is declared outside a condition-bound selector", () => {
+    const cssPath = fileURLToPath(new URL("../src/css/views/screensaver.css", import.meta.url));
+    const css = readFileSync(cssPath, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    const rules = css.match(/[^{}]+\{[^}]*\}/g) || [];
+    for (const rule of rules) {
+      if (!/\binfinite\b/.test(rule)) continue;
+      const [selector] = rule.split("{");
+      expect(
+        CONDITION_TOKENS.some((t) => selector.includes(`.${t}`)),
+        `an infinite animation must hang off a condition token so it ends when the weather does. ` +
+          `Offending selector: ${selector.trim()}`
+      ).toBe(true);
     }
   });
 });

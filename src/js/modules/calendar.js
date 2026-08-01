@@ -439,6 +439,15 @@ on("bins:updated", data => {
    MAIN REFRESH FUNCTION
 -------------------------------------------------------------------*/
 
+/**
+ * The normalised event cache, for consumers that need today's events as data
+ * rather than as rendered timeline DOM (the temporal spine reads this). Returns
+ * the same array `renderTimeline` draws from; empty until the first refresh.
+ */
+export function getCalendarEvents() {
+  return calendarState.eventsCache || [];
+}
+
 export async function refreshCalendar() {
   try {
     ensureDetailsPopover();

@@ -153,6 +153,35 @@ measuring equal work.
 reports the R2514's *base* clock, which boost legitimately exceeds — so the ratio reads >100%
 and means nothing. Use `/proc/pressure/cpu` `avg10` (0.00 here) as the throttle substitute.
 
+### The motion budget derived from these numbers
+
+`DESIGN_SYSTEM.md` §5.4 is the authority; this is where its numbers come from. The design law
+changed on the strength of the table above — **"0% GPU at rest" was repealed 2026-08-01** and
+replaced by *"never move for a reason the room can't see"* plus a measured ceiling.
+
+| State | Ceiling (gpu-process, % of one core) | Measured | Headroom |
+|---|---|---|---|
+| Quiescent ambient — no legal cause active | **≤ 8** | 3.1 | ~2.5× |
+| Live ambient — a continuous cause running (rain, wind, sun) | **≤ 25** sustained | *new state, unmeasured* | — |
+| Peak episode — a moment, must decay | **≤ 35** | 22.5 | ~1.5× |
+
+Plus: never pin a core (`/proc/pressure/cpu` `avg10` ≈ 0), `scriptPct` under ~5% (0.2 quiescent /
+2.5 peak — stay GPU/raster-bound), sustained `tempC` under 70 °C (idle 33–34, peak 52.3).
+
+⚠ **The `anims` caveat changes shape but does not go away.** Under the old law, ambient readings
+had to be taken at `anims:0` because a Ken Burns settle inflated them 4× (correction 1 above).
+Now that continuous motion can be *legitimate*, `anims:0` no longer means "resting" — it means
+"quiescent", which is only the first row. **Record `anims`, the view and the `atmo-*` token with
+every reading**, and match the row to the state, or the numbers are not comparable to anything.
+
+⚠ **The idle-freeze invariant is retired as a pass/fail.** Ambient `BeginMainFrame` n=7 in 3 s
+(~2.3 fps) was the tripwire; a legal continuous effect may now run ambient at 60 fps. The
+quiescent row replaces it — that is where an accidental decorative loop still shows up.
+
+**The Pi 4 row is no longer a gate.** `pi4-rollback` stays code-current and may render new motion
+at a degraded frame rate; that was accepted on 2026-08-01. Its numbers stay here because a
+rollback target's numbers stay operationally relevant, not because new work must fit them.
+
 ### Thermal substitute
 
 There is no AMD equivalent of `vcgencmd get_throttled`. `kiosk-sweep.sh` substitutes current

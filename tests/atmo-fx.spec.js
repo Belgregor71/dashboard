@@ -289,22 +289,54 @@ test.describe("atmoFx planner", () => {
 });
 
 test.describe("atmo-fx css guardrail", () => {
-  // The idle-freeze law extended to the effects file: nothing in atmo-fx.css
-  // may loop. Strikes are one-shots that fill forwards; flickers live inside
-  // the decay keyframes, never as a repeat.
-  test("no infinite animations; every animation is a forwards one-shot", () => {
+  // Rewritten 2026-08-01 for law 1 (DESIGN_SYSTEM.md §0.1, §5.6).
+  //
+  // This used to assert "no infinite animations" — "moments, not loops" as an
+  // executable rule, written when the Pi rendered rain-heavy at 2.7 fps. §0.1
+  // retired that justification: the constraint was hardware wearing an aesthetic
+  // costume, and §5.1's corollary is explicit that when the cause outlives the
+  // effect the motion may be continuous. Rain falls for an hour; rain may render
+  // for an hour.
+  //
+  // What replaces it is the other corollary, which is the part that actually
+  // protects the fiftieth viewing: a loop must hang off a selector that only
+  // exists while its cause does. `body.fx-lightning-active` is set by the strike
+  // path and removed when the strike decays; an `.atmo-rain` rule stops applying
+  // the moment the mapper stops naming rain. A loop on a plain, always-present
+  // selector has no off switch and no cause — that is decoration, still banned.
+  const CAUSE_BOUND = /\.(atmo-(rain|storm|fog|cloudy)|fx-[a-z0-9-]+-(active|live)|spine-alive)\b/;
+
+  test("every looping animation hangs off a cause that ends; one-shots still fill forwards", () => {
     const cssPath = fileURLToPath(new URL("../src/css/utils/atmo-fx.css", import.meta.url));
     // Strip comments so the guardrail reads declarations, not prose about itself.
     const css = readFileSync(cssPath, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 
-    expect(css).not.toMatch(/infinite/);
+    // An explicit iteration count is still refused: it is a loop wearing a
+    // number, and the legal form is a cause-bound `infinite` that the cause
+    // switches off, not a count nobody can attribute.
     expect(css).not.toMatch(/animation-iteration-count/);
 
-    const animationLines = css.match(/animation(-name)?\s*:[^;]+;/g) || [];
-    expect(animationLines.length).toBeGreaterThan(0); // the strike exists
-    for (const line of animationLines) {
-      const isKill = /animation\s*:\s*none/.test(line); // reduced-motion off-switch
-      if (!isKill) expect(line).toMatch(/forwards/);
+    const rules = css.match(/[^{}]+\{[^}]*\}/g) || [];
+    let animations = 0;
+    for (const rule of rules) {
+      const [selector, body] = [rule.slice(0, rule.indexOf("{")), rule.slice(rule.indexOf("{"))];
+      const lines = body.match(/animation(-name)?\s*:[^;]+;/g) || [];
+      for (const line of lines) {
+        if (/animation\s*:\s*none/.test(line)) continue; // reduced-motion off-switch
+        animations++;
+        if (/\binfinite\b/.test(line)) {
+          expect(
+            CAUSE_BOUND.test(selector),
+            `a looping effect must be bound to a cause that ends (an atmo condition token, ` +
+              `an fx-*-active/live runtime marker, or spine-alive). Offending selector: ${selector.trim()}`
+          ).toBe(true);
+        } else {
+          // A momentary cause rendered as anything but a terminating one-shot is
+          // a law-1 violation even though it is cheap.
+          expect(line, `one-shot must fill forwards: ${selector.trim()}`).toMatch(/forwards/);
+        }
+      }
     }
+    expect(animations).toBeGreaterThan(0); // the strike exists
   });
 });

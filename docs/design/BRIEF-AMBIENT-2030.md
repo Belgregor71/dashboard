@@ -41,6 +41,27 @@ household's memories and its dinner plans live on one continuum.
 
 ### 2. The calm law is on trial
 
+> **⚖ VERDICT, 2026-08-01 — the trial is over; this section is now history.**
+>
+> The hardware moved to the G11 and the law was rewritten. **"0% GPU at rest" is repealed.**
+> Motion may be continuous and may live on the resting ambient surface.
+>
+> The replacement discipline is the one this brief guessed at below: **never move for a reason
+> the room can't see.** A cause must be *external to the screen* — the sun, the weather, an
+> arrival, the track. The passage of time is explicitly **not** a cause, and neither is internal
+> state (a fetch landing, a queue re-scoring); internal state may change, but it may not move.
+> Amplitude follows the existing sun-altitude dim curve after dark. The measurable tripwire that
+> replaces "verify 0%" is a three-row budget in `DESIGN_SYSTEM.md` §5.4.
+>
+> **"Silence is the default" survived untouched** — it governs content, not motion, and a faster
+> box is not a reason for the house to say more.
+>
+> Authority is `DESIGN_SYSTEM.md` §0 + §5. Read §0.1 for the evidence (the old law was already
+> measurably false in daylight, and the Pi was rendering `rain-heavy` at 2.7 fps).
+>
+> The reasoning below is preserved because it is *why* the answer came out this way — but it is
+> no longer an open question, and a new design response should not re-argue it.
+
 v1 treated "Silence is the default" and "0% motion at rest" as untouchable. In this brief they
 are **not**. You may propose replacing them. Motion may be continuous. The surface may live.
 

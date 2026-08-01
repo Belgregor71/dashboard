@@ -1,0 +1,174 @@
+/* ─────────────────────────────────────────────────────────────
+   The temporal spine — "The Day, Rendered" v2 (§2, §5)
+
+   The day is the architecture. A thin line of light low across the
+   wall holds every domain in one vocabulary: a point of light with a
+   time, a weight and a temperature. The marks, embers, strata and the
+   now-point are all drawn into ONE canvas — there is no DOM node per
+   mark, so the spine allocates nothing as the day fills up.
+
+   Language is the only DOM here, and it is rationed by presence:
+   nobody → silence · passing → one utterance · staying → three labels.
+
+   MOTION (DESIGN_SYSTEM.md §5.1): the single continuous element in
+   this file is `.spine-breath`, and it is bound to a cause — the
+   `body.spine-alive` class is set only while media is playing AND
+   someone is in the room. Drop either and the animation stops. Its
+   amplitude rides --clock-dim (§5.2), so at 2am it breathes faintly.
+   Everything else is a discrete, caused transition.
+──────────────────────────────────────────────────────────── */
+
+.temporal-spine {
+  position: fixed;
+  inset: 0;
+  z-index: 202; /* above the screensaver (200); yields to the recipe panel below */
+  pointer-events: none;
+
+  /* The wall's horizon. Matches the canvas geometry in temporalSpine.js. */
+  --spine-top: 79.63%;
+  --spine-base: calc(100% - var(--spine-top));
+  --spine-x: 50%;
+  --spine-rank: 0;
+}
+
+.temporal-spine__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── The breath ───────────────────────────────────────────────
+   The now-point's soft spill. Continuous, but only ever while the
+   room can hear why: ±4% luminance, ~6s, no positional component. */
+.spine-breath {
+  position: absolute;
+  left: var(--spine-x);
+  bottom: var(--spine-base);
+  width: 120px;
+  height: 92px;
+  transform: translateX(-50%);
+  opacity: 0;
+  background: radial-gradient(60px 94px at 50% 100%, rgba(255, 225, 190, 0.28), transparent 70%);
+  transition: opacity 700ms ease;
+}
+
+.spine-breath.is-visible {
+  opacity: calc(0.6 * var(--clock-dim, 1));
+}
+
+/* The cause-bound loop. No `spine-alive` on <body> → no animation at all. */
+body.spine-alive .spine-breath.is-visible {
+  animation: spine-breath 6s ease-in-out infinite;
+}
+
+@keyframes spine-breath {
+  0%, 100% { opacity: calc(0.58 * var(--clock-dim, 1)); }
+  50%      { opacity: calc(0.62 * var(--clock-dim, 1)); }
+}
+
+/* ── The hairline: language grows out of time ─────────────── */
+.spine-connector {
+  position: absolute;
+  left: var(--spine-x);
+  bottom: calc(var(--spine-base) + 30px);
+  width: 1px;
+  height: 156px;
+  opacity: 0;
+  background: linear-gradient(180deg, rgba(238, 243, 251, 0.4), rgba(238, 243, 251, 0.08));
+  transition: opacity 700ms ease;
+}
+
+.spine-connector.is-visible { opacity: 1; }
+
+/* ── The utterance: at most one thing speaks ──────────────── */
+.spine-utterance {
+  position: absolute;
+  left: var(--spine-x);
+  bottom: calc(var(--spine-base) + 200px);
+  max-width: 46%;
+  transform: translateX(-50%);
+  text-align: center;
+  opacity: 0;
+  transition: opacity 700ms ease;
+}
+
+.spine-utterance.is-visible { opacity: 1; }
+
+.spine-utterance__eyebrow {
+  font: 500 19px/1 var(--font-body);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(238, 243, 251, 0.5);
+  margin-bottom: 14px;
+}
+
+.spine-utterance__eyebrow:empty { display: none; }
+
+.spine-utterance__text {
+  font: 500 84px/1 var(--font-display);
+  letter-spacing: 0.006em;
+  color: var(--ink);
+  text-shadow: 0 2px 34px rgba(0, 0, 0, 0.6);
+  text-wrap: balance;
+}
+
+/* ── The three labels: rank is ink, never position ────────── */
+.spine-labels {
+  position: absolute;
+  inset: 0;
+}
+
+.spine-label {
+  position: absolute;
+  left: var(--spine-x);
+  bottom: calc(var(--spine-base) + 62px + var(--spine-rank) * 56px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 700ms ease;
+}
+
+/* Dimmed by rank — never more than three, never a queue. */
+.spine-label.is-visible { opacity: calc(0.92 - var(--spine-rank) * 0.22); }
+
+.spine-label__time {
+  font: 400 22px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  color: rgba(159, 196, 255, 0.6);
+}
+
+.spine-label__text {
+  font: 500 34px/1.05 var(--font-display);
+  color: rgba(238, 243, 251, 0.86);
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.55);
+}
+
+/* ── What the spine replaces ──────────────────────────────────
+   The scored queue survives — it now allocates language, not
+   presence, so the centred hero and its glass stack stand down.
+   Flag-off removes `temporal-spine-on` and both return untouched. */
+body.temporal-spine-on #focus-hero,
+body.temporal-spine-on #focus-stack {
+  display: none;
+}
+
+/* The recipe panel is a lean-in surface and outranks the spine while up. */
+body.recipe-active .temporal-spine {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spine-breath,
+  .spine-connector,
+  .spine-utterance,
+  .spine-label {
+    transition: none;
+  }
+  body.spine-alive .spine-breath.is-visible {
+    animation: none;
+  }
+}

@@ -26,6 +26,7 @@
 @import './components/fuel-prices.css';
 @import './components/arrival-greeting.css';
 @import './components/recipe-panel.css';
+@import './components/temporal-spine.css';
 @import './views/screensaver.css';
 @import './utils/time-context.css';
 @import './components/health-indicator.css';

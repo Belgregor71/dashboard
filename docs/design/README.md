@@ -43,7 +43,7 @@ the table below point to the same studies rendered on the artifact host.
 - **Tender memories** (`sensitivity:"tender"`) are ambient-only, **never captioned**, held longer — enforced in `memoryEngine.toSurface`.
 - **Silence is the default.** Most of the time, nothing surfaces. `shouldSpeak()` is the one gate and its default answer is no.
 - **One voice.** Every line routes through `personality.phrase`; delight fires ≤ 2–3×/year on a hard budget.
-- **0% GPU at rest.** Any continuous full-page animation pins a Pi core. `transform`/`opacity`/static `filter` only; Ambient is effectively still (slow settles, never loops).
+- **Never move for a reason the room can't see.** *(Replaced "0% GPU at rest" on 2026-08-01 when the dashboard moved to the G11 — `DESIGN_SYSTEM.md` §0.1 has the evidence.)* Motion may be continuous and may live on the resting ambient surface, **provided the room can attribute it to something outside the screen** — the sun moved, rain started, someone came home, the track changed. Decorative loops, breathing and drift are still banned. Cause test: `DESIGN_SYSTEM.md` §5.1. Budget: §5.4.
 
 ## Working with Claude Design (visual-first; code is the medium)
 
@@ -57,8 +57,10 @@ the table below point to the same studies rendered on the artifact host.
 > Read this repo and apply `src/css/base/variables.css` tokens and `STYLE_GUIDE.md`
 > conventions. Render **[surface]** on the canvas, matching the target look in
 > [artifact URL]. Constraints: dark, weather-tinted ground; Barlow Condensed
-> (display) + Inter (body), already loaded; **`transform`/`opacity`/static
-> `filter` only — 0% GPU at rest, no looping animation**; text legible at 3–4m;
+> (display) + Inter (body), already loaded; **motion is available and may be
+> continuous, but every moving thing must report a cause outside the screen —
+> the sun, the weather, an arrival, the track. No decorative loops, no breathing,
+> no drift-for-its-own-sake; animate compositor properties only**; text legible at 3–4m;
 > colour comes only from the `atmo-*` wash / `--accent`, never chrome; glass uses
 > all five glass tokens together. Don't fork the token system — extend it.
 
@@ -68,7 +70,7 @@ Every landing follows the loop that shipped Phases 1–10:
 
 - **Behind a `features.*` flag** in `src/js/config.js`; flag-off must be byte-identical; one-line revert.
 - **Extend `variables.css`, don't fork it.** Touch the real component (`focusHero.js`, `screensaver.js`, `arrivalGreeting.js`, `atmosphere.js`, the matching `src/css/`), follow `STYLE_GUIDE.md`. No parallel CSS tree.
-- **GPU idle-freeze is law** — verify Ambient stays at 0% GPU (`/kiosk-metrics`).
+- **Motion passes the cause test** (`DESIGN_SYSTEM.md` §5.1) and lands inside the §5.4 budget — verify with `/kiosk-metrics`. Quiescent ambient (no active cause) is the tight one: ≤ 8% of one core.
 - **Photos are real** (Immich / screensaver), not gradients.
 - **`npm test` green**, then **deploy flag-off (no-op) → flip on the Pi → verify at 3–4m + `/kiosk-metrics` flat → default-on.** Dev-session rendering is unreliable (see `CLAUDE.md`); verify on the actual panel.
 

@@ -3,11 +3,22 @@
 // contract as predictiveRules.js / insightRules.js: no imports, no DOM, no IO,
 // so the whole module unit-tests in plain node (tests/insights.spec.js).
 //
-// The token names a *resting* CSS state (a slow-settling tint), never a loop —
-// the idle-freeze finding (project-gpu-idle-freeze) says any continuous
-// animation re-composites the whole page at ~1 GPU core, so the phase-critical
-// guardrail is: no token may map to a looping-animation class. The exported
-// token set lets a test assert that against the CSS.
+// A token names a CSS state the surface rests in. Until 2026-08-01 the law was
+// "no token may map to a looping-animation class" (project-gpu-idle-freeze).
+// That law was repealed with the move to the G11; DESIGN_SYSTEM.md §0.1 has the
+// evidence, and §5.1 replaced it with the cause test: motion is permitted, but
+// only where the room can attribute it to something outside the screen.
+//
+// So the tokens split, and the split is the guardrail (tests/insights.spec.js):
+//
+//   CONDITION_TOKENS name a live external condition — it is raining, it is
+//   foggy — and a person in the kitchen can see why the surface is moving.
+//   These MAY carry an animation.
+//
+//   LIGHT_TOKENS name how light the sky is. §5.1 is explicit that the passage
+//   of time is not a cause, and these are computed from the clock hour and the
+//   day/night boundary. They stay resting tints — law 2's borrowed light, which
+//   changes without moving.
 
 // Every token the mapper can return. Kept in sync with the .screensaver.atmo-*
 // tint states in src/css/views/screensaver.css.
@@ -21,6 +32,19 @@ export const ATMOSPHERE_TOKENS = [
   "atmo-storm",
   "atmo-fog"
 ];
+
+/**
+ * Tokens naming a live weather condition. A motion bound to one of these is
+ * attributable: the room can see the rain that the surface is reporting. These
+ * are the only atmosphere selectors a looping animation may hang off (§5.1).
+ */
+export const CONDITION_TOKENS = ["atmo-rain", "atmo-storm", "atmo-fog", "atmo-cloudy"];
+
+/**
+ * Tokens naming the sky's light level, derived from the clock hour and the
+ * day/night boundary. Resting tints only — the clock advancing is not a cause.
+ */
+export const LIGHT_TOKENS = ATMOSPHERE_TOKENS.filter((t) => !CONDITION_TOKENS.includes(t));
 
 // Golden-hour bands (local hour) — the light goes warm near dawn/dusk. Outside
 // these, clear sky rests on the neutral daytime tint.

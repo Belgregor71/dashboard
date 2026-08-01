@@ -16,8 +16,12 @@ Constant across all four WPs — the packages below only call out deviations:
 1. **New `features.*` flag** in `src/js/config.js`; **flag-off byte-identical**; one-line revert.
 2. **Extend `src/css/base/variables.css`, don't fork** — no parallel CSS tree; touch the
    real component + its `src/css/` file; follow `STYLE_GUIDE.md`.
-3. **0% GPU at rest is law** — `transform`/`opacity`/static `filter` only, no looping
-   animation; verify Ambient stays 0% with `/kiosk-metrics`.
+3. **Motion passes the cause test** — *(revised 2026-08-01; this guardrail used to read "0% GPU
+   at rest is law — no looping animation". `DESIGN_SYSTEM.md` §0.1 says why it changed.)* Motion
+   may be continuous and may live on the resting surface, provided the room can attribute it to
+   something outside the screen (`DESIGN_SYSTEM.md` §5.1). Verify against the §5.4 budget with
+   `/kiosk-metrics`. The four WPs below were designed and shipped under the **old** law — their
+   "no new motion" notes are history, not a spec for new work.
 4. **Code-not-taste invariants hold:** silence is the default (`shouldSpeak`), one voice
    (`personality.phrase`), tender memories ambient-only + never captioned
    (`memoryEngine.toSurface`), glass is all-or-nothing (the 5 glass tokens travel together).

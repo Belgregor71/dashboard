@@ -18,15 +18,58 @@ target and the code is the work item.
 
 ---
 
-## 0. The three laws (non-negotiable, inherited from `PLAN.md`)
+## 0. The three laws
 
-1. **0% GPU at rest.** `transform` / `opacity` / static `filter` only. No looping animation on any
-   resting surface. The one permitted loop is the ambient clock's 240 s position drift, which
-   already exists. Verify Ambient stays 0% with `/kiosk-metrics` after every change.
+**Law 1 was rewritten 2026-08-01**, when the dashboard moved to the G11. Laws 2 and 3 are
+unchanged. The reasoning and the evidence are §0.1 — read it before proposing a return to the
+old wording, which survives in git.
+
+1. **Never move for a reason the room can't see.** Motion is permitted on any surface,
+   including the resting ambient view, and it may be continuous. What is banned is motion the
+   room cannot **attribute**: someone walking past with a kettle must be able to name the cause
+   without studying the screen — the sun moved, rain started, someone came home, the track
+   changed. Decorative motion, idle loops, breathing, drifting, shimmer — anything that moves
+   because it looked nice moving — is still banned, now on aesthetic grounds rather than thermal
+   ones. The test is §5.1, the budget is §5.4.
 2. **Borrowed light, not chrome.** The weather lights the whole surface via a full-bleed tint + a
-   living accent — **there is no weather icon/lottie**. The wall renders the condition.
+   living accent — **there is no weather icon/lottie**. The wall renders the condition. *(Untouched
+   by the G11. This is a composition law, not a performance one; headroom is not an argument for
+   an icon.)*
 3. **Silence is the default.** Most of the time the surface says almost nothing. Restraint is the
-   aesthetic; every added element must earn its place at 4 m.
+   aesthetic; every added element must earn its place at 4 m. *(Also untouched, and deliberately
+   so: this law governs **content**, not motion. A faster box is not a reason for the house to say
+   more. Law 1 relaxing does not relax this one.)*
+
+### 0.1 Why law 1 changed
+
+The old law read *"0% GPU at rest — `transform`/`opacity`/static `filter` only, no looping
+animation on any resting surface."* Three things retired it:
+
+1. **It was factually false as written.** Daylight Mode-0 ambient costs ~5× night with `anims:0`
+   in both, and the daylight trace showed ~15 fps of compositing where the night trace had no
+   `SwapBuffers` at all (`docs/audit/HOST-BASELINES.md`, correction 3). The resting surface was
+   never at 0%; holding a photo and a tint costs frames. A law that the healthy state already
+   violated could not be a tripwire.
+2. **It was a hardware constraint wearing an aesthetic costume.** The Pi 4 rendered `rain-heavy`
+   at **2.7 fps**. "Moments not loops" was partly a way to keep a frame-starved effect brief
+   enough that nobody saw it stutter. The G11 renders the same effect at a full **60 fps for 2.4×
+   less CPU** — roughly 20× the frames for 0.4× the cost, worst case 2.8% of the box. The
+   constraint that produced the rule no longer exists.
+3. **The rule it was proxying for is better stated directly.** What protects the fiftieth viewing
+   was never stillness — it was attributability. Motion a person can explain is tolerable
+   indefinitely; motion they cannot explain is what makes a screen get turned off. Law 1 now names
+   that risk instead of approximating it with a GPU number.
+
+**What did not change is why the law existed.** This screen is in a kitchen, seen a hundred times
+a day by people who are not trying to look at it. Anything delightful on the first viewing and
+irritating on the fiftieth is a failure, and here failure means the screen gets switched off. The
+discipline was not removed; it was replaced, and the replacement is stricter about *intent* and
+looser about *frames*.
+
+**The Pi 4 is no longer a design constraint** (decided 2026-08-01). `pi4-rollback` stays
+code-current, and a rollback may render these effects at a degraded frame rate. That is accepted.
+Do **not** tier motion by host or add a capability flag for it — one code path, designed for the
+G11.
 
 ---
 
@@ -252,8 +295,61 @@ selected (hero-glass), and the presence-mode exchange.
 
 ## 5. Motion
 
-Three named durations (from `personality.timing`). **Opacity/transform only** — transform on a
-layer breaks fixed descendants, so mode exchanges are opacity-only (see the `focusHero` leak-audit note).
+Rewritten 2026-08-01 alongside law 1. Motion is now an available material rather than a rationed
+exception — but it is spent against §5.1, not against taste.
+
+### 5.1 The cause test
+
+Before shipping any motion, answer one question: **what, outside this screen, is this motion
+reporting?** If the answer is about the screen rather than the world, it does not ship.
+
+**Legal causes** — external, and verifiable by someone standing in the room:
+
+| Cause | Example motion |
+|---|---|
+| Sun altitude / azimuth | Light direction, shadow, colour temperature moving across the day |
+| Weather condition + its onset | Rain falling, wind in the surface, a storm arriving |
+| Presence — someone arriving or leaving | The arrival card, the surface waking toward a person |
+| Media / track change | The surface responding to what is playing |
+| A household event actually firing | Bin night arriving, a timer finishing, the oven done |
+| The photograph changing | Ken Burns settle, crossfade |
+| Someone speaking to it | Voice-session feedback |
+
+**Not causes** (ruled 2026-08-01):
+
+- **The passage of time on its own.** "Time is always moving, so anything time-driven is
+  attributable" is the reading that makes the law toothless. Rejected. The *sun* moving is a
+  cause; the clock advancing is not.
+- **Internal state.** A fetch completing, a queue re-scoring, a cache warming, a countdown
+  ticking down are real events, but the room cannot see them. Internal state may **change** — it
+  may not **move**. Give it a §5.3 transition, not an animation.
+- **Decoration.** No further argument required.
+
+Two corollaries, and together they are the actual repeal of "moments not loops":
+
+- **The cause outlives the effect → the motion may be continuous.** Rain falls for an hour; rain
+  may render for an hour. There is no longer a rule forcing it to decay early.
+- **The cause is instantaneous → the motion is a moment.** An arrival, a lightning strike, a track
+  change: it happens, it resolves, it stops. A momentary cause rendered as a loop is a law-1
+  violation even though it is cheap.
+
+### 5.2 Night — amplitude follows the light
+
+A dark kitchen at 2 a.m. is a different room from the same kitchen at noon, and motion reads as
+far more intrusive against a dim surface. The law does not change after dark; the **amplitude**
+does.
+
+Motion scales with the sun-altitude dim curve that already exists (`--clock-dim`, ~0.9 day → 0.3
+floor — see `project-ambient-clock` / `screensaver.js`). Reuse the curve; do **not** add a night
+gate or a second threshold.
+
+Scale **displacement and opacity swing**, not duration — a slow effect that still travels far is
+what wakes someone up. Rain at midnight still falls; it falls faintly.
+
+### 5.3 Durations
+
+Three named durations (from `personality.timing`). Every timing routes through
+`personality.timing()` so the room moves with one set of manners.
 
 | Token | Value | Used by |
 |---|---|---|
@@ -261,7 +357,67 @@ layer breaks fixed descendants, so mode exchanges are opacity-only (see the `foc
 | `--t-settle` | **`60s linear`** (prod) — 2.5s in the prototype for demo speed | Atmosphere tint/accent/photo crossfade, memory surfacing |
 | `--t-arrival` | `550ms cubic-bezier(.22,1,.36,1)` | Arrival card enter/exit (overshoot then settle) |
 
-Every timing routes through `personality.timing()` so the room moves with one set of manners.
+**Mode-layer exchanges stay opacity-only.** This survives the rewrite unchanged, and for a reason
+that has nothing to do with GPU cost: a `transform` on a layer breaks `position:fixed`
+descendants (see the `focusHero` leak-audit note). Elsewhere, `transform` is fine.
+
+### 5.4 The budget
+
+The replacement tripwire for "verify Ambient stays 0%". Numbers are **% of one logical core** on
+the G11, as `gpucpu.sh` reports them; measure with `/kiosk-metrics` over a 25–30 s window and
+record the view, the `atmo-*` token and `anims` with every reading. Current measured values and
+the derivation live in `docs/audit/HOST-BASELINES.md`.
+
+| State | Ceiling (gpu-process) | Measured 2026-08-01 | Why this bound |
+|---|---|---|---|
+| **Quiescent ambient** — no legal cause active (clear sky, no photo change in the window) | **≤ 8%** | 3.1 | The heir to "0% at rest". This is where an accidental decorative loop shows up, so it is the tight one. |
+| **Live ambient** — a legal continuous cause is running (rain, wind, sun) | **≤ 25%** sustained | — (new) | Continuous is now allowed, but it is the state the screen sits in for hours. |
+| **Peak episode** — a moment (arrival, lightning, photo change) | **≤ 35%**, and must decay | 22.5 | A moment may spend; it may not stay. |
+
+Regardless of the table, three invariants hold:
+
+- **Never pin a core.** `/proc/pressure/cpu` `avg10` stays near 0 (currently 0.00).
+- **Stay GPU/raster-bound, not script-bound.** `scriptPct` under ~5% (currently 0.2 quiescent /
+  2.5 peak). Motion implemented in JS per frame is the wrong implementation; it belongs in the
+  compositor.
+- **Sustained `tempC` under 70 °C** (idle 33–34, peak 52.3). Note Ryzen `Tctl` swings ~10 °C
+  instantly — sample twice before believing a breach.
+
+### 5.5 Still banned
+
+- **Anything that fails §5.1.** The budget is a floor, not a permission slip: an effect can sit
+  well inside 8% and still be illegal.
+- **Animating properties that trigger layout** (`width`, `height`, `top`, `left`, `margin`).
+  Compositor properties only. This is a correctness rule about reflow and survives any hardware.
+- **A second-hand tick**, and per-second animation generally — a legibility decision, not a cost one.
+- **`prefers-reduced-motion: reduce`** is still honoured in full (§4): all animation and transition
+  off, arrival drain bar static.
+- **Cleanup still may not depend on `transitionend` / `animationend`.** More motion means more of
+  these; the handler never fires while the element or an ancestor is `display:none`, which most
+  views are most of the time. Always pair with a `setTimeout` fallback longer than the transition
+  (`CLAUDE.md`, and the 709-zombie-lottie audit).
+
+### 5.6 Two tests still encode the repealed law — read this before building continuous weather
+
+The old law was not only prose; it was asserted in the suite. **Neither test was changed by this
+rewrite** (2026-08-01 was a docs-only pass), so the first continuous-motion feature will fail the
+pre-push gate until they are deliberately revised:
+
+| Test | Asserts | Blocks |
+|---|---|---|
+| `tests/insights.spec.js:653` — *"no atmosphere token maps to a looping-animation class"* | No rule selecting an `.atmo-*` class in `screensaver.css` may declare `animation`/`animation-name` at all, and no `@keyframes` may be named after a token | Any moving atmosphere — i.e. most of law 1's new headroom |
+| `tests/atmo-fx.spec.js:295` — *"no infinite animations; every animation is a forwards one-shot"* | `atmo-fx.css` contains no `infinite` and no `animation-iteration-count`; every `animation:` that is not the reduced-motion `none` kill-switch must be `forwards` | Continuous rain/wind — this is "moments not loops" as an assertion |
+
+Both cite `project-gpu-idle-freeze` as their justification, and that justification is what §0.1
+retired — the "~1 GPU core forever" they were written to prevent was measured on the Pi with the
+broken `gpucpu.sh` (`HOST-BASELINES.md`, correction 2).
+
+**Do not simply delete them.** They are the only automated defence against an accidental
+decorative loop, which law 1 still bans. Rewrite each to assert the *new* rule: an animation on an
+`atmo-*` selector is legal, but it must be driven by a condition class the atmosphere mapper only
+sets when that condition is live — i.e. the test should check the effect is *bound to a cause*,
+not that it fails to exist. Per `CLAUDE.md`, do that in the same change as the feature, and verify
+the flag-off state still passes afterwards.
 
 ---
 
@@ -347,7 +503,8 @@ What already exists vs. what the rollout adds. **Extend, never fork.**
 3. **Silence is the default** — `shouldSpeak`; the concierge only fills an empty scored queue, awake modes only.
 4. **One voice** — all copy through `personality.phrase`.
 5. **`--warm` is reserved** — sun/lightning glyphs + the arrival name/times only. Never chrome, never body text.
-6. **0% GPU at rest** — no new loops; verify with `/kiosk-metrics`.
+6. **Motion passes the cause test** (§5.1) and lands inside the §5.4 budget — verify with
+   `/kiosk-metrics`. *(Replaced "0% GPU at rest" on 2026-08-01; see §0.1.)*
 
 Each surface ships behind one `features.*` flag, flag-off byte-identical, one-line revert — the
 shipping contract in `PLAN.md` §Guardrails applies to every change that touches this system.

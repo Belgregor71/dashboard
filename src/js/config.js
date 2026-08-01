@@ -490,6 +490,35 @@ window.CONFIG = {
     // One-line revert (-> false).
     motionWakeGate: false,
 
+    // "The Day, Rendered" v2 (docs/design/TEMPORAL-SPINE.md) — the
+    // temporal spine. Replaces the centred hero + lean-in glass stack with ONE
+    // surface: the household's day rendered as a thin line of light low across
+    // the wall, 05:00→24:00 fixed left to right. Plans ahead are cool
+    // anticipation, passed marks are warm embers (the day as it actually went,
+    // not as it was planned), previous years run as fainter strata beneath, and
+    // "now" is the brightest point, travelling at ~1.5px/min. Weight — the
+    // EXISTING attention score — sets a mark's size and glow; there are no
+    // categories, no per-domain colour and no icons. The scored queue survives
+    // and now allocates LANGUAGE, not presence: presence rations the words
+    // (nobody → silence · passing → one utterance anchored to its minute by a
+    // hairline · staying → three rank-dimmed labels · voice → the spine stills).
+    //
+    // Motion (DESIGN_SYSTEM.md §5.1): no rAF loop at all — marks/embers/strata
+    // are drawn into one canvas repainted only on a cause (minute rollover,
+    // calendar refresh, bins, presence, resize). The single continuous element
+    // is the now-point's breath, a CSS opacity swing bound to body.spine-alive,
+    // which is set ONLY while media is playing AND someone is in the room, with
+    // amplitude scaled by --clock-dim (§5.2). An empty room renders 0 fps.
+    // The spine allocates nothing per mark (fixed 64-slot model, oldest-ember
+    // eviction) and language is five permanent DOM nodes, reused not cloned.
+    //
+    // Default OFF -> no DOM, no timer, no body class, no hook; the bare hero and
+    // lean-in stack render exactly as today (byte-identical). Flip on only after
+    // live verification at the kiosk: __spine() marks/embers/now, the utterance
+    // anchored to a real mark, /kiosk-metrics quiescent ambient inside the §5.4
+    // ≤8% row with body.spine-alive absent. One-line revert (-> false).
+    temporalSpine: false,
+
     // Audit M11. The Pi's crontab already powers the panel down 21:00→05:00
     // (`xset dpms force off`), so a doorbell ring at 3am currently speaks its
     // alert and draws its popup to a dark screen. With this on, a live-worthy
