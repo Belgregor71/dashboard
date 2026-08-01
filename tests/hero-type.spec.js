@@ -27,6 +27,11 @@ function enableFlags(page) {
       "\nwindow.CONFIG.features.presenceRuntime = true;" +
       "\nwindow.CONFIG.features.attentionEngine = true;" +
       "\nwindow.CONFIG.features.heroType = true;" +
+      // The temporal spine (default-on since 2026-08-01) hides #focus-hero — the
+      // tier sizes below would still compute on a display:none node and pass while
+      // measuring nothing anyone sees. Pin it off: this spec covers the rollback
+      // surface, and that is the honest thing for it to be asserting.
+      "\nwindow.CONFIG.features.temporalSpine = false;" +
       // Pin the BOM warnings entity to one that never exists: a real live warning
       // (via HA) is an interrupt-band candidate (95) that outranks the forced test
       // candidates and breaks the tier assertions. Must go through __DASH_CONFIG__ —

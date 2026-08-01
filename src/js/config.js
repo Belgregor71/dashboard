@@ -512,12 +512,18 @@ window.CONFIG = {
     // The spine allocates nothing per mark (fixed 64-slot model, oldest-ember
     // eviction) and language is five permanent DOM nodes, reused not cloned.
     //
-    // Default OFF -> no DOM, no timer, no body class, no hook; the bare hero and
-    // lean-in stack render exactly as today (byte-identical). Flip on only after
-    // live verification at the kiosk: __spine() marks/embers/now, the utterance
-    // anchored to a real mark, /kiosk-metrics quiescent ambient inside the §5.4
-    // ≤8% row with body.spine-alive absent. One-line revert (-> false).
-    temporalSpine: false,
+    // Shipped flag-off in 56650a8. Flipped ON here 2026-08-01 as a deadlock-break,
+    // the recipePanel precedent: a flag-off build renders no spine at all, so the
+    // only way to eyeball it on the real panel is a flag-on deploy. NOT yet
+    // Pi-verified at the time of the flip — verify at the kiosk immediately after:
+    // __spine() carries today's real calendar as marks (embers left of now, the
+    // Meal: anchor warm), the utterance anchors to a live mark, DWELL shows three
+    // labels and AMBIENT none, body.spine-alive absent with nothing playing, and
+    // /kiosk-metrics quiescent ambient inside the §5.4 ≤8% row. If any of that
+    // fails, the revert is this line (-> false): the hero + lean-in stack return
+    // untouched, and their specs still pass pinned off (verified by
+    // scripts/verify/flag-reversibility.mjs).
+    temporalSpine: true,
 
     // Audit M11. The Pi's crontab already powers the panel down 21:00→05:00
     // (`xset dpms force off`), so a doorbell ring at 3am currently speaks its

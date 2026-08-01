@@ -34,6 +34,12 @@ function enableFlags(bareHero) {
         "\nwindow.CONFIG.features.presenceRuntime = true;" +
         "\nwindow.CONFIG.features.attentionEngine = true;" +
         `\nwindow.CONFIG.features.bareHero = ${bareHero};` +
+        // The temporal spine (default-on since 2026-08-01) replaces this surface —
+        // it hides #focus-hero and #focus-stack outright. This spec asserts the
+        // hero/stack surface itself, which is now the ROLLBACK path, so it pins the
+        // spine off deliberately: this is the state a one-line revert returns the
+        // kiosk to, and it has to keep working.
+        "\nwindow.CONFIG.features.temporalSpine = false;" +
         // Pin the BOM warnings entity to one that never exists: a real live warning
         // (via HA) is an interrupt-band candidate (95) that outranks the forced test
         // candidates and breaks the hero assertions. Must go through __DASH_CONFIG__ —

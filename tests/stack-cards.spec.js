@@ -33,6 +33,11 @@ function enableFlags(stackCards) {
         "\nwindow.CONFIG.features.attentionEngine = true;" +
         "\nwindow.CONFIG.features.leanInStack = true;" +
         `\nwindow.CONFIG.features.stackCards = ${stackCards};` +
+        // The temporal spine (default-on since 2026-08-01) hides #focus-stack — the
+        // card type/geometry below would still compute on a display:none node and
+        // pass while measuring nothing anyone sees. Pin it off: this spec covers the
+        // rollback surface, and that is the honest thing for it to be asserting.
+        "\nwindow.CONFIG.features.temporalSpine = false;" +
         // Deterministic queue: no seed memories / predictive rules joining it.
         "\nwindow.CONFIG.features.memoryEngine = false;" +
         "\nwindow.CONFIG.features.predictiveCandidates = false;" +

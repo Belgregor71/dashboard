@@ -37,6 +37,11 @@ function enableFlags(leanIn) {
         (await res.text()) +
         "\nwindow.CONFIG.features.presenceRuntime = true;" +
         "\nwindow.CONFIG.features.attentionEngine = true;" +
+        // The temporal spine (default-on since 2026-08-01) hides #focus-stack — the
+        // glass assertions below would still compute on a display:none node and pass
+        // while measuring nothing anyone sees. Pin it off: this spec covers the
+        // rollback surface, and that is the honest thing for it to be asserting.
+        "\nwindow.CONFIG.features.temporalSpine = false;" +
         `\nwindow.CONFIG.features.leanInStack = ${leanIn};\n`;
       await route.fulfill({ response: res, body });
     });
