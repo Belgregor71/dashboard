@@ -196,3 +196,68 @@ and the System tile blanks.
 process is enough. Two readings taken seconds apart look exactly like a mis-latched sensor.
 Sample the API and the hwmon file in the same command or you will "find" a bug that is not
 there.
+
+---
+
+## Live ambient — the Ambient Archive (G11), soak 0 h · 2026-08-02 08:54 AEST
+
+The `DESIGN_SYSTEM.md` §5.4 **live ambient** row (≤ 25% of one core, sustained) was
+declared when the calm law was rewritten and then left **unmeasured**, because nothing
+had claimed it yet. `features.ambientArchive` is the first surface that does: Mode 0 now
+animates continuously, so this is the state the screen genuinely sits in for hours.
+
+**t0 = the page load at 2026-08-02 08:54 AEST**, commit `17da62e`. 24 h and 72 h readings
+must be taken **without reloading the kiosk** — a reload resets `uptimeMin`, the heap and
+every counter, and starts the soak again.
+
+| Metric | 0 h | 24 h | 72 h | Judgement |
+|---|---|---|---|---|
+| gpu-process (% of one core) | **20.8 / 21.0** | | | §5.4 ceiling **25** sustained |
+| renderer | **10.1 / 10.2** | | | |
+| `anims` (running, settled) | **4** | | | echo + ghost + pivot + Ken Burns |
+| `usedJSHeapMB` | **10.8** | | | must be **flat**; >30 sustained is suspicious |
+| `domNodes` (attached) | **1937** | | | must be flat |
+| `cdpNodes` | **3971** | | | wobble ok; **monotonic climb = leak** |
+| `cdpJsEventListeners` | **70** | | | must be flat |
+| `lottieWrappers` / `lottieSvgs` | **0 / 0** | | | none in Mode 0 |
+| tempC | **44.9** | | | sustained < 70 |
+| `/proc/pressure/cpu` avg10 | **0.00** | | | never pin a core |
+
+`scriptPct` **0.4** · `layoutPct` 0.1 · `stylePct` 0.7 — compositor-bound, not
+script-bound, exactly as §5.4 predicts. Conditions: `atmo-clear-day`, daylight, panel on.
+
+### How this row was measured, and two ways to get it wrong
+
+- **60 s windows, not 25–30 s.** The archive's animations are `ease-in-out alternate` at
+  84–130 s. A 30 s sample lands in a *phase* — fast mid-cycle or nearly stationary at a
+  turning point — and the same state read **28.5 and 37.5** minutes apart. Two consecutive
+  60 s windows agreeing to 0.2 (20.8 / 21.0) is what "settled" looks like.
+- **Never sample within ~10 min of a reload.** At 1.5 min uptime the same state read
+  **41.3** — image decodes, the Immich pool fetch and a fresh Ken Burns all landing at
+  once. At 12.5 min it read 20.8.
+- ⚠ **The panel is DPMS-off 21:00 → 05:00** (`crontab`: `xset dpms force off`). The page
+  keeps running but compositing does not, so an overnight reading is not comparable to a
+  daytime one. Take the 24 h / 72 h readings in daylight with the panel on.
+- ⚠ **`domNodes` 1937 is the archive-era figure**, not comparable to the 926 in the G11
+  migration table above — that was awake `home` at 4.1 min uptime, a different surface.
+  What the soak asserts is that 1937 stays 1937.
+
+### The first reading breached the budget — what it cost, and what fixed it
+
+The very first 0 h sample was **37.5**, i.e. above the ceiling and worse than the old
+*worst-case peak episode* (`rain-heavy`, 22.5). Attributed by show/hide A/B on the live
+panel, then fixed in `17da62e`. Every one of the three was the same mistake — **a
+full-frame effect sitting over something that animates**:
+
+| Defect | Cost |
+|---|---|
+| Both echo slots animating; the hidden one drifts a 2900×1800 filtered layer at `opacity: 0` | 3.1 |
+| `.archive__grain` `mix-blend-mode: overlay` — a static texture forcing the whole stack beneath to re-blend every frame | 4.3 (with the vignette) |
+| `.archive__grade` `mix-blend-mode: multiply` over the card image, which is zooming at 60 fps | 3.0 |
+
+`29.1 → 24.0 → 21.0` over 60 s windows. 24.0 against a 25 ceiling was taken as *no
+margin* for a state that runs for hours, which is why the third one shipped too.
+
+**The lesson generalises past this surface:** a blend mode is free on a still surface and
+expensive on a moving one, and the archive is the first resting surface this dashboard has
+that moves. Any future `mix-blend-mode` on the ambient view should be measured, not assumed.

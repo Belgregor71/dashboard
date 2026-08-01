@@ -22,6 +22,8 @@
 //   2. VERIFY every transition and exit non-zero if one does not land. A gate
 //      must never be able to read as success again.
 const http = require("http");
+const fs = require("fs");
+const path = require("path");
 const WebSocket = require("ws");
 
 // Ends on `home`, and every step is a genuine change of view. `weather` first
@@ -69,8 +71,40 @@ async function main() {
 
   if (mode === "reload") {
     await send("Page.enable");
+    // `Page.reload {ignoreCache}` alone is NOT enough, and this has now cost a
+    // wasted deploy cycle three times. It revalidates the main document but the
+    // page still comes back on the cached index.html, which references the OLD
+    // content-hashed bundle — so a CSS/JS deploy is correct on disk, correct in
+    // the deploy log, and absent on the panel. It reads exactly like "my
+    // selector is wrong". `Network.setCacheDisabled` is the part that actually
+    // bypasses it.
+    await send("Network.enable");
+    await send("Network.setCacheDisabled", { cacheDisabled: true });
     await send("Page.reload", { ignoreCache: true });
-    console.log("reloaded");
+    // Let the new document fetch its subresources before caching is re-enabled,
+    // or the bundle is served from cache again on the way in.
+    await new Promise((r) => setTimeout(r, 8000));
+    await send("Network.setCacheDisabled", { cacheDisabled: false });
+
+    // Prove it landed rather than claiming it: compare the stylesheet the page
+    // actually loaded against what is on disk. This is the documented
+    // first-check for "the deploy did not appear", so do it automatically.
+    const sheets = await send("Runtime.evaluate", {
+      expression: `[...document.styleSheets].map(s => (s.href || "inline").split("/").pop()).filter(n => n.endsWith(".css"))`,
+      returnByValue: true
+    });
+    const loaded = sheets?.result?.value ?? [];
+    let onDisk = [];
+    try {
+      onDisk = fs.readdirSync(path.join(__dirname, "..", "..", "dist", "assets")).filter((f) => f.endsWith(".css"));
+    } catch { /* not deployed from this tree — skip the check rather than fail */ }
+    const stale = onDisk.length > 0 && !onDisk.some((f) => loaded.includes(f));
+    console.log(`reloaded — stylesheet ${loaded.join(", ") || "?"}${onDisk.length ? ` · disk ${onDisk.join(", ")}` : ""}`);
+    if (stale) {
+      console.error("STALE: the page is running a different bundle than dist/. The reload did not take.");
+      ws.close();
+      process.exit(1);
+    }
     ws.close();
     return;
   }
