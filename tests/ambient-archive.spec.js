@@ -339,6 +339,30 @@ test("a tender memory reaches the archive with no plate at all", async ({ page }
   expect(words).toEqual([]);
 });
 
+// Live-verification regression, 2026-08-02. Every photo in that day's frozen
+// set captioned as a bare "2022" — no location, nobody named — which correctly
+// yields no plate, but ALSO dropped the year off the wall entirely, losing what
+// the old bottom-left caption used to show. The year is read off the caption,
+// not out of the plate's parts: the plate needs a place to have anything to
+// say; the ghost and the year-line only ever needed the year.
+test("a bare-year caption still lights the year, even with no plate to show", async ({ page }) => {
+  await bootArchive(page);
+  await engaged(page);
+
+  await page.evaluate(() => window.__ssSetFrame({ src: "/photos/a.jpg", caption: "2022" }));
+  const probe = await settledPlate(page);
+  expect(probe.plate).toBe(null);   // nothing to say — silence is the default
+  expect(probe.ghost).toBe("2022"); // …but we know the year, so we say the year
+  expect(probe.lit).toEqual([2022]);
+
+  // No caption at all is a different thing, and stays silent.
+  await page.evaluate(() => window.__ssSetFrame("/photos/b.jpg"));
+  const bare = await settledPlate(page);
+  expect(bare.plate).toBe(null);
+  expect(bare.ghost).toBe(null);
+  expect(bare.lit).toEqual([]);
+});
+
 // §6.2's payload: the lit year-line joining forward to today. The album reaches
 // back further than the consecutive rows do, so the deck opens one deep drawer
 // — and only when it has to. A year already on the deck must not appear twice.

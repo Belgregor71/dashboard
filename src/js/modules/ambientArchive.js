@@ -411,7 +411,15 @@ export function setArchiveMemory(frame) {
   const first = lastFrame == null;
   const hour = typeof frame === "object" && Number.isFinite(frame?.hour) ? frame.hour : null;
   lastFrame = { src, caption, hour };
-  litYear = parts && /^\d{4}$/.test(parts.year) ? Number(parts.year) : null;
+  // The year is read straight off the caption, NOT out of the plate's parts.
+  // A photo with no location and nobody named captions as a bare "2022", which
+  // yields no plate — and the kiosk showed what that meant on 2026-08-02: the
+  // whole day's frozen set was bare years, so the archive dropped the year
+  // altogether, losing something the old bottom-left caption used to show. The
+  // plate needs a place to have anything to say; the ghost engraving and the
+  // year-line only ever needed the year.
+  const named = caption ? /^\s*(\d{4})\b/.exec(caption) : null;
+  litYear = named ? Number(named[1]) : null;
 
   // The card and its echo cross-fade on their own 2.6s transition; the plate
   // and the ghost year stand down and come back around the midpoint, so the
