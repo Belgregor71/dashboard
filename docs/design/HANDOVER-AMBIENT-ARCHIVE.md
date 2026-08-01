@@ -1,7 +1,11 @@
 # Handover — the Ambient Archive screensaver (calm law v3)
 
-**Status:** not started. This is the deliberately-deferred half of "The Day, Rendered" v2.
-The spine (§2–§7) shipped and is default-on — `docs/design/TEMPORAL-SPINE.md`.
+**Status:** not started, **unblocked**. This is the deliberately-deferred half of "The Day,
+Rendered" v2. The spine (§2–§7) shipped and is default-on — `docs/design/TEMPORAL-SPINE.md`.
+
+**The spine × archive question is decided (§6): the archive absorbs the spine's job in
+Mode 0.** One open item remains, and it is the owner's, not the next session's — the Mode-0
+clock size (§6.4). Everything else can start.
 
 **Read first:** `DESIGN_SYSTEM.md` §0 + §5 (law 1 and the cause test), then
 `TEMPORAL-SPINE.md` (what already ships on this surface).
@@ -172,30 +176,83 @@ justify a context — not before.
 
 ---
 
-## 6. The open design question — spine × archive
+## 6. RESOLVED — the archive absorbs the spine's job in Mode 0
 
-**This needs an answer before any code.** Today the spine renders *over* the screensaver
-(z-202) and in Mode 0 shows the day as pure light with no words — that is §5's "nobody home:
-photograph, light, spine, quiet numeral", and it is live and verified.
+**Owner's decision, 2026-08-01.** Of the three options, this is the one that keeps "the day
+is the surface" true. It is also the most work, because it is not a layering fix — it changes
+what the archive's lower plane *means*.
 
-The archive is a **deep instrument space** that claims the whole surface: tilted planes, a
-pivoting card, its own year strata along the bottom at `top: 904px`. The spine's line sits at
-79.6% ≈ `y 860` — **they collide, and both draw year strata**.
+### 6.1 The problem it has to solve: two rulers, two different axes
 
-Three ways out, roughly in order of how much I'd trust them:
+They collide, and it is worse than an overlap:
 
-1. **The archive absorbs the spine's job in Mode 0.** `#strip2` already *is* a horizontal
-   ruler with lit year labels. Let the archive's lower strip carry today's marks, and hide
-   `#temporal-spine` while `fx-archive-active`. One instrument, two readings. Most faithful
-   to "the day is the surface", most work.
-2. **The archive sits behind, the spine stays in front.** Drop the archive's `#strip2` and
-   let the spine be the only ruler. Cheapest, keeps everything shipped today intact, but the
-   archive loses part of its composition.
-3. **Mode 0 is the archive; the spine is awake-only.** Simplest, and contradicts "the spine
-   never leaves" — only take this if 1 and 2 both look wrong on the panel.
+| | Axis | Where |
+|---|---|---|
+| Spine | **hours of today**, 05:00→24:00 left to right; years are *rows offset downward* | y ≈ 860 |
+| Archive `#strip2` | **years**, 2016→2025 left to right (`ylab` at `300 + i*192`px) | top 904px |
 
-Ask the owner. This is a taste call about what the wall *is* when nobody is home, and it
-determines the shape of the whole work package.
+Same screen region, perpendicular meanings. You cannot layer your way out of that — one of
+the two mappings has to go.
+
+### 6.2 The resolution: the archive's plane takes the spine's axis, and the tilt supplies the years
+
+Keep the **spine's** mapping and throw away the archive's horizontal year ruler:
+
+- **Horizontal is time of day.** `#strip2` becomes the day: 05:00→24:00, marks, embers, the
+  travelling now-point. The `ylab` spans and their `300 + i*192` layout are deleted.
+- **Years become rows receding into the plane.** §2 "Reach" already says the strata are
+  "the same axis, scrolled down by years" — parallel lines *beneath*, sharing the hour axis.
+  The archive is already tilted `rotateY(-12deg) rotateX(8deg)` on a 1400px perspective, so
+  those rows stop being a flat stack and become **year-rows receding in Z**.
+
+That is the whole reason this option is worth the work. §6 of the proposal says a birthday is
+the one day "the depth of the axis becomes the point" — in the archive, the depth of the axis
+is *literal depth*. The lit year-line for the memory currently on the card is a row further
+back, joined to today's row by the hairline the spine already draws.
+
+One instrument, two readings: across is today, back is the years.
+
+### 6.3 What this means concretely
+
+1. **The spine element hides in Mode 0**, it does not get deleted:
+   `body.fx-archive-active #temporal-spine { display: none }`. Keep the blank-rule exemption
+   added in §4.1 — with `ambientArchive` flag-off the archive never mounts, the class is never
+   set, and Mode 0 falls back to exactly today's verified spine. **That is the rollback path,
+   and it costs one CSS rule.**
+2. **`dayModel.js` is reused unchanged.** It is pure and already produces `{marks, nowT,
+   strata[]}` with `row` and `t` per stratum. The archive needs a *renderer* for that model on
+   a 3D plane, not a new model. `buildStrata` already returns exactly the rows this needs.
+3. **`STRATA_ROWS` will want raising from 3.** Three rows is right for a flat surface read at
+   4 m; a receding plane can carry more before it turns to mush, and the archive's whole point
+   is depth. Try it on the panel — it is one constant.
+4. **The now-point still belongs on the front row** (today), even while the card shows 2019.
+   Its breath stays bound to `spine-alive` = media playing **and** someone in the room, which
+   in Mode 0 is false by definition. So **the archive never breathes** — correct, and it means
+   the archive's motion budget is entirely its own drift/pivot/zoom.
+
+### 6.4 ⚠ Two things this decision drags in that are not obvious
+
+**The clock conflicts with a stated preference.** The archive's `#qclock` is a 64px numeral
+top-left; today's Mode 0 has the large centred clock (verified live at 6:48pm). The proposal
+demotes the clock deliberately — but `user-preferences.md` records **"keep clock size"** as a
+standing instruction from you. These disagree. The archive cannot ship without resolving it,
+and it is your call, not the next session's: *demote the Mode-0 clock to the 64px corner
+numeral, or keep the big centred clock and drop `#qclock` from the archive?* Getting this
+wrong is the most visible possible regression — it is the thing on screen 20 hours a day.
+
+**The plate is not new language.** It looks like the archive adds words to a silent surface,
+which would read as a "silence is the default" violation. It does not: year · title · who is
+the caption `dailyMemories` + the vault×Immich relationship work already render in Mode 0
+today. The archive **relocates** it into the plate. Say so in the commit, or a future audit
+will flag it. (And §4.3 still holds — tender memories arrive with no plate at all.)
+
+### 6.5 Test fallout to expect
+
+Same shape as the spine flip: specs that assert the *old* Mode-0 surface now cover the
+rollback path and should pin `ambientArchive: false` deliberately — likely
+`night-clock-mode`, `ambient-clock`, `memory-whisper`, `ambient-memory`, `daily-memories`.
+Pin them, do not weaken them; and re-run `flag-reversibility.mjs` before flipping, because
+that pinned-off state *is* the rollback.
 
 ---
 
@@ -222,9 +279,11 @@ Init options are wired in `core/app.js` → `initScreensaver({...})`; add the fl
 
 Flag `ambientArchive`, default off, one-line revert — the standard contract.
 
-1. Settle §6 with the owner. Nothing else is safe to start.
+1. Get the Mode-0 clock-size ruling (§6.4). Everything else in §6 is settled.
 2. Port the reference into `src/css/views/` + a builder in `screensaver.js`, behind the flag,
-   reusing §7's data. Set `body.fx-archive-active` on Mode-0 entry, remove on exit.
+   reusing §7's data. Set `body.fx-archive-active` on Mode-0 entry, remove on exit. Render
+   `dayModel`'s existing `{marks, nowT, strata}` onto the tilted plane per §6.2 — across is
+   today, back is the years — and hide `#temporal-spine` while the class is set.
 3. Extend the two guardrails in the same change (§4.2), and add the tender-no-plate test
    (§4.3) and the blank-rule test (§4.1) *before* believing it works.
 4. `npm test` → deploy flag-off (a real no-op this time — the archive is invisible without
