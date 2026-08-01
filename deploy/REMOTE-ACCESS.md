@@ -71,12 +71,15 @@ events by default. Uncomment `-noxdamage` in `kiosk-x11vnc.service` to poll the
 framebuffer instead, then `daemon-reload` and restart. Costs noticeably more
 CPU.
 
-**Parts of the dashboard render black.** Chromium composites through the GPU and
-X11 framebuffer capture does not always see GPU-presented surfaces — the same
-class of problem as CDP screencast being blind to hardware video — which is why
+**Parts of the dashboard render black.** ✅ **Checked 2026-08-02 — this does NOT
+happen here.** The worry was that Chromium composites through the GPU and X11
+framebuffer capture does not always see GPU-presented surfaces (the same class
+of problem as CDP screencast being blind to hardware video, which is why
 `scripts/kiosk/` probes playback via `getVideoPlaybackQuality` rather than by
-screenshotting it. Weather background loops and video are the likely casualties.
-`-noxdamage` sometimes helps; a compositor change is the real fix if it matters.
+screenshotting it). A live `scrot` of `:0` came back complete at 1920x1080 —
+Immich screensaver photo, corner clock, temporal spine, dinner marker, all
+present. Don't go chasing this unless the symptom actually appears. If it ever
+does, `-noxdamage` in `kiosk-x11vnc.service` is the first knob.
 
 **Nothing responds after a lightdm restart.** x11vnc exits when X goes away.
 `Restart=always` re-arms it within 5s; if it's still down,
