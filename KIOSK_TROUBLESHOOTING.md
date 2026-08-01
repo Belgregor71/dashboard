@@ -85,23 +85,45 @@ The device with `monitor_present 1` / `eld_valid 1` is the one wired to the pane
 maps to card `N`, and `M` indexes that card's HDMI devices **in `aplay -l` order** (not to the
 device number itself).
 
-**On the G11 (AMD):** HDMI audio is **one card with several devices** — `card 0
-[HD-Audio Generic]` exposing devices 3, 7, 8 and 9, plus `card 1` for the ALC233 analog jack.
-`defaults.pcm.card N` alone is therefore **insufficient**; the device must be named too:
+### ⚠ On AMD, check `IEC958` FIRST — it is the usual answer
+
+AMD HDA gates HDMI/DP audio behind the **`IEC958` (S/PDIF) playback switches, and they
+default to `[off]`**. With them off the PCM opens, accepts frames and reports success while
+nothing reaches the panel — `aplay` looks perfectly healthy and the display is silent. There
+is no equivalent control on the Pi's `vc4hdmi`, so this cannot be diagnosed from Pi
+experience, and no amount of correct `asound.conf` will fix it.
+
+```sh
+amixer -c Generic | grep -A1 IEC958        # all four should read [on]
+for i in 0 1 2 3; do amixer -c Generic sset IEC958,$i on; done
+```
+
+No root required. It is set at session start from
+`~/.config/openbox/autostart` so it survives reboots; `sudo alsactl store` additionally
+persists it via `alsa-restore`. If audio dies after a reboot with no config change, check
+these switches before anything else.
+
+### Address the card by NAME, never by index
+
+**Plugging in the USB microphone takes index 0 and shifts the HDA card 0 → 1**, silently
+pointing an index-based default at a capture-only device. Use the card id from
+`/proc/asound/cards` (`Generic` = HDMI, `Generic_1` = ALC233 analog):
 
 ```sh
 sudo cp /etc/asound.conf /etc/asound.conf.bak
 sudo tee /etc/asound.conf <<'EOF'
 pcm.!default {
     type plug
-    slave.pcm { type hw; card 0; device 3 }
+    slave.pcm { type hw; card "Generic"; device 3 }
 }
-ctl.!default { type hw; card 0 }
+ctl.!default { type hw; card "Generic" }
 EOF
 ```
 
-(`card 0 device 3` is correct for the current panel — `eld#0.0` shows `monitor_present 1`.
-**Re-derive it if the panel or HDMI port changes.**)
+`device 3` is the pin whose ELD shows `monitor_present 1` — and note `aplay -l` names it
+outright (`device 3: HDMI 0 [AK32FHDMT]`), which is the quickest confirmation.
+**Re-derive if the panel or HDMI port changes.** Same reasoning applies to the mic:
+`plughw:CARD=Microphone,DEV=0`, not `plughw:N,0`.
 
 **On the Pi 4 (rollback host):** each HDMI port is its own card, so the simpler
 `defaults.pcm.card N` / `defaults.ctl.card N` form is enough — card **0** for the panel.
