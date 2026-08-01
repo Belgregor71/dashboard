@@ -3,9 +3,13 @@
 **Status:** not started, **unblocked**. This is the deliberately-deferred half of "The Day,
 Rendered" v2. The spine (§2–§7) shipped and is default-on — `docs/design/TEMPORAL-SPINE.md`.
 
-**The spine × archive question is decided (§6): the archive absorbs the spine's job in
-Mode 0.** One open item remains, and it is the owner's, not the next session's — the Mode-0
-clock size (§6.4). Everything else can start.
+**Fully unblocked as of 2026-08-01.** Both owner decisions are in:
+
+- §6 — **the archive absorbs the spine's job in Mode 0** (its horizontal year ruler goes; its
+  plane takes the spine's hour axis; strata become year-rows receding in Z).
+- §6.4 — **demote the Mode-0 clock** to the archive's 64px corner numeral.
+
+Nothing is waiting on anyone. Start at §8.
 
 **Read first:** `DESIGN_SYSTEM.md` §0 + §5 (law 1 and the cause test), then
 `TEMPORAL-SPINE.md` (what already ships on this surface).
@@ -230,15 +234,28 @@ One instrument, two readings: across is today, back is the years.
    in Mode 0 is false by definition. So **the archive never breathes** — correct, and it means
    the archive's motion budget is entirely its own drift/pivot/zoom.
 
-### 6.4 ⚠ Two things this decision drags in that are not obvious
+### 6.4 The clock — RESOLVED: demote it
 
-**The clock conflicts with a stated preference.** The archive's `#qclock` is a 64px numeral
-top-left; today's Mode 0 has the large centred clock (verified live at 6:48pm). The proposal
-demotes the clock deliberately — but `user-preferences.md` records **"keep clock size"** as a
-standing instruction from you. These disagree. The archive cannot ship without resolving it,
-and it is your call, not the next session's: *demote the Mode-0 clock to the 64px corner
-numeral, or keep the big centred clock and drop `#qclock` from the archive?* Getting this
-wrong is the most visible possible regression — it is the thing on screen 20 hours a day.
+Today's Mode 0 has the large centred clock (verified live at 6:48pm). The archive's `#qclock`
+is a **64px numeral, top-left**. These disagreed, and the standing preference on record was
+"keep clock size as-is".
+
+**Owner ruled 2026-08-01: demote it.** Mode 0 takes the archive's quiet corner numeral. The
+standing preference is superseded *for Mode 0 only* — the awake top-row time (64px,
+`bareTopRow`) and every other clock are untouched, and this is not licence to resize type
+elsewhere.
+
+Why it is the right call and not just a smaller clock: §2 promises this exact trade. Once the
+day is legible as **position** on the spine, the clock stops being the primary readout. It is
+kept as redundancy — *"because reading glasses are in another room"* — not because it leads.
+Demoting it is what buys the archive its surface.
+
+⚠ It is still the most visible change in this package — the thing on screen twenty hours a
+day. **Put it in front of the owner on the panel before the flag flips**, not after. And
+`tests/ambient-clock.spec.js` + `night-clock-mode.spec.js` assert the current treatment; they
+move to the pinned-off rollback set (§6.5).
+
+### 6.4b ⚠ One more thing the decision drags in
 
 **The plate is not new language.** It looks like the archive adds words to a silent surface,
 which would read as a "silence is the default" violation. It does not: year · title · who is
@@ -279,7 +296,7 @@ Init options are wired in `core/app.js` → `initScreensaver({...})`; add the fl
 
 Flag `ambientArchive`, default off, one-line revert — the standard contract.
 
-1. Get the Mode-0 clock-size ruling (§6.4). Everything else in §6 is settled.
+1. Nothing to settle first — §6 and §6.4 are both ruled. Start here.
 2. Port the reference into `src/css/views/` + a builder in `screensaver.js`, behind the flag,
    reusing §7's data. Set `body.fx-archive-active` on Mode-0 entry, remove on exit. Render
    `dayModel`'s existing `{marks, nowT, strata}` onto the tilted plane per §6.2 — across is
