@@ -865,6 +865,7 @@ test.describe("ai + tts", () => {
   });
 });
 
+
 /**
  * isScreenshot — keeping screenshots off the ambient substrate.
  *
@@ -872,40 +873,61 @@ test.describe("ai + tts", () => {
  * premise: the live rotation served a car-configurator web page, browser chrome
  * and cursor included, as Mode-0 wallpaper.
  *
- * The cases below are the real shapes from a 621-image sample of the household
- * library (2026-08-01), because the two obvious approaches both fail on real
- * data: filenames are useless (iOS writes IMG_1234.PNG for screenshots AND
- * camera shots — a library-wide search for "screenshot" returns zero), and
- * "no camera EXIF" alone would drop 58 genuine photos whose EXIF was stripped
- * by messaging apps. Those are exactly the pictures worth showing, so the
- * false-positive cases here matter more than the true-positive ones.
+ * The cases below are real assets from the household library, and the
+ * false-positive ones matter far more than the true positives. An earlier rule
+ * ("PNG with no camera EXIF make") looked exact on a 621-image random sample —
+ * 9/9 true screenshots — and was still wrong: over a fixed date window it
+ * dropped a 360-degree panorama of a park and a photo of the dog on the grass.
+ * Both are PNGs with no EXIF at all, so no camera-detail field can rescue them.
+ * Hence the pixel-exact device-panel rule, and hence these tests.
  */
 test.describe("isScreenshot — ambient pool curation", () => {
-  const png = (make) => ({
+  const png = (w, h, make) => ({
     originalMimeType: "image/png",
-    exifInfo: make ? { make } : {}
+    exifInfo: { exifImageWidth: w, exifImageHeight: h, ...(make ? { make } : {}) }
   });
 
-  test("drops iOS screenshots — PNG with no camera make", () => {
-    // Real sampled shapes: exact device dimensions, no make.
-    expect(isScreenshot(png(null))).toBe(true);
-    expect(isScreenshot({ originalMimeType: "image/PNG", exifInfo: {} })).toBe(true);
+  test("drops pixel-exact device screenshots", () => {
+    expect(isScreenshot(png(1170, 2532))).toBe(true); // iPhone 12/13, x17 in the library
+    expect(isScreenshot(png(1024, 768))).toBe(true);  // iPad, x24
+    expect(isScreenshot(png(1668, 2388))).toBe(true); // iPad Pro 11
+    expect(isScreenshot(png(2048, 1536))).toBe(true); // iPad retina, landscape
   });
 
-  test("keeps a PNG that carries camera EXIF — the safety margin", () => {
-    // An edited export that kept its make is a photograph, not a screen grab.
-    expect(isScreenshot(png("Apple"))).toBe(false);
+  test("matches either orientation", () => {
+    expect(isScreenshot(png(2532, 1170))).toBe(true);
+    expect(isScreenshot(png(768, 1024))).toBe(true);
   });
 
-  test("keeps EXIF-stripped photos — the case that must not regress", () => {
+  /**
+   * The regressions that made this rule what it is. Both were dropped by the
+   * previous "PNG + no make" rule and are genuine memories.
+   */
+  test("KEEPS the 360 panorama and the dog — the two real false positives", () => {
+    expect(isScreenshot(png(4096, 2048))).toBe(false); // equirectangular park panorama
+    expect(isScreenshot(png(540, 540))).toBe(false);   // border collie on the grass
+  });
+
+  test("keeps EXIF-stripped photographs at non-panel sizes", () => {
     // 58 of these in the sample: forwarded and resized family pictures.
-    // Filtering on "no camera make" alone would have removed every one.
-    expect(isScreenshot({ originalMimeType: "image/jpeg", exifInfo: {} })).toBe(false);
-    expect(isScreenshot({ originalMimeType: "image/heic", exifInfo: {} })).toBe(false);
-    expect(isScreenshot({ originalMimeType: "image/tiff", exifInfo: {} })).toBe(false);
+    expect(isScreenshot(png(3024, 4032))).toBe(false);
+    expect(isScreenshot(png(619, 907))).toBe(false);
+    expect(isScreenshot(png(2645, 1617))).toBe(false);
   });
 
-  test("is null-safe on assets with no mime or no exif block", () => {
+  test("keeps a PNG that carries camera EXIF even at a panel size", () => {
+    expect(isScreenshot(png(1170, 2532, "Apple"))).toBe(false);
+  });
+
+  test("keeps non-PNG assets regardless of size", () => {
+    expect(isScreenshot({ originalMimeType: "image/jpeg", exifInfo: { exifImageWidth: 1024, exifImageHeight: 768 } })).toBe(false);
+    expect(isScreenshot({ originalMimeType: "image/heic", exifInfo: { exifImageWidth: 1170, exifImageHeight: 2532 } })).toBe(false);
+  });
+
+  test("never drops on missing information", () => {
+    // No dimensions (searchRandom omits withExif) → inert, never a guess.
+    expect(isScreenshot({ originalMimeType: "image/png", exifInfo: {} })).toBe(false);
+    expect(isScreenshot({ originalMimeType: "image/png" })).toBe(false);
     expect(isScreenshot({})).toBe(false);
     expect(isScreenshot(null)).toBe(false);
     expect(isScreenshot(undefined)).toBe(false);

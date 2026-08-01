@@ -45,35 +45,62 @@ function headers(key, json = true) {
  * premise — the live rotation served a car-configurator web page (browser
  * chrome, cursor, price list) as Mode-0 wallpaper.
  *
- * Derived from the real library (621 still images sampled 2026-08-01), not
- * assumed:
+ * Every cheaper signal was tried against the real library and rejected on
+ * evidence, so do not "simplify" this back to one of them:
  *
- *  - Filename is useless. iOS names screenshots `IMG_1234.PNG` — identical to
- *    camera shots — and a search for "screenshot"/"Screen" across the library
- *    returns literally zero (control: "IMG_1012" returns 4, so the filter works).
- *  - "No camera EXIF" alone is far too aggressive. 58 no-make stills are real
- *    photos: 3024x4032 camera frames, `Murder Mystery Dinner 012.JPG`, forwarded
- *    and resized family pictures. Messaging apps strip EXIF, and those are
- *    exactly the images worth showing.
- *  - PNG + no camera make is exact here. All 9 PNGs in the sample were iOS
- *    screenshots at precise device dimensions (750x1334, 640x1136, 1242x2208,
- *    1170x2532, 1024x768) with no make. Real photographs arrive as JPEG/HEIC —
- *    a phone camera never writes PNG. Cost: 1.4% of the pool.
+ *  - Filename is useless. iOS names screenshots `IMG_1234.PNG`, identical to
+ *    camera shots, and a library-wide search for "screenshot"/"Screen" returns
+ *    literally zero (control: "IMG_1012" returns 4, so the search works).
+ *  - "No camera EXIF make" is far too aggressive: 58 no-make stills are real
+ *    photographs — 3024x4032 camera frames, forwarded and resized family
+ *    pictures whose EXIF messaging apps stripped.
+ *  - "PNG + no make" LOOKED exact on a 621-image random sample (9/9 were true
+ *    screenshots) and is still wrong. Checked against a fixed date window it
+ *    dropped 58 assets, and inspecting them by eye found two genuine memories:
+ *    a 360-degree equirectangular panorama of a park (4096x2048) and a photo of
+ *    the dog on the grass (540x540). Both are PNGs with no EXIF whatsoever.
+ *  - Camera-detail EXIF (fNumber/focalLength/iso/exposureTime/lensModel) cannot
+ *    rescue it: on these assets every one of those fields is null, for genuine
+ *    photographs and true screenshots alike. PNG conversion stripped the lot.
  *
- * The make check is the safety margin: an edited PNG export that kept its
- * camera EXIF stays in. Exported for the contract test (pickSensorPath precedent).
+ * So dimensions are the only signal left, and the rule is deliberately
+ * PRECISION-favouring: drop only a pixel-exact match to a known device panel.
+ * That keeps the panorama and the dog, at the cost of missing odd-sized grabs
+ * (a 625x7465 scrolling capture, a photographed business card). Losing one real
+ * memory off the wall is far worse than an occasional screenshot surviving —
+ * "does this make the next glance more useful, calmer, or more delightful?"
  *
- * Note it degrades to PNG-only on the ambient path: `searchRandom` deliberately
- * does NOT request `withExif`, so `exifInfo` is absent and the make test is
- * vacuously true. That is intended — adding `withExif` there would populate
- * `slim()`'s city/state/country for the random caller and start rendering place
- * captions on the ambient substrate, a behaviour change riding in on an
- * unrelated flag. PNG-alone is exact for this library anyway (9/9 sampled).
+ * Exported for the contract test (pickSensorPath precedent).
+ *
+ * ⚠ Requires exifInfo. `searchRandom` does NOT request `withExif`, so on the
+ * ambient path dimensions are absent and this returns false — the filter is
+ * INERT there. Adding `withExif` would also populate `slim()`'s
+ * city/state/country for the random caller and start rendering place captions on
+ * the ambient substrate: a behaviour change riding in on an unrelated flag, and
+ * a separate decision. Today this curates the on-this-day and memory pools only.
  */
+// Exact device screen sizes, both orientations. A screenshot is a pixel-for-pixel
+// copy of a panel, so it lands on one of these precisely; a photograph does not.
+// Built from what this library actually contains (1024x768 x24, 1170x2532 x17,
+// 1668x2388 x3, 2048x1536) plus the other common iOS panels, since the household
+// is 71% Apple.
+const DEVICE_SCREENS = new Set([
+  "640x1136", "750x1334", "828x1792", "1080x2340", "1125x2436", "1170x2532",
+  "1179x2556", "1206x2622", "1242x2208", "1242x2688", "1290x2796", "1320x2868",
+  "768x1024", "1024x768", "1536x2048", "2048x1536", "1488x2266", "1620x2160",
+  "1640x2360", "1668x2224", "1668x2388", "2048x2732", "1024x1366"
+]);
+
 export function isScreenshot(a) {
   const mime = String(a?.originalMimeType || "").toLowerCase();
   if (!mime.includes("png")) return false;
-  return !String(a?.exifInfo?.make || "").trim();
+  // A PNG that kept its camera EXIF is a photograph, not a screen grab.
+  if (String(a?.exifInfo?.make || "").trim()) return false;
+
+  const w = Number(a?.exifInfo?.exifImageWidth) || 0;
+  const h = Number(a?.exifInfo?.exifImageHeight) || 0;
+  if (!w || !h) return false; // unknown size → keep it; never drop on a guess
+  return DEVICE_SCREENS.has(`${w}x${h}`) || DEVICE_SCREENS.has(`${h}x${w}`);
 }
 
 // Read env INSIDE the function, never at module load: ES imports hoist above
