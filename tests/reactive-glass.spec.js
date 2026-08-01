@@ -50,7 +50,7 @@ function readGlassVar(page, name) {
 function glassAfterAtmo(page, token, names) {
   return page.evaluate(([t, ns]) => {
     document.body.classList.remove(
-      "atmo-night", "atmo-clear-golden", "atmo-clear-day",
+      "atmo-night", "atmo-night-clear", "atmo-clear-golden", "atmo-clear-day",
       "atmo-cloudy", "atmo-rain", "atmo-storm", "atmo-fog"
     );
     if (t) document.body.classList.add(t);
@@ -67,7 +67,7 @@ const MIDDAY = new Date("2026-07-06T12:00:00");
 function setAtmo(page, token) {
   return page.evaluate((t) => {
     document.body.classList.remove(
-      "atmo-night", "atmo-clear-golden", "atmo-clear-day",
+      "atmo-night", "atmo-night-clear", "atmo-clear-golden", "atmo-clear-day",
       "atmo-cloudy", "atmo-rain", "atmo-storm", "atmo-fog"
     );
     if (t) document.body.classList.add(t);
@@ -128,7 +128,18 @@ test("reactive glass on: a lightning strike pulses the sheen then releases", asy
   // Episode over (≤ 4s + settle) → pulse released, base sheen restored.
   await page.waitForFunction(() => window.__atmoFx().running === null, null, { timeout: 10_000 });
   expect(await page.evaluate(() => document.body.classList.contains("fx-lightning-active"))).toBe(false);
-  expect(await readGlassVar(page, "--glass-sheen")).toContain("rgba(255,255,255,.07)");
+
+  // Pin the token for the release read, same reason glassAfterAtmo exists: the
+  // atmo-* class is not this test's to own. Reading it bare asserted the BASE
+  // sheen, which silently encoded "the weather is clear" as a precondition —
+  // on a rainy day the body legitimately carries atmo-rain and the rain sheen
+  // variant is the correct value, so this failed for real weather rather than
+  // for a real regression. atmo-clear-day declares no --glass-sheen override,
+  // so the base is genuinely what should resolve; and because the
+  // fx-lightning-active rule is declared after the token variants, an unreleased
+  // glint would still outshine it here — the assertion keeps its teeth.
+  const released = await glassAfterAtmo(page, "atmo-clear-day", ["--glass-sheen"]);
+  expect(released["--glass-sheen"]).toContain("rgba(255,255,255,.07)");
 
   expect(pageErrors).toEqual([]);
 });
