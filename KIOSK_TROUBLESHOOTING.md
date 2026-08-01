@@ -62,26 +62,49 @@ HA_TOKEN=your_long_lived_token
 
 ## No audio (TTS plays in software but nothing comes out of the display)
 
-The Pi has three ALSA playback devices: the 3.5mm headphone jack (card 0) and two HDMI outputs (cards 1 and 2, one per HDMI port). `/etc/asound.conf` pins a single system-wide default card - if it points at the headphone jack while the display's speakers are on HDMI, every TTS/audio call succeeds in the browser (`audio.play()` resolves with no error) but nothing is audible, because it's playing into a jack with nothing plugged in.
+`/etc/asound.conf` pins the system-wide default. If it points anywhere other than the HDMI output carrying the display's speakers, every TTS/audio call succeeds in the browser (`audio.play()` resolves with no error) and nothing is audible.
 
-### Check what's actually connected
+> **This section previously described the Pi's layout incorrectly in both directions** — it
+> claimed headphones were card 0 with HDMI on 1 and 2, and that `asound.conf` pinned card 1.
+> The Pi's real layout was card 0 `vc4hdmi0` (the *connected* panel), card 1 `vc4hdmi1`
+> (disconnected), card 2 `Headphones`, pinned to card **0**. Never port a card number from
+> this or any doc — **derive it from ELD**, below.
+
+### Find the live output from ELD, don't guess
+
+The only reliable signal is which HDMI audio device has a monitor actually attached:
 
 ```sh
-for f in /sys/class/drm/*HDMI*/status; do echo "$f:"; cat "$f"; done
-aplay -l   # lists card 0 (Headphones), card 1 (vc4hdmi0), card 2 (vc4hdmi1)
+for f in /proc/asound/card*/eld*; do
+  echo "--- $f"; grep -E 'monitor_present|eld_valid|monitor_name' "$f" 2>/dev/null
+done
+aplay -l
 ```
 
-`HDMI-A-1` connected maps to ALSA card 1 (`vc4hdmi0`); `HDMI-A-2` maps to card 2.
+The device with `monitor_present 1` / `eld_valid 1` is the one wired to the panel. `eld#N.M`
+maps to card `N`, and `M` indexes that card's HDMI devices **in `aplay -l` order** (not to the
+device number itself).
 
-### Point the default device at the right HDMI output
+**On the G11 (AMD):** HDMI audio is **one card with several devices** — `card 0
+[HD-Audio Generic]` exposing devices 3, 7, 8 and 9, plus `card 1` for the ALC233 analog jack.
+`defaults.pcm.card N` alone is therefore **insufficient**; the device must be named too:
 
 ```sh
 sudo cp /etc/asound.conf /etc/asound.conf.bak
-echo 'defaults.pcm.card 1
-defaults.ctl.card 1' | sudo tee /etc/asound.conf
+sudo tee /etc/asound.conf <<'EOF'
+pcm.!default {
+    type plug
+    slave.pcm { type hw; card 0; device 3 }
+}
+ctl.!default { type hw; card 0 }
+EOF
 ```
 
-(Use `2` instead of `1` if the display is on the second HDMI port.)
+(`card 0 device 3` is correct for the current panel — `eld#0.0` shows `monitor_present 1`.
+**Re-derive it if the panel or HDMI port changes.**)
+
+**On the Pi 4 (rollback host):** each HDMI port is its own card, so the simpler
+`defaults.pcm.card N` / `defaults.ctl.card N` form is enough — card **0** for the panel.
 
 ### Test before involving the browser at all
 

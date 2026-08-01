@@ -4,6 +4,17 @@ _Plan drafted 2026-07-11. Part of the [Home OS vision](./home-os-vision.md) road
 
 **✅ Shipped & enabled on the Pi (`features.ambientSubstrate:true`).** The GPU prerequisite below was paid down first (Ken Burns → settle + hold dropped Mode-0 GPU 80%→0%). _(Original plan document; live status in the [roadmap](./home-os-vision.md).)_
 
+> **⚠ Correction added 2026-08-01 — the magnitudes below are not citable.** Every `gpucpu.sh`
+> figure in this document was produced by a version of the tool that could only ever emit
+> **0 / 40 / 80 / 120**: it ran `bc "scale=1; dp/dt*NCPU*100"`, and `bc` truncates the
+> *division* to one decimal before multiplying, so on the 4-core Pi anything under ~25% of a
+> core printed as literally **0** and a pinned core printed **80.0** (fixed 2026-07-30,
+> `560a32d`). So "80%" here means **"≈ one core pinned"** and "0%" means **"below ~25% of a
+> core"** — not zero. Separately, "0% at rest" is measurably false in daylight: Mode-0 ambient
+> costs ~9% of a core at `anims:0`, ~5× the night figure, from compositing rather than
+> animation. **The direction of this phase's fix was real and the gate was genuinely met; the
+> numbers are artefacts.** Current baselines: `docs/audit/HOST-BASELINES.md`.
+
 ## Key insight that de-risks this phase
 
 **The atmosphere already exists — it's just trapped in Mode 0.** Phase 5's `atmosphere.js` maps real weather + light to an `atmo-*` token, but `screensaver.js` applies it to the `.screensaver` root, and `body.screensaver-active > *:not(#screensaver){visibility:hidden}` hides the dashboard behind it. So the room only "breathes" when nobody's home; the instant someone leans in, the atmosphere evaporates and the flat dashboard returns. **Phase 7 is mostly a move, not a build:** lift the token off the screensaver root onto a shared app root so the intent-dressed room persists through GLANCE and DWELL, and let engaged content render _over_ it.

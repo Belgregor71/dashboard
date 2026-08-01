@@ -1,13 +1,14 @@
 # CLAUDE.md
 
-## Project: Raspberry Pi Kiosk Dashboard
+## Project: Kiosk Dashboard (GMKtec G11, migrated off a Raspberry Pi 4 on 2026-08-01)
 
 ### Verification & Deployment
 
-- This dashboard runs on a Raspberry Pi 4 kiosk (32" landscape display). A fix is not complete until verified on the actual Pi display / live environment — dev-session rendering is often unreliable (lottie icons, camera snapshots, TTS timing). Don't declare a fix done while it's still "pending Pi retest".
-- Deploys are pull-based: pushing to `origin/main` triggers the Pi's `dashboard-deploy.timer` (polls every 5 min; pulls, `npm run build`, restarts `dashboard.service`). Trigger immediately with `ssh pi-dashboard 'sudo systemctl start dashboard-deploy.service'` (oneshot — blocks until done). Use the `/deploy` skill for the full ship-and-verify loop.
-- Pi access: `ssh pi-dashboard` (192.168.0.183, user `dashboard`, repo at `/home/dashboard/dashboard`). Dashboard serves on port 3000 on the Pi (systemd sets `PORT=3000`; the 3001 in `.env.example` is not what runs). Kiosk Chromium exposes CDP on 127.0.0.1:9222 (localhost only — run a node script on the Pi to reach it).
-- During long sessions, commit working progress locally in small checkpoints — but don't push until verified, because pushing to main deploys to the Pi.
+- This dashboard runs on a **GMKtec G11 mini PC** (AMD Ryzen Embedded R2514, Vega 8, 16 GB, Debian 13 + X11) driving a 32" landscape display. It ran on a Raspberry Pi 4 until 2026-08-01; that Pi is retained as the warm rollback host. A fix is not complete until verified on the actual kiosk display / live environment — dev-session rendering is often unreliable (lottie icons, camera snapshots, TTS timing). Don't declare a fix done while it's still "pending kiosk retest".
+- Deploys are pull-based: pushing to `origin/main` triggers the kiosk's `dashboard-deploy.timer` (polls every 5 min; pulls, `npm run build`, restarts `dashboard.service`). Trigger immediately with `ssh pi-dashboard 'sudo systemctl start dashboard-deploy.service'` (oneshot — blocks until done). Use the `/deploy` skill for the full ship-and-verify loop.
+- Access: **`ssh pi-dashboard` → the G11** (192.168.0.183, user `dashboard`, repo at `/home/dashboard/dashboard`). The alias name is **historical and deliberately unchanged** — keeping it means the deploy chain, all 7 skills and the pre-approved permissions need zero edits. The Pi 4 rollback host is **`ssh pi4-rollback`** (192.168.0.186); its kiosk is disabled but `dashboard.service` + `dashboard-deploy.timer` stay running so it remains code-current. Dashboard serves on port 3000 (systemd sets `PORT=3000`, and `.env.example:1` now agrees). Kiosk Chromium exposes CDP on 127.0.0.1:9222 (localhost only — run a node script on the kiosk host to reach it).
+- **Host-specific gotchas on the G11:** `vcgencmd` does not exist — read `tempC` from `/api/system/metrics` (autodetects `k10temp`; `/sys/class/thermal/` is absent entirely). `nproc` is **8**, not 4, so every "% of the box" derived from `gpucpu.sh` changes denominator. `sudo` is narrowed to three passwordless systemctl commands; anything else needs a password. Baselines for both hosts live in `docs/audit/HOST-BASELINES.md`.
+- During long sessions, commit working progress locally in small checkpoints — but don't push until verified, because pushing to main deploys to the live kiosk.
 
 ### Feature Flags
 

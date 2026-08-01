@@ -324,10 +324,15 @@ requestAnimationFrame(() => {
 .wx-flash.is-fading   { background: transparent; transition: background 180ms ease-out; }
 ```
 
-## Performance notes (Pi 4 / NAS split)
+## Performance notes (kiosk host / NAS split)
 
-- Heavy compute (AI text generation, TTS synthesis) runs on a NAS over the
-  LAN, never on the Pi itself — the Pi only renders.
+- Heavy compute (AI text generation, TTS synthesis) runs on a NAS or the PC
+  over the LAN, never on the kiosk host itself — the kiosk only renders.
+- The kiosk host moved from a Raspberry Pi 4 to a GMKtec G11 on 2026-08-01.
+  **The rendering budgets in this guide are still the Pi-era ones and stay
+  that way** — relaxing them (atmoFx planner caps, the 18px blur limit, Ken
+  Burns settle-then-hold, the DPR clamps, downscaled Immich renditions) is a
+  separate, flag-gated change, not a free consequence of the new hardware.
 - External image/tile fetches (radar, basemap) are server-proxied and
   cached (24h for static basemap tiles, 5min for data that actually changes)
   rather than re-fetched on every page paint.

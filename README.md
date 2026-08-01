@@ -180,7 +180,10 @@ ExecStart=/usr/bin/chromium \
   --incognito \
   --check-for-update-interval=31536000 \
   --disable-session-crashed-bubble \
-  --overscroll-history-navigation=0
+  --overscroll-history-navigation=0 \
+  --autoplay-policy=no-user-gesture-required \
+  --remote-debugging-port=9222 \
+  --remote-debugging-address=127.0.0.1
 
 Restart=always
 RestartSec=10
@@ -188,6 +191,19 @@ RestartSec=10
 [Install]
 WantedBy=graphical.target
 ```
+
+**The last three flags are load-bearing and were missing from this block until
+2026-08-01** (a Phase 0 capture of the live unit found them):
+
+- `--autoplay-policy=no-user-gesture-required` — on a kiosk with no pointer,
+  losing this silently kills weather background MP4s **and all TTS audio**. The
+  concierge simply stops speaking, with no error anywhere.
+- `--remote-debugging-port=9222` / `--remote-debugging-address=127.0.0.1` — every
+  script in `scripts/kiosk/` drives CDP on `127.0.0.1:9222`. Without these, the
+  whole measurement and verification toolchain is inert.
+
+Install units from a capture of the running host, never from a doc — this block
+is the cautionary example.
 
 This must be the **only** thing launching the kiosk Chromium. Raspberry Pi
 OS can leave behind a separate per-user `~/.config/systemd/user/kiosk.service`
