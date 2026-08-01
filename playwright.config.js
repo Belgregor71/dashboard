@@ -43,6 +43,26 @@ export default defineConfig({
       CALENDAR_GOOGLE_URL: "",
       CALENDAR_APPLE_URL: "",
       CALENDAR_TRIPIT_URL: "",
+      // Weather was the last live upstream the suite still hit, and it made the
+      // pre-push gate depend on someone else's quota. On 2026-08-02 three full
+      // runs in 25 minutes exhausted the Open-Meteo free tier; every subsequent
+      // run 429'd, page.goto("/") stopped firing `load` inside its budget, and
+      // 6 specs failed with the victim moving between runs — which reads
+      // exactly like a real regression in whatever was last touched.
+      //
+      // Poisoning WEATHER_LAT would have been the CALENDAR_*_URL-style fix, but
+      // fuel.js and radar.js read those same coords, so it breaks two unrelated
+      // routes as collateral. (Note "" would not work regardless: Number("")
+      // is 0, which is finite, so the route would still call out.) Pointing the
+      // endpoint at a dead port is the narrower cut and matches how the AI
+      // upstreams above are already stubbed: instant ECONNREFUSED, no network,
+      // and /api/weather/* returns its documented degraded shape, which the
+      // contract tests already accept.
+      OPEN_METEO_URL: "http://127.0.0.1:1/v1/forecast",
+      // The BOM fallback is default-off in production; keep it off here so the
+      // suite exercises the same path the kiosk runs, and never reaches for the
+      // live Home Assistant. Its mapping is covered by unit specs instead.
+      WEATHER_BOM_FALLBACK: "0",
       // The vault lane is default-OFF in production but ON here, so its routes
       // are contract-covered. data/vault/ does not exist on a test machine, so
       // what the suite exercises is the cold-start path (0 notes, no crash) —

@@ -1,6 +1,8 @@
 import fetch from "node-fetch";
 import { validateData } from "../middleware/validate.js";
 import { reportFailure, reportSuccess } from "./healthService.js";
+import { readHaConfig } from "../ha/haConfig.js";
+import { fetchBomWeather, haConditionToWmoCode } from "./bomWeatherService.js";
 
 /** @typedef {import("../types/api.js").WeatherNowNormalized} WeatherNowNormalized */
 /** @typedef {import("../types/api.js").WeatherForecastNormalized} WeatherForecastNormalized */
@@ -53,8 +55,16 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_M
   }
 }
 
+// Read per-call, not at module load: a module-scope process.env read sits above
+// dotenv and freezes to undefined (audit 2026-07-26, M2). Overridable so the
+// test suite can point it at a dead port instead of spending someone else's
+// rate limit — the same trick OLLAMA_URL/KOKORO_URL already use.
+function openMeteoEndpoint() {
+  return process.env.OPEN_METEO_URL || "https://api.open-meteo.com/v1/forecast";
+}
+
 export async function fetchWeatherRaw({ lat, lon }) {
-  const url = new URL("https://api.open-meteo.com/v1/forecast");
+  const url = new URL(openMeteoEndpoint());
   url.searchParams.set("latitude", String(lat));
   url.searchParams.set("longitude", String(lon));
   url.searchParams.set("current_weather", "true");
@@ -189,6 +199,100 @@ export function weatherFallbackForecast() {
   return { days: [] };
 }
 
+function numberOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * BOM (via Home Assistant) mapped into the Open-Meteo-shaped contract, so
+ * every consumer downstream is unaware which upstream served the request.
+ *
+ * Deliberately null, because BOM's HA weather entity does not carry them:
+ *  - feels_like_c / uv — no apparent-temperature or UV attribute exists.
+ *  - sunrise / sunset — verified safe: nothing reads day.sunrise from this API.
+ *    screensaver.js and weather/renderer.js both compute sun times locally from
+ *    the vendored suncalc, and the only other reader (weather/mapper.js) is
+ *    orphaned and parses the raw Open-Meteo shape anyway.
+ *
+ * @returns {WeatherNowNormalized}
+ */
+export function normalizeBomNow(bom) {
+  const today = bom?.days?.[0] || {};
+  return {
+    location: {
+      name: bom?.current?.locationName || "BOM",
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+    },
+    now: {
+      temp_c: bom?.current?.temp_c ?? null,
+      feels_like_c: null,
+      condition: conditionFor(haConditionToWmoCode(bom?.current?.condition)),
+      wind_kph: bom?.current?.wind_kph ?? null,
+      humidity_pct: bom?.current?.humidity_pct ?? null,
+      uv: null,
+      rain_chance_pct: numberOrNull(today.precipitation_probability)
+    },
+    day: {
+      high_c: numberOrNull(today.temperature),
+      low_c: numberOrNull(today.templow),
+      sunrise: null,
+      sunset: null
+    }
+  };
+}
+
+/** @returns {WeatherForecastNormalized} */
+export function normalizeBomForecast(bom) {
+  const days = Array.isArray(bom?.days) ? bom.days : [];
+  return {
+    days: days.map((day) => ({
+      // HA datetimes are full ISO ("2026-08-02T00:00:00"); Open-Meteo's daily
+      // dates are bare. Trim so both upstreams key days identically.
+      date: typeof day?.datetime === "string" ? day.datetime.slice(0, 10) : "",
+      high_c: numberOrNull(day?.temperature),
+      low_c: numberOrNull(day?.templow),
+      condition: conditionFor(haConditionToWmoCode(day?.condition)),
+      rain_chance_pct: numberOrNull(day?.precipitation_probability)
+    }))
+  };
+}
+
+/**
+ * Second-chance read when Open-Meteo is down. Returns null (not a throw) for
+ * every "cannot help" case, so the caller falls through to its existing error
+ * path and behaviour with the flag off is byte-identical to before.
+ */
+async function tryBomFallback({ validateNow, validateForecast }) {
+  if (process.env.WEATHER_BOM_FALLBACK !== "1") return null;
+
+  const { haHost, haToken, enabled } = readHaConfig({ requireConfig: false });
+  if (!enabled) return null;
+
+  try {
+    const bom = await fetchBomWeather({ haHost, haToken });
+    const now = normalizeBomNow(bom);
+    const forecast = normalizeBomForecast(bom);
+
+    const nowResult = validateData(validateNow, now);
+    if (!nowResult.ok) {
+      console.error("BOM fallback now validation failed:", nowResult.errors);
+      return null;
+    }
+    const forecastResult = validateData(validateForecast, forecast);
+
+    // Weather is on screen, so health is green — the degradation is recorded
+    // here rather than by failing the surface the room can actually see.
+    reportSuccess("weather");
+    console.warn(`[Weather] Open-Meteo unavailable — serving BOM via Home Assistant (${bom.entityId})`);
+
+    return { now, forecast: forecastResult.ok ? forecast : weatherFallbackForecast() };
+  } catch (error) {
+    console.error("[Weather] BOM fallback failed:", error?.message || error);
+    return null;
+  }
+}
+
 export async function getWeatherNormalized({ lat, lon, validateNow, validateForecast }) {
   try {
     const raw = await fetchWeatherRaw({ lat, lon });
@@ -196,6 +300,13 @@ export async function getWeatherNormalized({ lat, lon, validateNow, validateFore
     const now = normalizeWeatherNow(raw);
     const forecast = normalizeWeatherForecast(raw);
 
+    // Heads-up: validateData MUTATES `now`. The shared Ajv instance runs
+    // coerceTypes, so every null here leaves as 0 (or "" for strings) — an
+    // unknown UV or apparent temperature is served as a confident zero on both
+    // upstreams. Most read paths guard with `!= null`, which can therefore
+    // never fire; aiBriefing.js then tells the model "UV 0". Pinned by
+    // tests/bom-weather.spec.js rather than fixed, because un-coercing changes
+    // what every weather consumer receives.
     const nowResult = validateData(validateNow, now);
     if (!nowResult.ok) {
       console.error("Weather now validation failed:", nowResult.errors);
@@ -211,6 +322,10 @@ export async function getWeatherNormalized({ lat, lon, validateNow, validateFore
     return { now, forecast };
   } catch (error) {
     reportFailure("weather", error?.message);
+
+    const bom = await tryBomFallback({ validateNow, validateForecast });
+    if (bom) return bom;
+
     error.code = "WEATHER_UNAVAILABLE";
     throw error;
   }
