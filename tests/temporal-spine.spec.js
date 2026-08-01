@@ -341,6 +341,39 @@ test.describe("the spine surface", () => {
     expect(pageErrors).toEqual([]);
   });
 
+  // Live-verification regression, 2026-08-01. The spine shipped invisible in the
+  // one mode it exists for: screensaver.css blanks every body child except
+  // #screensaver and .recipe-panel, and the spine is a body child. Every
+  // JS-level assertion still passed — __spine() reported marks, the utterance
+  // class was set — because the probe was reading its own bookkeeping, not paint.
+  // Only the kiosk showed it. This asserts the exemption, not the state.
+  test("the spine survives the screensaver blank rule — it never leaves", async ({ page }) => {
+    await forceFlags({ temporalSpine: true })(page);
+    await page.clock.setFixedTime(MIDDAY);
+    await page.goto("/");
+    await page.waitForFunction(() => typeof window.__spine === "function");
+
+    const vis = await page.evaluate(() => {
+      document.body.classList.add("screensaver-active");
+      const spine = document.getElementById("temporal-spine");
+      const el = document.querySelector(".temporal-spine__canvas");
+      const out = {
+        spine: getComputedStyle(spine).visibility,
+        canvas: getComputedStyle(el).visibility,
+        // The rule must still be doing its job for everything else.
+        hero: getComputedStyle(document.getElementById("focus-hero")).visibility,
+        painted: el.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+      };
+      document.body.classList.remove("screensaver-active");
+      return out;
+    });
+
+    expect(vis.spine).toBe("visible");
+    expect(vis.canvas).toBe("visible");
+    expect(vis.painted).toBe(true);
+    expect(vis.hero).toBe("hidden"); // the blank rule still blanks everything else
+  });
+
   test("nobody home renders no words and no breath", async ({ page }) => {
     await forceFlags({ temporalSpine: true })(page);
     await page.clock.setFixedTime(MIDDAY);

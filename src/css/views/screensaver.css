@@ -450,9 +450,16 @@ body.living-accent .screensaver--ambient-clock .screensaver__dateline {
 }
 
 /* ── Hide dashboard content while screensaver is active ────── */
-/* The dinner recipe panel is exempt: it slides in OVER the screensaver (which
-   stays as its dim-at-night / bright-by-day photo backdrop). */
-body.screensaver-active > *:not(#screensaver):not(.recipe-panel) {
+/* Two exemptions, both surfaces that live OVER the screensaver rather than
+   behind it (which stays as its dim-at-night / bright-by-day photo backdrop):
+     · the dinner recipe panel, which slides in;
+     · the temporal spine, because Mode 0 is the state it exists for. The spine
+       never leaves — "nobody home" is photograph, light, spine, quiet numeral
+       (docs/design/TEMPORAL-SPINE.md §5). Presence rations its WORDS to nothing
+       here, which the spine does itself; it must not also lose its light.
+   Anything added to this list must be a surface that has a reason to be awake
+   while the room is empty. */
+body.screensaver-active > *:not(#screensaver):not(.recipe-panel):not(#temporal-spine) {
   visibility: hidden;
 }
 
