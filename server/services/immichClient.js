@@ -72,12 +72,13 @@ function headers(key, json = true) {
  *
  * Exported for the contract test (pickSensorPath precedent).
  *
- * ⚠ Requires exifInfo. `searchRandom` does NOT request `withExif`, so on the
- * ambient path dimensions are absent and this returns false — the filter is
- * INERT there. Adding `withExif` would also populate `slim()`'s
- * city/state/country for the random caller and start rendering place captions on
- * the ambient substrate: a behaviour change riding in on an unrelated flag, and
- * a separate decision. Today this curates the on-this-day and memory pools only.
+ * ⚠ Requires exifInfo for the dimensions, so every caller must request
+ * `withExif`. `searchRandom` now asks for it when the flag is on (only then —
+ * flag-off stays byte-identical). An earlier revision of this comment claimed
+ * doing so would start rendering place captions on the ambient substrate; that
+ * was wrong. Both consumers of /api/immich/random read `a.id` and nothing else
+ * (background.js:54, screensaver.js:191), and the ambient captions come from the
+ * Daily Memories set on a different route entirely.
  */
 // Exact device screen sizes, both orientations. A screenshot is a pixel-for-pixel
 // copy of a panel, so it lands on one of these precisely; a photograph does not.
@@ -145,9 +146,20 @@ export async function searchRandom(count = 12) {
   const cfg = config();
   if (!cfg) return [];
   try {
+    // withExif ONLY when the screenshot filter is on: isScreenshot needs the
+    // pixel dimensions, and without them it is inert. Requested conditionally so
+    // the flag-off request is byte-identical to before, and so the larger
+    // response is only paid for when something consumes it.
+    //
+    // Safe to populate: both consumers of /api/immich/random use `a.id` and
+    // nothing else (background.js:54, screensaver.js:191), so slim()'s
+    // city/state/country riding along changes no rendering. The ambient
+    // substrate's captions come from the Daily Memories set, a different path.
+    const body = { size: Math.min(count * 3, 100) };
+    if (excludeScreenshots()) body.withExif = true;
     const res = await fetchWithTimeout(
       `${cfg.base}/api/search/random`,
-      { method: "POST", headers: headers(cfg.key), body: JSON.stringify({ size: Math.min(count * 3, 100) }) },
+      { method: "POST", headers: headers(cfg.key), body: JSON.stringify(body) },
       TIMEOUT_MS
     );
     if (!res.ok) return [];
