@@ -1,5 +1,12 @@
 node_modules/
+# `.env` alone left every sibling copy committable, and this repo is PUBLIC.
+# Found 2026-08-02: an untracked `.env.pre-cleanup` (9 lines of tokens/keys,
+# left over from the G11 migration) was sitting in the kiosk's checkout, one
+# `git add -A` away from being published. Backups are the normal way to edit a
+# live .env, so ignore the whole family rather than trusting nobody typos.
 .env
+.env.*
+!.env.example
 .pm2
 logs
 dist/
