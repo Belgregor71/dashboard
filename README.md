@@ -130,6 +130,10 @@ systemd services — never start it under PM2 as well; a second process fighting
 over port 3000 will crash-loop forever (`EADDRINUSE`) without ever actually
 restarting the live server.
 
+Browser-based shell and live screen viewing (Cockpit + noVNC, replacing
+Raspberry Pi Connect) are installed separately — see
+[`deploy/REMOTE-ACCESS.md`](deploy/REMOTE-ACCESS.md).
+
 ```bash
 git pull
 npm install

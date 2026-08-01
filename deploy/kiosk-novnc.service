@@ -1,0 +1,20 @@
+[Unit]
+Description=noVNC web front-end for the kiosk VNC display
+After=kiosk-x11vnc.service
+Wants=kiosk-x11vnc.service
+
+[Service]
+Type=simple
+# No X access needed here - this only bridges websocket <-> 127.0.0.1:5900.
+User=dashboard
+Group=dashboard
+# /usr/bin/websockify comes from python3-websockify, NOT the websockify package
+# (that one ships only /usr/bin/rebind).
+# Web root has no index.html - the entry point is /vnc.html.
+# Change 0.0.0.0 to the LAN IP to stop it binding on every interface.
+ExecStart=/usr/bin/websockify --web=/usr/share/novnc 0.0.0.0:6080 127.0.0.1:5900
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

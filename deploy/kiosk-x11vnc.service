@@ -1,0 +1,33 @@
+[Unit]
+Description=Share the live kiosk X display (:0) over VNC, localhost only
+After=display-manager.service
+Wants=display-manager.service
+
+[Service]
+Type=simple
+# Runs as root: lightdm's X auth file (-auth below) is root-readable only.
+User=root
+# -display :0      attach to the EXISTING kiosk display, do not spawn a new one
+# -auth ...        lightdm owns Xorg; without this x11vnc dies with "XOpenDisplay failed"
+# -localhost       never expose 5900 to the LAN; noVNC/websockify is the only front door
+# -shared          allow more than one viewer at once
+# -wait/-defer     ~10fps instead of the ~30fps default, to respect the kiosk CPU budget
+# If the image ever goes STALE while the panel is clearly updating, add -noxdamage
+# (costs more CPU: it polls the framebuffer instead of trusting X damage events).
+ExecStart=/usr/bin/x11vnc \
+    -display :0 \
+    -auth /var/run/lightdm/root/:0 \
+    -rfbauth /etc/x11vnc.pass \
+    -rfbport 5900 \
+    -localhost \
+    -forever \
+    -shared \
+    -xkb \
+    -wait 100 \
+    -defer 100
+# X restarts (or a lightdm bounce) kill x11vnc; keep retrying until the display is back.
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
