@@ -2,15 +2,15 @@ import { test, expect } from "@playwright/test";
 import { existsSync, readFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { buildStrata, ARCHIVE_STRATA_ROWS, STRATA_ROWS } from "../src/js/services/dayModel.js";
-import { captionParts, localHourOf } from "../src/js/services/photoMemory.js";
+import { captionParts, localHourOf, relativeYearPhrase } from "../src/js/services/photoMemory.js";
+import { yearSpan, plateFor } from "../src/js/services/archiveModel.js";
 
 /**
  * The Ambient Archive — calm law v3 (docs/design/AMBIENT-ARCHIVE.md).
  *
- * Mode 0 as an instrument space: the memory as a lit card over the temporal
- * spine's day rendered in three dimensions — across is today, back is the
- * years. The archive absorbs the spine's job while it is up.
+ * Mode 0 as an instrument space: the memory as a lit card between two ruler
+ * planes — the FAR plane is the years, the NEAR plane is today — and the depth
+ * between them is literal. The archive absorbs the spine's job while it is up.
  *
  * The four traps this file exists to catch, in the handover's own order:
  *   §4.1 the screensaver blank rule hides whatever you add — and every
@@ -59,8 +59,7 @@ const ARCHIVE_OFF = { ambientArchive: false, immichPhotos: false, dailyMemories:
 // is `year · place · who`, which IS the plate. Nothing is invented here.
 const MEMORY = {
   src: "/photos/river.jpg",
-  caption: "2019 · Nudgee, Queensland · our niece Melanie",
-  hour: 9.5
+  caption: "2019 · Nudgee, Queensland · our niece Melanie"
 };
 
 async function bootArchive(page, flags = ARCHIVE_ON) {
@@ -87,59 +86,52 @@ async function engaged(page) {
 // words never describe the wrong picture. Tests wait for the staging rather
 // than reaching past it — the staging is half the feature.
 async function settledPlate(page) {
+  // Two stages, and missing the second one measures a half-faded plate: the
+  // class comes off at the 2.4s midpoint, and only THEN does the 2.4s opacity
+  // transition back in begin. Wait for the words to actually be on the wall.
   await page.waitForFunction(
-    () => !document.querySelector(".archive__plate").classList.contains("is-exchanging"),
+    () => {
+      const plate = document.querySelector(".archive__plate");
+      const ghost = document.querySelector(".archive__ghost");
+      if (plate.classList.contains("is-exchanging")) return false;
+      const want = plate.classList.contains("is-visible") ? "1" : "0";
+      return getComputedStyle(plate).opacity === want && getComputedStyle(ghost).opacity === "1";
+    },
     null,
-    { timeout: 8000 }
+    { timeout: 12000 }
   );
   return page.evaluate(() => window.__archive());
 }
 
 /* ───────────────────────────── the pure model ───────────────────────────── */
 
-test.describe("the archive's reach", () => {
-  test("the plane carries more years than the flat spine, without moving the spine's", () => {
-    // A receding plane separates its rows by perspective as well as position,
-    // so it holds more before it turns to mush (§6.3.3). The spine is
-    // default-on and Pi-verified at three: the archive must not reach outside
-    // its own flag to change that.
-    expect(ARCHIVE_STRATA_ROWS).toBeGreaterThan(STRATA_ROWS);
-    expect(STRATA_ROWS).toBe(3);
+test.describe("the year shelf", () => {
+  const NOW = new Date("2026-07-06T12:00:00");
 
-    const now = new Date("2026-07-06T19:05:00");
-    const rows = buildStrata([], { now, count: ARCHIVE_STRATA_ROWS });
-    expect(rows.length).toBe(ARCHIVE_STRATA_ROWS);
-    expect(rows.map((r) => r.year)).toEqual([2025, 2024, 2023, 2022, 2021]);
-    expect(rows.every((r) => !r.lit)).toBe(true);
-  });
-
-  test("a memory lights its own year-line at the hour it was taken", () => {
-    const now = new Date("2026-07-06T19:05:00");
-    const at = new Date(2026, 6, 6, 9, 30);
-    const rows = buildStrata([{ year: 2022, at }], { now, count: ARCHIVE_STRATA_ROWS });
-    const lit = rows.filter((r) => r.lit);
-    expect(lit.map((r) => r.year)).toEqual([2022]);
-    expect(lit[0].hour).toBeCloseTo(9.5, 3);
-    expect(lit[0].t).toBeGreaterThan(0);
+  test("the shelf is at least a decade, and always reaches the lit year", () => {
+    // A lit year off the end of its own ruler is the one thing this instrument
+    // must never do, and the album reaches back much further than a decade.
+    expect(yearSpan(null, NOW)).toEqual({ from: 2017, to: 2026 });
+    expect(yearSpan(2022, NOW)).toEqual({ from: 2017, to: 2026 }); // already on it
+    expect(yearSpan(2011, NOW)).toEqual({ from: 2011, to: 2026 }); // shelf extends back
+    // A photo from this year does not shorten the shelf below its floor.
+    expect(yearSpan(2026, NOW)).toEqual({ from: 2017, to: 2026 });
   });
 });
 
 test.describe("the hour a photograph was taken", () => {
-  // The mark's whole job is being right about when. `localDateTime` carries a
-  // trailing Z it does not mean, so reading it through Date would shift a 9am
-  // photo to 7pm in Brisbane — a ten-hour lie on the one axis that must not
-  // lie. Same trap `localMonthDay` already dodges, one field deeper.
+  // `localDateTime` carries a trailing Z it does not mean, so reading it
+  // through Date would shift a 9am photo to 7pm in Brisbane. Same trap
+  // `localMonthDay` already dodges, one field deeper.
   test("the wall-clock hour is read from the fields, never through Date", () => {
     expect(localHourOf("2011-04-06T09:03:43.000Z")).toBeCloseTo(9.05, 2);
     expect(localHourOf("2019-12-25T18:30:00.000Z")).toBeCloseTo(18.5, 3);
     expect(localHourOf("2019-12-25 06:15:00")).toBeCloseTo(6.25, 3);
-    // Whatever the machine's zone, the answer is the one written down.
     const viaDate = new Date("2011-04-06T09:03:43.000Z").getHours();
-    expect(localHourOf("2011-04-06T09:03:43.000Z")).toBeCloseTo(9.05, 2);
     if (viaDate !== 9) expect(Math.floor(localHourOf("2011-04-06T09:03:43.000Z"))).not.toBe(viaDate);
   });
 
-  test("no usable time means no mark, not a guessed one", () => {
+  test("no usable time means no hour, not a guessed one", () => {
     expect(localHourOf(null)).toBe(null);
     expect(localHourOf("")).toBe(null);
     expect(localHourOf("2011-04-06")).toBe(null);
@@ -147,25 +139,36 @@ test.describe("the hour a photograph was taken", () => {
 });
 
 test.describe("the plate is relocated language, never new language", () => {
+  const NOW = new Date("2026-07-06T12:00:00");
+
   test("year · place · who splits into the plate's three registers", () => {
     expect(captionParts("2019 · Nudgee, Queensland · our niece Melanie")).toEqual({
       year: "2019",
       title: "Nudgee, Queensland",
       who: "our niece Melanie"
     });
+    expect(plateFor("2019 · Nudgee, Queensland · our niece Melanie", NOW)).toEqual({
+      year: "2019",
+      title: "Nudgee, Queensland",
+      who: "our niece Melanie"
+    });
   });
 
-  test("a caption with no people still makes a plate; a bare year makes none", () => {
-    expect(captionParts("2019 · Otago Harbour, New Zealand")).toEqual({
-      year: "2019",
-      title: "Otago Harbour, New Zealand",
-      who: null
-    });
-    // We know only the year — the ghost engraving already says it, so the plate
-    // stays silent rather than repeating itself in a box.
-    expect(captionParts("2019")).toBe(null);
-    expect(captionParts(null)).toBe(null);
-    expect(captionParts("")).toBe(null);
+  // Most of this library has no GPS and no named faces, so a bare year is the
+  // COMMON case, not the edge one — on 2026-08-02 it was the whole day's set,
+  // and the plate simply never appeared. It still speaks: it says the year in
+  // words. Not invented data — the year is already a 400px engraving behind it.
+  test("a bare year still earns a plate, said in words", () => {
+    expect(plateFor("2022", NOW)).toEqual({ year: "2022", title: "Four years ago today", who: null });
+    expect(plateFor("2025", NOW)).toEqual({ year: "2025", title: "One year ago today", who: null });
+    expect(relativeYearPhrase(2022, NOW)).toBe("Four years ago today");
+    expect(relativeYearPhrase(2026, NOW)).toBe(null); // this year is not "ago"
+  });
+
+  test("no year means no plate — silence is the default", () => {
+    expect(plateFor(null, NOW)).toBe(null);
+    expect(plateFor("", NOW)).toBe(null);
+    expect(plateFor("Nudgee, Queensland", NOW)).toBe(null);
   });
 });
 
@@ -179,6 +182,7 @@ test("flag off: no archive, no body class, no hook — Mode 0 is the spine's", a
 
   expect(await page.locator(".archive").count()).toBe(0);
   expect(await page.evaluate(() => document.body.classList.contains("fx-archive-active"))).toBe(false);
+  expect(await page.evaluate(() => document.body.classList.contains("ambient-archive-on"))).toBe(false);
   expect(await page.evaluate(() => typeof window.__archive)).toBe("undefined");
   // The surface the archive replaces is untouched: the spine still holds Mode 0
   // and the clock is still the big centred one.
@@ -205,15 +209,29 @@ test("flag on: Mode 0 becomes the archive, and leaving it switches the cause off
   expect(probe.enabled).toBe(true);
   expect(probe.active).toBe(true);
   expect(probe.marker).toBe(true);
-  // The deck: today, the archive's reach of years, and the deep drawer — all
-  // allocated once, whatever the day or the album does.
-  expect(probe.rows).toBe(ARCHIVE_STRATA_ROWS + 2);
-  expect(probe.years).toEqual([2025, 2024, 2023, 2022, 2021]);
+  expect(probe.years).toEqual([2017, 2026]); // a decade of shelf, at the pinned date
   expect(probe.nowHour).toBeCloseTo(12, 1);
 
   await page.evaluate(() => window.__wakeScreensaver());
   expect(await page.evaluate(() => document.body.classList.contains("fx-archive-active"))).toBe(false);
   expect(pageErrors).toEqual([]);
+});
+
+// The photograph is the point of a screensaver. It had shrunk to 53% of the
+// reference's area to make room for a stack of year-rows; two ruler planes need
+// no such room. This pins the reference's own geometry so it cannot drift back.
+test("the photograph keeps the reference's size — it is the point of the surface", async ({ page }) => {
+  await bootArchive(page);
+  await engaged(page);
+
+  const card = await page.evaluate(() => {
+    const el = document.querySelector(".archive__card-plane");
+    const cs = getComputedStyle(el);
+    return { w: parseFloat(cs.width), h: parseFloat(cs.height), left: parseFloat(cs.left), top: parseFloat(cs.top) };
+  });
+  expect(card).toEqual({ w: 1040, h: 585, left: 130, top: 212 });
+  // Over half the 1920 frame's width — anything much less stops being the hero.
+  expect(card.w / 1920).toBeGreaterThan(0.5);
 });
 
 // §4.1. The spine shipped INVISIBLE in the one mode it exists for, and every
@@ -225,14 +243,12 @@ test("the archive survives the screensaver blank rule — it is what Mode 0 IS",
 
   const vis = await page.evaluate(() => {
     const opts = { opacityProperty: true, visibilityProperty: true };
-    const archive = document.querySelector(".archive");
-    const row = document.querySelector(".archive__row");
-    const card = document.querySelector(".archive__card");
     return {
       blankRuleOn: document.body.classList.contains("screensaver-active"),
-      archive: archive.checkVisibility(opts),
-      row: row.checkVisibility(opts),
-      card: card.checkVisibility(opts),
+      archive: document.querySelector(".archive").checkVisibility(opts),
+      years: document.querySelector(".archive__ruler--years").checkVisibility(opts),
+      today: document.querySelector(".archive__ruler--today").checkVisibility(opts),
+      card: document.querySelector(".archive__card").checkVisibility(opts),
       // The rule must still be doing its job for everything else.
       hero: getComputedStyle(document.getElementById("focus-hero")).visibility
     };
@@ -240,23 +256,49 @@ test("the archive survives the screensaver blank rule — it is what Mode 0 IS",
 
   expect(vis.blankRuleOn).toBe(true);
   expect(vis.archive).toBe(true);
-  expect(vis.row).toBe(true);
+  expect(vis.years).toBe(true);
+  expect(vis.today).toBe(true);
   expect(vis.card).toBe(true);
   expect(vis.hero).toBe("hidden");
 });
 
-// §6.3.1. Two rulers, two perpendicular meanings, one screen region. The
-// archive's plane takes the spine's axis, so the spine stands down — and it is
-// HIDDEN, not deleted, which is what makes the flag a one-line rollback.
+// §6.1 resolved the reference's own way: two ruler planes 800px apart are not
+// "the same screen region", so the years and the day never collide. Depth is
+// literal — the years really are further away than today.
+test("two planes at two depths: the years far, today near", async ({ page }) => {
+  await bootArchive(page);
+  await engaged(page);
+
+  const planes = await page.evaluate(() => {
+    const z = (sel) => getComputedStyle(document.querySelector(sel)).getPropertyValue("--row-z").trim();
+    const top = (sel) => parseFloat(getComputedStyle(document.querySelector(sel)).top);
+    return {
+      yearsZ: z(".archive__ruler--years"),
+      todayZ: z(".archive__ruler--today"),
+      yearsTop: top(".archive__ruler--years"),
+      todayTop: top(".archive__ruler--today"),
+      count: document.querySelectorAll(".archive__ruler").length
+    };
+  });
+
+  expect(planes.count).toBe(2);                       // two, not a stack of seven
+  expect(planes.yearsZ).toBe("-150px");               // further away
+  expect(planes.todayZ).toBe("-40px");                // nearer
+  expect(parseFloat(planes.yearsZ)).toBeLessThan(parseFloat(planes.todayZ));
+  // …and far apart on the surface, which is what stops §6.1's collision.
+  expect(planes.todayTop - planes.yearsTop).toBeGreaterThan(600);
+});
+
+// §6.3.1. The archive's plane takes the spine's axis, so the spine stands down
+// — and it is HIDDEN, not deleted, which is what makes the flag a rollback.
 test("the spine stands down in Mode 0, and comes straight back out of it", async ({ page }) => {
   await bootArchive(page);
   const spineDisplay = () =>
     page.evaluate(() => getComputedStyle(document.getElementById("temporal-spine")).display);
 
   expect(await spineDisplay()).not.toBe("none");
-  await page.evaluate(() => window.__engageScreensaver());
+  await engaged(page);
   expect(await spineDisplay()).toBe("none");
-  // Still in the document, still keeping its day — only not drawn here.
   expect(await page.evaluate(() => Boolean(document.getElementById("temporal-spine")))).toBe(true);
   await page.evaluate(() => window.__wakeScreensaver());
   expect(await spineDisplay()).not.toBe("none");
@@ -274,8 +316,7 @@ test("the Mode-0 clock is demoted to the corner numeral, and nothing else moves"
       return { size: parseFloat(cs.fontSize), x: r.x, y: r.y };
     });
 
-  const awake = await clock();
-  expect(awake.size).toBeGreaterThan(100); // the shipped 192px face
+  expect((await clock()).size).toBeGreaterThan(100); // the shipped 192px face
 
   await engaged(page);
   const ambient = await clock();
@@ -283,7 +324,6 @@ test("the Mode-0 clock is demoted to the corner numeral, and nothing else moves"
   // `font-size 1s ease` and animating a layout property for a reason the room
   // cannot see is exactly what §5.5 forbids. The demotion is a state.
   expect(ambient.size).toBe(64);
-  // Top-left corner, not centred.
   expect(ambient.x).toBeLessThan(200);
   expect(ambient.y).toBeLessThan(200);
 
@@ -303,12 +343,14 @@ test("a tender memory reaches the archive with no plate at all", async ({ page }
   // below would pass for the wrong reason.
   await page.evaluate((m) => window.__ssSetFrame(m), MEMORY);
   const normal = await settledPlate(page);
-  expect(normal.plate).toEqual({ year: "2019", title: "Nudgee, Queensland", who: "our niece Melanie" });
+  expect(normal.plate).toEqual({
+    eyebrow: "On this day · 2019",
+    title: "Nudgee, Queensland",
+    who: "our niece Melanie"
+  });
   expect(normal.ghost).toBe("2019");
-  // 2019 is deeper than the consecutive rows reach, so the deep drawer opened
-  // and carries it — lit, at the hour the photograph was taken (§6.2's join).
-  expect(normal.lit).toEqual([2019]);
-  expect(normal.years.at(-1)).toBe(2019);
+  expect(normal.lit).toBe(2019);
+  expect(normal.years[0]).toBeLessThanOrEqual(2019); // the shelf reached back for it
 
   // Now the tender lane. Wordless: no plate, no ghost year, no caption anywhere.
   const tender = await page.evaluate(() =>
@@ -328,79 +370,20 @@ test("a tender memory reaches the archive with no plate at all", async ({ page }
   const held = await settledPlate(page);
   expect(held.plate).toBe(null);
   expect(held.ghost).toBe(null);
-  expect(held.lit).toEqual([]);
+  expect(held.lit).toBe(null);
 
-  // And nothing anywhere in the archive is narrating it.
+  // And nothing anywhere in the archive is narrating it. (The vertical
+  // engraving is the frame's own label, not the memory's — excluded.)
   const words = await page.evaluate(() =>
-    Array.from(document.querySelectorAll(".archive *"))
+    Array.from(document.querySelectorAll(".archive *:not(.archive__word)"))
       .map((el) => el.textContent.trim())
       .filter(Boolean)
   );
   expect(words).toEqual([]);
 });
 
-// Live-verification regression, 2026-08-02. Every photo in that day's frozen
-// set captioned as a bare "2022" — no location, nobody named — which correctly
-// yields no plate, but ALSO dropped the year off the wall entirely, losing what
-// the old bottom-left caption used to show. The year is read off the caption,
-// not out of the plate's parts: the plate needs a place to have anything to
-// say; the ghost and the year-line only ever needed the year.
-test("a bare-year caption still lights the year, even with no plate to show", async ({ page }) => {
-  await bootArchive(page);
-  await engaged(page);
-
-  await page.evaluate(() => window.__ssSetFrame({ src: "/photos/a.jpg", caption: "2022" }));
-  const probe = await settledPlate(page);
-  expect(probe.plate).toBe(null);   // nothing to say — silence is the default
-  expect(probe.ghost).toBe("2022"); // …but we know the year, so we say the year
-  expect(probe.lit).toEqual([2022]);
-
-  // No caption at all is a different thing, and stays silent.
-  await page.evaluate(() => window.__ssSetFrame("/photos/b.jpg"));
-  const bare = await settledPlate(page);
-  expect(bare.plate).toBe(null);
-  expect(bare.ghost).toBe(null);
-  expect(bare.lit).toEqual([]);
-});
-
-// §6.2's payload: the lit year-line joining forward to today. The album reaches
-// back further than the consecutive rows do, so the deck opens one deep drawer
-// — and only when it has to. A year already on the deck must not appear twice.
-test("the deep drawer opens for a year out of reach, and stays shut for one in it", async ({ page }) => {
-  await bootArchive(page);
-  await engaged(page);
-
-  // 2023 is on the deck (2025…2021): its own row lights, no drawer.
-  await page.evaluate(() =>
-    window.__ssSetFrame({ src: "/photos/a.jpg", caption: "2023 · Otago Harbour, New Zealand", hour: 17.2 })
-  );
-  const near = await settledPlate(page);
-  expect(near.lit).toEqual([2023]);
-  expect(near.years).toEqual([2025, 2024, 2023, 2022, 2021]);
-  expect(near.years.filter((y) => y === 2023).length).toBe(1);
-
-  // 2019 is not: the drawer opens past the gap and carries it.
-  await page.evaluate(() =>
-    window.__ssSetFrame({ src: "/photos/b.jpg", caption: "2019 · Chiang Mai, Thailand", hour: 9.5 })
-  );
-  const far = await settledPlate(page);
-  expect(far.lit).toEqual([2019]);
-  expect(far.years).toEqual([2025, 2024, 2023, 2022, 2021, 2019]);
-  expect(await page.evaluate(() =>
-    document.querySelector(".archive__row--deep").classList.contains("is-visible"))).toBe(true);
-
-  // …and shuts again behind it.
-  await page.evaluate(() =>
-    window.__ssSetFrame({ src: "/photos/c.jpg", caption: "2024 · Nudgee, Queensland" })
-  );
-  const back = await settledPlate(page);
-  expect(back.years).toEqual([2025, 2024, 2023, 2022, 2021]);
-  expect(await page.evaluate(() =>
-    document.querySelector(".archive__row--deep").classList.contains("is-visible"))).toBe(false);
-});
-
-// The 24/7 invariant. The archive allocates nothing per mark and nothing per
-// memory: six canvases, two images, two echoes, one plate, created once.
+// The 24/7 invariant. The archive allocates nothing per mark, per year or per
+// memory: two ruler canvases, two images, two echoes, one plate, created once.
 test("cycling memories and days never grows the DOM", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
@@ -409,24 +392,26 @@ test("cycling memories and days never grows the DOM", async ({ page }) => {
 
   const shape = () => ({
     total: document.querySelectorAll(".archive *").length,
-    rows: document.querySelectorAll(".archive__row").length,
+    rulers: document.querySelectorAll(".archive__ruler").length,
     imgs: document.querySelectorAll(".archive__img").length,
     echoes: document.querySelectorAll(".archive__echo").length,
     plates: document.querySelectorAll(".archive__plate").length
   });
 
   const before = await page.evaluate(shape);
-  expect(before.rows).toBe(ARCHIVE_STRATA_ROWS + 2);
+  expect(before.rulers).toBe(2);
   expect(before.imgs).toBe(2);
   expect(before.echoes).toBe(2);
   expect(before.plates).toBe(1);
 
-  await page.evaluate((m) => {
+  // Includes years far outside the default decade, which is what makes the
+  // shelf redraw — it must redraw, not re-allocate.
+  await page.evaluate(() => {
     for (let i = 0; i < 25; i++) {
-      window.__ssSetFrame({ ...m, src: `/photos/m${i}.jpg`, caption: `20${10 + (i % 9)} · Place ${i} · Someone` });
+      window.__ssSetFrame({ src: `/photos/m${i}.jpg`, caption: `${2008 + (i % 18)} · Place ${i} · Someone` });
       window.__ssSetFrame("/photos/bare.jpg");
     }
-  }, MEMORY);
+  });
 
   expect(await page.evaluate(shape)).toEqual(before);
   expect(pageErrors).toEqual([]);
@@ -460,24 +445,31 @@ test.describe("archive css guardrail", () => {
     expect(css()).not.toMatch(/animation-iteration-count/);
   });
 
-  test("the ruler never moves — a sliding hour axis is a lie about the time", () => {
-    // Once the plane means time of day, the reference's ±80px strip drift
-    // misreads as ~50 minutes. Nothing that carries the axis may animate.
+  test("neither ruler moves — a sliding axis lies about what it measures", () => {
+    // The reference drifts its strips ±80px, which was fine when they were
+    // decoration. Both planes carry an axis now: ±80px on the hour ruler is a
+    // ~50-minute lie, and on the year ruler it is most of a year.
     const rules = css().match(/[^{}@]+\{[^}]*\}/g) || [];
     for (const rule of rules) {
       const selector = rule.slice(0, rule.indexOf("{"));
-      if (!/\.archive__(row|deck)\b/.test(selector)) continue;
-      expect(rule, `the deck must not animate: ${selector.trim()}`).not.toMatch(/animation\s*:/);
+      if (!/\.archive__ruler\b/.test(selector)) continue;
+      expect(rule, `a ruler must not animate: ${selector.trim()}`).not.toMatch(/animation\s*:/);
     }
   });
 
   test("amplitude follows the sun-altitude curve, with no second night threshold", () => {
-    expect(css()).toMatch(/--clock-dim/);           // §5.2 — reuse the curve
-    expect(css()).toMatch(/--arch-amp/);            // …applied to displacement
+    expect(css()).toMatch(/--clock-dim/);   // §5.2 — reuse the curve
+    expect(css()).toMatch(/--arch-amp/);    // …applied to displacement
+    expect(css()).toMatch(/--arch-gain/);   // …with one number the owner turns
     expect(css()).not.toMatch(/@media[^{]*prefers-color/);
     // Duration must not be what scales: a slow effect that still travels far is
     // what wakes someone up.
     expect(css()).not.toMatch(/animation-duration[^;]*var\(--clock-dim/);
+    // The periods stay the reference's, whatever the gain does.
+    expect(css()).toMatch(/arch-echo 130s/);
+    expect(css()).toMatch(/arch-pivot 84s/);
+    expect(css()).toMatch(/arch-kenburns 96s/);
+    expect(css()).toMatch(/arch-ghost 92s/);
   });
 
   test("reduced motion switches the whole surface off", () => {
@@ -511,6 +503,7 @@ test("no archive text sits under a dimming opacity", async ({ page }) => {
   await bootArchive(page);
   await engaged(page);
   await page.evaluate((m) => window.__ssSetFrame(m), MEMORY);
+  await settledPlate(page);
 
   const offenders = await page.evaluate(() => {
     const out = [];

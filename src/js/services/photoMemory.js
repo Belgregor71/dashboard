@@ -282,6 +282,27 @@ export function captionParts(caption) {
   return { year, title, who: rest.join(" · ") || null };
 }
 
+const YEAR_WORDS = [
+  "", "One", "Two", "Three", "Four", "Five", "Six",
+  "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"
+];
+
+/**
+ * "Four years ago today" — what the archive's plate says when a photograph
+ * carries a year and nothing else.
+ *
+ * Most of this library has no GPS and no named faces, so `captionFor` produces
+ * a bare year and there is no place to put in the title. This is not invented
+ * data: it is the year we already show, said in words. Same phrasing
+ * `buildOnThisDayMemory` already uses.
+ */
+export function relativeYearPhrase(year, now = new Date()) {
+  const n = (now instanceof Date ? now : new Date(now)).getFullYear() - Number(year);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const word = YEAR_WORDS[n] ?? String(n);
+  return `${word} year${n === 1 ? "" : "s"} ago today`;
+}
+
 /**
  * A memory photo ref → a URL, or null when there's no ref. Immich assets are
  * { immich: id }; authored entries are string paths (absolute/rooted as-is,

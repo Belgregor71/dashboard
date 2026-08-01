@@ -1,102 +1,95 @@
-import {
-  buildDay,
-  buildStrata,
-  hourOf,
-  onSpine,
-  spineT,
-  ARCHIVE_STRATA_ROWS,
-  DAY_START_HOUR,
-  DAY_END_HOUR
-} from "../services/dayModel.js";
-import { captionParts } from "../services/photoMemory.js";
+import { buildDay, DAY_START_HOUR, DAY_END_HOUR } from "../services/dayModel.js";
+import { yearSpan, plateFor, yearOf, YEAR_MIN_SPAN } from "../services/archiveModel.js";
 import { initDaySources, readDayMarks } from "./daySources.js";
 import { on } from "../core/eventBus.js";
 
 // The Ambient Archive — Mode 0 as the house's instrument space.
 // docs/design/AMBIENT-ARCHIVE.md is the implementation authority.
 //
-// Mode 0 stops being "a photo with a clock on it". The memory becomes a lit
-// card pivoting slowly in a deep space, a desaturated tiled echo of itself
-// behind it, and — the part that is NOT in the reference — the ruler planes
-// beneath it are the temporal spine's day, rendered in three dimensions:
+// Mode 0 stops being "a photo with a clock on it": the memory is a lit card
+// pivoting in a deep space over a drained tiled echo of itself, between two
+// ruler planes at different depths —
 //
-//   across is today (05:00 → 24:00, the same axis the spine draws flat)
-//   back   is the years (the strata, receding in Z)
+//   the FAR plane is the years   (2016 … 2025, the card's year lit warm)
+//   the NEAR plane is today      (05:00 → 24:00, marks, embers, the now-point)
 //
-// One instrument, two readings. The archive's own horizontal year ruler is
-// deleted; the plane it lived on now carries the hour axis (§6.2), which is the
-// owner's decision this whole surface rests on.
+// One instrument, two readings, and the depth between them is literal: the
+// years are further away than today, because they are.
+//
+// ── Why two planes and not a stack of rows ───────────────────────────────────
+//
+// §6.1 of the handover says the archive's year ruler and the spine's hour axis
+// collide because they are "the same screen region, perpendicular meanings".
+// §6.2's fix was to make the years rows receding in Z. Built that way it read
+// on the panel as ONE faint diagonal rather than as depth, and — worse — six
+// stacked rows needed so much vertical room that the photograph had to shrink
+// to 53% of the reference's area. The photograph is the point of a screensaver.
+//
+// The reference already solves §6.1 its own way: two ruler planes 800px apart,
+// which is not the same screen region at all. So the years take the far plane
+// and today takes the near one. "Across is today, back is the years" survives
+// intact; it is expressed in two planes instead of six rows, and the card gets
+// its size back.
 //
 // ── How this obeys DESIGN_SYSTEM.md §5 ───────────────────────────────────────
 //
 // Every continuous animation hangs off `body.fx-archive-active`, set on Mode-0
 // entry and removed on exit. The cause is nameable by anyone in the room: *the
 // house is leafing through its album*. Nothing completes a perceptible change
-// within a passing glance — the pivot takes 84 s, the drift 130 s, the zoom
-// 96 s — and the only catchable events (the memory exchange, its 300 ms blur)
-// are events with ends. Amplitude rides `--clock-dim` (§5.2): at 2 a.m. the
-// archive drifts less far, not less often.
+// within a passing glance — pivot 84s, drift 130s, zoom 96s — and the only
+// catchable events (the memory exchange, its 300ms blur) have ends. Amplitude
+// rides `--clock-dim` (§5.2): at 2am the archive drifts less far, not less
+// often.
 //
-// The instrument itself does NOT move. Once the plane means time of day you
-// cannot slide it: the reference's ±80 px strip drift would misread as ~50
-// minutes. So the reference's `s1`/`s2` keyframes are deliberately absent, and
-// the motion budget belongs entirely to the card and its backdrop.
+// ⚠ NEITHER RULER MOVES. The reference drifts its strips ±80px, which was fine
+// when they were decoration. Both planes now carry an axis, and a sliding axis
+// is a lie about the quantity it measures. The whole motion budget belongs to
+// the card and its backdrop.
 //
 // The now-point does not breathe (§6.3.4): the breath is bound to media playing
 // AND someone in the room, which in Mode 0 is false by definition.
 //
 // ── Memory discipline (CLAUDE.md, 24/7) ──────────────────────────────────────
 //
-// The archive allocates nothing per mark and nothing per memory. Every node is
-// created once in `build()`: six row canvases (today + ARCHIVE_STRATA_ROWS
-// years), two card images, two echo planes, one plate. Marks are drawn into the
-// canvases; the plate is filled, shown, hidden — never cloned, never detached.
-// The exchange's staged swap is a `setTimeout`, never `transitionend` (which
-// never fires while an ancestor is display:none, i.e. most of the day).
+// Nothing is allocated per mark, per year or per memory. Every node is created
+// once in `build()`: two ruler canvases, two card images, two echo planes, one
+// plate. Marks and years are drawn into the canvases; the plate is filled,
+// shown, hidden — never cloned, never detached. The exchange's staged swap is a
+// `setTimeout`, never `transitionend` (which never fires while an ancestor is
+// display:none, i.e. most of the day).
 
 // ── Geometry (frame coordinates on the fixed 1920×1080 canvas) ───────────────
-// Measured from `Ambient Archive Screensaver.html`, then re-laid-out for the
-// deck: the reference's card is 1040×585 at (130,212), which leaves no room
-// under it for six receding rows. The card yields; the day is why this surface
-// changed shape.
+// Measured from `Ambient Archive Screensaver.html`.
 
 const FRAME_W = 1920;
 const FRAME_H = 1080;
 
-const ROW_W = 2160;      // each row bleeds 120px past both frame edges
-const ROW_H = 320;
-const ROW_LEFT = -120;   // frame x of row-canvas x 0
-const ROW_LINE_Y = 110;  // row-canvas y of the line itself
-const ROW_LABEL_X = 88 - ROW_LEFT; // row-canvas x the year numeral ends at
+const ROW_W = 2160;      // each ruler bleeds 120px past both frame edges
+const ROW_LEFT = -120;   // frame x of ruler-canvas x 0
 
-const MARGIN = 108;                      // frame px kept clear at each end (the spine's)
-const AXIS_X0 = MARGIN - ROW_LEFT;       // row-canvas x of 05:00
-const AXIS_SPAN = FRAME_W - MARGIN * 2;  // row-canvas px from 05:00 to 24:00
-
-const TODAY_TOP = 892;   // frame y of today's line — the front row
-const ROW_RISE = 26;     // frame y each older year climbs toward the vanishing point
-const ROW_DEPTH = 40;    // |translateZ| of today's row
-const ROW_DEPTH_STEP = 78;
-
-/**
- * The deep drawer.
- *
- * The consecutive rows reach back ARCHIVE_STRATA_ROWS years; the photo library
- * reaches back a great deal further, so most memories would light nothing and
- * §6.2's whole point — the year-line joining forward to today — would almost
- * never happen. Rather than pretend, the deck opens ONE more row, further back
- * and past a visible gap, and puts the card's own year in it.
- *
- * That is what an archive drawer actually looks like: the recent years in
- * order, then a gap, then the one you pulled out. The gap is the honest part —
- * it says "there are years between these", which is true.
- *
- * It is a fixed slot, allocated at build like every other row. Nothing here
- * grows with how far back the memory reaches.
- */
-const DEEP_ROW_GAP = 1.9; // in row-steps, so the skipped year reads as a gap
-
+// The near plane: today. The reference's `#strip2`, at its own top/depth.
+const TODAY_H = 320;
+const TODAY_LINE_Y = 110;   // ruler-canvas y of the line
+const TODAY_TOP = 904;      // frame y the line lands on
+const TODAY_Z = -40;
+const MARGIN = 108;                          // the spine's own safe margin
+const HOUR_X0 = MARGIN - ROW_LEFT;           // ruler-canvas x of 05:00
+const HOUR_SPAN = FRAME_W - MARGIN * 2;      // 05:00 → 24:00
 const HOUR_LABELS = [6, 12, 18, 24];
+
+// The far plane: the years. The reference's `#strip1`.
+const YEARS_H = 200;
+const YEARS_LINE_Y = 60;
+const YEARS_TOP = 96;
+const YEARS_Z = -150;
+// The year axis starts well right of the corner clock rather than sharing the
+// hour axis's margin — different plane, different quantity, and the clock has
+// the top-left corner.
+const YEAR_X0 = 380 - ROW_LEFT;
+const YEAR_SPAN = 1432;
+const YEAR_LABEL_MIN_PX = 92; // below this, label every other year
+
+const TICK_PX = 21;      // the reference's ruling pitch, on both planes
 const TICK_MS = 30_000;  // half a minute — the now-point never lags a minute
 
 // The exchange (§3): the card blurs for a beat, the plate and the ghost year
@@ -106,10 +99,10 @@ const EXCHANGE_SWAP_MS = 2400;
 
 let enabled = false;
 let root = null;
-let deckEl = null;
-let rowEls = [];         // [today, year-1, … year-N, deep] — allocated once
-let rowCtxs = [];
-let deepRowEl = null;
+let todayCanvas = null;
+let todayCtx = null;
+let yearsCanvas = null;
+let yearsCtx = null;
 let echoEls = [];        // two, cross-faded
 let cardImgs = [];       // two, cross-faded
 let cardEl = null;
@@ -129,6 +122,7 @@ let resizeHandler = null;
 let lastDay = null;
 let lastFrame = null;    // the memory currently on the card
 let litYear = null;
+let yearRange = null;
 
 /** Is the archive built and allowed to take Mode 0? */
 export function isAmbientArchiveEnabled() {
@@ -146,12 +140,6 @@ function fit() {
   root.style.setProperty("--arch-fit", String(scale > 0 ? scale : 1));
 }
 
-// ── The deck: across is today, back is the years ──────────────
-
-function axisX(t) {
-  return AXIS_X0 + t * AXIS_SPAN;
-}
-
 /** The dim curve the ambient clock already computes (§5.2). Never below its floor. */
 function clockDim() {
   const src = document.getElementById("screensaver") || document.body;
@@ -159,57 +147,63 @@ function clockDim() {
   return Number.isFinite(v) && v > 0 ? Math.min(1, v) : 0.9;
 }
 
+/** The ruling both planes share — the reference's 21px pitch. */
+function drawTicks(ctx, y, from, to, height, alpha) {
+  ctx.fillStyle = `rgba(238,243,251,${alpha})`;
+  for (let x = from; x <= to; x += TICK_PX) {
+    ctx.fillRect(Math.round(x), y + 1, 1, height);
+  }
+}
+
+// ── The near plane: today ─────────────────────────────────────
+
+function hourX(t) {
+  return HOUR_X0 + t * HOUR_SPAN;
+}
+
 /**
- * The front row: today. The same reading the spine draws flat — minute texture,
- * the four hour numerals, marks rising as anticipation, embers behind, and now
- * as the brightest point — only here it is lying on a plane that recedes.
+ * Today, low and near: the minute ruling, the four hour numerals, marks rising
+ * as anticipation, embers behind them, and now as the brightest point on the
+ * line. The same reading the spine draws flat, lying on a plane.
  */
 function drawToday(day, dim) {
-  const ctx = rowCtxs[0];
+  const ctx = todayCtx;
   if (!ctx) return;
-  const y = ROW_LINE_Y + 0.5; // +0.5 so a 1px line lands on a pixel
-  const left = axisX(0);
-  const right = axisX(1);
+  const y = TODAY_LINE_Y + 0.5; // +0.5 so a 1px line lands on a pixel
 
-  ctx.clearRect(0, 0, ROW_W, ROW_H);
+  ctx.clearRect(0, 0, ROW_W, TODAY_H);
   ctx.globalAlpha = dim;
 
-  // The line, and the minute texture along it — the reference's ruler tick
-  // spacing (21px), which is also the spine's.
-  ctx.fillStyle = "rgba(238,243,251,0.14)";
+  ctx.fillStyle = "rgba(238,243,251,0.18)";
   ctx.fillRect(0, y, ROW_W, 1);
-  ctx.fillStyle = "rgba(238,243,251,0.10)";
-  for (let x = 0; x < ROW_W; x += 21) {
-    ctx.fillRect(Math.round(x), y + 1, 1, 9);
-  }
+  drawTicks(ctx, y, 0, ROW_W, 9, 0.14);
 
   // The burnt portion: everything left of now has already been lived through.
   if (day.nowT != null) {
-    const nowX = axisX(day.nowT);
-    const burn = ctx.createLinearGradient(left, 0, nowX, 0);
-    burn.addColorStop(0, "rgba(255,180,130,0.12)");
-    burn.addColorStop(1, "rgba(255,180,130,0.30)");
+    const nowX = hourX(day.nowT);
+    const burn = ctx.createLinearGradient(hourX(0), 0, nowX, 0);
+    burn.addColorStop(0, "rgba(255,180,130,0.14)");
+    burn.addColorStop(1, "rgba(255,180,130,0.34)");
     ctx.fillStyle = burn;
-    ctx.fillRect(left, y, Math.max(0, nowX - left), 1);
+    ctx.fillRect(hourX(0), y, Math.max(0, nowX - hourX(0)), 1);
   }
 
-  // Hour numerals — the only numbers on the instrument, and the reason a
-  // foreshortened ruler still tells the truth about when you are.
-  ctx.fillStyle = "rgba(159,196,255,0.34)";
-  ctx.font = '400 20px "JetBrains Mono", ui-monospace, monospace';
+  // Hour numerals — the reason a foreshortened ruler still tells the truth.
+  ctx.fillStyle = "rgba(159,196,255,0.40)";
+  ctx.font = '400 22px "JetBrains Mono", ui-monospace, monospace';
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   for (const hour of HOUR_LABELS) {
     if (hour < DAY_START_HOUR || hour > DAY_END_HOUR) continue;
     const t = (hour - DAY_START_HOUR) / (DAY_END_HOUR - DAY_START_HOUR);
-    ctx.fillText(`${String(hour).padStart(2, "0")}:00`, axisX(t), y + 16);
+    ctx.fillText(`${String(hour).padStart(2, "0")}:00`, hourX(t), y + 18);
   }
 
   // The marks. Weight is the only hierarchy: size and glow, nothing else.
   for (const m of day.marks) {
     const height = 11 + m.weight * 7;
     const width = m.weight > 2 ? 3 : 2;
-    const x = Math.round(axisX(m.t) - width / 2);
+    const x = Math.round(hourX(m.t) - width / 2);
     if (m.spent) {
       ctx.fillStyle = "rgba(255,175,125,0.5)";
       ctx.shadowColor = "rgba(255,165,110,0.3)";
@@ -230,7 +224,7 @@ function drawToday(day, dim) {
   // Now: the brightest point on the line. It does not breathe here — nobody is
   // in the room to have caused it (§6.3.4).
   if (day.nowT != null) {
-    const nowX = axisX(day.nowT);
+    const nowX = hourX(day.nowT);
     const spill = ctx.createRadialGradient(nowX, y, 0, nowX, y, 70);
     spill.addColorStop(0, "rgba(255,225,190,0.30)");
     spill.addColorStop(1, "rgba(255,225,190,0)");
@@ -247,127 +241,76 @@ function drawToday(day, dim) {
   ctx.globalAlpha = 1;
 }
 
-/**
- * A year-row: the same axis, one year further back. Plain until a memory from
- * that year is actually on the card, at which point the row brightens, carries
- * a mark at the memory's hour, and reaches forward toward today.
- *
- * The reach is deliberately short of touching. These rows are at different
- * depths; a hairline that appeared to join them would be drawing a join that
- * the geometry does not have.
- */
-function drawYearRow(stratum, dim) {
-  const ctx = rowCtxs[stratum.row];
-  if (!ctx) return;
-  const y = ROW_LINE_Y + 0.5;
+// ── The far plane: the years ──────────────────────────────────
 
-  ctx.clearRect(0, 0, ROW_W, ROW_H);
+function yearX(year, range) {
+  const span = Math.max(1, range.to - range.from);
+  return YEAR_X0 + ((year - range.from) / span) * YEAR_SPAN;
+}
+
+/**
+ * The shelf: every year the archive reaches, ruled and labelled, with the one
+ * on the card lit warm and carrying a riser. Further away than today, because
+ * it is.
+ */
+function drawYears(range, lit, dim) {
+  const ctx = yearsCtx;
+  if (!ctx) return;
+  const y = YEARS_LINE_Y + 0.5;
+  const left = yearX(range.from, range);
+  const right = yearX(range.to, range);
+  const step = (right - left) / Math.max(1, range.to - range.from);
+
+  ctx.clearRect(0, 0, ROW_W, YEARS_H);
   ctx.globalAlpha = dim;
 
-  ctx.fillStyle = `rgba(159,196,255,${stratum.lit ? 0.26 : 0.11})`;
+  ctx.fillStyle = "rgba(238,243,251,0.16)";
   ctx.fillRect(0, y, ROW_W, 1);
+  drawTicks(ctx, y, 0, ROW_W, 7, 0.12);
 
-  // The year sits in the left margin, before the axis begins — where a ruler
-  // labels its rows, and where perspective has not yet crowded them together.
-  // (The right-hand end is the near end, but it is also where the rows converge
-  // toward the vanishing point, so numerals there stack and clip.)
-  ctx.fillStyle = stratum.lit ? "rgba(255,205,140,0.95)" : "rgba(159,196,255,0.34)";
   ctx.font = '400 22px "JetBrains Mono", ui-monospace, monospace';
-  ctx.textAlign = "right";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText(String(stratum.year), ROW_LABEL_X, y - 10);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  const everyOther = step < YEAR_LABEL_MIN_PX;
 
-  if (stratum.t != null) {
-    const mx = axisX(stratum.t);
-    const h = stratum.lit ? 18 : 9;
-    ctx.fillStyle = `rgba(255,205,150,${stratum.lit ? 0.95 : 0.4})`;
-    ctx.shadowColor = `rgba(255,190,120,${stratum.lit ? 0.55 : 0.15})`;
+  for (let year = range.from; year <= range.to; year++) {
+    const x = yearX(year, range);
+    const isLit = year === lit;
+    // A taller ruling at each year, so the shelf reads as a scale even where
+    // the numerals are skipped.
+    ctx.fillStyle = isLit ? "rgba(255,205,140,0.9)" : "rgba(238,243,251,0.22)";
+    ctx.fillRect(Math.round(x), y - (isLit ? 4 : 3), 1, isLit ? 5 : 4);
+
+    if (!isLit && everyOther && (range.to - year) % 2 === 1) continue;
+    ctx.fillStyle = isLit ? "rgba(255,205,140,0.95)" : "rgba(159,196,255,0.34)";
+    ctx.fillText(String(year), x, y + 14);
+  }
+
+  // The lit year gets the reference's riser — the one thing on this plane that
+  // points at the photograph.
+  if (Number.isFinite(lit) && lit >= range.from && lit <= range.to) {
+    const x = yearX(lit, range);
+    ctx.fillStyle = "rgba(255,205,140,0.9)";
+    ctx.shadowColor = "rgba(255,190,120,0.55)";
     ctx.shadowBlur = 10;
-    ctx.fillRect(Math.round(mx - 1), y - h, 2, h);
+    ctx.fillRect(Math.round(x), y - 24, 1, 20);
     ctx.shadowBlur = 0;
-
-    if (stratum.lit) {
-      // Reaching forward toward today, one row's worth per row of distance.
-      // It stops short of touching on purpose: these rows are at different
-      // depths, and a line that appeared to join them would be drawing a join
-      // the geometry does not have.
-      const reach = Math.min(34 + stratum.row * 30, ROW_H - ROW_LINE_Y - 8);
-      const grad = ctx.createLinearGradient(0, y, 0, y + reach);
-      grad.addColorStop(0, "rgba(255,205,150,0.45)");
-      grad.addColorStop(1, "rgba(255,205,150,0)");
-      ctx.fillStyle = grad;
-      ctx.fillRect(Math.round(mx), y + 3, 1, reach);
-    }
   }
 
   ctx.globalAlpha = 1;
 }
 
-/**
- * The memory's wall-clock hour, expressed on today's clock — the year-row is a
- * scroll of the SAME axis, so the mark belongs at that hour of today's span.
- */
-function strataAt(hour, now) {
-  if (!Number.isFinite(hour)) return null;
-  const at = new Date(now);
-  at.setHours(Math.floor(hour), Math.round((hour % 1) * 60), 0, 0);
-  return at;
-}
-
-/** Repaint the whole instrument. Called on a cause, never on a frame. */
+/** Repaint both planes. Called on a cause, never on a frame. */
 function render() {
   if (!enabled || !root) return;
   const now = new Date();
-  // A lit year-line carries a mark at the hour the photograph was actually
-  // taken — that is the join §6.2 promises, and the reason `hour` is plumbed
-  // through the daily set. A memory with no known hour lights its line and
-  // places no mark: we know the year, so we say the year, and nothing more.
-  // `buildStrata` reads a stratum's clock time from `at`, so hand it one: a
-  // bare fractional `hour` would be parsed as milliseconds since the epoch.
-  const strataRows = litYear == null ? [] : [{ year: litYear, at: strataAt(lastFrame?.hour, now) }];
-  const day = buildDay({
-    marks: readDayMarks(now),
-    now,
-    strata: strataRows
-  });
-  // buildDay hands back STRATA_ROWS rows (the spine's three). The archive's
-  // plane carries more, so the strata are rebuilt at the archive's own reach —
-  // the model is shared, the count is the renderer's business (§6.3.3).
-  day.strata = buildStrata(strataRows, { now, count: ARCHIVE_STRATA_ROWS });
-
-  const deep = deepStratum(litYear, day.strata, now);
-  if (deep) day.strata.push(deep);
-  deepRowEl?.classList.toggle("is-visible", Boolean(deep));
+  const day = buildDay({ marks: readDayMarks(now), now });
   lastDay = day;
+  yearRange = yearSpan(litYear, now);
 
   const dim = clockDim();
   drawToday(day, dim);
-  for (const stratum of day.strata) drawYearRow(stratum, dim);
-  if (!deep && rowCtxs[ARCHIVE_STRATA_ROWS + 1]) {
-    rowCtxs[ARCHIVE_STRATA_ROWS + 1].clearRect(0, 0, ROW_W, ROW_H);
-  }
-}
-
-/**
- * The card's year as a row of its own, when it lies deeper than the deck's
- * consecutive reach. Returns null when the year is already on the deck (or
- * there is no lit year at all), so the drawer only opens when it has to.
- */
-function deepStratum(year, strata, now) {
-  if (year == null || !strata.length) return null;
-  // Only for years the consecutive rows do NOT reach. `strata` runs newest
-  // first, so its last row is the deepest one already on the deck: anything at
-  // or above it is either drawn there already or is not in the past at all.
-  if (year >= strata[strata.length - 1].year) return null;
-  const at = strataAt(lastFrame?.hour, now);
-  const hour = hourOf(at);
-  return {
-    year,
-    row: ARCHIVE_STRATA_ROWS + 1,
-    lit: true,
-    hour: onSpine(hour) ? hour : null,
-    t: onSpine(hour) ? spineT(hour) : null
-  };
+  drawYears(yearRange, litYear, dim);
 }
 
 // ── The memory on the card ────────────────────────────────────
@@ -382,7 +325,7 @@ function setPlate(parts) {
     plateWhoEl.classList.remove("is-visible");
     return;
   }
-  plateEyebrowEl.textContent = parts.year;
+  plateEyebrowEl.textContent = `On this day · ${parts.year}`;
   plateTitleEl.textContent = parts.title;
   plateWhoEl.textContent = parts.who || "";
   plateWhoEl.classList.toggle("is-visible", Boolean(parts.who));
@@ -407,19 +350,13 @@ export function setArchiveMemory(frame) {
   if (!src) return;
   const tender = typeof frame === "object" && frame?.tender === true;
   const caption = tender ? null : (typeof frame === "object" ? frame?.caption : null);
-  const parts = caption ? captionParts(caption) : null;
+  const parts = plateFor(caption);
   const first = lastFrame == null;
-  const hour = typeof frame === "object" && Number.isFinite(frame?.hour) ? frame.hour : null;
-  lastFrame = { src, caption, hour };
-  // The year is read straight off the caption, NOT out of the plate's parts.
-  // A photo with no location and nobody named captions as a bare "2022", which
-  // yields no plate — and the kiosk showed what that meant on 2026-08-02: the
-  // whole day's frozen set was bare years, so the archive dropped the year
-  // altogether, losing something the old bottom-left caption used to show. The
-  // plate needs a place to have anything to say; the ghost engraving and the
-  // year-line only ever needed the year.
-  const named = caption ? /^\s*(\d{4})\b/.exec(caption) : null;
-  litYear = named ? Number(named[1]) : null;
+  lastFrame = { src, caption };
+  // The year comes off the caption, NOT out of the plate's parts: a photo
+  // with no place yields no plate, and deriving the year from the plate is
+  // exactly how the year vanished off the wall entirely on 2026-08-02.
+  litYear = tender ? null : yearOf(caption);
 
   // The card and its echo cross-fade on their own 2.6s transition; the plate
   // and the ghost year stand down and come back around the midpoint, so the
@@ -444,8 +381,8 @@ export function setArchiveMemory(frame) {
   if (first) {
     setPlate(parts);
     if (ghostEl) ghostEl.textContent = litYear == null ? "" : String(litYear);
-    plateEl?.classList.toggle("is-exchanging", false);
-    ghostEl?.classList.toggle("is-exchanging", false);
+    plateEl?.classList.remove("is-exchanging");
+    ghostEl?.classList.remove("is-exchanging");
     render();
     return;
   }
@@ -506,15 +443,13 @@ export function stopAmbientArchive() {
 
 // ── DOM build (once) ──────────────────────────────────────────
 
-function buildRow(row, step = row) {
+function buildRuler(className, w, h, lineY, top, z) {
   const canvas = document.createElement("canvas");
-  canvas.className = "archive__row";
-  canvas.width = ROW_W;
-  canvas.height = ROW_H;
-  canvas.style.setProperty("--row", String(row));
-  canvas.style.top = `${TODAY_TOP - ROW_LINE_Y - step * ROW_RISE}px`;
-  canvas.style.setProperty("--row-z", `${-(ROW_DEPTH + step * ROW_DEPTH_STEP)}px`);
-  rowCtxs[row] = canvas.getContext("2d", { alpha: true });
+  canvas.className = `archive__ruler ${className}`;
+  canvas.width = w;
+  canvas.height = h;
+  canvas.style.top = `${top - lineY}px`;
+  canvas.style.setProperty("--row-z", `${z}px`);
   return canvas;
 }
 
@@ -534,16 +469,10 @@ function build(mount) {
   });
   echoEls[0].classList.add("is-shown");
 
-  deckEl = document.createElement("div");
-  deckEl.className = "archive__deck";
-  rowEls = Array.from({ length: ARCHIVE_STRATA_ROWS + 1 }, (_, row) => buildRow(row));
-  // The deep drawer: one more slot, further back and past a gap, for a memory
-  // older than the consecutive rows reach. Allocated here so it never becomes
-  // a per-memory node; hidden until a memory needs it.
-  deepRowEl = buildRow(ARCHIVE_STRATA_ROWS + 1, ARCHIVE_STRATA_ROWS + DEEP_ROW_GAP);
-  deepRowEl.classList.add("archive__row--deep");
-  rowEls.push(deepRowEl);
-  deckEl.append(...rowEls);
+  yearsCanvas = buildRuler("archive__ruler--years", ROW_W, YEARS_H, YEARS_LINE_Y, YEARS_TOP, YEARS_Z);
+  yearsCtx = yearsCanvas.getContext("2d", { alpha: true });
+  todayCanvas = buildRuler("archive__ruler--today", ROW_W, TODAY_H, TODAY_LINE_Y, TODAY_TOP, TODAY_Z);
+  todayCtx = todayCanvas.getContext("2d", { alpha: true });
 
   ghostEl = document.createElement("div");
   ghostEl.className = "archive__ghost";
@@ -569,10 +498,14 @@ function build(mount) {
   cardWrap.append(cardEl);
   cardPlane.append(cardWrap);
 
-  scene.append(...echoEls, deckEl, ghostEl, cardPlane);
+  scene.append(...echoEls, yearsCanvas, todayCanvas, ghostEl, cardPlane);
 
   const vig = document.createElement("div");
   vig.className = "archive__vig";
+
+  const word = document.createElement("div");
+  word.className = "archive__word";
+  word.textContent = "Archive";
 
   plateEl = document.createElement("div");
   plateEl.className = "archive__plate";
@@ -587,7 +520,7 @@ function build(mount) {
   const grain = document.createElement("div");
   grain.className = "archive__grain";
 
-  root.append(scene, vig, plateEl, grain);
+  root.append(scene, vig, word, plateEl, grain);
   mount.prepend(root);
 }
 
@@ -631,10 +564,10 @@ export function stopAmbientArchiveAll() {
   resizeHandler = null;
   root?.remove();
   root = null;
-  deckEl = null;
-  rowEls = [];
-  rowCtxs = [];
-  deepRowEl = null;
+  todayCanvas = null;
+  todayCtx = null;
+  yearsCanvas = null;
+  yearsCtx = null;
   echoEls = [];
   cardImgs = [];
   cardEl = null;
@@ -646,6 +579,7 @@ export function stopAmbientArchiveAll() {
   lastDay = null;
   lastFrame = null;
   litYear = null;
+  yearRange = null;
   echoSlot = 0;
   cardSlot = 0;
   enabled = false;
@@ -657,16 +591,16 @@ export function archiveProbe() {
     enabled,
     active,
     marker: document.body.classList.contains("fx-archive-active"),
-    rows: rowEls.length,
-    years: (lastDay?.strata ?? []).map((s) => s.year),
-    lit: (lastDay?.strata ?? []).filter((s) => s.lit).map((s) => s.year),
+    years: yearRange ? [yearRange.from, yearRange.to] : null,
+    lit: litYear,
     nowHour: lastDay?.nowHour ?? null,
     marks: (lastDay?.marks ?? []).length,
     dim: clockDim(),
+    amp: getComputedStyle(root || document.body).getPropertyValue("--arch-amp").trim() || null,
     // The tender invariant, readable from the outside: no plate, no words.
     plate: plateEl?.classList.contains("is-visible")
       ? {
-          year: plateEyebrowEl.textContent,
+          eyebrow: plateEyebrowEl.textContent,
           title: plateTitleEl.textContent,
           who: plateWhoEl.textContent || null
         }

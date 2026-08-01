@@ -3,10 +3,13 @@
    docs/design/AMBIENT-ARCHIVE.md · features.ambientArchive
 
    The memory is a lit card pivoting slowly in a deep space, a
-   desaturated tiled echo of itself behind it, and beneath it the
-   temporal spine's day rendered in three dimensions:
+   desaturated tiled echo of itself behind it, between two ruler
+   planes at different depths:
 
-       across is today · back is the years
+       the FAR plane is the years · the NEAR plane is today
+
+   — and the depth between them is literal, because the years ARE
+   further away than today.
 
    MOTION (DESIGN_SYSTEM.md §5.1). Every loop in this file hangs
    off `body.fx-archive-active`, which is set on Mode-0 entry and
@@ -20,10 +23,11 @@
    the archive drifts LESS FAR, not less often. Durations are
    fixed; only displacement scales.
 
-   ⚠ THE RULER DOES NOT MOVE. The reference drifts its strips
-   ±80px. Once the plane means time of day that is a ~50-minute
-   lie, so those keyframes are deliberately absent. The motion
-   budget belongs to the card and its backdrop only.
+   ⚠ NEITHER RULER MOVES. The reference drifts its strips ±80px,
+   which was fine when they were decoration. Both planes carry an
+   axis now, and a sliding axis is a lie about the quantity it
+   measures, so those keyframes are deliberately absent. The whole
+   motion budget belongs to the card and its backdrop.
 
    This file is separate from screensaver.css on purpose: the
    guardrail in tests/insights.spec.js forbids `infinite` anywhere
@@ -52,22 +56,24 @@
 
   /* The one plane the whole scene lies on. Measured from the reference. */
   --arch-plane: rotateY(-12deg) rotateX(8deg) rotateZ(2deg);
-  /* The deck's plane, separately nameable: the hour axis foreshortens under the
-     -12deg yaw, so morning reads slightly narrower than evening. That is a
-     constant perspective, not a wrong reading (the hour numerals are drawn ON
-     the plane and foreshorten with it) — but if the panel says otherwise, a
-     gentler yaw here is the one-line fix. */
-  /* Almost the same plane, with the roll reduced. The scene's 2deg rotateZ is
-     nothing across the 900px card and 31px of diagonal; across a 2160px ruler
-     it is 75px, which stops reading as a tilted instrument and starts reading
-     as a wonky one — and it walks the right-hand end of today's line off the
-     bottom of the frame. Everything else about the plane is shared, so the deck
-     and the card still lie in one space. */
+  /* The rulers' plane: the same, with the roll reduced. The scene's 2deg
+     rotateZ is 36px of diagonal across the 1040px card and 75px across a
+     2160px ruler — enough that the ruler stops reading as tilted and starts
+     reading as wonky. The yaw and pitch are shared, so the rulers and the card
+     still lie in one space. Separately nameable because the -12deg yaw also
+     foreshortens the hour axis (morning reads slightly narrower than evening):
+     a constant perspective rather than a wrong reading, since the hour numerals
+     are drawn ON the plane and foreshorten with it — but if the panel
+     disagrees, a gentler yaw here is the one-line fix. */
   --arch-deck-plane: rotateY(-12deg) rotateX(8deg) rotateZ(0.8deg);
-  /* §5.2 — displacement scales with the sun-altitude dim curve, 1 by day and
-     ~0.33 in the small hours. --clock-dim is written on #screensaver by the
-     ambient clock; unset (flag off) resolves to the daytime value. */
-  --arch-amp: calc(var(--clock-dim, 0.9) / 0.9);
+  /* §5.2 — displacement scales with the sun-altitude dim curve: full by day,
+     ~a third in the small hours. --clock-dim is written on #screensaver by the
+     ambient clock; unset (flag off) resolves to the daytime value.
+     --arch-gain is the owner's amplitude choice (2 = "roughly double the
+     reference", 2026-08-02) and the one number to turn if the wall wants more
+     or less life. Duration never scales — a slow effect that still travels far
+     is what wakes someone up. */
+  --arch-amp: calc(var(--arch-gain, 2) * var(--clock-dim, 0.9) / 0.9);
 }
 
 .archive__scene {
@@ -108,32 +114,24 @@ body.fx-archive-active .archive__echo {
   }
 }
 
-/* ── The deck: across is today, back is the years ──────────────
-   One canvas per row, allocated once at build. Nothing is drawn in
-   DOM here, so a day that fills up allocates nothing (the spine's
-   discipline, transplanted). The rows are STILL: their position is
-   a reading. */
-.archive__deck {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  transform-style: preserve-3d;
-}
+/* ── The two ruler planes ──────────────────────────────────────
+   The FAR plane is the years; the NEAR plane is today. One canvas
+   each, allocated once at build — nothing is drawn in DOM here, so
+   a day that fills up or an album that reaches further back
+   allocates nothing (the spine's discipline, transplanted).
 
-.archive__row {
+   ⚠ NEITHER MOVES. The reference drifts its strips ±80px, which was
+   fine when they were decoration. Both of these carry an axis now,
+   and a sliding axis is a lie about the quantity it measures. */
+.archive__ruler {
   position: absolute;
-  left: -200px;
-  width: 2320px;
-  height: 320px;
+  left: -120px;
+  width: 2160px;
   transform: var(--arch-deck-plane) translateZ(var(--row-z, 0));
 }
 
-/* The deep drawer — the one row that is not a consecutive year. It sits past a
-   gap, further back, and holds the year of the memory currently on the card
-   when that year is older than the deck reaches. A fixed slot, hidden until a
-   memory needs it: nothing here grows with how far back the album goes. */
-.archive__row--deep { display: none; }
-.archive__row--deep.is-visible { display: block; }
+.archive__ruler--years { height: 200px; z-index: 2; }
+.archive__ruler--today { height: 320px; z-index: 4; }
 
 /* ── The ghost year ────────────────────────────────────────────
    The engraving: the year of the memory on the card, huge and
@@ -162,16 +160,17 @@ body.fx-archive-active .archive__ghost {
   }
 }
 
-/* ── The card: the memory itself ───────────────────────────────
-   Smaller than the reference's 1040×585. The card yields the room
-   the deck needs — the day is why this surface changed shape. */
+/* ── The card: the memory itself ─────────────────────────────── */
 .archive__card-plane {
   position: absolute;
   z-index: 5;
+  /* The reference's own card, restored. It had shrunk to 53% of this
+     area to make room for a stack of year-rows; two ruler planes need
+     no such room, and the photograph is the point of a screensaver. */
   left: 130px;
-  top: 178px;
-  width: 760px;
-  height: 428px;
+  top: 212px;
+  width: 1040px;
+  height: 585px;
   transform: var(--arch-plane) translateZ(40px);
   transform-style: preserve-3d;
 }
@@ -244,6 +243,25 @@ body.fx-archive-active .archive__img.is-shown {
   inset: 0;
   border-radius: 4px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* ── The vertical engraving ───────────────────────────
+   The reference's `#gword`. Dropped in the first build on a law-3
+   argument (a word the wall says about itself); restored because it
+   is part of what makes the frame read as a room rather than a
+   slideshow, and it is one rule to remove again. */
+.archive__word {
+  position: absolute;
+  z-index: 6;
+  left: -58px;
+  top: 50%;
+  transform: translateY(-50%) rotate(180deg);
+  writing-mode: vertical-rl;
+  font: 600 150px/1 var(--font-display);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(238, 243, 251, 0.045);
+  pointer-events: none;
 }
 
 /* ── The plate ─────────────────────────────────────────────────
@@ -391,7 +409,10 @@ body.fx-archive-active .screensaver--ambient-clock .screensaver__dateline {
    has moved into the plate (§6.4b). */
 body.fx-archive-active .screensaver__info,
 body.fx-archive-active .screensaver__footer,
-body.fx-archive-active .screensaver__place {
+body.fx-archive-active .screensaver__place,
+/* The plate says "On this day · 2022" now, so the bottom-right whisper would
+   be the house saying it twice. The plate IS the archive's memory surface. */
+body.fx-archive-active .screensaver__memory {
   display: none;
 }
 
