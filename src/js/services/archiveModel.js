@@ -2,30 +2,10 @@ import { captionParts, relativeYearPhrase } from "./photoMemory.js";
 
 // The pure half of the Ambient Archive (docs/design/AMBIENT-ARCHIVE.md).
 //
-// Same discipline as dayModel.js: no DOM, no storage, no timers — so the two
-// decisions that are easy to get quietly wrong (which years the shelf spans,
-// and what the plate is allowed to say) unit-test in plain node. The renderer
-// (modules/ambientArchive.js) reads live state and paints; this decides.
-
-/** The shelf never shows less than this much history, even on a thin day. */
-export const YEAR_MIN_SPAN = 9;
-
-/**
- * Which years the far ruler spans.
- *
- * At least a decade, and always reaching back far enough to contain the memory
- * on the card. A lit year off the end of its own ruler is the one thing this
- * instrument must never do — and the album reaches back a great deal further
- * than a decade, so that is the common case rather than the edge one.
- *
- * @returns {{from:number, to:number}}
- */
-export function yearSpan(lit, now = new Date()) {
-  const thisYear = (now instanceof Date ? now : new Date(now)).getFullYear();
-  const floor = thisYear - YEAR_MIN_SPAN;
-  const from = Number.isFinite(lit) ? Math.min(Number(lit), floor) : floor;
-  return { from, to: thisYear };
-}
+// Same discipline as dayModel.js: no DOM, no storage, no timers — so the
+// decision that is easiest to get quietly wrong (what the plate is allowed to
+// say) unit-tests in plain node. The renderer (modules/ambientArchive.js) reads
+// live state and paints; this decides.
 
 /**
  * What the plate says about the photograph on the card.

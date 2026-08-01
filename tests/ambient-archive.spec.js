@@ -3,14 +3,15 @@ import { existsSync, readFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { captionParts, localHourOf, relativeYearPhrase } from "../src/js/services/photoMemory.js";
-import { yearSpan, plateFor } from "../src/js/services/archiveModel.js";
+import { plateFor } from "../src/js/services/archiveModel.js";
 
 /**
  * The Ambient Archive — calm law v3 (docs/design/AMBIENT-ARCHIVE.md).
  *
- * Mode 0 as an instrument space: the memory as a lit card between two ruler
- * planes — the FAR plane is the years, the NEAR plane is today — and the depth
- * between them is literal. The archive absorbs the spine's job while it is up.
+ * Mode 0 as an instrument space: the memory as a lit card over ONE ruler —
+ * today, low and near. The archive absorbs the spine's job while it is up.
+ * There is deliberately no year ruler: two were built, both were rejected on
+ * the panel, and the 400px ghost engraving already says the year.
  *
  * The four traps this file exists to catch, in the handover's own order:
  *   §4.1 the screensaver blank rule hides whatever you add — and every
@@ -105,20 +106,6 @@ async function settledPlate(page) {
 
 /* ───────────────────────────── the pure model ───────────────────────────── */
 
-test.describe("the year shelf", () => {
-  const NOW = new Date("2026-07-06T12:00:00");
-
-  test("the shelf is at least a decade, and always reaches the lit year", () => {
-    // A lit year off the end of its own ruler is the one thing this instrument
-    // must never do, and the album reaches back much further than a decade.
-    expect(yearSpan(null, NOW)).toEqual({ from: 2017, to: 2026 });
-    expect(yearSpan(2022, NOW)).toEqual({ from: 2017, to: 2026 }); // already on it
-    expect(yearSpan(2011, NOW)).toEqual({ from: 2011, to: 2026 }); // shelf extends back
-    // A photo from this year does not shorten the shelf below its floor.
-    expect(yearSpan(2026, NOW)).toEqual({ from: 2017, to: 2026 });
-  });
-});
-
 test.describe("the hour a photograph was taken", () => {
   // `localDateTime` carries a trailing Z it does not mean, so reading it
   // through Date would shift a 9am photo to 7pm in Brisbane. Same trap
@@ -209,7 +196,6 @@ test("flag on: Mode 0 becomes the archive, and leaving it switches the cause off
   expect(probe.enabled).toBe(true);
   expect(probe.active).toBe(true);
   expect(probe.marker).toBe(true);
-  expect(probe.years).toEqual([2017, 2026]); // a decade of shelf, at the pinned date
   expect(probe.nowHour).toBeCloseTo(12, 1);
 
   await page.evaluate(() => window.__wakeScreensaver());
@@ -246,7 +232,6 @@ test("the archive survives the screensaver blank rule — it is what Mode 0 IS",
     return {
       blankRuleOn: document.body.classList.contains("screensaver-active"),
       archive: document.querySelector(".archive").checkVisibility(opts),
-      years: document.querySelector(".archive__ruler--years").checkVisibility(opts),
       today: document.querySelector(".archive__ruler--today").checkVisibility(opts),
       card: document.querySelector(".archive__card").checkVisibility(opts),
       // The rule must still be doing its job for everything else.
@@ -256,37 +241,34 @@ test("the archive survives the screensaver blank rule — it is what Mode 0 IS",
 
   expect(vis.blankRuleOn).toBe(true);
   expect(vis.archive).toBe(true);
-  expect(vis.years).toBe(true);
   expect(vis.today).toBe(true);
   expect(vis.card).toBe(true);
   expect(vis.hero).toBe("hidden");
 });
 
-// §6.1 resolved the reference's own way: two ruler planes 800px apart are not
-// "the same screen region", so the years and the day never collide. Depth is
-// literal — the years really are further away than today.
-test("two planes at two depths: the years far, today near", async ({ page }) => {
+// The archive draws exactly ONE axis. Two versions of a year ruler were built
+// and both were rejected on the panel: rows receding in Z read as a broken
+// diagonal and cost the photograph half its size, and a horizontal shelf
+// clashed with the card while telling the room nothing the 400px ghost
+// engraving does not already say. A second ruler duplicating it is furniture.
+test("one ruler, and it is today — the year is the engraving, not a shelf", async ({ page }) => {
   await bootArchive(page);
   await engaged(page);
+  await page.evaluate((m) => window.__ssSetFrame(m), MEMORY);
+  await settledPlate(page);
 
-  const planes = await page.evaluate(() => {
-    const z = (sel) => getComputedStyle(document.querySelector(sel)).getPropertyValue("--row-z").trim();
-    const top = (sel) => parseFloat(getComputedStyle(document.querySelector(sel)).top);
-    return {
-      yearsZ: z(".archive__ruler--years"),
-      todayZ: z(".archive__ruler--today"),
-      yearsTop: top(".archive__ruler--years"),
-      todayTop: top(".archive__ruler--today"),
-      count: document.querySelectorAll(".archive__ruler").length
-    };
-  });
+  const shape = await page.evaluate(() => ({
+    rulers: document.querySelectorAll(".archive__ruler").length,
+    todayZ: getComputedStyle(document.querySelector(".archive__ruler--today")).getPropertyValue("--row-z").trim(),
+    ghost: document.querySelector(".archive__ghost").textContent,
+    ghostPx: parseFloat(getComputedStyle(document.querySelector(".archive__ghost")).fontSize)
+  }));
 
-  expect(planes.count).toBe(2);                       // two, not a stack of seven
-  expect(planes.yearsZ).toBe("-150px");               // further away
-  expect(planes.todayZ).toBe("-40px");                // nearer
-  expect(parseFloat(planes.yearsZ)).toBeLessThan(parseFloat(planes.todayZ));
-  // …and far apart on the surface, which is what stops §6.1's collision.
-  expect(planes.todayTop - planes.yearsTop).toBeGreaterThan(600);
+  expect(shape.rulers).toBe(1);
+  expect(shape.todayZ).toBe("-40px");
+  // The year IS on the wall — just not twice.
+  expect(shape.ghost).toBe("2019");
+  expect(shape.ghostPx).toBe(400);
 });
 
 // §6.3.1. The archive's plane takes the spine's axis, so the spine stands down
@@ -350,7 +332,6 @@ test("a tender memory reaches the archive with no plate at all", async ({ page }
   });
   expect(normal.ghost).toBe("2019");
   expect(normal.lit).toBe(2019);
-  expect(normal.years[0]).toBeLessThanOrEqual(2019); // the shelf reached back for it
 
   // Now the tender lane. Wordless: no plate, no ghost year, no caption anywhere.
   const tender = await page.evaluate(() =>
@@ -399,13 +380,11 @@ test("cycling memories and days never grows the DOM", async ({ page }) => {
   });
 
   const before = await page.evaluate(shape);
-  expect(before.rulers).toBe(2);
+  expect(before.rulers).toBe(1);
   expect(before.imgs).toBe(2);
   expect(before.echoes).toBe(2);
   expect(before.plates).toBe(1);
 
-  // Includes years far outside the default decade, which is what makes the
-  // shelf redraw — it must redraw, not re-allocate.
   await page.evaluate(() => {
     for (let i = 0; i < 25; i++) {
       window.__ssSetFrame({ src: `/photos/m${i}.jpg`, caption: `${2008 + (i % 18)} · Place ${i} · Someone` });
@@ -445,10 +424,9 @@ test.describe("archive css guardrail", () => {
     expect(css()).not.toMatch(/animation-iteration-count/);
   });
 
-  test("neither ruler moves — a sliding axis lies about what it measures", () => {
+  test("the ruler never moves — a sliding axis lies about what it measures", () => {
     // The reference drifts its strips ±80px, which was fine when they were
-    // decoration. Both planes carry an axis now: ±80px on the hour ruler is a
-    // ~50-minute lie, and on the year ruler it is most of a year.
+    // decoration. This one carries the hour axis: ±80px on it is a ~50-minute lie.
     const rules = css().match(/[^{}@]+\{[^}]*\}/g) || [];
     for (const rule of rules) {
       const selector = rule.slice(0, rule.indexOf("{"));

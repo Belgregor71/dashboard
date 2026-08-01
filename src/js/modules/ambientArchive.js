@@ -1,5 +1,5 @@
 import { buildDay, DAY_START_HOUR, DAY_END_HOUR } from "../services/dayModel.js";
-import { yearSpan, plateFor, yearOf, YEAR_MIN_SPAN } from "../services/archiveModel.js";
+import { plateFor, yearOf } from "../services/archiveModel.js";
 import { initDaySources, readDayMarks } from "./daySources.js";
 import { on } from "../core/eventBus.js";
 
@@ -10,26 +10,17 @@ import { on } from "../core/eventBus.js";
 // pivoting in a deep space over a drained tiled echo of itself, between two
 // ruler planes at different depths —
 //
-//   the FAR plane is the years   (2016 … 2025, the card's year lit warm)
-//   the NEAR plane is today      (05:00 → 24:00, marks, embers, the now-point)
-//
-// One instrument, two readings, and the depth between them is literal: the
-// years are further away than today, because they are.
-//
-// ── Why two planes and not a stack of rows ───────────────────────────────────
+// ── The years have no ruler, and that is deliberate ──────────────────────────
 //
 // §6.1 of the handover says the archive's year ruler and the spine's hour axis
 // collide because they are "the same screen region, perpendicular meanings".
-// §6.2's fix was to make the years rows receding in Z. Built that way it read
-// on the panel as ONE faint diagonal rather than as depth, and — worse — six
-// stacked rows needed so much vertical room that the photograph had to shrink
-// to 53% of the reference's area. The photograph is the point of a screensaver.
+// Two attempts to keep both were built and both were rejected on the panel:
+// six rows receding in Z read as one broken diagonal and cost the photograph
+// half its size, and a horizontal shelf on a far plane clashed with the card
+// for attention while telling the room nothing it did not already know.
 //
-// The reference already solves §6.1 its own way: two ruler planes 800px apart,
-// which is not the same screen region at all. So the years take the far plane
-// and today takes the near one. "Across is today, back is the years" survives
-// intact; it is expressed in two planes instead of six rows, and the card gets
-// its size back.
+// The year is already on the wall, 400px high, behind the plate. A ruler that
+// duplicates it is furniture (law 3), so the archive draws ONE axis: today.
 //
 // ── How this obeys DESIGN_SYSTEM.md §5 ───────────────────────────────────────
 //
@@ -67,7 +58,7 @@ const FRAME_H = 1080;
 const ROW_W = 2160;      // each ruler bleeds 120px past both frame edges
 const ROW_LEFT = -120;   // frame x of ruler-canvas x 0
 
-// The near plane: today. The reference's `#strip2`, at its own top/depth.
+// The one ruler: today. The reference's `#strip2`, at its own top/depth.
 const TODAY_H = 320;
 const TODAY_LINE_Y = 110;   // ruler-canvas y of the line
 const TODAY_TOP = 904;      // frame y the line lands on
@@ -76,18 +67,6 @@ const MARGIN = 108;                          // the spine's own safe margin
 const HOUR_X0 = MARGIN - ROW_LEFT;           // ruler-canvas x of 05:00
 const HOUR_SPAN = FRAME_W - MARGIN * 2;      // 05:00 → 24:00
 const HOUR_LABELS = [6, 12, 18, 24];
-
-// The far plane: the years. The reference's `#strip1`.
-const YEARS_H = 200;
-const YEARS_LINE_Y = 60;
-const YEARS_TOP = 96;
-const YEARS_Z = -150;
-// The year axis starts well right of the corner clock rather than sharing the
-// hour axis's margin — different plane, different quantity, and the clock has
-// the top-left corner.
-const YEAR_X0 = 380 - ROW_LEFT;
-const YEAR_SPAN = 1432;
-const YEAR_LABEL_MIN_PX = 92; // below this, label every other year
 
 const TICK_PX = 21;      // the reference's ruling pitch, on both planes
 const TICK_MS = 30_000;  // half a minute — the now-point never lags a minute
@@ -101,8 +80,6 @@ let enabled = false;
 let root = null;
 let todayCanvas = null;
 let todayCtx = null;
-let yearsCanvas = null;
-let yearsCtx = null;
 let echoEls = [];        // two, cross-faded
 let cardImgs = [];       // two, cross-faded
 let cardEl = null;
@@ -122,7 +99,6 @@ let resizeHandler = null;
 let lastDay = null;
 let lastFrame = null;    // the memory currently on the card
 let litYear = null;
-let yearRange = null;
 
 /** Is the archive built and allowed to take Mode 0? */
 export function isAmbientArchiveEnabled() {
@@ -241,76 +217,13 @@ function drawToday(day, dim) {
   ctx.globalAlpha = 1;
 }
 
-// ── The far plane: the years ──────────────────────────────────
-
-function yearX(year, range) {
-  const span = Math.max(1, range.to - range.from);
-  return YEAR_X0 + ((year - range.from) / span) * YEAR_SPAN;
-}
-
-/**
- * The shelf: every year the archive reaches, ruled and labelled, with the one
- * on the card lit warm and carrying a riser. Further away than today, because
- * it is.
- */
-function drawYears(range, lit, dim) {
-  const ctx = yearsCtx;
-  if (!ctx) return;
-  const y = YEARS_LINE_Y + 0.5;
-  const left = yearX(range.from, range);
-  const right = yearX(range.to, range);
-  const step = (right - left) / Math.max(1, range.to - range.from);
-
-  ctx.clearRect(0, 0, ROW_W, YEARS_H);
-  ctx.globalAlpha = dim;
-
-  ctx.fillStyle = "rgba(238,243,251,0.16)";
-  ctx.fillRect(0, y, ROW_W, 1);
-  drawTicks(ctx, y, 0, ROW_W, 7, 0.12);
-
-  ctx.font = '400 22px "JetBrains Mono", ui-monospace, monospace';
-  ctx.textAlign = "center";
-  ctx.textBaseline = "top";
-  const everyOther = step < YEAR_LABEL_MIN_PX;
-
-  for (let year = range.from; year <= range.to; year++) {
-    const x = yearX(year, range);
-    const isLit = year === lit;
-    // A taller ruling at each year, so the shelf reads as a scale even where
-    // the numerals are skipped.
-    ctx.fillStyle = isLit ? "rgba(255,205,140,0.9)" : "rgba(238,243,251,0.22)";
-    ctx.fillRect(Math.round(x), y - (isLit ? 4 : 3), 1, isLit ? 5 : 4);
-
-    if (!isLit && everyOther && (range.to - year) % 2 === 1) continue;
-    ctx.fillStyle = isLit ? "rgba(255,205,140,0.95)" : "rgba(159,196,255,0.34)";
-    ctx.fillText(String(year), x, y + 14);
-  }
-
-  // The lit year gets the reference's riser — the one thing on this plane that
-  // points at the photograph.
-  if (Number.isFinite(lit) && lit >= range.from && lit <= range.to) {
-    const x = yearX(lit, range);
-    ctx.fillStyle = "rgba(255,205,140,0.9)";
-    ctx.shadowColor = "rgba(255,190,120,0.55)";
-    ctx.shadowBlur = 10;
-    ctx.fillRect(Math.round(x), y - 24, 1, 20);
-    ctx.shadowBlur = 0;
-  }
-
-  ctx.globalAlpha = 1;
-}
-
-/** Repaint both planes. Called on a cause, never on a frame. */
+/** Repaint the day. Called on a cause, never on a frame. */
 function render() {
   if (!enabled || !root) return;
   const now = new Date();
   const day = buildDay({ marks: readDayMarks(now), now });
   lastDay = day;
-  yearRange = yearSpan(litYear, now);
-
-  const dim = clockDim();
-  drawToday(day, dim);
-  drawYears(yearRange, litYear, dim);
+  drawToday(day, clockDim());
 }
 
 // ── The memory on the card ────────────────────────────────────
@@ -469,8 +382,6 @@ function build(mount) {
   });
   echoEls[0].classList.add("is-shown");
 
-  yearsCanvas = buildRuler("archive__ruler--years", ROW_W, YEARS_H, YEARS_LINE_Y, YEARS_TOP, YEARS_Z);
-  yearsCtx = yearsCanvas.getContext("2d", { alpha: true });
   todayCanvas = buildRuler("archive__ruler--today", ROW_W, TODAY_H, TODAY_LINE_Y, TODAY_TOP, TODAY_Z);
   todayCtx = todayCanvas.getContext("2d", { alpha: true });
 
@@ -498,7 +409,7 @@ function build(mount) {
   cardWrap.append(cardEl);
   cardPlane.append(cardWrap);
 
-  scene.append(...echoEls, yearsCanvas, todayCanvas, ghostEl, cardPlane);
+  scene.append(...echoEls, todayCanvas, ghostEl, cardPlane);
 
   const vig = document.createElement("div");
   vig.className = "archive__vig";
@@ -566,8 +477,6 @@ export function stopAmbientArchiveAll() {
   root = null;
   todayCanvas = null;
   todayCtx = null;
-  yearsCanvas = null;
-  yearsCtx = null;
   echoEls = [];
   cardImgs = [];
   cardEl = null;
@@ -579,7 +488,6 @@ export function stopAmbientArchiveAll() {
   lastDay = null;
   lastFrame = null;
   litYear = null;
-  yearRange = null;
   echoSlot = 0;
   cardSlot = 0;
   enabled = false;
@@ -591,7 +499,6 @@ export function archiveProbe() {
     enabled,
     active,
     marker: document.body.classList.contains("fx-archive-active"),
-    years: yearRange ? [yearRange.from, yearRange.to] : null,
     lit: litYear,
     nowHour: lastDay?.nowHour ?? null,
     marks: (lastDay?.marks ?? []).length,

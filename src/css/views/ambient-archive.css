@@ -3,13 +3,10 @@
    docs/design/AMBIENT-ARCHIVE.md · features.ambientArchive
 
    The memory is a lit card pivoting slowly in a deep space, a
-   desaturated tiled echo of itself behind it, between two ruler
-   planes at different depths:
-
-       the FAR plane is the years · the NEAR plane is today
-
-   — and the depth between them is literal, because the years ARE
-   further away than today.
+   desaturated tiled echo of itself behind it, over one ruler:
+   TODAY, low and near, 05:00 → 24:00. The card's own year is the
+   400px engraving behind the plate — there is no year ruler, and
+   §"what changed" in the doc records why not.
 
    MOTION (DESIGN_SYSTEM.md §5.1). Every loop in this file hangs
    off `body.fx-archive-active`, which is set on Mode-0 entry and
@@ -23,11 +20,11 @@
    the archive drifts LESS FAR, not less often. Durations are
    fixed; only displacement scales.
 
-   ⚠ NEITHER RULER MOVES. The reference drifts its strips ±80px,
-   which was fine when they were decoration. Both planes carry an
-   axis now, and a sliding axis is a lie about the quantity it
-   measures, so those keyframes are deliberately absent. The whole
-   motion budget belongs to the card and its backdrop.
+   ⚠ THE RULER DOES NOT MOVE. The reference drifts its strips
+   ±80px, which was fine when they were decoration. This one carries
+   the hour axis, and ±80px on it is a ~50-minute lie, so those
+   keyframes are deliberately absent. The whole motion budget belongs
+   to the card and its backdrop.
 
    This file is separate from screensaver.css on purpose: the
    guardrail in tests/insights.spec.js forbids `infinite` anywhere
@@ -56,10 +53,10 @@
 
   /* The one plane the whole scene lies on. Measured from the reference. */
   --arch-plane: rotateY(-12deg) rotateX(8deg) rotateZ(2deg);
-  /* The rulers' plane: the same, with the roll reduced. The scene's 2deg
+  /* The ruler's plane: the same, with the roll reduced. The scene's 2deg
      rotateZ is 36px of diagonal across the 1040px card and 75px across a
      2160px ruler — enough that the ruler stops reading as tilted and starts
-     reading as wonky. The yaw and pitch are shared, so the rulers and the card
+     reading as wonky. The yaw and pitch are shared, so the ruler and the card
      still lie in one space. Separately nameable because the -12deg yaw also
      foreshortens the hour axis (morning reads slightly narrower than evening):
      a constant perspective rather than a wrong reading, since the hour numerals
@@ -114,15 +111,21 @@ body.fx-archive-active .archive__echo {
   }
 }
 
-/* ── The two ruler planes ──────────────────────────────────────
-   The FAR plane is the years; the NEAR plane is today. One canvas
-   each, allocated once at build — nothing is drawn in DOM here, so
-   a day that fills up or an album that reaches further back
-   allocates nothing (the spine's discipline, transplanted).
+/* ── The one ruler: today ──────────────────────────────────────
+   One canvas, allocated once at build — nothing is drawn in DOM
+   here, so a day that fills up allocates nothing (the spine's
+   discipline, transplanted).
 
-   ⚠ NEITHER MOVES. The reference drifts its strips ±80px, which was
-   fine when they were decoration. Both of these carry an axis now,
-   and a sliding axis is a lie about the quantity it measures. */
+   There is deliberately NO year ruler. Two versions of one were
+   built and both were rejected on the panel: rows receding in Z
+   read as a broken diagonal and cost the photograph half its size,
+   and a horizontal shelf clashed with the card while telling the
+   room nothing the 400px ghost engraving does not already say. A
+   second ruler duplicating it is furniture (law 3).
+
+   ⚠ IT DOES NOT MOVE. The reference drifts its strips ±80px, which
+   was fine when they were decoration. This one carries an axis, and
+   ±80px on it is a ~50-minute lie. */
 .archive__ruler {
   position: absolute;
   left: -120px;
@@ -130,7 +133,6 @@ body.fx-archive-active .archive__echo {
   transform: var(--arch-deck-plane) translateZ(var(--row-z, 0));
 }
 
-.archive__ruler--years { height: 200px; z-index: 2; }
 .archive__ruler--today { height: 320px; z-index: 4; }
 
 /* ── The ghost year ────────────────────────────────────────────
