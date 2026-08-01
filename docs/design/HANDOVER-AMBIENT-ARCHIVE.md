@@ -1,5 +1,14 @@
 # Handover — the Ambient Archive screensaver (calm law v3)
 
+> **BUILT 2026-08-01, flag-off, not yet seen on the panel.**
+> `docs/design/AMBIENT-ARCHIVE.md` is now the implementation authority — read that for
+> what shipped and what changed from the reference. This file stays as the record of the
+> two owner decisions, the traps, and the reasoning behind the shape.
+>
+> Everything in §8 is done except step 4's live half: `npm test` and the pre-push gates
+> pass, and the flag has NOT been flipped. §6.4's warning stands — put the clock demotion
+> in front of the owner on the kiosk *before* the flag moves. The §8.5 soak is unstarted.
+
 **Status:** not started, **unblocked**. This is the deliberately-deferred half of "The Day,
 Rendered" v2. The spine (§2–§7) shipped and is default-on — `docs/design/TEMPORAL-SPINE.md`.
 

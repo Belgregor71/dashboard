@@ -9,6 +9,13 @@ import { get as getContext, set as setContext, subscribe as subscribeContext } f
 import { atmosphereFor, ATMOSPHERE_TOKENS, skyWarmthFor } from "../services/atmosphere.js";
 import { collectAmbientMemory, spendMemoryBudget } from "../core/memoryRuntime.js";
 import { photosForToday } from "../services/photoMemory.js";
+import {
+  initAmbientArchive,
+  startAmbientArchive,
+  stopAmbientArchive,
+  setArchiveMemory,
+  archiveProbe
+} from "./ambientArchive.js";
 
 const IDLE_MS    = 5 * 60 * 1000;  // 5 min of no motion → engage
 const PHOTO_MS   = 30 * 1000;       // rotate photo every 30s
@@ -108,6 +115,14 @@ let skyRampEnabled = false;
 // Phase 3 nightSky: opts the atmosphere mapper into the atmo-night-clear token
 // on clear nights (the starfield's resting state — atmoFx/runtime.js paints it).
 let nightSkyEnabled = false;
+// ─── Ambient Archive (features.ambientArchive, flag-gated) ────
+// When on, Mode 0 stops being "a photo with a clock on it" and becomes the
+// archive: the memory as a lit card in a deep instrument space, over the
+// temporal spine's day rendered in three dimensions (docs/design/AMBIENT-ARCHIVE.md).
+// The screensaver keeps owning the photo pool, the tender lane, the night curve
+// and the clock — the archive is a RENDERER for what this module already holds.
+// Off → no archive element, no body class, no hook: Mode 0 is byte-identical.
+let archiveEnabled = false;
 const CLOCK_DIM_DAY   = 0.9;  // sun well up → full ambient brightness
 const CLOCK_DIM_NIGHT = 0.3;  // the small-hours floor — dim, never off
 const CLOCK_ALT_DAY   = 6;    // ° above horizon mapped to CLOCK_DIM_DAY
@@ -208,6 +223,10 @@ async function loadDailyMemories() {
     return items.map((p) => ({
       src: immichThumb(p.id),
       caption: p.caption || null,
+      // The wall-clock hour it was taken. Only the Ambient Archive reads it (it
+      // places the lit year-mark there); a frozen set built before the field
+      // existed simply has none, and the year-line stays a plain lit line.
+      hour: Number.isFinite(p.hour) ? p.hour : null,
       mapUrl: p.map ? `/api/immich/map?lat=${encodeURIComponent(p.lat)}&lng=${encodeURIComponent(p.lng)}` : null
     }));
   } catch {
@@ -470,6 +489,14 @@ function setPhoto(frame) {
   if (!photoEl) return;
   const src = typeof frame === "string" ? frame : frame?.src;
   if (!src) return;
+  // The archive owns the frame when it is on: the memory becomes the card, the
+  // echo behind it and the plate beside it. The full-bleed <img> and the
+  // bottom-left place caption are display:none under fx-archive-active, so
+  // feeding them here would only buy a decode and a map-tile fetch nobody sees.
+  if (archiveEnabled) {
+    setArchiveMemory(frame);
+    return;
+  }
   photoEl.classList.remove("screensaver__photo--visible", ...KB_VARIANTS);
   photoEl.src = src;
   photoEl.onload = () => {
@@ -520,7 +547,10 @@ function surfaceTenderMemory(surface, night = isNight()) {
   clearInterval(photoTimer); photoTimer = null; // the lane owns the frame for the hold
   clearTimeout(tenderTimer);
 
-  setPhoto(memoryPhotoSrc(ref));
+  // `tender: true` is belt-and-braces with memoryEngine.toSurface's caption:null
+  // — the archive refuses to build a plate for it either way, so a tender memory
+  // reaches the wall wordless no matter which path put it there (§4.3).
+  setPhoto({ src: memoryPhotoSrc(ref), tender: true });
   showTenderMark();
   spendMemoryBudget(new Date());
 
@@ -660,6 +690,9 @@ function enter() {
   const night = isNight();
   applyNight(night);
   applyAtmosphere();
+  // Mode 0 is the archive's whole cause: `body.fx-archive-active` goes on here
+  // and comes off in exit(), and every loop in ambient-archive.css hangs off it.
+  startAmbientArchive();
 
   driftIndex = 0;
   if (contentEl) contentEl.style.transform = "translate(0, 0)";
@@ -709,6 +742,7 @@ function exit() {
 
   el.classList.remove("is-active");
   document.body.classList.remove("screensaver-active");
+  stopAmbientArchive(); // the cause ends, so the motion ends — not merely hidden
   clearAtmosphere();
   unfreezeLotties();
 
@@ -752,6 +786,11 @@ export async function initScreensaver(options = {}) {
   nightSkyEnabled = options.nightSkyEnabled === true;
 
   build();
+  // The Ambient Archive mounts INSIDE #screensaver, so the blank rule
+  // (`body.screensaver-active > *:not(#screensaver)…`, which selects body
+  // children) never reaches it — the trap that shipped the spine invisible in
+  // the one mode it exists for. Flag-off builds nothing at all.
+  archiveEnabled = initAmbientArchive({ enabled: options.archiveEnabled === true, mount: el });
   // Feature marker — the study-05 CSS engages only under this class, so flag-off
   // is byte-identical (no class, no --clock-dim, plain clock string).
   if (ambientClockEnabled) el.classList.add("screensaver--ambient-clock");
@@ -764,6 +803,11 @@ export async function initScreensaver(options = {}) {
   window.__engageScreensaver = engageScreensaver;
   window.__wakeScreensaver = wakeScreensaver;
   window.__ssNextPhoto = showNextPhoto;
+  // Put a SPECIFIC frame up — a src string, or the `{ src, caption, hour }`
+  // shape the Daily Memories set serves. The Pi has no way to wait for a
+  // particular memory to come round, so this is how the archive's plate, ghost
+  // year and lit year-line get checked live over CDP.
+  window.__ssSetFrame = (frame) => { setPhoto(frame); return true; };
   window.__isNight = isNight;
   // Daily Memories — inspect the live bottom-left caption/map over CDP (the Pi check).
   window.__ssPlace = () => ({
@@ -772,6 +816,11 @@ export async function initScreensaver(options = {}) {
     caption: placeEl?.classList.contains("is-visible") ? (placeCaptionEl?.textContent || null) : null,
     map: placeMapEl?.classList.contains("is-visible") ? (placeMapEl.getAttribute("src") || null) : null
   });
+  // Ambient Archive — inspect the live instrument over CDP: which years the
+  // deck carries, which one is lit, where now sits, and whether the plate is
+  // up (the tender-no-plate invariant, readable from outside). Registered only
+  // when the flag is on → flag-off exposes no hook.
+  if (archiveEnabled) window.__archive = archiveProbe;
   // Study 05 — inspect the live ambient-clock dim over CDP (the 3–4m/on-Pi check).
   window.__ambientClock = () => ({
     enabled: ambientClockEnabled,
@@ -791,7 +840,9 @@ export async function initScreensaver(options = {}) {
       // proof of wordlessness: the only text anywhere near the memory is the 🕯
       // glyph itself — never a caption line.
       markText: tenderMarkEl?.textContent ?? null,
-      photo: photoEl?.getAttribute("src") ?? null
+      // Whichever surface currently holds the frame — the archive's card when
+      // it is on, the full-bleed <img> when it is not.
+      photo: (archiveEnabled ? archiveProbe().photo : photoEl?.getAttribute("src")) ?? null
     });
     window.__forceAmbientMemory = (surface) => {
       if (!surface || !surface.ambientOnly) return { refused: true }; // lane refuses non-tender

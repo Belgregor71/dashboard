@@ -395,9 +395,22 @@ test.describe("the spine surface", () => {
     await page.goto("/");
     await page.waitForFunction(() => typeof window.__spine === "function");
 
-    await page.evaluate(() => window.__presence("dwell"));
-    // Nothing audible in the room (the stubbed server serves no media), so even
-    // with someone standing there the surface stays still.
+    // Silence the room FIRST, and mean it. This used to rely on "the stubbed
+    // server serves no media" — which was never true: Home Assistant is a live
+    // upstream here (unlike the calendars, stubbed 2026-07-31 for exactly this
+    // reason), so the test passed only while nothing happened to be playing at
+    // the house. With the TV on, `mediaAlive()` correctly returned true and the
+    // spine correctly breathed; the assertion, not the spine, was wrong.
+    //
+    // The claim under test is the BINDING — no media, no loop — so the media
+    // has to be removed rather than hoped for. Hiding the panels and then
+    // moving presence re-runs update() with a genuinely quiet room.
+    await page.evaluate(() => {
+      for (const id of ["media-panel-1", "media-panel-2"]) {
+        document.getElementById(id)?.classList.add("is-hidden", "is-collapsed");
+      }
+      window.__presence("dwell");
+    });
     expect(await page.evaluate(() => document.body.classList.contains("spine-alive"))).toBe(false);
     expect(await page.evaluate(() =>
       getComputedStyle(document.querySelector(".spine-breath")).animationName)).toBe("none");

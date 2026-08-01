@@ -1,0 +1,421 @@
+/* ─────────────────────────────────────────────────────────────
+   THE AMBIENT ARCHIVE — Mode 0 as an instrument space
+   docs/design/AMBIENT-ARCHIVE.md · features.ambientArchive
+
+   The memory is a lit card pivoting slowly in a deep space, a
+   desaturated tiled echo of itself behind it, and beneath it the
+   temporal spine's day rendered in three dimensions:
+
+       across is today · back is the years
+
+   MOTION (DESIGN_SYSTEM.md §5.1). Every loop in this file hangs
+   off `body.fx-archive-active`, which is set on Mode-0 entry and
+   removed on exit — leaving Mode 0 switches the surface off, it
+   does not merely hide it. The cause is one any household member
+   can name: the house is leafing through its album. Nothing here
+   completes a perceptible change inside a passing glance (~3s):
+   the pivot takes 84s, the drift 130s, the zoom 96s.
+
+   Amplitude follows --clock-dim (§5.2) through --arch-amp: at 2am
+   the archive drifts LESS FAR, not less often. Durations are
+   fixed; only displacement scales.
+
+   ⚠ THE RULER DOES NOT MOVE. The reference drifts its strips
+   ±80px. Once the plane means time of day that is a ~50-minute
+   lie, so those keyframes are deliberately absent. The motion
+   budget belongs to the card and its backdrop only.
+
+   This file is separate from screensaver.css on purpose: the
+   guardrail in tests/insights.spec.js forbids `infinite` anywhere
+   in screensaver.css that is not bound to a weather condition
+   token, and the archive's cause is not the weather. Its own
+   cause-binding guardrail lives in tests/ambient-archive.spec.js.
+
+   ⚠ §4.5 — no element in here carries an opacity that a text node
+   sits under. Rank/faintness is in the colour alpha, once. The
+   plate is opacity 1 at rest (its only opacity is the exchange
+   transition) and hides outright at night rather than dimming,
+   the way the Daily Memories caption already does.
+──────────────────────────────────────────────────────────── */
+
+.archive {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1920px;
+  height: 1080px;
+  transform: translate(-50%, -50%) scale(var(--arch-fit, 1));
+  transform-origin: center;
+  overflow: hidden;
+  background: #04060e;
+  pointer-events: none;
+
+  /* The one plane the whole scene lies on. Measured from the reference. */
+  --arch-plane: rotateY(-12deg) rotateX(8deg) rotateZ(2deg);
+  /* The deck's plane, separately nameable: the hour axis foreshortens under the
+     -12deg yaw, so morning reads slightly narrower than evening. That is a
+     constant perspective, not a wrong reading (the hour numerals are drawn ON
+     the plane and foreshorten with it) — but if the panel says otherwise, a
+     gentler yaw here is the one-line fix. */
+  /* Almost the same plane, with the roll reduced. The scene's 2deg rotateZ is
+     nothing across the 900px card and 31px of diagonal; across a 2160px ruler
+     it is 75px, which stops reading as a tilted instrument and starts reading
+     as a wonky one — and it walks the right-hand end of today's line off the
+     bottom of the frame. Everything else about the plane is shared, so the deck
+     and the card still lie in one space. */
+  --arch-deck-plane: rotateY(-12deg) rotateX(8deg) rotateZ(0.8deg);
+  /* §5.2 — displacement scales with the sun-altitude dim curve, 1 by day and
+     ~0.33 in the small hours. --clock-dim is written on #screensaver by the
+     ambient clock; unset (flag off) resolves to the daytime value. */
+  --arch-amp: calc(var(--clock-dim, 0.9) / 0.9);
+}
+
+.archive__scene {
+  position: absolute;
+  inset: 0;
+  perspective: 1400px;
+  perspective-origin: 50% 42%;
+}
+
+/* ── The echo: the memory, tiled and drained, far behind ───────
+   Not wallpaper — it is the same photograph, which is why the room
+   can see why it moved when the memory changed. */
+.archive__echo {
+  position: absolute;
+  z-index: 1;
+  left: -420px;
+  top: -340px;
+  width: 2900px;
+  height: 1800px;
+  background: 0 0 / 620px 349px repeat;
+  filter: grayscale(1) brightness(0.17) contrast(1.18);
+  transform: var(--arch-plane) translateZ(-280px);
+  opacity: 0;
+  transition: opacity 2.6s ease;
+}
+
+.archive__echo.is-shown { opacity: 1; }
+
+body.fx-archive-active .archive__echo {
+  animation: arch-echo 130s ease-in-out infinite alternate;
+}
+
+@keyframes arch-echo {
+  to {
+    transform: var(--arch-plane) translateZ(-280px)
+      translate3d(calc(-96px * var(--arch-amp)), calc(-42px * var(--arch-amp)), 0)
+      scale(calc(1 + 0.05 * var(--arch-amp)));
+  }
+}
+
+/* ── The deck: across is today, back is the years ──────────────
+   One canvas per row, allocated once at build. Nothing is drawn in
+   DOM here, so a day that fills up allocates nothing (the spine's
+   discipline, transplanted). The rows are STILL: their position is
+   a reading. */
+.archive__deck {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  transform-style: preserve-3d;
+}
+
+.archive__row {
+  position: absolute;
+  left: -200px;
+  width: 2320px;
+  height: 320px;
+  transform: var(--arch-deck-plane) translateZ(var(--row-z, 0));
+}
+
+/* The deep drawer — the one row that is not a consecutive year. It sits past a
+   gap, further back, and holds the year of the memory currently on the card
+   when that year is older than the deck reaches. A fixed slot, hidden until a
+   memory needs it: nothing here grows with how far back the album goes. */
+.archive__row--deep { display: none; }
+.archive__row--deep.is-visible { display: block; }
+
+/* ── The ghost year ────────────────────────────────────────────
+   The engraving: the year of the memory on the card, huge and
+   nearly not there. */
+.archive__ghost {
+  position: absolute;
+  z-index: 3;
+  right: 36px;
+  top: 0;
+  font: 200 400px/1 var(--font-display);
+  letter-spacing: 0.02em;
+  color: rgba(238, 243, 251, 0.055);
+  -webkit-text-stroke: 1px rgba(238, 243, 251, 0.06);
+  transform: var(--arch-plane) translateZ(-190px);
+  transition: opacity 2.4s ease;
+}
+
+body.fx-archive-active .archive__ghost {
+  animation: arch-ghost 92s ease-in-out infinite alternate;
+}
+
+@keyframes arch-ghost {
+  to {
+    transform: var(--arch-plane) translateZ(-190px)
+      translate3d(calc(-46px * var(--arch-amp)), calc(30px * var(--arch-amp)), 0);
+  }
+}
+
+/* ── The card: the memory itself ───────────────────────────────
+   Smaller than the reference's 1040×585. The card yields the room
+   the deck needs — the day is why this surface changed shape. */
+.archive__card-plane {
+  position: absolute;
+  z-index: 5;
+  left: 130px;
+  top: 178px;
+  width: 760px;
+  height: 428px;
+  transform: var(--arch-plane) translateZ(40px);
+  transform-style: preserve-3d;
+}
+
+.archive__card-wrap {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+
+body.fx-archive-active .archive__card-wrap {
+  animation: arch-pivot 84s ease-in-out infinite alternate;
+}
+
+@keyframes arch-pivot {
+  from { transform: translateZ(0); }
+  to   { transform: translateZ(calc(52px * var(--arch-amp))); }
+}
+
+.archive__card {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 48px 110px rgba(0, 0, 0, 0.62), 0 10px 34px rgba(0, 0, 0, 0.5);
+  outline: 1px solid rgba(255, 255, 255, 0.18);
+  transition: filter 2.8s ease;
+}
+
+/* The exchange: a beat of blur as one memory gives way to the next.
+   An event with an end, not a texture. */
+.archive__card.is-exchanging {
+  filter: blur(16px) brightness(0.8);
+  transition: filter 300ms ease;
+}
+
+.archive__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 2.6s ease;
+}
+
+.archive__img.is-shown { opacity: 1; }
+
+/* Only the visible slot breathes its slow zoom — the hidden one would
+   composite for nothing, and a fresh memory earns a fresh move. */
+body.fx-archive-active .archive__img.is-shown {
+  animation: arch-kenburns 96s ease-in-out infinite alternate;
+}
+
+@keyframes arch-kenburns {
+  from { transform: scale(1); }
+  to   { transform: scale(calc(1 + 0.075 * var(--arch-amp))); }
+}
+
+.archive__grade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, rgba(30, 66, 120, 0.10), transparent 55%, rgba(8, 12, 30, 0.10));
+  mix-blend-mode: multiply;
+}
+
+.archive__lip {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* ── The plate ─────────────────────────────────────────────────
+   NOT new language (§6.4b): year · place · who is the caption the
+   Daily Memories set and the vault×Immich relationship work already
+   render in Mode 0. The archive relocates it, it does not add it.
+   No caption → no plate. A TENDER memory arrives with no caption at
+   all, so it arrives with no plate — the invariant is structural. */
+.archive__plate {
+  position: absolute;
+  z-index: 6;
+  right: 110px;
+  top: 356px;
+  width: 470px;
+  opacity: 0;
+  transition: opacity 2.4s ease;
+  pointer-events: none;
+}
+
+.archive__plate.is-visible { opacity: 1; }
+.archive__plate.is-exchanging { opacity: 0; }
+.archive__ghost.is-exchanging { opacity: 0; }
+
+.archive__plate-row {
+  background: rgba(5, 9, 20, 0.72);
+  padding: 14px 22px;
+  margin-bottom: 8px;
+  width: fit-content;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.archive__eyebrow {
+  font: 600 19px/1 var(--font-body);
+  letter-spacing: 0.26em;
+  color: rgba(238, 243, 251, 0.60);
+}
+
+.archive__title {
+  font: 500 56px/1.04 var(--font-display);
+  color: rgba(238, 243, 251, 0.86);
+  max-width: 420px;
+  text-wrap: balance;
+}
+
+/* The reference floats `who` bare over the photograph at 16px/.48 — the exact
+   shape §4.5 warns about. It gets the plate's own backdrop, the §2.1 eyebrow
+   size, and the ink ladder's .72 step; the warm rule stays as the accent. */
+.archive__who {
+  display: none;
+  font: 500 19px/1.5 var(--font-body);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(238, 243, 251, 0.72);
+  border-left: 3px solid rgba(255, 205, 140, 0.85);
+  padding-left: 19px;
+}
+
+.archive__who.is-visible { display: block; }
+
+/* ── The grade: vignette + a STATIC grain ──────────────────────
+   Particles, twinkle and dust-motion stay banned. The grain never
+   moves; it is a texture, not a population. */
+.archive__vig {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  background: radial-gradient(1700px 1050px at 42% 44%, transparent 58%, rgba(2, 4, 10, 0.66) 98%);
+}
+
+.archive__grain {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  opacity: 0.055;
+  mix-blend-mode: overlay;
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2"/></filter><rect width="240" height="240" filter="url(%23n)"/></svg>');
+}
+
+/* ── What the archive takes over in Mode 0 ─────────────────────
+   Flag-off none of this exists: no `.archive` element is built, the
+   `fx-archive-active` class is never set, and Mode 0 falls back to
+   exactly today's verified screensaver. That IS the rollback path,
+   and it costs these rules nothing. */
+
+/* The spine's job here is the archive's now (§6.3.1). It hides; it is
+   not deleted, and it returns the moment the class comes off. */
+body.fx-archive-active #temporal-spine {
+  display: none;
+}
+
+/* The archive's echo replaces the full-bleed photo. The readability
+   overlay STAYS: it carries the atmosphere tint, and borrowed light
+   is a composition law the archive does not get to opt out of. */
+body.fx-archive-active .screensaver__photo-bg {
+  display: none;
+}
+
+/* The clock, demoted (§6.4). Mode 0 takes the archive's quiet corner
+   numeral: same brightness law, one third the size. The awake top-row
+   time and every other clock are untouched — this is not licence to
+   resize type elsewhere. */
+body.fx-archive-active .screensaver__content {
+  position: absolute;
+  top: 56px;
+  left: 108px;
+  z-index: 9;
+  align-items: flex-start;
+  justify-content: flex-start;
+  text-align: left;
+  padding: 0;
+}
+
+body.fx-archive-active .screensaver__time,
+body.fx-archive-active .screensaver--ambient-clock .screensaver__time {
+  font-size: 64px;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+/* The shipped clock carries `font-size 1s ease`, so the demotion would animate
+   a LAYOUT property (§5.5) every time Mode 0 engages — and un-animate it on the
+   way out — for a reason the room cannot see, on the element it looks at most.
+   The demotion is a STATE, not a move. This hangs off the permanent flag marker
+   rather than the Mode-0 cause, because it has to hold on both sides of the
+   boundary; flag-off adds no marker and the shipped transition stands. */
+body.ambient-archive-on .screensaver__time,
+body.ambient-archive-on .screensaver--ambient-clock .screensaver__time {
+  transition: color 2s ease, opacity 2s ease;
+}
+
+body.fx-archive-active .screensaver__meridiem,
+body.fx-archive-active .screensaver--ambient-clock .screensaver__meridiem {
+  font-size: 0.5em;
+}
+
+body.fx-archive-active .screensaver--ambient-clock .screensaver__dateline {
+  font-size: 19px;
+  letter-spacing: 0.22em;
+  margin-top: 10px;
+}
+
+/* Nobody is home: the day is pure light and the surface says nothing.
+   The live-fact lines are the awake queue's job, and the place caption
+   has moved into the plate (§6.4b). */
+body.fx-archive-active .screensaver__info,
+body.fx-archive-active .screensaver__footer,
+body.fx-archive-active .screensaver__place {
+  display: none;
+}
+
+/* Night: the plate hides outright rather than dimming, exactly as the
+   Daily Memories caption already does — deliberate, not a bug. Dimming
+   it would multiply an element opacity into the text's own alpha, which
+   is how the spine's third label reached 1.96:1 (§4.5). */
+.screensaver--night .archive__plate,
+.screensaver--night .archive__ghost {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .archive__echo,
+  .archive__ghost,
+  .archive__card,
+  .archive__img,
+  .archive__plate {
+    transition: none;
+  }
+  body.fx-archive-active .archive__echo,
+  body.fx-archive-active .archive__ghost,
+  body.fx-archive-active .archive__card-wrap,
+  body.fx-archive-active .archive__img.is-shown {
+    animation: none;
+  }
+}

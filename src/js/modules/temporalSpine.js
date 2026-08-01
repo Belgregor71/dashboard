@@ -1,8 +1,5 @@
 import {
   buildDay,
-  eventMark,
-  triggerMark,
-  binMark,
   languageBudget,
   labelledMarks,
   anchorFor,
@@ -11,8 +8,7 @@ import {
   MAX_SLOTS,
   STRATA_ROWS
 } from "../services/dayModel.js";
-import { getCalendarEvents } from "./calendar.js";
-import { getLastCameraTrigger } from "./cameraTiles.js";
+import { initDaySources, readDayMarks, resetDaySources } from "./daySources.js";
 import { getMode } from "../core/presence.js";
 import { on } from "../core/eventBus.js";
 
@@ -72,38 +68,11 @@ let lastDay = null;
 let forcedStrata = [];
 
 // ── State reads ───────────────────────────────────────────────
-// The runtime reads; dayModel decides. Every read is defensive — a dead Sonos or
-// a lagging HA means marks simply don't appear. Data absence renders as silence;
-// the wall never draws an error state.
-
-function readEventMarks(now) {
-  try {
-    return (getCalendarEvents() || []).map((ev) => eventMark(ev, { now })).filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-function readTriggerMark() {
-  try {
-    const t = getLastCameraTrigger();
-    if (!t?.cameraName || !t?.timestamp) return null;
-    const time = new Date(t.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    return triggerMark({ name: t.cameraName, at: t.timestamp, label: time });
-  } catch {
-    return null;
-  }
-}
-
-let binState = null;
-
-function readBinMark(now) {
-  try {
-    return binMark(binState || {}, { now });
-  } catch {
-    return null;
-  }
-}
+// The runtime reads; dayModel decides. What the day is MADE of lives in
+// modules/daySources.js, because the Ambient Archive renders the same day on a
+// different geometry (docs/design/AMBIENT-ARCHIVE.md §6) — two renderers, one
+// day. Everything below is the spine's own state: what it is allowed to say,
+// and how brightly.
 
 /**
  * Is media audible in the room? Concurrency: light aggregates, language ranks —
@@ -351,13 +320,7 @@ function eyebrowFor(hero) {
 function update() {
   if (!enabled || !root) return;
   const now = new Date();
-  const marks = [
-    ...readEventMarks(now),
-    readTriggerMark(),
-    readBinMark(now)
-  ].filter(Boolean);
-
-  const day = buildDay({ marks, now, strata: forcedStrata });
+  const day = buildDay({ marks: readDayMarks(now), now, strata: forcedStrata });
   lastDay = day;
   drawSpine(day);
 
@@ -435,12 +398,10 @@ export function initTemporalSpine({ enabled: on_ = false } = {}) {
   document.body.classList.add("temporal-spine-on");
   build();
 
+  initDaySources();
   on("calendar:refreshed", update);
   on("presence:changed", update);
-  on("bins:updated", (data) => {
-    binState = data?.due ? data : null;
-    update();
-  });
+  on("bins:updated", update);
 
   resizeHandler = () => update();
   window.addEventListener("resize", resizeHandler);
@@ -497,6 +458,6 @@ export function stopTemporalSpine() {
   labelEls = [];
   lastDay = null;
   forcedStrata = [];
-  binState = null;
+  resetDaySources();
   enabled = false;
 }

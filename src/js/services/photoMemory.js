@@ -21,6 +21,24 @@ function localMonthDay(iso) {
 }
 
 /**
+ * The wall-clock hour a photo was taken, as fractional hours since midnight.
+ *
+ * Same trap as `localMonthDay`, and it bites harder: `localDateTime` carries a
+ * trailing `Z` it does not mean, so `new Date(s).getHours()` would shift a 9am
+ * photo to 7pm in Brisbane — putting the Ambient Archive's lit year-mark ten
+ * hours off on an axis whose whole job is being right about when. Read the
+ * fields, never the Date.
+ *
+ * @returns {number|null} 0–24, or null when there is no usable time
+ */
+export function localHourOf(iso) {
+  const m = /^\d{4}-\d{2}-\d{2}[T ](\d{2}):(\d{2})/.exec(String(iso || ""));
+  if (!m) return null;
+  const h = Number(m[1]) + Number(m[2]) / 60;
+  return Number.isFinite(h) && h >= 0 && h <= 24 ? h : null;
+}
+
+/**
  * Assets actually taken on today's month/day, newest year first, deduped + capped.
  * @returns {Array<{id:string, year:number}>}
  */
@@ -70,8 +88,10 @@ function candidateDays(now, maxOffsetDays) {
 
 /**
  * Select the curated daily set from an exif-carrying asset feed.
- * @returns {Array<{id, year, offsetDays, city, state, country, lat, lng}>}
+ * @returns {Array<{id, year, hour, offsetDays, city, state, country, lat, lng}>}
  *          nearest day first, newest year first within a day, deduped, capped.
+ *          `hour` is the wall-clock hour it was taken (null when unknown) — the
+ *          Ambient Archive places its lit year-mark there.
  */
 export function selectDailyMemories(assets, now = new Date(), { target = MAX_PHOTOS, maxOffsetDays = MAX_OFFSET_DAYS } = {}) {
   // Bucket assets by their local month/day (newest year first within a bucket).
@@ -96,6 +116,7 @@ export function selectDailyMemories(assets, now = new Date(), { target = MAX_PHO
       out.push({
         id: a.id,
         year: a.year,
+        hour: localHourOf(a.localDateTime),
         offsetDays: c.offset,
         city: a.city ?? null,
         state: a.state ?? null,
@@ -238,6 +259,27 @@ export function captionFor(
   return [year ?? "", place, nameSegment(people, hideNames, ambiguous, relationships)]
     .filter(Boolean)
     .join(" · ");
+}
+
+/**
+ * Split a caption back into its registers — the inverse of `captionFor`.
+ *
+ * The Ambient Archive's plate is `year · place · who`, and that is exactly what
+ * `captionFor` already joins, which is why the plate is RELOCATED language and
+ * not new language (AMBIENT-ARCHIVE.md §6.4b). Nothing is invented here: a
+ * caption carrying only a year yields null, and null means the plate does not
+ * appear at all, because silence is the default.
+ *
+ * @returns {{year:string, title:string, who:string|null}|null}
+ */
+export function captionParts(caption) {
+  const parts = String(caption ?? "")
+    .split("·")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (parts.length < 2) return null;
+  const [year, title, ...rest] = parts;
+  return { year, title, who: rest.join(" · ") || null };
 }
 
 /**

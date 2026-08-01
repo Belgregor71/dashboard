@@ -253,7 +253,10 @@ export function startApp() {
     memoryWhisperEnabled: isEnabled("memoryWhisper", false),
     // Living Window Phase 3 — sun-altitude substrate warmth + clear-night token.
     skyRampEnabled: isEnabled("skyRamp", false),
-    nightSkyEnabled: isEnabled("nightSky", false)
+    nightSkyEnabled: isEnabled("nightSky", false),
+    // calm law v3 — Mode 0 becomes the archive: the memory as a lit card over
+    // the temporal spine's day in 3D (docs/design/AMBIENT-ARCHIVE.md).
+    archiveEnabled: isEnabled("ambientArchive", false)
   });
   initFocusHero({
     attentionEnabled: isEnabled("attentionEngine", false),

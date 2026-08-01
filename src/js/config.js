@@ -525,6 +525,51 @@ window.CONFIG = {
     // scripts/verify/flag-reversibility.mjs).
     temporalSpine: true,
 
+    // "The Day, Rendered" v2 §11 — calm law v3 / the AMBIENT ARCHIVE
+    // (docs/design/AMBIENT-ARCHIVE.md). The deliberately-deferred half of the
+    // spine work. Mode 0 stops being "a photo with a clock on it" and becomes
+    // the archive: the memory as a lit card pivoting slowly in a deep
+    // instrument space, a desaturated tiled echo of itself behind, everything
+    // drifting on independent 84–130s periods — and, beneath the card, the
+    // spine's day rendered in three dimensions. ACROSS IS TODAY (05:00→24:00,
+    // marks, embers, the travelling now-point); BACK IS THE YEARS (the strata
+    // as rows receding in Z, the memory on the card lighting its own year-line
+    // at the hour it was taken). One instrument, two readings. The archive's
+    // own horizontal year ruler is deleted — two perpendicular meanings cannot
+    // share a screen region, and the spine's axis is the one that survives.
+    //
+    // OWNER DECISIONS this rests on (2026-08-01): (1) the ambient surface may
+    // move in an empty room, which supersedes "0% unoccupied" for Mode 0 only;
+    // (2) the Mode-0 clock is DEMOTED to the archive's 64px corner numeral,
+    // superseding "keep clock size" for Mode 0 only — the awake top-row time
+    // and every other clock are untouched.
+    //
+    // Motion (DESIGN_SYSTEM.md §5.1): every loop hangs off
+    // `body.fx-archive-active`, set on Mode-0 entry and removed on exit, so
+    // leaving Mode 0 switches the surface off rather than hiding it. The cause
+    // is nameable — the house is leafing through its album — and nothing
+    // completes a perceptible change inside a ~3s glance. Amplitude rides
+    // --clock-dim (§5.2): at 2am it drifts less FAR, not less often. The ruler
+    // itself never moves: once the plane means time of day, sliding it is a
+    // ~50-minute lie. Everything is compositor-only CSS — no rAF, no WebGL,
+    // no per-frame allocation — and the deck is six canvases allocated once,
+    // so a day that fills up allocates nothing.
+    //
+    // Default OFF and NOT yet seen on the panel. Do not flip this one on the
+    // way temporalSpine was flipped — the clock demotion is the most visible
+    // change in the package (the thing on screen twenty hours a day) and it
+    // goes in front of the owner on the kiosk BEFORE the flag moves. When it
+    // does move: re-run scripts/verify/flag-reversibility.mjs (the pinned-off
+    // state IS the rollback), pin the specs that assert the old Mode-0 surface
+    // (night-clock-mode, ambient-clock, memory-whisper, ambient-memory,
+    // daily-memories), and run /kiosk-metrics at 0h/24h/72h into
+    // docs/audit/HOST-BASELINES.md as a new "live ambient" row — the soak
+    // (heap-flat over 72h + fps constant) is the deliverable, not an
+    // afterthought. One-line revert (-> false): no archive element is built,
+    // the class is never set, and Mode 0 is exactly today's verified
+    // screensaver with the spine visible in it.
+    ambientArchive: false,
+
     // Audit M11. The Pi's crontab already powers the panel down 21:00→05:00
     // (`xset dpms force off`), so a doorbell ring at 3am currently speaks its
     // alert and draws its popup to a dark screen. With this on, a live-worthy

@@ -24,6 +24,18 @@ export const MAX_SLOTS = 64;
 /** How many previous years sit beneath as strata (§2 "Reach"). */
 export const STRATA_ROWS = 3;
 
+/**
+ * The same reach, on the archive's tilted plane (AMBIENT-ARCHIVE.md §6.2).
+ *
+ * Three rows is right for a FLAT surface read at 4 m — beyond that the lines
+ * crowd into a smudge. A plane receding in Z separates its rows by perspective
+ * as well as by position, so it carries more before it turns to mush, and depth
+ * is the whole reason that surface exists. Deliberately a second constant
+ * rather than a raised `STRATA_ROWS`: the spine is default-on and Pi-verified
+ * at 3, and the archive must not reach outside its own flag to change it.
+ */
+export const ARCHIVE_STRATA_ROWS = 5;
+
 /** Weight is the only hierarchy (§2 "Density") — no categories, no per-domain colour. */
 export const WEIGHT_MIN = 1;
 export const WEIGHT_MAX = 3;

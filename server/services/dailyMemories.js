@@ -155,6 +155,10 @@ async function buildDailySet(now, { warm = false } = {}) {
   const photos = selected.map((p) => ({
     id: p.id,
     year: p.year,
+    // The wall-clock hour it was taken. Only the Ambient Archive reads it (to
+    // place its lit year-mark on the hour axis); older frozen sets simply lack
+    // the field and the year-line stays a plain lit line.
+    hour: p.hour ?? null,
     caption: captionFor(p, { hideNames, ambiguous, relationships }),
     map: isTravel(p) && p.lat != null && p.lng != null && hasMapKey(),
     lat: p.lat,
