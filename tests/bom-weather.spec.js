@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-import { compileSchema, validateData } from "../server/middleware/validate.js";
+import { compileDataSchema, validateData } from "../server/middleware/validate.js";
 import { weatherNowSchema, weatherForecastSchema } from "../server/schemas/weather.js";
 import { normalizeBomNow, normalizeBomForecast } from "../server/services/weatherService.js";
 import { haConditionToWmoCode } from "../server/services/bomWeatherService.js";
@@ -15,14 +15,12 @@ import { haConditionToWmoCode } from "../server/services/bomWeatherService.js";
 // and the forecast is NOT in entity attributes at all — it only comes back
 // from the weather.get_forecasts service, POSTed with ?return_response.
 
-const validateNow = compileSchema(weatherNowSchema);
-const validateForecast = compileSchema(weatherForecastSchema);
+const validateNow = compileDataSchema(weatherNowSchema);
+const validateForecast = compileDataSchema(weatherForecastSchema);
 
-// The shared Ajv instance runs coerceTypes + removeAdditional, so validating
-// MUTATES what you hand it: on `anyOf: [number, null]` a null is coerced to 0,
-// and a null string to "". Validate a copy, or every assertion after the call
-// is reading the coerced value rather than what the mapper actually returned.
-// (That coercion reaches production too — see the note in weatherService.)
+// compileDataSchema's Ajv does not coerce, so validating is now a pure check.
+// The clone is belt-and-braces: it means these specs still assert on exactly
+// what the mapper returned even if the validator ever regains a mutating option.
 const checks = (validateFn, data) => validateData(validateFn, structuredClone(data));
 
 const BOM_FIXTURE = {
@@ -113,25 +111,27 @@ test("a forecast-less BOM read still serves current conditions", () => {
   expect(forecast.days).toEqual([]);
 });
 
-test("validation coerces nulls in place — pinned because it reaches the wire", () => {
-  // Not a BOM bug and not new: the shared Ajv instance is built with
-  // coerceTypes, and getWeatherNormalized validates the very object it returns,
-  // so "unknown" leaves the server as 0 (numbers) or "" (strings) on BOTH
-  // upstreams. It bites hardest in the briefing context, where aiBriefing.js
-  // guards with `if (w.uv != null)` — a guard that can never fail, so the model
-  // is told "UV 0" when the truth is "no reading".
+test("validating an outbound payload never rewrites it", () => {
+  // Regression guard for the fix on 2026-08-02. Ajv applies coerceTypes,
+  // useDefaults and removeAdditional by mutating in place, and
+  // getWeatherNormalized validates the very object it returns — so "unknown"
+  // used to leave the server as a confident 0 (numbers) or "" (strings) on
+  // BOTH upstreams. Every `!= null` guard downstream was dead code:
+  // aiBriefing.js told the model "UV 0" when the truth was "no reading".
   //
-  // Pinned rather than fixed: un-coercing changes what every weather consumer
-  // receives and deserves its own change. If this test starts failing because
-  // someone fixed it, that is good news — delete it.
+  // The schemas are compiled by compileDataSchema now, which uses a separate
+  // non-coercing Ajv. If someone routes an outbound schema back through
+  // compileSchema, this is what catches it.
   const now = normalizeBomNow(BOM_FIXTURE);
+
+  const before = structuredClone(now);
+  const result = validateData(validateNow, now); // deliberately NOT the cloning helper
+
+  expect(result.ok).toBe(true);
+  expect(now).toEqual(before);
   expect(now.now.feels_like_c).toBeNull();
+  expect(now.now.uv).toBeNull();
   expect(now.day.sunrise).toBeNull();
-
-  validateData(validateNow, now); // deliberately NOT the cloning helper
-
-  expect(now.now.feels_like_c).toBe(0);
-  expect(now.day.sunrise).toBe("");
 });
 
 test("sunrise/sunset are null on the BOM path, and that is deliberate", () => {

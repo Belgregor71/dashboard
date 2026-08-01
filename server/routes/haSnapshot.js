@@ -1,11 +1,11 @@
 import express from "express";
-import { compileSchema } from "../middleware/validate.js";
+import { compileDataSchema } from "../middleware/validate.js";
 import { haSnapshotSchema } from "../schemas/ha.js";
 import { getHaSnapshot } from "../services/haService.js";
 import { normalizeBaseUrl } from "../config.js";
 
 const router = express.Router();
-const validateHaSnapshot = compileSchema(haSnapshotSchema);
+const validateHaSnapshot = compileDataSchema(haSnapshotSchema);
 
 router.get("/api/ha/snapshot", async (_req, res) => {
   const haTarget = normalizeBaseUrl(process.env.HA_HOST || process.env.HA_URL);

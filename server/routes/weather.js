@@ -1,5 +1,5 @@
 import express from "express";
-import { compileSchema } from "../middleware/validate.js";
+import { compileDataSchema } from "../middleware/validate.js";
 import { weatherNowSchema, weatherForecastSchema } from "../schemas/weather.js";
 import {
   getWeatherNormalized,
@@ -11,8 +11,8 @@ import {
 
 const router = express.Router();
 
-const validateWeatherNow = compileSchema(weatherNowSchema);
-const validateWeatherForecast = compileSchema(weatherForecastSchema);
+const validateWeatherNow = compileDataSchema(weatherNowSchema);
+const validateWeatherForecast = compileDataSchema(weatherForecastSchema);
 
 router.get("/api/weather/now", async (_req, res) => {
   const lat = Number(process.env.WEATHER_LAT);

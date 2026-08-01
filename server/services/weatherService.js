@@ -300,13 +300,10 @@ export async function getWeatherNormalized({ lat, lon, validateNow, validateFore
     const now = normalizeWeatherNow(raw);
     const forecast = normalizeWeatherForecast(raw);
 
-    // Heads-up: validateData MUTATES `now`. The shared Ajv instance runs
-    // coerceTypes, so every null here leaves as 0 (or "" for strings) — an
-    // unknown UV or apparent temperature is served as a confident zero on both
-    // upstreams. Most read paths guard with `!= null`, which can therefore
-    // never fire; aiBriefing.js then tells the model "UV 0". Pinned by
-    // tests/bom-weather.spec.js rather than fixed, because un-coercing changes
-    // what every weather consumer receives.
+    // Safe to validate the object we are about to return: these schemas are
+    // compiled by compileDataSchema, whose Ajv does not coerce. Until
+    // 2026-08-02 they were not, and validation rewrote `now` in place — an
+    // unknown UV or apparent temperature was served as a confident 0.
     const nowResult = validateData(validateNow, now);
     if (!nowResult.ok) {
       console.error("Weather now validation failed:", nowResult.errors);
