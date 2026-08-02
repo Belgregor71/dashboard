@@ -600,10 +600,29 @@ window.CONFIG = {
     // The transcode needs ffmpeg on the host — without it every memory stays a
     // still, silently and safely.
     //
-    // Default-off pending the panel: it must be judged next to the exchange it
-    // rides on. One-line revert builds no <video> at all — no element, no timer,
-    // no listener, no fetch.
-    ambientArchiveMotion: false,
+    // Default-ON 2026-08-02, judged on the panel next to the exchange it rides
+    // on, and measured there rather than reasoned about — the row is
+    // docs/audit/HOST-BASELINES.md §"Live Photo motion — the burst" (`8fa8c95`,
+    // daylight, Mode 0, today's set at 12/12 memories carrying a motion part, so
+    // every exchange burst = the worst realistic case):
+    //   · sustained gpu-process 21.7 / 21.8 vs a 21.0 baseline — inside the
+    //     window-to-window noise, so §5.4's <=25 ceiling keeps its ~3 points;
+    //   · the cost lands on the RENDERER at ~+2, which §5.4's gpu-stated
+    //     ceilings do not see at all (a gap in the budget, not a free pass);
+    //   · peak at 6x the natural exchange rate 34.7 vs a ceiling of 35 — but the
+    //     no-motion control read 31.1, so 90% of that is the archive's own
+    //     exchange machinery, not the burst;
+    //   · `bursts` exactly one per 30s exchange, `anims` back to 4 between them
+    //     (never a loop), 56 frames decoded 0 dropped / 0 corrupted.
+    //
+    // ⚠ The renderer figure is software decode. VA-API is installed on the G11
+    // and unused — see ~/.claude/plans/g11-vaapi-hardware-decode.md. Hardware
+    // decode would take this to roughly nothing; nothing here depends on that.
+    //
+    // One-line revert (-> false) builds no <video> at all — no element, no
+    // timer, no listener, no fetch. Proven green by
+    // scripts/verify/flag-reversibility.mjs at flip time.
+    ambientArchiveMotion: true,
 
     // THE CARD FOLLOWS THE PRINT. The archive card is a fixed 1040×585 = 1.78:1
     // rectangle with the photograph `object-fit: cover` inside it, so a

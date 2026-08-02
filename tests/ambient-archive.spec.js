@@ -58,11 +58,15 @@ function forceFlags(flags) {
 // inherits a default is exactly what breaks on the NEXT flip — the shape the
 // ambientSubstrate flip took when it broke two specs that had assumed the old
 // one.
-const ARCHIVE_ON = { ambientArchive: true, immichPhotos: false, dailyMemories: false, temporalSpine: true, archiveFitToPrint: true };
+// `ambientArchiveMotion` is pinned here for the same reason, and flipped
+// default-on the same day.
+const ARCHIVE_ON = { ambientArchive: true, immichPhotos: false, dailyMemories: false, temporalSpine: true, archiveFitToPrint: true, ambientArchiveMotion: true };
 const ARCHIVE_OFF = { ambientArchive: false, immichPhotos: false, dailyMemories: false, temporalSpine: true };
 // The archive with the card back to its fixed 1.78:1 rectangle — the rollback
 // state, and the baseline the reference-geometry guard is written against.
 const FIT_OFF = { ...ARCHIVE_ON, archiveFitToPrint: false };
+// The motion rollback state: the archive exactly as it shipped before the burst.
+const MOTION_OFF = { ...ARCHIVE_ON, ambientArchiveMotion: false };
 
 // A Daily Memories frame exactly as loadDailyMemories shapes one: the caption
 // is `year · place · who`, which IS the plate. Nothing is invented here.
@@ -639,8 +643,11 @@ test("cycling memories and days never grows the DOM", async ({ page }) => {
   expect(before.imgs).toBe(2);
   expect(before.echoes).toBe(2);
   expect(before.plates).toBe(1);
-  // Motion is off here, so there is no <video> at all — not a hidden one.
-  expect(before.clips).toBe(0);
+  // The <video> is built once in build() and reused for every burst, so it
+  // belongs to the fixed allocation like the images and the echoes do. None of
+  // the 25 memories below carries a clip, so this also says an exchange with no
+  // motion part costs nothing.
+  expect(before.clips).toBe(1);
 
   await page.evaluate(() => {
     for (let i = 0; i < 25; i++) {
@@ -690,7 +697,7 @@ test.describe("the motion burst", () => {
     );
 
   test("flag off builds no video at all", async ({ page }) => {
-    await bootArchive(page, ARCHIVE_ON);
+    await bootArchive(page, MOTION_OFF);
     await engaged(page);
     await page.evaluate((m) => window.__ssSetFrame(m), MOTION_MEMORY);
 
