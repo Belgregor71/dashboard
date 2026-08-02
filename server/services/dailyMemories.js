@@ -201,8 +201,24 @@ export async function getDailySet(now = new Date()) {
 
 // Build the set for `date` if it isn't frozen yet (idempotent — a frozen set is
 // never rebuilt within its day).
+//
+// A frozen set still gets its warm pass re-run, which is not redundant: freezing
+// and warming are separate outcomes, and the warm can fail on its own (the NAS
+// asleep at the evening tick, a transcode that timed out). Every step of it is
+// idempotent, so for a fully-warm day this costs one stat per photo.
+//
+// It matters most for the Live Photo clips. A missing thumb repairs itself,
+// because /api/immich/asset/:id/thumb fetches on a miss — but clips have NO
+// on-demand path by design (the render path must never wake the NAS), so
+// without this a warm pass that failed once means no motion for the rest of the
+// day, with the hourly tick returning early every time.
 async function ensureBuilt(date, opts) {
-  try { await stat(setFile(ymd(date))); return; } catch { /* not frozen → build */ }
+  let frozen = null;
+  try { frozen = JSON.parse(await readFile(setFile(ymd(date)), "utf8")); } catch { /* absent/corrupt → build */ }
+  if (frozen) {
+    if (opts?.warm) await warmSet(frozen);
+    return;
+  }
   await buildDailySet(date, opts);
 }
 
