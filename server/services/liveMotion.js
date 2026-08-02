@@ -106,7 +106,10 @@ async function haveFfmpeg() {
 // ── prune (bounded by total bytes, oldest first) ───────────────
 export async function pruneClips() {
   try {
-    const files = await readdir(CLIP_DIR);
+    // Never the .tmp files — those belong to an encode that is still running,
+    // and deleting one out from under ffmpeg is the same failure the in-flight
+    // guard above exists to prevent.
+    const files = (await readdir(CLIP_DIR)).filter((f) => !f.endsWith(".tmp"));
     const withMeta = await Promise.all(
       files.map(async (f) => {
         try {
@@ -155,6 +158,11 @@ function ffmpegArgs(src, out) {
     "-crf", "26",
     "-preset", "veryfast",                   // this runs on the box driving the panel
     "-movflags", "+faststart",               // moov first, or frame one waits for the whole file
+    // ⚠ Explicit, because the output is a .tmp: ffmpeg infers the container from
+    // the filename extension and refuses outright when it cannot ("Unable to
+    // choose an output format"). Stating it is also just correct — the container
+    // is a decision here, not an accident of what the temp file is called.
+    "-f", "mp4",
     out
   ];
 }
@@ -168,12 +176,26 @@ function ffmpegArgs(src, out) {
  * assets/day of which roughly a third to a half carry motion, each ~3s of source
  * — single-digit seconds of one core per night, at nice 19.
  */
+// Assets being transcoded right now. `buildDailySet` fires its warm pass and
+// does not await it, so two passes genuinely overlap — the hourly scheduler tick
+// and an on-demand /api/immich/daily-set request, say. Without this both pass
+// the .none check before either writes it, both fetch the same 4 MB from the
+// NAS, and both use the same temp paths: the first to finish deletes the
+// second's source mid-encode ("Error opening input: No such file or directory").
+const inFlight = new Set();
+
 export async function warmClip(stillId, motionId) {
   if (!liveMotionEnabled() || !stillId || !motionId) return;
+  if (inFlight.has(stillId)) return;
   if (await hasClip(stillId)) return;
 
   // Negative cache: an asset that cannot be encoded (corrupt, unreadable) must
   // not be retried every night forever.
+  //
+  // ⚠ These markers are only as good as the code that wrote them: a bug in the
+  // ffmpeg invocation marks every asset as unencodable, and they will not be
+  // retried after the fix. Clear `data/immich-cache/clips/*.none` whenever the
+  // encode arguments change.
   try { await stat(skipFile(stillId)); return; } catch { /* no marker → proceed */ }
 
   // ⚠ Checked BEFORE any .none is written, and deliberately never marked: a
@@ -182,9 +204,13 @@ export async function warmClip(stillId, motionId) {
   // wiped the cache by hand.
   if (!(await haveFfmpeg())) return;
 
-  const src = path.join(CLIP_DIR, `${stillId}.src.tmp`);
-  const out = path.join(CLIP_DIR, `${stillId}.out.tmp`);
+  // Unique per invocation as well as guarded above — belt and braces, because
+  // two processes (a restart mid-pass) would not share the in-flight set.
+  const stamp = `${process.pid}-${Date.now().toString(36)}`;
+  const src = path.join(CLIP_DIR, `${stillId}.${stamp}.src.tmp`);
+  const out = path.join(CLIP_DIR, `${stillId}.${stamp}.out.tmp`);
   let markSkip = false;
+  inFlight.add(stillId);
   try {
     await mkdir(CLIP_DIR, { recursive: true });
 
@@ -214,5 +240,6 @@ export async function warmClip(stillId, motionId) {
     await unlink(src).catch(() => {});
     await unlink(out).catch(() => {});
     if (markSkip) await writeFile(skipFile(stillId), "").catch(() => {});
+    inFlight.delete(stillId);
   }
 }
