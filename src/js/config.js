@@ -627,11 +627,30 @@ window.CONFIG = {
     // to the pixel. That is by construction, so flipping this must not move the
     // common landscape memory at all.
     //
-    // Default-off pending the panel: this surface has had two builds rejected
-    // on the wall already, and a resizing plane is layout-adjacent on a
-    // budget-tuned surface — it wants its own GPU reading. One-line revert
-    // writes no style property at all and the CSS fallbacks ARE today's card.
-    archiveFitToPrint: false,
+    // FLIPPED ON 2026-08-02, and the flip is a DEADLOCK-BREAK, NOT A SIGN-OFF
+    // — the same inversion the archive itself shipped under. Flag-off renders
+    // the old fixed card, so the only way to put a portrait card on the wall to
+    // be judged is a flag-on deploy. Owner's call, knowing that.
+    //
+    // Shipped flag-off in 8675dbc and proven a genuine no-op on the panel
+    // first: __archive().card read {fit:false, 1040×585 @ (130,212),
+    // wanted:null} with no style property written at all. The same probe caught
+    // the defect live — the photo on the wall read photoAspect 0.75 inside a
+    // cardAspect 1.778 card, i.e. a portrait losing ~58% of its height.
+    //
+    // ⚠ STILL UNJUDGED IN DAYLIGHT. Two things to look at, both needing a
+    // portrait memory: whether a 457px-wide card still reads as the HERO of the
+    // surface (45% of the reference's width, and "the photograph is the point
+    // of a screensaver" is what killed rejected build 1), and whether the
+    // reshape reads as arrival rather than as a glitch. It also owes its own
+    // GPU reading — a resizing plane is layout-adjacent on a budget-tuned
+    // surface and §5.4's ceilings have never seen one.
+    //
+    // One-line revert (-> false) is the rollback: no style property is written,
+    // the CSS var() fallbacks ARE the verified rectangle, and a guardrail pins
+    // those fallbacks so they cannot drift. Proven green by
+    // scripts/verify/flag-reversibility.mjs at flip time.
+    archiveFitToPrint: true,
 
     // Audit M11. The Pi's crontab already powers the panel down 21:00→05:00
     // (`xset dpms force off`), so a doorbell ring at 3am currently speaks its

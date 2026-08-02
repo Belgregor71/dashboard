@@ -53,8 +53,16 @@ function forceFlags(flags) {
 // The archive on, with the photo source pinned off so the async pool fetch
 // never delays engage — the archive is a renderer and does not need real
 // photos to be asserted about.
-const ARCHIVE_ON = { ambientArchive: true, immichPhotos: false, dailyMemories: false, temporalSpine: true };
+// `archiveFitToPrint` is pinned explicitly rather than left to its default, in
+// both directions. It flipped default-on 2026-08-02, and a spec that silently
+// inherits a default is exactly what breaks on the NEXT flip — the shape the
+// ambientSubstrate flip took when it broke two specs that had assumed the old
+// one.
+const ARCHIVE_ON = { ambientArchive: true, immichPhotos: false, dailyMemories: false, temporalSpine: true, archiveFitToPrint: true };
 const ARCHIVE_OFF = { ambientArchive: false, immichPhotos: false, dailyMemories: false, temporalSpine: true };
+// The archive with the card back to its fixed 1.78:1 rectangle — the rollback
+// state, and the baseline the reference-geometry guard is written against.
+const FIT_OFF = { ...ARCHIVE_ON, archiveFitToPrint: false };
 
 // A Daily Memories frame exactly as loadDailyMemories shapes one: the caption
 // is `year · place · who`, which IS the plate. Nothing is invented here.
@@ -299,8 +307,12 @@ test("flag on: Mode 0 becomes the archive, and leaving it switches the cause off
 // The photograph is the point of a screensaver. It had shrunk to 53% of the
 // reference's area to make room for a stack of year-rows; two ruler planes need
 // no such room. This pins the reference's own geometry so it cannot drift back.
+//
+// Pinned fit-OFF deliberately: this guards the BASE rectangle, which is what
+// the fit's own box is derived from and what flag-off falls back to. The
+// fitted geometry has its own suite below.
 test("the photograph keeps the reference's size — it is the point of the surface", async ({ page }) => {
-  await bootArchive(page);
+  await bootArchive(page, FIT_OFF);
   await engaged(page);
 
   const card = await page.evaluate(() => {
@@ -423,7 +435,7 @@ test.describe("the card follows the print, on the surface", () => {
   // all, so the CSS fallbacks stand and a portrait is cropped exactly as it is
   // on the wall today. Verifying the OFF state is what the flag is for.
   test("flag off: the card is the fixed rectangle, whatever arrives", async ({ page }) => {
-    await bootArchive(page, ARCHIVE_ON);
+    await bootArchive(page, FIT_OFF);
     await engaged(page);
 
     await page.evaluate((m) => window.__ssSetFrame(m), PORTRAIT);
