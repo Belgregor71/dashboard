@@ -291,6 +291,58 @@ test of the heap, but do not describe it as 72 h of continuous rendering.
 `scriptPct` **0.4** · `layoutPct` 0.1 · `stylePct` 0.7 — compositor-bound, not
 script-bound, exactly as §5.4 predicts. Conditions: `atmo-clear-day`, daylight, panel on.
 
+### Live Photo motion — the burst, measured 2026-08-02 (`features.ambientArchiveMotion`)
+
+A memory carrying an Apple Live Photo plays its ~3.5 s motion part as it arrives, then
+settles into the still. Measured on the panel at `8fa8c95`, daylight, panel on, Mode 0,
+14 min uptime, with **today's set at 12/12 memories carrying a motion part** — i.e. every
+exchange bursts, the worst realistic case rather than a typical one.
+
+| State | gpu-process | renderer | vs baseline |
+|---|---|---|---|
+| Live ambient, archive only (recorded baseline) | 20.8 / 21.0 | 10.1 / 10.2 | — |
+| **Live ambient + motion, natural rotation** | **21.7 / 21.8** | **12.1 / 12.0** | gpu ~0, **renderer +2** |
+
+**The gpu-process figure does not move.** 21.7 / 21.8 sits inside the window-to-window
+noise of the existing baseline (which itself read 21.7 / 21.1 at +3.3 h), so the §5.4
+≤ 25 ceiling keeps its ~3 points of margin. The cost lands on the **renderer**, at ~+2.
+
+That is the expected shape, and the arithmetic is worth keeping: a 1080p H.264 control
+clip costs **+41 points of renderer** on this box, because ⚠ **decode here is in
+SOFTWARE** — VA-API is fully installed but the kiosk Chromium launches with no flags to
+use it (`powerEfficient=false`). A 1040-long-edge clip is ~39% of those pixels (~16
+points), and a 3.5 s burst in a 30 s rotation is a ~12% duty cycle: 16 × 0.12 ≈ 2. ✔
+
+⚠ **§5.4's ceilings are all stated for gpu-process, so video cost does not register
+against them at all.** That is a gap in the budget, not a free pass — hence the renderer
+column above.
+
+**Peak, and why the raw number misleads.** Driving an exchange every 5 s for 60 s (~6× the
+natural rate — the re-fire technique `/kiosk-metrics` prescribes for atmoFx):
+
+| 6× exchange rate | gpu-process | renderer |
+|---|---|---|
+| control, no motion | 31.1 | 23.1 |
+| with motion | **34.7** | **32.0** |
+| **motion's marginal cost** | **+3.6** | **+8.9** |
+
+34.7 against the ≤ 35 peak ceiling looks like almost no margin, and taken alone it would
+be alarming. The control says otherwise: **31.1 of it is the archive's own exchange
+machinery** — two card images crossfading, two 2900×1800 echo planes swapping, a card
+blur and a Ken Burns restart, thirteen times in a minute. Motion contributes about a
+tenth of the reading. Scaled to the natural rate (1/6) that is ~+0.6 gpu, which is exactly
+what the sustained row measured.
+
+**Take the control whenever a rate is forced.** A re-fire test measures the thing being
+re-fired as much as the feature under test, and without the control this would have been
+recorded as "motion nearly breaches the peak ceiling" when motion is ~10% of it.
+
+Health at the same sample: `anims` **4** before and after (6 only mid-exchange, i.e. the
+in-flight transitions — nothing looping), `bursts` 23 → 27 across two minutes = **exactly
+one per 30 s exchange**, `lastQuality` 56 frames **0 dropped / 0 corrupted**, heap 11.3 MB,
+`domNodes` 2151, `cdpNodes` 4491, listeners 71, tempC 54.4, `/proc/pressure/cpu` avg10
+**0.00**.
+
 ### How this row was measured, and two ways to get it wrong
 
 - **60 s windows, not 25–30 s.** The archive's animations are `ease-in-out alternate` at
