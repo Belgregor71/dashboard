@@ -802,6 +802,7 @@ export async function initScreensaver(options = {}) {
   archiveEnabled = initAmbientArchive({
     enabled: options.archiveEnabled === true,
     liveMotion: options.archiveMotionEnabled === true,
+    fitToPrint: options.archiveFitEnabled === true,
     mount: el
   });
   // Feature marker — the study-05 CSS engages only under this class, so flag-off

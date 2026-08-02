@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { captionParts, localHourOf, relativeYearPhrase } from "../src/js/services/photoMemory.js";
-import { plateFor } from "../src/js/services/archiveModel.js";
+import { plateFor, cardRectFor, CARD_LEFT, CARD_MAX_W } from "../src/js/services/archiveModel.js";
 
 /**
  * The Ambient Archive — calm law v3 (docs/design/AMBIENT-ARCHIVE.md).
@@ -170,6 +170,88 @@ test.describe("the plate is relocated language, never new language", () => {
   });
 });
 
+/* ──────────────────── the card follows the print (geometry) ──────────────── */
+
+/**
+ * The archive card was a fixed 1040×585 = 1.78:1 rectangle with the photograph
+ * `object-fit: cover` inside it, so a phone-shot library was shown through a
+ * letterbox it was never composed for. Raised on the panel 2026-08-02.
+ *
+ * The ruling: the card follows the print. This half is arithmetic, so it is
+ * tested as arithmetic — the panel is not the right instrument for asking
+ * whether a portrait fouls the ruler.
+ */
+test.describe("the card follows the print", () => {
+  const RULER_LINE_Y = 904;   // drawToday's line, with marks rising above it
+  const CLOCK_FLOOR_Y = 190;  // the demoted 64px corner clock + its dateline
+
+  // The hinge, and the reason this flag is safe to flip: 1040/609 = 1.708, so a
+  // 16:9 memory is width-bound and lands on the shipped rectangle exactly. If
+  // this ever drifts, flipping the flag silently moves the common landscape
+  // memory on the wall.
+  test("a 16:9 memory lands on the shipped rectangle, to the pixel", () => {
+    expect(cardRectFor(16 / 9)).toMatchObject({ w: 1040, h: 585, left: 130, top: 212 });
+    // …and so does its echo tile, which was hard-coded 620×349.
+    expect(cardRectFor(16 / 9)).toMatchObject({ tileW: 620, tileH: 349 });
+  });
+
+  // The two shapes the complaint was actually about. Under `cover` these lost
+  // ~25% and ~58% of their height respectively; now they lose nothing.
+  test("a 4:3 landscape and a 3:4 portrait each get their own card", () => {
+    expect(cardRectFor(4 / 3)).toMatchObject({ w: 812, h: 609, left: 130, top: 200 });
+    expect(cardRectFor(3 / 4)).toMatchObject({ w: 457, h: 609, left: 130, top: 200 });
+  });
+
+  test("the left edge is pinned — a portrait shortens, it does not slide", () => {
+    for (const a of [0.4, 0.5625, 0.75, 1, 1.33, 1.5, 1.78, 2.4, 4]) {
+      expect(cardRectFor(a).left).toBe(CARD_LEFT);
+    }
+  });
+
+  // The most likely place for a surprise (the topic file says so): the plate,
+  // the ghost year and the ruler were all positioned against a fixed rectangle.
+  // A card that grows must not reach any of them.
+  test("no aspect makes the card foul the ruler or the clock", () => {
+    for (let a = 0.2; a <= 6; a += 0.05) {
+      const r = cardRectFor(a);
+      expect(r.w, `aspect ${a.toFixed(2)} is wider than the frame allows`).toBeLessThanOrEqual(CARD_MAX_W);
+      expect(r.top, `aspect ${a.toFixed(2)} reaches the corner clock`).toBeGreaterThanOrEqual(CLOCK_FLOOR_Y);
+      expect(r.top + r.h, `aspect ${a.toFixed(2)} reaches the today ruler`).toBeLessThan(RULER_LINE_Y - 60);
+      // The plate's own left edge is 1920 - 110 - 470 = 1340.
+      expect(r.left + r.w, `aspect ${a.toFixed(2)} reaches the plate`).toBeLessThan(1340);
+    }
+  });
+
+  // A true panorama or a sliver-thin scan would fit to a strip too slight to
+  // read as a photograph at all, so those (rare) frames keep a modest crop.
+  // Every phone portrait is inside the range and uncropped, which is the point.
+  test("only genuinely extreme prints are clamped, and 9:16 is not one", () => {
+    expect(cardRectFor(9 / 16).h).toBe(609);                 // uncropped
+    expect(cardRectFor(9 / 16).w / cardRectFor(9 / 16).h).toBeCloseTo(9 / 16, 2);
+    // A 10:1 panorama is clamped to 3.2:1 rather than becoming a 104px strip.
+    expect(cardRectFor(10).w / cardRectFor(10).h).toBeCloseTo(3.2, 1);
+  });
+
+  // The echo is the same photograph tiled behind the card. A hard-coded 16:9
+  // tile would stretch a portrait — the same lie one plane further back — and a
+  // tile that grew with the aspect would change what the echo costs to paint.
+  test("the echo tile follows the aspect at constant area", () => {
+    const area = (a) => cardRectFor(a).tileW * cardRectFor(a).tileH;
+    for (const a of [0.5625, 0.75, 1, 1.33, 1.78, 3]) {
+      expect(area(a) / area(16 / 9)).toBeGreaterThan(0.98);
+      expect(area(a) / area(16 / 9)).toBeLessThan(1.02);
+    }
+    expect(cardRectFor(3 / 4).tileW).toBeLessThan(cardRectFor(3 / 4).tileH);
+  });
+
+  // null means "leave the card alone", and the card it is left at is today's.
+  test("an unmeasurable print reshapes nothing", () => {
+    for (const bad of [0, -1, NaN, Infinity, null, undefined, "4:3"]) {
+      expect(cardRectFor(bad)).toBe(null);
+    }
+  });
+});
+
 /* ─────────────────────────── the surface (runtime) ─────────────────────── */
 
 test("flag off: no archive, no body class, no hook — Mode 0 is the spine's", async ({ page }) => {
@@ -229,6 +311,156 @@ test("the photograph keeps the reference's size — it is the point of the surfa
   expect(card).toEqual({ w: 1040, h: 585, left: 130, top: 212 });
   // Over half the 1920 frame's width — anything much less stops being the hero.
   expect(card.w / 1920).toBeGreaterThan(0.5);
+});
+
+/**
+ * The same ruling on the surface. The pure block above proves the arithmetic;
+ * this proves the aspect actually reaches the card — which is the half that can
+ * fail quietly, because the only source of truth for a rendition's orientation
+ * is the decoded image itself.
+ */
+test.describe("the card follows the print, on the surface", () => {
+  const FIT_ON = { ...ARCHIVE_ON, archiveFitToPrint: true };
+
+  // A real, decodable image of exactly the dimensions asked for. EXIF is not
+  // involved and must not be: it is pre-rotation, so an EXIF-derived fit would
+  // put every portrait iPhone photo in a landscape card — a worse crop than the
+  // one this replaces.
+  const print = (w, h) =>
+    "data:image/svg+xml," +
+    encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">` +
+      `<rect width="100%" height="100%" fill="steelblue"/></svg>`
+    );
+
+  const PORTRAIT = { src: print(3024, 4032), caption: "2019 · Nudgee, Queensland · our niece Melanie" };
+  const LANDSCAPE_16_9 = { src: print(1920, 1080), caption: "2018 · Nudgee, Queensland" };
+  const LANDSCAPE_4_3 = { src: print(4032, 3024), caption: "2017 · Nudgee, Queensland" };
+
+  const cardOf = (page) => page.evaluate(() => window.__archive().card);
+
+  // The fit lands on the incoming image's `load`, so wait for the card to have
+  // actually taken the print's shape rather than reading mid-exchange.
+  const fitted = async (page, aspect) => {
+    await page.waitForFunction(
+      (a) => {
+        const c = window.__archive().card;
+        return c && Math.abs(c.cardAspect - a) < 0.02;
+      },
+      aspect,
+      { timeout: 8000 }
+    );
+    return cardOf(page);
+  };
+
+  test("a portrait memory gets a portrait card — nothing is cut", async ({ page }) => {
+    const pageErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    await bootArchive(page, FIT_ON);
+    await engaged(page);
+
+    await page.evaluate((m) => window.__ssSetFrame(m), PORTRAIT);
+    const card = await fitted(page, 3 / 4);
+
+    expect(card.fit).toBe(true);
+    expect(card).toMatchObject({ w: 457, h: 609, left: 130, top: 200 });
+    // The claim, stated as the thing it actually means: the card and the
+    // photograph are the same shape, so `cover` crops nothing.
+    expect(card.cardAspect).toBeCloseTo(card.photoAspect, 2);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("a 16:9 memory is still the verified rectangle, to the pixel", async ({ page }) => {
+    await bootArchive(page, FIT_ON);
+    await engaged(page);
+
+    await page.evaluate((m) => window.__ssSetFrame(m), LANDSCAPE_16_9);
+    const card = await fitted(page, 16 / 9);
+    expect(card).toMatchObject({ w: 1040, h: 585, left: 130, top: 212 });
+  });
+
+  test("the left edge is pinned across an exchange between shapes", async ({ page }) => {
+    await bootArchive(page, FIT_ON);
+    await engaged(page);
+
+    await page.evaluate((m) => window.__ssSetFrame(m), LANDSCAPE_4_3);
+    const wide = await fitted(page, 4 / 3);
+    expect(wide).toMatchObject({ w: 812, h: 609, left: 130, top: 200 });
+
+    await page.evaluate((m) => window.__ssSetFrame(m), PORTRAIT);
+    const tall = await fitted(page, 3 / 4);
+    expect(tall.left).toBe(wide.left);
+    expect(tall.w).toBeLessThan(wide.w);
+  });
+
+  // The guard that stops a move with no cause. A rendition whose exchange has
+  // already been superseded must not reshape the card around a photograph
+  // nobody is looking at — on a cold NAS the rotation outruns a fetch easily.
+  test("a superseded memory's late load never reshapes the card", async ({ page }) => {
+    await bootArchive(page, FIT_ON);
+    await engaged(page);
+
+    // Show the landscape once so its aspect is remembered and applies instantly
+    // below — that is what puts the portrait's `load` demonstrably last.
+    await page.evaluate((m) => window.__ssSetFrame(m), LANDSCAPE_16_9);
+    await fitted(page, 16 / 9);
+
+    await page.evaluate(
+      ([tall, wide]) => {
+        window.__ssSetFrame(tall);      // uncached: its fit can only land on load
+        window.__ssSetFrame(wide);      // cached: applies synchronously, and wins
+      },
+      [PORTRAIT, LANDSCAPE_16_9]
+    );
+
+    await page.waitForTimeout(1200);    // well past any decode of a data: URL
+    const card = await cardOf(page);
+    expect(card).toMatchObject({ w: 1040, h: 585, top: 212 });
+    expect(card.cardAspect).toBeCloseTo(16 / 9, 2);
+  });
+
+  // The rollback, asserted as a rollback: flag-off writes no style property at
+  // all, so the CSS fallbacks stand and a portrait is cropped exactly as it is
+  // on the wall today. Verifying the OFF state is what the flag is for.
+  test("flag off: the card is the fixed rectangle, whatever arrives", async ({ page }) => {
+    await bootArchive(page, ARCHIVE_ON);
+    await engaged(page);
+
+    await page.evaluate((m) => window.__ssSetFrame(m), PORTRAIT);
+    await settledPlate(page);
+
+    const card = await cardOf(page);
+    expect(card.fit).toBe(false);
+    expect(card).toMatchObject({ w: 1040, h: 585, left: 130, top: 212 });
+    expect(card.wanted).toBe(null);
+    // No inline geometry was written — the fallbacks are doing the work.
+    expect(
+      await page.evaluate(() => document.querySelector(".archive").getAttribute("style") || "")
+    ).not.toMatch(/--arch-card/);
+  });
+
+  // The 24/7 invariant, restated for a card that now changes size: reshaping is
+  // five custom properties on one element, not a node, a listener or a timer.
+  test("reshaping across many memories never grows the DOM", async ({ page }) => {
+    const pageErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    await bootArchive(page, FIT_ON);
+    await engaged(page);
+
+    const before = await page.evaluate(shape);
+    await page.evaluate(
+      (prints) => {
+        for (let i = 0; i < 25; i++) {
+          window.__ssSetFrame({ src: prints[i % prints.length], caption: `${2008 + (i % 18)} · Place ${i}` });
+        }
+      },
+      [PORTRAIT.src, LANDSCAPE_16_9.src, LANDSCAPE_4_3.src]
+    );
+    await page.waitForTimeout(500);
+
+    expect(await page.evaluate(shape)).toEqual(before);
+    expect(pageErrors).toEqual([]);
+  });
 });
 
 // §4.1. The spine shipped INVISIBLE in the one mode it exists for, and every
@@ -735,6 +967,19 @@ test.describe("archive css guardrail", () => {
     // well. This rule is the belt-and-braces half of that pair.
     expect(block).toMatch(/\.archive__clip/);
     expect(block).toMatch(/display:\s*none/);
+  });
+
+  // The flag's rollback IS these fallbacks: flag-off writes no custom property,
+  // so whatever is in the `var()` defaults is what the wall shows. They must
+  // stay the verified rectangle and the verified echo tile.
+  test("the card's fallbacks are the shipped rectangle", () => {
+    const source = css();
+    expect(source).toMatch(/top:\s*var\(--arch-card-top,\s*212px\)/);
+    expect(source).toMatch(/width:\s*var\(--arch-card-w,\s*1040px\)/);
+    expect(source).toMatch(/height:\s*var\(--arch-card-h,\s*585px\)/);
+    expect(source).toMatch(/var\(--arch-echo-w,\s*620px\)\s+var\(--arch-echo-h,\s*349px\)/);
+    // The left edge is not a variable at all — it is pinned by construction.
+    expect(source).toMatch(/\.archive__card-plane\s*\{[^}]*left:\s*130px/);
   });
 
   test("no layout-triggering property is animated", () => {

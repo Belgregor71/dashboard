@@ -90,7 +90,13 @@
   top: -340px;
   width: 2900px;
   height: 1800px;
-  background: 0 0 / 620px 349px repeat;
+  background-position: 0 0;
+  /* The tile follows the print too (see .archive__card-plane). Hard-coded 16:9
+     would stretch a portrait memory into a landscape tile — the same lie about
+     the photograph's shape, one plane further back. The fallbacks ARE the
+     shipped 620×349, so flag-off resolves to exactly today's echo. */
+  background-size: var(--arch-echo-w, 620px) var(--arch-echo-h, 349px);
+  background-repeat: repeat;
   filter: grayscale(1) brightness(0.17) contrast(1.18);
   transform: var(--arch-plane) translateZ(-280px);
   opacity: 0;
@@ -171,11 +177,25 @@ body.fx-archive-active .archive__ghost {
   z-index: 5;
   /* The reference's own card, restored. It had shrunk to 53% of this
      area to make room for a stack of year-rows; two ruler planes need
-     no such room, and the photograph is the point of a screensaver. */
+     no such room, and the photograph is the point of a screensaver.
+
+     THE CARD FOLLOWS THE PRINT (features.archiveFitToPrint). These three
+     fallbacks are the shipped rectangle, so flag-off computes to exactly
+     1040×585 at (130, 212) and the left edge is pinned in either case. With
+     the flag on, `cardRectFor()` writes the vars from the photograph's own
+     aspect and nothing is ever cut — a 3:4 portrait used to lose ~58% of its
+     height to `object-fit: cover`. See services/archiveModel.js for the box.
+
+     ⚠ Written INSTANTLY, never transitioned. width/height/top are layout
+     properties and §5.5 forbids animating them; the shape change is masked by
+     the exchange's own 300ms blur instead, which is what makes it an event
+     with an end rather than a card that quietly resizes itself. The
+     "no layout-triggering property is animated" guardrail in
+     tests/ambient-archive.spec.js pins that. */
   left: 130px;
-  top: 212px;
-  width: 1040px;
-  height: 585px;
+  top: var(--arch-card-top, 212px);
+  width: var(--arch-card-w, 1040px);
+  height: var(--arch-card-h, 585px);
   transform: var(--arch-plane) translateZ(40px);
   transform-style: preserve-3d;
 }

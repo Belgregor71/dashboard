@@ -605,6 +605,34 @@ window.CONFIG = {
     // no listener, no fetch.
     ambientArchiveMotion: false,
 
+    // THE CARD FOLLOWS THE PRINT. The archive card is a fixed 1040×585 = 1.78:1
+    // rectangle with the photograph `object-fit: cover` inside it, so a
+    // phone-shot library is shown through a letterbox it was never composed
+    // for: a 4:3 landscape loses ~25% of its height, a 3:4 portrait ~58% —
+    // heads and feet both. Raised on the panel 2026-08-02 ("a few of the photos
+    // displayed today looked cropped"). Structural, not a glitch: Immich's
+    // `preview` rendition is a resize, so the card geometry is the whole cause.
+    //
+    // With this on, the card takes each photograph's own aspect and nothing is
+    // ever cut. The left edge stays pinned at 130 (owner's call over centring
+    // it), so a portrait simply does not reach as far right and nothing else on
+    // the wall moves. The box is in services/archiveModel.js.
+    //
+    // Law 1: the shape change rides the exchange's existing 300ms blur — the
+    // reshape IS the memory arriving, the same cause the motion burst uses, and
+    // it is an event with an end. Written instantly, never transitioned:
+    // width/height/top are layout properties (§5.5).
+    //
+    // ⚠ A 16:9 memory lands on 1040×585 at (130, 212) — the shipped rectangle,
+    // to the pixel. That is by construction, so flipping this must not move the
+    // common landscape memory at all.
+    //
+    // Default-off pending the panel: this surface has had two builds rejected
+    // on the wall already, and a resizing plane is layout-adjacent on a
+    // budget-tuned surface — it wants its own GPU reading. One-line revert
+    // writes no style property at all and the CSS fallbacks ARE today's card.
+    archiveFitToPrint: false,
+
     // Audit M11. The Pi's crontab already powers the panel down 21:00→05:00
     // (`xset dpms force off`), so a doorbell ring at 3am currently speaks its
     // alert and draws its popup to a dark screen. With this on, a live-worthy

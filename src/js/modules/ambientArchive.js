@@ -1,5 +1,5 @@
 import { buildDay, DAY_START_HOUR, DAY_END_HOUR } from "../services/dayModel.js";
-import { plateFor, yearOf } from "../services/archiveModel.js";
+import { plateFor, yearOf, cardRectFor } from "../services/archiveModel.js";
 import { initDaySources, readDayMarks } from "./daySources.js";
 import { on } from "../core/eventBus.js";
 
@@ -99,6 +99,32 @@ const MOTION_START_MS = 2800;   // past EXCHANGE_SWAP_MS and the 2.6s crossfade
 const MOTION_HOLD_MS  = 3600;   // > the server's -t 3.5 bound, so the media ends first
 const MOTION_FADE_MS  = 600;    // the fade back to the still, then drop the resource
 
+// ── The card follows the print (features.archiveFitToPrint) ──────────────────
+//
+// The box and the arithmetic live in services/archiveModel.js — this half is
+// only "where does the aspect come from, and when is it allowed to land".
+//
+// WHERE: `naturalWidth/naturalHeight` of the <img> that is actually on the
+// card. Deliberately NOT the EXIF dimensions the daily set could carry: EXIF is
+// pre-rotation, so every portrait iPhone photo reports itself landscape and the
+// card would confidently fit the wrong way round — a worse crop than the one
+// this replaces. The rendition's decoded size is already orientation-corrected,
+// and it is the only source that is right for a bare src string too (the tender
+// lane, the immichPhotos blend and the static library all hand over strings
+// with no metadata at all).
+//
+// WHEN: inside the exchange's 300ms blur. A card that reshapes on its own,
+// seconds after a memory settled, is a move with no cause the room can see
+// (law 1). Every src the rotation has shown before is in `aspects` and lands
+// instantly; a first-time src lands on its `load`, which for a LAN rendition is
+// inside the blur in practice and behind the incoming photo's 2.6s fade in the
+// worst case. If it never loads, the card simply keeps the rectangle it had —
+// the fallback is today's shipped surface, which is the honest failure.
+const MAX_ASPECTS = 200;   // ~a fortnight of daily sets; bounded because this page runs for weeks
+
+let fitToPrint = false;
+let aspects = new Map();
+
 let enabled = false;
 let liveMotion = false;
 let root = null;
@@ -123,6 +149,7 @@ let resizeHandler = null;
 let lastDay = null;
 let lastFrame = null;    // the memory currently on the card
 let litYear = null;
+let lastRect = null;     // the card rectangle the print last asked for
 
 let clipEl = null;       // the motion burst's <video>, only when liveMotion
 let motionArmTimer = null;
@@ -258,6 +285,64 @@ function render() {
   drawToday(day, clockDim());
 }
 
+// ── The card follows the print ────────────────────────────────
+
+/** Insertion-ordered LRU-ish: re-seen srcs move to the back, the oldest fall off. */
+function rememberAspect(src, aspect) {
+  if (aspects.has(src)) aspects.delete(src);
+  aspects.set(src, aspect);
+  while (aspects.size > MAX_ASPECTS) aspects.delete(aspects.keys().next().value);
+}
+
+/**
+ * Resize the card to a photograph of this aspect. Instant — the exchange blur
+ * is what covers it (§5.5: width/height/top are layout properties and must
+ * never be transitioned).
+ *
+ * Flag-off this is never called, so the CSS fallbacks stand and the computed
+ * rectangle is the shipped 1040×585 at (130, 212), to the pixel.
+ */
+function applyFit(aspect) {
+  if (!fitToPrint || !root) return;
+  const rect = cardRectFor(aspect);
+  if (!rect) return;                       // unmeasurable → keep the rectangle we have
+  lastRect = rect;
+  root.style.setProperty("--arch-card-w", `${rect.w}px`);
+  root.style.setProperty("--arch-card-h", `${rect.h}px`);
+  root.style.setProperty("--arch-card-top", `${rect.top}px`);
+  root.style.setProperty("--arch-echo-w", `${rect.tileW}px`);
+  root.style.setProperty("--arch-echo-h", `${rect.tileH}px`);
+}
+
+/**
+ * Fit the card to the memory arriving on `img`, now if its aspect is already
+ * known and on load otherwise.
+ *
+ * ⚠ The `load` handler re-checks that this src is STILL the memory on the card.
+ * A slow rendition whose exchange has already been superseded must not reshape
+ * the card around a photograph nobody is looking at — that is a move with no
+ * cause, and on this surface the rotation can outrun a cold NAS easily.
+ * `onload` (the property, not addEventListener) is deliberate: assigning it
+ * again replaces the previous handler, so a slot cannot accumulate listeners
+ * over weeks of exchanges.
+ */
+function fitCardTo(img, src) {
+  if (!fitToPrint) return;
+  const known = aspects.get(src);
+  if (known != null) {
+    applyFit(known);
+    return;
+  }
+  img.onload = () => {
+    img.onload = null;
+    const aspect = img.naturalWidth / img.naturalHeight;
+    if (!Number.isFinite(aspect) || aspect <= 0) return;
+    rememberAspect(src, aspect);
+    if (lastFrame?.src !== src) return;    // a newer memory already owns the card
+    applyFit(aspect);
+  };
+}
+
 // ── The memory on the card ────────────────────────────────────
 
 function setPlate(parts) {
@@ -308,6 +393,9 @@ export function setArchiveMemory(frame) {
   // words never describe the wrong picture.
   const nextCard = cardImgs[cardSlot ^ 1];
   const prevCard = cardImgs[cardSlot];
+  // Before `src`, so a first-time rendition cannot decode ahead of its handler.
+  // `lastFrame` is already this memory above, which is what the handler checks.
+  fitCardTo(nextCard, src);
   nextCard.src = src;
   nextCard.classList.add("is-shown");
   prevCard.classList.remove("is-shown");
@@ -625,15 +713,23 @@ function build(mount) {
  * timer, no body class, no hook — Mode 0 is exactly today's verified
  * screensaver, and that is the rollback path (§6.3.1).
  *
- * @param {{enabled?: boolean, liveMotion?: boolean, mount?: HTMLElement}} options
+ * @param {{enabled?: boolean, liveMotion?: boolean, fitToPrint?: boolean, mount?: HTMLElement}} options
  *   `mount` is the screensaver root, so the archive is a CHILD of `#screensaver`
  *   and the screensaver blank rule (which targets body children) never sees it.
  *   `liveMotion` adds the Live Photo burst; off builds no <video> at all.
+ *   `fitToPrint` sizes the card to each photograph's own aspect; off, no style
+ *   property is ever written and the CSS fallbacks are the shipped rectangle.
  */
-export function initAmbientArchive({ enabled: on_ = false, liveMotion: motion_ = false, mount = null } = {}) {
+export function initAmbientArchive({
+  enabled: on_ = false,
+  liveMotion: motion_ = false,
+  fitToPrint: fit_ = false,
+  mount = null
+} = {}) {
   if (on_ !== true || !mount) return false;
   enabled = true;
   liveMotion = motion_ === true;
+  fitToPrint = fit_ === true;
   // Two markers, and the difference matters. `ambient-archive-on` says the flag
   // is on and never comes off — it carries the rules that must hold on BOTH
   // sides of a Mode-0 boundary (killing the clock's font-size transition, which
@@ -668,6 +764,9 @@ export function stopAmbientArchiveAll() {
   cardImgs = [];
   clipEl = null;          // stopAmbientArchive above already released its resource
   liveMotion = false;
+  fitToPrint = false;
+  aspects = new Map();
+  lastRect = null;
   burstCount = 0;
   lastBurstAt = null;
   lastQuality = null;
@@ -706,6 +805,29 @@ export function archiveProbe() {
       : null,
     ghost: ghostEl?.textContent || null,
     photo: cardImgs[cardSlot]?.getAttribute("src") ?? null,
+    // The card's real painted rectangle, not what applyFit asked for — the two
+    // differ if the fit never landed (a rendition that never loaded), and the
+    // difference is exactly what a panel check needs to see. `fit` says whether
+    // the flag is even on, so "still 1040×585" is never ambiguous.
+    card: (() => {
+      const plane = root?.querySelector(".archive__card-plane");
+      if (!plane) return null;
+      const cs = getComputedStyle(plane);
+      const img = cardImgs[cardSlot];
+      const natural = img?.naturalWidth > 0 ? img.naturalWidth / img.naturalHeight : null;
+      return {
+        fit: fitToPrint,
+        w: Math.round(parseFloat(cs.width)),
+        h: Math.round(parseFloat(cs.height)),
+        left: Math.round(parseFloat(cs.left)),
+        top: Math.round(parseFloat(cs.top)),
+        // The photograph's own aspect vs the card's. Equal (within rounding)
+        // means nothing is being cropped, which is the whole claim.
+        photoAspect: natural == null ? null : Number(natural.toFixed(3)),
+        cardAspect: Number((parseFloat(cs.width) / parseFloat(cs.height)).toFixed(3)),
+        wanted: lastRect
+      };
+    })(),
     // The motion burst, for /kiosk-metrics. `bursts` + `lastQuality` together
     // prove the feature is alive in two CDP reads without looking at a pixel —
     // which is the only way to prove it, since CDP screencast is blind to

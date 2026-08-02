@@ -39,11 +39,11 @@ reference's own fit. Design for the wall; it letterboxes rather than reflowing.
 |---|---|
 | Plane | `rotateY(-12deg) rotateX(8deg) rotateZ(2deg)`, `perspective 1400px` at `50% 42%` |
 | Ruler plane | the same with roll cut to **0.8deg** (`--arch-deck-plane`) — see "what changed" |
-| `.archive__echo` | ×2 (crossfaded). 2900×1800 at (−420,−340), tile 620×349, `grayscale(1) brightness(.17) contrast(1.18)`, `translateZ(-280px)`, drift **130 s** |
+| `.archive__echo` | ×2 (crossfaded). 2900×1800 at (−420,−340), tile 620×349 (follows the print — see below), `grayscale(1) brightness(.17) contrast(1.18)`, `translateZ(-280px)`, drift **130 s** |
 | `.archive__ruler--today` | canvas 2160×320, line at frame y **904**, `translateZ(-40px)` — the reference's `#strip2` slot. The only ruler. |
 | `.archive__ghost` | the memory's year, 400 px display, `rgba(238,243,251,.055)` + 1px stroke, `translateZ(-190px)`, drift **92 s** |
 | `.archive__word` | "ARCHIVE" vertical, left −58, 150 px, ink .045 — the reference's `#gword` |
-| `.archive__card-plane` | **(130, 212) 1040×585**, `translateZ(40px)` — the reference's own card |
+| `.archive__card-plane` | **(130, 212) 1040×585**, `translateZ(40px)` — the reference's own card. With `archiveFitToPrint` on, **left 130 pinned**, w/h/top from the print (see below) |
 | `.archive__card-wrap` | pivot **84 s**, `translateZ(0 → 52px × gain)` |
 | `.archive__img` | ×2 (crossfaded 2.6 s). Ken Burns **96 s** → `scale(1 + .075 × gain)`, visible slot only |
 | `.archive__plate` | right 110, top 356, w 470. Rows `rgba(5,9,20,.72)` pad 14/22 |
@@ -53,6 +53,60 @@ reference's own fit. Design for the wall; it letterboxes rather than reflowing.
 
 **The axis.** The hour axis spans the frame's 108 px safe margins — the spine's own
 geometry, so 05:00 and 24:00 land in the same place on both surfaces.
+
+### The card follows the print (`features.archiveFitToPrint`)
+
+Raised on the panel 2026-08-02: *"a few of the photos displayed today looked cropped."*
+Structural, not a glitch. The card is a fixed **1.78:1** rectangle and the photograph is
+`object-fit: cover` inside it with no `object-position`, so the crop is centred and this
+is a ~71%-Apple, phone-shot library:
+
+| The print | Under `cover` | Follows the print |
+|---|---|---|
+| 16:9 landscape | 1040×585, nothing lost | **1040×585 @ (130, 212)** — identical |
+| 4:3 landscape | loses **~25%** of its height | 812×609 @ (130, 200) |
+| 3:4 portrait | loses **~58%** — heads *and* feet | 457×609 @ (130, 200) |
+| 9:16 portrait | loses ~68% | 343×609 @ (130, 200) |
+
+Immich's `preview` rendition is a resize, not a crop, so the card geometry is the whole
+cause. The ruling is that **the card takes the photograph's own aspect** — physically true
+to a print, which has a shape before it has a frame.
+
+The box (`services/archiveModel.js`, `cardRectFor`) is **max 1040 × 609, left pinned at
+130, vertical centre held at 504.5**:
+
+- **Left pinned** (owner's call over centring it, 2026-08-02): the card's left edge never
+  moves, so a portrait simply does not reach as far right and nothing else on the wall
+  shifts.
+- **609** is as tall as the card may grow before it fouls anything — the demoted 64 px
+  corner clock bottoms out near y=190, the today ruler draws its line at y=904 with marks
+  rising above it, and 200 → 809 is the honest gap between them.
+- **1040/609 = 1.708 is the hinge**, so a 16:9 memory is width-bound and lands on the
+  shipped rectangle *to the pixel*. Flipping the flag must not move the common landscape
+  memory, and that is by construction rather than by luck.
+- Aspect is clamped to **[0.45, 3.2]**, so a true panorama keeps a modest crop rather than
+  fitting to an unreadable strip. Every phone portrait is inside the range.
+- The **echo tile follows too**, at constant *area* — a hard-coded 16:9 tile would stretch
+  a portrait (the same lie one plane further back), and a tile that grew with the aspect
+  would change what the echo costs to paint.
+
+**Law 1.** The shape change rides the exchange's existing **300 ms blur**: the reshape *is*
+the memory arriving, the same cause the motion burst uses, and it is an event with an end.
+It is written **instantly, never transitioned** — `width`/`height`/`top` are layout
+properties (§5.5), and the guardrail in `tests/ambient-archive.spec.js` pins that.
+
+**Where the aspect comes from.** `naturalWidth/naturalHeight` of the `<img>` actually on
+the card — deliberately **not** EXIF, which is pre-rotation and would put every portrait
+iPhone photo in a landscape card, a worse crop than the one this replaces. It is also the
+only source that works for a bare `src` string (the tender lane, the immichPhotos blend and
+the static library all hand over strings with no metadata). Known aspects are remembered
+(bounded at 200) and land inside the blur; a first-time rendition lands on its `load`, and
+one that never loads leaves the card at the rectangle it had — the fallback is today's
+shipped surface.
+
+⚠ A rendition whose exchange has already been superseded **must not** reshape the card: on
+a cold NAS the rotation outruns a fetch easily, and a card that resizes around a photograph
+nobody is looking at is a move with no cause.
 
 ## The one ruler
 
@@ -215,6 +269,14 @@ was unavoidable — but both corrections arrived within the hour, because someon
   it is currently unmeasured, and the amplitude ×2 makes it more interesting, not less.
 - **Judge the yaw on the panel.** The −12° rotateY foreshortens the hour axis, so morning
   reads narrower than evening. `--arch-deck-plane` is the one-line lever.
+- **`archiveFitToPrint` is default-off pending the panel.** Two things to judge, and both
+  need a portrait memory on the wall: whether a **457 px-wide card still reads as the hero**
+  of the surface (it is 45% of the reference's width, and "the photograph is the point of a
+  screensaver" is what killed build 1), and whether the **reshape is legible as arrival**
+  rather than as a glitch. It also wants its own GPU reading — a resizing plane is
+  layout-adjacent on a budget-tuned surface, and §5.4's ceilings have never seen one.
+  `window.__archive().card` reports the painted rectangle, the print's aspect and the
+  card's, so a CDP read settles "is it actually fitting" without looking at a pixel.
 - **The echo can read as visible tiling on a bright photograph.** `brightness(.17)` is the
   reference's number and it assumes a fairly dark frame.
 - **Test fallout at flip time** (§6.5) was never needed — the specs asserting the old
