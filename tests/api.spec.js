@@ -707,12 +707,53 @@ test.describe("immich photo source (Phase 9.5)", () => {
     expect(ct.startsWith("image/") || ct.includes("application/json")).toBe(true);
   });
 
+  // Live Photo motion parts (features.ambientArchiveMotion). The clip is
+  // transcoded overnight to local disk; this route only ever serves a finished
+  // file.
+  test("GET /api/immich/asset/:id/clip rejects a non-UUID id with a JSON 400", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/immich/asset/not-a-uuid/clip", { statuses: [400] });
+    expect(body).toHaveProperty("error");
+  });
+
+  // ⚠ Note what is NOT in this status set: 502. /thumb above allows one because
+  // it may fetch from Immich on a miss. /clip never reaches Immich at all — a
+  // lazy fetch here would wake a sleeping Synology mid-rotation to serve a 3s
+  // clip. That difference is the "never fetch on the render path" decision,
+  // encoded as a contract rather than left as a comment.
+  test("GET /api/immich/asset/:id/clip is video or 404 — never HTML, never 502", async ({ request }) => {
+    const res = await request.get("/api/immich/asset/b55feb89-5cbd-4e94-a9eb-613fc351634b/clip");
+    expect([200, 404]).toContain(res.status());
+    const ct = res.headers()["content-type"] || "";
+    expect(ct.startsWith("video/") || ct.includes("application/json")).toBe(true);
+  });
+
+  test("GET /api/immich/asset/:id/clip honours a Range request", async ({ request }) => {
+    const res = await request.get("/api/immich/asset/b55feb89-5cbd-4e94-a9eb-613fc351634b/clip", {
+      headers: { Range: "bytes=0-99" }
+    });
+    expect([206, 404, 416]).toContain(res.status());
+    if (res.status() === 206) expect(res.headers()["content-range"]).toBeTruthy();
+  });
+
   // Daily Memories — the frozen per-day set. With no Immich configured it degrades
   // to { date, photos: [] } (the client then falls back to the random blend).
   test("GET /api/immich/daily-set returns { date, photos: array }", async ({ request }) => {
     const { body } = await expectJson(request, "/api/immich/daily-set");
     expect(typeof body.date).toBe("string");
     expect(Array.isArray(body.photos)).toBe(true);
+  });
+
+  // The internal/public split. `motionId` is what the overnight transcoder reads
+  // off the frozen set on disk; the browser gets `motion`, a boolean that means
+  // "a playable clip is on local disk right now" — a stat(), not a claim Immich
+  // made. Every failure (NAS asleep, HEVC source, no ffmpeg, encode failed,
+  // clip pruned) collapses into false, so the client cannot request a 404.
+  test("GET /api/immich/daily-set never leaks the internal motion id", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/immich/daily-set");
+    for (const p of body.photos) {
+      expect(p).not.toHaveProperty("motionId");
+      if ("motion" in p) expect(typeof p.motion).toBe("boolean");
+    }
   });
 
   test("GET /api/immich/map without lat/lng is a JSON 400", async ({ request }) => {

@@ -11,6 +11,7 @@ import {
   ambiguousGivenNames,
   displayName
 } from "../src/js/services/photoMemory.js";
+import { slim, liveMotionEnabled } from "../server/services/immichClient.js";
 
 // Pure unit tests for the Immich on-this-day mapping — Phase 9.5
 // (docs/vision/photo-source-immich.md). photoMemory.js has no DOM/IO, so these
@@ -376,5 +377,73 @@ test.describe("isTravel — country present and not Australia", () => {
     expect(isTravel({ country: "australia" })).toBe(false);
     expect(isTravel({ country: null })).toBe(false);
     expect(isTravel({})).toBe(false);
+  });
+});
+
+/**
+ * The Live Photo motion knob, at the one place it changes the payload.
+ *
+ * `slim()` is the whitelist that decides what leaves the server, so this is the
+ * server-side byte-identity check: with IMMICH_LIVE_MOTION unset, the object
+ * must carry exactly the eight keys it has always carried. A ninth key appearing
+ * by accident would ship a Live Photo id to every browser on the LAN.
+ */
+test.describe("slim — the motion id rides only when the knob is on", () => {
+  const ASSET = {
+    id: "0f4a",
+    localDateTime: "2022-08-04T09:00:00.000Z",
+    livePhotoVideoId: "dfeab25a-2e67-4ec5-9288-153c530b33da",
+    exifInfo: { city: "Nudgee", state: "Queensland", country: "Australia", latitude: -27.3, longitude: 153.07 },
+    people: [{ name: "Joe Perry-McHugh" }]
+  };
+  const BASE_KEYS = ["id", "localDateTime", "city", "state", "country", "lat", "lng", "people"];
+
+  const withKnob = (value, fn) => {
+    const prev = process.env.IMMICH_LIVE_MOTION;
+    if (value === null) delete process.env.IMMICH_LIVE_MOTION;
+    else process.env.IMMICH_LIVE_MOTION = value;
+    try { fn(); } finally {
+      if (prev === undefined) delete process.env.IMMICH_LIVE_MOTION;
+      else process.env.IMMICH_LIVE_MOTION = prev;
+    }
+  };
+
+  test("unset → exactly the eight keys, and no motion id anywhere", () => {
+    withKnob(null, () => {
+      expect(liveMotionEnabled()).toBe(false);
+      const out = slim(ASSET);
+      expect(Object.keys(out).sort()).toEqual([...BASE_KEYS].sort());
+      expect(JSON.stringify(out)).not.toContain("dfeab25a");
+    });
+  });
+
+  test("on → the same eight plus motionId, nothing else moved", () => {
+    withKnob("1", () => {
+      expect(liveMotionEnabled()).toBe(true);
+      const out = slim(ASSET);
+      expect(Object.keys(out).sort()).toEqual([...BASE_KEYS, "motionId"].sort());
+      expect(out.motionId).toBe("dfeab25a-2e67-4ec5-9288-153c530b33da");
+      // Everything else is untouched — the knob adds, it never rewrites.
+      withKnob(null, () => {
+        const off = slim(ASSET);
+        for (const k of BASE_KEYS) expect(out[k]).toEqual(off[k]);
+      });
+    });
+  });
+
+  test("on, but a still with no motion half → motionId is null, never undefined", () => {
+    withKnob("1", () => {
+      const { livePhotoVideoId, ...plain } = ASSET;
+      expect(slim(plain).motionId).toBe(null);
+    });
+  });
+
+  // Read INSIDE the function, never at module load: ES imports hoist above
+  // server.js's dotenv.config(), which is how a documented knob ends up
+  // permanently frozen to its default (the KOKORO_VOICE trap).
+  test("the knob is read per call, so .env is not frozen at import time", () => {
+    withKnob(null, () => expect(liveMotionEnabled()).toBe(false));
+    withKnob("1", () => expect(liveMotionEnabled()).toBe(true));
+    withKnob(null, () => expect(liveMotionEnabled()).toBe(false));
   });
 });

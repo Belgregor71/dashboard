@@ -86,6 +86,17 @@ async function engaged(page) {
 // the ghost year stand down, and everything swaps at the 2.4s midpoint so the
 // words never describe the wrong picture. Tests wait for the staging rather
 // than reaching past it — the staging is half the feature.
+// The archive's whole DOM allocation, asserted as one object. Shared with the
+// motion tests, which must not grow it either.
+const shape = () => ({
+  total: document.querySelectorAll(".archive *").length,
+  rulers: document.querySelectorAll(".archive__ruler").length,
+  imgs: document.querySelectorAll(".archive__img").length,
+  echoes: document.querySelectorAll(".archive__echo").length,
+  plates: document.querySelectorAll(".archive__plate").length,
+  clips: document.querySelectorAll(".archive__clip").length
+});
+
 async function settledPlate(page) {
   // Two stages, and missing the second one measures a half-faded plate: the
   // class comes off at the 2.4s midpoint, and only THEN does the 2.4s opacity
@@ -318,7 +329,10 @@ test("the Mode-0 clock is demoted to the corner numeral, and nothing else moves"
 // §4.3. The easiest thing in the whole package to break silently, and it is a
 // code-not-taste invariant (DESIGN_SYSTEM.md §9).
 test("a tender memory reaches the archive with no plate at all", async ({ page }) => {
-  await bootArchive(page, { ...ARCHIVE_ON, ambientMemory: true });
+  // Motion on, so the tender case also proves the burst refuses it: a tender
+  // memory is wordless AND still. Otherwise this would pass for the wrong
+  // reason on a build where motion simply was not compiled in.
+  await bootArchive(page, { ...ARCHIVE_ON, ambientMemory: true, ambientArchiveMotion: true });
   await engaged(page);
 
   // A normal captioned memory DOES get the plate — otherwise the tender case
@@ -352,6 +366,11 @@ test("a tender memory reaches the archive with no plate at all", async ({ page }
   expect(held.plate).toBe(null);
   expect(held.ghost).toBe(null);
   expect(held.lit).toBe(null);
+  // …and no motion either. The tender lane hands the archive a bare string, so
+  // there is no clipSrc to play — but the refusal is asserted explicitly,
+  // because "wordless" and "still" are one ruling (§4.3), not two.
+  expect(held.motion.armed).toBe(false);
+  expect(held.motion.src).toBe(null);
 
   // And nothing anywhere in the archive is narrating it. (The vertical
   // engraving is the frame's own label, not the memory's — excluded.)
@@ -371,19 +390,13 @@ test("cycling memories and days never grows the DOM", async ({ page }) => {
   await bootArchive(page);
   await engaged(page);
 
-  const shape = () => ({
-    total: document.querySelectorAll(".archive *").length,
-    rulers: document.querySelectorAll(".archive__ruler").length,
-    imgs: document.querySelectorAll(".archive__img").length,
-    echoes: document.querySelectorAll(".archive__echo").length,
-    plates: document.querySelectorAll(".archive__plate").length
-  });
-
   const before = await page.evaluate(shape);
   expect(before.rulers).toBe(1);
   expect(before.imgs).toBe(2);
   expect(before.echoes).toBe(2);
   expect(before.plates).toBe(1);
+  // Motion is off here, so there is no <video> at all — not a hidden one.
+  expect(before.clips).toBe(0);
 
   await page.evaluate(() => {
     for (let i = 0; i < 25; i++) {
@@ -394,6 +407,226 @@ test("cycling memories and days never grows the DOM", async ({ page }) => {
 
   expect(await page.evaluate(shape)).toEqual(before);
   expect(pageErrors).toEqual([]);
+});
+
+/* ─────────────────────── the Live Photo motion burst ───────────────────── */
+
+/**
+ * Most of this library is Apple Live Photos, so most memories arrive with a ~3s
+ * motion part. When one does, the card breathes for a moment as the memory
+ * lands, then settles into the still.
+ *
+ * The invariant under all of it: the burst is an EVENT WITH AN END. §5.1's
+ * corollary — "a momentary cause rendered as a loop is a law-1 violation even
+ * though it is cheap" — is what these tests actually defend.
+ */
+test.describe("the motion burst", () => {
+  const MOTION_ON = { ...ARCHIVE_ON, ambientArchiveMotion: true };
+
+  // A real, decodable H.264 file that the test server already serves. Using a
+  // fake URL would let every assertion below pass against a <video> that never
+  // decoded a frame — which is the failure this feature is most likely to have
+  // in the field, so the tests must not be blind to it.
+  const CLIP = "/assets/weather_bg/clear.mp4";
+  const MOTION_MEMORY = { ...MEMORY, clipSrc: CLIP };
+
+  const motion = (page) => page.evaluate(() => window.__archive().motion);
+
+  // The burst is staged like the exchange it rides on: armed at 2.8s, held to
+  // 6.4s, resource dropped at 7.0s. Tests wait for the staging rather than
+  // reaching past it.
+  const settledStill = (page) =>
+    page.waitForFunction(
+      () => {
+        const m = window.__archive().motion;
+        return m && !m.armed && m.src === null;
+      },
+      null,
+      { timeout: 15000 }
+    );
+
+  test("flag off builds no video at all", async ({ page }) => {
+    await bootArchive(page, ARCHIVE_ON);
+    await engaged(page);
+    await page.evaluate((m) => window.__ssSetFrame(m), MOTION_MEMORY);
+
+    expect(await page.evaluate(() => document.querySelectorAll(".archive video").length)).toBe(0);
+    expect(await motion(page)).toBe(null);
+  });
+
+  test("a memory with a motion part breathes, then stops", async ({ page }) => {
+    const pageErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    await bootArchive(page, MOTION_ON);
+    await engaged(page);
+
+    // Consume whatever the pool put on the card, so the frame under test is
+    // never the `first` one (Mode-0 entry deliberately does not burst).
+    await page.evaluate((m) => window.__ssSetFrame(m), MEMORY);
+    await settledPlate(page);
+    const before = await motion(page);
+
+    await page.evaluate((m) => window.__ssSetFrame(m), MOTION_MEMORY);
+
+    await page.waitForFunction(() => window.__archive().motion.shown === true, null, { timeout: 10000 });
+    const during = await motion(page);
+    expect(during.src).toContain("clear.mp4");
+    expect(during.bursts).toBe(before.bursts + 1);
+
+    // …and it ends on its own, with the resource released — not merely hidden.
+    await settledStill(page);
+    const after = await motion(page);
+    expect(after.shown).toBe(false);
+    expect(after.playing).toBe(false);
+    expect(after.src).toBe(null);
+    expect(after.bursts).toBe(before.bursts + 1);   // once per exchange, never a loop
+
+    // It genuinely decoded. `lastQuality` is captured before the resource is
+    // dropped precisely so this is still readable here — and frames rendered is
+    // the only proof that survives, since a <video> that decodes nothing looks
+    // identical from every other angle.
+    expect(after.lastQuality.total).toBeGreaterThan(0);
+    expect(pageErrors).toEqual([]);
+  });
+
+  // §4.1 — the trap this whole file exists for: assert PAINT, not bookkeeping.
+  test("the still is the resting state, on the glass", async ({ page }) => {
+    await bootArchive(page, MOTION_ON);
+    await engaged(page);
+    await page.evaluate((m) => window.__ssSetFrame(m), MEMORY);
+    await settledPlate(page);
+    await page.evaluate((m) => window.__ssSetFrame(m), MOTION_MEMORY);
+    await settledStill(page);
+
+    const painted = await page.evaluate(() => {
+      const clip = document.querySelector(".archive__clip");
+      const still = document.querySelector(".archive__img.is-shown");
+      return {
+        clipOpacity: getComputedStyle(clip).opacity,
+        stillShown: Boolean(still) && still.checkVisibility({ opacityProperty: true })
+      };
+    });
+    expect(painted.clipOpacity).toBe("0");
+    expect(painted.stillShown).toBe(true);
+  });
+
+  test("Mode-0 entry does not burst", async ({ page }) => {
+    // The static library is the last fallback pool, and on a dev clone it is not
+    // empty — so without this the card is already filled by the time the test
+    // looks, the frame under test is not `first`, and the assertion below is
+    // silently unreachable. An empty pool is what makes the FIRST frame first.
+    await page.route("**/api/photos", (route) => route.fulfill({ json: [] }));
+    await bootArchive(page, MOTION_ON);
+    await engaged(page);
+
+    const fresh = await page.evaluate(() => window.__archive());
+    expect(fresh.photo, "the card must start empty for this to test entry").toBe(null);
+
+    // Entry already fires the whole surface arriving, and it is the one moment
+    // the panel may just have woken from DPMS. It does not also get a burst.
+    await page.evaluate((m) => window.__ssSetFrame(m), MOTION_MEMORY);
+    await page.waitForTimeout(3500);          // past MOTION_START_MS
+    const m = await motion(page);
+    expect(m.armed).toBe(false);
+    expect(m.bursts).toBe(0);
+    expect(m.src).toBe(null);
+
+    // …and the very next memory does, so this is not passing because motion is
+    // simply broken.
+    await page.evaluate((m) => window.__ssSetFrame(m), { ...MOTION_MEMORY, src: "/photos/second.jpg" });
+    await page.waitForFunction(() => window.__archive().motion.shown === true, null, { timeout: 10000 });
+    expect((await motion(page)).bursts).toBe(1);
+  });
+
+  test("after sunset the card is a still", async ({ page }) => {
+    // The one spec here that must NOT be pinned to midday: night is the
+    // condition under test. The screensaver writes data-night on its own root
+    // once a minute, and the burst reads that rather than computing sun times
+    // a second time.
+    await forceFlags(MOTION_ON)(page);
+    await page.clock.setFixedTime(new Date("2026-07-06T23:30:00"));
+    await page.goto("/");
+    await page.waitForFunction(() => typeof window.__engageScreensaver === "function");
+    await engaged(page);
+    await page.waitForFunction(
+      () => document.getElementById("screensaver").dataset.night === "1",
+      null,
+      { timeout: 10000 }
+    );
+
+    await page.evaluate((m) => window.__ssSetFrame(m), MEMORY);
+    await page.evaluate((m) => window.__ssSetFrame(m), MOTION_MEMORY);
+    await page.waitForTimeout(3500);
+
+    const m = await motion(page);
+    expect(m.night).toBe(true);
+    expect(m.armed).toBe(false);
+    expect(m.src).toBe(null);
+  });
+
+  // ⚠ `page.emulateMedia()`, NOT `test.use({ reducedMotion: "reduce" })`. The
+  // context option silently does not reach the page on this Playwright
+  // (1.61.1): `matchMedia("(prefers-reduced-motion: reduce)").matches` stays
+  // false, so a spec written the idiomatic way would assert the burst is off
+  // while the browser had no such preference — passing, eventually, for entirely
+  // the wrong reason. The guard below is what stops that regressing silently.
+  test("reduced motion switches the burst off entirely", async ({ page }) => {
+    await bootArchive(page, MOTION_ON);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    expect(
+      await page.evaluate(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches),
+      "the preference must actually be emulated, or this test proves nothing"
+    ).toBe(true);
+
+    await engaged(page);
+    await page.evaluate((m) => window.__ssSetFrame(m), MEMORY);
+    await page.evaluate((m) => window.__ssSetFrame(m), MOTION_MEMORY);
+    await page.waitForTimeout(3500);
+
+    const m = await motion(page);
+    expect(m.reduced).toBe(true);
+    expect(m.armed).toBe(false);
+    expect(m.src).toBe(null);
+  });
+
+  // The path that leaks: Mode-0 exit fires on every motion wake, many times a
+  // day. Asserted MID-burst deliberately — a teardown test that ran after the
+  // burst had already finished would pass without testing anything.
+  test("leaving Mode 0 mid-burst releases the video", async ({ page }) => {
+    await bootArchive(page, MOTION_ON);
+    await engaged(page);
+    await page.evaluate((m) => window.__ssSetFrame(m), MEMORY);
+    await settledPlate(page);
+    await page.evaluate((m) => window.__ssSetFrame(m), MOTION_MEMORY);
+
+    await page.waitForFunction(() => window.__archive().motion.playing === true, null, { timeout: 12000 });
+    await page.evaluate(() => window.__wakeScreensaver());
+
+    const m = await motion(page);
+    expect(m.playing).toBe(false);
+    expect(m.src).toBe(null);
+    expect(m.armed).toBe(false);
+  });
+
+  test("cycling motion memories never grows the DOM", async ({ page }) => {
+    const pageErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    await bootArchive(page, MOTION_ON);
+    await engaged(page);
+
+    const before = await page.evaluate(shape);
+    expect(before.clips).toBe(1);          // exactly one, created once in build()
+
+    await page.evaluate((clip) => {
+      for (let i = 0; i < 25; i++) {
+        window.__ssSetFrame({ src: `/photos/m${i}.jpg`, caption: `${2008 + (i % 18)} · Place ${i} · Someone`, clipSrc: clip });
+        window.__ssSetFrame("/photos/bare.jpg");
+      }
+    }, CLIP);
+
+    expect(await page.evaluate(shape)).toEqual(before);
+    expect(pageErrors).toEqual([]);
+  });
 });
 
 /* ───────────────────────────── the CSS guardrails ──────────────────────── */
@@ -435,6 +668,20 @@ test.describe("archive css guardrail", () => {
     }
   });
 
+  // The still underneath the burst is already running arch-kenburns. A
+  // transform on a DECODING layer is the defect class that cost 3.0-4.3 points
+  // of a core in 17da62e — a blend or a zoom is free on a still surface and
+  // expensive on a moving one. The clip is composited, never animated.
+  test("the motion clip never animates — it sits over a still that already moves", () => {
+    const rules = css().match(/[^{}@]+\{[^}]*\}/g) || [];
+    for (const rule of rules) {
+      const selector = rule.slice(0, rule.indexOf("{"));
+      if (!/\.archive__clip\b/.test(selector)) continue;
+      expect(rule, `the clip must not animate: ${selector.trim()}`).not.toMatch(/animation\s*:/);
+      expect(rule, `the clip must not transform: ${selector.trim()}`).not.toMatch(/transform\s*:/);
+    }
+  });
+
   test("amplitude follows the sun-altitude curve, with no second night threshold", () => {
     expect(css()).toMatch(/--clock-dim/);   // §5.2 — reuse the curve
     expect(css()).toMatch(/--arch-amp/);    // …applied to displacement
@@ -453,7 +700,13 @@ test.describe("archive css guardrail", () => {
   test("reduced motion switches the whole surface off", () => {
     const source = css();
     expect(source).toMatch(/prefers-reduced-motion:\s*reduce/);
-    expect(source.slice(source.indexOf("prefers-reduced-motion"))).toMatch(/animation:\s*none/);
+    const block = source.slice(source.indexOf("prefers-reduced-motion"));
+    expect(block).toMatch(/animation:\s*none/);
+    // The burst too — and by display, not opacity: a <video> at opacity 0 is
+    // still decoding, which is the whole reason armMotionBurst() gates in JS as
+    // well. This rule is the belt-and-braces half of that pair.
+    expect(block).toMatch(/\.archive__clip/);
+    expect(block).toMatch(/display:\s*none/);
   });
 
   test("no layout-triggering property is animated", () => {
