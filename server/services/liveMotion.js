@@ -142,7 +142,13 @@ function ffmpegArgs(src, out) {
     // motion part measured carried `orientation: 6` (portrait shot, stored
     // landscape). It also resets the display matrix on output, so the browser
     // does not rotate a second time.
-    "-vf", `scale='if(gt(iw,ih),${CLIP_LONG_EDGE},-2)':'if(gt(iw,ih),-2,${CLIP_LONG_EDGE})',fps=24`,
+    //
+    // `min(24, source_fps)` and not a flat 24: these sources are not uniform.
+    // Measured on the library, a 2021 motion part is 27.75 fps but a 2015 one is
+    // 15 fps, and a flat 24 would UPSAMPLE the older clip — duplicating frames
+    // into a bigger file that costs more to decode and looks identical. Decode
+    // on this panel is currently in software, so frames are the budget.
+    "-vf", `scale='if(gt(iw,ih),${CLIP_LONG_EDGE},-2)':'if(gt(iw,ih),-2,${CLIP_LONG_EDGE})',fps='min(24,source_fps)'`,
     "-c:v", "libx264",
     "-profile:v", "high",
     "-pix_fmt", "yuv420p",                   // the only chroma the kiosk decodes reliably
