@@ -309,13 +309,59 @@ noise of the existing baseline (which itself read 21.7 / 21.1 at +3.3 h), so the
 
 That is the expected shape, and the arithmetic is worth keeping: a 1080p H.264 control
 clip costs **+41 points of renderer** on this box, because ⚠ **decode here is in
-SOFTWARE** — VA-API is fully installed but the kiosk Chromium launches with no flags to
-use it (`powerEfficient=false`). A 1040-long-edge clip is ~39% of those pixels (~16
-points), and a 3.5 s burst in a 30 s rotation is a ~12% duty cycle: 16 × 0.12 ≈ 2. ✔
+SOFTWARE — permanently, and not for want of a flag** (see the section below; the
+earlier "no flags on the command line" explanation was investigated and disproven).
+A 1040-long-edge clip is ~39% of those pixels (~16 points), and a 3.5 s burst in a 30 s
+rotation is a ~12% duty cycle: 16 × 0.12 ≈ 2. ✔
 
 ⚠ **§5.4's ceilings are all stated for gpu-process, so video cost does not register
 against them at all.** That is a gap in the budget, not a free pass — hence the renderer
 column above.
+
+### VA-API hardware decode — INVESTIGATED AND CLOSED 2026-08-02. It cannot be had here.
+
+The premise that this box decodes in software only because `dashboard-kiosk.service`
+lacks decode flags was **wrong**. Every flag was tested on a throwaway Chromium on the
+same display; **the unit file was never edited and needs no edit.** Findings, in order:
+
+1. **The hardware and driver stack are perfect.** `ffmpeg -hwaccel vaapi
+   -hwaccel_output_format vaapi` decodes `clear.mp4` at **192 frames, 0 errors**,
+   `pix_fmt: vaapi`, via libva 1.22 → `radeonsi_drv_video.so`. Nothing is missing.
+2. **`VaapiVideoDecoder` is already default-on in Chromium 151** and *is* constructed for
+   every clip. Adding `--enable-features=VaapiVideoDecoder` is a no-op. So is
+   `AcceleratedVideoDecodeLinuxGL`, `…ZeroCopyGL`, `UseOutOfProcessVideoDecoding`,
+   `--ignore-gpu-blocklist`, `--use-angle=gles`, `--use-gl=egl`, `--use-angle=vulkan`.
+   All nine measured **41.7–43.7 renderer points — i.e. software, every time.**
+3. **The real failure, in Chromium's own log** (`--vmodule=*vaapi*=3`):
+
+   ```
+   vaapi_video_decoder.cc:136        VaapiVideoDecoder():        <- constructed
+   video_decoder_pipeline.cc:1270    PickDecoderOutputFormat(): Initializing ImageProcessor
+   vaapi_video_decoder.cc:144        ~VaapiVideoDecoder():       <- destroyed → software
+   ```
+
+   It dies at **output-format negotiation**, not at driver init.
+4. **Why:** `displayType = ANGLE_OPENGL` (ANGLE over GLX) and the GPU process advertises
+   **no dma-buf / EGL-image extensions at all**. Decoded VA surfaces cannot be imported
+   into the compositor, so the pipeline has nowhere to put a hardware frame. This is a
+   property of **X11 + ANGLE-on-GL**, not of the flags, the GPU, or Mesa.
+
+**The only real fix is a Wayland session** (no compositor is installed; the box is
+X11 + openbox + lightdm on `XDG_SESSION_TYPE=tty`). That is a whole-display-stack change
+to save ~2 renderer points at the Live Photo duty cycle. ⚠ **Not worth it — do not
+re-open this without a much larger video feature to justify it.**
+
+⚠ **`powerEfficient` is NOT a valid signal on this box** — it reports the GPU process's
+VA-API *enumeration*, not the decoder actually used. It read `true` while the renderer
+still paid the full +41.8. **Only a CPU measurement settles this.**
+
+**One real defect found, separate from decode.** The kiosk starts ~5 s after lightdm
+(`After=network-online.target` only), and when it wins that race **libva never loads into
+the GPU process for the life of the browser** — `powerEfficient` then reads `false` and
+`videoDecoding` lists 0 profiles. A plain `systemctl restart dashboard-kiosk.service`
+fixes it. It changes **no** decode cost (measured +40.7 before, +41.8 after) and is
+therefore cosmetic — it matters only because it corrupts capability probes. Anyone
+probing codec support on a long-uptime kiosk should restart it first, or measure CPU.
 
 **Peak, and why the raw number misleads.** Driving an exchange every 5 s for 60 s (~6× the
 natural rate — the re-fire technique `/kiosk-metrics` prescribes for atmoFx):
