@@ -400,7 +400,15 @@ function clearMotionTimers() {
  */
 function stopClip() {
   if (!clipEl) return;
-  if (clipEl.currentSrc && typeof clipEl.getVideoPlaybackQuality === "function") {
+  // ⚠ The `src` ATTRIBUTE, not `currentSrc`. currentSrc keeps the last resolved
+  // URL after removeAttribute+load, so guarding on it made every exchange that
+  // did NOT burst — after sunset, a tender memory, a photo with no motion part —
+  // capture zeros off an unloaded element and clobber the real reading. The
+  // probe then says `{total: 0}`, which is indistinguishable from "it decoded
+  // nothing", the exact misreading this function is written to avoid. The
+  // attribute is set at arm time and removed just below, so it is present
+  // precisely while a burst is in flight.
+  if (clipEl.getAttribute("src") && typeof clipEl.getVideoPlaybackQuality === "function") {
     const q = clipEl.getVideoPlaybackQuality();
     // Copy the fields explicitly. VideoPlaybackQuality exposes them as prototype
     // getters, so spreading or JSON.stringify-ing it yields `{}` — which reads

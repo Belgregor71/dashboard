@@ -489,6 +489,34 @@ test.describe("the motion burst", () => {
     expect(pageErrors).toEqual([]);
   });
 
+  // Found on the panel: a non-bursting exchange used to capture zeros off the
+  // unloaded <video> and overwrite the real reading, because `currentSrc`
+  // lingers after removeAttribute+load. The probe then reported {total: 0},
+  // which is indistinguishable from "it decoded nothing" — and that reading is
+  // the only proof this feature works at all, since CDP screencast cannot see
+  // hardware video.
+  test("an exchange that does not burst never clobbers the last real reading", async ({ page }) => {
+    await bootArchive(page, MOTION_ON);
+    await engaged(page);
+    await page.evaluate((m) => window.__ssSetFrame(m), MEMORY);
+    await settledPlate(page);
+    await page.evaluate((m) => window.__ssSetFrame(m), MOTION_MEMORY);
+    await settledStill(page);
+
+    const real = (await motion(page)).lastQuality;
+    expect(real.total).toBeGreaterThan(0);
+
+    // Three memories with no motion part at all — the common case.
+    for (const src of ["/photos/a.jpg", "/photos/b.jpg", "/photos/c.jpg"]) {
+      await page.evaluate((s) => window.__ssSetFrame({ src: s, caption: "2011 · Place · Someone" }), src);
+      await page.waitForTimeout(400);
+    }
+
+    const after = await motion(page);
+    expect(after.src).toBe(null);
+    expect(after.lastQuality).toEqual(real);
+  });
+
   // §4.1 — the trap this whole file exists for: assert PAINT, not bookkeeping.
   test("the still is the resting state, on the glass", async ({ page }) => {
     await bootArchive(page, MOTION_ON);
