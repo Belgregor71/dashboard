@@ -224,10 +224,42 @@ less than the hours elapsed since t0, the page reloaded and you are measuring a 
 process, not a soak. `heap-metrics.cjs` prints it on every sample — there is no excuse for
 recording a number without it.
 
-**Running t0 = 2026-08-02 09:10 AEST** (the page load that survived), commit `8ee53b3`.
-24 h falls **2026-08-03 09:10**, 72 h falls **2026-08-05 09:10**.
+### Starting it: the bedtime ritual, and why the time of day changes the protocol
 
-| Metric | 0 h | +3.3 h | 24 h | 72 h | Judgement |
+Start **after the last deploy of the day**, in this order — the whole thing is about two
+minutes:
+
+1. `ssh pi-dashboard 'sudo systemctl start dashboard-deploy.service'` — settle the bundle.
+2. `node scripts/kiosk/kiosk-drive.cjs reload` — it now self-checks the stylesheet against
+   `dist/assets` and exits `STALE:` if the reload did not take, so this step cannot lie.
+3. Wait ≥ 10 min (see the reload-warmup trap above), then record **t0 + the software
+   counters** — `heap-metrics.cjs`, plus `uptimeMin`.
+
+⚠ **Do NOT try to take a GPU number at t0 if it is after 21:00.** The panel is DPMS-off
+21:00 → 05:00, so compositing is suspended and the reading is meaningless — near-zero, and
+not comparable to anything. Split the deliverable:
+
+| Half of "heap-flat + fps constant" | When to sample |
+|---|---|
+| **heap / DOM / listeners** | any time, panel on or off — this is the half that actually needs 72 unbroken hours |
+| **gpu / renderer / anims** | daylight only, panel on, Mode 0 engaged |
+
+A bedtime t0 has one real advantage over the 09:10 pilot: **24 h and 72 h then fall at the
+same clock time as t0**, so the light, the atmosphere token and the DPMS state all match by
+construction, and the readings are comparable without argument.
+
+⚠ And note what a 72 h soak actually covers: the panel is dark 8 hours in every 24, so the
+archive only animates ~16 h/day. 72 h of wall time is ~48 h of motion. That is still a fair
+test of the heap, but do not describe it as 72 h of continuous rendering.
+
+> **STATUS: the 72 h soak has NOT started.** The two readings below are a **pilot** taken
+> on 2026-08-02 — real measurements, and they are what caught the budget breach — but the
+> clock is not running. 2026-08-02 was a heavy deploy day and a soak across it would have
+> been reset repeatedly for nothing. **Owner's call: start it at bedtime**, after the last
+> deploy of the day. Until someone writes a t0 in here, treat the 24 h / 72 h columns as
+> unstarted rather than pending.
+
+| Metric | pilot 0 h | pilot +3.3 h | 24 h | 72 h | Judgement |
 |---|---|---|---|---|---|
 | gpu-process (% of one core) | **20.8 / 21.0** | **21.7 / 21.1** | | | §5.4 ceiling **25** sustained |
 | renderer | **10.1 / 10.2** | **9.9 / 9.8** | | | |
