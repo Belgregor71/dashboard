@@ -433,12 +433,28 @@ function armMotionBurst(frame, tender) {
   motionArmTimer = setTimeout(() => {
     motionArmTimer = null;
     clipEl.src = clipSrc;
-    clipEl.classList.add("is-shown");
-    burstCount += 1;
-    lastBurstAt = Date.now();
-    // Fail-soft by construction: if playback is refused the still underneath is
-    // already the resting state, so there is nothing to fall back TO.
-    clipEl.play().catch(() => {});
+    // Revealed only once playback has actually begun, never on `src` alone. The
+    // server only advertises a clip it can stat, but a file can still go missing
+    // between the page load and a burst hours later, and this repo's scar tissue
+    // is a video that decodes NOTHING while reporting no error at all
+    // (camera.js:399-401). If play() never resolves, the still simply stays —
+    // there is nothing to fall back to, because it never left.
+    //
+    // Two-handler .then(fn, fn), not .catch/.finally: a rejection on a fresh
+    // chain is exactly the uncaught-pageerror shape the suite exists to catch
+    // (CLAUDE.md).
+    clipEl.play().then(
+      () => {
+        // The burst may already have been called off while play() was pending —
+        // a new memory, Mode 0 exited. `motionEndTimer` still being armed is
+        // what says this burst is still wanted.
+        if (!motionEndTimer) return;
+        clipEl.classList.add("is-shown");
+        burstCount += 1;
+        lastBurstAt = Date.now();
+      },
+      () => {}
+    );
   }, MOTION_START_MS);
 
   // Two plain timers, never `ended`/`canplay`/`transitionend`. The screensaver is
