@@ -199,7 +199,7 @@ there.
 
 ---
 
-## Live ambient — the Ambient Archive (G11), soak 0 h · 2026-08-02 08:54 AEST
+## Live ambient — the Ambient Archive (G11) · **soak RUNNING from t0 = 2026-08-02 20:38 AEST**
 
 The `DESIGN_SYSTEM.md` §5.4 **live ambient** row (≤ 25% of one core, sustained) was
 declared when the calm law was rewritten and then left **unmeasured**, because nothing
@@ -252,12 +252,14 @@ construction, and the readings are comparable without argument.
 archive only animates ~16 h/day. 72 h of wall time is ~48 h of motion. That is still a fair
 test of the heap, but do not describe it as 72 h of continuous rendering.
 
-> **STATUS: the 72 h soak has NOT started.** The two readings below are a **pilot** taken
-> on 2026-08-02 — real measurements, and they are what caught the budget breach — but the
-> clock is not running. 2026-08-02 was a heavy deploy day and a soak across it would have
-> been reset repeatedly for nothing. **Owner's call: start it at bedtime**, after the last
-> deploy of the day. Until someone writes a t0 in here, treat the 24 h / 72 h columns as
-> unstarted rather than pending.
+> **STATUS: the 72 h soak is RUNNING. t0 = 2026-08-02 20:38 AEST**, on bundle
+> `index-D_gktw1m.js` / `index-sTy7gxIn.css` (repo at `a8200cb`). Sample windows fall at
+> **24 h = 2026-08-03 20:38** and **72 h = 2026-08-05 20:38**, the same clock time as t0 by
+> design. **No bundle deploy may land before then** — docs and script-only pushes are safe,
+> and `a8200cb` itself was one (the kiosk rebuilt to identical hashes, which is the proof).
+>
+> The two readings in the first table are the earlier **pilot** — real measurements, and
+> what caught the budget breach — but they belong to a process that no longer exists.
 
 | Metric | pilot 0 h | pilot +3.3 h | 24 h | 72 h | Judgement |
 |---|---|---|---|---|---|
@@ -290,6 +292,38 @@ test of the heap, but do not describe it as 72 h of continuous rendering.
 
 `scriptPct` **0.4** · `layoutPct` 0.1 · `stylePct` 0.7 — compositor-bound, not
 script-bound, exactly as §5.4 predicts. Conditions: `atmo-clear-day`, daylight, panel on.
+
+### The soak proper — t0 recorded 2026-08-02 20:38 AEST
+
+Ritual as written above: deploy settled (`a8200cb`, docs-only, **hashes unchanged**) →
+`kiosk-drive.cjs reload` (self-check passed, loaded stylesheet == disk) → 12.2 min warm-up
+→ sample. Conditions at t0: panel **On** (DPMS-off is 21:00, ~20 min out), `view: home`,
+uptime **12.2 min**.
+
+| Metric | **t0** (20:38) | 24 h (03/08 20:38) | 72 h (05/08 20:38) | Judgement |
+|---|---|---|---|---|
+| `usedJSHeapMB` | **10.2** | | | must be **flat**; >30 sustained is suspicious |
+| `domNodes` (attached) | **1945** | | | must be flat |
+| `cdpNodes` | **4161** | | | wobble ok; **monotonic climb = leak** |
+| `cdpJsEventListeners` | **70** | | | must be flat |
+| `lottieWrappers` / `lottieSvgs` | **5 / 5** | | | wrappers ≫ svgs = the zombie bug is back |
+| tempC | **45.25** | | | sustained < 70 |
+| `/proc/pressure/cpu` avg10 | **0.00** | | | never pin a core |
+| gpu-process / renderer | *deferred* | *daylight* | *daylight* | §5.4 ceiling **25** sustained |
+
+**Why the GPU row is empty and must stay empty here:** a bedtime t0 cannot produce a
+comparable compositing number, so the rendering half is sampled separately in daylight
+against the pilot's 20.8 / 21.0 — see the split table above. This is the documented
+protocol, not a gap.
+
+⚠ **This t0 is not directly comparable to the pilot's 0 h column, and that is deliberate.**
+The pilot reloaded onto a *cold* surface and read `lottieWrappers 0 / 0`; three hours later
+the panel had woken once and it read 5 / 5, +258 `domNodes` and +431 `cdpNodes` — growth
+that was first-wake construction, not a leak. This reload happened with the panel already
+awake, so **t0 already includes the woken surface** (5 / 5 at 12 min). That is why 4161
+sits between the pilot's 3971 and 4402. The practical effect is the one worth having: the
+one-off first-wake step is *inside* the baseline, so any climb at 24 h / 72 h has nothing
+innocent to hide behind.
 
 ### Live Photo motion — the burst, measured 2026-08-02 (`features.ambientArchiveMotion`)
 
