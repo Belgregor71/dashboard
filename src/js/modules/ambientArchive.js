@@ -76,7 +76,31 @@ const TICK_MS = 30_000;  // half a minute — the now-point never lags a minute
 const EXCHANGE_BLUR_MS = 300;
 const EXCHANGE_SWAP_MS = 2400;
 
+// ── The motion burst (features.ambientArchiveMotion) ─────────────────────────
+//
+// Most of this library is Apple Live Photos, so most memories arrive carrying a
+// ~3s motion part. When one does, the card breathes for a moment as the memory
+// lands, then settles into the still it has always been.
+//
+// How this passes law 1: the cause is THE PHOTOGRAPH CHANGING, which §5.1's
+// legal-causes table names verbatim. The burst is bound to the exchange, plays
+// exactly once, and stops — §5.1's corollary, "the cause is instantaneous → the
+// motion is a moment". There is no `loop` attribute and there must never be one:
+// "a momentary cause rendered as a loop is a law-1 violation even though it is
+// cheap". Nothing here is decorative; a memory with no motion part does not move.
+//
+// Binding it to the exchange also settles the Ken Burns problem for free.
+// `arch-kenburns` restarts from frame 0 whenever `is-shown` is re-added to the
+// incoming slot, so at exchange time the still underneath is at scale(1) and
+// travels ~0.07% across the burst. The clip sits at scale 1 over a still at
+// scale 1 — no shared wrapper, no paused animation, no transform on a decoding
+// layer (which is exactly the defect that cost 3.0-4.3 points in 17da62e).
+const MOTION_START_MS = 2800;   // past EXCHANGE_SWAP_MS and the 2.6s crossfade
+const MOTION_HOLD_MS  = 3600;   // > the server's -t 3.5 bound, so the media ends first
+const MOTION_FADE_MS  = 600;    // the fade back to the still, then drop the resource
+
 let enabled = false;
+let liveMotion = false;
 let root = null;
 let todayCanvas = null;
 let todayCtx = null;
@@ -99,6 +123,14 @@ let resizeHandler = null;
 let lastDay = null;
 let lastFrame = null;    // the memory currently on the card
 let litYear = null;
+
+let clipEl = null;       // the motion burst's <video>, only when liveMotion
+let motionArmTimer = null;
+let motionEndTimer = null;
+let motionStopTimer = null;
+let burstCount = 0;
+let lastBurstAt = null;
+let lastQuality = null;
 
 /** Is the archive built and allowed to take Mode 0? */
 export function isAmbientArchiveEnabled() {
@@ -290,6 +322,10 @@ export function setArchiveMemory(frame) {
 
   clearTimeout(blurTimer);
   clearTimeout(exchangeTimer);
+  // Whatever the last memory was doing, it stops now — including on the `first`
+  // path below, which returns early.
+  clearMotionTimers();
+  stopClip();
 
   if (first) {
     setPlate(parts);
@@ -299,6 +335,8 @@ export function setArchiveMemory(frame) {
     render();
     return;
   }
+
+  armMotionBurst(frame, tender);
 
   cardEl?.classList.add("is-exchanging");
   blurTimer = setTimeout(() => {
@@ -318,6 +356,104 @@ export function setArchiveMemory(frame) {
     ghostEl?.classList.remove("is-exchanging");
     render();
   }, EXCHANGE_SWAP_MS);
+}
+
+// ── The motion burst ──────────────────────────────────────────
+
+/**
+ * Night, read from the authority that already owns the question rather than by
+ * importing suncalc a second time: the screensaver toggles `data-night` on its
+ * own root every 60s (`applyNight`/`syncNight`), and the archive is mounted
+ * inside it. Two renderers, one day — the `daySources` argument.
+ *
+ * ⚠ Gated here in JS, not only in CSS. `display: none` on a <video> hides it
+ * and keeps decoding it; the CSS rule is belt-and-braces, not the mechanism.
+ */
+function isNightNow() {
+  return root?.closest("[data-night]")?.dataset.night === "1";
+}
+
+function reducedMotion() {
+  return typeof window.matchMedia === "function"
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function clearMotionTimers() {
+  clearTimeout(motionArmTimer);
+  clearTimeout(motionEndTimer);
+  clearTimeout(motionStopTimer);
+  motionArmTimer = null;
+  motionEndTimer = null;
+  motionStopTimer = null;
+}
+
+/**
+ * Every terminal path goes through here — burst finished, memory replaced
+ * mid-burst, Mode 0 exited, full teardown. Idempotent.
+ *
+ * ⚠ Order is load-bearing twice over:
+ *  - the playback quality is captured FIRST, because dropping the resource
+ *    resets the counters and the probe would read zeros between bursts;
+ *  - `load()` after `removeAttribute("src")` is what actually frees the media
+ *    resource and its decoder. Without it Chromium holds both open. The weather
+ *    background teardown does exactly this (weather/renderer.js).
+ */
+function stopClip() {
+  if (!clipEl) return;
+  if (clipEl.currentSrc && typeof clipEl.getVideoPlaybackQuality === "function") {
+    const q = clipEl.getVideoPlaybackQuality();
+    // Copy the fields explicitly. VideoPlaybackQuality exposes them as prototype
+    // getters, so spreading or JSON.stringify-ing it yields `{}` — which reads
+    // exactly like "the video never decoded".
+    lastQuality = {
+      total: q.totalVideoFrames,
+      dropped: q.droppedVideoFrames,
+      corrupted: q.corruptedVideoFrames ?? 0
+    };
+  }
+  clipEl.classList.remove("is-shown");
+  clipEl.pause();
+  clipEl.removeAttribute("src");
+  clipEl.load();
+}
+
+/**
+ * Arm the burst for an arriving memory, if it has earned one. Called only after
+ * the `first` early-return above, so Mode-0 entry never bursts: entry already
+ * fires the whole surface arriving, and it is the one moment the panel may have
+ * just woken from DPMS.
+ */
+function armMotionBurst(frame, tender) {
+  const clipSrc = typeof frame === "object" ? frame?.clipSrc : null;
+  if (!liveMotion || !clipEl) return;
+  if (tender) return;              // §4.3: a tender memory is wordless — and still
+  if (typeof clipSrc !== "string" || !clipSrc) return;
+  if (isNightNow() || reducedMotion()) return;
+
+  motionArmTimer = setTimeout(() => {
+    motionArmTimer = null;
+    clipEl.src = clipSrc;
+    clipEl.classList.add("is-shown");
+    burstCount += 1;
+    lastBurstAt = Date.now();
+    // Fail-soft by construction: if playback is refused the still underneath is
+    // already the resting state, so there is nothing to fall back TO.
+    clipEl.play().catch(() => {});
+  }, MOTION_START_MS);
+
+  // Two plain timers, never `ended`/`canplay`/`transitionend`. The screensaver is
+  // display:none-adjacent for most of the day, so those events may simply never
+  // arrive (CLAUDE.md) — and none is needed, because the server bounds every clip
+  // to 3.5s, which makes MOTION_HOLD_MS the sole authority on when this stops.
+  motionEndTimer = setTimeout(() => {
+    motionEndTimer = null;
+    clipEl.classList.remove("is-shown");
+  }, MOTION_START_MS + MOTION_HOLD_MS);
+
+  motionStopTimer = setTimeout(() => {
+    motionStopTimer = null;
+    stopClip();
+  }, MOTION_START_MS + MOTION_HOLD_MS + MOTION_FADE_MS);
 }
 
 // ── Mode-0 boundary ───────────────────────────────────────────
@@ -349,6 +485,11 @@ export function stopAmbientArchive() {
   tickTimer = null;
   exchangeTimer = null;
   blurTimer = null;
+  // The path that matters most for the 24/7 discipline: Mode-0 exit fires on
+  // every motion wake, many times a day. A burst interrupted here must free its
+  // decoder, not just stop being visible.
+  clearMotionTimers();
+  stopClip();
   cardEl?.classList.remove("is-exchanging");
   plateEl?.classList.remove("is-exchanging");
   ghostEl?.classList.remove("is-exchanging");
@@ -401,11 +542,31 @@ function build(mount) {
     img.dataset.slot = String(i);
     return img;
   });
+  // The motion burst's surface. A THIRD element over the two still slots, never
+  // a slot swap — `cardImgs`/`cardSlot` IS the exchange state machine, and
+  // archiveProbe().photo reads that slot from the outside (the tender invariant
+  // is asserted through it). Built only when the flag is on, so flag-off leaves
+  // the DOM byte-identical: no element, no timer, no listener, no fetch.
+  //
+  // Ordered above the stills and BELOW grade/lip, so the burst inherits the
+  // card's grade and its inner-shadow lip — which is what keeps it reading as
+  // the same card rather than a video player that appeared.
+  if (liveMotion) {
+    clipEl = document.createElement("video");
+    clipEl.className = "archive__clip";
+    clipEl.muted = true;              // a screensaver that speaks is another product
+    clipEl.playsInline = true;
+    clipEl.preload = "none";          // nothing is fetched until a burst is armed
+    clipEl.setAttribute("aria-hidden", "true");
+    // Deliberately absent: `loop` (§5.1 — a momentary cause rendered as a loop is
+    // a law-1 violation), `autoplay`, and any `src` at rest.
+  }
+
   const grade = document.createElement("div");
   grade.className = "archive__grade";
   const lip = document.createElement("div");
   lip.className = "archive__lip";
-  cardEl.append(...cardImgs, grade, lip);
+  cardEl.append(...cardImgs, ...(clipEl ? [clipEl] : []), grade, lip);
   cardWrap.append(cardEl);
   cardPlane.append(cardWrap);
 
@@ -440,13 +601,15 @@ function build(mount) {
  * timer, no body class, no hook — Mode 0 is exactly today's verified
  * screensaver, and that is the rollback path (§6.3.1).
  *
- * @param {{enabled?: boolean, mount?: HTMLElement}} options `mount` is the
- *   screensaver root, so the archive is a CHILD of `#screensaver` and the
- *   screensaver blank rule (which targets body children) never sees it.
+ * @param {{enabled?: boolean, liveMotion?: boolean, mount?: HTMLElement}} options
+ *   `mount` is the screensaver root, so the archive is a CHILD of `#screensaver`
+ *   and the screensaver blank rule (which targets body children) never sees it.
+ *   `liveMotion` adds the Live Photo burst; off builds no <video> at all.
  */
-export function initAmbientArchive({ enabled: on_ = false, mount = null } = {}) {
+export function initAmbientArchive({ enabled: on_ = false, liveMotion: motion_ = false, mount = null } = {}) {
   if (on_ !== true || !mount) return false;
   enabled = true;
+  liveMotion = motion_ === true;
   // Two markers, and the difference matters. `ambient-archive-on` says the flag
   // is on and never comes off — it carries the rules that must hold on BOTH
   // sides of a Mode-0 boundary (killing the clock's font-size transition, which
@@ -479,6 +642,11 @@ export function stopAmbientArchiveAll() {
   todayCtx = null;
   echoEls = [];
   cardImgs = [];
+  clipEl = null;          // stopAmbientArchive above already released its resource
+  liveMotion = false;
+  burstCount = 0;
+  lastBurstAt = null;
+  lastQuality = null;
   cardEl = null;
   ghostEl = null;
   plateEl = null;
@@ -513,6 +681,26 @@ export function archiveProbe() {
         }
       : null,
     ghost: ghostEl?.textContent || null,
-    photo: cardImgs[cardSlot]?.getAttribute("src") ?? null
+    photo: cardImgs[cardSlot]?.getAttribute("src") ?? null,
+    // The motion burst, for /kiosk-metrics. `bursts` + `lastQuality` together
+    // prove the feature is alive in two CDP reads without looking at a pixel —
+    // which is the only way to prove it, since CDP screencast is blind to
+    // hardware video (deploy/REMOTE-ACCESS.md). `night`/`reduced` say why it did
+    // NOT burst on the occasions when it did not.
+    motion: clipEl
+      ? {
+          enabled: liveMotion,
+          armed: Boolean(motionArmTimer || motionEndTimer || motionStopTimer),
+          shown: clipEl.classList.contains("is-shown"),
+          playing: Boolean(clipEl.currentSrc) && !clipEl.paused,
+          src: clipEl.getAttribute("src"),
+          readyState: clipEl.readyState,
+          bursts: burstCount,
+          lastBurstAt,
+          lastQuality,
+          night: isNightNow(),
+          reduced: reducedMotion()
+        }
+      : null
   };
 }

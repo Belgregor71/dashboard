@@ -225,6 +225,36 @@ body.fx-archive-active .archive__card-wrap {
 
 .archive__img.is-shown { opacity: 1; }
 
+/* The motion burst: a Live Photo's ~3s motion part, over the still it belongs
+   to, for a moment as the memory arrives. Same object-fit as .archive__img
+   above, deliberately — the clip is encoded at its SOURCE aspect, so the two
+   crop identically today and will follow the card together if its geometry
+   ever changes. Faster in than the still's 2.6s: the burst should feel like
+   part of the arrival, not a second event after it.
+
+   ⚠ NO `animation` here, ever. The still underneath is already running
+   arch-kenburns, and a transform on a decoding layer is precisely the defect
+   class that cost 3.0-4.3 points of a core in 17da62e. The CSS guardrail test
+   pins this. */
+.archive__clip {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+
+.archive__clip.is-shown { opacity: 1; }
+
+/* After sunset the card is a still. Belt-and-braces to armMotionBurst()'s own
+   night gate, which is the real mechanism — see the reduced-motion note below
+   for why a CSS-only gate would not be one. */
+.screensaver--night .archive__clip {
+  display: none;
+}
+
 /* Only the visible slot breathes its slow zoom — the hidden one would
    composite for nothing, and a fresh memory earns a fresh move. */
 body.fx-archive-active .archive__img.is-shown {
@@ -444,8 +474,15 @@ body.fx-archive-active .screensaver__memory {
   .archive__ghost,
   .archive__card,
   .archive__img,
+  .archive__clip,
   .archive__plate {
     transition: none;
+  }
+  /* Belt-and-braces only — armMotionBurst() already refuses to arm under
+     reduced motion, and it must, because display:none on a <video> hides it
+     while it carries on decoding. */
+  .archive__clip {
+    display: none;
   }
   body.fx-archive-active .archive__echo,
   body.fx-archive-active .archive__ghost,

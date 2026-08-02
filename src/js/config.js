@@ -580,6 +580,31 @@ window.CONFIG = {
     // Proven green by scripts/verify/flag-reversibility.mjs at flip time.
     ambientArchive: true,
 
+    // Live Photo motion in the Ambient Archive: when an arriving memory has a
+    // motion part, the card breathes for ~3.5s and then settles into the still.
+    // Most of this library is Apple Live Photos — measured 2026-08-02, 25-54% of
+    // on-this-day images across 2015-2025 carry one, so this is a few memories a
+    // day, not every one.
+    //
+    // Law 1: the cause is THE PHOTOGRAPH CHANGING, which §5.1's causes table
+    // names verbatim. The burst is bound to the exchange, plays once, and stops
+    // — there is no loop, and a momentary cause rendered as a loop would be a
+    // violation even though it is cheap. Off after sunset, off under
+    // prefers-reduced-motion, and never on a tender memory (§4.3 — wordless, and
+    // still).
+    //
+    // ⚠ TWO switches, and the other one is the server's. IMMICH_LIVE_MOTION in
+    // .env controls the NAS fetch, the nightly transcode and the disk; this
+    // controls the surface. With the env knob unset, `motion` never appears in
+    // the daily-set payload, so flipping this on alone can never cause a fetch.
+    // The transcode needs ffmpeg on the host — without it every memory stays a
+    // still, silently and safely.
+    //
+    // Default-off pending the panel: it must be judged next to the exchange it
+    // rides on. One-line revert builds no <video> at all — no element, no timer,
+    // no listener, no fetch.
+    ambientArchiveMotion: false,
+
     // Audit M11. The Pi's crontab already powers the panel down 21:00→05:00
     // (`xset dpms force off`), so a doorbell ring at 3am currently speaks its
     // alert and draws its popup to a dark screen. With this on, a live-worthy

@@ -256,7 +256,10 @@ export function startApp() {
     nightSkyEnabled: isEnabled("nightSky", false),
     // calm law v3 — Mode 0 becomes the archive: the memory as a lit card over
     // the temporal spine's day in 3D (docs/design/AMBIENT-ARCHIVE.md).
-    archiveEnabled: isEnabled("ambientArchive", false)
+    archiveEnabled: isEnabled("ambientArchive", false),
+    // Live Photo motion: the archive card breathes for a moment as a memory
+    // with a motion part arrives. Inert unless the archive itself is on.
+    archiveMotionEnabled: isEnabled("ambientArchiveMotion", false)
   });
   initFocusHero({
     attentionEnabled: isEnabled("attentionEngine", false),

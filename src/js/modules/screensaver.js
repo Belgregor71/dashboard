@@ -188,6 +188,11 @@ function build() {
 }
 
 const immichThumb = (id) => `/api/immich/asset/${encodeURIComponent(id)}/thumb`;
+// A Live Photo's motion part, already normalised to a small faststart H.264 clip
+// on the server. Built here rather than in ambientArchive.js for the same reason
+// as `src` and `mapUrl`: the archive is a RENDERER for what this module holds,
+// so it is handed URLs, never ids.
+const immichClip = (id) => `/api/immich/asset/${encodeURIComponent(id)}/clip`;
 
 // Phase 9.5: pull the ambient pool from Immich — today's on-this-day photos
 // (boosted so they're likely to show) plus a whole-library random draw. Returns
@@ -227,7 +232,11 @@ async function loadDailyMemories() {
       // places the lit year-mark there); a frozen set built before the field
       // existed simply has none, and the year-line stays a plain lit line.
       hour: Number.isFinite(p.hour) ? p.hour : null,
-      mapUrl: p.map ? `/api/immich/map?lat=${encodeURIComponent(p.lat)}&lng=${encodeURIComponent(p.lng)}` : null
+      mapUrl: p.map ? `/api/immich/map?lat=${encodeURIComponent(p.lat)}&lng=${encodeURIComponent(p.lng)}` : null,
+      // `motion` is the server's stat() of a finished clip, not anything Immich
+      // claimed — so this is only ever set when the file is genuinely there and
+      // playable, and the archive can never request a clip that 404s.
+      clipSrc: p.motion ? immichClip(p.id) : null
     }));
   } catch {
     return [];
@@ -790,7 +799,11 @@ export async function initScreensaver(options = {}) {
   // (`body.screensaver-active > *:not(#screensaver)…`, which selects body
   // children) never reaches it — the trap that shipped the spine invisible in
   // the one mode it exists for. Flag-off builds nothing at all.
-  archiveEnabled = initAmbientArchive({ enabled: options.archiveEnabled === true, mount: el });
+  archiveEnabled = initAmbientArchive({
+    enabled: options.archiveEnabled === true,
+    liveMotion: options.archiveMotionEnabled === true,
+    mount: el
+  });
   // Feature marker — the study-05 CSS engages only under this class, so flag-off
   // is byte-identical (no class, no --clock-dim, plain clock string).
   if (ambientClockEnabled) el.classList.add("screensaver--ambient-clock");
