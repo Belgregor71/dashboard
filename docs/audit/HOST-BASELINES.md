@@ -224,18 +224,37 @@ less than the hours elapsed since t0, the page reloaded and you are measuring a 
 process, not a soak. `heap-metrics.cjs` prints it on every sample — there is no excuse for
 recording a number without it.
 
-| Metric | 0 h | 24 h | 72 h | Judgement |
-|---|---|---|---|---|
-| gpu-process (% of one core) | **20.8 / 21.0** | | | §5.4 ceiling **25** sustained |
-| renderer | **10.1 / 10.2** | | | |
-| `anims` (running, settled) | **4** | | | echo + ghost + pivot + Ken Burns |
-| `usedJSHeapMB` | **10.8** | | | must be **flat**; >30 sustained is suspicious |
-| `domNodes` (attached) | **1937** | | | must be flat |
-| `cdpNodes` | **3971** | | | wobble ok; **monotonic climb = leak** |
-| `cdpJsEventListeners` | **70** | | | must be flat |
-| `lottieWrappers` / `lottieSvgs` | **0 / 0** | | | none in Mode 0 |
-| tempC | **44.9** | | | sustained < 70 |
-| `/proc/pressure/cpu` avg10 | **0.00** | | | never pin a core |
+**Running t0 = 2026-08-02 09:10 AEST** (the page load that survived), commit `8ee53b3`.
+24 h falls **2026-08-03 09:10**, 72 h falls **2026-08-05 09:10**.
+
+| Metric | 0 h | +3.3 h | 24 h | 72 h | Judgement |
+|---|---|---|---|---|---|
+| gpu-process (% of one core) | **20.8 / 21.0** | **21.7 / 21.1** | | | §5.4 ceiling **25** sustained |
+| renderer | **10.1 / 10.2** | **9.9 / 9.8** | | | |
+| `anims` (running, settled) | **4** | **4** | | | echo + ghost + pivot + Ken Burns |
+| `usedJSHeapMB` | **10.8** | **12.0** | | | must be **flat**; >30 sustained is suspicious |
+| `domNodes` (attached) | **1937** | **2195** | | | must be flat |
+| `cdpNodes` | **3971** | **4402** | | | wobble ok; **monotonic climb = leak** |
+| `cdpJsEventListeners` | **70** | **77** | | | must be flat |
+| `lottieWrappers` / `lottieSvgs` | **0 / 0** | **5 / 5** | | | wrappers ≫ svgs = the zombie bug is back |
+| tempC | **44.9** | **44.9** | | | sustained < 70 |
+| `/proc/pressure/cpu` avg10 | **0.00** | **0.00** | | | never pin a core |
+
+**+3.3 h read (uptime 199 min, `atmo-clear-day`, panel on, Mode 0):**
+
+- **The rendering cost is flat and in budget.** 21.7 / 21.1 against 20.8 / 21.0 is inside
+  window-to-window noise, `anims` still 4, temp identical. The `17da62e` fix holds, and
+  the ≤ 25 ceiling has ~4 points of margin.
+- **The software counters moved once and need a third point.** heap +1.2 MB, `domNodes`
+  +258, `cdpNodes` +431, listeners +7. Most of that is explained rather than alarming:
+  `lottieWrappers` went 0 → 5 **with `lottieSvgs` also 0 → 5**, i.e. the panel woke on
+  motion at some point in those three hours and built the awake surface for the first
+  time since the reload. Wrappers == svgs is the healthy shape; wrappers ≫ svgs is the
+  709-zombie disease.
+- ⚠ **One delta is not a trend.** If +431 `cdpNodes`/3.3 h were linear it would reach
+  ~13 k by 72 h — nowhere near the 230 k disease state, but not flat either. The 24 h
+  sample is what separates *"settled after the first wake"* from *"climbing"*: expect it
+  to be roughly level with +3.3 h if the former, and ~+3 k if the latter.
 
 `scriptPct` **0.4** · `layoutPct` 0.1 · `stylePct` 0.7 — compositor-bound, not
 script-bound, exactly as §5.4 predicts. Conditions: `atmo-clear-day`, daylight, panel on.
