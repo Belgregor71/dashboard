@@ -5,6 +5,7 @@ import { fetchWithTimeout } from "../utils/fetch.js";
 import { isConfigured, memoriesFeed, fetchRendition, fetchPeopleNames } from "./immichClient.js";
 import { selectDailyMemories, captionFor, isTravel, ambiguousGivenNames } from "../../src/js/services/photoMemory.js";
 import { getRelationships } from "./vaultIndex.js";
+import { warmClip } from "./liveMotion.js";
 
 // Daily Memories screensaver set — features.dailyMemories.
 // Picks a stable ~12-photo "on this day" set per day (today's month/day across
@@ -127,6 +128,11 @@ async function warmRendition(id) {
 async function warmSet(set) {
   for (const p of set.photos) {
     await warmRendition(p.id);           // sequential — gentle on the NAS
+    // The Live Photo motion part, normalised to a small faststart H.264 clip.
+    // Same pass, same reason: it happens while the NAS is awake, and (via the
+    // evening tick) while the panel is DPMS-off. No-ops unless IMMICH_LIVE_MOTION
+    // is on, and never throws.
+    if (p.motionId) await warmClip(p.id, p.motionId);
     if (p.map) await getMapTile(p.lat, p.lng);
   }
 }
@@ -162,7 +168,10 @@ async function buildDailySet(now, { warm = false } = {}) {
     caption: captionFor(p, { hideNames, ambiguous, relationships }),
     map: isTravel(p) && p.lat != null && p.lng != null && hasMapKey(),
     lat: p.lat,
-    lng: p.lng
+    lng: p.lng,
+    // Internal: the transcoder reads it off the frozen set overnight. The route
+    // strips it and publishes `motion: <boolean>` instead.
+    motionId: p.motionId ?? null
   }));
   const set = { date, photos };
 

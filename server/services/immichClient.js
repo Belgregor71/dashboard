@@ -112,14 +112,35 @@ function excludeScreenshots() {
   return String(process.env.IMMICH_EXCLUDE_SCREENSHOTS || "").trim() === "1";
 }
 
-// A displayable still: a real image, not trashed/archived, with an id.
+/**
+ * Live Photo motion parts — features.ambientArchiveMotion's server half.
+ *
+ * Read INSIDE the function for the same reason as excludeScreenshots above.
+ * Off → slim() is key-for-key identical to the pre-motion build, nothing is
+ * transcoded, and no clip ever reaches the disk, so the client flag alone can
+ * never cause NAS load. Exported for the contract test.
+ */
+export function liveMotionEnabled() {
+  return String(process.env.IMMICH_LIVE_MOTION || "").trim() === "1";
+}
+
+/**
+ * A displayable still: a real image, not trashed/archived, with an id.
+ *
+ * ⚠ `type === "IMAGE"` is load-bearing and must stay. A Live Photo IS an IMAGE
+ * (its motion half is a SEPARATE asset, referenced by livePhotoVideoId and
+ * carried by slim below), so motion costs this filter nothing. What the filter
+ * keeps out is standalone VIDEO assets, which are a different feature with a
+ * different design argument entirely — see §7 of the ambient-motion plan. Relax
+ * this and full-length videos start appearing in every rotation by accident.
+ */
 function usableImage(a) {
   if (!(a && a.id && a.type === "IMAGE" && !a.isTrashed && !a.isArchived)) return false;
   if (excludeScreenshots() && isScreenshot(a)) return false;
   return true;
 }
 
-function slim(a) {
+export function slim(a) {
   // Location rides along from exifInfo when present (the Daily Memories caption +
   // travel-map need it); absent/GPS-less photos just come back null → year-only
   // caption, no map. Kept null-safe so the random/browse callers are unaffected.
@@ -137,7 +158,16 @@ function slim(a) {
     // until someone tags it, so unnamed clusters are dropped here — they can't
     // caption anything. Only the daily-memories windows ask for withPeople, so
     // this is [] for the random/browse callers.
-    people: (a.people || []).map((p) => String(p?.name || "").trim()).filter(Boolean)
+    people: (a.people || []).map((p) => String(p?.name || "").trim()).filter(Boolean),
+    // The id of this photo's motion half, when it has one and the knob is on.
+    // Spread conditionally so the knob-off object keeps exactly the eight keys
+    // it has always had (asserted in the contract test).
+    //
+    // ⚠ This id is INTERNAL. It reaches the frozen daily set on disk, because
+    // that is what the overnight transcoder reads — but /api/immich/daily-set
+    // strips it and publishes a `motion` BOOLEAN instead, meaning "a playable
+    // clip is on local disk right now". See routes/immich.js.
+    ...(liveMotionEnabled() ? { motionId: a.livePhotoVideoId || null } : {})
   };
 }
 
@@ -318,6 +348,37 @@ export async function fetchRendition(id, size = "preview") {
     if (!res.ok) return null;
     const buffer = Buffer.from(await res.arrayBuffer());
     return { status: res.status, contentType: res.headers.get("content-type") || "image/jpeg", buffer };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The untouched bytes of an asset — used ONLY by the overnight Live Photo
+ * transcoder (services/liveMotion.js), never by anything on the render path.
+ *
+ * `/original`, deliberately, not `/video/playback`: measured on the live library
+ * 2026-08-02, Immich serves them byte-identically (its transcode policy leaves
+ * these alone), so `/original` avoids a pointless double-encode and any
+ * dependence on that policy staying put.
+ *
+ * ⚠ Its own timeout, NOT the module's 6s TIMEOUT_MS. fetchWithTimeout's
+ * AbortController aborts the BODY read too, and a motion part is 3.5-4.5 MB off
+ * a Synology that may be spinning up — 6s kills it halfway through.
+ */
+const ORIGINAL_TIMEOUT_MS = 25_000;
+
+export async function fetchOriginal(id) {
+  const cfg = config();
+  if (!cfg || !id) return null;
+  try {
+    const res = await fetchWithTimeout(
+      `${cfg.base}/api/assets/${encodeURIComponent(id)}/original`,
+      { headers: headers(cfg.key, false) },
+      ORIGINAL_TIMEOUT_MS
+    );
+    if (!res.ok) return null;
+    return { status: res.status, contentType: res.headers.get("content-type") || "", buffer: Buffer.from(await res.arrayBuffer()) };
   } catch {
     return null;
   }

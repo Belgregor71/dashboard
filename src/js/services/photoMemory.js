@@ -123,7 +123,11 @@ export function selectDailyMemories(assets, now = new Date(), { target = MAX_PHO
         country: a.country ?? null,
         lat: a.lat ?? null,
         lng: a.lng ?? null,
-        people: a.people ?? []
+        people: a.people ?? [],
+        // A Live Photo's motion half, when the server knob is on. Internal —
+        // it rides to the frozen set for the overnight transcoder and is
+        // stripped before the browser ever sees it (routes/immich.js).
+        motionId: a.motionId ?? null
       });
     }
   }

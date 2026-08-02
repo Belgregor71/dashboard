@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { isConfigured, searchRandom, onThisDay, searchTaken, fetchRendition } from "../services/immichClient.js";
 import { getDailySet, getMapTile, hasMapKey, initDailyMemories } from "../services/dailyMemories.js";
+import { clipPathFor, hasClip } from "../services/liveMotion.js";
 
 // Dashboard-facing Immich proxy — Phase 9.5 (docs/vision/photo-source-immich.md).
 // The browser only ever talks to these three endpoints; the API key stays in the
@@ -36,6 +37,11 @@ function memSet(key, value) {
 }
 
 // ── bounded disk cache for downscaled renditions ───────────────
+// Counts FILES, sized for ~47 KB jpegs. The `daily/` and `clips/` subdirectories
+// each count as one entry and their unlink fails harmlessly — leave that alone.
+// Clips are bounded separately, by bytes, in services/liveMotion.js: mixing
+// ~300 KB mp4s into a count-based ceiling would make it mean anything between
+// 25 MB and 150 MB, and would let a cold clip evict a warm still.
 async function pruneCache() {
   try {
     const files = await readdir(CACHE_DIR);
@@ -95,8 +101,25 @@ router.get("/api/immich/daily-set", async (_req, res) => {
   // the flag on) actually asks for the set — flag-off means this is never hit and
   // no extra NAS load ever happens. Idempotent, so repeated calls are free.
   initDailyMemories();
-  res.json(await getDailySet(new Date()));
+  const set = await getDailySet(new Date());
+  res.json({ ...set, photos: await Promise.all((set.photos || []).map(publicPhoto)) });
 });
+
+/**
+ * The browser's view of a frozen photo.
+ *
+ * `motionId` is INTERNAL — it exists on disk so the overnight transcoder knows
+ * what to fetch, and it is dropped here. What ships instead is `motion`, a
+ * boolean meaning "a playable clip is on local disk RIGHT NOW", read by stat
+ * rather than by trusting Immich. That distinction is the whole point: every
+ * way this can fail — NAS asleep, HEVC source, ffmpeg missing, encode failed,
+ * clip pruned — collapses into `false`, so the client cannot request a clip
+ * that isn't there and a 404 burst is structurally impossible.
+ */
+async function publicPhoto(p) {
+  const { motionId, ...rest } = p || {};
+  return { ...rest, motion: await hasClip(rest.id) };
+}
 
 // A proxied + disk-cached static map tile for a travel photo's coordinates. The
 // map API key stays server-side; the browser only ever hits this endpoint.
@@ -140,6 +163,34 @@ router.get("/api/immich/asset/:id/thumb", async (req, res) => {
   res.set("Content-Type", rendition.contentType);
   res.set("Cache-Control", "public, max-age=86400");
   res.send(rendition.buffer);
+});
+
+/**
+ * A Live Photo's motion part, already normalised to faststart H.264 on local
+ * disk by the overnight transcoder (services/liveMotion.js). `:id` is the STILL
+ * asset's id, mirroring /thumb.
+ *
+ * ⚠ This route NEVER reaches Immich. That is why its status set is {400,404,200}
+ * with no 502, where /thumb above has one: /thumb may fetch on a miss, this may
+ * not. Keeping the NAS off the render path is the entire design — a lazy fetch
+ * here would wake a sleeping Synology audibly, mid-rotation, to serve a 3s clip.
+ * Missing file is simply 404, and the client renders the still it already has.
+ *
+ * sendFile, not a hand-rolled stream: Accept-Ranges, 206, Content-Range and 416
+ * all come free, and hand-rolled range handling is where the bug would live.
+ */
+router.get("/api/immich/asset/:id/clip", async (req, res) => {
+  const { id } = req.params;
+  if (!UUID_RE.test(id)) return res.status(400).json({ error: "bad asset id" });
+  if (!(await hasClip(id))) return res.status(404).json({ error: "no clip" });
+
+  res.sendFile(clipPathFor(id), {
+    headers: { "Content-Type": "video/mp4", "Cache-Control": "public, max-age=86400" }
+  }, (err) => {
+    // Raced a prune, or the file vanished between stat and send. Only answer if
+    // nothing has gone out yet — otherwise the response is already committed.
+    if (err && !res.headersSent) res.status(404).json({ error: "no clip" });
+  });
 });
 
 export default router;
