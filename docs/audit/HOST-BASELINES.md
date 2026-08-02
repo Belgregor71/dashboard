@@ -355,6 +355,29 @@ re-open this without a much larger video feature to justify it.**
 VA-API *enumeration*, not the decoder actually used. It read `true` while the renderer
 still paid the full +41.8. **Only a CPU measurement settles this.**
 
+**And the obvious follow-on — VA-API *encode* for the Live Photo transcoder — was
+benchmarked and rejected.** `ffmpeg` here does have `h264_vaapi`, and
+`server/services/liveMotion.js:155` encodes with `libx264` in software. Measured against a
+lossless reference of the same filter chain:
+
+| encode | bytes | SSIM | user CPU |
+|---|---|---|---|
+| `libx264 -crf 26` (current) | 191,563 | **0.9767** | 3.89 s |
+| `h264_vaapi -qp 32` | 227,703 | 0.9746 | 2.61 s |
+| `h264_vaapi -qp 34` | 180,074 | 0.9725 | 2.61 s |
+
+The fixed-function encoder is **strictly worse on rate-distortion** than x264 `veryfast`:
+quality-matched it wants ~qp30 and **+50% bytes**. It buys 1.3 s of one core per clip —
+**~5 s per night at `nice -n 19`, off the render path, panel DPMS-off** — and spends it in
+bytes that this panel then decodes **in software**, out of a byte-bounded 48 MB cache.
+Wrong trade. `liveMotion.js` is unchanged.
+
+⚠ **Full-hardware transcode is BROKEN here and must never ship.** With
+`-hwaccel vaapi -hwaccel_output_format vaapi` + `scale_vaapi`, autorotation silently does
+not happen **and the display matrix leaks into the output**: a rotated portrait source
+came out **1848×1040 landscape with `rotation=90` still attached**, which the browser would
+then rotate again. This is precisely what the `liveMotion.js:143-147` comment protects.
+
 **One real defect found, separate from decode.** The kiosk starts ~5 s after lightdm
 (`After=network-online.target` only), and when it wins that race **libva never loads into
 the GPU process for the life of the browser** — `powerEfficient` then reads `false` and
