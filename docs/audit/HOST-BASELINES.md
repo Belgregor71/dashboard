@@ -316,6 +316,41 @@ comparable compositing number, so the rendering half is sampled separately in da
 against the pilot's 20.8 / 21.0 — see the split table above. This is the documented
 protocol, not a gap.
 
+### The liveness half — added 2026-08-03, because the soak watched the wrong thing
+
+Every row above answers *is the page healthy*. None of them answers *is the page working*,
+and the difference cost a day: on 2026-08-03 Live Photo motion was dead for sixteen hours —
+the day's clips were published a few seconds after the pool had stopped asking for them —
+while heap, DOM, listeners and lotties all stayed perfectly flat. A human eye caught it.
+The soak did not, because the soak was not looking.
+
+`heap-metrics.cjs` now also reads the surface's own probe (`window.__archive()`) and
+cross-checks it against what the server says is playable (`/api/immich/daily-set`). That
+pairing is the point: the failure was precisely a disagreement between the two — ten clips
+on disk, none of them reachable by the page.
+
+| Field | Meaning |
+|---|---|
+| `live.assessable` / `live.why` | whether a verdict was possible at all, and why not |
+| `live.faults[]` | named faults; **empty is only meaningful when `assessable` is true** |
+| `live.bursts` | monotonic — **the diff across samples is the assertion** |
+| `live.photo` | current memory; differing between samples proves the rotation still turns |
+| `live.clips` | `{ total, withClip, pending }` straight from the server |
+
+⚠ **Expect `assessable: false` on both soak samples.** They are taken at 20:38, after
+sunset, where the night gate refuses bursts by design — "no motion" is then *correct*, and
+a check that returned OK there would be worse than no check. Take the motion reading in
+daylight, exactly as the GPU half already has to be. `--gate` makes a fault exit non-zero;
+not-assessable never does, deliberately.
+
+⚠ **`bursts` is the field to diff, not to read.** A single sample can land in a legitimately
+quiet moment. A 24 h row whose `bursts` equals t0's says nothing played all day.
+
+The verdict function is unit-tested against synthetic states in `tests/soak-liveness.spec.js`
+— including the 2026-08-03 case itself. That is not ceremony: it is only ever assessable in
+daylight Mode 0, so waiting for the real conditions to discover whether it fires is exactly
+how `kiosk-drive.cjs cycle` stayed a silent no-op for weeks while printing success.
+
 ⚠ **This t0 is not directly comparable to the pilot's 0 h column, and that is deliberate.**
 The pilot reloaded onto a *cold* surface and read `lottieWrappers 0 / 0`; three hours later
 the panel had woken once and it read 5 / 5, +258 `domNodes` and +431 `cdpNodes` — growth
