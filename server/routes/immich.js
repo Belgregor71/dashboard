@@ -4,7 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { isConfigured, searchRandom, onThisDay, searchTaken, fetchRendition } from "../services/immichClient.js";
 import { getDailySet, getMapTile, hasMapKey, initDailyMemories } from "../services/dailyMemories.js";
-import { clipPathFor, hasClip } from "../services/liveMotion.js";
+import { clipPathFor, hasClip, hasSkip } from "../services/liveMotion.js";
 
 // Dashboard-facing Immich proxy — Phase 9.5 (docs/vision/photo-source-immich.md).
 // The browser only ever talks to these three endpoints; the API key stays in the
@@ -115,10 +115,29 @@ router.get("/api/immich/daily-set", async (_req, res) => {
  * way this can fail — NAS asleep, HEVC source, ffmpeg missing, encode failed,
  * clip pruned — collapses into `false`, so the client cannot request a clip
  * that isn't there and a 404 burst is structurally impossible.
+ *
+ * `motionPending` is the other half of that boolean, and it exists because
+ * collapsing every failure into `false` also collapses the one case that is not
+ * a failure: the clip is coming. The first request of a new day BUILDS that
+ * day's set, and the transcode is fired without being awaited — so the very
+ * response that seeds the client's pool is the one moment `motion` is
+ * guaranteed false for every clip of that day. Measured on the box on
+ * 2026-08-03: set frozen 00:00:59, clips on disk 00:01:00–00:01:13, and the
+ * kiosk — whose pool is deliberately day-stable — carried `motion: false` for
+ * the next sixteen hours and never played a single Live Photo.
+ *
+ * So: true means "asking again later could change the answer". A photo with no
+ * motion part upstream is not pending, and neither is one already tombstoned
+ * .none — both are settled, and the client can stop asking.
  */
 async function publicPhoto(p) {
   const { motionId, ...rest } = p || {};
-  return { ...rest, motion: await hasClip(rest.id) };
+  const motion = await hasClip(rest.id);
+  return {
+    ...rest,
+    motion,
+    motionPending: Boolean(motionId) && !motion && !(await hasSkip(rest.id))
+  };
 }
 
 // A proxied + disk-cached static map tile for a travel photo's coordinates. The

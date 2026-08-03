@@ -43,6 +43,56 @@ test("loadPhotos() claims the day before its first await", () => {
     .toBeLessThan(firstAwait);
 });
 
+// ── The clip reconcile (2026-08-03) ───────────────────────────
+// The pool is loaded once a day BY DESIGN, and that is exactly what broke Live
+// Photo motion: the first request of a new day is the request that builds the
+// day's set, and the server fires the transcode without awaiting it, so the
+// seeding response reports `motion: false` for every clip of that day. The kiosk
+// held stills for sixteen hours with the feature enabled and awake. reconcileClips
+// re-reads that one field — and MUST NOT touch anything else, or it reintroduces
+// the mid-day reshuffle the day-stable pool exists to prevent.
+
+function reconcileClipsBody() {
+  const start = src.indexOf("async function reconcileClips()");
+  expect(start, "reconcileClips() was renamed or removed").toBeGreaterThan(-1);
+  const end = src.indexOf("\n}", start);
+  return src.slice(start, end)
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/[^\n]*/g, "");
+}
+
+test("reconcileClips patches frames in place and never replaces the pool", () => {
+  const body = reconcileClipsBody();
+  // THE invariant. `photos = ...` anywhere in here means the day's set can change
+  // under a glance — different photos, different order — which is the one thing
+  // the day-stable pool guarantees against.
+  expect(body, "reconcileClips must never reassign the pool").not.toMatch(/\bphotos\s*=[^=]/);
+  // It patches the two fields that describe the clip, matched by id, and nothing
+  // else: not src, not caption, not hour, not mapUrl.
+  expect(body).toContain("frame.clipSrc =");
+  expect(body).toContain("frame.motionPending =");
+  for (const field of ["frame.src", "frame.caption", "frame.hour", "frame.mapUrl"]) {
+    expect(body, `reconcileClips must not rewrite ${field}`).not.toContain(`${field} =`);
+  }
+});
+
+test("reconcileClips stops asking once nothing is pending", () => {
+  const body = reconcileClipsBody();
+  const guard = body.indexOf("motionPending)) return");
+  const fetchAt = body.indexOf("fetch(");
+  expect(guard, "the pending guard is gone — this now polls all day, every day").toBeGreaterThan(-1);
+  // Before the fetch, not after: a warm day must cost ZERO requests, which is
+  // what makes a 5-minute cadence affordable at all.
+  expect(guard, "the pending guard must short-circuit before the fetch").toBeLessThan(fetchAt);
+});
+
+test("the reconcile is armed only when the day has NOT rolled over", () => {
+  // `else if`, not a second `if`. On the rollover tick loadPhotos() is already
+  // fetching the new set; a reconcile racing it would patch clips from one day
+  // onto the frames of another.
+  expect(src).toMatch(/toDateString\(\) !== loadedDay\) loadPhotos\(\);\s*(?:\/\/[^\n]*\n\s*)*else if \(Date\.now\(\) - lastClipSync >= CLIP_SYNC_MS\)/);
+});
+
 test("the two repeating loadPhotos callers can never both be armed", () => {
   // syncNight's day-rollover rebuild: Daily Memories only.
   expect(src).toContain("if (dailyMemoriesEnabled && new Date().toDateString() !== loadedDay) loadPhotos();");

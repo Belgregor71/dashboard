@@ -79,9 +79,32 @@ export async function hasClip(stillId) {
   }
 }
 
+/**
+ * Has this still been marked permanently unencodable?
+ *
+ * The mirror of hasClip, and only meaningful together with it: `!hasClip &&
+ * !hasSkip` is "a clip is still coming", `!hasClip && hasSkip` is "a clip is
+ * never coming". The daily-set route needs that distinction to tell the client
+ * whether asking again could change the answer (`motionPending`) — without it,
+ * a photo with no motion part and a photo whose transcode has not finished are
+ * the same `false` and the client cannot know which it is looking at.
+ */
+export async function hasSkip(stillId) {
+  if (!stillId) return false;
+  try {
+    return (await stat(skipFile(stillId))).isFile();
+  } catch {
+    return false;
+  }
+}
+
 // ── ffmpeg availability (resolved once, logged once) ───────────
 let ffmpegProbe = null;   // Promise<boolean>, memoised
 let warnedMissing = false;
+
+// Monotonic within the process, so two encodes starting in the same millisecond
+// still get different temp paths. See the note on `inFlight`.
+let seq = 0;
 
 function run(cmd, args, opts = {}) {
   return new Promise((resolve, reject) => {
@@ -182,36 +205,56 @@ function ffmpegArgs(src, out) {
 // the .none check before either writes it, both fetch the same 4 MB from the
 // NAS, and both use the same temp paths: the first to finish deletes the
 // second's source mid-encode ("Error opening input: No such file or directory").
+//
+// ⚠ The claim is only as strong as WHERE it is staked. This set used to be
+// joined three awaits after it was read — hasClip, the .none stat and the
+// ffmpeg probe all ran between the check and the add — so two passes entering
+// together both saw an empty set and both proceeded, which is the exact
+// interleaving the guard exists to refuse. It happened on the live box on
+// 2026-08-03: `Date.now()` was identical for both, so `stamp` was identical
+// too, the temp paths collided, and each deleted the other's output mid-encode
+// ("Unable to re-open ... output file for shifting data"). Two assets that day
+// were left holding BOTH a finished .mp4 and a .none — the winner's file and
+// the loser's tombstone. Claim the id synchronously, on the same tick as the
+// read, or this is not a guard at all.
 const inFlight = new Set();
 
 export async function warmClip(stillId, motionId) {
   if (!liveMotionEnabled() || !stillId || !motionId) return;
   if (inFlight.has(stillId)) return;
-  if (await hasClip(stillId)) return;
-
-  // Negative cache: an asset that cannot be encoded (corrupt, unreadable) must
-  // not be retried every night forever.
-  //
-  // ⚠ These markers are only as good as the code that wrote them: a bug in the
-  // ffmpeg invocation marks every asset as unencodable, and they will not be
-  // retried after the fix. Clear `data/immich-cache/clips/*.none` whenever the
-  // encode arguments change.
-  try { await stat(skipFile(stillId)); return; } catch { /* no marker → proceed */ }
-
-  // ⚠ Checked BEFORE any .none is written, and deliberately never marked: a
-  // missing ffmpeg is a property of the box, not of the asset. Marking here
-  // would mean installing ffmpeg later silently did nothing until someone
-  // wiped the cache by hand.
-  if (!(await haveFfmpeg())) return;
-
-  // Unique per invocation as well as guarded above — belt and braces, because
-  // two processes (a restart mid-pass) would not share the in-flight set.
-  const stamp = `${process.pid}-${Date.now().toString(36)}`;
-  const src = path.join(CLIP_DIR, `${stillId}.${stamp}.src.tmp`);
-  const out = path.join(CLIP_DIR, `${stillId}.${stamp}.out.tmp`);
-  let markSkip = false;
   inFlight.add(stillId);
+  // Nothing may await between the check above and the add: see the note there.
+  // From here every exit runs the finally, which is what releases the id.
+  let src = null;
+  let out = null;
+  let markSkip = false;
   try {
+    if (await hasClip(stillId)) return;
+
+    // Negative cache: an asset that cannot be encoded (corrupt, unreadable) must
+    // not be retried every night forever.
+    //
+    // ⚠ These markers are only as good as the code that wrote them: a bug in the
+    // ffmpeg invocation marks every asset as unencodable, and they will not be
+    // retried after the fix. Clear `data/immich-cache/clips/*.none` whenever the
+    // encode arguments change.
+    if (await hasSkip(stillId)) return;
+
+    // ⚠ Checked BEFORE any .none is written, and deliberately never marked: a
+    // missing ffmpeg is a property of the box, not of the asset. Marking here
+    // would mean installing ffmpeg later silently did nothing until someone
+    // wiped the cache by hand.
+    if (!(await haveFfmpeg())) return;
+
+    // Unique per invocation as well as guarded above — belt and braces, because
+    // two processes (a restart mid-pass) would not share the in-flight set. The
+    // counter is what makes it unique: `Date.now()` alone collides outright when
+    // two calls start in the same millisecond, which is how the temp paths
+    // collided above.
+    const stamp = `${process.pid}-${Date.now().toString(36)}-${(seq += 1).toString(36)}`;
+    src = path.join(CLIP_DIR, `${stillId}.${stamp}.src.tmp`);
+    out = path.join(CLIP_DIR, `${stillId}.${stamp}.out.tmp`);
+
     await mkdir(CLIP_DIR, { recursive: true });
 
     const original = await fetchOriginal(motionId);
@@ -229,6 +272,11 @@ export async function warmClip(stillId, motionId) {
     // Atomic: a half-written file that merely LOOKS complete is worse than none,
     // because hasClip() would publish motion:true for something unplayable.
     await rename(out, clipFile(stillId));
+    // A success retracts any tombstone left by an earlier failure. Without this
+    // the pair can outlive the clip: prune evicts the .mp4 by age, the .none
+    // stays (it is 0 bytes, so it never reaches the byte budget), and the asset
+    // is a still forever despite having encoded cleanly once.
+    await unlink(skipFile(stillId)).catch(() => {});
     void pruneClips();
   } catch (err) {
     // The asset itself is the problem (ffmpeg exists and refused it) → mark it.
@@ -237,8 +285,8 @@ export async function warmClip(stillId, motionId) {
   } finally {
     // Every terminal path — success, encode error, timeout. The 24/7 memory rule,
     // applied to disk: these are 3.5-4.5 MB each.
-    await unlink(src).catch(() => {});
-    await unlink(out).catch(() => {});
+    if (src) await unlink(src).catch(() => {});
+    if (out) await unlink(out).catch(() => {});
     if (markSkip) await writeFile(skipFile(stillId), "").catch(() => {});
     inFlight.delete(stillId);
   }

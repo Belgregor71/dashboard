@@ -91,6 +91,12 @@ const ANNIVERSARY_RE = /\b(birthday|bday|anniversary)\b/i; // "on this day" earn
 // Off → this block is inert and photos come from the immichPhotos blend / static.
 let dailyMemoriesEnabled = false;
 let loadedDay = null; // the toDateString() the current pool was built for (day-stable reload)
+// How often the pool re-reads which memories have a playable clip, while any is
+// still being transcoded. Long enough to be free (one ~2 KB localhost JSON), far
+// shorter than the server's hourly warm tick, and it stops on its own the moment
+// nothing is pending — see reconcileClips.
+const CLIP_SYNC_MS = 5 * 60 * 1000;
+let lastClipSync = 0;
 
 // ─── Ambient clock (study 05, flag-gated) ─────────────────────
 // When on, the Mode 0 clock gets the study-05 treatment: tabular figures + a
@@ -226,6 +232,10 @@ async function loadDailyMemories() {
     const items = (await res.json()).photos ?? [];
     if (!Array.isArray(items) || items.length === 0) return [];
     return items.map((p) => ({
+      // Carried so `reconcileClips` can match a later reading of the set to the
+      // frames already in the pool. The archive never reads it — it is handed
+      // URLs, never ids (see immichThumb/immichClip above).
+      id: p.id,
       src: immichThumb(p.id),
       caption: p.caption || null,
       // The wall-clock hour it was taken. Only the Ambient Archive reads it (it
@@ -236,11 +246,60 @@ async function loadDailyMemories() {
       // `motion` is the server's stat() of a finished clip, not anything Immich
       // claimed — so this is only ever set when the file is genuinely there and
       // playable, and the archive can never request a clip that 404s.
-      clipSrc: p.motion ? immichClip(p.id) : null
+      clipSrc: p.motion ? immichClip(p.id) : null,
+      // "the answer could still change" — read by reconcileClips, below.
+      motionPending: p.motionPending === true
     }));
   } catch {
     return [];
   }
+}
+
+/**
+ * The photo set is frozen for the day. Its CLIPS are not.
+ *
+ * The pool is loaded once per calendar day, on purpose — that day-stability is
+ * what stops the wall reshuffling under anyone who glances at it. But the very
+ * first request of a new day is what BUILDS that day's set, and the server
+ * fires the transcode without awaiting it, so that one response is guaranteed
+ * to report `motion: false` for every clip of the day. A pool that never asks
+ * again therefore never bursts. Observed on the box on 2026-08-03: the set was
+ * frozen at 00:00:59, the ten clips landed 00:01:00–00:01:13, and the kiosk
+ * showed stills for the following sixteen hours with the feature healthy,
+ * enabled and wide awake the whole time.
+ *
+ * So re-read the set while anything is pending and patch `clipSrc` onto the
+ * frames already held, matched by id. The SET does not move — same photos, same
+ * order, same captions, nothing re-decodes — only its view of what is playable
+ * follows the disk. It repairs the reverse case too: a clip evicted by the byte
+ * budget mid-day drops back to a still instead of failing to play.
+ *
+ * Self-terminating by construction. On an already-warm day nothing is pending
+ * and this never runs at all; on a cold-start day it resolves on the first pass
+ * and stops. Only an unfinished transcode keeps it alive, and only the server's
+ * hourly warm can finish one.
+ */
+async function reconcileClips() {
+  if (!dailyMemoriesEnabled) return;
+  if (!photos.some((p) => p && typeof p === "object" && p.motionPending)) return;
+  try {
+    const res = await fetch("/api/immich/daily-set");
+    if (!res.ok) return;
+    const body = await res.json();
+    const items = Array.isArray(body?.photos) ? body.photos : [];
+    if (items.length === 0) return;
+    // Bail if the day rolled over mid-flight: this set is not the pool's set,
+    // and loadPhotos is already on its way with the right one.
+    if (body.date && loadedDay && new Date(body.date + "T00:00:00").toDateString() !== loadedDay) return;
+    const byId = new Map(items.map((p) => [p.id, p]));
+    for (const frame of photos) {
+      if (!frame || typeof frame !== "object" || !frame.id) continue;
+      const now = byId.get(frame.id);
+      if (!now) continue;
+      frame.clipSrc = now.motion ? immichClip(frame.id) : null;
+      frame.motionPending = now.motionPending === true;
+    }
+  } catch { /* non-fatal — the memories are stills until the next pass */ }
 }
 
 async function loadStaticPhotos() {
@@ -652,6 +711,12 @@ function syncNight() {
   // Daily Memories: rebuild the frozen set once the calendar day rolls over
   // (stable within a day, never the 6-hour reshuffle). Fire-and-forget.
   if (dailyMemoriesEnabled && new Date().toDateString() !== loadedDay) loadPhotos();
+  // ...and while that day's clips are still being transcoded, let the pool's
+  // view of them catch up. Not a reload — the set never moves. Fire-and-forget.
+  else if (Date.now() - lastClipSync >= CLIP_SYNC_MS) {
+    lastClipSync = Date.now();
+    void reconcileClips();
+  }
   // Publish the day/night boundary to the shared store so consumers (Phase 6
   // House Model) read one authoritative value instead of recomputing suncalc.
   // syncNight runs at init + every minute + on the boundary, so the slice stays

@@ -756,6 +756,20 @@ test.describe("immich photo source (Phase 9.5)", () => {
     }
   });
 
+  // The other half of that boolean. `motion: false` alone cannot tell the client
+  // whether a clip is coming or was never going to exist — and the one response
+  // that seeds the client's day-stable pool is the response that BUILDS the day's
+  // set, which is guaranteed to precede its own transcode. `motionPending` is
+  // what makes asking again worthwhile, so the two must never both be true:
+  // a clip that is on disk is not pending.
+  test("GET /api/immich/daily-set marks an unfinished clip pending, never a finished one", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/immich/daily-set");
+    for (const p of body.photos) {
+      expect(typeof p.motionPending).toBe("boolean");
+      if (p.motion === true) expect(p.motionPending).toBe(false);
+    }
+  });
+
   test("GET /api/immich/map without lat/lng is a JSON 400", async ({ request }) => {
     // Coordinates are validated before the key check, so the contract holds on any
     // machine (with or without MAP_API_KEY).
