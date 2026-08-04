@@ -624,6 +624,34 @@ window.CONFIG = {
     // scripts/verify/flag-reversibility.mjs at flip time.
     ambientArchiveMotion: true,
 
+    // THE BURST HOLDS FOR THE WHOLE DWELL. Raised on the panel 2026-08-04: the
+    // burst plays once and the card then sits still for the remaining ~26s of
+    // the 30s dwell, and the settle back to the still "looks a bit awkward".
+    // With this on the clip carries `loop` and runs until the NEXT memory
+    // arrives — the exchange's own teardown is what stops it, exactly as it
+    // already stops a burst interrupted mid-play.
+    //
+    // ⚠ THIS IS A KNOWN §5.1 EXCEPTION, not an oversight. The burst's cause —
+    // the photograph changing — is instantaneous, and §5.1's second corollary
+    // says a momentary cause rendered as a loop is a law-1 violation "even
+    // though it is cheap". It is flagged OFF for exactly that reason: the loop
+    // is a judgement to make on the panel in daylight, not a default. If it
+    // ships on, DESIGN_SYSTEM.md §5.1 owes an amendment naming it — a shipped
+    // surface that contradicts a written law silently repeals the law.
+    //
+    // ⚠ AND IT IS NOT CHEAP HERE. The burst's measured cost (see
+    // ambientArchiveMotion above: ~+2 renderer points) is an average over a 30s
+    // dwell in which the clip decodes for only ~3.6s — a ~12% duty cycle, in
+    // SOFTWARE, because VA-API decode is a closed dead end on this box. Looping
+    // takes that duty cycle to ~90%. Do not reason about the result: measure
+    // sustained gpu-process AND renderer against the 21.0 baseline before
+    // flipping, and record the row in docs/audit/HOST-BASELINES.md.
+    //
+    // One-line revert (-> false): no `loop` attribute is set and the hold
+    // returns to MOTION_HOLD_MS — i.e. today's verified single burst, which is
+    // the shipped surface.
+    archiveMotionLoop: false,
+
     // THE CARD FOLLOWS THE PRINT. The archive card is a fixed 1040×585 = 1.78:1
     // rectangle with the photograph `object-fit: cover` inside it, so a
     // phone-shot library is shown through a letterbox it was never composed

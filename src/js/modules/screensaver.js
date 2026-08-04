@@ -867,6 +867,7 @@ export async function initScreensaver(options = {}) {
   archiveEnabled = initAmbientArchive({
     enabled: options.archiveEnabled === true,
     liveMotion: options.archiveMotionEnabled === true,
+    motionLoop: options.archiveMotionLoopEnabled === true,
     fitToPrint: options.archiveFitEnabled === true,
     mount: el
   });

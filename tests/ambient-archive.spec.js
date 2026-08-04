@@ -672,7 +672,10 @@ test("cycling memories and days never grows the DOM", async ({ page }) => {
  * though it is cheap" — is what these tests actually defend.
  */
 test.describe("the motion burst", () => {
-  const MOTION_ON = { ...ARCHIVE_ON, ambientArchiveMotion: true };
+  // `archiveMotionLoop` pinned OFF explicitly, for the reason ARCHIVE_ON gives:
+  // every test below asserts the burst is an event with an end, and every one of
+  // them would invert if it silently inherited a future flip of that default.
+  const MOTION_ON = { ...ARCHIVE_ON, ambientArchiveMotion: true, archiveMotionLoop: false };
 
   // A real, decodable H.264 file that the test server already serves. Using a
   // fake URL would let every assertion below pass against a <video> that never
@@ -905,6 +908,178 @@ test.describe("the motion burst", () => {
 
     expect(await page.evaluate(shape)).toEqual(before);
     expect(pageErrors).toEqual([]);
+  });
+
+  /* ─────────────── the burst held for the whole dwell ─────────────── */
+
+  /**
+   * `features.archiveMotionLoop` — raised on the panel 2026-08-04: the burst
+   * plays once and the card then sits still for the remaining ~26s of the 30s
+   * dwell, and that settle reads as awkward.
+   *
+   * ⚠ These tests deliberately assert the OPPOSITE of the block above, and that
+   * is the point: this flag is a known, flagged §5.1 exception (a momentary
+   * cause rendered as a loop), so the two states are pinned against each other.
+   * The default-off state is the one the rest of this file defends.
+   *
+   * The clip under test is 8s long and the burst arms at 2.8s, so the hold is
+   * observable well before the media could ever wrap on its own.
+   */
+  test.describe("held for the whole dwell", () => {
+    const LOOP_ON = { ...MOTION_ON, archiveMotionLoop: true };
+
+    // The single-burst build has removed `is-shown` by 6.4s and released the
+    // resource by 7.0s. Everything below looks after that, so no assertion here
+    // can pass against the default build.
+    const PAST_SINGLE_BURST_MS = 9000;
+
+    test("flag off carries no loop attribute", async ({ page }) => {
+      await bootArchive(page, MOTION_ON);
+      await engaged(page);
+
+      // The rollback state, asserted on the element rather than on the flag: the
+      // one-line revert claims a build identical to the verified surface.
+      expect(await page.evaluate(() => document.querySelector(".archive__clip").loop)).toBe(false);
+      expect(
+        await page.evaluate(() => document.querySelector(".archive__clip").hasAttribute("loop"))
+      ).toBe(false);
+      expect((await motion(page)).loop).toBe(false);
+    });
+
+    test("the card keeps breathing until the next memory arrives", async ({ page }) => {
+      const pageErrors = [];
+      page.on("pageerror", (err) => pageErrors.push(err.message));
+      await bootArchive(page, LOOP_ON);
+      await engaged(page);
+      await page.evaluate((m) => window.__ssSetFrame(m), MEMORY);
+      await settledPlate(page);
+
+      await page.evaluate((m) => window.__ssSetFrame(m), MOTION_MEMORY);
+      await page.waitForFunction(() => window.__archive().motion.shown === true, null, { timeout: 10000 });
+
+      // Past the point the single burst would have faded out AND released.
+      await page.waitForTimeout(PAST_SINGLE_BURST_MS);
+      const during = await motion(page);
+      expect(during.looping).toBe(true);
+      expect(during.shown).toBe(true);
+      expect(during.playing).toBe(true);
+      expect(during.src).toContain("clear.mp4");
+      // Still ONE burst — the loop is the same play, not a re-arm per cycle.
+      expect(during.bursts).toBe(1);
+
+      // …and it is genuinely on the glass, not merely flagged (§4.1).
+      expect(
+        await page.evaluate(() => getComputedStyle(document.querySelector(".archive__clip")).opacity)
+      ).toBe("1");
+      expect(pageErrors).toEqual([]);
+    });
+
+    // The assertion that actually distinguishes "looping" from "frozen on the
+    // last frame" — which is precisely the awkward still this flag exists to
+    // remove, and which would satisfy every other assertion here.
+    test("the media wraps rather than resting on its last frame", async ({ page }) => {
+      await bootArchive(page, LOOP_ON);
+      await engaged(page);
+      await page.evaluate((m) => window.__ssSetFrame(m), MEMORY);
+      await settledPlate(page);
+      await page.evaluate((m) => window.__ssSetFrame(m), MOTION_MEMORY);
+      await page.waitForFunction(() => window.__archive().motion.playing === true, null, { timeout: 12000 });
+
+      // Seek near the end rather than waiting out the 8s asset — the wrap is the
+      // media element's behaviour, and waiting for it in real time would add 8s
+      // to the suite for the same evidence.
+      const wrapped = await page.evaluate(async () => {
+        const clip = document.querySelector(".archive__clip");
+        clip.currentTime = Math.max(0, clip.duration - 0.3);
+        const before = clip.currentTime;
+        await new Promise((r) => setTimeout(r, 1500));
+        return { before, after: clip.currentTime, paused: clip.paused, ended: clip.ended };
+      });
+      // Time went BACKWARDS: it restarted. A non-looping video would have
+      // stopped here with `ended` and `paused` both true.
+      expect(wrapped.after).toBeLessThan(wrapped.before);
+      expect(wrapped.ended).toBe(false);
+      expect(wrapped.paused).toBe(false);
+    });
+
+    // The teardown that matters: with no per-burst stop timer doing the work,
+    // the EXCHANGE is the only thing ending the previous clip. If that path
+    // regressed, a page running for weeks would accumulate live decoders.
+    test("the next memory ends the loop and releases the video", async ({ page }) => {
+      await bootArchive(page, LOOP_ON);
+      await engaged(page);
+      await page.evaluate((m) => window.__ssSetFrame(m), MEMORY);
+      await settledPlate(page);
+      await page.evaluate((m) => window.__ssSetFrame(m), MOTION_MEMORY);
+      await page.waitForFunction(() => window.__archive().motion.playing === true, null, { timeout: 12000 });
+      await page.waitForTimeout(PAST_SINGLE_BURST_MS);
+
+      // A memory with no motion part at all: the clip must not merely be
+      // replaced, it must be gone.
+      await page.evaluate(() => window.__ssSetFrame("/photos/bare.jpg"));
+      const after = await motion(page);
+      expect(after.playing).toBe(false);
+      expect(after.src).toBe(null);
+      expect(after.shown).toBe(false);
+      // The proof it decoded for the whole hold, captured before the release.
+      expect(after.lastQuality.total).toBeGreaterThan(0);
+    });
+
+    test("leaving Mode 0 mid-loop releases the video", async ({ page }) => {
+      await bootArchive(page, LOOP_ON);
+      await engaged(page);
+      await page.evaluate((m) => window.__ssSetFrame(m), MEMORY);
+      await settledPlate(page);
+      await page.evaluate((m) => window.__ssSetFrame(m), MOTION_MEMORY);
+      await page.waitForFunction(() => window.__archive().motion.playing === true, null, { timeout: 12000 });
+      await page.waitForTimeout(PAST_SINGLE_BURST_MS);
+
+      await page.evaluate(() => window.__wakeScreensaver());
+      const m = await motion(page);
+      expect(m.playing).toBe(false);
+      expect(m.src).toBe(null);
+      expect(m.armed).toBe(false);
+    });
+
+    // The gates are shared with the single burst, but a loop is the state where
+    // a failed gate costs the most — a night-long decode over a dim card.
+    test("reduced motion still refuses to loop", async ({ page }) => {
+      await bootArchive(page, LOOP_ON);
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      expect(
+        await page.evaluate(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches),
+        "the preference must actually be emulated, or this test proves nothing"
+      ).toBe(true);
+      await engaged(page);
+      await page.evaluate((m) => window.__ssSetFrame(m), MEMORY);
+      await page.evaluate((m) => window.__ssSetFrame(m), MOTION_MEMORY);
+      await page.waitForTimeout(3500);
+
+      const m = await motion(page);
+      expect(m.reduced).toBe(true);
+      expect(m.armed).toBe(false);
+      expect(m.src).toBe(null);
+    });
+
+    test("cycling looped memories never grows the DOM", async ({ page }) => {
+      const pageErrors = [];
+      page.on("pageerror", (err) => pageErrors.push(err.message));
+      await bootArchive(page, LOOP_ON);
+      await engaged(page);
+
+      const before = await page.evaluate(shape);
+      expect(before.clips).toBe(1);
+
+      await page.evaluate((clip) => {
+        for (let i = 0; i < 25; i++) {
+          window.__ssSetFrame({ src: `/photos/L${i}.jpg`, caption: `${2008 + (i % 18)} · Place ${i} · Someone`, clipSrc: clip });
+          window.__ssSetFrame("/photos/bare.jpg");
+        }
+      }, CLIP);
+
+      expect(await page.evaluate(shape)).toEqual(before);
+      expect(pageErrors).toEqual([]);
+    });
   });
 });
 

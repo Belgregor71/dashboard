@@ -260,6 +260,9 @@ export function startApp() {
     // Live Photo motion: the archive card breathes for a moment as a memory
     // with a motion part arrives. Inert unless the archive itself is on.
     archiveMotionEnabled: isEnabled("ambientArchiveMotion", false),
+    // …and that burst holds for the whole dwell instead of playing once. A
+    // flagged §5.1 exception — see config.js. Inert unless the burst is on.
+    archiveMotionLoopEnabled: isEnabled("archiveMotionLoop", false),
     // The card follows the print: it takes each photograph's own aspect instead
     // of cropping it to a fixed 1.78:1. Inert unless the archive itself is on.
     archiveFitEnabled: isEnabled("archiveFitToPrint", false)

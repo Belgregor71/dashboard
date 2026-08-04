@@ -85,9 +85,16 @@ const EXCHANGE_SWAP_MS = 2400;
 // How this passes law 1: the cause is THE PHOTOGRAPH CHANGING, which §5.1's
 // legal-causes table names verbatim. The burst is bound to the exchange, plays
 // exactly once, and stops — §5.1's corollary, "the cause is instantaneous → the
-// motion is a moment". There is no `loop` attribute and there must never be one:
-// "a momentary cause rendered as a loop is a law-1 violation even though it is
-// cheap". Nothing here is decorative; a memory with no motion part does not move.
+// motion is a moment". Nothing here is decorative; a memory with no motion part
+// does not move.
+//
+// ⚠ `features.archiveMotionLoop` (default OFF) deliberately breaks that
+// corollary: it adds `loop` and holds the clip for the whole dwell, because on
+// the panel the settle back to the still reads as awkward (2026-08-04). It is a
+// flagged exception, not a repeal — see the flag's own note in config.js. The
+// only code difference is the `loop` attribute and which hold constant is used;
+// the exchange still tears the burst down, so nothing about the resource
+// discipline below changes between the two states.
 //
 // Binding it to the exchange also settles the Ken Burns problem for free.
 // `arch-kenburns` restarts from frame 0 whenever `is-shown` is re-added to the
@@ -98,6 +105,15 @@ const EXCHANGE_SWAP_MS = 2400;
 const MOTION_START_MS = 2800;   // past EXCHANGE_SWAP_MS and the 2.6s crossfade
 const MOTION_HOLD_MS  = 3600;   // > the server's -t 3.5 bound, so the media ends first
 const MOTION_FADE_MS  = 600;    // the fade back to the still, then drop the resource
+
+// The looping hold (features.archiveMotionLoop). NOT the dwell — a BACKSTOP.
+// The photo rotates every 30s (screensaver.js PHOTO_MS) and each exchange tears
+// the burst down, so in the normal case this timer never fires; it exists for
+// the case the rotation stalls (a wedged fetch, a paused pool), where "loops
+// until the next photo" would otherwise mean "decodes video forever" on a page
+// that runs for weeks. 4x the dwell is slack enough that a healthy rotation
+// never sees it, and short enough that a stall costs two minutes, not a night.
+const MOTION_LOOP_MAX_MS = 120_000;
 
 // ── The card follows the print (features.archiveFitToPrint) ──────────────────
 //
@@ -127,6 +143,7 @@ let aspects = new Map();
 
 let enabled = false;
 let liveMotion = false;
+let motionLoop = false;
 let root = null;
 let todayCanvas = null;
 let todayCtx = null;
@@ -556,16 +573,28 @@ function armMotionBurst(frame, tender) {
   // Two plain timers, never `ended`/`canplay`/`transitionend`. The screensaver is
   // display:none-adjacent for most of the day, so those events may simply never
   // arrive (CLAUDE.md) — and none is needed, because the server bounds every clip
-  // to 3.5s, which makes MOTION_HOLD_MS the sole authority on when this stops.
+  // to 3.5s, which makes the hold the sole authority on when this stops.
+  //
+  // Looping only changes WHICH hold. The clip carries `loop`, so it keeps
+  // playing; these two timers become the stall backstop described at
+  // MOTION_LOOP_MAX_MS, and the exchange's own clearMotionTimers()+stopClip()
+  // is what normally ends the burst — the same path that already handles a
+  // memory replaced mid-play, which is why this needs no new teardown.
+  //
+  // ⚠ `motionEndTimer` stays armed for the whole hold either way, and it must:
+  // the play() handler above reads it as "is this burst still wanted", so
+  // dropping it in the loop case would let a called-off burst reveal itself.
+  const holdMs = motionLoop ? MOTION_LOOP_MAX_MS : MOTION_HOLD_MS;
+
   motionEndTimer = setTimeout(() => {
     motionEndTimer = null;
     clipEl.classList.remove("is-shown");
-  }, MOTION_START_MS + MOTION_HOLD_MS);
+  }, MOTION_START_MS + holdMs);
 
   motionStopTimer = setTimeout(() => {
     motionStopTimer = null;
     stopClip();
-  }, MOTION_START_MS + MOTION_HOLD_MS + MOTION_FADE_MS);
+  }, MOTION_START_MS + holdMs + MOTION_FADE_MS);
 }
 
 // ── Mode-0 boundary ───────────────────────────────────────────
@@ -670,8 +699,11 @@ function build(mount) {
     clipEl.playsInline = true;
     clipEl.preload = "none";          // nothing is fetched until a burst is armed
     clipEl.setAttribute("aria-hidden", "true");
-    // Deliberately absent: `loop` (§5.1 — a momentary cause rendered as a loop is
-    // a law-1 violation), `autoplay`, and any `src` at rest.
+    // `loop` is the archiveMotionLoop exception, and it is written ONCE here
+    // rather than per-burst so the flag-off build carries no attribute at all —
+    // the rollback state is byte-identical to the verified surface.
+    if (motionLoop) clipEl.loop = true;
+    // Deliberately absent regardless: `autoplay`, and any `src` at rest.
   }
 
   const grade = document.createElement("div");
@@ -713,22 +745,26 @@ function build(mount) {
  * timer, no body class, no hook — Mode 0 is exactly today's verified
  * screensaver, and that is the rollback path (§6.3.1).
  *
- * @param {{enabled?: boolean, liveMotion?: boolean, fitToPrint?: boolean, mount?: HTMLElement}} options
+ * @param {{enabled?: boolean, liveMotion?: boolean, motionLoop?: boolean, fitToPrint?: boolean, mount?: HTMLElement}} options
  *   `mount` is the screensaver root, so the archive is a CHILD of `#screensaver`
  *   and the screensaver blank rule (which targets body children) never sees it.
  *   `liveMotion` adds the Live Photo burst; off builds no <video> at all.
+ *   `motionLoop` holds that burst for the whole dwell instead of playing it
+ *   once; inert unless `liveMotion` is also on, since it is the same element.
  *   `fitToPrint` sizes the card to each photograph's own aspect; off, no style
  *   property is ever written and the CSS fallbacks are the shipped rectangle.
  */
 export function initAmbientArchive({
   enabled: on_ = false,
   liveMotion: motion_ = false,
+  motionLoop: loop_ = false,
   fitToPrint: fit_ = false,
   mount = null
 } = {}) {
   if (on_ !== true || !mount) return false;
   enabled = true;
   liveMotion = motion_ === true;
+  motionLoop = liveMotion && loop_ === true;
   fitToPrint = fit_ === true;
   // Two markers, and the difference matters. `ambient-archive-on` says the flag
   // is on and never comes off — it carries the rules that must hold on BOTH
@@ -764,6 +800,7 @@ export function stopAmbientArchiveAll() {
   cardImgs = [];
   clipEl = null;          // stopAmbientArchive above already released its resource
   liveMotion = false;
+  motionLoop = false;
   fitToPrint = false;
   aspects = new Map();
   lastRect = null;
@@ -836,6 +873,12 @@ export function archiveProbe() {
     motion: clipEl
       ? {
           enabled: liveMotion,
+          // Both, because they answer different questions on the panel: `loop`
+          // is what the flag asked for, `looping` is what the element actually
+          // carries. A burst that ends early with `loop: true` is a stalled
+          // decode, not a flag that failed to land.
+          loop: motionLoop,
+          looping: clipEl.loop === true,
           armed: Boolean(motionArmTimer || motionEndTimer || motionStopTimer),
           shown: clipEl.classList.contains("is-shown"),
           playing: Boolean(clipEl.currentSrc) && !clipEl.paused,
