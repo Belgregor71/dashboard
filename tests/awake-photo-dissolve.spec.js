@@ -106,3 +106,146 @@ test("dissolve off (default): no hook, the photo holds", async ({ page }) => {
 
   expect(pageErrors).toEqual([]);
 });
+
+/**
+ * Recovery from a dead Immich (2026-08-04).
+ *
+ * These live in this file rather than awake-ground.spec.js because they need
+ * per-request control of the Immich stub, which is the infrastructure here —
+ * but the behaviour under test belongs to `awakeGround`: the ground's job is
+ * that there IS a photo, and `awakePhotoTick` is what repairs it.
+ *
+ * Both bugs had the same shape and the same consequence — a latch or a guard
+ * left in a state nothing could clear, on a page that runs for weeks between
+ * reloads, so the ground never changes again. They are asserted through the
+ * `__awakePhotoTick` seam because the real one fires every ten minutes.
+ */
+test.describe("recovering from a dead Immich", () => {
+  test("a photo that never arrives at boot is retried, not abandoned", async ({ page }) => {
+    const pageErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+
+    // Immich is asleep: the asset list comes back empty, so no <img> src is ever
+    // set and `awakePhotoDay` is never written. That guard is what used to make
+    // this permanent.
+    let awake = false;
+    await page.route("**/api/immich/random**", (route) =>
+      route.fulfill({ json: { assets: awake ? [{ id: "late-asset" }] : [] } })
+    );
+    await page.route("**/api/immich/asset/**", (route) =>
+      route.fulfill({ contentType: "image/png", body: PNG })
+    );
+    await enableFlags(true)(page);
+
+    await page.goto("/");
+    await page.waitForFunction(() => document.getElementById("awake-photo") !== null);
+
+    // The layer exists but carries no photo — the sky gradient is showing.
+    const booted = await page.evaluate(() => {
+      const el = document.getElementById("awake-photo");
+      return { loaded: el.classList.contains("is-loaded"), src: el.getAttribute("src") };
+    });
+    expect(booted.loaded).toBe(false);
+    expect(booted.src).toBe(null);
+
+    // A tick while Immich is still down must not wedge anything either.
+    await page.evaluate(() => window.__awakePhotoTick());
+    expect(
+      await page.evaluate(() => document.getElementById("awake-photo").classList.contains("is-loaded"))
+    ).toBe(false);
+
+    // The NAS wakes. The very next tick puts a photo on the glass.
+    awake = true;
+    await page.evaluate(() => window.__awakePhotoTick());
+    await page.waitForFunction(
+      () => document.getElementById("awake-photo")?.classList.contains("is-loaded"),
+      null,
+      { timeout: 8000 }
+    );
+    expect(await page.evaluate(() => document.getElementById("awake-photo").src)).toContain("late-asset");
+
+    // Exactly one img — a retry must never leave a second layer behind.
+    expect(await page.evaluate(() => document.querySelectorAll(".awake-photo").length)).toBe(1);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("a broken image at boot leaves the retry able to run", async ({ page }) => {
+    const pageErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+
+    // The asset list answers, so a src IS set — but the image 404s. `onerror`
+    // did not exist before this fix, so the in-flight latch is the thing under
+    // test: it must be clear for the tick to get another go.
+    let broken = true;
+    await page.route("**/api/immich/random**", (route) =>
+      route.fulfill({ json: { assets: [{ id: broken ? "broken-asset" : "good-asset" }] } })
+    );
+    await page.route("**/api/immich/asset/**", (route) =>
+      broken ? route.fulfill({ status: 404, body: "" }) : route.fulfill({ contentType: "image/png", body: PNG })
+    );
+    await enableFlags(true)(page);
+
+    await page.goto("/");
+    await page.waitForFunction(() => document.getElementById("awake-photo")?.getAttribute("src") !== null);
+    expect(
+      await page.evaluate(() => document.getElementById("awake-photo").classList.contains("is-loaded"))
+    ).toBe(false);
+
+    broken = false;
+    await page.evaluate(() => window.__awakePhotoTick());
+    await page.waitForFunction(
+      () => document.getElementById("awake-photo")?.classList.contains("is-loaded"),
+      null,
+      { timeout: 8000 }
+    );
+    expect(await page.evaluate(() => document.getElementById("awake-photo").src)).toContain("good-asset");
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("a dissolve whose image hangs releases the latch instead of holding it forever", async ({ page }) => {
+    const pageErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+
+    let hang = false;
+    let n = 0;
+    await page.route("**/api/immich/random**", (route) =>
+      route.fulfill({ json: { assets: [{ id: "boot-asset" }, { id: `fresh-${++n}` }] } })
+    );
+    // A request that never settles: neither `load` nor `error` will ever fire on
+    // the <img>, which is the sleeping-NAS shape and the one case the old code
+    // had no way out of.
+    await page.route("**/api/immich/asset/**", async (route) => {
+      if (hang && route.request().url().includes("fresh-")) return; // never fulfilled
+      await route.fulfill({ contentType: "image/png", body: PNG });
+    });
+    await enableFlags(true)(page);
+
+    await page.goto("/");
+    await page.waitForFunction(
+      () => document.getElementById("awake-photo")?.classList.contains("is-loaded")
+    );
+    const bootSrc = await page.evaluate(() => document.getElementById("awake-photo").src);
+
+    // A dissolve that hangs. Short stall so the suite does not sit out the real
+    // 30s; the path is identical.
+    hang = true;
+    expect(await page.evaluate(() => window.__forcePhotoDissolve({ settleMs: 200, stallMs: 600 }))).toBeTruthy();
+
+    // The stalled node is detached and the old photo is still the one on screen.
+    await expect
+      .poll(() => page.evaluate(() => document.querySelectorAll(".awake-photo").length), { timeout: 8000 })
+      .toBe(1);
+    expect(await page.evaluate(() => document.getElementById("awake-photo").src)).toBe(bootSrc);
+
+    // The claim: the NEXT dissolve still runs. Before the fix this returned
+    // false forever and the photo never changed again.
+    hang = false;
+    expect(await page.evaluate(() => window.__forcePhotoDissolve({ settleMs: 200 }))).toBeTruthy();
+    await expect
+      .poll(() => page.evaluate(() => document.getElementById("awake-photo")?.src ?? ""), { timeout: 10000 })
+      .not.toBe(bootSrc);
+
+    expect(await page.evaluate(() => document.querySelectorAll(".awake-photo").length)).toBe(1);
+    expect(pageErrors).toEqual([]);
+  });
+});

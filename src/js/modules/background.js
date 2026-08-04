@@ -43,10 +43,46 @@ async function checkHoliday() {
 
 // ── Awake photographic ground (features.awakeGround, WP-D) ────
 // docs/design/DESIGN_ROLLOUT.md. A single Immich photo held behind the awake
-// modes (the atmosphere tint + readability gradient sit above it in CSS). Static
-// by design: fetched once, no rotation timer — the 0%-GPU-at-rest invariant. The
-// element is only created when the flag is on → flag-off is byte-identical.
+// modes (the atmosphere tint + readability gradient sit above it in CSS). It
+// does not rotate: one photo per day, replaced by the day-boundary dissolve
+// below.
+//
+// ⚠ WHY IT DOES NOT ROTATE, restated 2026-08-04. This used to cite "the
+// 0%-GPU-at-rest invariant", which was REPEALED for the G11 on 2026-08-01 — so
+// the reason was dead while the rule it justified was still right. The live
+// reason is DESIGN_SYSTEM.md §5.1: a rotation timer's only cause would be the
+// passage of time, which §5.1 names explicitly as NOT a cause. Mode 0 may leaf
+// through the album because leafing through it IS the mode and the room can
+// name that; awake, the photo is ground behind a dashboard and nothing outside
+// the screen is changing it. The budget is no longer the argument.
+//
+// The element is only created when the flag is on → flag-off is byte-identical.
 const immichThumb = (id) => `/api/immich/asset/${encodeURIComponent(id)}/thumb`;
+
+// An <img> that never fires load OR error is the failure this whole module has
+// to survive: the photo comes off a NAS that sleeps, and this page runs for
+// weeks between reloads, so a latch left holding is permanent. Every load below
+// therefore has exactly one terminal path, taken once, with a stall timer as the
+// third way out. 30s is far beyond a LAN thumbnail and far under the 10-minute
+// tick that would retry it.
+const LOAD_STALL_MS = 30 * 1000;
+
+/** One-shot terminal path: whichever of load/error/stall arrives first wins. */
+function oneShot() {
+  let done = false;
+  let stall = null;
+  const take = (fn) => () => {
+    if (done) return;
+    done = true;
+    clearTimeout(stall);
+    stall = null;
+    fn();
+  };
+  return {
+    take,
+    arm(fn, ms = LOAD_STALL_MS) { stall = setTimeout(take(fn), ms); }
+  };
+}
 
 async function fetchRandomAssetIds(count = 1) {
   const res = await fetch(`/api/immich/random?count=${count}`, { signal: AbortSignal.timeout(8000) });
@@ -54,27 +90,57 @@ async function fetchRandomAssetIds(count = 1) {
   return ((await res.json()).assets ?? []).map((a) => a?.id).filter(Boolean);
 }
 
+// ⚠ Guards the retry, which did not exist before 2026-08-04 and is the reason
+// this latch is needed: without it a slow first load and a tick could both be
+// in flight, racing to write awakePhotoAssetId.
+let initialLoadInFlight = false;
+
+/**
+ * The boot photo. Resolves true only when a photo is actually on the glass.
+ *
+ * ⚠ Every failure path here used to be silent AND terminal: no `onerror`, and a
+ * failed fetch returned without ever setting `awakePhotoDay` — which is the
+ * variable the day-boundary check is guarded by. One sleeping NAS at page load
+ * therefore left the ground empty for the life of the page, with no retry, and
+ * the page runs for weeks. Failures must now leave the latch clear so
+ * awakePhotoTick() can come back for it.
+ */
 async function loadAwakePhoto(img) {
+  if (!img || initialLoadInFlight) return false;
+  initialLoadInFlight = true;
+  let handedOff = false;
   try {
     const [assetId] = await fetchRandomAssetIds(1);
-    if (!assetId) return;
-    img.onload = () => {
+    if (!assetId) return false;   // Immich down → the tick retries in 10 min
+    const shot = oneShot();
+    img.onload = shot.take(() => {
       img.classList.add("is-loaded");
       awakePhotoAssetId = assetId;
       awakePhotoDay = localDayKey(); // the day this photo belongs to
-    };
+      initialLoadInFlight = false;
+    });
+    // A broken or stalled load leaves `awakePhotoDay` null on purpose — that is
+    // precisely what tells the tick there is still no photo.
+    img.onerror = shot.take(() => { initialLoadInFlight = false; });
+    shot.arm(() => { initialLoadInFlight = false; });
     img.src = immichThumb(assetId);
+    handedOff = true;
+    return true;
   } catch {
     /* Immich down/unreachable → the #background sky gradient shows through */
+    return false;
+  } finally {
+    if (!handedOff) initialLoadInFlight = false;
   }
 }
 
 // ── Day-boundary cross-dissolve (features.awakePhotoDissolve) ──
 // WP-D follow-up: the photo no longer holds for the whole session — when the
 // local calendar day flips, fetch ONE new photo and fade it in over the old on
-// --t-settle (60s), then drop the old node. Still static at rest (no rotation
-// timer; one slow settle per day), so the 0%-GPU invariant holds. Local date
-// key, not toISOString — the UTC date mismatches "today" across midnight.
+// --t-settle (60s), then drop the old node. Still one settle per day and no
+// rotation timer — see the §5.1 note above for why that is the rule now that
+// the 0%-GPU invariant it originally cited has been repealed. Local date key,
+// not toISOString — the UTC date mismatches "today" across midnight.
 const DISSOLVE_SETTLE_MS = 60 * 1000; // matches --t-settle in variables.css
 const DISSOLVE_CLEANUP_BUFFER_MS = 2000;
 
@@ -84,7 +150,9 @@ let dissolveInFlight = false;
 
 const localDayKey = () => new Date().toDateString();
 
-async function dissolveAwakePhoto(settleMs = null) {
+// `stallMs`, like `settleMs`, exists so the debug hook can drive the failure in
+// a test instead of the suite sitting out a 30s stall to prove a latch releases.
+async function dissolveAwakePhoto(settleMs = null, stallMs = null) {
   const old = document.getElementById("awake-photo");
   if (!old || dissolveInFlight) return false;
   dissolveInFlight = true;
@@ -103,7 +171,14 @@ async function dissolveAwakePhoto(settleMs = null) {
     next.decoding = "async";
     if (settleMs) next.style.transition = `opacity ${settleMs}ms ease`; // debug-hook fast path
     const holdMs = (settleMs || DISSOLVE_SETTLE_MS) + DISSOLVE_CLEANUP_BUFFER_MS;
-    next.onload = () => {
+    // ⚠ `dissolveInFlight` used to be released by onload/onerror ONLY. A request
+    // that hangs without firing either — the sleeping-NAS shape — left the latch
+    // holding forever, and every later dissolve returned early at the guard
+    // above. The photo would then never change again for the life of the page,
+    // which is the exact symptom this function exists to prevent, arriving by a
+    // different road. The stall timer is the third terminal path.
+    const shot = oneShot();
+    next.onload = shot.take(() => {
       next.classList.add("is-loaded"); // fades in over the old (later sibling paints above)
       awakePhotoAssetId = assetId;
       awakePhotoDay = localDayKey();
@@ -114,11 +189,18 @@ async function dissolveAwakePhoto(settleMs = null) {
         next.id = "awake-photo"; // the survivor is THE photo again
         dissolveInFlight = false;
       }, holdMs);
-    };
-    next.onerror = () => {
+    });
+    next.onerror = shot.take(() => {
       next.remove(); // broken load → keep the old photo, retry next check
       dissolveInFlight = false;
-    };
+    });
+    // Detaching the stalled node is what makes a late load harmless: onload may
+    // still fire on it, but oneShot has already spent its single terminal path,
+    // so nothing paints and the latch is not released twice.
+    shot.arm(() => {
+      next.remove();
+      dissolveInFlight = false;
+    }, stallMs || LOAD_STALL_MS);
     old.after(next);
     next.src = immichThumb(assetId);
     handedOff = true; // onload/onerror now own the latch
@@ -128,6 +210,29 @@ async function dissolveAwakePhoto(settleMs = null) {
   } finally {
     if (!handedOff) dissolveInFlight = false;
   }
+}
+
+const AWAKE_TICK_MS = 10 * 60 * 1000;
+
+/**
+ * The one recurring check the ground gets. Two jobs, in priority order, and the
+ * order matters: with no photo there is no day to compare against.
+ *
+ * ⚠ The retry belongs to `awakeGround`, not to `awakePhotoDissolve` — it repairs
+ * "there is a photo at all", which is the ground's own job. The day-flip half
+ * stays gated, so the dissolve's flag-off state is still "no day check", as its
+ * config note claims.
+ *
+ * Retrying only every 10 minutes leaves the ground on the bare sky gradient for
+ * up to that long if Immich is asleep at boot. That is deliberate: it reuses the
+ * one init-once interval instead of adding a per-event timer chain (the 24/7
+ * memory rules), a sleeping NAS takes minutes to wake anyway, and the state it
+ * replaces was "blank until someone reloads the page", i.e. weeks.
+ */
+function awakePhotoTick() {
+  if (!awakePhotoDay) return void loadAwakePhoto(document.getElementById("awake-photo"));
+  if (!window.CONFIG?.features?.awakePhotoDissolve) return;
+  if (localDayKey() !== awakePhotoDay) void dissolveAwakePhoto();
 }
 
 function initAwakeGround() {
@@ -140,14 +245,17 @@ function initAwakeGround() {
   img.alt = "";
   img.decoding = "async";
   bg.prepend(img); // the bottom layer of the ground (tint + readability sit above)
-  loadAwakePhoto(img);
+  void loadAwakePhoto(img);
+
+  // Init-once interval (allowed by the kiosk memory rules — no per-event timer).
+  setInterval(awakePhotoTick, AWAKE_TICK_MS);
+  // The seam the retry is testable through: the tick is otherwise reachable only
+  // by waiting ten minutes, which is how it shipped untested in the first place.
+  window.__awakePhotoTick = awakePhotoTick;
 
   if (window.CONFIG?.features?.awakePhotoDissolve) {
-    // Init-once interval (allowed by the kiosk memory rules — no per-event timer).
-    setInterval(() => {
-      if (awakePhotoDay && localDayKey() !== awakePhotoDay) void dissolveAwakePhoto();
-    }, 10 * 60 * 1000);
-    window.__forcePhotoDissolve = ({ settleMs = null } = {}) => dissolveAwakePhoto(settleMs);
+    window.__forcePhotoDissolve = ({ settleMs = null, stallMs = null } = {}) =>
+      dissolveAwakePhoto(settleMs, stallMs);
   }
 }
 
