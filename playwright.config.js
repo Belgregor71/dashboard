@@ -18,7 +18,16 @@ export default defineConfig({
   reporter: [["list"]],
   use: {
     baseURL: `http://127.0.0.1:${TEST_PORT}`,
-    viewport: { width: 1920, height: 1080 }
+    viewport: { width: 1920, height: 1080 },
+    // KOKORO_URL is stubbed to a dead port below, so every speak() in the page
+    // falls through tts.js's `speakWithBrowserTts` to window.speechSynthesis —
+    // which on Windows is a real SAPI voice on the developer's default output
+    // device. A suite run would announce the greeting time out loud (and, since
+    // most specs pin the clock to MIDDAY, announce "12 pm" over and over).
+    // Mute the test browser rather than the fallback: the fallback is the thing
+    // that keeps the kiosk from going silent if Kokoro dies, so it must stay
+    // exercised — it just must not be audible here.
+    launchOptions: { args: ["--mute-audio"] }
   },
   webServer: {
     command: "node server.js",
