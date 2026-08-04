@@ -149,6 +149,9 @@ test.describe("recovering from a dead Immich", () => {
     expect(booted.src).toBe(null);
 
     // A tick while Immich is still down must not wedge anything either.
+    // ⚠ Awaited, and the tick returns its promise so that this actually waits:
+    // firing the next tick while this fetch is in flight hits the in-flight
+    // latch, is correctly refused, and reads as "the retry is broken".
     await page.evaluate(() => window.__awakePhotoTick());
     expect(
       await page.evaluate(() => document.getElementById("awake-photo").classList.contains("is-loaded"))

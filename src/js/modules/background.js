@@ -229,10 +229,17 @@ const AWAKE_TICK_MS = 10 * 60 * 1000;
  * memory rules), a sleeping NAS takes minutes to wake anyway, and the state it
  * replaces was "blank until someone reloads the page", i.e. weeks.
  */
+// ⚠ Returns the promise rather than void, and that is load-bearing for the
+// tests, not decoration: a tick that resolves immediately lets a spec fire the
+// next one while the previous fetch is still in flight, where it is correctly
+// refused by the in-flight latch and reads as "the retry did not work". Neither
+// callee ever rejects (both resolve to a boolean), so the interval below can
+// discard it safely.
 function awakePhotoTick() {
-  if (!awakePhotoDay) return void loadAwakePhoto(document.getElementById("awake-photo"));
-  if (!window.CONFIG?.features?.awakePhotoDissolve) return;
-  if (localDayKey() !== awakePhotoDay) void dissolveAwakePhoto();
+  if (!awakePhotoDay) return loadAwakePhoto(document.getElementById("awake-photo"));
+  if (!window.CONFIG?.features?.awakePhotoDissolve) return Promise.resolve(false);
+  if (localDayKey() !== awakePhotoDay) return dissolveAwakePhoto();
+  return Promise.resolve(false);
 }
 
 function initAwakeGround() {
@@ -248,7 +255,7 @@ function initAwakeGround() {
   void loadAwakePhoto(img);
 
   // Init-once interval (allowed by the kiosk memory rules — no per-event timer).
-  setInterval(awakePhotoTick, AWAKE_TICK_MS);
+  setInterval(() => void awakePhotoTick(), AWAKE_TICK_MS);
   // The seam the retry is testable through: the tick is otherwise reachable only
   // by waiting ten minutes, which is how it shipped untested in the first place.
   window.__awakePhotoTick = awakePhotoTick;
