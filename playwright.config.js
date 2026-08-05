@@ -52,6 +52,17 @@ export default defineConfig({
       CALENDAR_GOOGLE_URL: "",
       CALENDAR_APPLE_URL: "",
       CALENDAR_TRIPIT_URL: "",
+      // Home Assistant was the LAST live upstream the gate still depended on,
+      // and the one long documented as making specs fail "because the TV is on
+      // at the house". It fails worse than the others did: HA runs on the NAS,
+      // and a sleeping NAS BLACK-HOLES the connection rather than refusing it,
+      // so on 2026-08-05 the media-art proxy spec spent its entire 10s budget
+      // and failed the pre-push gate while nothing was wrong with the code.
+      // A dead port refuses instantly instead, and every HA contract test
+      // already accepts that: health/snapshot take [200, 502], and the
+      // media-art path documents 503 as "HA unconfigured on this machine".
+      // Routing stays fully asserted — only the house stops being consulted.
+      HA_HOST: "http://127.0.0.1:1",
       // Weather was the last live upstream the suite still hit, and it made the
       // pre-push gate depend on someone else's quota. On 2026-08-02 three full
       // runs in 25 minutes exhausted the Open-Meteo free tier; every subsequent

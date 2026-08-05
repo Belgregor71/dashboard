@@ -294,6 +294,34 @@ test.describe("home assistant proxy path filter", () => {
       ).not.toContain(EXPRESS_FALLTHROUGH);
     }
   });
+
+  // ⚠ Regression guard for a request nobody ever answered. server.js supplies
+  // its own `error` handler to the HA proxy, and doing so REPLACES
+  // http-proxy-middleware's default responder — the thing that would otherwise
+  // reply. It used to log and return, so an unreachable HA left the socket open
+  // until the client gave up. A kiosk never gives up.
+  //
+  // The reason this is worth a test rather than a shrug: the browser allows six
+  // connections per host, so hung requests accumulate against that pool and
+  // starve unrelated fetches on the same origin. That is not theoretical — it
+  // is exactly how the ambient-archive motion specs failed on 2026-08-05, where
+  // two long-lived SSE streams stopped a <video> range request from ever being
+  // served. HA lives on the NAS, and a sleeping NAS is a recurring condition.
+  //
+  // HA_HOST is pinned to a dead port in playwright.config.js, so this request is
+  // guaranteed to reach the error handler rather than the house.
+  test("an unreachable Home Assistant is ANSWERED, never left hanging", async ({ request }) => {
+    const started = Date.now();
+    const res = await request.get(
+      "/api/image_proxy/api/media_player_proxy/media_player.piano_room?token=probe",
+      { timeout: 5_000 }
+    );
+    expect([502, 503]).toContain(res.status());
+    expect(
+      Date.now() - started,
+      "the proxy answered, but only after a delay that suggests it is waiting rather than refusing"
+    ).toBeLessThan(5_000);
+  });
 });
 
 test.describe("document root", () => {

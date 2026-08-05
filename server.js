@@ -217,12 +217,32 @@ function attachHaProxy(appInstance) {
         if (token) proxyReq.setHeader("Authorization", `Bearer ${token}`);
         if (HA_PROXY_DEBUG) console.log("[ha-proxy]", proxyReq.path);
       },
-      error: (error, req) => {
+      error: (error, req, res) => {
         console.error("[ha-proxy] Proxy error", {
           route: req?.originalUrl || req?.url,
           code: error?.code,
           message: error?.message
         });
+        // ⚠ Supplying an `error` handler REPLACES http-proxy-middleware's own,
+        // and its own is the thing that would otherwise answer the request.
+        // Logging and returning leaves the socket open until the client gives
+        // up — which on a kiosk that never reloads is effectively forever.
+        // That matters more than one stalled image: the browser allows six
+        // connections per host, so hung requests accumulate against that pool
+        // and eventually starve unrelated fetches on the same origin. HA lives
+        // on the NAS here, and a sleeping NAS is a recurring condition, not a
+        // hypothetical. Same class as the POST hang the pathFilter note above
+        // describes: the bug is always a request nobody ever answers.
+        if (res?.headersSent || res?.writableEnded) return;
+        if (typeof res?.status === "function") {
+          res.status(502).json({
+            error: "Home Assistant unreachable",
+            code: error?.code ?? null
+          });
+        } else if (typeof res?.end === "function") {
+          res.statusCode = 502;
+          res.end();
+        }
       }
     }
   };
