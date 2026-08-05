@@ -107,11 +107,28 @@ export function southernSeason(date = new Date()) {
   return SOUTHERN_SEASONS[date.getMonth()];
 }
 
+// The same grounding, one axis over. A bare "7:30 am" leaves the model to infer
+// the daypart, and it mostly does — but the register names "arvo" as a house
+// word, so the primed token occasionally lands on the clause describing NOW
+// ("a quiet one — perfect arvo for getting things done", at half past seven).
+// Naming the part of the day outright is what the season fix did for the month.
+// Boundaries deliberately match briefingView.js's greeting, so the headline and
+// the narrative can never call the same moment two different things.
+export function dayPart(date = new Date()) {
+  const hour = date.getHours();
+  if (hour >= 5  && hour < 12) return "morning";
+  if (hour >= 12 && hour < 17) return "afternoon";
+  if (hour >= 17 && hour < 21) return "evening";
+  return "night";
+}
+
 export function buildBriefPayload(ctx) {
-  const clock = ctx.generatedAt.toLocaleString("en-AU", {
-    weekday: "long", hour: "numeric", minute: "2-digit", hour12: true,
+  const when    = ctx.generatedAt;
+  const weekday = when.toLocaleDateString("en-AU", { weekday: "long" });
+  const clock   = when.toLocaleTimeString("en-AU", {
+    hour: "numeric", minute: "2-digit", hour12: true,
   });
-  const time = `${clock}, ${southernSeason(ctx.generatedAt)} in Brisbane`;
+  const time = `${weekday} ${dayPart(when)}, ${clock}, ${southernSeason(when)} in Brisbane`;
   return {
     type:    ctx.type,
     time,
