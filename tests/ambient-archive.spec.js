@@ -1008,6 +1008,22 @@ test.describe("the motion burst", () => {
       await page.evaluate((m) => window.__ssSetFrame(m), MOTION_MEMORY);
       await page.waitForFunction(() => window.__archive().motion.playing === true, null, { timeout: 12000 });
 
+      // ⚠ `motion.playing` means play() RESOLVED — which happens BEFORE metadata
+      // arrives. readyState can still be 0 with `duration` NaN at that moment,
+      // and seeking to NaN throws "The provided double value is non-finite",
+      // failing this test for a reason that has nothing to do with looping.
+      // Wait for the thing the seek actually depends on. (Under full-suite load
+      // this is the difference between green and a pre-push block: the same spec
+      // passed in isolation and failed in the gate on 2026-08-05.)
+      await page.waitForFunction(
+        () => {
+          const c = document.querySelector(".archive__clip");
+          return !!c && Number.isFinite(c.duration) && c.duration > 0;
+        },
+        null,
+        { timeout: 12000 },
+      );
+
       // Seek near the end rather than waiting out the 8s asset — the wrap is the
       // media element's behaviour, and waiting for it in real time would add 8s
       // to the suite for the same evidence.
