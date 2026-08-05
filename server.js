@@ -209,6 +209,16 @@ function attachHaProxy(appInstance) {
     target: haTarget,
     changeOrigin: true,
     pathFilter: haMediaPathFilter,
+    // ⚠ An unreachable HA is not always a REFUSED one, and the difference is the
+    // whole bug. Measured on the live kiosk 2026-08-05: the NAS answers ping in
+    // 1-3ms while port 8123 BLACK-HOLES the SYN whenever the HA container is
+    // down, so the connect never completes and never errors — the `error`
+    // handler below is never reached and the request hangs regardless of how
+    // well that handler is written (`connect=0.000000s status=000`, ten seconds
+    // of nothing). A refused port is the easy case; this is the common one here.
+    // proxyTimeout bounds the wait so the failure becomes an event we can answer
+    // at all. 5s is many times over what a LAN image fetch needs.
+    proxyTimeout: 5000,
     // ws was on with no consumer: it subscribed a server-wide 'upgrade' handler
     // that proxied matching WebSocket upgrades into HA. Images need no upgrade.
     on: {
