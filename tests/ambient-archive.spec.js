@@ -677,6 +677,29 @@ test.describe("the motion burst", () => {
   // them would invert if it silently inherited a future flip of that default.
   const MOTION_ON = { ...ARCHIVE_ON, ambientArchiveMotion: true, archiveMotionLoop: false };
 
+  // ⚠ These tests are the only ones in the suite that load MEDIA over HTTP, and
+  // that makes them the only ones that can be starved of a connection.
+  // `/api/ha/stream` and `/api/voice/stream` are SSE: long-lived by design, they
+  // never finish, and they hold their sockets for the life of the page. With
+  // them open, the <video>'s `Range: bytes=0-` request is issued and then simply
+  // NEVER ANSWERED — no response, no failure, no timeout. The clip sits at
+  // readyState 0, so `play()` resolves but no frame ever decodes and the burst
+  // correctly refuses to show it. Every assertion below then fails as a 10s
+  // waitForFunction timeout, which reads exactly like "the burst is broken".
+  //
+  // It is not: the product is behaving properly against an environment that
+  // starved it — the same code bursts 800+ times a day on the kiosk. The
+  // failure is also ORDERING-dependent, so it sat latent (suite green
+  // 2026-08-04) until it became deterministic on one machine a day later.
+  // Diagnosis, if this ever returns: watch `page.on("response")` for the clip
+  // URL. A request with no matching response is this, not a codec problem.
+  //
+  // Cut the streams loose. These tests are about the burst, not about SSE.
+  test.beforeEach(async ({ page }) => {
+    await page.route(/\/api\/(ha|voice)\/stream/, (route) =>
+      route.fulfill({ status: 204, body: "" }));
+  });
+
   // A real, decodable H.264 file that the test server already serves. Using a
   // fake URL would let every assertion below pass against a <video> that never
   // decoded a frame — which is the failure this feature is most likely to have
