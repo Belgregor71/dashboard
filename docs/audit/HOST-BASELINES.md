@@ -269,6 +269,22 @@ test of the heap, but do not describe it as 72 h of continuous rendering.
 > reading taken BETWEEN the two ramps (~07:30–16:19)** — see the sky-ramp section below for
 > why every previous reading landed inside one.
 >
+> **t0 counters, recorded at `uptimeMin` 11.8** (past the ≥10 min warm-up rule), panel On,
+> `view: home`, night gate engaged: heap **7.5 MB** · domNodes **1441** · cdpNodes **3308** ·
+> listeners **53** · lottie **5/5** · `anims` **4** · tempC **44.25** · liveness
+> `assessable: false` ("after sunset — the night gate refuses bursts by design"), which is
+> the correct reading for the hour, not a fault.
+>
+> ⚠⚠ **READ THIS BEFORE COMPARING THE 24 h SAMPLE: Home Assistant was DOWN when this t0 was
+> taken.** Port 8123 on the NAS was black-holing the SYN (the host answered ping in 1–3 ms
+> throughout). So every HA-driven surface — camera tiles, media panels, presence — never
+> constructed, and this baseline is **artificially low**: 1441 domNodes / 3308 cdpNodes /
+> 53 listeners against the previous run's t0 of 1945 / 4161 / 70 at a comparable 12.2 min.
+> **When HA comes back, those counters will jump for an entirely innocent reason.** Do not
+> read that as a leak — it is the same "one-off construction, not a climb" shape already
+> documented for listeners. If the 24 h sample is up on all three, check whether HA is
+> reachable *before* concluding anything.
+>
 > **Previous run (ended by choice):** t0 was 2026-08-02 20:38 on `index-D_gktw1m.js`; its
 > 24 h sample was taken 2026-08-05 16:59 at `uptimeMin 1431.9` — heap **9.8 MB**, domNodes
 > **1683**, cdpNodes **3789**, listeners **97**, lottie **5/5**, `bursts: 836`, faults none.
