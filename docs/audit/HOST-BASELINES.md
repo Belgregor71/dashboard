@@ -252,11 +252,29 @@ construction, and the readings are comparable without argument.
 archive only animates ~16 h/day. 72 h of wall time is ~48 h of motion. That is still a fair
 test of the heap, but do not describe it as 72 h of continuous rendering.
 
-> **STATUS: the 72 h soak is RUNNING. t0 = 2026-08-02 20:38 AEST**, on bundle
-> `index-D_gktw1m.js` / `index-sTy7gxIn.css` (repo at `a8200cb`). Sample windows fall at
-> **24 h = 2026-08-03 20:38** and **72 h = 2026-08-05 20:38**, the same clock time as t0 by
-> design. **No bundle deploy may land before then** — docs and script-only pushes are safe,
-> and `a8200cb` itself was one (the kiosk rebuilt to identical hashes, which is the proof).
+> **STATUS: the 72 h soak RESTARTED. t0 = 2026-08-05 18:27 AEST**, on bundle
+> `index-BYa2_WGu.js` / `index-sTy7gxIn.css` (repo at `6c2d9e3`), confirmed by
+> `uptimeMin: 1.3` immediately after the kiosk reload. Sample windows fall at
+> **24 h = 2026-08-06 18:27** and **72 h = 2026-08-08 18:27**, the same clock time as t0 by
+> design. **No bundle deploy may land before then** — docs and script-only pushes are safe
+> (proven twice on the previous run: the kiosk rebuilt to identical hashes).
+>
+> ⚠ **Write the next t0 down HERE the moment you set it.** The run this replaces was never
+> recorded, and its t0 had to be reconstructed after the fact from `uptimeMin` — which works,
+> but only because nobody reloaded the page in the meantime.
+>
+> ⚠ **This t0 is after sunset, so it carries no GPU number** (same limitation as the
+> 2026-08-02 one) — and it is also *after* the evening sky ramp closed at 17:47, which makes
+> it a cleaner heap baseline than one taken inside a ramp. **Still owed: a daylight GPU
+> reading taken BETWEEN the two ramps (~07:30–16:19)** — see the sky-ramp section below for
+> why every previous reading landed inside one.
+>
+> **Previous run (ended by choice):** t0 was 2026-08-02 20:38 on `index-D_gktw1m.js`; its
+> 24 h sample was taken 2026-08-05 16:59 at `uptimeMin 1431.9` — heap **9.8 MB**, domNodes
+> **1683**, cdpNodes **3789**, listeners **97**, lottie **5/5**, `bursts: 836`, faults none.
+> Heap, domNodes and cdpNodes all finished *below* their t0 values (10.2 / 1945 / 4161), so
+> the health half came back clean: nothing leaks, and the cost on this surface is
+> compositing, not memory.
 >
 > The two readings in the first table are the earlier **pilot** — real measurements, and
 > what caught the budget breach — but they belong to a process that no longer exists.
@@ -480,6 +498,59 @@ in-flight transitions — nothing looping), `bursts` 23 → 27 across two minute
 one per 30 s exchange**, `lastQuality` 56 frames **0 dropped / 0 corrupted**, heap 11.3 MB,
 `domNodes` 2151, `cdpNodes` 4491, listeners 71, tempC 54.4, `/proc/pressure/cpu` avg10
 **0.00**.
+
+### ⚠ The sky ramp — a third way to get it wrong, and it invalidated a whole reading
+
+**Discovered 2026-08-05 while investigating an apparent §5.4 breach. Confirmed cause,
+~5.6 gpu points, NOT yet fixed.**
+
+`syncNight()` runs on `NIGHT_CHECK_MS = 60 * 1000` and writes `--sky-warmth` to **three
+decimal places** from the sun altitude. `background.css:246` transitions
+`background-color` over `var(--atmo-settle, 60s)` on `body.substrate::before` — a **full
+1920×1080** pseudo-element. So every minute the value moves, a fresh 60 s full-viewport
+paint animation starts *before the previous one has finished*. Duty cycle **100%** for the
+whole ramp.
+
+**A 60 s transition restarted every 60 s is not a transition, it is a permanent
+animation.** The code comment defends it as having "zero loops", which is true literally
+and false in effect — and is why it survived review. It is also a *paint* property, so the
+CSS guardrail (which forbids transitioning **layout** properties, §5.5) never applied.
+
+ABA reversal on the live kiosk, injecting `body.substrate::before{transition:none!important}`:
+
+| window | gpu-process | `anims` | `background-color` in `getAnimations()` |
+|---|---|---|---|
+| A1 shipped | 39.5 | 5 | yes |
+| **B killed** | **32.9** | **4** | **no** |
+| A2 shipped | 37.4 | 5 | yes |
+
+The entry disappearing from `getAnimations()` is what makes this causal rather than
+correlational, and `anims` returning to **4** matches the healthy figure recorded above.
+
+⚠ **It only runs in two narrow windows.** `skyWarmthFor` saturates to 0 above +12° and
+below −6° altitude, so on 2026-08-05 in Brisbane the value moved only during
+**06:02–07:30 and 16:19–17:47** — 176 min/day, 12.2% of the day, **18.3% of awake time**.
+Recompute per season; these move.
+
+⚠ **This is what invalidated the first breach report.** The 20.8/21.0 pilot was taken at
+**09:10** (outside any ramp); the 33 that looked like a regression was taken at **16:45**
+(inside one). They were never comparable. **State which side of the ramp every GPU reading
+was taken on** — the windows are narrow and easy to land in by accident, precisely because
+"take it in daylight with the panel on" points straight at the evening one.
+
+**Residual, still unexplained:** even with the ramp cost removed, 32.9 against the pilot's
+21.0. Untested suspects are `archiveFitToPrint`'s resizing plane and the motion bursts —
+and note the burst's "inside noise" figure below is untrustworthy, because it was measured
+while bursts were silently 0 all day (pre-`ce551ac`). **The measurement that settles it is a
+daylight reading between the ramps, ~07:30–16:19, which has never been taken.**
+
+**Ruled out by measurement, not reasoning** — do not re-check these: the recipe panel's
+scroll rAF (hiding it via `window.__recipePanelHide()` did not lower cost — it kept
+climbing 38.7 → 40.0 → 41.5), and every blend-mode layer (`#aurora-sky`, `.aurora-blobs`
+with `screen` + `blur(45px)`, `#atmo-fx-veil`) — all three are `display: none` in Mode 0.
+
+⚠ **Find ALL renderer pids.** `pgrep chromium` yields two here; one is idle and reads
+**0.0**, which looks like "the renderer is free" and is simply the wrong process.
 
 ### How this row was measured, and two ways to get it wrong
 
