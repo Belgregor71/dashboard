@@ -78,6 +78,12 @@ if (!haConfig.enabled && process.env.HA_ENABLED !== "0") {
 
 const PORT = process.env.PORT || 3000;
 
+// How long the HA image/camera proxy may wait before it answers on its own.
+// Declared up here deliberately: attachHaProxy(app) is CALLED further down but
+// before its own definition, so a const beside that function is still in its
+// temporal dead zone when the call runs and the server dies at boot.
+const HA_UPSTREAM_TIMEOUT_MS = 5000;
+
 const app = express();
 // Headers, CORS allowlist and the flood ceiling go on before anything parses a
 // body, so a rejected request never reaches a route (audit 2026-07-26, S3).
@@ -178,6 +184,37 @@ app.get("/", (_req, res) => {
 // are the same class of token-scoped image endpoint and cost nothing to allow.
 // Anchored end-to-end rather than prefix-matched so no `..` segment can ride
 // along — HPM's own string filters are a bare indexOf on an unnormalised path.
+// ⚠ `proxyTimeout` does NOT cover a connect that never completes, and that is
+// the failure that actually happens here. http-proxy implements it as
+// `proxyReq.setTimeout(...)`, and Node arms that only "once a socket is assigned
+// to this request AND IS CONNECTED" — so a black-holed SYN is never bounded by
+// it. Measured on the live kiosk 2026-08-05, with proxyTimeout already set:
+// twelve seconds, `status=000`, and not one error event in the journal. The NAS
+// answered ping in 1-3ms throughout; only port 8123 was swallowing the SYN.
+//
+// So bound the INCOMING request instead. This needs no cooperation from the
+// proxy library and cannot be defeated by which layer failed to connect: if
+// nothing has answered in time, we answer. Guarded on headersSent so a slow but
+// successful proxy response is never truncated, and the timer is cleared on
+// both finish and close so it cannot fire after the fact.
+function answerIfUpstreamStalls(ms) {
+  return (req, res, next) => {
+    const timer = setTimeout(() => {
+      if (res.headersSent || res.writableEnded) return;
+      console.error("[ha-proxy] upstream stalled, answering", {
+        route: req.originalUrl || req.url,
+        ms
+      });
+      res.status(504).json({ error: "Home Assistant did not respond" });
+    }, ms);
+    timer.unref?.(); // never hold the process open on a pending image fetch
+    const clear = () => clearTimeout(timer);
+    res.on("finish", clear);
+    res.on("close", clear);
+    next();
+  };
+}
+
 function attachHaProxy(appInstance) {
   const HA_MEDIA_PATH =
     /^\/api\/(media_player_proxy|camera_proxy|image_proxy)\/[a-z0-9_]+\.[a-z0-9_]+$/;
@@ -209,16 +246,10 @@ function attachHaProxy(appInstance) {
     target: haTarget,
     changeOrigin: true,
     pathFilter: haMediaPathFilter,
-    // ⚠ An unreachable HA is not always a REFUSED one, and the difference is the
-    // whole bug. Measured on the live kiosk 2026-08-05: the NAS answers ping in
-    // 1-3ms while port 8123 BLACK-HOLES the SYN whenever the HA container is
-    // down, so the connect never completes and never errors — the `error`
-    // handler below is never reached and the request hangs regardless of how
-    // well that handler is written (`connect=0.000000s status=000`, ten seconds
-    // of nothing). A refused port is the easy case; this is the common one here.
-    // proxyTimeout bounds the wait so the failure becomes an event we can answer
-    // at all. 5s is many times over what a LAN image fetch needs.
-    proxyTimeout: 5000,
+    // Bounds the wait once a connection EXISTS. It is deliberately not the only
+    // guard — see answerIfUpstreamStalls, and the note there for why this one
+    // cannot cover the failure that actually happens here.
+    proxyTimeout: HA_UPSTREAM_TIMEOUT_MS,
     // ws was on with no consumer: it subscribed a server-wide 'upgrade' handler
     // that proxied matching WebSocket upgrades into HA. Images need no upgrade.
     on: {
@@ -257,8 +288,9 @@ function attachHaProxy(appInstance) {
     }
   };
 
-  appInstance.use("/api/image_proxy", createProxyMiddleware(baseProxyOptions));
-  appInstance.use("/api/camera_proxy", createProxyMiddleware(baseProxyOptions));
+  const stallGuard = answerIfUpstreamStalls(HA_UPSTREAM_TIMEOUT_MS);
+  appInstance.use("/api/image_proxy", stallGuard, createProxyMiddleware(baseProxyOptions));
+  appInstance.use("/api/camera_proxy", stallGuard, createProxyMiddleware(baseProxyOptions));
 }
 
 app.listen(PORT, () => {
