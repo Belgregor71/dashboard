@@ -17,6 +17,10 @@ const QUIET_END_HOUR = 7;
 // A feed is "warn" past staleMs and escalates to "error" past 2× staleMs.
 const FEEDS = {
   ha: { label: "Home Assistant", kind: "heartbeat", staleMs: 10 * 60 * 1000 },
+  // Not a feed we call — a fact we read. Its value is diagnostic: when the
+  // internet is down, weather + AI + news all fail SEPARATELY and the chip reads
+  // like three unrelated faults. This names the one cause.
+  wan: { label: "Internet", kind: "state", entity: "binary_sensor.archer_ax11000_wan_status", notify: false },
   motion: { label: "Motion events", kind: "heartbeat", staleMs: 24 * 60 * 60 * 1000 },
   weather: { label: "Weather", kind: "heartbeat", staleMs: 45 * 60 * 1000 },
   calendar: { label: "Calendar", kind: "heartbeat", staleMs: 2 * 60 * 60 * 1000 },
@@ -80,6 +84,23 @@ function formatAge(ms) {
   return `${hours}h ${minutes % 60}m`;
 }
 
+/**
+ * Pure mapper for a `kind: "state"` feed — an HA binary_sensor read straight
+ * across. Exported so the mapping is unit-testable without a live socket.
+ *
+ * The warn/error split is a real distinction, not hedging: `off` is the router
+ * telling us the WAN is down, while unknown/unavailable means the router
+ * integration itself is unreachable. Reporting the second as "internet is down"
+ * would be a claim we cannot support — and it is the more likely state when HA
+ * is the thing having a bad day.
+ */
+export function stateFeedLevel(entity, entityId = "sensor") {
+  if (!entity) return { level: "warn", detail: `${entityId} not found` };
+  if (entity.state === "on") return { level: "ok", detail: null };
+  if (entity.state === "off") return { level: "error", detail: "internet is down" };
+  return { level: "warn", detail: `router reports ${entity.state}` };
+}
+
 function evaluateFeed(id) {
   const config = FEEDS[id];
   const state = getFeedState(id);
@@ -95,6 +116,12 @@ function evaluateFeed(id) {
       return { level: "error", detail: `connected but no events for ${formatAge(sinceEvent)}` };
     }
     return { level: "ok", detail: null };
+  }
+
+  // A state feed mirrors an HA binary_sensor rather than tracking our own calls.
+  if (config.kind === "state") {
+    if (!haManager) return { level: "ok", detail: "HA disabled" };
+    return stateFeedLevel(haManager.getState(config.entity), config.entity);
   }
 
   if (config.kind === "heartbeat") {
@@ -163,6 +190,10 @@ async function handleTransitions(id, level, detail) {
   state.pendingRecovery = false;
   state.problemEvals += 1;
   const cooledDown = !state.lastNotifyAt || now - state.lastNotifyAt > RENOTIFY_COOLDOWN_MS;
+  // `notify: false` feeds are shown, never pushed. The internet feed is the
+  // reason this exists: a push travels HA → the companion app → the internet
+  // that is, by hypothesis, down. Pretending to notify is worse than not.
+  if (config.notify === false) return;
   if (state.problemEvals >= NOTIFY_AFTER_EVALS && !state.notifiedAt && cooledDown && !inQuietHours()) {
     const sent = await sendPush("Dashboard watchdog", `${config.label}: ${detail}`);
     if (sent) {
@@ -184,12 +215,16 @@ export function getHealth() {
   let overall = "ok";
   const feeds = Object.entries(FEEDS).map(([id, config]) => {
     const state = getFeedState(id);
-    if (levels[state.level] > levels[overall]) overall = state.level;
+    // A state feed accumulates no history, so read it LIVE. Otherwise a fresh
+    // boot — or a look between the one-minute eval ticks — reports the "ok"
+    // default at exactly the moment someone is asking why nothing is loading.
+    const view = config.kind === "state" ? evaluateFeed(id) : state;
+    if (levels[view.level] > levels[overall]) overall = view.level;
     return {
       id,
       label: config.label,
-      level: state.level,
-      detail: state.detail || null,
+      level: view.level,
+      detail: view.detail || null,
       lastSuccessAt: state.lastSuccessAt,
       lastError: state.lastError
     };
