@@ -9,6 +9,7 @@ import {
   budgetKeyFor
 } from "../services/delight.js";
 import { detectOccasion } from "../services/occasions.js";
+import { isGamingQuiet } from "../services/quietMode.js";
 
 // The personality runtime — Phase 10 (docs/vision/phase-10-temperament.md). The
 // temperament (personality.js) is PURE and needs no runtime; the surfacing paths
@@ -185,6 +186,9 @@ function fire(fired, now) {
 
 function evaluate() {
   if (!enabled) return null;
+  // Someone's mid-game: hold the rationed delight. Deliberately a HOLD, not a
+  // spend — nothing is budgeted away, so the moment can still land later.
+  if (isGamingQuiet()) return null;
   const now = new Date();
   const fired = pickDelight(buildCtx(now), budgets, now);
   if (!fired) return null;

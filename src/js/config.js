@@ -403,6 +403,17 @@ window.CONFIG = {
     // the flag-off no-op is proven on the panel.
     robotCandidate: false,
 
+    // "Someone is gaming" (binary_sensor.gaming_hub_someone_is_gaming) is far more
+    // useful as BEHAVIOUR than as a displayed fact, so it surfaces nothing: it
+    // holds back the chatty end of the attention queue (anything below the High
+    // band) and holds rationed delight. Interrupt and High still come through — a
+    // storm warning is not chatter.
+    // ⚠ It cannot silence the front door, and that is structural rather than a
+    // threshold choice: the doorbell and security cameras drive their popup, TTS
+    // and screen wake straight from doorbellAlert.js and never enter the queue.
+    // Default OFF → isGamingQuiet() returns false and the gate is byte-identical.
+    gamingQuiet: false,
+
     // Phase 4 "Give it a voice" (docs/vision/phase-4-voice.md) — the Mode 3
     // conversation infrastructure, built AHEAD of the hardware (no mic on the
     // Pi yet). An explicit wake (the wake-word pipeline once the mic lands;

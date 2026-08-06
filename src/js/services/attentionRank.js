@@ -49,8 +49,17 @@ export function rankQueue(candidates, now = new Date(), { weights = null } = {})
  * left alone (raised to interrupt-only even while technically present); an
  * `unhurried` room earns the DWELL depth sooner. No intent (flag off) → the
  * pre-Phase-6 behaviour, byte-identical.
+ *
+ * `quiet` (someone is gaming) holds back the chatty end of the queue: anything
+ * below the High band is dropped. Interrupt and High still come through — a
+ * storm warning is not chatter, and "leave by" is not chatter either. Note this
+ * gate only ever sees ATTENTION CANDIDATES: the doorbell and the security
+ * cameras drive their popup and TTS directly from doorbellAlert.js and never
+ * enter this queue, so no value of `quiet` can silence the front door.
  */
-export function selectForMode(queue, mode, { cooldowns = {}, now = new Date(), currentId = null, intent = null } = {}) {
+export const QUIET_MIN_SCORE = 70; // the High band floor
+
+export function selectForMode(queue, mode, { cooldowns = {}, now = new Date(), currentId = null, intent = null, quiet = false } = {}) {
   if (mode === MODE.VOICE) return { hero: null, stack: [] };
 
   const t = now.getTime();
@@ -61,6 +70,8 @@ export function selectForMode(queue, mode, { cooldowns = {}, now = new Date(), c
       !cooldowns[c.id] ||
       cooldowns[c.id] <= t
   );
+
+  if (quiet) eligible = eligible.filter((c) => c.interrupt || c.score >= QUIET_MIN_SCORE);
 
   const rushed = intent?.tempo === "rushed";
   const unhurried = intent?.tempo === "unhurried";

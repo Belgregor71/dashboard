@@ -6,6 +6,7 @@ import {
 } from "./insightRules.js";
 import { evaluatePredictive } from "./predictiveRules.js";
 import { rankQueue, selectForMode } from "./attentionRank.js";
+import { isGamingQuiet } from "./quietMode.js";
 import { get as getContext } from "../core/contextStore.js";
 import { emit } from "../core/eventBus.js";
 import { collectMemory } from "../core/memoryRuntime.js";
@@ -195,7 +196,9 @@ export function getSelection({ sources = [], now = new Date(), mode = "glance", 
 
   const queue = rankQueue(candidates, now, { weights });
   const cooldowns = readJson(COOLDOWN_KEY, {});
-  const sel = selectForMode(queue, mode, { cooldowns, now, currentId: currentHeroId, intent });
+  const sel = selectForMode(queue, mode, {
+    cooldowns, now, currentId: currentHeroId, intent, quiet: isGamingQuiet()
+  });
 
   const nextId = sel.hero ? sel.hero.id : null;
   if (nextId !== currentHeroId) {
