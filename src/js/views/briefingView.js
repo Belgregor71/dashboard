@@ -89,6 +89,16 @@ function binsTile(ctx) {
   return tile("Bins", ctx.bins.colours.join(" + "), meta);
 }
 
+// Sleep, morning only. A score alone says nothing at three metres, so the band
+// word leads and the numbers qualify it.
+// ⚠ On-device: ctx.sleep must never reach buildBriefPayload — see sleepSummary.js.
+function sleepTile(ctx) {
+  if (ctx.type !== "morning" || !ctx.sleep) return null;
+  const bits = [`myAir ${ctx.sleep.score}`];
+  if (ctx.sleep.ahi != null) bits.push(`AHI ${ctx.sleep.ahi}`);
+  return tile("Sleep", ctx.sleep.label, bits.join(" · "));
+}
+
 function fuelTile(ctx) {
   if (!ctx.fuel) return null;
   return tile("Fuel", `${ctx.fuel.price}c`, `${ctx.fuel.name} · ${ctx.fuel.distanceKm} km`);
@@ -129,6 +139,7 @@ function renderTiles(ctx, container) {
       weatherTile(ctx),
       nextUpTile(ctx),
       binsTile(ctx),
+      sleepTile(ctx),
       commuteTile(ctx),
       fuelTile(ctx),
       homeTile(ctx),

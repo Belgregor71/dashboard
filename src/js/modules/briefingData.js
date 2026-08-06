@@ -1,4 +1,5 @@
 import { getAllEntities } from "../services/homeAssistant/state.js";
+import { sleepSummary } from "../services/sleepSummary.js";
 import {
   COMMUTE_ORIGIN,
   COMMUTE_GREG_DEST,
@@ -166,6 +167,10 @@ function readEntities() {
   let entities = {};
   try { entities = getAllEntities() ?? {}; } catch { /**/ }
 
+  // ⚠ On-device only — see services/sleepSummary.js. Never add this to the AI
+  // briefing payload; it is health data.
+  const sleep = sleepSummary(entities);
+
   const people = Object.values(entities)
     .filter(e => e?.entity_id?.startsWith("person."))
     .map(e => ({
@@ -189,7 +194,7 @@ function readEntities() {
     }))
     .filter(t => !isNaN(t.count));
 
-  return { people, media, todos };
+  return { people, media, todos, sleep };
 }
 
 // Debug hook (convention: __switchView / __forceInsight / __isNight) — routes an
