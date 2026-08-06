@@ -73,21 +73,48 @@ export function rainIncoming(ctx, now) {
 }
 
 /**
- * Bins go out tonight — plain evening reminder. When rain is also coming the
- * insightRules `binWeatherClash` (score 60) takes over, so we stand down to
- * avoid a duplicate; this is the dry-night case.
+ * The bin reminder, in its two windows.
+ *
+ * The rubbish truck comes early, so the reminder that matters lands the DAY
+ * BEFORE (from midday) — `bins.eve`. Collection morning gets a short, sharper
+ * `bins.lastChance` until 7am, after which the route goes quiet: nagging about a
+ * truck that has already been asks for something no longer possible.
+ *
+ * When rain is also coming on bin eve, insightRules' `binWeatherClash` (score 60)
+ * takes over, so we stand down to avoid a duplicate — that stand-down is the eve
+ * case only, since a last chance outranks a tidy bit of weather advice anyway.
  */
 export function binNight(ctx, now) {
-  if (!ctx.bins?.eve) return null;
+  const bins = ctx.bins;
+  if (!bins) return null;
+
+  const colours = (bins.colours ?? []).join(" + ");
+  const suffix = colours ? ` (${colours})` : "";
+
+  if (bins.lastChance) {
+    const cutoff = new Date(now);
+    cutoff.setHours(7, 0, 0, 0);
+    return {
+      id: `bin-last-chance:${dateKey(now)}`,
+      source: SOURCE,
+      icon: "🗑️",
+      // Above the eve reminder: same chore, far less time left to do it.
+      score: 68,
+      text: `Bins${suffix} — last chance, the truck's due.`,
+      cooldownMs: 60 * 60 * 1000,
+      expiresAt: cutoff.getTime()
+    };
+  }
+
+  if (!bins.eve) return null;
   if ((ctx.weather?.rainChancePct ?? 0) >= 50) return null; // clash rule owns this
 
-  const colours = (ctx.bins.colours ?? []).join(" + ");
   return {
     id: `bin-night:${dateKey(now)}`,
     source: SOURCE,
     icon: "🗑️",
     score: 50,
-    text: `Bins go out tonight${colours ? ` (${colours})` : ""}.`,
+    text: `Bins go out tonight${suffix}.`,
     cooldownMs: 4 * 60 * 60 * 1000,
     expiresAt: endOfDay(now).getTime()
   };

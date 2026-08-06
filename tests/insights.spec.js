@@ -446,6 +446,32 @@ test.describe("binNight", () => {
     expect(binNight(ctxWith({ bins: { eve: true, colours: ["Red"] }, weather: { rainChancePct: 70 } }), EVENING)).toBeNull();
     expect(binNight(ctxWith({ bins: { eve: false, colours: ["Red"] } }), EVENING)).toBeNull();
   });
+
+  // The truck comes early, so collection morning gets a short, sharper window
+  // instead of the old all-day "bins out this morning" nag.
+  test("last chance outranks the eve reminder and expires at 7am", () => {
+    const dawn = new Date(2026, 7, 6, 5, 30);
+    const c = binNight(ctxWith({ bins: { lastChance: true, colours: ["Red", "Yellow"] } }), dawn);
+    expect(c).not.toBeNull();
+    expect(c.score).toBe(68);
+    expect(c.score).toBeGreaterThan(50); // above the plain eve reminder
+    expect(c.text).toContain("last chance");
+    expect(new Date(c.expiresAt).getHours()).toBe(7);
+  });
+
+  test("last chance ignores the rain stand-down — time beats tidiness", () => {
+    const dawn = new Date(2026, 7, 6, 5, 30);
+    const c = binNight(
+      ctxWith({ bins: { lastChance: true, colours: ["Red"] }, weather: { rainChancePct: 90 } }),
+      dawn
+    );
+    expect(c).not.toBeNull();
+    expect(c.text).toContain("last chance");
+  });
+
+  test("a null bins context is silent rather than throwing", () => {
+    expect(binNight(ctxWith({ bins: null }), EVENING)).toBeNull();
+  });
 });
 
 test.describe("onThisDay", () => {

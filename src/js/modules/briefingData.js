@@ -275,9 +275,14 @@ export async function gatherBriefingContext(type) {
     },
     bins: binsData?.configured
       ? {
-          due:     Boolean(binsData.due || binsData.eve),
-          eve:     Boolean(binsData.eve),
-          colours: (binsData.bins ?? []).map(b => b.charAt(0).toUpperCase() + b.slice(1)),
+          due:        Boolean(binsData.due || binsData.eve),
+          eve:        Boolean(binsData.eve),
+          // Collection morning before 7am — still time, but only just.
+          lastChance: Boolean(binsData.lastChance),
+          colours:    (binsData.bins ?? []).map(b => b.charAt(0).toUpperCase() + b.slice(1)),
+          // The council's own words ("Rubbish", "Recycling", "Garden"), already
+          // capitalised upstream — the tile leads with colour and qualifies with these.
+          words:      binsData.words ?? [],
         }
       : null,
     fuel: cheapest

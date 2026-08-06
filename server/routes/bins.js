@@ -1,65 +1,43 @@
 import express from "express";
 
+import { binWindow, binsConfigured, loadCollections } from "../services/binSchedule.js";
+
 const router = express.Router();
 
-// Accept day as number (0–6) or full name ("Sunday" … "Saturday")
-function parseDayNumber(value) {
-  if (value === undefined || value === null || value === "") return null;
-  const names = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
-  const lower = String(value).toLowerCase().trim();
-  const byName = names.indexOf(lower);
-  if (byName >= 0) return byName;
-  const n = parseInt(lower, 10);
-  return n >= 0 && n <= 6 ? n : null;
-}
+// Bin reminder. The schedule and the window rule both live in
+// ../services/binSchedule.js — this route is just the HTTP shape.
+//
+// The window deliberately went from "day before at 5pm, then all of collection
+// day" to "day before from midday, then a last chance until 7am". The rubbish
+// truck comes early, so the old all-day reminder spent collection day asking for
+// something that was no longer possible.
 
-// Given the actual collection date and a reference date when yellow was collected,
-// return which bins go out.  Weeks since reference:
-//   even (0, 2, 4 …) → yellow  (same cycle as reference)
-//   odd  (1, 3, 5 …) → green
-function calcBins(collectionDate, yellowRef) {
-  const bins = ["red"];
-  if (!yellowRef) return bins;
-
-  const ref = new Date(yellowRef);
-  ref.setHours(0, 0, 0, 0);
-  const target = new Date(collectionDate);
-  target.setHours(0, 0, 0, 0);
-
-  const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
-  const weeksDiff = Math.round((target - ref) / MS_PER_WEEK);
-  bins.push(weeksDiff % 2 === 0 ? "yellow" : "green");
-  return bins;
-}
-
-router.get("/api/bins", (req, res) => {
-  const collectionDayNum = parseDayNumber(process.env.BIN_COLLECTION_DAY);
-  if (collectionDayNum === null) {
+router.get("/api/bins", async (_req, res) => {
+  if (!binsConfigured()) {
     return res.json({ configured: false });
   }
 
-  const yellowRef   = process.env.BIN_YELLOW_REFERENCE ?? null;
-  const now         = new Date();
-  const todayDay    = now.getDay();
-  const isDay       = todayDay === collectionDayNum;
-  const isEve       = (todayDay + 1) % 7 === collectionDayNum;
+  const now = new Date();
+  const { collections, source } = await loadCollections({ now });
+  const window = binWindow(collections, now);
 
-  // Show eve reminder from 5 pm onward; show day-of reminder all day
-  const showEve = isEve && now.getHours() >= 17;
-  const showDay = isDay;
-
-  if (!showEve && !showDay) {
-    return res.json({ configured: true, due: false });
+  if (!window.due) {
+    return res.json({ configured: true, due: false, source });
   }
 
-  // The collection we're reminding about
-  const collectionDate = new Date(now);
-  if (isEve) collectionDate.setDate(collectionDate.getDate() + 1);
+  const bins = window.collection.bins.map((bin) => bin.colour);
+  const words = window.collection.bins.map((bin) => bin.word);
 
-  const bins  = calcBins(collectionDate, yellowRef);
-  const label = showEve ? "Bins out tonight" : "Bins out this morning";
-
-  res.json({ configured: true, due: true, eve: showEve, bins, label });
+  res.json({
+    configured: true,
+    due: true,
+    eve: window.eve,
+    lastChance: window.lastChance,
+    bins,
+    words,
+    label: window.eve ? "Bins out tonight" : "Last chance — truck's due",
+    source
+  });
 });
 
 export default router;

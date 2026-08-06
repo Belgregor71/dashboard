@@ -496,7 +496,21 @@ test.describe("feeds", () => {
   test("GET /api/bins", async ({ request }) => {
     const { body } = await expectJson(request, "/api/bins");
     expect(typeof body.configured).toBe("boolean");
-    if (body.configured) expect(typeof body.due).toBe("boolean");
+    if (!body.configured) return;
+
+    expect(typeof body.due).toBe("boolean");
+    // HA is stubbed to a dead port under test, so this also proves the route
+    // DEGRADES to the date-math rather than 500ing when the calendar is gone.
+    expect(["calendar", "fallback"]).toContain(body.source);
+
+    if (!body.due) return;
+    expect(Array.isArray(body.bins)).toBe(true);
+    expect(Array.isArray(body.words)).toBe(true);
+    expect(body.bins.length).toBe(body.words.length);
+    expect(typeof body.label).toBe("string");
+    // The two windows are mutually exclusive by construction — a reminder is
+    // either "the day before" or "last chance", never both.
+    expect(body.eve && body.lastChance).toBe(false);
   });
 
   test("GET /api/nrl/broncos", async ({ request }) => {

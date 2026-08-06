@@ -77,9 +77,16 @@ function nextUpTile(ctx) {
   return null;
 }
 
+// Colour leads because that's how the household talks about bins; the council's
+// own words qualify it underneath, so there's never a doubt which bin is which.
 function binsTile(ctx) {
   if (!ctx.bins?.due) return null;
-  return tile("Bins", ctx.bins.colours.join(" + "), ctx.bins.eve ? "Out tonight" : "Today");
+
+  const timing = ctx.bins.lastChance ? "last chance" : "out tonight";
+  const words  = (ctx.bins.words ?? []).join(" + ");
+  const meta   = words ? `${words} · ${timing}` : timing;
+
+  return tile("Bins", ctx.bins.colours.join(" + "), meta);
 }
 
 function fuelTile(ctx) {

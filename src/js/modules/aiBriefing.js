@@ -67,9 +67,12 @@ function eventsText(ctx) {
   return today.length ? today.join("; ") : "Nothing scheduled today";
 }
 
+// "today" would be a lie in the only non-eve window that still exists: the model
+// would tell you to put the bins out on a morning the truck is already coming.
 function binsText(ctx) {
   if (!ctx.bins?.due) return null;
-  return `${ctx.bins.eve ? "tonight" : "today"}: ${ctx.bins.colours.join(" + ")}`;
+  const when = ctx.bins.lastChance ? "out now, truck's due this morning" : "tonight";
+  return `${when}: ${ctx.bins.colours.join(" + ")}`;
 }
 
 function commuteText(ctx) {
