@@ -282,7 +282,9 @@ export function startApp() {
     // Follow-up — fold Tonight's Menu into the attention queue (docs/design/).
     foldHomeTilesEnabled: isEnabled("foldHomeTiles", false),
     // Follow-up — fold the camera last-trigger pill into the attention queue.
-    cameraCandidateEnabled: isEnabled("cameraCandidate", false)
+    cameraCandidateEnabled: isEnabled("cameraCandidate", false),
+    // The robot vacuum's "needs a human" states (empty tank, overdue consumable).
+    robotCandidateEnabled: isEnabled("robotCandidate", false)
   });
   // "The Day, Rendered" v2 — the temporal spine. Must init AFTER initFocusHero
   // so the scored queue (window.__attention) is live when the spine first reads

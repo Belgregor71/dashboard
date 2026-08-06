@@ -189,12 +189,127 @@ export function cameraTriggerCandidate({ cameraTriggerName, cameraTriggerAt, cam
   };
 }
 
+/**
+ * The robot vacuum's "needs a human" states — the only thing it knows that nobody
+ * is told. Two kinds, deliberately ranked differently:
+ *
+ *   problems     — `device_class: problem` binary sensors that are ON right now
+ *                  (water shortage, dirty/clean tank). Actionable today.
+ *   consumables  — `*_time_left` sensors gone NEGATIVE, i.e. past their service
+ *                  life. Real, but measured in hours against a ~300 h life, so
+ *                  they belong at the very bottom of the band.
+ *
+ * Selecting problems by device_class rather than by entity id is deliberate: the
+ * dock sensors carry a room prefix (`piano_room_…`) that would silently stop
+ * matching if the robot were ever moved or renamed.
+ */
+const ROBOT_PROBLEM_LABELS = {
+  water_shortage: "water tank's empty",
+  dock_dirty_water_box: "dirty tank needs emptying",
+  dock_clean_water_box: "clean tank needs filling"
+};
+
+const ROBOT_CONSUMABLE_LABELS = {
+  main_brush_time_left: "main brush",
+  side_brush_time_left: "side brush",
+  filter_time_left: "filter",
+  sensor_time_left: "sensors",
+  dock_strainer_time_left: "dock strainer",
+  dock_maintenance_brush_time_left: "dock brush"
+};
+
+function labelFromSuffix(entityId, table) {
+  // Match on the id's TAIL so a room prefix never breaks the lookup.
+  const key = Object.keys(table).find((suffix) => entityId.endsWith(suffix));
+  return key ? table[key] : null;
+}
+
+/**
+ * Pure entity reader — takes the HA state map, returns what needs a human.
+ * No DOM, no imports: unit-testable in plain node like the rest of this module.
+ */
+export function robotAttentionFrom(entities = {}) {
+  const problems = [];
+  const consumables = [];
+
+  for (const [entityId, entity] of Object.entries(entities || {})) {
+    if (!/roborock/i.test(entityId)) continue;
+    const state = entity?.state;
+
+    if (entityId.startsWith("binary_sensor.")) {
+      if (entity?.attributes?.device_class !== "problem" || state !== "on") continue;
+      const label = labelFromSuffix(entityId, ROBOT_PROBLEM_LABELS);
+      if (label) problems.push(label);
+      continue;
+    }
+
+    if (entityId.startsWith("sensor.")) {
+      const label = labelFromSuffix(entityId, ROBOT_CONSUMABLE_LABELS);
+      if (!label) continue;
+      const hoursLeft = Number(state);
+      // `unknown`/`unavailable` coerce to NaN — a missing reading is not an
+      // overdue one, so require a real negative number.
+      if (Number.isFinite(hoursLeft) && hoursLeft < 0) consumables.push(label);
+    }
+  }
+
+  return { problems: problems.sort(), consumables: consumables.sort() };
+}
+
+/** Join a list the way a person would say it. */
+function readableList(items) {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+/**
+ * A chore, so it stays in the low band and never takes the centred hero. Carries
+ * NO `expiresAt` — unlike a camera trigger this is a *state*, not an event: it
+ * should sit there until somebody actually empties the tank.
+ */
+export function robotCandidate({ robotProblems, robotConsumables } = {}) {
+  const problems = Array.isArray(robotProblems) ? robotProblems : [];
+  const consumables = Array.isArray(robotConsumables) ? robotConsumables : [];
+
+  if (problems.length) {
+    return {
+      id: `robot-problem:${problems.join("|")}`,
+      source: "robot",
+      icon: "🤖",
+      text: `Roborock — ${readableList(problems)}.`,
+      title: "Roborock",
+      sub: readableList(problems),
+      score: 44,
+      stackOnly: true,
+      cooldownMs: 6 * 60 * 60 * 1000
+    };
+  }
+
+  if (consumables.length) {
+    return {
+      id: `robot-consumable:${consumables.join("|")}`,
+      source: "robot",
+      icon: "🤖",
+      text: `Roborock's ${readableList(consumables)} due for a change.`,
+      title: "Roborock",
+      sub: `${readableList(consumables)} due`,
+      score: 40,
+      stackOnly: true,
+      // Past a ~300 h service life, so this is not urgent — mention it once a day.
+      cooldownMs: 24 * 60 * 60 * 1000
+    };
+  }
+
+  return null;
+}
+
 export const SOURCES = [
   bomCandidate,
   weatherSevereCandidate,
   nextEventCandidate,
   commuteCandidate,
   cameraTriggerCandidate,
+  robotCandidate,
   nowPlayingCandidate,
   plexCandidate,
   tonightsMenuCandidate

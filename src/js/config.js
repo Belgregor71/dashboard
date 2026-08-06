@@ -391,6 +391,18 @@ window.CONFIG = {
     // standalone pill is display:none. One-line revert (-> false).
     cameraCandidate: true,
 
+    // The robot vacuum's "needs a human" states — the only thing it knows that
+    // nobody is ever told: a `device_class: problem` sensor that is ON (empty
+    // water tank, dirty/clean dock tank), or a consumable past its service life.
+    // Selected by device_class rather than entity id, because the dock sensors
+    // carry a room prefix that would silently stop matching if the robot moved.
+    // A chore, so it is low-band and stackOnly — a water tank must never take the
+    // centred hero — and it carries NO expiresAt, because unlike a camera trigger
+    // this is a state, not an event: it should sit there until someone empties it.
+    // Default OFF → no candidate at all (readState reads nothing). Flip only after
+    // the flag-off no-op is proven on the panel.
+    robotCandidate: false,
+
     // Phase 4 "Give it a voice" (docs/vision/phase-4-voice.md) — the Mode 3
     // conversation infrastructure, built AHEAD of the hardware (no mic on the
     // Pi yet). An explicit wake (the wake-word pipeline once the mic lands;

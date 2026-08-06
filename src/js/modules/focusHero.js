@@ -3,7 +3,7 @@ import { getBomWarnings } from "../services/weather/bom.js";
 import { getAllEntities } from "../services/homeAssistant/state.js";
 import { getCurrentInsight, initInsightEngine } from "../services/insightEngine.js";
 import { initAttentionEngine, getSelection } from "../services/attentionEngine.js";
-import { collectSources, cameraSnapshotUrl } from "../services/candidateSources.js";
+import { collectSources, cameraSnapshotUrl, robotAttentionFrom } from "../services/candidateSources.js";
 import { getLastCameraTrigger } from "./cameraTiles.js";
 import { getMode } from "../core/presence.js";
 import { on } from "../core/eventBus.js";
@@ -28,6 +28,7 @@ let bareHeroOn = false;
 let mediaCandidateOn = false;
 let foldHomeTilesOn = false;
 let cameraCandidateOn = false;
+let robotCandidateOn = false;
 let stackClearTimer = null;
 let lastSelection = { hero: null, stack: [], queue: [] };
 
@@ -115,8 +116,12 @@ function readState() {
   const plex = mediaCandidateOn ? readPlex() : null;
   const menuName = foldHomeTilesOn ? readTonightsMenu() : null;
   const cameraTrigger = cameraCandidateOn ? readCameraTrigger() : null;
+  // Flag-off reads nothing, so the queue carries no robot candidate at all.
+  const robot = robotCandidateOn ? robotAttentionFrom(getAllEntities()) : null;
   return {
     bomWarning: getBomWarnings(getAllEntities()).summary || null,
+    robotProblems: robot?.problems ?? null,
+    robotConsumables: robot?.consumables ?? null,
     insight: getCurrentInsight(),
     weatherCondition: document.getElementById("current-conditions")?.textContent?.trim() || "",
     weatherTemp: document.getElementById("current-temp")?.textContent?.trim() || "",
@@ -397,7 +402,7 @@ function update() {
   showHero(els, focus.icon, focus.text);
 }
 
-export function initFocusHero({ attentionEnabled = false, heroTypeEnabled = false, leanInStackEnabled = false, stackCardsEnabled = false, bareHeroEnabled = false, mediaCandidateEnabled = false, foldHomeTilesEnabled = false, cameraCandidateEnabled = false } = {}) {
+export function initFocusHero({ attentionEnabled = false, heroTypeEnabled = false, leanInStackEnabled = false, stackCardsEnabled = false, bareHeroEnabled = false, mediaCandidateEnabled = false, foldHomeTilesEnabled = false, cameraCandidateEnabled = false, robotCandidateEnabled = false } = {}) {
   attentionOn = attentionEnabled === true;
   heroTypeOn = heroTypeEnabled === true;
   leanInOn = leanInStackEnabled === true;
@@ -406,6 +411,7 @@ export function initFocusHero({ attentionEnabled = false, heroTypeEnabled = fals
   mediaCandidateOn = mediaCandidateEnabled === true;
   foldHomeTilesOn = foldHomeTilesEnabled === true;
   cameraCandidateOn = cameraCandidateEnabled === true;
+  robotCandidateOn = robotCandidateEnabled === true;
 
   // Study 02 — mark the feature on so the length-responsive CSS engages, and
   // expose a probe for the on-Pi 3–4 m legibility check. Flag-off: no class,
