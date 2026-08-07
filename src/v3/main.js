@@ -12,6 +12,7 @@ import { initDepth, setDepth, onDepth, DEPTH } from "./core/depth.js";
 import { initPresenceLight } from "./core/presence-light.js";
 import { initVoice } from "./core/voice.js";
 import { clearSubject, activeSubject } from "./subjects/index.js";
+import { clearVocabularyCard, vocabularyCardMounted } from "./core/vocabulary-card.js";
 import { railPhrase } from "../js/services/vocabulary.js";
 import { voiceSnapshot, refreshVoiceCache } from "../js/services/voiceSnapshot.js";
 
@@ -129,6 +130,7 @@ function paintRail() {
    V3, and a subject left mounted keeps its MJPEG connection open forever. */
 function onDepthChange(next, prev) {
   if (prev === DEPTH.SUBJECT && next !== DEPTH.SUBJECT) clearSubject();
+  if (prev === DEPTH.SPREAD && next !== DEPTH.SPREAD) clearVocabularyCard();
 }
 
 function boot() {
@@ -159,6 +161,7 @@ function boot() {
     presence: window.__presenceLight?.(),
     voice: window.__v3Voice?.(),
     subject: activeSubject(),
+    vocabCard: vocabularyCardMounted(),
     rail: el.rail?.hidden === false ? el.rail.textContent : null,
     weather: weather?.now?.condition?.label ?? null
   });

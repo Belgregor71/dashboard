@@ -88,6 +88,50 @@ test("leaving depth 3 dismantles the subject — repeatedly, without accumulatin
   expect(pageErrors).toEqual([]);
 });
 
+test("no depth is ever reachable while empty — the blank-screen guard", async ({ page }) => {
+  const pageErrors = await boot(page);
+
+  // THE regression this exists for: both paths to depth 2 used to deepen
+  // unconditionally into an empty #spread-lattice, while compose.css hid the
+  // glance layer the instant depth flipped — blacking out the wall mid-sentence,
+  // and worst of all on the repair path, where the person is already not being
+  // understood.
+  const state = await page.evaluate(async () => {
+    // Three unmatched utterances trip the third-strike escalation.
+    for (let i = 0; i < 3; i++) {
+      await window.__v3Transcript(`zzz unmatchable phrase ${i}`);
+    }
+    await new Promise((r) => setTimeout(r, 300));
+    const depth = window.__depth().depth;
+    const layer = document.querySelector(`.depth--${["field", "glance", "spread", "subject"][depth]}`);
+    return {
+      depth,
+      vocabCard: window.__v3().vocabCard,
+      // Whatever layer is showing must have something in it.
+      visibleLayerHasContent: (layer?.textContent ?? "").trim().length > 0
+        || layer?.querySelectorAll("img, canvas").length > 0
+    };
+  });
+
+  if (state.depth === 2) {
+    expect(state.vocabCard, "depth 2 was entered with nothing rendered in it").toBe(true);
+  }
+  expect(state.visibleLayerHasContent, `depth ${state.depth} is showing an empty layer`).toBe(true);
+  expect(pageErrors).toEqual([]);
+});
+
+test("leaving depth 2 clears the card", async ({ page }) => {
+  await boot(page);
+  await page.evaluate(async () => {
+    for (let i = 0; i < 3; i++) await window.__v3Transcript(`zzz nope ${i}`);
+    await new Promise((r) => setTimeout(r, 200));
+  });
+  await page.evaluate(() => window.__setDepth(1, "test-recede"));
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => window.__v3().vocabCard)).toBe(false);
+  await expect(page.locator("#spread-lattice")).toBeEmpty();
+});
+
 test("a ref naming a cell that does not exist is inert, not an error", async ({ page }) => {
   const pageErrors = await boot(page);
   // The model may one day return refs; an invented one must do nothing at all

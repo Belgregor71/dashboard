@@ -181,6 +181,30 @@ html, body {
 :root[data-depth="1"] .rail-slot,
 :root[data-depth="2"] .rail-slot { opacity: 1; }
 
+/* ── The vocabulary card (depth 2) ──────────────────────────────────────────
+   Shown, never recited. A voice reading a menu aloud is the failure the
+   two-sentence cap exists to prevent, so the speech points and the screen
+   carries. Six is a glance; more is a document.
+─────────────────────────────────────────────────────────────────────────── */
+.vocab__list {
+  margin: var(--space-gap, 16px) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vocab__item {
+  font-family: var(--font-said);
+  font-optical-sizing: auto;
+  font-size: var(--t-measured-2);
+  font-style: italic;
+  font-weight: 300;
+  line-height: 1.45;
+  color: var(--ink-dim);
+  text-shadow: var(--ink-shadow);
+}
+.vocab__item::before { content: "\201C"; }
+.vocab__item::after  { content: "\201D"; }
+
 /* ── Subjects (depth 3) ─────────────────────────────────────────────────────
    One thing, full bleed. The still lands first and the live stream is revealed
    only once it has painted, because a battery camera takes 15-20s to wake and

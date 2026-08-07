@@ -25,6 +25,7 @@ import { speak, silence } from "../../js/core/tts.js";
 import { setPhase, setFailure, trackSpeech } from "./presence-light.js";
 import { deepen, sustain, DEPTH } from "./depth.js";
 import { showSubject } from "../subjects/index.js";
+import { renderVocabularyCard } from "./vocabulary-card.js";
 
 const LINGER_MS = 8_000;
 const DEIXIS_MS = 4_200;
@@ -169,7 +170,12 @@ export async function submit(text, { source = "unknown" } = {}) {
         if (reply) {
           setPhase("speaking");
           deepen(DEPTH.GLANCE, `voice-${intent.id}`);
-          if (reply.showVocabulary) deepen(DEPTH.SPREAD, "voice-vocabulary");
+          // Only deepen once the card has something to show. Depth 2 has no
+          // composer yet, so an unpopulated SPREAD is a black screen — and this
+          // path fires while the house is mid-sentence.
+          if (reply.showVocabulary && renderVocabularyCard(snap)) {
+            deepen(DEPTH.SPREAD, "voice-vocabulary");
+          }
           await say(reply.speech, reply.refs);
           rememberReply(reply.speech);
           consecutiveFailures = 0;
@@ -217,8 +223,12 @@ export async function submit(text, { source = "unknown" } = {}) {
     // stops talking to the wall for good.
     if (consecutiveFailures >= 3) {
       consecutiveFailures = 0;
-      deepen(DEPTH.SPREAD, "voice-repair-escalation");
-      const vocab = answer({ id: "meta.vocabulary", slots: {} }, voiceSnapshot(coords));
+      const snap = voiceSnapshot(coords);
+      // Same guard, and it matters more here: the person has already not been
+      // understood three times. A screen that goes black at that exact moment
+      // is where someone stops talking to the wall for good.
+      if (renderVocabularyCard(snap)) deepen(DEPTH.SPREAD, "voice-repair-escalation");
+      const vocab = answer({ id: "meta.vocabulary", slots: {} }, snap);
       if (vocab) await say(vocab.speech, []);
     }
     endTurn();
