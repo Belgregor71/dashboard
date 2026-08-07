@@ -132,6 +132,58 @@ export const RULES = [
       return writes.map((w) => ({ line: w.line, detail: `computed brightness, no clamp anywhere in file: ${w.text}` }));
     },
     fix: "wrap in Math.max(FLOOR, …) — an unclamped dim curve can reach 0 and black the kiosk out overnight (see the ambient-clock 0.3 floor)"
+  },
+  {
+    id: "absent-read-as-empty",
+    // Real bugs, FIVE of them in a single day (2026-08-08): the calendar said
+    // "nothing on today", the shopping list said "empty", the todo snapshot
+    // returned [] on a disconnected HA, "what's playing" said "nothing's
+    // playing", and the cameras said "nothing's triggered recently" — every one
+    // of them while the upstream was simply DOWN.
+    //
+    // The shape is always identical: a collection defaulted with `?? []` (or an
+    // optional chain that yields undefined), then a `.length === 0` branch that
+    // states a FACT ABOUT THE WORLD. Absent and empty are different, and only
+    // one of them is something the house is entitled to say out loud.
+    //
+    // Heuristic and deliberately narrow: it needs both the nullish default and
+    // an emptiness-worded string nearby, and it stands down if the function
+    // guards presence first. A rule nobody trusts gets disabled.
+    test(src) {
+      const hits = [];
+      const lines = src.split("\n");
+      const EMPTY_WORDS = /["'`][^"'`]*\b(nothing|no one|nobody|none|empty|is clear|all clear)\b[^"'`]*["'`]/i;
+
+      lines.forEach((l, i) => {
+        const code = l.replace(/\/\/.*$/, "");
+        if (!EMPTY_WORDS.test(code)) return;
+        if (!/\breturn\b/.test(code)) return;
+
+        // Look back a short window for the tell: a collection that was given an
+        // empty default rather than being checked for presence.
+        const from = Math.max(0, i - 12);
+        const window = lines.slice(from, i + 1).join("\n");
+        const defaulted = /\?\?\s*(\[\]|\{\})/.test(window) || /\?\.\w+\s*\|\|\s*\[\]/.test(window);
+        if (!defaulted) return;
+
+        // Stand down if presence is actually established in the same window.
+        // The last clause matters: `if (people.length === 0) return null;` IS a
+        // presence guard — the function has already decided that an empty
+        // collection means "no answer" rather than "an answer of none" — and
+        // without it this rule flags the one implementation that got it right.
+        const guarded =
+          /Array\.isArray\s*\(|==\s*null|!=\s*null|===\s*undefined|\.known\b|hasOwnProperty/.test(window) ||
+          /length\s*===?\s*0\s*\)\s*return null/.test(window);
+        if (guarded) return;
+
+        hits.push({
+          line: i + 1,
+          detail: `states emptiness (${code.trim().slice(0, 60)}) from a collection defaulted with ?? [] — an upstream being DOWN would read as data being ABSENT`
+        });
+      });
+      return hits;
+    },
+    fix: "check the data ARRIVED before speaking about it — `if (!Array.isArray(x)) return null;` — so a dead upstream falls through instead of confidently reporting 'nothing'"
   }
 ];
 

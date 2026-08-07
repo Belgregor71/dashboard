@@ -84,9 +84,14 @@ function peopleFrom(entities) {
     .filter((p) => p.name);
 }
 
+/* null when the house has no media players AT ALL — which is what a
+   disconnected Home Assistant looks like from here. An empty array means the
+   players exist and none of them is playing, which is a different sentence. */
 function mediaFrom(entities) {
-  return entities
-    .filter((e) => e?.entity_id?.startsWith("media_player.") && e.state === "playing")
+  const players = entities.filter((e) => e?.entity_id?.startsWith("media_player."));
+  if (players.length === 0) return null;
+  return players
+    .filter((e) => e.state === "playing")
     .map((e) => ({
       title: e.attributes?.media_title ?? null,
       artist: e.attributes?.media_artist ?? e.attributes?.media_series_title ?? null
@@ -163,6 +168,14 @@ const EVENT_WINDOW_MS = 6 * 60 * 60 * 1000;
 
 export function pickLastCameraEvent(list, byId = null) {
   const index = byId ?? Object.fromEntries((list ?? []).filter((e) => e?.entity_id).map((e) => [e.entity_id, e]));
+
+  // `known` separates "the cameras exist and none has fired recently" from
+  // "there are no cameras here, because HA is not connected". Without it, a
+  // dead HA answers "nothing's triggered recently" — which is a statement
+  // about the house that we are in no position to make.
+  const known = (list ?? []).some((e) => MOTION_RE.test(e?.entity_id ?? ""));
+  if (!known) return { known: false, lastEvent: null };
+
   const events = [];
   for (const e of list ?? []) {
     const m = MOTION_RE.exec(e?.entity_id ?? "");
@@ -172,7 +185,7 @@ export function pickLastCameraEvent(list, byId = null) {
     if (Date.now() - at.getTime() > EVENT_WINDOW_MS) continue;
     events.push({ slug: m[1], at, live: e.state === "on" });
   }
-  if (events.length === 0) return { lastEvent: null };
+  if (events.length === 0) return { known: true, lastEvent: null };
 
   // Anything currently detecting wins; otherwise the most recent change.
   events.sort((a, b) => (b.live - a.live) || (b.at - a.at));
@@ -186,7 +199,7 @@ export function pickLastCameraEvent(list, byId = null) {
       : null;
   })();
 
-  return { lastEvent: { name: top.slug.replace(/_/g, " "), at: top.at.toISOString(), person } };
+  return { known: true, lastEvent: { name: top.slug.replace(/_/g, " "), at: top.at.toISOString(), person } };
 }
 
 /**

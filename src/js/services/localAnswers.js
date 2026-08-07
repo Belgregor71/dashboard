@@ -212,7 +212,8 @@ const ANSWERERS = {
   },
 
   "house.media": (s) => {
-    const m = s.media?.[0];
+    if (!Array.isArray(s.media)) return null;   // no players known != nothing playing
+    const m = s.media[0];
     if (!m) return { speech: "Nothing's playing.", refs: ["media"] };
     return { speech: endStop(`${m.title}${m.artist ? ` by ${m.artist}` : ""}`), refs: ["media"] };
   },
@@ -267,7 +268,11 @@ const ANSWERERS = {
   },
 
   "camera.last": (s) => {
-    const e = s.camera?.lastEvent;
+    // Only speak about the cameras if we can actually see them. With HA down
+    // "nothing's triggered recently" is a claim about the house that we are in
+    // no position to make.
+    if (!s.camera?.known) return null;
+    const e = s.camera.lastEvent;
     if (!e) return { speech: "Nothing's triggered recently.", refs: ["cameras"] };
     const who = e.person ? `${e.person} ` : "";
     return { speech: `${who}at the ${e.name}, ${time(e.at)}.`, refs: ["cameras"] };

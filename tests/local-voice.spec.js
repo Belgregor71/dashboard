@@ -32,7 +32,7 @@ const SNAP = {
   commute: { greg: { minutes: 24, delayMin: 6 } },
   fuel: { sites: [{ price: 174.9, name: "the Nudgee servo" }] },
   todos: { shopping: ["milk", "bread", "coffee", "eggs"], tasks: ["call the plumber"] },
-  camera: { lastEvent: { name: "front door", at: new Date().toISOString(), person: "Greg" } },
+  camera: { known: true, lastEvent: { name: "front door", at: new Date().toISOString(), person: "Greg" } },
   lastReply: "It's 17 degrees and clear."
 };
 
@@ -294,6 +294,35 @@ test.describe("answers", () => {
   test("answers carry refs so the screen can light what is being talked about", () => {
     expect(answer(matchIntent("what's the weather"), SNAP).refs).toContain("weather");
     expect(answer(matchIntent("who's home"), SNAP).refs).toContain("people");
+  });
+
+  test("NOT LOADED IS NOT EMPTY — every intent, not just the ones we remembered", () => {
+    // Three separate bugs of this exact shape shipped in one day: the calendar
+    // said "nothing on today", the shopping list said "empty", and the TTS
+    // cache treated an unread entry as an unused one. Each was found by
+    // accident. This makes the invariant mechanical instead of remembered.
+    //
+    // Given a COMPLETELY EMPTY snapshot — every upstream down, HA disconnected —
+    // an answerer may only speak if its answer is true without any data at all.
+    // Everything else must return null and let the turn fall through.
+    const ALLOWED_WITHOUT_DATA = new Set([
+      "time.now",          // the clock is always available
+      "time.date",         // ditto
+      "meta.vocabulary",   // points at the screen; needs nothing
+      "meta.repeat"        // honestly reports having said nothing yet
+    ]);
+
+    const offenders = [];
+    for (const id of ANSWERABLE) {
+      const result = answer({ id, slots: {} }, {});
+      if (result && !ALLOWED_WITHOUT_DATA.has(id)) {
+        offenders.push(`${id} -> "${result.speech}"`);
+      }
+    }
+    expect(
+      offenders,
+      `these answered from an empty snapshot, which means an upstream being DOWN reads as data being ABSENT:\n  ${offenders.join("\n  ")}`
+    ).toEqual([]);
   });
 
   test("an upstream being down is never reported as 'nothing on'", () => {
