@@ -514,11 +514,22 @@ window.CONFIG = {
     // rail that suggests something which then falls through teaches the family
     // to stop reading it.
     //
-    // OFF until it has been seen on the kiosk: it puts persistent new text on
-    // a wall the household looks at daily, which is not a change to make
-    // sight-unseen. Flag-off creates no element, no timer and no listener.
-    // One-line revert (-> false).
-    voiceRail: false,
+    // Flipped ON 2026-08-07. Verified flag-on at 1920x1080 against the LIVE
+    // Home Assistant: the truth filter offered 12 phrases and correctly
+    // withheld the calendar ones while that upstream was cold, and the
+    // "what can I say" card rendered its six. Suite green including the
+    // worst-case contrast sweep over the real photographic backdrop, and the
+    // reversibility check (scripts/verify/flag-reversibility.mjs) confirms the
+    // off state still passes — the off state IS the rollback path.
+    //
+    // ⏳ Still owed: a legibility judgement at 3-4m on the physical panel, in
+    // daylight with the display on. 30px italic at --ink-faint is the smallest
+    // persistent text on the surface, and no screenshot can settle whether it
+    // reads across the room. If it does not, raise the size — do not dim it.
+    //
+    // One-line revert (-> false): removes the element, the timer and the
+    // listener entirely.
+    voiceRail: true,
 
     // Audit M5. Camera motion wakes the kiosk through the popup overlay
     // (cameraPopupOverlay wakeScreensaver()), which fires for all six outdoor

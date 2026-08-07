@@ -29,7 +29,14 @@
   font-weight: 300;
   letter-spacing: 0.01em;
   line-height: 1.25;
-  color: var(--ink-faint);
+  /* --ink-dim, NOT --ink-faint. At faint this measured 3.72-3.87:1 against the
+     real photographic backdrop — the worst text node on the entire surface in
+     every atmosphere. It cleared the gate only because 30px counts as large
+     text (3:1), and "technically compliant" is the wrong bar for the one line
+     whose whole job is to be absorbed from across the room over weeks.
+     Peripheral means low PRIORITY, not low contrast; the italic, the size and
+     the corner already carry the hierarchy. */
+  color: var(--ink-dim);
   text-shadow: 0 2px 14px rgba(0, 0, 0, 0.7), 0 1px 3px rgba(0, 0, 0, 0.55);
 
   pointer-events: none;        /* there is no pointer. Never a touch affordance. */
