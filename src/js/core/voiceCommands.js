@@ -9,6 +9,10 @@ import { speak } from "./tts.js";
 import { resetIdleTimer } from "../modules/screensaver.js";
 import { triggerGoodnight } from "../modules/goodnightRoutine.js";
 import { generateBriefing } from "../modules/aiBriefing.js";
+import { matchIntent } from "../services/localIntents.js";
+import { answer } from "../services/localAnswers.js";
+import { voiceSnapshot, refreshVoiceCache, rememberReply } from "../services/voiceSnapshot.js";
+import { WEATHER_LAT, WEATHER_LON } from "../config/config.js";
 
 const VIEW_ORDER = ["home", "weather", "cameras", "timeline"];
 
@@ -54,64 +58,15 @@ function prevViewId() {
 // --- Question handlers ---
 // Each returns a string to speak, or null if data unavailable.
 
-function answerWeather() {
-  const temp = document.getElementById("current-temp")?.textContent?.trim();
-  const cond = document.getElementById("current-conditions")?.textContent?.trim();
-  const range = document.getElementById("weather-range")?.textContent?.trim();
-  if (!temp && !cond) return "Weather data isn't available right now.";
-  let response = `It's currently ${temp}`;
-  if (cond) response += ` and ${cond.toLowerCase()}`;
-  if (range) response += `. ${range}`;
-  return response + ".";
-}
+/* The DOM-scraping answerers that used to live here (weather, commute, time,
+   today, next event, bins) are gone. They read innerText out of the incumbent's
+   markup, which meant they could not be unit-tested without a browser, could
+   not be reused by any other surface, and broke silently whenever an element id
+   moved. Their replacements are pure and live in
+   services/localIntents.js + services/localAnswers.js.
 
-function answerCommute() {
-  const greg  = document.getElementById("commute-greg")?.textContent?.trim();
-  const brett = document.getElementById("commute-brett")?.textContent?.trim();
-  if (!greg && !brett) return "Commute times aren't available right now.";
-  const parts = [];
-  if (greg)  parts.push(greg.replace("–", "is").replace("-", "is"));
-  if (brett) parts.push(brett.replace("–", "is").replace("-", "is"));
-  return parts.join(". ") + ".";
-}
-
-function answerTime() {
-  const now = new Date();
-  return `It's ${now.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", hour12: true })}.`;
-}
-
-async function answerToday() {
-  try {
-    const res  = await fetch("/api/calendar/all");
-    const data = await res.json();
-    const today = new Date();
-    const todayStr = today.toDateString();
-
-    const events = (data.events ?? data ?? []).filter(ev => {
-      const d = new Date(ev.start ?? ev.startDate ?? ev.date);
-      return d.toDateString() === todayStr;
-    });
-
-    if (events.length === 0) return "Nothing on the calendar for today.";
-
-    const names = events
-      .slice(0, 4)
-      .map(ev => ev.title ?? ev.summary ?? "Untitled event");
-
-    if (names.length === 1) return `You have ${names[0]} today.`;
-    const last = names.pop();
-    return `Today you have ${names.join(", ")}, and ${last}.`;
-  } catch {
-    return "I couldn't fetch today's events right now.";
-  }
-}
-
-function answerNextEvent() {
-  const name = document.getElementById("next-event-name")?.textContent?.trim();
-  const meta = document.getElementById("next-event-meta")?.textContent?.trim();
-  if (!name) return "No upcoming events found.";
-  return meta ? `Next up: ${name}. ${meta}.` : `Next up: ${name}.`;
-}
+   Only the briefing stays here: it is an AI call, so it is emphatically NOT a
+   fast-lane answer and has no business pretending to be one. */
 
 async function answerBriefing() {
   switchView("briefing", { force: true }); // voice request — past the Phase 7 gate
@@ -124,83 +79,25 @@ async function answerBriefing() {
   }
 }
 
-async function answerBins() {
-  try {
-    const res  = await fetch("/api/bins");
-    const data = await res.json();
-    if (!data.configured) return "Bin collection isn't configured on this dashboard.";
-    if (!data.due)        return "No bins due today or tonight.";
-    const binNames = { red: "general waste", yellow: "recycling", green: "organics" };
-    const names = (data.bins ?? []).map(b => binNames[b] ?? b);
-    if (names.length === 1) return `${data.label}: ${names[0]}.`;
-    const last = names.pop();
-    return `${data.label}: ${names.join(", ")} and ${last}.`;
-  } catch {
-    return "I couldn't check the bin schedule right now.";
-  }
-}
-
 // --- Command matching ---
 
-// Actions: fire-and-forget routines. Handler runs, overlay shows name, no TTS return value.
-const ACTION_MAP = [
-  {
-    patterns: [/\bgood\s*night\b|\bnight\s*night\b|\bsleep\s*mode\b/],
-    handler: triggerGoodnight,
-    overlay: "Goodnight",
-  },
-];
+// Routines the lane can fire. Matched through localIntents like everything else
+// so there is exactly one place that decides what an utterance means.
+const ACTIONS = {
+  "action.goodnight": { handler: triggerGoodnight, overlay: "Goodnight" }
+};
 
-function matchAction(text) {
-  for (const { patterns, handler, overlay } of ACTION_MAP) {
-    if (patterns.some(p => p.test(text))) return { handler, overlay };
-  }
-  return null;
-}
+// The briefing is the one question still routed the old way, because it is an
+// AI call and belongs on the slow path by nature.
+const BRIEFING_RE = /\bbrief\s+me\b|read\s+(my\s+)?brief(ing)?\b|give\s+me\s+(a\s+)?brief/i;
 
-const QUESTION_MAP = [
-  {
-    patterns: [/weather|temperature|how.s outside|outside like/],
-    handler: answerWeather,
-    overlay: "Weather",
-  },
-  {
-    patterns: [/commute|drive|traffic|how long.*work|long.*get.*work/],
-    handler: answerCommute,
-    overlay: "Commute",
-  },
-  {
-    patterns: [/what.*time|time is it/],
-    handler: answerTime,
-    overlay: "Time",
-  },
-  {
-    patterns: [/what.*on today|today.*happening|happening today|today.*agenda|what.*going on/],
-    handler: answerToday,
-    overlay: "Today",
-  },
-  {
-    patterns: [/next event|what.*next|coming up/],
-    handler: answerNextEvent,
-    overlay: "Next Event",
-  },
-  {
-    patterns: [/\bbin(s)?\b|recycling|rubbish|trash|garbage.*day|bin.*day|what.*bin/],
-    handler: answerBins,
-    overlay: "Bins",
-  },
-  {
-    patterns: [/\bbrief\s+me\b|read\s+(my\s+)?brief(ing)?\b|give\s+me\s+(a\s+)?brief/i],
-    handler: answerBriefing,
-    overlay: "Briefing",
-  },
-];
-
-function matchQuestion(text) {
-  for (const { patterns, handler, overlay } of QUESTION_MAP) {
-    if (patterns.some(p => p.test(text))) return { handler, overlay };
-  }
-  return null;
+/** Human-readable overlay label per intent family. */
+function overlayFor(id) {
+  const [group] = id.split(".");
+  return {
+    time: "Time", weather: "Weather", cal: "Calendar", house: "Home",
+    self: "You", list: "List", camera: "Cameras", meta: "Help", show: "Showing"
+  }[group] ?? "Home";
 }
 
 function matchNav(text) {
@@ -219,27 +116,57 @@ function matchNav(text) {
 // then falls through to Assist/Claude (docs/vision/phase-4-voice.md).
 
 export async function dispatchTranscripts(transcripts) {
-  // Actions: routines that handle their own TTS internally
+  // The briefing first, because it is explicitly asked for and is the one local
+  // match that is allowed to be slow.
   for (const text of transcripts) {
-    const action = matchAction(text);
+    if (BRIEFING_RE.test(text)) {
+      setVoiceState("processing", "Briefing");
+      const response = await answerBriefing();
+      setVoiceState("success", "Briefing");
+      speak(response);
+      rememberReply(response);
+      return { handled: true };
+    }
+  }
+
+  // The fast lane. Matching is pure and the snapshot is already in memory, so
+  // this whole block is a few milliseconds — no await, no fetch, no round trip.
+  for (const text of transcripts) {
+    const intent = matchIntent(text);
+    if (!intent) continue;
+
+    const action = ACTIONS[intent.id];
     if (action) {
       setVoiceState("processing", action.overlay);
       await action.handler();
       setVoiceState("success", action.overlay);
       return { handled: true };
     }
-  }
 
-  // Questions: fetch data and speak the answer
-  for (const text of transcripts) {
-    const question = matchQuestion(text);
-    if (question) {
-      setVoiceState("processing", question.overlay);
-      const response = await question.handler();
-      setVoiceState("success", question.overlay);
-      speak(response);
+    // "show me the driveway" — the incumbent has one cameras view rather than
+    // per-camera subjects, so every camera resolves there. V3's depth 3 is
+    // where the named camera actually earns its own surface.
+    if (intent.id === "show.camera") {
+      switchView("cameras", { force: true });
+      setVoiceState("success", "Cameras");
+      speak("Here you go.");
       return { handled: true };
     }
+    if (intent.id === "show.sky") {
+      switchView("weather", { force: true });
+      setVoiceState("success", "Weather");
+      return { handled: true };
+    }
+
+    const reply = answer(intent, voiceSnapshot({ lat: WEATHER_LAT, lon: WEATHER_LON }));
+    if (reply) {
+      setVoiceState("success", overlayFor(intent.id));
+      speak(reply.speech);
+      rememberReply(reply.speech);
+      return { handled: true };
+    }
+    // Matched but no data behind it — fall through to Assist rather than say
+    // something empty. A confident non-answer is worse than a slower real one.
   }
 
   for (const text of transcripts) {
@@ -285,6 +212,11 @@ export function startListening() {
 export function initVoiceCommands() {
   // Phase 4: hand the session our local lanes (no-op while the flag is off).
   registerLocalLane(dispatchTranscripts);
+
+  // Warm the fast lane's cache and keep it warm. Init-once, never per-event —
+  // the answer path must never be the thing that discovers the cache is cold.
+  refreshVoiceCache();
+  setInterval(refreshVoiceCache, 5 * 60_000);
 
   const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRec) {

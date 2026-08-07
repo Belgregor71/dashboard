@@ -1,23 +1,16 @@
 import { CONFIG } from "../core/config.js";
 import { emit } from "../core/eventBus.js";
 import { getEntity } from "../services/homeAssistant/state.js";
-import { getTodoEntityIds } from "../services/homeAssistant/todoEntities.js";
+import {
+  getTodoEntityIds,
+  normalizeItems,
+  isCompleted,
+  resolveSummary
+} from "../services/homeAssistant/todoEntities.js";
 
+// The item-shape helpers moved to todoEntities.js so the voice lane reads the
+// same definition of "an open item" that this panel renders.
 const SHOPPING_ENTITY_ID = CONFIG.homeAssistant?.shoppingListEntityId ?? "todo.shopping_list";
-
-function normalizeItems(entity) {
-  const items = entity?.attributes?.items ?? entity?.attributes?.all_items ?? [];
-  return Array.isArray(items) ? items : [];
-}
-
-function isCompleted(item) {
-  if (item?.complete === true) return true;
-  return String(item?.status || "").toLowerCase() === "completed";
-}
-
-function resolveSummary(item) {
-  return item?.summary || item?.name || item?.title || "Untitled";
-}
 
 function parseDueDate(item) {
   const dueValue = item?.due || item?.due_date || item?.dueDate;

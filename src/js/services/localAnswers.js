@@ -1,0 +1,308 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOCAL ANSWERS — intent + snapshot -> what the house says.
+
+   Pure, like the matcher. Everything it needs arrives in the snapshot, so the
+   answer costs no network and no DOM read, and it unit-tests in plain node.
+
+   TWO RULES, both enforced here rather than trusted:
+
+   1. TWO SENTENCES, MAXIMUM. Spoken replies overflow working memory fast — the
+      Rabbit R1's 9.2-second average reply is the canonical failure of this
+      whole product category. Anything longer than two sentences belongs on the
+      screen with the voice pointing at it.
+
+   2. NEVER SPEAK A LIST OF MORE THAN THREE. Lists are a screen job. A voice
+      reading six calendar events is not being helpful, it is being a queue.
+
+   Every answer degrades honestly. "I don't know" is a valid answer and is
+   always better than a confident wrong one, because the second kind teaches
+   the family to stop trusting the first kind.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const TZ = "Australia/Brisbane";
+
+const time = (d) =>
+  d ? new Date(d).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: TZ }) : null;
+
+/** Cap at two sentences. The cap is applied to the FINAL string so no answer
+ *  can route around it by composing its parts separately. */
+export function capSentences(text, max = 2) {
+  if (typeof text !== "string") return "";
+  const t = text.trim();
+  if (!t) return "";
+
+  // A full stop is only a SENTENCE END when whitespace or the end of the string
+  // follows it. Splitting on every "." instead turns "Nightswimming by R.E.M."
+  // into "Nightswimming by R.E." — which is what this house would have said out
+  // loud, and which also breaks Dr., St., Mt. and every set of initials.
+  const parts = [];
+  const terminator = /[.!?]+(?=\s|$)/g;
+  let start = 0;
+  let m;
+  while ((m = terminator.exec(t)) !== null) {
+    const end = m.index + m[0].length;
+    parts.push(t.slice(start, end));
+    start = end;
+    if (parts.length >= max) break;
+  }
+  if (parts.length === 0) return t;                    // no terminator at all
+  if (parts.length < max && start < t.length) parts.push(t.slice(start));
+  return parts.slice(0, max).join("").trim();
+}
+
+/** Join at most three items, spoken. More than three is a screen's job. */
+function speakList(items, { max = 3 } = {}) {
+  const list = items.filter(Boolean).slice(0, max);
+  if (list.length === 0) return null;
+  if (list.length === 1) return list[0];
+  const last = list[list.length - 1];
+  return `${list.slice(0, -1).join(", ")} and ${last}`;
+}
+
+const round = (n) => (typeof n === "number" && Number.isFinite(n) ? Math.round(n) : null);
+
+/** Add a full stop only if one is not already there. Titles and names routinely
+ *  end in punctuation of their own ("R.E.M.", "Where Are You Now?"), and
+ *  blindly appending gives "R.E.M.." — which the TTS reads as a stumble. */
+const endStop = (s) => (/[.!?]$/.test(s.trim()) ? s.trim() : `${s.trim()}.`);
+
+/* ── The answerers ──────────────────────────────────────────────────────────
+   Each takes (snapshot, slots) and returns { speech, refs } or null. `refs`
+   name cells currently on screen so the surface can light what is being talked
+   about — the deixis link that makes the screen and the speaker one system.
+─────────────────────────────────────────────────────────────────────────── */
+const ANSWERERS = {
+  "time.now": () => ({
+    speech: `It's ${new Date().toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: TZ })}.`,
+    refs: ["hour"]
+  }),
+
+  "time.date": () => ({
+    speech: `It's ${new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", timeZone: TZ })}.`,
+    refs: ["hour"]
+  }),
+
+  "time.sunset": (s) => {
+    const t = time(s.sun?.sunset);
+    if (!t) return null;
+    const mins = s.sun?.sunset ? Math.round((new Date(s.sun.sunset) - Date.now()) / 60000) : null;
+    if (mins != null && mins > 0 && mins < 90) return { speech: `Sunset's at ${t}, about ${mins} minutes away.`, refs: ["sky"] };
+    if (mins != null && mins <= 0) return { speech: `The sun set at ${t}.`, refs: ["sky"] };
+    return { speech: `Sunset's at ${t}.`, refs: ["sky"] };
+  },
+
+  "time.sunrise": (s) => {
+    const t = time(s.sun?.sunrise);
+    return t ? { speech: `Sunrise is at ${t}.`, refs: ["sky"] } : null;
+  },
+
+  "weather.now": (s) => {
+    const n = s.weather?.now;
+    if (!n || n.temp_c == null) return null;
+    const label = n.condition?.label ? n.condition.label.toLowerCase() : null;
+    return { speech: `It's ${round(n.temp_c)} degrees${label ? ` and ${label}` : ""}.`, refs: ["weather"] };
+  },
+
+  "weather.today": (s) => {
+    const d = s.weather?.day;
+    if (!d || d.high_c == null) return null;
+    return { speech: `Today's top is ${round(d.high_c)}, low of ${round(d.low_c)}.`, refs: ["weather"] };
+  },
+
+  "weather.tomorrow": (s) => {
+    const t = s.forecast?.days?.[1];
+    if (!t) return null;
+    const label = t.condition?.label ? t.condition.label.toLowerCase() : null;
+    return { speech: `Tomorrow: ${round(t.high_c)} and ${round(t.low_c)}${label ? `, ${label}` : ""}.`, refs: ["weather"] };
+  },
+
+  "weather.umbrella": (s) => {
+    // The nowcast is the good answer when it has one — "in 20 minutes" is
+    // actionable in a way that "40% chance" never is.
+    const nc = s.nowcast;
+    if (nc && typeof nc.startsInMin === "number") {
+      return { speech: `Yes — rain in about ${nc.startsInMin} minutes.`, refs: ["weather", "sky"] };
+    }
+    const p = s.weather?.now?.rain_chance_pct;
+    if (p == null) return null;
+    if (p >= 50) return { speech: `Probably — ${p} percent chance of rain.`, refs: ["weather"] };
+    if (p >= 20) return { speech: `Maybe. ${p} percent chance.`, refs: ["weather"] };
+    return { speech: `No, only ${p} percent chance of rain.`, refs: ["weather"] };
+  },
+
+  "weather.jacket": (s) => {
+    const t = s.weather?.now?.feels_like_c ?? s.weather?.now?.temp_c;
+    if (t == null) return null;
+    if (t < 14) return { speech: `Yes — it feels like ${round(t)}.`, refs: ["weather"] };
+    if (t < 19) return { speech: `Maybe a light one, it feels like ${round(t)}.`, refs: ["weather"] };
+    return { speech: `No need, it feels like ${round(t)}.`, refs: ["weather"] };
+  },
+
+  "weather.sunscreen": (s) => {
+    const uv = s.weather?.now?.uv;
+    if (uv == null) return null;
+    if (uv >= 8) return { speech: `Definitely — UV is ${round(uv)}, that's very high.`, refs: ["weather"] };
+    if (uv >= 3) return { speech: `Yes, UV is ${round(uv)}.`, refs: ["weather"] };
+    return { speech: `Not really, UV is only ${round(uv)}.`, refs: ["weather"] };
+  },
+
+  "weather.wind": (s) => {
+    const w = s.weather?.now?.wind_kph;
+    if (w == null) return null;
+    const calm = w < 12 ? "fairly calm" : w < 30 ? "breezy" : "quite windy";
+    return { speech: `It's ${calm}, ${round(w)} k p h.`, refs: ["weather"] };
+  },
+
+  "cal.today": (s) => {
+    const ev = todays(s.calendar);
+    if (ev.length === 0) return { speech: "Nothing on today.", refs: ["calendar"] };
+    const names = speakList(ev.map((e) => e.title));
+    const more = ev.length > 3 ? ` And ${ev.length - 3} more on the screen.` : "";
+    return { speech: `Today: ${names}.${more}`, refs: ["calendar"] };
+  },
+
+  "cal.tomorrow": (s) => {
+    const ev = onDay(s.calendar, 1);
+    if (ev.length === 0) return { speech: "Nothing on tomorrow.", refs: ["calendar"] };
+    return { speech: `Tomorrow: ${speakList(ev.map((e) => e.title))}.`, refs: ["calendar"] };
+  },
+
+  "cal.next": (s) => {
+    const next = (s.calendar ?? [])
+      .filter((e) => new Date(e.start) > new Date())
+      .sort((a, b) => new Date(a.start) - new Date(b.start))[0];
+    if (!next) return { speech: "Nothing coming up.", refs: ["calendar"] };
+    return { speech: `Next is ${next.title}, at ${time(next.start)}.`, refs: ["calendar"] };
+  },
+
+  "cal.free": (s) => {
+    const ev = todays(s.calendar);
+    if (ev.length === 0) return { speech: "You're free — nothing on today.", refs: ["calendar"] };
+    return { speech: `You've got ${ev.length} thing${ev.length === 1 ? "" : "s"} on today.`, refs: ["calendar"] };
+  },
+
+  "house.who": (s, slots) => {
+    const people = s.people ?? [];
+    if (people.length === 0) return null;
+    if (slots?.person) {
+      const p = people.find((x) => x.name?.toLowerCase().startsWith(slots.person));
+      if (!p) return { speech: `I don't know anyone called ${slots.person}.`, refs: [] };
+      return { speech: `${p.name} is ${p.home ? "home" : "out"}.`, refs: ["people"] };
+    }
+    const home = people.filter((p) => p.home).map((p) => p.name);
+    if (home.length === 0) return { speech: "Nobody's home.", refs: ["people"] };
+    return { speech: `${speakList(home)} ${home.length === 1 ? "is" : "are"} home.`, refs: ["people"] };
+  },
+
+  "house.bins": (s) => {
+    const b = s.bins;
+    if (!b || !b.configured) return null;
+    if (!b.due) return { speech: "No bins due tonight.", refs: ["bins"] };
+    const names = { red: "general waste", yellow: "recycling", green: "garden" };
+    return { speech: `${b.label}: ${speakList((b.bins ?? []).map((x) => names[x] ?? x))}.`, refs: ["bins"] };
+  },
+
+  "house.media": (s) => {
+    const m = s.media?.[0];
+    if (!m) return { speech: "Nothing's playing.", refs: ["media"] };
+    return { speech: endStop(`${m.title}${m.artist ? ` by ${m.artist}` : ""}`), refs: ["media"] };
+  },
+
+  "house.vacuum": (s) => {
+    const v = s.vacuum;
+    if (!v) return null;
+    if (v.problem) return { speech: `The vacuum needs you — ${v.problem}.`, refs: ["vacuum"] };
+    return { speech: "The vacuum's fine.", refs: ["vacuum"] };
+  },
+
+  "house.downloads": (s) => {
+    const d = s.downloads;
+    if (!d) return null;
+    if (!d.active) return { speech: "Nothing downloading.", refs: ["downloads"] };
+    return { speech: `${d.active} downloading${d.title ? `, including ${d.title}` : ""}.`, refs: ["downloads"] };
+  },
+
+  "self.sleep": (s) => {
+    const sl = s.sleep;
+    if (!sl || sl.score == null) return null;
+    return { speech: `You scored ${sl.score} last night${sl.label ? ` — ${sl.label}` : ""}.`, refs: ["sleep"] };
+  },
+
+  "self.commute": (s) => {
+    const c = s.commute;
+    if (!c) return null;
+    const first = c.greg ?? c.brett;
+    if (!first) return null;
+    return { speech: `About ${first.minutes} minutes${first.delayMin > 3 ? `, ${first.delayMin} of that is traffic` : ""}.`, refs: ["commute"] };
+  },
+
+  "self.fuel": (s) => {
+    const site = s.fuel?.sites?.[0];
+    if (!site) return null;
+    return { speech: `${site.price} cents at ${site.name}.`, refs: ["fuel"] };
+  },
+
+  "list.shopping": (s) => {
+    const items = s.todos?.shopping ?? [];
+    if (items.length === 0) return { speech: "The shopping list is empty.", refs: ["shopping"] };
+    const more = items.length > 3 ? ` And ${items.length - 3} more.` : "";
+    return { speech: `${speakList(items)}.${more}`, refs: ["shopping"] };
+  },
+
+  "list.todo": (s) => {
+    const items = s.todos?.tasks ?? [];
+    if (items.length === 0) return { speech: "Nothing on your list.", refs: ["todo"] };
+    return { speech: `${items.length} thing${items.length === 1 ? "" : "s"}: ${speakList(items)}.`, refs: ["todo"] };
+  },
+
+  "camera.last": (s) => {
+    const e = s.camera?.lastEvent;
+    if (!e) return { speech: "Nothing's triggered recently.", refs: ["cameras"] };
+    const who = e.person ? `${e.person} ` : "";
+    return { speech: `${who}at the ${e.name}, ${time(e.at)}.`, refs: ["cameras"] };
+  },
+
+  "meta.repeat": (s) => (s.lastReply ? { speech: s.lastReply, refs: [] } : { speech: "I haven't said anything yet.", refs: [] }),
+
+  // The vocabulary card is a SCREEN answer, so the speech is deliberately a
+  // pointer rather than a recital. Reading a menu aloud is the exact failure
+  // this whole lane exists to avoid.
+  "meta.vocabulary": () => ({ speech: "Here's some of what you can ask me.", refs: [], showVocabulary: true })
+};
+
+function todays(events) {
+  return onDay(events, 0);
+}
+
+function onDay(events, offset) {
+  const target = new Date();
+  target.setDate(target.getDate() + offset);
+  const key = target.toDateString();
+  return (events ?? [])
+    .filter((e) => e?.start && new Date(e.start).toDateString() === key)
+    .sort((a, b) => new Date(a.start) - new Date(b.start));
+}
+
+/**
+ * Resolve an intent against a snapshot.
+ * @returns {{speech: string, refs: string[], showVocabulary?: boolean}|null}
+ *          null means the lane matched but has no data — the caller should fall
+ *          through rather than say something empty.
+ */
+export function answer(intent, snapshot = {}) {
+  if (!intent?.id) return null;
+  const fn = ANSWERERS[intent.id];
+  if (!fn) return null;
+  let result;
+  try {
+    result = fn(snapshot, intent.slots ?? {});
+  } catch {
+    return null;                       // a broken answerer falls through, never throws at the room
+  }
+  if (!result?.speech) return null;
+  return { ...result, speech: capSentences(result.speech) };
+}
+
+/** Intent ids this module can actually answer — the tests assert every matcher
+ *  id either has an answerer here or is deliberately handled elsewhere. */
+export const ANSWERABLE = Object.freeze(Object.keys(ANSWERERS));
