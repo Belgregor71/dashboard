@@ -12,6 +12,7 @@ import { generateBriefing } from "../modules/aiBriefing.js";
 import { matchIntent } from "../services/localIntents.js";
 import { answer } from "../services/localAnswers.js";
 import { voiceSnapshot, refreshVoiceCache, rememberReply } from "../services/voiceSnapshot.js";
+import { showVocabularyCard } from "../modules/voiceRail.js";
 import { WEATHER_LAT, WEATHER_LON } from "../config/config.js";
 
 const VIEW_ORDER = ["home", "weather", "cameras", "timeline"];
@@ -160,6 +161,11 @@ export async function dispatchTranscripts(transcripts) {
 
     const reply = answer(intent, voiceSnapshot({ lat: WEATHER_LAT, lon: WEATHER_LON }));
     if (reply) {
+      // "What can I say" is a SCREEN answer. The spoken half is a pointer, not
+      // a recital — a voice reading a menu is the failure this whole lane is
+      // shaped to avoid. If the rail is flagged off there is no card to show,
+      // so fall through and let a real lane handle the question.
+      if (reply.showVocabulary && !showVocabularyCard()) continue;
       setVoiceState("success", overlayFor(intent.id));
       speak(reply.speech);
       rememberReply(reply.speech);

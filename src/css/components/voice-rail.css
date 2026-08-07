@@ -1,0 +1,98 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   VOICE RAIL — the house teaching its own vocabulary.
+
+   Peripheral by construction. It must be readable if you look at it and
+   completely ignorable if you do not, which is the whole difference between
+   a hint and a nag. Nothing here animates on its own; it changes once every
+   90 seconds and fades, which is slow enough to read as the room settling
+   rather than as motion.
+
+   Flag: features.voiceRail (default OFF). Flag-off creates no element at all,
+   so this file styles nothing.
+─────────────────────────────────────────────────────────────────────────── */
+
+.voice-rail {
+  position: fixed;
+  right: var(--layout-gutter, 40px);
+  bottom: calc(var(--layout-gutter, 40px) - 6px);
+  z-index: 12;                 /* above content, below overlays (50) */
+  margin: 0;
+  max-width: 44ch;
+  text-align: right;
+
+  font-family: var(--font-body);
+  /* 30px: at 3-4m this sits just above the legibility floor — meant to be
+     readable when looked at, never demanding when not. Smaller would be
+     decoration that costs contrast budget and delivers nothing. */
+  font-size: 30px;
+  font-style: italic;
+  font-weight: 300;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+  color: var(--ink-faint);
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.7), 0 1px 3px rgba(0, 0, 0, 0.55);
+
+  pointer-events: none;        /* there is no pointer. Never a touch affordance. */
+  opacity: 0;
+  transition: opacity 900ms ease;
+}
+
+.voice-rail.is-visible { opacity: 1; }
+
+/* The quotes are part of the meaning: this is an utterance to repeat verbatim,
+   not a description of a feature. Teaching the phrasing is half the job. */
+.voice-rail::before { content: "\201C"; }
+.voice-rail::after  { content: "\201D"; }
+
+/* ── "What can I say" ───────────────────────────────────────────────────────
+   The help-on-request half. Shown, never spoken — reading a menu aloud is the
+   failure the two-sentence cap exists to prevent.
+─────────────────────────────────────────────────────────────────────────── */
+.voice-vocab-card {
+  position: fixed;
+  right: var(--layout-gutter, 40px);
+  bottom: calc(var(--layout-gutter, 40px) + 56px);
+  z-index: 51;                 /* above the voice overlay, which triggered it */
+  margin: 0;
+  padding: var(--space-6, 26px) var(--space-7, 28px);
+  list-style: none;
+
+  background: var(--glass-bg);
+  border: var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow), var(--glass-sheen);
+  /* The one sanctioned local blur: a small block over an arbitrary photo, at
+     the system's base radius. Radius is the expensive axis, so it never rises. */
+  backdrop-filter: var(--glass-blur);
+
+  text-align: right;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px);
+  transition: opacity 320ms ease, transform 320ms ease, visibility 0s linear 320ms;
+}
+
+.voice-vocab-card.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition: opacity 320ms ease, transform 320ms ease, visibility 0s linear 0s;
+}
+
+.voice-vocab-card li {
+  font-family: var(--font-body);
+  font-size: 34px;
+  font-style: italic;
+  font-weight: 300;
+  line-height: 1.5;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
+.voice-vocab-card li::before { content: "\201C"; }
+.voice-vocab-card li::after  { content: "\201D"; }
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-rail,
+  .voice-vocab-card { transition: none; }
+}

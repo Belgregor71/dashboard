@@ -34,6 +34,7 @@ import { startWeather } from "../services/weather/renderer.js";
 import { initWeatherRadar } from "../services/weather/radar.js";
 import { initMediaPanels } from "../modules/mediaPanels.js";
 import { initTodoPanels } from "../modules/todo.js";
+import { initVoiceRail } from "../modules/voiceRail.js";
 import { initPlexStatus } from "../modules/plexStatus.js";
 import { initArrActivity } from "../modules/arrActivity.js";
 import { initMediaStatus } from "../modules/mediaStatus.js";
@@ -293,6 +294,7 @@ export function startApp() {
   initTemporalSpine({ enabled: isEnabled("temporalSpine", false) });
   initTonightsMenu();
   initRecipePanel({ enabled: isEnabled("recipePanel", false) });
+  initVoiceRail({ enabled: isEnabled("voiceRail", false) });
   initHealthIndicator();
 
   if (isEnabled("homeAssistant", false)) {

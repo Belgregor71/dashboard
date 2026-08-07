@@ -153,7 +153,13 @@ const ANSWERERS = {
     return { speech: `It's ${calm}, ${round(w)} k p h.`, refs: ["weather"] };
   },
 
+  /* NOT LOADED IS NOT EMPTY. If the calendar upstream is down, s.calendar is
+     undefined — and answering "nothing on today" would be a confident lie on
+     the exact day someone is relying on it. Returning null falls the turn
+     through to Assist, which is slower and correct. Only an array that really
+     is empty earns "nothing on". */
   "cal.today": (s) => {
+    if (!Array.isArray(s.calendar)) return null;
     const ev = todays(s.calendar);
     if (ev.length === 0) return { speech: "Nothing on today.", refs: ["calendar"] };
     const names = speakList(ev.map((e) => e.title));
@@ -162,13 +168,15 @@ const ANSWERERS = {
   },
 
   "cal.tomorrow": (s) => {
+    if (!Array.isArray(s.calendar)) return null;
     const ev = onDay(s.calendar, 1);
     if (ev.length === 0) return { speech: "Nothing on tomorrow.", refs: ["calendar"] };
     return { speech: `Tomorrow: ${speakList(ev.map((e) => e.title))}.`, refs: ["calendar"] };
   },
 
   "cal.next": (s) => {
-    const next = (s.calendar ?? [])
+    if (!Array.isArray(s.calendar)) return null;
+    const next = s.calendar
       .filter((e) => new Date(e.start) > new Date())
       .sort((a, b) => new Date(a.start) - new Date(b.start))[0];
     if (!next) return { speech: "Nothing coming up.", refs: ["calendar"] };
@@ -176,6 +184,7 @@ const ANSWERERS = {
   },
 
   "cal.free": (s) => {
+    if (!Array.isArray(s.calendar)) return null;
     const ev = todays(s.calendar);
     if (ev.length === 0) return { speech: "You're free — nothing on today.", refs: ["calendar"] };
     return { speech: `You've got ${ev.length} thing${ev.length === 1 ? "" : "s"} on today.`, refs: ["calendar"] };
@@ -243,14 +252,16 @@ const ANSWERERS = {
   },
 
   "list.shopping": (s) => {
-    const items = s.todos?.shopping ?? [];
+    if (!Array.isArray(s.todos?.shopping)) return null;   // not loaded != empty
+    const items = s.todos.shopping;
     if (items.length === 0) return { speech: "The shopping list is empty.", refs: ["shopping"] };
     const more = items.length > 3 ? ` And ${items.length - 3} more.` : "";
     return { speech: `${speakList(items)}.${more}`, refs: ["shopping"] };
   },
 
   "list.todo": (s) => {
-    const items = s.todos?.tasks ?? [];
+    if (!Array.isArray(s.todos?.tasks)) return null;      // not loaded != empty
+    const items = s.todos.tasks;
     if (items.length === 0) return { speech: "Nothing on your list.", refs: ["todo"] };
     return { speech: `${items.length} thing${items.length === 1 ? "" : "s"}: ${speakList(items)}.`, refs: ["todo"] };
   },

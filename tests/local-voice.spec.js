@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { matchIntent, matchCamera, normalise, INTENT_IDS } from "../src/js/services/localIntents.js";
 import { answer, capSentences, ANSWERABLE } from "../src/js/services/localAnswers.js";
 import { pickLastCameraEvent } from "../src/js/services/voiceSnapshot.js";
+import { vocabularyFor, railPhrase, ALL_CANDIDATES } from "../src/js/services/vocabulary.js";
 
 /* The fast lane's contract. These are pure-node tests — no browser, no server,
    no DOM — because the whole point of the lane is that it answers without any
@@ -136,6 +137,66 @@ test("a named person becomes a slot on house.who", () => {
   expect(matchIntent("is anyone home").slots.person).toBeUndefined();
 });
 
+test.describe("vocabulary — the house only offers what it can actually answer", () => {
+  const at = (hour) => { const d = new Date(); d.setHours(hour, 0, 0, 0); return d; };
+
+  test("THE property: every offered phrase really is answerable right now", () => {
+    // This is the whole contract. A rail that suggests something which then
+    // falls through teaches the family that the suggestions are decorative,
+    // and after two of those they stop reading it.
+    const snapshots = [
+      {},                                                     // every upstream down
+      { calendar: [] },                                       // loaded but empty
+      SNAP,                                                   // fully populated
+      { weather: { now: { temp_c: 30, uv: 11, rain_chance_pct: 0 } } }
+    ];
+    for (const snap of snapshots) {
+      for (const hour of [7, 12, 18, 22]) {
+        for (const phrase of vocabularyFor(snap, { now: at(hour) })) {
+          if (phrase === "brief me") continue;               // routed to the AI path, not the lane
+          const intent = matchIntent(phrase);
+          expect(intent, `offered "${phrase}" but the matcher lost it`).not.toBeNull();
+          if (intent.id.startsWith("show.") || intent.id.startsWith("action.")) continue;
+          expect(
+            answer(intent, snap),
+            `offered "${phrase}" at ${hour}:00 but it would have fallen through`
+          ).not.toBeNull();
+        }
+      }
+    }
+  });
+
+  test("with every upstream down it offers little, and never the calendar", () => {
+    const offered = vocabularyFor({}, { now: at(8) });
+    expect(offered).toContain("what time is it");
+    expect(offered).not.toContain("what's on today");   // would have lied "nothing on"
+    expect(offered).not.toContain("how did I sleep");
+  });
+
+  test("suggestions are gated on context, not sprayed", () => {
+    const wet = { weather: { now: { temp_c: 14, feels_like_c: 13, rain_chance_pct: 80 } }, nowcast: { startsInMin: 12 } };
+    const dry = { weather: { now: { temp_c: 28, feels_like_c: 29, rain_chance_pct: 0, uv: 9 } } };
+    expect(vocabularyFor(wet, { now: at(9) })).toContain("do I need an umbrella");
+    expect(vocabularyFor(dry, { now: at(9) })).not.toContain("do I need an umbrella");
+    expect(vocabularyFor(dry, { now: at(9) })).toContain("do I need sunscreen");
+    // Sleep is a morning question. Nobody asks how they slept at 10pm.
+    expect(vocabularyFor(SNAP, { now: at(8) })).toContain("how did I sleep");
+    expect(vocabularyFor(SNAP, { now: at(22) })).not.toContain("how did I sleep");
+  });
+
+  test("the rail rotates deterministically rather than repeating by luck", () => {
+    const seen = new Set();
+    for (let t = 0; t < 8; t++) seen.add(railPhrase(SNAP, { now: at(9), tick: t }));
+    expect(seen.size).toBeGreaterThan(4);
+    expect(railPhrase({}, { now: at(9), tick: 0 })).not.toBeNull();
+  });
+
+  test("every candidate is a phrase the matcher can resolve", () => {
+    const lost = ALL_CANDIDATES.filter((u) => !matchIntent(u) && u !== "brief me");
+    expect(lost, `candidates the matcher cannot resolve: ${lost.join(", ")}`).toEqual([]);
+  });
+});
+
 test.describe("the last camera event is derived from the entity cache", () => {
   const ago = (min) => new Date(Date.now() - min * 60_000).toISOString();
 
@@ -233,6 +294,19 @@ test.describe("answers", () => {
   test("answers carry refs so the screen can light what is being talked about", () => {
     expect(answer(matchIntent("what's the weather"), SNAP).refs).toContain("weather");
     expect(answer(matchIntent("who's home"), SNAP).refs).toContain("people");
+  });
+
+  test("an upstream being down is never reported as 'nothing on'", () => {
+    // The dangerous case: calendar undefined (never loaded) must NOT answer
+    // "nothing on today" — that is a confident lie on exactly the day someone
+    // is relying on it. Only a genuinely empty array earns that reply.
+    for (const utterance of ["what's on today", "what's on tomorrow", "what's next", "am i free"]) {
+      expect(answer(matchIntent(utterance), {}), `"${utterance}" invented an empty calendar`).toBeNull();
+      expect(answer(matchIntent(utterance), { calendar: [] })).not.toBeNull();
+    }
+    expect(answer(matchIntent("what's on the shopping list"), {})).toBeNull();
+    expect(answer(matchIntent("what's on the shopping list"), { todos: { shopping: [] } }).speech)
+      .toBe("The shopping list is empty.");
   });
 
   test("missing data returns null rather than an empty or invented answer", () => {

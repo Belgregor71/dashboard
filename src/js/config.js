@@ -502,6 +502,24 @@ window.CONFIG = {
     // via window.__recipePanel("<dish>"). One-line revert (-> false).
     recipePanel: true,
 
+    // The voice rail. The local lane went from 8 phrases to 33, and a lane
+    // nobody knows about is worth nothing — discoverability is second only to
+    // recognition accuracy among the reasons voice interfaces fail, and the
+    // research is that unprompted suggestions and help-on-request each beat
+    // baseline on their own. So: one quiet line, rotating every 90s, plus a
+    // "what can I say" card.
+    //
+    // Everything offered is filtered through the lane against live data first,
+    // so it can only suggest phrases that would genuinely work right now — a
+    // rail that suggests something which then falls through teaches the family
+    // to stop reading it.
+    //
+    // OFF until it has been seen on the kiosk: it puts persistent new text on
+    // a wall the household looks at daily, which is not a change to make
+    // sight-unseen. Flag-off creates no element, no timer and no listener.
+    // One-line revert (-> false).
+    voiceRail: false,
+
     // Audit M5. Camera motion wakes the kiosk through the popup overlay
     // (cameraPopupOverlay wakeScreensaver()), which fires for all six outdoor
     // cameras on motion AND person — measured 61 wakes in 24h, 49 of them
