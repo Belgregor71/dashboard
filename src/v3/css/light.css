@@ -1,0 +1,165 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   V3 LIGHT — the house's presence.
+
+   There is no orb, no waveform, no avatar and no assistant character. The
+   house's presence is the LIGHT OF THE SCREEN ITSELF. It gathers toward the
+   room when it is listening, cools when it is thinking, and sweeps across the
+   width as it speaks.
+
+   Why this and not a shape: a shape in a fixed position is an assistant living
+   in the corner of a device. Light is the room's own property, and a 32in panel
+   on a wall does light better than any phone. It is also impossible to mistake
+   for a button, which matters on a surface with no touch input.
+
+   Everything here is compositor-only — opacity and transform, one static
+   gradient each. No blur, no filter, no per-frame layout.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.presence {
+  position: fixed;
+  inset: auto 0 0 0;
+  height: 260px;
+  z-index: 20;
+  pointer-events: none;      /* nothing here is ever interactive. There is no pointer. */
+  contain: strict;           /* the rim can never affect layout above it */
+}
+
+/* ── Listening ──────────────────────────────────────────────────────────────
+   A warm rim gathers at the lower edge and BREATHES WITH THE ACTUAL VOICE
+   LEVEL — --presence-level is real microphone RMS, arriving ~12.5Hz from the
+   wake agent (which already computes it for endpointing).
+
+   This coupling is the whole point. A listening indicator that animates on a
+   timer rather than on the room reads as decoration within about two seconds,
+   and once it reads as fake the user stops trusting that they were heard.
+─────────────────────────────────────────────────────────────────────────── */
+.presence::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    120% 100% at 50% 118%,
+    oklch(0.82 0.13 68 / 0.55) 0%,
+    oklch(0.72 0.10 60 / 0.22) 38%,
+    transparent 72%
+  );
+  opacity: var(--presence-glow);
+  transform: scaleY(calc(0.55 + var(--presence-level) * 0.75));
+  transform-origin: 50% 100%;
+  /* Fast enough to feel coupled to the voice, slow enough not to strobe.
+     The rise is quicker than the fall so speech reads as it is spoken. */
+  transition: opacity var(--m-base) var(--ease), transform 90ms linear;
+  will-change: opacity, transform;
+}
+
+/* ── Speaking ───────────────────────────────────────────────────────────────
+   The warmth travels left to right, arriving at the last word. This is the
+   duration cue: you can see how much is left without a progress bar, and so
+   you know whether to wait or to interrupt.
+─────────────────────────────────────────────────────────────────────────── */
+.presence::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    oklch(0.86 0.14 70 / 0.95) 46%,
+    oklch(0.86 0.14 70 / 0.95) 54%,
+    transparent 100%
+  );
+  opacity: 0;
+  transform: translateX(calc((var(--presence-sweep) - 0.5) * 100vw));
+  transition: opacity var(--m-quick) linear;
+  will-change: opacity, transform;
+}
+
+/* ── Phase bindings ─────────────────────────────────────────────────────────
+   One attribute on the root. presence-light.js sets it; nothing else may.
+─────────────────────────────────────────────────────────────────────────── */
+:root[data-phase="idle"]      { --presence-glow: 0; }
+:root[data-phase="listening"] { --presence-glow: 1; }
+
+/* Thinking: the rim HOLDS but dims, and the whole field cools. It must be
+   visibly a different KIND of state from listening — not merely a slower
+   version of it — or the user keeps talking into a system that has stopped
+   listening, loses the turn, and the failure compounds. */
+:root[data-phase="thinking"] { --presence-glow: 0.34; }
+:root[data-phase="thinking"] .presence::before {
+  /* Decoupled from the mic: it is no longer listening, so it no longer moves
+     with the room. Self-driven, bounded, and deliberately not a progress bar —
+     we do not know how long Haiku will take, and pretending to is a lie. */
+  transform: scaleY(0.62);
+  transition: opacity var(--m-calm) var(--ease), transform var(--m-calm) var(--ease);
+}
+
+:root[data-phase="speaking"] { --presence-glow: 0.5; }
+:root[data-phase="speaking"] .presence::after { opacity: 1; }
+:root[data-phase="speaking"] .presence::before { transform: scaleY(0.7); }
+
+/* The cool plane. Sits above the substrate and BELOW the content, so the
+   field cools without tinting the text. ~2% — felt, not seen. One composited
+   layer animating opacity only. */
+.presence-cool {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: oklch(0.55 0.06 250);
+  opacity: 0;
+  transition: opacity var(--m-calm) var(--ease);
+}
+:root[data-phase="thinking"] .presence-cool { opacity: 0.02; }
+
+/* ── The three failures ─────────────────────────────────────────────────────
+   Failure types are not fungible, and the repair differs by type. Making all
+   three look alike is what turns one miss into an argument with the wall.
+─────────────────────────────────────────────────────────────────────────── */
+
+/* 1. Didn't hear you. The rim never gathered — so acknowledge with a single
+      soft pulse at the edge and nothing else. No speech: if it did not hear
+      you, saying "sorry?" out loud is just noise in the room. */
+:root[data-fail="unheard"] .presence::before {
+  animation: fail-pulse 900ms var(--ease) 1 forwards;
+}
+@keyframes fail-pulse {
+  0%   { opacity: 0;    transform: scaleY(0.5); }
+  35%  { opacity: 0.42; transform: scaleY(0.72); }
+  100% { opacity: 0;    transform: scaleY(0.5); }
+}
+
+/* 2. Heard you, didn't understand. The rim gathers and then DISSOLVES — the
+      turn was received and then lost. The transcript is shown struck through
+      (see .heard[data-failed]) so you can see which word it got wrong, which
+      is the only information that helps you rephrase. */
+:root[data-fail="misheard"] .presence::before {
+  animation: fail-dissolve 1100ms var(--ease) 1 forwards;
+}
+@keyframes fail-dissolve {
+  0%   { opacity: 0.75; transform: scaleY(1); }
+  100% { opacity: 0;    transform: scaleY(1.3); }
+}
+
+/* 3. Understood, can't do it. The rim COMPLETES and the light STAYS. The turn
+      succeeded; the house simply cannot. The reason is both said and shown,
+      because this is the only one of the three where there is something
+      actionable to say. */
+:root[data-fail="cannot"] { --presence-glow: 0.55; }
+:root[data-fail="cannot"] .presence::before {
+  transform: scaleY(0.85);
+  background: radial-gradient(
+    120% 100% at 50% 118%,
+    oklch(0.70 0.10 27 / 0.42) 0%,
+    oklch(0.62 0.07 30 / 0.18) 40%,
+    transparent 74%
+  );
+}
+
+/* Reduced motion: the states still change, they just stop animating between
+   them. The information is in WHICH state it is, never in the transition. */
+@media (prefers-reduced-motion: reduce) {
+  .presence::before,
+  .presence::after,
+  .presence-cool { transition: none; animation: none; }
+}

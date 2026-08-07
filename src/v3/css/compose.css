@@ -1,0 +1,193 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   V3 COMPOSE — the lattice, and the one axis.
+
+   There are no pages and no views. There is one composition at four depths,
+   and depth is the only navigation:
+
+     0 FIELD    nobody present            substrate, the hour, one photograph
+     1 GLANCE   presence, or a must       EXACTLY ONE THING
+     2 SPREAD   dwell, or a broad ask     one dominant cell + 2-4 supporting
+     3 SUBJECT  voice named one thing     that thing, full bleed
+
+   A menu you cannot see is not a menu. One axis with two verbs — name a thing
+   to go deeper, say nothing to come back — is the entire model, and it is
+   speakable. Recession is automatic and always downhill.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;              /* there is no scroll. There is no scrollbar. */
+  background: var(--surface);
+  color: var(--ink);
+  /* No pointer input exists, so no selection or drag affordance should either.
+     Every touch-shaped affordance on a voice-only screen is a promise the
+     hardware cannot keep. */
+  user-select: none;
+  cursor: none;
+}
+
+/* ── Layers ─────────────────────────────────────────────────────────────────
+   Fixed z-order, forever. Depth changes what is IN the stage layer, never the
+   order of the stack.
+─────────────────────────────────────────────────────────────────────────── */
+/* The substrate canvas has an INTRINSIC size (its 480x270 backing store) and is
+   a replaced element, so inset:0 alone will not stretch it — it would paint at
+   480x270 in the corner and leave the rest of the wall black. The explicit
+   width/height are what upscale the quarter-res buffer to the full panel, and
+   they are the entire point of the technique rather than a tidy-up. */
+.substrate {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.photo     { position: fixed; inset: 0; z-index: 1; }
+.scrim     { position: fixed; inset: 0; z-index: 2; background: var(--scrim); }
+.stage     { position: fixed; inset: 0; z-index: 10; }
+/* .presence-cool is z-index 5 and .presence is 20 — see light.css */
+
+/* The photographic ground. object-fit cover, never a background-image: an
+   <img> gives us naturalWidth/naturalHeight, which the scrim sampler needs to
+   compute per-photo legibility, and which a CSS background will not report. */
+.photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: 0;
+  transition: opacity var(--settle);
+}
+.photo img[data-shown="1"] { opacity: 1; }
+
+/* ── The lattice ────────────────────────────────────────────────────────────
+   12 x 7 modules inside the safe inset. The composer may place content only in
+   one of the legal rectangles named below; it never emits arbitrary geometry.
+   Structure is where learnability lives, so structure is fixed.
+─────────────────────────────────────────────────────────────────────────── */
+.lattice {
+  position: absolute;
+  inset: var(--safe);
+  display: grid;
+  grid-template-columns: repeat(var(--cols), 1fr);
+  grid-template-rows: repeat(var(--rows), 1fr);
+  gap: var(--gutter);
+}
+
+/* The legal rectangles. Six shapes, and nothing else is addressable. */
+.cell--full     { grid-column: 1 / -1;  grid-row: 1 / -1; }
+.cell--dominant { grid-column: 1 / 8;   grid-row: 1 / 6;  }
+.cell--tall     { grid-column: 8 / -1;  grid-row: 1 / 6;  }
+.cell--wide     { grid-column: 1 / 8;   grid-row: 6 / -1; }
+.cell--side     { grid-column: 8 / -1;  grid-row: 6 / -1; }
+.cell--rail     { grid-column: 1 / -1;  grid-row: 7 / -1; align-self: end; }
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: var(--space-gap, 16px);
+  min-width: 0;                  /* grid children must be allowed to shrink */
+}
+
+/* Cells enter without JS timing. @starting-style animates from the initial
+   state on first render, which structurally avoids the bug class this house
+   has been bitten by twice: transitionend/animationend NEVER FIRE while the
+   element or an ancestor is display:none, and most things are hidden most of
+   the time. Nothing in V3 may schedule cleanup on those events. */
+.cell {
+  opacity: 1;
+  transition: opacity var(--m-calm) var(--ease), transform var(--m-calm) var(--ease);
+}
+@starting-style {
+  .cell { opacity: 0; transform: translateY(12px); }
+}
+
+/* ── Deixis ─────────────────────────────────────────────────────────────────
+   When the voice names something on screen, that thing answers. This is the
+   cheapest idea in V3 and the one that most changes how it feels: it is the
+   difference between a screen and a speaker in the same room, and one system.
+─────────────────────────────────────────────────────────────────────────── */
+.cell[data-ref="lit"] {
+  transform: translateY(-6px);
+}
+.cell[data-ref="lit"] .measured,
+.cell[data-ref="lit"] .said {
+  color: var(--ink);
+  text-shadow: var(--ink-shadow), 0 0 42px oklch(0.82 0.13 68 / 0.30);
+}
+
+/* ── Depth ──────────────────────────────────────────────────────────────────
+   Opacity-only exchanges. NOT for GPU reasons — a transform on a mode layer
+   breaks position:fixed descendants, which is a whole class of bug that is
+   painful to trace back to its cause.
+
+   visibility (not display:none) so that transitions actually run and so the
+   layer stops hit-testing and painting when hidden.
+─────────────────────────────────────────────────────────────────────────── */
+.depth {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--m-calm) var(--ease), visibility 0s linear var(--m-calm);
+}
+:root[data-depth="0"] .depth--field,
+:root[data-depth="1"] .depth--glance,
+:root[data-depth="2"] .depth--spread,
+:root[data-depth="3"] .depth--subject {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--m-calm) var(--ease), visibility 0s linear 0s;
+}
+
+/* Depth 0 is the resting state and must cost nothing. The photograph carries
+   it; the hour is the only text. Anything that animates here is a bug unless
+   the room can see its cause. */
+.depth--field .hour {
+  position: absolute;
+  left: var(--safe);
+  bottom: var(--safe);
+  font-family: var(--font-measured);
+  font-optical-sizing: auto;
+  font-variation-settings: "GRAD" var(--grade);
+  font-size: 168px;
+  font-weight: 200;
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-shadow: var(--ink-shadow);
+}
+
+/* ── The vocabulary rail ────────────────────────────────────────────────────
+   One line. Never two, never a list. It teaches the house's vocabulary over
+   weeks by example rather than dumping a menu nobody reads.
+─────────────────────────────────────────────────────────────────────────── */
+.rail-slot {
+  position: absolute;
+  right: var(--safe);
+  bottom: var(--safe);
+  max-width: 46ch;
+  text-align: right;
+  opacity: 0;
+  transition: opacity var(--m-calm) var(--ease);
+}
+:root[data-depth="1"] .rail-slot,
+:root[data-depth="2"] .rail-slot { opacity: 1; }
+
+/* Sun-agreed light: every lift on the surface throws its shadow where the real
+   sun actually is. One variable, no cost, and it is the cheapest thing in the
+   system that makes the screen feel like part of the room rather than a
+   picture of one. */
+.lift {
+  box-shadow:
+    calc(cos(var(--sun-az)) * -18px)
+    calc(sin(var(--sun-az)) * 18px + 10px)
+    46px oklch(0.05 0 0 / 0.42);
+}

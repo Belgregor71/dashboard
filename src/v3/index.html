@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en-AU" data-depth="0" data-phase="idle">
+<head>
+  <meta charset="utf-8" />
+  <title>V3</title>
+
+  <!-- Fixed 1920x1080 wall at DPR 1. No responsive scaling: this is not a page
+       that might be viewed on a phone, it is a specific rectangle on a wall. -->
+  <meta name="viewport" content="width=1920, initial-scale=1" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <!-- Fraunces = the said voice (opsz, wght, SOFT).
+       Roboto Flex = the measured voice (opsz, wght, GRAD).
+       Roboto Flex specifically because it CARRIES GRAD and Inter does not —
+       the Google Fonts API 400s the axis on Inter, so a night-grade token bound
+       to Inter would have been a silent no-op. -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,200..700,0..100&family=Roboto+Flex:opsz,wght,GRAD@8..144,200..700,-200..150&display=swap" />
+
+  <link rel="stylesheet" href="./css/tokens.css" />
+  <link rel="stylesheet" href="./css/type.css" />
+  <link rel="stylesheet" href="./css/compose.css" />
+  <link rel="stylesheet" href="./css/light.css" />
+</head>
+<body>
+  <!-- The substrate. One continuously-caused atmospheric field: sun altitude and
+       azimuth, wind vector, rain, cloud, pressure trend. Never a free-running
+       shimmer — the calm law survives V3 in exactly one clause, "never move for
+       a reason the room cannot see." -->
+  <canvas class="substrate" id="substrate" width="480" height="270"></canvas>
+
+  <!-- The photographic ground. An <img>, not a background-image, because the
+       scrim sampler needs to read its pixels to compute legibility per photo. -->
+  <div class="photo"><img id="ground" alt="" /></div>
+
+  <!-- Shaped gradient scrim. Opacity is COMPUTED from the measured luminance
+       under the text, not guessed. Blur is not a material in V3. -->
+  <div class="scrim" id="scrim"></div>
+
+  <!-- The field cools ~2% while the house is thinking. Above the substrate,
+       below the content, so the text is never tinted. -->
+  <div class="presence-cool"></div>
+
+  <main class="stage">
+    <!-- DEPTH 0 — FIELD. Nobody present. The photograph carries it and the hour
+         is the only text. Resting cost must be <=8% of one core. -->
+    <section class="depth depth--field">
+      <div class="hour" id="hour">--:--</div>
+    </section>
+
+    <!-- DEPTH 1 — GLANCE. Exactly one thing, at editorial scale. If it needs a
+         second glance it is two states, not one screen. -->
+    <section class="depth depth--glance">
+      <div class="lattice">
+        <div class="cell cell--dominant" id="glance-cell">
+          <p class="said said--1" id="glance-said"></p>
+          <p class="measured measured--2" id="glance-measured"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- DEPTH 2 — SPREAD. One dominant cell plus 2-4 supporting, chosen by the
+         composer from the fixed template set. Populated by core/composer.js. -->
+    <section class="depth depth--spread">
+      <div class="lattice" id="spread-lattice"></div>
+    </section>
+
+    <!-- DEPTH 3 — SUBJECT. Voice named one thing; that thing fills the screen.
+         Each subject module owns this node and must tear itself down on leave. -->
+    <section class="depth depth--subject">
+      <div class="lattice"><div class="cell cell--full" id="subject-mount"></div></div>
+    </section>
+
+    <!-- What the house believes it heard, and the vocabulary it is teaching. -->
+    <p class="heard" id="heard" hidden></p>
+    <div class="rail-slot"><p class="rail" id="rail" hidden></p></div>
+  </main>
+
+  <!-- The house's presence. Not an object — the light of the screen itself. -->
+  <div class="presence"></div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

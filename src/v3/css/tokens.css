@@ -1,0 +1,183 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   V3 TOKENS — the whole colour, light and layout vocabulary in one file.
+   Nothing in V3 may introduce a colour, a size or a duration that is not here.
+
+   This file is deliberately NOT an evolution of src/css/base/variables.css.
+   V3 is a parallel surface (src/v3/) and shares no tokens with the incumbent —
+   the old palette is sRGB hex tuned for a Pi-era surface, this one is OKLCH.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── The panel ────────────────────────────────────────────────────────────
+     1920x1080 at DPR 1 on a 698x392mm panel: 1 CSS px = 0.369mm, ~69 PPI.
+     Viewed from 3-4m. Every size below is derived from that, not from taste.
+  ────────────────────────────────────────────────────────────────────────── */
+  --panel-w: 1920px;
+  --panel-h: 1080px;
+
+  /* ── Colour: one perceptual lightness ramp ────────────────────────────────
+     OKLCH, because L is perceptually uniform — equal steps LOOK equal, and
+     (the load-bearing part) we can rotate hue across the day for atmosphere
+     while holding L absolutely constant, so no tint change can ever break a
+     contrast guarantee. HSL cannot do that without hand-tuning every stop.
+
+     --atmo-hue is the ONLY thing atmosphere is allowed to move.
+  ────────────────────────────────────────────────────────────────────────── */
+  --atmo-hue: 65;          /* warm daylight default; night shifts to 40 */
+  --atmo-chroma: 0.012;
+
+  /* Surfaces. Never #000 — pure black against near-white text produces
+     halation, where the light text visibly bleeds into the dark ground. */
+  --surface:      oklch(0.16 var(--atmo-chroma) var(--atmo-hue));
+  --surface-lift: oklch(0.21 var(--atmo-chroma) var(--atmo-hue));
+  --surface-sunk: oklch(0.12 var(--atmo-chroma) var(--atmo-hue));
+
+  /* Ink. Never #fff, for the same reason, and warm rather than blue-white:
+     both the Calm Tech 380-500nm criterion and Apple StandBy's night model
+     point the same way. A dim COOL screen is doing half the job. */
+  --ink:       oklch(0.93 0.010 85);
+  --ink-dim:   oklch(0.74 0.012 85);
+  --ink-faint: oklch(0.55 0.014 85);
+
+  /* Accent. L and C are fixed; only H moves with the weather. Contrast against
+     --surface is therefore an invariant of the system, not a per-tint accident. */
+  --accent-l: 0.78;
+  --accent-c: 0.09;
+  --accent: oklch(var(--accent-l) var(--accent-c) var(--atmo-hue));
+
+  /* The one warm signal. Reserved for the house's own light (§ presence),
+     sun glyphs, and lightning. Never chrome, never body text. */
+  --warm: oklch(0.82 0.13 68);
+
+  /* Status. Desaturated ~15% from their naive values — saturated mid-tones
+     lose apparent weight on a dark ground and start failing contrast. */
+  --ok:    oklch(0.78 0.15 150);
+  --warn:  oklch(0.82 0.14 75);
+  --error: oklch(0.70 0.17 27);
+
+  /* ── The house's light (§3 of the plan) ───────────────────────────────────
+     Three properties carry the entire presence system. presence-light.js
+     writes them; CSS does the rest. No orb, no waveform, no avatar.
+  ────────────────────────────────────────────────────────────────────────── */
+  --presence-level: 0;     /* 0..1  real microphone RMS, ~12.5Hz from the wake agent */
+  --presence-sweep: 0;     /* 0..1  TTS playback position (currentTime/duration)     */
+  --presence-glow:  0;     /* 0..1  master opacity of the rim                        */
+
+  /* ── Real sun, real light ─────────────────────────────────────────────────
+     Every shadow and glow on the surface points where the actual sun is.
+     One variable, zero cost, and it is why the light on the screen and the
+     light in the room agree. Written from suncalc.
+  ────────────────────────────────────────────────────────────────────────── */
+  --sun-az: 0deg;          /* solar azimuth  */
+  --sun-alt: 0;            /* -1..1 altitude */
+  --sun-warmth: 0;         /* 0..1 ramp used by the substrate                */
+
+  /* ── Type ─────────────────────────────────────────────────────────────────
+     SAID vs MEASURED. One rule, learnable in a day: if the house is speaking
+     it is set in the serif; if it is reporting a number it is set in the sans.
+
+     Faces are chosen for the axes they actually carry — verified against the
+     Google Fonts API, which 400s an axis a family does not have:
+       Fraunces     opsz, wght, SOFT   (and WONK, unused)
+       Roboto Flex  opsz, wght, GRAD
+     NOTE: Inter is NOT used here. It has no GRAD axis, so the night-grade
+     behaviour below would have silently done nothing.
+  ────────────────────────────────────────────────────────────────────────── */
+  --font-said:     "Fraunces", Georgia, serif;
+  --font-measured: "Roboto Flex", system-ui, sans-serif;
+
+  /* Sizes, derived from the arc-minute legibility model rather than picked.
+     Text must subtend >=10 arc-minutes of x-height to be legible and ~16 to be
+     comfortable. At 3m on this panel that is a ~43px floor and ~69px for
+     comfortable reading. Hence: */
+  --t-said-1:      132px;  /* the one thing this glance is about */
+  --t-said-2:       96px;  /* the same, when it is a longer line */
+  --t-measured-1:   72px;  /* primary readout — the comfortable size */
+  --t-measured-2:   48px;  /* supporting */
+  --t-rail:         32px;  /* the vocabulary rail. THE FLOOR. */
+
+  /* Nothing below --t-rail exists. Below ~30px at 3m the text is not received,
+     so it is spending contrast budget and paint cost for nothing. The fix for
+     "it doesn't fit" is to delete it, never to shrink it. */
+
+  /* Grade. At night, lower luminance thins perceived strokes. GRAD thickens
+     them at CONSTANT metrics — no reflow, no layout shift — which is what
+     weight cannot do. Set to 0 by day and raised by the night ramp. */
+  --grade: 0;
+
+  /* ── The lattice ──────────────────────────────────────────────────────────
+     12 x 7 modules. The composer may only place content in one of the legal
+     rectangles; it never free-forms a layout. Structure is where learnability
+     lives, so structure is fixed and only contents move.
+  ────────────────────────────────────────────────────────────────────────── */
+  --safe: 96px;                                  /* wall inset */
+  --cols: 12;
+  --rows: 7;
+  --gutter: 28px;
+
+  /* ── Motion ───────────────────────────────────────────────────────────────
+     Three durations and one curve. Anything that needs a fourth is wrong.
+     Transform and opacity only — a transform on a mode layer breaks
+     position:fixed descendants, so mode-level exchanges stay opacity-only.
+  ────────────────────────────────────────────────────────────────────────── */
+  --m-quick: 150ms;
+  --m-base:  250ms;
+  --m-calm:  350ms;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --settle: 1200ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ── Legibility over photography ──────────────────────────────────────────
+     Blur is NOT a material in V3. backdrop-filter re-reads the layer beneath
+     it every frame and its cost scales with radius x area; a shaped gradient
+     scrim is one composite with no readback, and it is more legible. This is
+     the exact failure documented in iOS 26's Liquid Glass, and this surface
+     is text over a daily photograph, which is its worst case.
+
+     --scrim-opacity is COMPUTED PER PHOTO from the measured mean luminance of
+     the region under the text, not guessed. See core/scrim.js.
+  ────────────────────────────────────────────────────────────────────────── */
+  --scrim-opacity: 0.55;
+  --scrim: linear-gradient(
+    to top,
+    oklch(0.08 0.01 var(--atmo-hue) / var(--scrim-opacity)) 0%,
+    oklch(0.08 0.01 var(--atmo-hue) / calc(var(--scrim-opacity) * 0.72)) 38%,
+    transparent 88%
+  );
+
+  /* The second, independent legibility mechanism. Redundancy is why distance
+     signage works: the scrim handles the average case, this survives the
+     highlight that the scrim did not anticipate. */
+  --ink-shadow: 0 2px 18px oklch(0.05 0 0 / 0.75), 0 1px 3px oklch(0.05 0 0 / 0.55);
+}
+
+/* ── Night ──────────────────────────────────────────────────────────────────
+   Dim AND warm, never dim and blue. Hue rotates 65 -> 40, surfaces drop, and
+   the grade axis compensates for the stroke-thinning that dimming causes.
+   Driven by sun altitude, not by clock time.
+─────────────────────────────────────────────────────────────────────────── */
+:root[data-night="1"] {
+  --atmo-hue: 40;
+  --ink:       oklch(0.86 0.014 55);
+  --ink-dim:   oklch(0.66 0.016 55);
+  --ink-faint: oklch(0.48 0.018 55);
+  --accent-l: 0.70;
+  --grade: 80;
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────────
+   Honoured in full, including the house's own light: the presence rim still
+   changes state, it simply stops animating between states.
+─────────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --m-quick: 0ms;
+    --m-base:  0ms;
+    --m-calm:  0ms;
+    --settle:  0ms linear;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

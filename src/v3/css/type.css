@@ -1,0 +1,118 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   V3 TYPE — said vs measured.
+
+   The rule, in full: if the house is SPEAKING, it is set in the serif. If it is
+   REPORTING A NUMBER, it is set in the sans. There is no third case, and no
+   element may mix them within one line.
+
+   That one rule is the whole typographic system. It is learnable in a day from
+   across the room, and it means the family can tell at a glance whether they
+   are being told something or shown something — before reading a word.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── The said voice ─────────────────────────────────────────────────────────
+   Fraunces. A high-contrast variable serif with a real optical-size axis, so
+   at 132px it sets tight and sharp rather than as a scaled-up reading face.
+   SOFT is held low: this is a warm voice, not a soft one.
+─────────────────────────────────────────────────────────────────────────── */
+.said {
+  font-family: var(--font-said);
+  font-optical-sizing: auto;
+  font-variation-settings: "SOFT" 12, "WONK" 0;
+  font-weight: 400;
+  color: var(--ink);
+  letter-spacing: -0.018em;
+  line-height: 1.06;
+  text-wrap: balance;          /* never leave one word alone on the last line */
+  text-shadow: var(--ink-shadow);
+  margin: 0;
+}
+
+.said--1 { font-size: var(--t-said-1); }
+.said--2 { font-size: var(--t-said-2); }
+
+/* Long lines step down rather than wrapping to a third line. A third line at
+   132px does not fit the glance budget, whatever it says. */
+.said[data-len="long"] { font-size: var(--t-said-2); }
+
+/* ── The measured voice ─────────────────────────────────────────────────────
+   Roboto Flex, chosen specifically because it carries GRAD. Inter does not —
+   the Google Fonts API rejects the axis outright — so a night-grade token
+   bound to Inter would have been a no-op that still looked correct in review.
+
+   GRAD thickens strokes at CONSTANT METRICS. That is the entire point: at
+   night the surface dims, dimming thins the apparent stroke, and the obvious
+   fix (raise the weight) reflows the line and shifts the layout. Grade does
+   not. Nothing moves; the text simply stops looking anaemic.
+─────────────────────────────────────────────────────────────────────────── */
+.measured {
+  font-family: var(--font-measured);
+  font-optical-sizing: auto;
+  font-variation-settings: "GRAD" var(--grade);
+  font-weight: 400;
+  color: var(--ink-dim);
+  letter-spacing: 0.004em;
+  line-height: 1.24;
+  /* Tabular figures are not a nicety here. This screen runs for weeks and its
+     numbers tick; proportional digits would shift the layout every minute. */
+  font-variant-numeric: tabular-nums;
+  text-shadow: var(--ink-shadow);
+  margin: 0;
+}
+
+.measured--1 { font-size: var(--t-measured-1); color: var(--ink); }
+.measured--2 { font-size: var(--t-measured-2); }
+
+/* ── The vocabulary rail ────────────────────────────────────────────────────
+   The one place the house teaches its own vocabulary. Set in the SAID voice
+   and in quotes, because it is an utterance — showing the exact words to say,
+   not a paraphrase of a capability. Research is explicit that discoverability
+   fails on phrasing as much as on capability.
+
+   32px is the floor of the whole system. It is meant to be readable but never
+   demanding: peripheral, ignorable, and absorbed over weeks rather than read.
+─────────────────────────────────────────────────────────────────────────── */
+.rail {
+  font-family: var(--font-said);
+  font-optical-sizing: auto;
+  font-size: var(--t-rail);
+  font-style: italic;
+  font-weight: 300;
+  color: var(--ink-faint);
+  letter-spacing: 0.01em;
+  text-shadow: var(--ink-shadow);
+  margin: 0;
+}
+.rail::before { content: "\201C"; }
+.rail::after  { content: "\201D"; }
+
+/* ── The heard transcript ───────────────────────────────────────────────────
+   What the house believes you said. Measured, not said — it is a readout of
+   the recogniser, and attributing it to the house's own voice would be a lie
+   about who is speaking.
+─────────────────────────────────────────────────────────────────────────── */
+.heard {
+  font-family: var(--font-measured);
+  font-optical-sizing: auto;
+  font-variation-settings: "GRAD" var(--grade);
+  font-size: var(--t-measured-2);
+  font-weight: 300;
+  color: var(--ink-faint);
+  letter-spacing: 0.01em;
+  text-shadow: var(--ink-shadow);
+  margin: 0;
+}
+/* Heard, but not understood. The strike is the visual half of telling the two
+   apart; "I didn't hear you" and "I heard you and can't help" are different
+   failures and must not look alike. */
+.heard[data-failed="misheard"] {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  color: oklch(0.52 0.05 27);
+}
+
+/* ── Global floor enforcement ───────────────────────────────────────────────
+   A guard, not a style. If anything in V3 ever renders below the floor it is a
+   bug, and the pre-push type sweep asserts against this same number.
+─────────────────────────────────────────────────────────────────────────── */
+body { font-size: var(--t-rail); }
