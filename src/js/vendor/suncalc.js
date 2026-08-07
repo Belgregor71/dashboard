@@ -84,6 +84,14 @@ function altitude(H, phi, dec) {
   return asin(sin(phi) * sin(dec) + cos(phi) * cos(dec) * cos(H));
 }
 
+// Restored from upstream SunCalc — this trimmed copy had dropped it, so
+// getPosition() returned altitude only and any caller reading `.azimuth` got
+// undefined rather than an error. Measured from SOUTH, going west (upstream's
+// convention), so: south 0, west +PI/2, east -PI/2.
+function azimuth(H, phi, dec) {
+  return atan2(sin(H), cos(H) * sin(phi) - tan(dec) * cos(phi));
+}
+
 export function getPosition(date, lat, lon) {
   const lw = rad * -lon;
   const phi = rad * lat;
@@ -93,7 +101,8 @@ export function getPosition(date, lat, lon) {
   const dec = declination(L, 0);
   const ra = rightAscension(L, 0);
   const H = siderealTime(d, lw) - ra;
-  return { altitude: altitude(H, phi, dec) };
+  // Additive: existing callers destructure `.altitude` and are unaffected.
+  return { altitude: altitude(H, phi, dec), azimuth: azimuth(H, phi, dec) };
 }
 
 export function getTimes(date, lat, lon, height = 0) {
