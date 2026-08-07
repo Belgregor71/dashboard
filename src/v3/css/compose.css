@@ -181,6 +181,55 @@ html, body {
 :root[data-depth="1"] .rail-slot,
 :root[data-depth="2"] .rail-slot { opacity: 1; }
 
+/* ── Subjects (depth 3) ─────────────────────────────────────────────────────
+   One thing, full bleed. The still lands first and the live stream is revealed
+   only once it has painted, because a battery camera takes 15-20s to wake and
+   an empty frame for twenty seconds reads as broken rather than as loading.
+─────────────────────────────────────────────────────────────────────────── */
+.subject { position: absolute; inset: 0; }
+
+.subject__frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The live frame sits over the still and cross-fades in on first paint. */
+.subject__frame--live {
+  opacity: 0;
+  transition: opacity var(--m-calm) var(--ease);
+}
+.subject__frame--live.is-ready { opacity: 1; }
+
+.subject__caption {
+  position: absolute;
+  left: var(--safe);
+  bottom: var(--safe);
+  text-shadow: var(--ink-shadow);
+}
+
+/* Radar: a 3x3 mosaic, rain over basemap, both from our own cache. */
+.subject__radar {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+}
+.subject__tile { position: relative; }
+.subject__tile img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Plain alpha, never mix-blend-mode: an `overlay` here would force the whole
+   stack beneath to re-blend every frame for a texture that barely changes. */
+.subject__overlay { opacity: 0.85; }
+
 /* Sun-agreed light: every lift on the surface throws its shadow where the real
    sun actually is. One variable, no cost, and it is the cheapest thing in the
    system that makes the screen feel like part of the room rather than a

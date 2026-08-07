@@ -45,14 +45,17 @@
     <!-- DEPTH 0 — FIELD. Nobody present. The photograph carries it and the hour
          is the only text. Resting cost must be <=8% of one core. -->
     <section class="depth depth--field">
-      <div class="hour" id="hour">--:--</div>
+      <div class="hour" id="hour" data-cell="hour">--:--</div>
     </section>
 
     <!-- DEPTH 1 — GLANCE. Exactly one thing, at editorial scale. If it needs a
          second glance it is two states, not one screen. -->
     <section class="depth depth--glance">
       <div class="lattice">
-        <div class="cell cell--dominant" id="glance-cell">
+        <!-- data-cell is the deixis address: when the voice names something,
+             core/voice.js lights the matching cell. Unknown refs are dropped,
+             so a name that does not exist here is simply inert. -->
+        <div class="cell cell--dominant" id="glance-cell" data-cell="weather">
           <p class="said said--1" id="glance-said"></p>
           <p class="measured measured--2" id="glance-measured"></p>
         </div>

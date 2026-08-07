@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { createHash } from "crypto";
-import { mkdir, rm, writeFile } from "fs/promises";
+import { mkdir, rm, stat, utimes, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { pickSensorPath } from "../server/routes/system.js";
@@ -906,6 +906,43 @@ test.describe("ai + tts", () => {
     }
   });
 
+  test("a cache hit refreshes the entry's mtime, so eviction is least-recently-USED", async ({ request }) => {
+    // The prune evicts on age, and mtime only moves on WRITE. Without a touch
+    // on read, the doorbell lines — pre-warmed once at boot and thereafter only
+    // ever read — were deleted on day 15 no matter how often they rang, and a
+    // kiosk up longer than a fortnight then waited ~10-17s on live synthesis
+    // at the front door. This asserts the touch actually happens.
+    const text = `mtime refresh probe ${Date.now()}`;
+    const speed = 1.25;
+    const key = createHash("sha256").update(`${text}::${speed}`).digest("hex");
+    const cacheDir = path.join(REPO_ROOT, "server", "tts-cache");
+    const cachePath = path.join(cacheDir, `${key}.wav`);
+    const payload = Buffer.from("RIFF....WAVEfmt mtime-probe");
+
+    await mkdir(cacheDir, { recursive: true });
+    await writeFile(cachePath, payload);
+
+    // Age the entry to 20 days — comfortably past the 14-day ceiling.
+    const stale = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000);
+    await utimes(cachePath, stale, stale);
+    const before = (await stat(cachePath)).mtimeMs;
+
+    try {
+      const res = await request.post("/api/tts/speak", { data: { text, rate: speed } });
+      expect(res.status()).toBe(200);
+
+      // The touch is fire-and-forget so the reply never waits on it.
+      await expect
+        .poll(async () => (await stat(cachePath)).mtimeMs, { timeout: 5000 })
+        .toBeGreaterThan(before);
+
+      const after = (await stat(cachePath)).mtimeMs;
+      expect(Date.now() - after, "entry is still older than the 14-day ceiling").toBeLessThan(60_000);
+    } finally {
+      await rm(cachePath, { force: true });
+    }
+  });
+
   test("POST /api/ai/brief answers with a summary key (AI stubbed off)", async ({ request }) => {
     const { body } = await expectJson(request, "/api/ai/brief", {
       method: "post",
@@ -978,6 +1015,56 @@ test.describe("ai + tts", () => {
     });
     expect(status).toBe(200);
     expect(body).toHaveProperty("ok", true);
+  });
+
+  // Microphone LEVEL, not audio — the guardrail is unchanged: no audio ever
+  // reaches this server. The level feeds the listening light so the rim
+  // responds to the real room rather than to a timer.
+  test("POST /api/voice/level accepts an rms frame and answers 204 with no body", async ({ request }) => {
+    const res = await request.post("/api/voice/level", { data: { rms: 1840 } });
+    // 204 deliberately: this is a ~12.5Hz hot path, so it returns no body at all.
+    expect(res.status()).toBe(204);
+    expect((await res.body()).length).toBe(0);
+  });
+
+  test("POST /api/voice/level rejects a missing or nonsense rms", async ({ request }) => {
+    for (const data of [{}, { rms: "loud" }, { rms: -1 }, { rms: null }]) {
+      const res = await request.post("/api/voice/level", { data });
+      expect(res.status(), `accepted junk: ${JSON.stringify(data)}`).toBe(400);
+      expect(await res.json()).toHaveProperty("error");
+    }
+  });
+
+  test("a level frame reaches /api/voice/stream as a voice_level event", async ({ request }) => {
+    // Prove the fan-out END TO END. A client listening for an event nothing
+    // emits is precisely the silent no-op this route exists to fix, and only a
+    // real subscriber can show the frame actually arrives.
+    //
+    // Raw node http rather than the request fixture: an SSE response never
+    // ends, so awaiting its body simply times out.
+    const http = await import("node:http");
+    const received = await new Promise((resolve, reject) => {
+      const req = http.get("http://127.0.0.1:3210/api/voice/stream", (res) => {
+        let buf = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => {
+          buf += chunk;
+          if (buf.includes("event: voice_level")) {
+            req.destroy();
+            resolve(buf);
+          }
+        });
+      });
+      req.on("error", (err) => { if (err.code !== "ECONNRESET") reject(err); });
+      setTimeout(() => { req.destroy(); resolve(buf_fallback()); }, 6000);
+      function buf_fallback() { return "TIMEOUT"; }
+      // Post once the subscriber is definitely attached.
+      setTimeout(() => request.post("/api/voice/level", { data: { rms: 2222 } }), 500);
+    });
+
+    expect(received, "no voice_level frame reached the SSE subscriber").not.toBe("TIMEOUT");
+    expect(received).toContain("event: voice_level");
+    expect(received).toContain('"rms":2222');
   });
 });
 

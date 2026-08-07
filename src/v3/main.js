@@ -8,8 +8,12 @@
 
 import { getPosition } from "../js/vendor/suncalc.js";
 import { initSubstrate, toCauses } from "./substrate/index.js";
-import { initDepth, setDepth, DEPTH } from "./core/depth.js";
+import { initDepth, setDepth, onDepth, DEPTH } from "./core/depth.js";
 import { initPresenceLight } from "./core/presence-light.js";
+import { initVoice } from "./core/voice.js";
+import { clearSubject, activeSubject } from "./subjects/index.js";
+import { railPhrase } from "../js/services/vocabulary.js";
+import { voiceSnapshot, refreshVoiceCache } from "../js/services/voiceSnapshot.js";
 
 /* Sun position only. City-level Brisbane, deliberately coarse: this repo is
    PUBLIC and its bundle is tracked, so no house-precise coordinate may appear
@@ -21,8 +25,11 @@ const CITY = { lat: -27.47, lon: 153.02 };
 const el = {
   substrate: document.getElementById("substrate"),
   hour: document.getElementById("hour"),
-  ground: document.getElementById("ground")
+  ground: document.getElementById("ground"),
+  rail: document.getElementById("rail")
 };
+
+let railTick = 0;
 
 let substrate = null;
 let weather = null;
@@ -103,20 +110,46 @@ async function loadWeather() {
   }
 }
 
+/* The vocabulary rail. Everything offered is filtered through the lane against
+   live data first, so it can only ever suggest something that would actually
+   work right now — a suggestion that then falls through teaches the room that
+   the rail is decorative. */
+function paintRail() {
+  if (!el.rail) return;
+  const phrase = railPhrase(voiceSnapshot({ lat: CITY.lat, lon: CITY.lon }), { tick: railTick });
+  if (!phrase) {
+    el.rail.hidden = true;
+    return;
+  }
+  el.rail.textContent = phrase;
+  el.rail.hidden = false;
+}
+
+/* Leaving depth 3 must dismantle the subject. This is the one per-event path in
+   V3, and a subject left mounted keeps its MJPEG connection open forever. */
+function onDepthChange(next, prev) {
+  if (prev === DEPTH.SUBJECT && next !== DEPTH.SUBJECT) clearSubject();
+}
+
 function boot() {
   initDepth();
   initPresenceLight();
+  initVoice({ enabled: true, lat: CITY.lat, lon: CITY.lon });
+  onDepth(onDepthChange);
 
   substrate = initSubstrate(el.substrate);
   paintHour();
   pushCauses();
   loadWeather();
+  refreshVoiceCache().then(paintRail, paintRail);
 
   // Init-once intervals only. Per-event timers are where this house has leaked
   // before; these are registered exactly once at startup and never re-created.
   setInterval(paintHour, 20_000);   // cheap, and keeps the minute honest
   setInterval(pushCauses, 60_000);  // sun moves; the field follows it
   setInterval(loadWeather, 600_000);
+  setInterval(() => { refreshVoiceCache(); }, 300_000);
+  setInterval(() => { railTick += 1; paintRail(); }, 90_000);
 
   setDepth(DEPTH.FIELD, "boot");
 
@@ -124,6 +157,9 @@ function boot() {
     depth: window.__depth?.(),
     substrate: window.__substrate?.(),
     presence: window.__presenceLight?.(),
+    voice: window.__v3Voice?.(),
+    subject: activeSubject(),
+    rail: el.rail?.hidden === false ? el.rail.textContent : null,
     weather: weather?.now?.condition?.label ?? null
   });
 

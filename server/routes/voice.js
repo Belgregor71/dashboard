@@ -183,6 +183,32 @@ router.post("/api/voice/transcript", (req, res) => {
   return res.json({ ok: true });
 });
 
+// Microphone LEVEL, not audio. The wake agent already computes an RMS per 80ms
+// frame for its endpointing, so this is a number it has in hand — no new audio
+// processing, and still no audio anywhere near this server.
+//
+// It exists for one reason: the listening light. A rim that animates on a timer
+// rather than on the room reads as fake within about two seconds, and once it
+// reads as fake the room stops trusting that it was heard.
+//
+// ~12.5 frames/sec. Two things make that safe rather than reckless:
+//  - the global rate limiter is `skip: isLoopback`, and the agent posts to
+//    localhost, so 750 req/min never touches the 600/min budget;
+//  - 204 with no body, no logging and no health reporting, because a hot path
+//    that writes a log line per frame is how you turn a UI cue into a disk cost.
+router.post("/api/voice/level", (req, res) => {
+  if (!isLoopback(req)) return res.status(403).json({ error: "loopback only" });
+  // typeof, not Number(): Number(null) is 0, which is finite and non-negative,
+  // so a null rms would have sailed through as "silence" rather than being
+  // rejected as the malformed frame it is.
+  const rms = req.body?.rms;
+  if (typeof rms !== "number" || !Number.isFinite(rms) || rms < 0) {
+    return res.status(400).json({ error: "rms must be a non-negative number" });
+  }
+  voiceBus.emit("level", { rms });
+  return res.status(204).end();
+});
+
 router.get("/api/voice/stream", (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -193,11 +219,19 @@ router.get("/api/voice/stream", (req, res) => {
   const onTranscript = (payload) => res.write(toSse("voice_transcript", payload));
   voiceBus.on("transcript", onTranscript);
 
+  // Level rides the SAME connection as the transcript rather than opening its
+  // own. Six connections per host is the browser's ceiling, and two
+  // never-ending SSE streams have already starved a media request in this
+  // house — a second stream for a cosmetic cue would be a poor trade.
+  const onLevel = (payload) => res.write(toSse("voice_level", payload));
+  voiceBus.on("level", onLevel);
+
   const heartbeat = setInterval(() => res.write(": ping\n\n"), 20_000);
 
   req.on("close", () => {
     clearInterval(heartbeat);
     voiceBus.off("transcript", onTranscript); // symmetric teardown per SSE client
+    voiceBus.off("level", onLevel);
   });
 });
 

@@ -55,7 +55,14 @@ async function speakWithBrowserTts(text, { rate, pitch, volume }) {
   });
 }
 
-export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0 } = {}) {
+/**
+ * `onAudio` (optional) hands the caller the <audio> element the moment it is
+ * created, so a surface can couple a visual to real playback position rather
+ * than to an estimate of it — V3's speaking sweep reads currentTime/duration
+ * from it. Additive: callers that omit it are unaffected, and it is never
+ * invoked on the browser-TTS fallback path, which has no element to give.
+ */
+export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0, onAudio = null } = {}) {
   if (!text) return;
 
   silence();
@@ -75,6 +82,10 @@ export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0 } = {
     audio.volume = volume;
     currentAudio = audio;
     currentAudioUrl = audioUrl;
+    // Isolated: a throwing observer must not cost the room its reply.
+    if (typeof onAudio === "function") {
+      try { onAudio(audio); } catch (err) { setTimeout(() => { throw err; }); }
+    }
 
     return new Promise((resolve) => {
       audio.onended = () => { releaseAudioUrl(audioUrl); resolve(); };

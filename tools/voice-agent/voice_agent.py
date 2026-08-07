@@ -18,7 +18,9 @@ import glob
 import io
 import json
 import os
+import queue
 import subprocess
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -43,6 +45,10 @@ MIC = os.environ.get("MIC_DEVICE", "plughw:3,0")
 # which looks exactly like a dead mic from the glass.
 STT_URL = os.environ.get("STT_URL", "http://Mandragon.local:8123/transcribe")
 DASH_URL = os.environ.get("DASH_URL", "http://localhost:3000/api/voice/transcript")
+# Microphone LEVEL only — never audio. Feeds the dashboard's listening light so
+# the rim breathes with the actual room instead of on a timer.
+LEVEL_URL = os.environ.get("LEVEL_URL", "http://localhost:3000/api/voice/level")
+LEVEL_ENABLED = os.environ.get("LEVEL_ENABLED", "1") == "1"
 
 # Energy-based endpointing (dependency-free): capture until trailing silence.
 SILENCE_RMS = int(os.environ.get("SILENCE_RMS", "500"))
@@ -83,6 +89,37 @@ def read_frame(proc):
     return np.frombuffer(buf, dtype=np.int16)
 
 
+# ── Level relay ──────────────────────────────────────────────────────────────
+# The capture loop below is TIMING-CRITICAL: it reads one 80 ms frame at a time
+# and ends the utterance after TRAIL_SILENCE_MS of quiet. A blocking POST inside
+# that loop would stretch frames, drift the trailing-silence count, and clip
+# people mid-sentence — trading a working microphone for a prettier animation.
+#
+# So levels go out on a daemon thread fed by a depth-1 queue that DROPS when
+# full. Dropping is correct: a level frame is only interesting while it is
+# current, and a backlog of stale ones is worse than a gap.
+_level_q = queue.Queue(maxsize=1)
+
+
+def _level_worker():
+    while True:
+        rms_value = _level_q.get()
+        try:
+            _post(LEVEL_URL, json.dumps({"rms": rms_value}).encode(),
+                  "application/json", 2)
+        except (urllib.error.URLError, OSError, ValueError):
+            pass  # the dashboard may be restarting; the mic must not care
+
+
+def send_level(rms_value):
+    if not LEVEL_ENABLED:
+        return
+    try:
+        _level_q.put_nowait(rms_value)
+    except queue.Full:
+        pass  # a newer frame is already in flight; this one is stale anyway
+
+
 def capture_utterance(proc):
     frames, speech_frames, trail = [], 0, 0.0
     start = time.time()
@@ -92,7 +129,9 @@ def capture_utterance(proc):
         if f is None:
             break
         frames.append(f)
-        if rms(f) >= SILENCE_RMS:
+        level = rms(f)
+        send_level(level)          # non-blocking; drops rather than delays
+        if level >= SILENCE_RMS:
             speech_frames += 1
             trail = 0.0
         elif speech_frames >= MIN_SPEECH_FRAMES:
@@ -169,6 +208,12 @@ def main():
 
     if PROBE_ONLY:
         log(f"PROBE mode — logging runs above {PROBE_FLOOR}, capturing nothing")
+
+    if LEVEL_ENABLED:
+        # daemon=True so a stuck POST can never keep the agent alive on shutdown
+        threading.Thread(target=_level_worker, daemon=True).start()
+        log(f"level relay on → {LEVEL_URL}")
+
     proc = arecord_stream()
     run = []
     try:
@@ -193,6 +238,10 @@ def main():
             if score >= WAKE_THRESHOLD:
                 log(f"WAKE ({score:.2f}) — capturing…")
                 pcm = capture_utterance(proc)
+                # The turn is over: drop the rim now rather than leaving the
+                # client's decay to guess. Cheap, and it makes "I have stopped
+                # listening" a fact the room can see instead of an inference.
+                send_level(0)
                 reset(oww)
                 if pcm is None:
                     log("no speech after wake")

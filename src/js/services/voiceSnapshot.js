@@ -123,13 +123,29 @@ function downloadsFrom(byId) {
   return { active };
 }
 
-function todosFrom() {
+/* NOT LOADED IS NOT EMPTY — the same distinction the calendar answerers make,
+   and it bites harder here. openTodoSummaries() returns [] for an entity that
+   is absent, which is indistinguishable from an entity whose list is genuinely
+   empty. With Home Assistant disconnected that made the house say "the shopping
+   list is empty" with total confidence, on the one morning someone was relying
+   on it.
+
+   So presence in the entity cache is the test: no entity, no answer. null falls
+   the turn through to Assist instead. */
+function todosFrom(byId) {
   try {
-    const shopping = openTodoSummaries(getShoppingEntityId());
-    const tasks = getTodoEntityIds().flatMap((id) => openTodoSummaries(id));
+    const shoppingId = getShoppingEntityId();
+    const shopping = byId[shoppingId] ? openTodoSummaries(shoppingId) : null;
+
+    // getTodoEntityIds() falls back to a hard-coded default list when nothing
+    // has been discovered yet, so those ids must be checked against the cache
+    // too rather than trusted to exist.
+    const present = getTodoEntityIds().filter((id) => byId[id]);
+    const tasks = present.length ? present.flatMap((id) => openTodoSummaries(id)) : null;
+
     return { shopping, tasks };
   } catch {
-    return { shopping: [], tasks: [] };
+    return { shopping: null, tasks: null };
   }
 }
 
@@ -210,7 +226,7 @@ export function voiceSnapshot({ lat, lon } = {}) {
     sleep: sleepFrom(byId),
     vacuum: vacuumFrom(list),
     downloads: downloadsFrom(byId),
-    todos: todosFrom(),
+    todos: todosFrom(byId),
     camera: pickLastCameraEvent(list, byId),
     lastReply
   };
