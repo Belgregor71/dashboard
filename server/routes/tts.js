@@ -1,6 +1,6 @@
 import express from "express";
 import crypto from "crypto";
-import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "fs/promises";
+import { mkdir, readFile, readdir, rename, stat, unlink, utimes, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { fetchWithTimeout } from "../utils/fetch.js";
@@ -142,7 +142,20 @@ function cachePathFor(text, speed) {
 // someone deletes it by hand.
 async function readCached(cachePath) {
   try {
-    return await readFile(cachePath);
+    const buffer = await readFile(cachePath);
+    // Touch mtime on every HIT, because mtime only moves on write and the
+    // prune below evicts on age. Without this the eviction is least-recently
+    // WRITTEN, not least-recently USED — so the doorbell lines, which are
+    // pre-warmed once at boot and then only ever read, are deleted on day 15
+    // however often they ring. A kiosk up longer than a fortnight would then
+    // ring the bell and wait ~10-17s on live Kokoro synthesis, on the one path
+    // in the house where latency is least affordable.
+    //
+    // Fire-and-forget: a cache HIT must not pay a syscall's latency, and a
+    // failed touch is a missed refresh, never a failed reply.
+    const now = new Date();
+    utimes(cachePath, now, now).catch(() => {});
+    return buffer;
   } catch (err) {
     if (err.code !== "ENOENT") {
       console.warn(`[TTS] unreadable cache entry ${path.basename(cachePath)}: ${err.message} — re-synthesizing`);
