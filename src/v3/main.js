@@ -11,6 +11,8 @@ import { initSubstrate, toCauses } from "./substrate/index.js";
 import { initDepth, setDepth, onDepth, DEPTH } from "./core/depth.js";
 import { initPresenceLight } from "./core/presence-light.js";
 import { initVoice } from "./core/voice.js";
+import { initGround } from "./core/ground.js";
+import { initScrim, applyScrim, resampleScrim } from "./core/scrim.js";
 import { clearSubject, activeSubject } from "./subjects/index.js";
 import { clearVocabularyCard, vocabularyCardMounted } from "./core/vocabulary-card.js";
 import { railPhrase } from "../js/services/vocabulary.js";
@@ -34,6 +36,7 @@ let railTick = 0;
 
 let substrate = null;
 let weather = null;
+let wasNight = null;
 
 /* ── The hour ───────────────────────────────────────────────────────────────
    Depth 0's only text. Ticks on the minute rather than the second: a seconds
@@ -65,6 +68,13 @@ function syncSun() {
   const night = s.altitudeDeg < -2;
   if (night) root.dataset.night = "1";
   else delete root.dataset.night;
+
+  // Night changes the ink, and the scrim was solved against the day ink — so
+  // the answer it reached is no longer the answer. Re-measure the photograph
+  // already on the glass rather than carrying a stale opacity across dusk.
+  // Twice a day, on a state change the room can see: a cause, not a timer.
+  if (wasNight !== null && night !== wasNight) resampleScrim();
+  wasNight = night;
 
   // Sun-agreed light: shadows on the surface point where the real sun is.
   root.style.setProperty("--sun-az", `${s.azimuthRad}rad`);
@@ -140,6 +150,13 @@ function boot() {
   onDepth(onDepthChange);
 
   substrate = initSubstrate(el.substrate);
+
+  // The photograph and its scrim are one thing in two files: the ground knows
+  // nothing about legibility and the scrim knows nothing about where photos
+  // come from, and this line is the whole of the coupling between them.
+  initScrim();
+  initGround(el.ground, { onPhoto: (img, meta) => applyScrim(img, meta) });
+
   paintHour();
   pushCauses();
   loadWeather();
@@ -162,6 +179,8 @@ function boot() {
     voice: window.__v3Voice?.(),
     subject: activeSubject(),
     vocabCard: vocabularyCardMounted(),
+    ground: window.__ground?.(),
+    scrim: window.__scrim?.(),
     rail: el.rail?.hidden === false ? el.rail.textContent : null,
     weather: weather?.now?.condition?.label ?? null
   });

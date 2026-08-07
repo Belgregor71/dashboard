@@ -133,14 +133,29 @@
      the exact failure documented in iOS 26's Liquid Glass, and this surface
      is text over a daily photograph, which is its worst case.
 
-     --scrim-opacity is COMPUTED PER PHOTO from the measured mean luminance of
-     the region under the text, not guessed. See core/scrim.js.
+     --scrim-opacity is COMPUTED PER PHOTO by core/scrim.js, which samples the
+     photograph as the wall actually shows it and solves for the smallest
+     opacity that clears the contrast target. 0.55 below is only the value
+     before the first photograph has landed.
+
+     ⚠ THE STOPS BELOW ARE MIRRORED IN core/scrim.js AS `SCRIM_STOPS`. The
+     sampler weights each sampled cell by how much scrim actually covers it, so
+     a gradient that changed here without changing there would produce a
+     confidently wrong opacity with nothing visibly broken.
+     tests/v3-scrim.spec.js reads this file and fails if the two drift.
+
+     --scrim-base is factored out so the sampler can READ the scrim's colour
+     rather than carry a second copy of it. color-mix rather than the alpha
+     slash so there is exactly one place the colour is written; it is available
+     wherever oklch() is (both landed in Chrome 111), which the whole of this
+     file already depends on.
   ────────────────────────────────────────────────────────────────────────── */
+  --scrim-base: oklch(0.08 0.01 var(--atmo-hue));
   --scrim-opacity: 0.55;
   --scrim: linear-gradient(
     to top,
-    oklch(0.08 0.01 var(--atmo-hue) / var(--scrim-opacity)) 0%,
-    oklch(0.08 0.01 var(--atmo-hue) / calc(var(--scrim-opacity) * 0.72)) 38%,
+    color-mix(in oklch, var(--scrim-base) calc(var(--scrim-opacity) * 100%), transparent) 0%,
+    color-mix(in oklch, var(--scrim-base) calc(var(--scrim-opacity) * 72%), transparent) 38%,
     transparent 88%
   );
 
