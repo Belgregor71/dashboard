@@ -173,10 +173,13 @@ export function requiredAlpha(photo, scrim, ink, opts = {}) {
   return hi;
 }
 
+function percentileIndexOf(length, p) {
+  return Math.min(length - 1, Math.max(0, Math.ceil(p * length) - 1));
+}
+
 function percentileOf(sorted, p) {
   if (!sorted.length) return 0;
-  const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil(p * sorted.length) - 1));
-  return sorted[idx];
+  return sorted[percentileIndexOf(sorted.length, p)];
 }
 
 /** The cells the scrim is actually working on: the region under the text. */
@@ -224,21 +227,49 @@ export function chooseAlpha(cells, opts) {
 
   // No band means no text region under the scrim — nothing to protect, so rest
   // at the floor rather than inventing a reason to darken the photograph.
-  if (!band.length || !ink) return { alpha: min, reached: true, shortfallCells: 0, ...report };
+  if (!band.length || !ink) {
+    return { alpha: min, reached: true, shortfallCells: 0, worst: Infinity, ...report };
+  }
 
-  const needs = band.map((c) =>
-    requiredAlpha(c.rgb, scrim, ink, { target, coverage: c.coverage, maxAlpha: max })
-  );
-  const shortfallCells = needs.filter((n) => !Number.isFinite(n)).length;
-  // An unreachable cell still votes — at the ceiling, which is the most the
-  // scrim can do for it. Dropping it would let the worst cells lower the
-  // answer, which is exactly backwards.
-  const sorted = needs.map((n) => (Number.isFinite(n) ? n : max)).sort((a, b) => a - b);
+  /* ⚠ THE PERCENTILE IS OVER BRIGHTNESS, AND THE COVERAGE IS THE WORST ONE.
+     Not a percentile over required-opacity, which is what this did first and
+     which was wrong in a way that only a real photograph exposed.
+
+     Required opacity is monotone in coverage, so ranking cells by it ranks them
+     mostly by HEIGHT: the lowest-covered row of the band is a quarter of it, and
+     the 90th percentile lands inside that row every time. The percentile was
+     therefore selecting for geometry again — the same confound that BAND_MIN_
+     COVERAGE was raised to fix, arriving by a second road — and the brightness
+     robustness it was supposed to buy was mostly not being bought at all.
+
+     Separating them is the fix: the percentile does the one job it is good at
+     (ignore the specular highlight, take the photograph's real brightness), and
+     the geometry is handled exactly, at the hardest point that still counts. */
+  const byLuminance = [...band].sort((a, b) => relLuminance(a.rgb) - relLuminance(b.rgb));
+  const representative = byLuminance[percentileIndexOf(byLuminance.length, percentile)];
+  const hardestCoverage = band.reduce((m, c) => Math.min(m, c.coverage), Infinity);
+
+  const need = requiredAlpha(representative.rgb, scrim, ink, {
+    target,
+    coverage: hardestCoverage,
+    maxAlpha: max
+  });
+  const alpha = Math.min(max, Math.max(min, Number.isFinite(need) ? need : max));
+
+  // Measured after the fact rather than inferred: how much of the band actually
+  // sits below the target at the opacity we chose, and how bad the worst of it
+  // is. `reached` is about the representative cell — by construction the top
+  // decile of brightness may still fall short, and saying otherwise is the
+  // overclaim this replaces.
+  const shortfallCells = band.filter(
+    (c) => contrastRatio(ink, compositeOver(scrim, c.rgb, Math.min(1, c.coverage * alpha))) < target
+  ).length;
 
   return {
-    alpha: Math.min(max, Math.max(min, percentileOf(sorted, percentile))),
-    reached: shortfallCells === 0,
+    alpha,
+    reached: Number.isFinite(need),
     shortfallCells,
+    worst: worstRatio(cells, scrim, ink, alpha),
     ...report
   };
 }

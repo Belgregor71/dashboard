@@ -198,6 +198,36 @@ test("the opacity is clamped at both ends, and says when the target was missed",
   expect(impossible.shortfallCells).toBeGreaterThan(0);
 });
 
+test("the opacity is solved at the hardest point of the band, not an average of it", () => {
+  // ⚠ THE REGRESSION THIS EXISTS FOR. Ranking cells by required opacity ranks
+  // them mostly by HEIGHT, because required opacity is monotone in coverage —
+  // so a percentile over that quietly selected the thinnest-covered row and the
+  // brightness robustness it was meant to buy was never bought. A flat test
+  // image cannot catch it: every cell in a row is identical, so the two
+  // statistics coincide and the wrong code passes.
+  const photo = [0.55, 0.54, 0.5];
+  const cells = [...cellsAt(photo, 0.70, 30), ...cellsAt(photo, 0.95, 70)];
+  const { alpha, reached } = chooseAlpha(cells, { scrim: SCRIM, ink: WHITE });
+  expect(reached).toBe(true);
+
+  // The thin end of the band is the one that decides. If it clears the target,
+  // the thick end certainly does.
+  const thin = compositeOver(SCRIM, photo, 0.70 * alpha);
+  expect(contrastRatio(WHITE, thin)).toBeGreaterThanOrEqual(CONTRAST_TARGET - 0.05);
+});
+
+test("a reported shortfall and a reported ratio cannot disagree", () => {
+  // The two numbers on the report are derived separately and are read by
+  // different things — the sweep reads `worst`, a human reads `shortfallCells`.
+  // If they can contradict each other, one of them is lying.
+  const mixed = [...cellsAt([0.92, 0.92, 0.9], 0.7, 20), ...cellsAt([0.2, 0.2, 0.22], 0.95, 80)];
+  for (const cells of [mixed, cellsAt(BLACK, 1), cellsAt(WHITE, 1)]) {
+    const r = chooseAlpha(cells, { scrim: SCRIM, ink: WHITE });
+    if (r.worst < CONTRAST_TARGET) expect(r.shortfallCells).toBeGreaterThan(0);
+    else expect(r.shortfallCells).toBe(0);
+  }
+});
+
 test("the chosen opacity is checkable after the fact, at both ends of the band", () => {
   // worstRatio is what a contrast sweep reads. It must agree with the solve:
   // where the target was reached, the worst cell in the band actually measures
@@ -234,13 +264,23 @@ async function boot(page) {
  * entirely plausible. Asserting `reason` below is the second guard against
  * exactly that.
  */
-async function measure(page, level, opts = {}) {
-  return page.evaluate(async ({ level, opts }) => {
+async function measure(page, level, opts = {}, topLevel = null) {
+  return page.evaluate(async ({ level, opts, topLevel }) => {
     const c = document.createElement("canvas");
     c.width = 64;
     c.height = 36;
     const ctx = c.getContext("2d");
-    ctx.fillStyle = `rgb(${level}, ${level}, ${level})`;
+    if (topLevel === null) {
+      ctx.fillStyle = `rgb(${level}, ${level}, ${level})`;
+    } else {
+      // A photograph, roughly: bright at the top, darker toward the foreground.
+      // Flat fills are right for testing the clamps and wrong for testing the
+      // statistics, because they make every percentile agree with every other.
+      const g = ctx.createLinearGradient(0, 0, 0, c.height);
+      g.addColorStop(0, `rgb(${topLevel}, ${topLevel}, ${topLevel})`);
+      g.addColorStop(1, `rgb(${level}, ${level}, ${level})`);
+      ctx.fillStyle = g;
+    }
     ctx.fillRect(0, 0, c.width, c.height);
 
     const img = document.getElementById("ground");
@@ -250,7 +290,7 @@ async function measure(page, level, opts = {}) {
       img.src = c.toDataURL("image/png");
     });
     return window.__applyScrim(opts);
-  }, { level, opts });
+  }, { level, opts, topLevel });
 }
 
 const WHITE_PHOTO = 255;
@@ -291,14 +331,26 @@ test("the opacity is measured from the photograph, not guessed", async ({ page }
 
 test("every ink's real ratio is published, and exactly one is guaranteed", async ({ page }) => {
   await boot(page);
-  const report = await measure(page, 120);   // an ordinary, mid-bright photograph
+  // A varied photograph on purpose: a flat one makes every percentile agree, so
+  // the report can be internally consistent for reasons that will not hold on
+  // the wall. This is the shape that caught the percentile bug live.
+  const report = await measure(page, 90, {}, 190);
 
   // Exactly one ink carries the guarantee, and it is the primary one. The rest
   // are measured and reported so a shortfall is a number somebody can act on
   // rather than an absence.
   expect(report.inks.filter((i) => i.guaranteed)).toHaveLength(1);
   expect(report.inks[0].guaranteed).toBe(true);
-  expect(report.inks[0].worst).toBeGreaterThanOrEqual(report.target - 0.05);
+
+  // ⚠ NOT `worst >= target`. The solve protects the 90th percentile of
+  // brightness, so the top decile may legitimately fall short — what must hold
+  // is that the report SAYS SO. A green `reached` beside a failing `worst` was
+  // the overclaim that shipped in 2b06815.
+  if (report.inks[0].worst < report.target) {
+    expect(report.shortfallCells).toBeGreaterThan(0);
+  } else {
+    expect(report.shortfallCells).toBe(0);
+  }
 
   for (const ink of report.inks) {
     // Every ink reports both ends of the band, and neither can exceed the
