@@ -69,7 +69,9 @@ export async function fetchWeatherRaw({ lat, lon }) {
   url.searchParams.set("longitude", String(lon));
   url.searchParams.set("current_weather", "true");
   url.searchParams.set("daily", "temperature_2m_max,temperature_2m_min,weathercode,sunrise,sunset,precipitation_probability_max");
-  url.searchParams.set("hourly", "apparent_temperature,relativehumidity_2m,precipitation_probability,uv_index,windspeed_10m");
+  // cloudcover feeds the V3 substrate's cloud term. It rides the hourly block
+  // we already request, so this costs no extra upstream call.
+  url.searchParams.set("hourly", "apparent_temperature,relativehumidity_2m,precipitation_probability,uv_index,windspeed_10m,cloudcover");
   // Short-range nowcast (Phase 3): 15-min precip for the next ~3h. Ignored by
   // the now/forecast normalizers; read only by normalizeNowcast.
   url.searchParams.set("minutely_15", "precipitation,precipitation_probability");
@@ -113,6 +115,12 @@ export function normalizeWeatherNow(raw) {
       feels_like_c: timeIndex >= 0 ? raw?.hourly?.apparent_temperature?.[timeIndex] ?? null : null,
       condition: conditionFor(current?.weathercode),
       wind_kph: current?.windspeed ?? null,
+      // Meteorological bearing — the direction the wind comes FROM, in degrees.
+      // Open-Meteo has always returned this in current_weather; it was simply
+      // being discarded. The substrate needs it to drift the right way, and a
+      // default bearing would make that drift decoration rather than a cause.
+      wind_bearing: current?.winddirection ?? null,
+      cloud_pct: timeIndex >= 0 ? raw?.hourly?.cloudcover?.[timeIndex] ?? null : null,
       humidity_pct: timeIndex >= 0 ? raw?.hourly?.relativehumidity_2m?.[timeIndex] ?? null : null,
       uv: timeIndex >= 0 ? raw?.hourly?.uv_index?.[timeIndex] ?? null : null,
       rain_chance_pct: timeIndex >= 0 ? raw?.hourly?.precipitation_probability?.[timeIndex] ?? null : null
@@ -187,6 +195,8 @@ export function weatherFallbackNow() {
       feels_like_c: null,
       condition: { code: null, label: "Unavailable", icon: null, intensity: null, thunder: false },
       wind_kph: null,
+      wind_bearing: null,
+      cloud_pct: null,
       humidity_pct: null,
       uv: null,
       rain_chance_pct: null
@@ -229,6 +239,8 @@ export function normalizeBomNow(bom) {
       feels_like_c: null,
       condition: conditionFor(haConditionToWmoCode(bom?.current?.condition)),
       wind_kph: bom?.current?.wind_kph ?? null,
+      wind_bearing: bom?.current?.wind_bearing ?? null,
+      cloud_pct: bom?.current?.cloud_pct ?? null,
       humidity_pct: bom?.current?.humidity_pct ?? null,
       uv: null,
       rain_chance_pct: numberOrNull(today.precipitation_probability)

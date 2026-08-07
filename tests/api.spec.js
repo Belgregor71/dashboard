@@ -376,6 +376,25 @@ test.describe("weather", () => {
     expect([null, "light", "moderate", "heavy"]).toContain(body.now.condition.intensity);
     expect(typeof body.now.condition.thunder).toBe("boolean");
     expect(body).toHaveProperty("day");
+
+    // Substrate causes: wind_bearing and cloud_pct must be PRESENT on every
+    // path (Open-Meteo, the BOM fallback, and the 502 shape) because the schema
+    // requires them and `additionalProperties: false` makes a mismatch a hard
+    // validation failure rather than a missing field. Values may be null — the
+    // V3 substrate reads null as "unknown" and disables drift rather than
+    // inventing a direction.
+    expect(body.now).toHaveProperty("wind_bearing");
+    expect(body.now).toHaveProperty("cloud_pct");
+    expect(["number", "object"]).toContain(typeof body.now.wind_bearing);
+    expect(["number", "object"]).toContain(typeof body.now.cloud_pct);
+    if (typeof body.now.wind_bearing === "number") {
+      expect(body.now.wind_bearing).toBeGreaterThanOrEqual(0);
+      expect(body.now.wind_bearing).toBeLessThanOrEqual(360);
+    }
+    if (typeof body.now.cloud_pct === "number") {
+      expect(body.now.cloud_pct).toBeGreaterThanOrEqual(0);
+      expect(body.now.cloud_pct).toBeLessThanOrEqual(100);
+    }
   });
 
   test("GET /api/weather/forecast", async ({ request }) => {

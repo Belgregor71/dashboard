@@ -158,6 +158,12 @@ export async function fetchBomWeather({ haHost, haToken }) {
       temp_c: numberOrNull(attributes.temperature),
       humidity_pct: numberOrNull(attributes.humidity),
       wind_kph: numberOrNull(attributes.wind_speed),
+      // HA's wind_bearing is degrees on most integrations but a compass string
+      // ("NNE") on some. numberOrNull returns null for the string form rather
+      // than guessing at a heading — a wrong bearing is worse than none, because
+      // the substrate would then drift confidently in the wrong direction.
+      wind_bearing: numberOrNull(attributes.wind_bearing),
+      cloud_pct: numberOrNull(attributes.cloud_coverage),
       locationName: typeof attributes.friendly_name === "string" ? attributes.friendly_name : "BOM"
     },
     days
