@@ -49,6 +49,15 @@ const CANDIDATES = [
   { utterance: "when's sunrise", weight: 1, when: (s, d) => d.hour < 7 },
   { utterance: "show me the driveway", weight: 2 },
   { utterance: "show me the front door", weight: 1 },
+  /* The Phase 4 subjects. Only the three whose data the truth filter can
+     actually see from this snapshot — "show me the year" is genuinely useful
+     and is deliberately NOT here, because its photographs come from Immich and
+     nothing in the snapshot knows whether this date has any. Offering it on a
+     day with none is exactly the "the rail is decorative" lesson at the top of
+     this file, learned in advance rather than after. */
+  { utterance: "show me my day", weight: 2, when: (s, d) => d.hour < 14 },
+  { utterance: "show me the shopping list", weight: 1, when: (s) => (s.todos?.shopping?.length ?? 0) > 0 },
+  { utterance: "show me the recipe", weight: 2, when: (s, d) => Boolean(s.menu) && d.hour >= 15 },
   { utterance: "what time is it", weight: 1 },
   { utterance: "brief me", weight: 2, when: (s, d) => d.hour < 10 }
 ];

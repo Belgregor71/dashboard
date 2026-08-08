@@ -254,6 +254,155 @@ html, body {
    stack beneath to re-blend every frame for a texture that barely changes. */
 .subject__overlay { opacity: 0.85; }
 
+/* ── The six read subjects (Phase 4) ────────────────────────────────────────
+   The camera and the radar are pictures that fill the frame. These six are
+   TEXT, and text at depth 3 has a different job: the whole of one thing, laid
+   out inside the safe area, read from three to four metres.
+
+   No scroll anywhere. `overflow: hidden` is a guarantee, not a fallback —
+   there is no pointer on this wall and nothing to operate a scrollbar with, so
+   content that overflows is content nobody can ever reach. Every subject caps
+   its own rows instead, and says how many it left out.
+─────────────────────────────────────────────────────────────────────────── */
+.subject--calendar,
+.subject--list,
+.subject--recipe,
+.subject--year,
+.subject--briefing,
+.subject--media {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gutter);
+  padding: var(--safe);
+  overflow: hidden;
+}
+
+/* The subject's name for itself. Deliberately quiet: it is a label on the
+   thing, and the thing is what the room came to look at. */
+.subject__title {
+  color: var(--ink-dim);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.subject__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* A row is a lead and a line. `baseline` and not `center`: the two are set in
+   different faces at different sizes, and centring them makes the time look
+   like it is floating away from its event. */
+.subject__row {
+  display: flex;
+  align-items: baseline;
+  gap: 24px;
+}
+
+/* Fixed-width lead so every line starts at the same x. Tabular figures are
+   already on .measured, which is what makes a fixed column honest rather than
+   approximately aligned. */
+.subject__lead {
+  flex: 0 0 auto;
+  min-width: 4.5ch;
+  color: var(--ink-dim);
+}
+
+.subject__text { min-width: 0; }
+
+/* Ingredients beside method. Two columns because a recipe is read in two
+   passes — what to get out, then what to do — and stacking them means the
+   method starts below the fold of a fixed panel. */
+.subject__recipe {
+  display: grid;
+  grid-template-columns: 1fr 1.35fr;
+  gap: var(--gutter);
+  min-height: 0;
+  overflow: hidden;
+}
+.subject__recipe > div {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  overflow: hidden;
+}
+/* A recipe carries more words per line than any other subject — a step is a
+   sentence where a calendar row is three words — so both of its columns are set
+   one size down. This is the only place in V3 that overrides a type size, and
+   it lands at 72px: still more than twice the 32px floor. The fix for a recipe
+   that still does not fit is fewer steps on screen, never smaller ones. */
+.subject__recipe .subject__row .subject__text { font-size: var(--t-measured-1); }
+
+/* The briefing. Prose, measured column width — the one surface here that is
+   read as sentences rather than scanned as a list. */
+.subject__prose-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  max-width: 26ch;
+  min-height: 0;
+  overflow: hidden;
+}
+.subject__prose { text-wrap: pretty; }
+
+/* On this day: nine plates, square-cropped so the grid reads as a grid rather
+   than as nine differently-shaped holes. */
+.subject__plates {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: 1fr;
+  gap: var(--gutter);
+  min-height: 0;
+  overflow: hidden;
+}
+.subject__plate {
+  position: relative;
+  margin: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 6px;
+}
+.subject__plate img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.subject__caption-sm {
+  position: absolute;
+  left: 16px;
+  bottom: 12px;
+  color: var(--ink);
+  text-shadow: var(--ink-shadow);
+}
+
+/* Media: the artwork IS the answer, so it fills the frame and the words sit
+   over it. The padding above would inset the art, so this subject opts out of
+   the shared box and lays itself out. */
+.subject--media { padding: 0; display: block; }
+.subject__art { object-fit: cover; }
+/* A 404'd artwork must not leave a broken-image glyph at 1920px. Hidden, never
+   removed: the teardown's src-clearing sweep has to still find the node. */
+.subject__art.is-blank { opacity: 0; }
+.subject__over {
+  position: absolute;
+  left: var(--safe);
+  right: var(--safe);
+  bottom: var(--safe);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 /* Sun-agreed light: every lift on the surface throws its shadow where the real
    sun actually is. One variable, no cost, and it is the cheapest thing in the
    system that makes the screen feel like part of the room rather than a

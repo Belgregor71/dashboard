@@ -72,6 +72,10 @@ export async function raiseAlert(entity, { now = Date.now() } = {}) {
      composer follows: nothing may flip the depth into a layer that has nothing
      in it. `showSubject` clears whatever was mounted before it, so a doorbell
      during a driveway subject replaces it rather than layering over it. */
+  /* Truthy-or-false, not true-or-false: since Phase 4 a subject may hand back
+     words of its own alongside its node. The door has nothing to add — its line
+     comes from alertRouter and is spoken below — so only the fact that
+     something mounted is read here. */
   const shown = await showSubject(
     { id: "show.camera", slots: { camera: location.camera } },
     null
@@ -93,7 +97,14 @@ export async function raiseAlert(entity, { now = Date.now() } = {}) {
       .then(() => setPhase("idle"), () => setPhase("idle"));
   }
 
-  last = { prefix: location.prefix, camera: location.camera, personName, line, shown, at: new Date(now).toISOString() };
+  last = {
+    prefix: location.prefix,
+    camera: location.camera,
+    personName,
+    line,
+    shown: Boolean(shown),
+    at: new Date(now).toISOString()
+  };
   return last;
 }
 

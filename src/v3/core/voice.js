@@ -160,6 +160,26 @@ export async function submit(text, { source = "unknown" } = {}) {
         const shown = await showSubject(intent, snap);
         if (shown) {
           deepen(DEPTH.SUBJECT, `voice-${intent.id}`);
+
+          /* The screen has the answer; the voice points at it. Two sources,
+             in this order: a subject that generated its own words (only the
+             briefing, whose text does not exist until it is fetched), then the
+             ordinary answerer — which the INCUMBENT also reaches for these
+             ids, since it has no depth 3 to show them on.
+
+             Silence is a legitimate result. "Show me the year" is answered by
+             the photographs, and a sentence introducing them would be the
+             house talking over its own reply. */
+          const reply = shown.speech
+            ? { speech: shown.speech, refs: shown.refs }
+            : answer(intent, snap);
+
+          if (reply?.speech) {
+            setPhase("speaking");
+            await say(reply.speech, reply.refs);
+            rememberReply(reply.speech);
+          }
+
           consecutiveFailures = 0;
           endTurn();
           return { handled: true, lane: "local" };

@@ -25,6 +25,7 @@ const SNAP = {
     { title: "Dentist", start: new Date(Date.now() + 3 * 3600e3).toISOString() },
     { title: "Soccer", start: new Date(Date.now() + 5 * 3600e3).toISOString() }
   ],
+  menu: "Chicken Fajitas",
   bins: { configured: true, due: true, label: "Tonight", bins: ["yellow", "green"] },
   people: [{ name: "Greg", home: true }, { name: "Brett", home: false }],
   media: [{ title: "Nightswimming", artist: "R.E.M." }],
@@ -127,6 +128,129 @@ test("show-me carries the camera as a slot", () => {
   const got = matchIntent("show me the driveway");
   expect(got.id).toBe("show.camera");
   expect(got.slots.camera).toBe("driveway");
+});
+
+/* ── The Phase 4 surfaces ────────────────────────────────────────────────────
+   Six depth-3 subjects landed at once, and every noun they answer to ALREADY
+   belonged to a spoken intent higher up the table. The resolver only runs when
+   a show verb is present, and these tests are the two halves of why that
+   works. Both halves are load-bearing: the first is the feature, the second is
+   the incumbent not regressing while V3 gains it.
+─────────────────────────────────────────────────────────────────────────── */
+test.describe("show-me surfaces — the new subjects", () => {
+  const cases = [
+    ["show me the shopping list", "show.list", { list: "shopping" }],
+    ["show me the groceries", "show.list", { list: "shopping" }],
+    ["show me my list", "show.list", { list: "todo" }],
+    ["bring up the to do list", "show.list", { list: "todo" }],
+    ["show me my day", "show.day", {}],
+    ["pull up the calendar", "show.day", {}],
+    ["show me the recipe", "show.recipe", {}],
+    ["let me see what's playing", "show.media", {}],
+    ["show me the year", "show.year", {}],
+    ["show me the photos", "show.year", {}],
+    ["show me the briefing", "show.briefing", {}]
+  ];
+
+  for (const [utterance, expected, slots] of cases) {
+    test(`"${utterance}" -> ${expected}`, () => {
+      const got = matchIntent(utterance);
+      expect(got, `"${utterance}" matched nothing`).not.toBeNull();
+      expect(got.id).toBe(expected);
+      for (const [key, value] of Object.entries(slots)) {
+        expect(got.slots?.[key], `"${utterance}" lost its ${key} slot`).toBe(value);
+      }
+    });
+  }
+
+  test("a camera still outranks every other surface", () => {
+    // "check the side gate" contains no surface noun, but "look at the front
+    // door" is exactly the collision: doorbell is a camera alias and "the
+    // door" could read as a list of nothing. The camera resolver runs first.
+    expect(matchIntent("look at the front door").id).toBe("show.camera");
+    expect(matchIntent("check the side gate").id).toBe("show.camera");
+  });
+
+  test("two questions with no show verb reach a subject anyway", () => {
+    // These have a natural question form and previously matched nothing at
+    // all, so they cost no existing phrase.
+    expect(matchIntent("what's for dinner").id).toBe("show.recipe");
+    expect(matchIntent("what are we having").id).toBe("show.recipe");
+    expect(matchIntent("catch me up").id).toBe("show.briefing");
+  });
+
+  test("⚠ REGRESSION GUARD: the spoken phrasings are untouched", () => {
+    /* Every one of these was answered out loud before Phase 4 and must still
+       be. The incumbent has NO depth 3 — it reaches a show.* id and falls
+       through to answer() — so a resolver that swallowed one of these would
+       turn a working spoken reply on the wall into a trip to Assist, and
+       nothing would throw. This is the assertion that stops that. */
+    const spoken = [
+      ["what's on the shopping list", "list.shopping"],
+      ["what's on my list", "list.todo"],
+      ["what's playing", "house.media"],
+      ["what's on today", "cal.today"],
+      ["what's on tomorrow", "cal.tomorrow"],
+      ["am i free", "cal.free"],
+      ["what's next", "cal.next"]
+    ];
+    for (const [utterance, expected] of spoken) {
+      expect(matchIntent(utterance).id, `"${utterance}" was stolen by a surface`).toBe(expected);
+    }
+    // And the one the resolver was explicitly kept away from: a show verb plus
+    // a bare time word is still the calendar's question, not the screen's.
+    expect(matchIntent("show me what's on today").id).toBe("cal.today");
+  });
+
+  test("⚠ every surface the INCUMBENT can reach can still say something", () => {
+    /* The incumbent handles show.camera and show.sky itself and falls through
+       to answer() for everything else. Two ids are silent BY DESIGN and are
+       named here rather than inferred: the year is answered by the
+       photographs, and the briefing's text does not exist until it has been
+       generated, so its subject speaks its own opening. Any OTHER show.* id
+       without an answerer is a spoken reply that silently became an Assist
+       round trip. */
+    const surfaceHandledByIncumbent = ["show.camera", "show.sky"];
+    const silentByDesign = ["show.year", "show.briefing", "show.tonight"];
+    const mustAnswer = INTENT_IDS.filter(
+      (id) =>
+        id.startsWith("show.") &&
+        !surfaceHandledByIncumbent.includes(id) &&
+        !silentByDesign.includes(id)
+    );
+    expect(mustAnswer.length, "no surfaces left to check — the filter is wrong").toBeGreaterThan(0);
+    const missing = mustAnswer.filter((id) => !ANSWERABLE.includes(id));
+    expect(missing, `surfaces the incumbent would go mute on: ${missing.join(", ")}`).toEqual([]);
+  });
+
+  test("the surface answers match what the spoken intent used to say", () => {
+    // Same snapshot, same words. This is what makes the matcher change
+    // invisible on the wall rather than merely non-fatal.
+    expect(answer(matchIntent("show me the shopping list"), SNAP).speech)
+      .toBe(answer(matchIntent("what's on the shopping list"), SNAP).speech);
+    expect(answer(matchIntent("let me see what's playing"), SNAP).speech)
+      .toBe(answer(matchIntent("what's playing"), SNAP).speech);
+  });
+
+  test("NOT LOADED IS NOT EMPTY on every new surface", () => {
+    // A cold cache must fall the turn through, never claim the list is empty
+    // or the day is clear. Each of these has said the opposite in this repo.
+    for (const utterance of [
+      "show me the shopping list",
+      "show me my list",
+      "show me my day",
+      "show me the recipe",
+      "let me see what's playing"
+    ]) {
+      expect(answer(matchIntent(utterance), {}), `"${utterance}" answered from a cold cache`).toBeNull();
+    }
+    // ...but a loaded-and-genuinely-empty one earns a sentence.
+    expect(answer(matchIntent("show me my day"), { calendar: [] }).speech).toBe("Nothing on today.");
+    expect(answer(matchIntent("show me the shopping list"), { todos: { shopping: [] } }).speech)
+      .toBe("The shopping list is empty.");
+    expect(answer(matchIntent("show me the recipe"), { calendar: [], menu: null }).speech)
+      .toBe("Nothing's planned for dinner.");
+  });
 });
 
 test("a named person becomes a slot on house.who", () => {

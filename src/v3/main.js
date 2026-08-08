@@ -13,7 +13,7 @@ import { initPresenceLight } from "./core/presence-light.js";
 import { initVoice } from "./core/voice.js";
 import { initGround } from "./core/ground.js";
 import { initScrim, applyScrim, resampleScrim } from "./core/scrim.js";
-import { clearSubject, activeSubject } from "./subjects/index.js";
+import { clearSubject, activeSubject, showSubject } from "./subjects/index.js";
 import { clearVocabularyCard, vocabularyCardMounted } from "./core/vocabulary-card.js";
 import { clearSpread, spreadMounted } from "./core/spread.js";
 import { railPhrase } from "../js/services/vocabulary.js";
@@ -26,6 +26,7 @@ import { refreshHouseCache, houseCacheAge } from "../js/services/houseSnapshot.j
 import { initAttention, lastSelection, tickAttention, announcements } from "./core/attention.js";
 import { initAlerts, lastAlert } from "./core/alerts.js";
 import { initArrival, lastArrival } from "./core/arrival.js";
+import { initBriefingWindow, lastBriefing } from "./core/briefing-window.js";
 
 /* Sun position only. City-level Brisbane, deliberately coarse: this repo is
    PUBLIC and its bundle is tracked, so no house-precise coordinate may appear
@@ -219,6 +220,13 @@ function boot() {
   initAlerts();
   initArrival();
 
+  /* Phase 4's one unasked-for subject. The window is a PERMISSION, not a
+     trigger — a clock is not an external cause, so the briefing opens only
+     while someone is actually in the room to receive it. It subscribes to
+     presence, so it must come up after initAttention() has brought presence
+     with it. */
+  initBriefingWindow();
+
   substrate = initSubstrate(el.substrate);
 
   // The photograph and its scrim are one thing in two files: the ground knows
@@ -272,6 +280,7 @@ function boot() {
     announced: announcements(),
     alert: lastAlert(),
     arrival: lastArrival(),
+    briefing: lastBriefing(),
     presence: window.__v3Presence?.()
   });
 
@@ -292,6 +301,33 @@ function boot() {
   // and the companion to __forceCandidate for the half of the rule that is
   // about presence rather than about score.
   window.__emitHaState = (entity) => { emitBus("ha:state-updated", entity); return entity?.entity_id ?? null; };
+
+  /* Both halves of the prefetched cache, awaited. The boot tick reads a COLD
+     HTTP cache — refreshHouseCache() has not resolved yet — so the first read
+     of anything calendar-shaped is empty and looks broken when it is merely
+     early. This is the handle that says "now", rather than sleeping and hoping.
+     Six of Phase 4's subjects read that cache. */
+  window.__v3Refresh = async () => {
+    await Promise.all([refreshVoiceCache(), refreshHouseCache()]);
+    return { houseCacheAgeMs: houseCacheAge() };
+  };
+
+  /* Mount any subject directly, optionally against an INJECTED snapshot.
+
+     Two things this buys that the voice path cannot. It shows a subject on the
+     kiosk without saying anything out loud at 11pm; and it makes a subject's
+     rendering testable against a state the house does not currently have —
+     a five-item shopping list, an empty day — without stubbing the entity cache
+     and leaking that stub into every later assertion.
+
+     It deliberately does NOT change depth. What mounted and what the surface
+     decided to do about it are separate questions, and Phase 3 was the phase
+     that proved conflating them hides real bugs. */
+  window.__v3Subject = (id, slots = {}, snapshot = undefined) =>
+    showSubject(
+      { id, slots },
+      snapshot === undefined ? voiceSnapshot({ lat: CITY.lat, lon: CITY.lon }) : snapshot
+    );
 
   console.info("V3 ready —", substrate?.backend ?? "no substrate");
 }

@@ -1,6 +1,7 @@
 import { CONFIG } from "../core/config.js";
 import { on } from "../core/eventBus.js";
 import { getEntity } from "../services/homeAssistant/state.js";
+import { resolveMediaImage } from "../services/mediaImage.js";
 
 const PANEL_IDS = ["media-panel-1", "media-panel-2"];
 
@@ -24,18 +25,6 @@ function showPanel(panel) {
   requestAnimationFrame(() => {
     panel.classList.remove("is-hidden");
   });
-}
-
-function resolveMediaImage(url) {
-  if (!url) return "";
-  if (url.startsWith("http")) return url;
-  if (!url.startsWith("/")) return url;
-
-  if (url.startsWith("/api/image_proxy")) {
-    return url;
-  }
-
-  return `/api/image_proxy${url}`;
 }
 
 function normalizeEntityIds(config) {

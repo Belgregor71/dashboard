@@ -292,7 +292,17 @@ test("a configured media player that is playing becomes now-playing", () => {
   expect(snap.nowPlayingActive).toBe(true);
   expect(snap.nowPlayingTitle).toBe("Nightswimming");
   expect(snap.nowPlayingText).toBe("R.E.M. — Nightswimming");
-  expect(snap.nowPlayingImage).toBe("/art.jpg");
+
+  /* ⚠ RESOLVED, not raw — and this assertion USED TO PIN THE BUG.
+     `entity_picture` is a path relative to Home Assistant, which the browser is
+     not talking to; it only loads through the server's image proxy.
+     `focusHero.readNowPlaying()` reads `.media-panel__image`'s src out of the
+     rendered panel, and `mediaPanels` had already put it through
+     `resolveMediaImage()` before setting it — so the value focusHero returns,
+     and therefore the value this module's whole contract promises to match, is
+     the PROXIED one. Returning "/art.jpg" here made the media candidate carry
+     an image that would never load, silently, on V3 only. */
+  expect(snap.nowPlayingImage).toBe("/api/image_proxy/art.jpg");
 });
 
 test("a paused player is not playing", () => {

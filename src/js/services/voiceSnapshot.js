@@ -19,6 +19,7 @@
 
 import { getAllEntities } from "./homeAssistant/state.js";
 import { getTodoEntityIds, openTodoSummaries, getShoppingEntityId } from "./homeAssistant/todoEntities.js";
+import { menuFrom } from "./mealEvent.js";
 import { getTimes } from "../vendor/suncalc.js";
 
 /* Refreshed on a timer; never fetched at answer time. */
@@ -231,6 +232,10 @@ export function voiceSnapshot({ lat, lon } = {}) {
     forecast: cache.forecast,
     nowcast: cache.nowcast,
     calendar: cache.calendar,
+    /* Tonight's dish, from the same parse houseSnapshot uses. Derived rather
+       than cached because it is a pure function of the calendar we already
+       hold, and because it must roll over at midnight without a refetch. */
+    menu: menuFrom(cache.calendar, new Date()),
     bins: cache.bins,
     commute: cache.commute,
     fuel: cache.fuel,

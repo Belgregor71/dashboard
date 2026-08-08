@@ -35,6 +35,8 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { getAllEntities } from "./homeAssistant/state.js";
+import { menuFrom } from "./mealEvent.js";
+import { resolveMediaImage } from "./mediaImage.js";
 import { getBomWarnings } from "./weather/bom.js";
 import { robotAttentionFrom, cameraSnapshotUrl } from "./candidateSources.js";
 import { CONFIG } from "../core/config.js";
@@ -192,24 +194,11 @@ function nextEventFrom(events, now) {
 /* ── Tonight's menu ────────────────────────────────────────────────────────
    Dinner is a calendar event prefixed "Meal: ", which is how tonightsMenu.js
    finds it too. Same source, no tile to read.
+
+   The parse now lives in services/mealEvent.js so that voiceSnapshot (and
+   through it V3's recipe subject) reads the SAME answer rather than a fifth
+   copy of the regex.
 ─────────────────────────────────────────────────────────────────────────── */
-const MEAL_PREFIX = /^Meal:\s*/;
-
-const isSameDay = (a, b) =>
-  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-
-function menuFrom(events, now) {
-  if (!Array.isArray(events)) return null;
-  for (const ev of events) {
-    const title = ev?.displayTitle || ev?.title || "";
-    if (!MEAL_PREFIX.test(title)) continue;
-    const start = toDate(ev?.start);
-    if (!start || !isSameDay(start, now)) continue;
-    const name = title.replace(MEAL_PREFIX, "").trim();
-    if (name) return name;
-  }
-  return null;
-}
 
 /* ── Now playing ───────────────────────────────────────────────────────────
    focusHero reads the two rendered media panels. The panels themselves render
@@ -230,7 +219,11 @@ function nowPlayingFrom(byId) {
       const source = entity.attributes?.media_series_title || entity.attributes?.media_artist || group?.label || null;
       return {
         text: [source, title].filter(Boolean).join(" — "),
-        image: entity.attributes?.entity_picture ?? null,
+        /* Resolved, not raw. focusHero reads this value out of a rendered
+           <img src>, which mediaPanels had already put through the proxy — so
+           returning the bare HA path here would have quietly broken the parity
+           this whole module exists to guarantee. See services/mediaImage.js. */
+        image: resolveMediaImage(entity.attributes?.entity_picture) || null,
         title,
         sub: source
       };

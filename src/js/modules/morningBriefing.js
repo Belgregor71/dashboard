@@ -2,41 +2,12 @@ import { wakeScreensaver, resetIdleTimer } from "./screensaver.js";
 import { speak } from "../core/tts.js";
 import { generateBriefing } from "./aiBriefing.js";
 import { switchView } from "../core/viewManager.js";
+import { dueBriefing, hasFiredToday, markFired } from "../services/briefingSchedule.js";
 
-const SCHEDULES = [
-  { name: "morning-weekday", days: [1, 2, 3, 4, 5], hour: 5,  minute: 35, type: "morning", rate: 0.90 },
-  { name: "morning-weekend", days: [0, 6],           hour: 7,  minute: 30, type: "morning", rate: 0.90 },
-  { name: "evening",         days: [0, 1, 2, 3, 4, 5, 6], hour: 18, minute: 0,  type: "evening", rate: 0.92 },
-];
-
-const STORAGE_KEY   = "dashboard:briefing-fired";
-const CATCHUP_MS    = 30 * 60 * 1000; // fire a missed briefing if within 30 min
-
-// Generating ahead of the scheduled time absorbs AI latency (cold Ollama
-// loads have taken 60s+) so speech starts immediately when the schedule
-// fires. generateBriefing caches per type and dedupes in-flight calls, so
-// repeated ticks in the lead window are harmless and the trigger (and the
-// briefing view) reuse the exact summary that was prefetched.
-const PREFETCH_LEAD_MS = 3 * 60 * 1000;
-
-// ── Persistent storage ─────────────────────────────────────────
-
-function getFired() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }
-  catch { return {}; }
-}
-
-function hasFiredToday(name) {
-  return getFired()[name] === new Date().toDateString();
-}
-
-function markFired(name) {
-  try {
-    const data = getFired();
-    data[name] = new Date().toDateString();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch {}
-}
+// WHEN a briefing is due now lives in services/briefingSchedule.js, shared with
+// V3's briefing window. This module keeps what only the incumbent has: waking
+// the screensaver, switching to the briefing view, and speaking it.
+const STORAGE_KEY = "dashboard:briefing-fired";
 
 // ── Trigger ────────────────────────────────────────────────────
 
@@ -57,35 +28,23 @@ async function trigger(schedule) {
 }
 
 // ── Tick (called every 30s, and once on init) ───────────────────
-// Fires a schedule any time within CATCHUP_MS *after* its target time,
-// rather than requiring an exact hour:minute match. A busy main thread
-// (screensaver, camera tiles, ticker, etc.) can stall the 30s interval
-// long enough to skip a single exact-minute window, so this also
-// covers a briefing missed while the page was unloaded/reloaded.
+// Generating ahead of the scheduled time absorbs AI latency (cold Ollama loads
+// have taken 60s+) so speech starts immediately when the schedule fires.
+// generateBriefing caches per type and dedupes in-flight calls, so repeated
+// ticks in the lead window are harmless and the trigger (and the briefing view)
+// reuse the exact summary that was prefetched.
 
 function tick() {
-  const now      = new Date();
-  const day      = now.getDay();
-  const nowMs    = now.getHours() * 3_600_000 + now.getMinutes() * 60_000 + now.getSeconds() * 1000;
+  const due = dueBriefing({ hasFired: (name) => hasFiredToday(STORAGE_KEY, name) });
+  if (!due) return;
 
-  for (const schedule of SCHEDULES) {
-    if (!schedule.days.includes(day)) continue;
-    if (hasFiredToday(schedule.name)) continue;
-
-    const schedMs  = schedule.hour * 3_600_000 + schedule.minute * 60_000;
-    const deltaMs  = nowMs - schedMs;
-
-    if (deltaMs >= -PREFETCH_LEAD_MS && deltaMs < 0) {
-      prefetch(schedule);
-      continue;
-    }
-
-    if (deltaMs >= 0 && deltaMs <= CATCHUP_MS) {
-      markFired(schedule.name);
-      trigger(schedule);
-      return; // fire one at a time
-    }
+  if (due.phase === "prefetch") {
+    prefetch(due.schedule);
+    return;
   }
+
+  markFired(STORAGE_KEY, due.schedule.name);
+  trigger(due.schedule);
 }
 
 // ── Init ───────────────────────────────────────────────────────

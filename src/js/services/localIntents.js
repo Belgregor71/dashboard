@@ -100,8 +100,56 @@ const INTENTS = [
   { id: "show.sky", re: /\b(show|pull up|bring up).*(sky|radar|rain map)|\b(the )?radar\b/ },
   { id: "show.tonight", re: /\b(show|what about).*(tonight)|what.s (on )?tonight\b/ },
   { id: "show.year", re: /\b(show|see).*(the year|this year|our year)\b/ },
-  { id: "show.day", re: /\b(show).*(the day|my day|today.s shape)\b/ }
+  { id: "show.day", re: /\b(show).*(the day|my day|today.s shape)\b/ },
+
+  // Two subjects that have a natural question form with no "show" in it. Both
+  // sit at the very bottom because they are the last resort, and both were
+  // previously unmatched — "what's for dinner" fell through to Assist, and the
+  // briefing is caught one layer earlier on the incumbent by voiceCommands'
+  // BRIEFING_RE, which runs before this table is ever consulted.
+  { id: "show.recipe", re: /\b(what.s for dinner|what are we (having|cooking|eating)|dinner tonight|the recipe)\b/ },
+  { id: "show.briefing", re: /\b(brief me|the briefing|catch me up|what did i miss)\b/ }
 ];
+
+/* ── The show-me surfaces ───────────────────────────────────────────────────
+   Resolved BEFORE the table above, and only when the utterance actually
+   carries a show verb. That ordering is the whole design.
+
+   Every noun below already belongs to a spoken intent higher up the table —
+   "shopping list" to list.shopping, "what's playing" to house.media — so
+   putting these in the table itself would have meant either shadowing those
+   (and breaking the incumbent, which has no depth 3 to show them on) or being
+   shadowed BY them (and never firing at all). Requiring the verb separates the
+   two cleanly: "what's on the shopping list" is still a question to be
+   answered, "show me the shopping list" is a request for the screen.
+
+   ⚠ NO BARE TIME WORDS HERE. An earlier draft matched `today` and `what's on`,
+   which quietly took "show me what's on today" off cal.today — a phrase people
+   really say, answered correctly today. The nouns are all surface nouns.
+
+   ⚠ Each id must also carry an ANSWERER in localAnswers.js. The incumbent has
+   no subjects: it reaches these ids and falls straight through to answer(), so
+   an id with no answerer would turn a working spoken reply into a trip to
+   Assist. The answerers are what make this change invisible on the wall.
+─────────────────────────────────────────────────────────────────────────── */
+const SHOW_VERB = /\b(show|pull up|bring up|let me see|look at|check)\b/;
+
+const SURFACES = [
+  { id: "show.list",     re: /\b(shopping list|grocer(y|ies)|the shopping)\b/, slots: { list: "shopping" } },
+  { id: "show.list",     re: /\b(to.?do list|task list|my list|the list)\b/,   slots: { list: "todo" } },
+  { id: "show.recipe",   re: /\b(the recipe|dinner|the menu|what we.re (cooking|having))\b/ },
+  { id: "show.briefing", re: /\b(the brief(ing)?|the rundown)\b/ },
+  { id: "show.media",    re: /\b(what.s playing|now playing|the album|album art|what we.re watching)\b/ },
+  { id: "show.year",     re: /\b(the year|this year|our year|memories|(the )?photos)\b/ },
+  { id: "show.day",      re: /\b(the day|my day|the calendar|the diary|my schedule|the agenda)\b/ }
+];
+
+function matchSurface(text) {
+  for (const { id, re, slots } of SURFACES) {
+    if (re.test(text)) return { id, slots: { ...(slots ?? {}) } };
+  }
+  return null;
+}
 
 /** Normalise a raw transcript for matching. Lowercase, strip punctuation that
  *  whisper sprinkles in, collapse whitespace, and drop a leading wake-word
@@ -168,9 +216,13 @@ export function matchIntent(raw) {
 
   // "show me the driveway" and friends resolve first when a camera is named,
   // because a camera name is a much stronger signal than any keyword below.
-  if (/\b(show|pull up|bring up|let me see|look at|check)\b/.test(text)) {
+  // Then the other surfaces, for the same reason: with a show verb present the
+  // person is asking for the screen, not for a sentence.
+  if (SHOW_VERB.test(text)) {
     const cam = matchCamera(text);
     if (cam) return { id: "show.camera", slots: { camera: cam } };
+    const surface = matchSurface(text);
+    if (surface) return surface;
   }
   // A bare "who was at the door" also names a camera worth surfacing.
   const bareCam = /\b(who was at|anyone at|any (motion|movement))\b/.test(text) ? matchCamera(text) : null;
@@ -192,6 +244,9 @@ export function matchIntent(raw) {
 /** Every intent id the lane can produce — used by the vocabulary card and by
  *  the tests, so a new intent cannot be added without both noticing. */
 export const INTENT_IDS = Object.freeze([
-  ...INTENTS.map((i) => i.id),
-  "show.camera"
+  ...new Set([
+    ...INTENTS.map((i) => i.id),
+    ...SURFACES.map((s) => s.id),
+    "show.camera"
+  ])
 ]);

@@ -267,6 +267,64 @@ const ANSWERERS = {
     return { speech: `${items.length} thing${items.length === 1 ? "" : "s"}: ${speakList(items)}.`, refs: ["todo"] };
   },
 
+  /* ── The show-me surfaces ────────────────────────────────────────────────
+     These ids open a depth-3 subject on V3. They still answer here, and that
+     is not belt-and-braces: the incumbent has no subjects at all, so it reaches
+     these ids and falls straight through to answer() — without these the
+     matcher change would have turned a working spoken reply into a trip to
+     Assist. On V3 the same line becomes the POINTER: the voice says the
+     headline, the screen carries the rest. Which is the two-sentence cap's
+     whole reason for existing, applied on purpose rather than by accident.
+  ───────────────────────────────────────────────────────────────────────── */
+
+  "show.list": (s, slots) => {
+    const shopping = slots?.list !== "todo";
+    const items = shopping ? s.todos?.shopping : s.todos?.tasks;
+    if (!Array.isArray(items)) return null;                 // not loaded != empty
+    const what = shopping ? "The shopping list" : "Your list";
+    if (items.length === 0) return { speech: `${what} is empty.`, refs: [shopping ? "shopping" : "todo"] };
+    const more = items.length > 3 ? ` And ${items.length - 3} more.` : "";
+    return { speech: `${speakList(items)}.${more}`, refs: [shopping ? "shopping" : "todo"] };
+  },
+
+  "show.day": (s) => {
+    if (!Array.isArray(s.calendar)) return null;
+    const ev = todays(s.calendar);
+    if (ev.length === 0) return { speech: "Nothing on today.", refs: ["calendar"] };
+    return { speech: `${ev.length} thing${ev.length === 1 ? "" : "s"} on today.`, refs: ["calendar"] };
+  },
+
+  // Deliberately does NOT reach for the calendar when the menu is absent. A
+  // cold cache and a night with no dinner planned are different, and only the
+  // second earns a sentence about it.
+  /* Two refs, not one. A ref is a `data-cell` address and unknown ones are
+     dropped silently, so naming both the subject's own cell and the composer's
+     source name lights the right rectangle whichever depth the surface is at —
+     the composed cell carries the CANDIDATE SOURCE (composer.js: `ref:
+     candidate.source`), and the subject carries a plain noun. */
+  "show.recipe": (s) => {
+    if (!Array.isArray(s.calendar)) return null;
+    if (!s.menu) return { speech: "Nothing's planned for dinner.", refs: ["menu", "tonightsMenu"] };
+    return { speech: endStop(`${s.menu} tonight`), refs: ["menu", "tonightsMenu"] };
+  },
+
+  "show.media": (s) => {
+    if (!Array.isArray(s.media)) return null;               // no players known != nothing playing
+    const m = s.media[0];
+    if (!m) return { speech: "Nothing's playing.", refs: ["media", "nowPlaying", "plex"] };
+    return {
+      speech: endStop(`${m.title}${m.artist ? ` by ${m.artist}` : ""}`),
+      refs: ["media", "nowPlaying", "plex"]
+    };
+  },
+
+  /* show.year and show.briefing are absent on purpose, and differently so.
+     The year IS the photographs — a sentence introducing them would be the
+     house talking over its own answer. The briefing's text does not exist
+     until it has been generated, so its subject speaks its own opening two
+     sentences once it has them; there is nothing for a pure answerer to say.
+     Both are surface-handled, which the lane spec already allows for. */
+
   "camera.last": (s) => {
     // Only speak about the cameras if we can actually see them. With HA down
     // "nothing's triggered recently" is a claim about the house that we are in
