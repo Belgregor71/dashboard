@@ -385,6 +385,7 @@ html, body {
 .subject--recipe,
 .subject--year,
 .subject--briefing,
+.subject--status,
 .subject--media {
   display: flex;
   flex-direction: column;
@@ -417,7 +418,11 @@ html, body {
 .subject--list,
 .subject--recipe,
 .subject--year,
-.subject--briefing {
+.subject--briefing,
+/* ⚠ Phase 6 — a subject NOT in this list gets no veil at all. That is not a
+   theoretical risk: the contrast sweep found four surfaces in exactly that
+   state, the worst at 1.00:1. Adding a subject means adding it here. */
+.subject--status {
   background: color-mix(in oklch, var(--scrim-base) calc(var(--scrim-opacity) * 100%), transparent);
 }
 

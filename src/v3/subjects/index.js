@@ -35,6 +35,7 @@ import { showRecipe } from "./recipe.js";
 import { showYear } from "./memories.js";
 import { showMedia } from "./media.js";
 import { showBriefing } from "./briefing.js";
+import { showStatus } from "./status.js";
 
 let mount = null;
 let active = null;      // { id, teardown }
@@ -184,7 +185,10 @@ const REGISTRY = {
   "show.recipe": (_intent, snapshot) => showRecipe(snapshot),
   "show.year": () => showYear(),
   "show.media": () => showMedia(),
-  "show.briefing": () => showBriefing()
+  "show.briefing": () => showBriefing(),
+  // Phase 6. Carries its own `speech` — the box's health is not in the voice
+  // snapshot, so localAnswers has nothing to answer this with. See status.js.
+  "show.status": () => showStatus()
 };
 
 /**

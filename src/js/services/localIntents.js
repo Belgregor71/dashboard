@@ -141,7 +141,15 @@ const SURFACES = [
   { id: "show.briefing", re: /\b(the brief(ing)?|the rundown)\b/ },
   { id: "show.media",    re: /\b(what.s playing|now playing|the album|album art|what we.re watching)\b/ },
   { id: "show.year",     re: /\b(the year|this year|our year|memories|(the )?photos)\b/ },
-  { id: "show.day",      re: /\b(the day|my day|the calendar|the diary|my schedule|the agenda)\b/ }
+  { id: "show.day",      re: /\b(the day|my day|the calendar|the diary|my schedule|the agenda)\b/ },
+  /* Phase 6. ⚠ Last on purpose, and note that the noun here was ALREADY spoken
+     for — not by this table, which has no status intent, but by voiceCommands'
+     NAV_KEYWORD_MAP, which matches a bare "status"/"system" and switches the
+     incumbent to its status view. That map runs AFTER matchIntent, so adding
+     this row without a matching branch in voiceCommands would have quietly
+     taken the incumbent's status view away and replaced it with a sentence.
+     `show.camera` and `show.sky` are handled there for exactly this reason. */
+  { id: "show.status",   re: /\b(the status|system status|the system|diagnostics)\b/ }
 ];
 
 function matchSurface(text) {

@@ -27,6 +27,7 @@ import { initAttention, lastSelection, tickAttention, announcements } from "./co
 import { initAlerts, lastAlert } from "./core/alerts.js";
 import { initArrival, lastArrival } from "./core/arrival.js";
 import { initBriefingWindow, lastBriefing } from "./core/briefing-window.js";
+import { initHealth, lastHealth } from "./core/health.js";
 import { initDisplay, onPanelDark, displayState } from "./core/display.js";
 
 /* Sun position only. City-level Brisbane, deliberately coarse: this repo is
@@ -228,6 +229,16 @@ function boot() {
      with it. */
   initBriefingWindow();
 
+  /* Phase 6 — the box saying it is broken. The watchdog and the self-heal are
+     server-side and already running; what V3 lacked was any way to tell the
+     ROOM, which matters most for the one feed that is display-only by design
+     (the internet — a push about it would travel over it). Announces a
+     candidate like arrival does, so the queue decides whether anyone sees it.
+
+     After initAttention() for the same reason arrival is: `announce()` needs an
+     engine to reach. */
+  initHealth();
+
   substrate = initSubstrate(el.substrate);
 
   /* ── Step 5.1 · the panel ─────────────────────────────────────────────────
@@ -295,6 +306,7 @@ function boot() {
     alert: lastAlert(),
     arrival: lastArrival(),
     briefing: lastBriefing(),
+    health: lastHealth(),
     display: displayState(),
     presence: window.__v3Presence?.()
   });

@@ -198,7 +198,28 @@ const ROUTES = {
       "A cool start, clearing by lunch and warm by the middle of the afternoon. " +
       "Nothing on the calendar until four. The bins go out tonight, and the green one is due."
   }),
-  "/api/weather/radar/meta": () => ({ z: 7, tiles: [{ x: 118, y: 74 }] })
+  "/api/weather/radar/meta": () => ({ z: 7, tiles: [{ x: 118, y: 74 }] }),
+  /* Phase 6's readout. A degraded feed is included on purpose: a fault's detail
+     line is the longest string this surface ever prints, so measuring a
+     healthy house would measure the easy case. */
+  "/api/system/health": () => ({
+    overall: "error",
+    updatedAt: Date.now(),
+    feeds: [
+      { id: "ha", label: "Home Assistant", level: "ok", detail: null },
+      { id: "wan", label: "Internet", level: "error", detail: "internet is down" },
+      { id: "motion", label: "Motion events", level: "warn", detail: "no success for 26h" },
+      { id: "weather", label: "Weather", level: "ok", detail: null },
+      { id: "calendar", label: "Calendar", level: "ok", detail: null },
+      { id: "cameras", label: "Camera snapshots", level: "ok", detail: null },
+      { id: "ai", label: "AI briefings", level: "ok", detail: null },
+      { id: "tts", label: "Text-to-speech", level: "ok", detail: null }
+    ],
+    recoveries: [{ at: Date.now(), kind: "detection-switch", action: "re-armed switch.kitchen_motion_detection", ok: true }]
+  }),
+  "/api/system/metrics": () => ({
+    cpuLoadPercent: 7, cpuCount: 8, uptimeSeconds: 90_000, tempC: 41.2, hostname: "g11"
+  })
 };
 
 /* Anything image-shaped is served the SAME ground. The camera still, the nine
@@ -588,6 +609,18 @@ const SURFACES = [
     drive: (page) =>
       page.evaluate(async () => {
         await window.__v3Subject("show.media");
+        window.__setDepth(3, "sweep");
+      })
+  },
+  {
+    /* Phase 6. The readout is the densest text V3 puts on a photograph — ten
+       rows of two columns — so if the veil selector list is ever missed again
+       this is the surface that shows it first. */
+    id: "3-status",
+    requires: ".subject--status .subject__row",
+    drive: (page) =>
+      page.evaluate(async () => {
+        await window.__v3Subject("show.status");
         window.__setDepth(3, "sweep");
       })
   },

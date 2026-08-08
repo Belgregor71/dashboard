@@ -432,10 +432,66 @@ household already made — **security events only, never kitchen presence** (som
 for a glass of water should not get a 32" dashboard in the face). Flipping `displayWake` on
 enables it on **both** surfaces at once, which is correct and worth knowing.
 
-### Phase 6 — The invisible layer
+### Phase 6 — The invisible layer — ✅ **COMPLETE 2026-08-09**
 
 Watchdog, self-heal, health indicator, system status. No surface, but the box degrades
 silently without them. **Explicitly scheduled so it is not forgotten.**
+
+⚠ **THIS ENTRY WAS WRONG IN THE SAME WAY 5.1's WAS, AND THE CORRECTION IS MOST OF THE
+VALUE. The watchdog and the self-heal already run on V3, and always did.** Both are
+**server-side** — `server/services/healthService.js` and `recoveryService.js`, started from
+`app.listen` and driven by the Home Assistant manager. Neither knows or cares which URL
+Chromium is showing. Verified live on the G11 before a line was written: both log their
+start lines, `/api/system/health` reads `overall: "ok"`. **A faithful port of either builds
+nothing.**
+
+The one way a surface change could have broken this was checked and is clear. Six of the
+eight feeds are server- or HA-driven, but **two are request-driven** — `weather`
+(`staleMs` 45 min) and `calendar` (2 h) only mark themselves healthy when their routes are
+actually hit, and on the incumbent it is the *page* that hits them. V3 does too:
+`refreshHouseCache()` fetches `/api/weather/now` and `/api/calendar/all` every 300 s, which
+is 9× and 24× inside those thresholds. Had it not, the watchdog would have pushed a false
+"Calendar degraded" to the owner's phone caused purely by the surface flip.
+
+**What was actually missing was the room.** Every escalation path is a phone push, with two
+holes that V3 made total rather than partial:
+
+1. ⚠ **`wan` is `notify: false` BY DESIGN** — a push about the internet being down would
+   travel over the internet that is, by hypothesis, down. It is *display-only*, and V3 had
+   no display. **The one fault that can only ever be seen was the one V3 could not show.**
+2. Quiet hours suppress every push 22:00–07:00, so an overnight degradation is display-only
+   too, whichever feed it is.
+
+**Built:** `v3/core/health.js` — an error-level feed becomes a candidate via `announce()`
+and rides the attention queue, the seam Phase 3.3's arrival used. Not a corner chip: V3's
+four corners already have owners (hour BL · rail BR · title TL · transcript TR), and a
+degraded feed is a **cause**, which V3 already has a path for. It adds **no new writer of
+the glance cell** — a second writer is how Phase 2's ownership bug happened. Score **72**
+(High band) so it earns depth 1 only when someone is in the room, and it **never speaks**.
+
+⚠ **ONE CAUSE, NOT THREE SYMPTOMS.** `worstFault()` ranks `wan` above everything it breaks,
+lifting healthService's own reasoning: with the internet down, weather + AI + calendar all
+fail separately and a wall printing three lines about one fault is worse than one line.
+
+**Also built:** `v3/subjects/status.js`, the **ninth** depth-3 subject — "show me the
+status" gives feeds, the self-heal log and the box's own line, full bleed.
+
+⚠ **`show.status` had a precedence trap the other `show.*` ids did not.** The noun was
+already spoken for — not by the intent table, which has no status intent, but by
+`voiceCommands.js`'s `NAV_KEYWORD_MAP`, which matches a bare `"status"` and switches the
+incumbent to its status view. **`matchIntent` runs BEFORE `matchNav`**, so the moment the
+table learned the word, the incumbent's status view became unreachable by "show me the
+status" — silently, falling through to Assist. Fixed the way `show.sky` already was: an
+explicit branch in voiceCommands. **The spec now reads that file** and requires the branch,
+because the "handled by the incumbent" list is a claim about a file it cannot see.
+
+⚠ **The subject carries its own `speech`** (the briefing's precedent) — the box's health is
+a server reading and is not in the voice snapshot, and does not belong there.
+
+⚠ **A 200 carrying `feeds: []` is silence, not a clean bill of health** — found by trying to
+neuter the guard and discovering a null check did not catch it. Without a length clause the
+readout mounts a titled panel with no rows and says "Everything's healthy" out loud. Fifth
+instance of absent-is-not-empty in this codebase.
 
 ---
 
@@ -467,7 +523,10 @@ and the flip stays a URL.
       landed is V3 *knowing* it: substrate paused while dark, and the door able to ask for the
       panel back. ⏳ **Flag-off; owed a flag-on verification at/after 21:00 on the real panel**
 - [ ] Ground never shows a screenshot (5.2)
-- [ ] Watchdog + self-heal running (Phase 6)
+- [x] Watchdog + self-heal running (Phase 6) — ✅ and they always were: both are
+      server-side and surface-independent, verified live. What landed is V3 *showing* it —
+      the announced fault line and the status subject. ⏳ **Owed: a real degradation seen on
+      the glass; every reading so far is a stubbed feed.**
 - [ ] 72 h soak clean — heap, DOM, listeners at or below t0
 - [ ] Quiescent ≤8% of one core, live ≤25%, peak ≤35% — **not re-measured since the engine
       and the SSE landed; the old A/B predates both**

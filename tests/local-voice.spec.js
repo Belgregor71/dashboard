@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { matchIntent, matchCamera, normalise, INTENT_IDS } from "../src/js/services/localIntents.js";
 import { answer, capSentences, ANSWERABLE } from "../src/js/services/localAnswers.js";
 import { pickLastCameraEvent } from "../src/js/services/voiceSnapshot.js";
@@ -149,7 +150,10 @@ test.describe("show-me surfaces — the new subjects", () => {
     ["let me see what's playing", "show.media", {}],
     ["show me the year", "show.year", {}],
     ["show me the photos", "show.year", {}],
-    ["show me the briefing", "show.briefing", {}]
+    ["show me the briefing", "show.briefing", {}],
+    ["show me the status", "show.status", {}],
+    ["check the system", "show.status", {}],
+    ["pull up diagnostics", "show.status", {}]
   ];
 
   for (const [utterance, expected, slots] of cases) {
@@ -169,6 +173,16 @@ test.describe("show-me surfaces — the new subjects", () => {
     // door" could read as a list of nothing. The camera resolver runs first.
     expect(matchIntent("look at the front door").id).toBe("show.camera");
     expect(matchIntent("check the side gate").id).toBe("show.camera");
+  });
+
+  test("⚠ a bare \"status\" is left alone for the incumbent's nav lane", () => {
+    /* Phase 6's precedence trap, and the reason the regex requires a show verb.
+       voiceCommands' NAV_KEYWORD_MAP matches a bare substring "status" and
+       switches the incumbent to its status view — but matchNav runs AFTER
+       matchIntent, so anything this table claims never reaches it. Requiring
+       the verb keeps the bare word on the nav lane exactly as it was. */
+    expect(matchIntent("status")).toBeNull();
+    expect(matchIntent("system")).toBeNull();
   });
 
   test("two questions with no show verb reach a subject anyway", () => {
@@ -210,7 +224,12 @@ test.describe("show-me surfaces — the new subjects", () => {
        generated, so its subject speaks its own opening. Any OTHER show.* id
        without an answerer is a spoken reply that silently became an Assist
        round trip. */
-    const surfaceHandledByIncumbent = ["show.camera", "show.sky"];
+    /* ⚠ show.status is a THIRD id the incumbent handles itself, added in Phase
+       6, and it had to be: `matchIntent` runs BEFORE `matchNav`, so the moment
+       the table learned the word "status" the incumbent's status view became
+       unreachable by "show me the status" unless voiceCommands answered the id
+       explicitly. It does — see the branch beside show.sky. */
+    const surfaceHandledByIncumbent = ["show.camera", "show.sky", "show.status"];
     const silentByDesign = ["show.year", "show.briefing", "show.tonight"];
     const mustAnswer = INTENT_IDS.filter(
       (id) =>
@@ -221,6 +240,22 @@ test.describe("show-me surfaces — the new subjects", () => {
     expect(mustAnswer.length, "no surfaces left to check — the filter is wrong").toBeGreaterThan(0);
     const missing = mustAnswer.filter((id) => !ANSWERABLE.includes(id));
     expect(missing, `surfaces the incumbent would go mute on: ${missing.join(", ")}`).toEqual([]);
+  });
+
+  test("⚠ …and 'handled by the incumbent' is CHECKED, not just declared", () => {
+    /* The list above is an assertion about voiceCommands.js that the list
+       itself cannot make. Delete the `show.status` branch there and every test
+       in this file still passes, while the wall quietly loses its status view
+       to an Assist round trip — the exact silent regression the list was
+       written to prevent. So read the file and require the branch.
+
+       Source-reading as a guard has precedent here: the composer's spec parses
+       compose.css because the stylesheet, not the design study, is the truth. */
+    const src = readFileSync(new URL("../src/js/core/voiceCommands.js", import.meta.url), "utf8");
+    for (const id of ["show.camera", "show.sky", "show.status"]) {
+      expect(src, `voiceCommands.js has no branch for ${id} — the incumbent goes mute`)
+        .toContain(`intent.id === "${id}"`);
+    }
   });
 
   test("the surface answers match what the spoken intent used to say", () => {

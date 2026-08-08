@@ -158,6 +158,20 @@ export async function dispatchTranscripts(transcripts) {
       setVoiceState("success", "Weather");
       return { handled: true };
     }
+    /* ⚠ Load-bearing, not symmetry. matchIntent runs BEFORE matchNav, so once
+       localIntents learned `show.status` this branch is the only thing keeping
+       "show me the status" pointed at the incumbent's status view — without it
+       the id would fall through to answer(), find no answerer, and drop to
+       Assist, silently replacing a working view with a round trip. A bare
+       "status" with no show verb still reaches matchNav below, unchanged. */
+    if (intent.id === "show.status") {
+      switchView("status", { force: true });
+      setVoiceState("success", VIEW_LABELS.status);
+      // The same phrase matchNav would have spoken, so the utterance that used
+      // to reach the view by the nav lane is answered identically by this one.
+      speak(VIEW_PHRASES.status);
+      return { handled: true };
+    }
 
     const reply = answer(intent, voiceSnapshot({ lat: WEATHER_LAT, lon: WEATHER_LON }));
     if (reply) {
