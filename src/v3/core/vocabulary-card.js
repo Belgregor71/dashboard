@@ -1,19 +1,24 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   THE VOCABULARY CARD — depth 2's only tenant, until the composer exists.
+   THE VOCABULARY CARD — depth 2's other tenant.
 
-   Depth 2 is reserved for the composed spread, which is not built yet. Two
-   paths already reach it: "what can I say", and the third-strike repair. Both
-   used to arrive at an empty lattice and black the wall out mid-sentence —
-   worst of all on the repair path, where the person is already not being
-   understood and the screen choosing that moment to go dark is the point they
-   stop talking to it.
+   Two voice paths reach depth 2 directly: "what can I say", and the third-strike
+   repair. Both used to arrive at an empty lattice and black the wall out
+   mid-sentence — worst of all on the repair path, where the person is already
+   not being understood and the screen choosing that moment to go dark is the
+   point they stop talking to it.
 
-   So this renders the one thing depth 2 can honestly show today, and — the
-   load-bearing half — reports whether it has anything to show at all. The
-   caller must not deepen on a false.
+   So this renders what depth 2 owes an ASK, as distinct from what the composer
+   renders for a DWELL — and, the load-bearing half, reports whether it has
+   anything to show at all. The caller must not deepen on a false.
+
+   Since Phase 2 the lattice has two tenants, so this one takes it over
+   explicitly rather than by writing over the top: clearSpread() first, always.
+   The composer cannot do the reverse to this card, because the attention tick
+   only ever composes while the surface is at FIELD or GLANCE.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { vocabularyFor } from "../../js/services/vocabulary.js";
+import { clearSpread } from "./spread.js";
 
 const MAX = 6;   // a glance, not a document
 
@@ -56,15 +61,17 @@ export function renderVocabularyCard(snapshot) {
   }
 
   cell.append(lead, list);
+  clearSpread();                  // the hand-over, stated rather than implied
   host.replaceChildren(cell);
   mounted = true;
   return true;
 }
 
-/** Symmetric teardown, called when depth 2 is left. */
+/** Symmetric teardown, called when depth 2 is left. Emptying the node is
+ *  delegated so there is exactly one place that knows how to leave the lattice
+ *  in a clean state — otherwise this would strand the composer's bookkeeping. */
 export function clearVocabularyCard() {
-  const host = lattice();
-  if (host) host.replaceChildren();
+  clearSpread();
   mounted = false;
 }
 

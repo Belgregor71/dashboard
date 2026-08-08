@@ -84,6 +84,12 @@ export function deepen(target, reason) {
 
 export function getDepth() { return current; }
 
+/** WHY the surface is at this depth. Worth having as a real export rather than
+ *  only on the debug global: it is the one authority on who owns the screen, and
+ *  a subscriber that tries to keep its own copy will be wrong — `sustain()`
+ *  changes the reason WITHOUT changing the depth, so no listener fires. */
+export function getReason() { return lastReason; }
+
 export function onDepth(fn) {
   listeners.add(fn);
   return () => listeners.delete(fn);

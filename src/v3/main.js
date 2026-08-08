@@ -15,6 +15,7 @@ import { initGround } from "./core/ground.js";
 import { initScrim, applyScrim, resampleScrim } from "./core/scrim.js";
 import { clearSubject, activeSubject } from "./subjects/index.js";
 import { clearVocabularyCard, vocabularyCardMounted } from "./core/vocabulary-card.js";
+import { clearSpread, spreadMounted } from "./core/spread.js";
 import { railPhrase } from "../js/services/vocabulary.js";
 import { voiceSnapshot, refreshVoiceCache } from "../js/services/voiceSnapshot.js";
 import { connectHA, isHAConnected } from "../js/services/homeAssistant/client.js";
@@ -142,11 +143,16 @@ function paintRail() {
   el.rail.hidden = false;
 }
 
-/* Leaving depth 3 must dismantle the subject. This is the one per-event path in
-   V3, and a subject left mounted keeps its MJPEG connection open forever. */
+/* Leaving a depth must dismantle whatever it mounted. This is the one per-event
+   path in V3, and a subject left mounted keeps its MJPEG connection open
+   forever. Depth 2 has two possible tenants — the composed spread and the
+   vocabulary card — and leaving clears whichever one was there. */
 function onDepthChange(next, prev) {
   if (prev === DEPTH.SUBJECT && next !== DEPTH.SUBJECT) clearSubject();
-  if (prev === DEPTH.SPREAD && next !== DEPTH.SPREAD) clearVocabularyCard();
+  if (prev === DEPTH.SPREAD && next !== DEPTH.SPREAD) {
+    clearSpread();
+    clearVocabularyCard();
+  }
 }
 
 function boot() {
@@ -208,9 +214,14 @@ function boot() {
   window.__v3 = () => ({
     depth: window.__depth?.(),
     substrate: window.__substrate?.(),
-    presence: window.__presenceLight?.(),
+    // `light` and not `presence`: both of these used to be called presence, so
+    // the second key silently ate the first and the presence LIGHT's state was
+    // unreachable from this handle. They are different things — one is whether
+    // anyone is in the room, the other is what the screen's own glow is doing.
+    light: window.__presenceLight?.(),
     voice: window.__v3Voice?.(),
     subject: activeSubject(),
+    spread: spreadMounted(),
     vocabCard: vocabularyCardMounted(),
     ground: window.__ground?.(),
     scrim: window.__scrim?.(),

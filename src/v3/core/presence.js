@@ -142,6 +142,19 @@ export function initPresence() {
   window.__v3Presence = (force) => {
     if (force === true) sawMotion("debug");
     if (force === false) goAbsent("debug");
+    /* "dwell" collapses the 30 s wait. Depth 2 is gated on dwelling, so without
+       this every probe of the composer — over CDP on the kiosk as much as in a
+       spec — costs half a minute of standing still, and a verification nobody
+       wants to run is a verification that does not happen. It only shortens the
+       clock: presence still has to be real first. */
+    if (force === "dwell") {
+      sawMotion("debug");
+      if (dwellTimer) { clearTimeout(dwellTimer); dwellTimer = null; }
+      if (!dwelling) {
+        dwelling = true;
+        announce("dwell");
+      }
+    }
     return {
       present,
       dwelling,

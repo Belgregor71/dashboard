@@ -19,14 +19,21 @@ async function boot(page) {
 test("a local turn answers, shows what was heard, and lights the cell it names", async ({ page }) => {
   const pageErrors = await boot(page);
 
-  const result = await page.evaluate(() => window.__v3Transcript("what time is it"));
-  expect(result.handled).toBe(true);
-  expect(result.lane).toBe("local");
+  /* ⚠ Started, not awaited. The highlight is lit at the TOP of the turn and
+     releases itself 4.2 s later, but the turn does not resolve until the house
+     has finished speaking — so awaiting it first spends the whole highlight
+     before the assertion is made, and this test failed exactly that way under a
+     loaded four-worker run while passing alone. The reply is collected after. */
+  const turn = page.evaluate(() => window.__v3Transcript("what time is it"));
 
   // Deixis: "what time is it" carries refs:["hour"], and the hour cell answers.
   // This is the link that makes the screen and the speaker one system rather
   // than two devices in a room.
   await expect(page.locator('[data-cell="hour"]')).toHaveAttribute("data-ref", "lit");
+
+  const result = await turn;
+  expect(result.handled).toBe(true);
+  expect(result.lane).toBe("local");
   await expect(page.locator("#heard")).toHaveText("what time is it");
   expect(await page.evaluate(() => window.__depth().depth)).toBe(1);
 
@@ -35,11 +42,13 @@ test("a local turn answers, shows what was heard, and lights the cell it names",
 
 test("the highlight releases itself rather than staying lit forever", async ({ page }) => {
   await boot(page);
-  await page.evaluate(() => window.__v3Transcript("what time is it"));
+  // Started, not awaited — see the note above; the 4.2 s clock is already running.
+  const turn = page.evaluate(() => window.__v3Transcript("what time is it"));
   await expect(page.locator('[data-cell="hour"]')).toHaveAttribute("data-ref", "lit");
   // Cleared on a timeout, never on transitionend — those never fire while an
   // ancestor is display:none, which most of this surface is most of the time.
   await expect(page.locator('[data-cell="hour"]')).not.toHaveAttribute("data-ref", "lit", { timeout: 8000 });
+  await turn;   // never leave a turn in flight when the page is about to close
 });
 
 test("naming a camera mounts a subject and takes the surface to depth 3", async ({ page }) => {
