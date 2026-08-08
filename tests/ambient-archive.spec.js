@@ -803,16 +803,25 @@ test.describe("the motion burst", () => {
     await page.evaluate((m) => window.__ssSetFrame(m), MOTION_MEMORY);
     await settledStill(page);
 
-    const painted = await page.evaluate(() => {
-      const clip = document.querySelector(".archive__clip");
-      const still = document.querySelector(".archive__img.is-shown");
-      return {
-        clipOpacity: getComputedStyle(clip).opacity,
-        stillShown: Boolean(still) && still.checkVisibility({ opacityProperty: true })
-      };
-    });
-    expect(painted.clipOpacity).toBe("0");
-    expect(painted.stillShown).toBe(true);
+    /* ⚠ POLLED, and that is not a retry-until-green. `settledStill` waits on
+       BOOKKEEPING (`!m.armed && m.src === null`), and the clip's opacity
+       transition only STARTS once that bookkeeping flips — so a single read
+       here races the fade and fails under full-suite load while passing in
+       isolation. Which is exactly the trap this test's own comment names: it
+       was settling on state and asserting paint. The assertion is unchanged and
+       still fails if the still never actually lands on the glass. */
+    await expect.poll(
+      async () =>
+        page.evaluate(() => {
+          const clip = document.querySelector(".archive__clip");
+          const still = document.querySelector(".archive__img.is-shown");
+          return {
+            clipOpacity: getComputedStyle(clip).opacity,
+            stillShown: Boolean(still) && still.checkVisibility({ opacityProperty: true })
+          };
+        }),
+      { timeout: 10_000 }
+    ).toEqual({ clipOpacity: "0", stillShown: true });
   });
 
   test("Mode-0 entry does not burst", async ({ page }) => {
