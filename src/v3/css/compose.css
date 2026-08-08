@@ -79,6 +79,19 @@ html, body {
   gap: var(--gutter);
 }
 
+/* ⚠ SEEN ON THE WALL, 2026-08-08 — depth 3 must be THE SCREEN, not a card on it.
+   `.lattice` insets by the safe area, which is right for a composition of
+   rectangles at depths 1 and 2. At depth 3 it meant the subject's own veil
+   stopped 96px short of every edge and its content was inset TWICE (96 from the
+   lattice, 96 from its own padding), so "one thing, full bleed" rendered as a
+   hard-edged rectangle floating on the photograph — off-language for a system
+   that retired blur and has no card material at all.
+
+   Depth 3 therefore gets the whole viewport and each subject applies the single
+   safe inset itself. This also makes the camera and the radar genuinely full
+   bleed, which is what the plan said they were. */
+.depth--subject .lattice { inset: 0; }
+
 /* The legal rectangles. Six shapes, and nothing else is addressable. */
 .cell--full     { grid-column: 1 / -1;  grid-row: 1 / -1; }
 .cell--dominant { grid-column: 1 / 8;   grid-row: 1 / 6;  }
@@ -163,6 +176,26 @@ html, body {
   color: var(--ink);
   font-variant-numeric: tabular-nums;
   text-shadow: var(--ink-shadow);
+}
+
+/* ── What the house heard ───────────────────────────────────────────────────
+   ⚠ SEEN ON THE WALL, 2026-08-08: this had NO POSITIONING AT ALL and never has
+   — it has been a bare <p> flowing at the top-left corner of a fixed, unpadded
+   stage since V3 shipped, so the transcript rendered half off the top edge of
+   the panel and read as a rendering glitch. Nothing had caught it because
+   every previous verification drove the surface over CDP and read textContent,
+   which is exactly the thing a screenshot is for.
+
+   Top-left, inside the safe area, opposite the rail at bottom-right: the two
+   halves of the conversation on opposite corners, neither in the way of what
+   the subject is showing.
+─────────────────────────────────────────────────────────────────────────── */
+.heard {
+  position: absolute;
+  left: var(--safe);
+  top: var(--safe);
+  max-width: 46ch;
+  z-index: 1;                    /* above a subject's veil, never under it */
 }
 
 /* ── The vocabulary rail ────────────────────────────────────────────────────
@@ -415,12 +448,28 @@ html, body {
   object-fit: cover;
   display: block;
 }
+/* ⚠ SEEN ON THE WALL: "last year" set over the white label of a supplement
+   bottle, at the edge of readable. The subject's veil sits BEHIND the plates,
+   so it does nothing for a caption printed ON one — and each plate is a
+   different photograph, so no single global answer exists. A local gradient
+   under the caption band is the same mechanism as the main scrim at one-ninth
+   the area, and it costs one composite on a static image. */
+.subject__plate::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 45%;
+  background: linear-gradient(to top, oklch(0.08 0.01 var(--atmo-hue) / 0.85), transparent);
+  pointer-events: none;
+}
+
 .subject__caption-sm {
   position: absolute;
   left: 16px;
   bottom: 12px;
   color: var(--ink);
   text-shadow: var(--ink-shadow);
+  z-index: 1;                    /* over the plate's own gradient */
 }
 
 /* Media: the artwork IS the answer, so it fills the frame and the words sit

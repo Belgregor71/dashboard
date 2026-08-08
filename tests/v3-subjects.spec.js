@@ -287,6 +287,44 @@ test("⚠ a text subject carries the solved scrim across the WHOLE frame", async
   expect(pageErrors).toEqual([]);
 });
 
+test("⚠ nothing on the surface renders outside the panel", async ({ page }) => {
+  /* The bug this exists for was invisible to every previous verification: the
+     heard transcript had NO positioning and flowed at the top-left of an
+     unpadded fixed stage, so it rendered half off the top edge of the wall.
+     Reading textContent over CDP — which is how V3 has been checked since Phase
+     1 — cannot see that. A geometry assertion can.
+
+     Also asserts depth 3 is genuinely full bleed: it is "one thing, full bleed"
+     in the plan, and it was rendering as a rectangle inset by the safe area. */
+  const { pageErrors } = await bootV3(page, { "/api/calendar/all": calToday() });
+  await page.evaluate(() => window.__v3Refresh());
+  await show(page, "show me my day");
+
+  const got = await page.evaluate(() => {
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const box = (sel) => {
+      const el = document.querySelector(sel);
+      if (!el || el.hidden) return null;
+      const r = el.getBoundingClientRect();
+      return { top: r.top, left: r.left, right: r.right, bottom: r.bottom, w: r.width };
+    };
+    return { vw, vh, heard: box("#heard"), subject: box(".subject--calendar") };
+  });
+
+  // The transcript is on screen, in full, inside the panel.
+  expect(got.heard, "the transcript did not render at all").not.toBeNull();
+  expect(got.heard.top, "the transcript is clipped off the top of the wall").toBeGreaterThanOrEqual(0);
+  expect(got.heard.left).toBeGreaterThanOrEqual(0);
+  expect(got.heard.right).toBeLessThanOrEqual(got.vw);
+
+  // The subject IS the screen at depth 3, not a card floating on it.
+  expect(got.subject.left).toBe(0);
+  expect(got.subject.top).toBe(0);
+  expect(got.subject.right).toBe(got.vw);
+  expect(got.subject.bottom).toBe(got.vh);
+  expect(pageErrors).toEqual([]);
+});
+
 test("⚠ an Immich with nothing for today never reaches depth 3", async ({ page }) => {
   // { assets: [] } is what an unconfigured Immich returns AND what a date
   // nobody photographed returns. Neither is a screen, and mounting an empty
