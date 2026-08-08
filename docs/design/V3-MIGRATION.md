@@ -376,10 +376,61 @@ first noted. `.subject__caption-sm` over a photograph is the likeliest worst cas
 
 | # | step | size |
 |---|---|---|
-| 5.1 | **Energy saver** — display off overnight. Port before any permanent flip | S |
+| 5.1 | ✅ **DONE** — but not as written; see the correction below | S |
 | 5.2 | **Immich asset filter** — see the open defect below | M |
 | 5.3 | Decide the temporal spine's fate: D1 cell, part of the ground, or retired | M |
 | 5.4 | Archive/memories as a ground mode, if wanted at all — V3 holds one photo per day *by design* (§5.1: time passing is not a cause) | M |
+
+#### ⚠ 5.1 was mis-specified, and the correction is the useful part
+
+**"Display off overnight. Port before any permanent flip" describes a job that was already
+done, by something outside the repo.** Measured on the G11 before any code was written:
+
+- **The panel already goes dark on V3.** DPMS is a property of the X display, not of the URL
+  Chromium happens to be showing, and the `dashboard` crontab survived the Pi→G11 migration
+  intact (`0 21 * * * DISPLAY=:0 xset dpms force off`, `0 5 … force on`). `GET
+  /api/display/state` on the live box: `dpmsEnabled: true`, window 21:00→05:00. It has been
+  powering V3's panel down all along.
+- **The incumbent's `modules/energySaver.js` is very nearly a no-op.** Its only real effect
+  is an HA switch toggle gated on `homeAssistant.energySaver.monitorEntityId`, which is `""`.
+  What remains is a body class that paints the background black and hides three views V3 does
+  not have. **The 91 lines this step was sized against would have ported to nothing.**
+
+So the real gap was never "turn the panel off" — it was the two things that follow from the
+panel being off, and V3 had neither:
+
+1. **The surface kept moving in the dark.** DPMS fires no `visibilitychange`, so nothing told
+   the page. The substrate's rAF loop is the only continuously-running thing in V3, and on a
+   windy or rainy night it ran at 15fps until 05:00 for a dead panel in an empty room — the
+   calm law's plainest possible violation, in the one situation where the room can see
+   *nothing at all*.
+2. **Nothing could light the panel** (audit SS4). V3 sharpens this beyond the incumbent:
+   `core/alerts.js` is the one path that puts itself on the wall unasked, so a 3am doorbell
+   forced depth 3, mounted the camera and spoke out loud to a powered-down screen. The
+   picture is the half that matters and it was the half nobody saw.
+
+**Built:** `src/v3/core/display.js`, `setPaused()` on both substrate backends, and
+`services/displayWindow.js` — the midnight-wrap extracted so the route and the browser share
+one answer rather than two copies (the `alertRouter` precedent again).
+
+⚠ **The clock triggers, X decides.** The audit records two boot-time actors running
+`xset -dpms`; they are losing today, and that is the **only** reason the crontab can blank the
+panel at all. A client that trusted the clock would, the day one of them wins, freeze the
+atmosphere every night on a fully lit 32" panel — which reads as a broken dashboard, not a
+broken assumption, and would be blamed on V3. So the window says when to go and *ask*, and X's
+own `monitor` reading answers. **Every unknown — no window, no route, no `xset` — fails
+towards LIT.**
+
+⚠ **`initSubstrate` holds the paused flag itself, not just the backend.** The context-loss
+path *replaces* the backend, so a GPU reset at 3am would otherwise resume a 15fps loop against
+a dark panel and leave no trace by morning.
+
+⚠ **Two flags, two different questions.** `features.v3EnergySaver` is whether V3 knows about
+the panel at all. Waking *additionally* requires the existing `features.displayWake`, because
+"may a security event light the panel" is a decision the incumbent already publishes and the
+household already made — **security events only, never kitchen presence** (someone up at 2am
+for a glass of water should not get a 32" dashboard in the face). Flipping `displayWake` on
+enables it on **both** surfaces at once, which is correct and worth knowing.
 
 ### Phase 6 — The invisible layer
 
@@ -412,7 +463,9 @@ and the flip stays a URL.
 - [x] Depth 2 renders something (Phase 2) — ✅ `7d89002`; **not yet seen by eye**
 - [x] The eight subjects exist (Phase 4) — ✅ `b65085c`; **not yet seen by eye**
 - [x] The briefing arrives without being asked (3.4) — ✅ `b65085c`, presence-gated
-- [ ] Display sleeps overnight (5.1)
+- [x] Display sleeps overnight (5.1) — ✅ and it always did: the crontab, not the page. What
+      landed is V3 *knowing* it: substrate paused while dark, and the door able to ask for the
+      panel back. ⏳ **Flag-off; owed a flag-on verification at/after 21:00 on the real panel**
 - [ ] Ground never shows a screenshot (5.2)
 - [ ] Watchdog + self-heal running (Phase 6)
 - [ ] 72 h soak clean — heap, DOM, listeners at or below t0
