@@ -1,8 +1,14 @@
 # V3 Migration — bringing the house onto the new surface
 
-**Status:** planning. Written 2026-08-08, after the wall was flipped to `/v3/` for ~15
-minutes and pointed back. See [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) for the design law and
+**Status:** **Phase 1 complete and live (`3efb426`, 2026-08-08).** Written 2026-08-08, after
+the wall was flipped to `/v3/` for ~15 minutes and pointed back. See
+[DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) for the design law and
 `~/.claude/plans/i-want-to-see-synthetic-hummingbird.md` for the original V3 plan.
+
+> **Two steps below were described wrongly and have been corrected in place** — 1.1 (the DOM
+> coupling was not where this document said it was) and 1.4 (there is no `band` field). Both
+> corrections are marked ⚠ and are worth reading before trusting any other step's phrasing:
+> the same "described from memory rather than from the code" risk applies throughout.
 
 ---
 
@@ -96,22 +102,54 @@ system status. Easy to forget precisely because nothing shows.
 
 Ordered by dependency first, household value second. Sizes are rough.
 
-### Phase 1 — The causal spine  ⭐ the unlock
+### Phase 1 — The causal spine  ⭐ the unlock — ✅ **COMPLETE 2026-08-08**
 
-Nothing else is worth starting first. Today every `deepen()` caller lives in
-`core/voice.js`: speech is the only thing that can move the screen. This phase is what the
-V3 plan means by *"the house pushes you deeper."*
+This phase is what the V3 plan means by *"the house pushes you deeper."*
 
-| # | step | size |
-|---|---|---|
-| 1.1 | Subscribe V3 to `/api/ha/stream`; reuse `services/homeAssistant/client.js`, replacing its `document.dispatchEvent` with a DOM-free emitter so both surfaces can share it | S |
-| 1.2 | **`services/houseSnapshot.js`** — widen the `voiceSnapshot` pattern to cover every input `focusHero` scrapes. Pure, cached, server-backed | **L** |
-| 1.3 | Wire `collectSources(houseSnapshot())` → `attentionEngine.getSelection()` in V3 | S |
-| 1.4 | Map bands to depth: `must` → D1 regardless; `should` → D1 if presence; dwell 30 s → D2 | M |
-| 1.5 | Real presence from the kitchen motion/person sensors, direct (not via screensaver) | M |
-| 1.6 | Recession timers: D3→D2 after reply + linger, D2→D1 at 45 s idle, D1→D0 on presence loss | S |
+| # | step | size | |
+|---|---|---|---|
+| 1.1 | Subscribe V3 to `/api/ha/stream` — see the ⚠ correction below | S | ✅ `12437be` |
+| 1.2 | **`services/houseSnapshot.js`** — widen the `voiceSnapshot` pattern to cover every input `focusHero` scrapes. Pure, cached, server-backed | **L** | ✅ `af8b0ea` |
+| 1.3 | Wire `collectSources(houseSnapshot())` → `attentionEngine.getSelection()` in V3 | S | ✅ `7fff6b6` |
+| 1.4 | Map the queue to depth — see the ⚠ correction below | M | ✅ `3efb426` |
+| 1.5 | Real presence from the kitchen motion/person sensors, direct (not via screensaver) | M | ✅ `3efb426` |
+| 1.6 | Recession timers | S | ✅ `3efb426` |
 
 **Done when:** the wall moves off depth 0 with nobody speaking to it, and always recedes.
+**Demonstrated live on the G11** (headless, wall untouched): real kitchen motion → present,
+mode AMBIENT→GLANCE, depth held at 0 because the top real candidate scored 42; a score-80
+candidate → depth 1, reason `attention:camera`, glance cell filled; presence lost → depth 0,
+reason `attention:absent`, cell cleared.
+
+> ⚠ **1.1 as written above was wrong.** There is no `document.dispatchEvent` in
+> `client.js` — it was already DOM-free and already on the event bus. The coupling was one
+> layer up: `events.js` owned the only three `updateEntity()` calls in the codebase and it
+> imports `core/viewManager.js`. Those three handlers now live in
+> `services/homeAssistant/entityFeed.js`; `events.js` keeps its `document` re-broadcast by
+> subscribing to the bus event the feed emits. **The load-bearing invariant is order** — the
+> cache must be written *before* `ha:state-updated` fires, because twelve modules read the
+> cache from inside that handler. Reversing it throws nothing and makes the whole house one
+> tick stale forever.
+
+> ⚠ **1.4's `must`/`should` bands do not exist as a field.** Bands are only a documented
+> score ladder in `candidateSources.js` — Interrupt 90–100 · High 70–89 · Medium 50–69 ·
+> Low 40–49 — plus a real `interrupt` boolean. The shipped rule is therefore: `interrupt` →
+> D1 regardless of presence; `score >= 70` → D1 when present; below that, nothing. Measured
+> on the live wall, the entire ordinary queue is Low band (commute 42, now playing 41, Plex
+> 41, tonight's menu 40), so a naive band mapping would have lit the screen up for "Chicken
+> Fajitas".
+>
+> **The "dwell 30 s → D2" clause was deliberately NOT built.** `#spread-lattice` renders
+> empty until Phase 2, and `e3e9630` already had to guard against entering SPREAD empty after
+> it blacked the wall out mid-sentence — a dwell timer would rebuild that bug with a slower
+> fuse. Depth 2 is Phase 2's to open.
+>
+> **1.6 needed almost no code:** `setDepth` already arms its own hold (GLANCE 90 s / SPREAD
+> 45 s / SUBJECT 30 s) and steps down one level. Only presence-loss was worth adding.
+>
+> ⚠ **`deepen()` falls through to `sustain()`** when the target is shallower than current, so
+> a 30 s tick at SUBJECT would re-arm a voice-held depth forever — silently, throwing nothing.
+> Attention only acts while `getDepth() <= GLANCE`. Keep that.
 
 **Do not skip 1.2 by letting features reach the screen directly.** That shortcut is
 precisely how the incumbent became eleven phases of accretion, and V3 exists to escape it.
@@ -135,10 +173,14 @@ defence against slop and against destroying learnability, and it is not negotiab
 
 The household-critical ones. All small, because the camera subject already exists.
 
+⚠ **Phase 1 already did part of this.** An `interrupt` candidate reaches D1 with nobody in
+the room, and `cameraTriggerCandidate` already exists in `candidateSources.js`. So 3.2 is
+largely done, and what 3.1 still owes is the forced depth **3** subject, not the wake.
+
 | # | step | size |
 |---|---|---|
 | 3.1 | Doorbell → forced D3 camera subject with decay (`doorbellAlert.js` is 104 lines, 1 DOM ref) | S |
-| 3.2 | Camera motion trigger → D1 glance | S |
+| 3.2 | Camera motion trigger → D1 glance — mostly covered by 1.4; verify rather than build | S |
 | 3.3 | Arrival greeting → D1 (⚠ `arrivalGreeting.js:289` still has no minimum-away guard) | M |
 | 3.4 | Morning briefing at its window → D2 | S |
 
@@ -186,15 +228,37 @@ most visible thing about V3 and it is currently embarrassing.
 What must be true before the wall flips permanently. Until then `/v3/` stays a lab surface
 and the flip stays a URL.
 
-- [ ] Depth moves without speech (Phase 1)
+- [x] Depth moves without speech (Phase 1) — ✅ `3efb426`, demonstrated live
+- [x] Motion wakes the surface (3.2) — ✅ falls out of 1.4/1.5; still wants a real-event sighting
 - [ ] Doorbell reaches the screen unasked (3.1)
-- [ ] Motion wakes the surface (3.2)
 - [ ] Depth 2 renders something (Phase 2)
 - [ ] Display sleeps overnight (5.1)
 - [ ] Ground never shows a screenshot (5.2)
 - [ ] Watchdog + self-heal running (Phase 6)
 - [ ] 72 h soak clean — heap, DOM, listeners at or below t0
-- [ ] Quiescent ≤8% of one core, live ≤25%, peak ≤35%
+- [ ] Quiescent ≤8% of one core, live ≤25%, peak ≤35% — **not re-measured since the engine
+      and the SSE landed; the old A/B predates both**
+- [ ] Seen by eye on the actual panel — every V3 verification so far is a headless read
+
+## Measuring V3 without taking the wall
+
+The lever that does **not** cost the household its dashboard. A second Chromium on the G11,
+headless, on its own port and its own profile — `/v3/` against real house data while the wall
+keeps running `/`:
+```
+/usr/bin/chromium --headless=new --remote-debugging-port=9223 \
+  --user-data-dir=/tmp/v3probe-profile --no-first-run http://localhost:3000/v3/
+```
+⚠ The separate `--user-data-dir` is **not optional**: the kiosk's profile is
+`~/.config/chromium`, and sharing it opens a tab on the wall.
+⚠ `scripts/kiosk/kiosk-eval.cjs` hardcodes port 9222 — copy it and parameterise the port.
+⚠ Killing it: never `pkill -f` (see CLAUDE.md). Iterate `ps -eo pid,args` and check each
+`/proc/$p/cmdline` for the profile name — the first PID you find is usually a child.
+⚠ The boot tick reads a cold HTTP cache, so the first `__v3().attention` is empty and looks
+broken. Call `__v3Tick()` first.
+
+V3 debug handles: `__v3()`, `__v3Tick()`, `__emitHaState(entity)`, `__v3Presence(bool)`,
+`__depth()`, `__setDepth(n)`, plus the engine's own `__forceCandidate` / `__refreshAttention`.
 
 ## Flipping, and getting back
 
