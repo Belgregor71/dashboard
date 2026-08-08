@@ -25,8 +25,48 @@
    could name different causes on the same fault, which is worse than either.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { frame, title, column, getJson } from "./dom.js";
+import { frame, title, getJson } from "./dom.js";
 import { worstFault } from "../core/health.js";
+
+/* ⚠ SEEN ON THE GLASS 2026-08-09 — this does NOT use the shared column().
+   Two reasons, both invisible to a textContent read and both obvious in a
+   screenshot:
+
+   1. `column()` lays a flex row out around a lead that sizes to its content.
+      Every other subject's leads are TIMES — "09:30", "18:30" — so they align
+      for free. Feed names do not: "Box" and "Camera snapshots" differ by
+      fourteen characters, and the values came down the screen in a staircase.
+   2. `column()` sets its value half in the SAID voice at 96px. The house is
+      not telling you this, you asked it — a feed's state is measured. Rendered
+      as-is, the least interesting word on the surface ("fine", eight times)
+      was by a wide margin the largest thing on it.
+
+   The class NAMES are kept (`subject__row`/`__lead`/`__text`) so the contrast
+   sweep, the leak assertions and every existing selector keep working — only
+   the register and the geometry change. */
+function readout(rows) {
+  const list = document.createElement("ul");
+  list.className = "subject__list";
+  for (const row of rows) {
+    const li = document.createElement("li");
+    li.className = "subject__row";
+    // The one thing worth FINDING on this surface, so the one thing CSS lifts
+    // out of the dim register.
+    if (row.level) li.dataset.level = row.level;
+
+    const lead = document.createElement("span");
+    lead.className = "subject__lead measured measured--2";
+    lead.textContent = row.lead;
+
+    const text = document.createElement("span");
+    text.className = "subject__text measured measured--2";
+    text.textContent = row.text;
+
+    li.append(lead, text);
+    list.appendChild(li);
+  }
+  return list;
+}
 
 /* Eight feeds, a box line and a recovery or two. The panel's honest ceiling is
    twelve rows at this size — see lists.js, same reasoning, same number. */
@@ -109,7 +149,8 @@ export async function showStatus() {
 
   const rows = health.feeds.map((feed) => ({
     lead: String(feed.label ?? feed.id ?? ""),
-    text: feedLine(feed)
+    text: feedLine(feed),
+    level: feed.level === "ok" ? null : feed.level
   }));
 
   const box = boxLine(metrics);
@@ -127,7 +168,7 @@ export async function showStatus() {
     });
   }
 
-  node.appendChild(column(rows));
+  node.appendChild(readout(rows));
 
   return { node, teardown, speech: speechFor(health) };
 }

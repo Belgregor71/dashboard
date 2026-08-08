@@ -194,6 +194,41 @@ test.describe("the status readout", () => {
     expect(got.rows).toBe(4);
   });
 
+  test("⚠ SEEN ON THE GLASS: the values line up, and stay in the measured register", async ({ page }) => {
+    /* Both halves of this were invisible to every textContent read and obvious
+       in one screenshot — the lesson that has now cost this project eight
+       defects. The guard asserts BOUNDING BOXES and computed type, not text.
+
+       1. The shared column() helper aligns its lead for free only because every
+          other subject's leads are times, all the same width. Feed names run
+          from "Box" to "Camera snapshots", and the values came down the screen
+          in a staircase.
+       2. column() sets its value half in the SAID voice at 96px, so "fine",
+          eight times over, was the largest thing on a diagnostic panel. */
+    await bootV3(page, { health: BROKEN });
+    const got = await page.evaluate(async () => {
+      await window.__v3Subject("show.status");
+      window.__setDepth(3, "spec");
+      const values = [...document.querySelectorAll(".subject--status .subject__text")];
+      const labels = [...document.querySelectorAll(".subject--status .subject__lead")];
+      const xs = values.map((v) => Math.round(v.getBoundingClientRect().x));
+      return {
+        distinctValueX: [...new Set(xs)].length,
+        valueFont: getComputedStyle(values[0]).fontFamily,
+        labelFont: getComputedStyle(labels[0]).fontFamily,
+        valuePx: getComputedStyle(values[0]).fontSize,
+        rows: values.length
+      };
+    });
+
+    expect(got.rows).toBeGreaterThan(1);
+    // One column, one x. A staircase reads as every value at its own indent.
+    expect(got.distinctValueX, "the value column is ragged — a staircase, not a readout").toBe(1);
+    // Measured, not said: the house is not telling you this, you asked it.
+    expect(got.valueFont).toBe(got.labelFont);
+    expect(got.valuePx).toBe("48px");
+  });
+
   test("leaving takes the whole readout with it", async ({ page }) => {
     // Depth 3 is the one genuinely per-event path in V3, and per-event paths
     // are where this house has leaked before.

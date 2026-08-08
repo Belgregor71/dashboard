@@ -503,6 +503,29 @@ html, body {
    that still does not fit is fewer steps on screen, never smaller ones. */
 .subject__recipe .subject__row .subject__text { font-size: var(--t-measured-1); }
 
+/* ── The status readout ─────────────────────────────────────────────────────
+   ⚠ SEEN ON THE GLASS 2026-08-09. A two-column GRID, not a flex row: the feed
+   names vary from "Box" to "Camera snapshots", and a lead that sizes to its
+   content walked the values down the screen in a staircase. Every other
+   subject's leads are times, which are all the same width, so nothing had hit
+   this before. The column is sized in `ch` off the longest label rather than a
+   guessed pixel value.
+
+   The value half is deliberately DIMMER than the label. On a healthy house
+   this surface is nine rows of "fine", and the labels are the information —
+   the eye should sweep the left column and stop only where something is
+   wrong. Which is what the level rule below is for: a fault is the one thing
+   here in full ink, so it is findable without reading. */
+.subject--status .subject__row {
+  display: grid;
+  grid-template-columns: minmax(0, 15ch) 1fr;
+  align-items: baseline;
+  gap: var(--gutter);
+}
+
+.subject--status .subject__text { color: var(--ink-dim); }
+.subject--status .subject__row[data-level="error"] .subject__text { color: var(--ink); }
+
 /* The briefing. Prose, measured column width — the one surface here that is
    read as sentences rather than scanned as a list. */
 .subject__prose-stack {
