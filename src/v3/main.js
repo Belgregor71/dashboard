@@ -23,7 +23,9 @@ import { registerEntityFeed } from "../js/services/homeAssistant/entityFeed.js";
 import { getAllEntities } from "../js/services/homeAssistant/state.js";
 import { emit as emitBus } from "../js/core/eventBus.js";
 import { refreshHouseCache, houseCacheAge } from "../js/services/houseSnapshot.js";
-import { initAttention, lastSelection, tickAttention } from "./core/attention.js";
+import { initAttention, lastSelection, tickAttention, announcements } from "./core/attention.js";
+import { initAlerts, lastAlert } from "./core/alerts.js";
+import { initArrival, lastArrival } from "./core/arrival.js";
 
 /* Sun position only. City-level Brisbane, deliberately coarse: this repo is
    PUBLIC and its bundle is tracked, so no house-precise coordinate may appear
@@ -155,8 +157,29 @@ function onDepthChange(next, prev) {
   }
 }
 
+/* ── Occupancy ──────────────────────────────────────────────────────────────
+   Which depths currently have something in them, so recession can fall past the
+   ones that do not. Asked of the DOM rather than tracked, for the same reason
+   the composer's render signature is: three modules can mount and unmount these
+   two nodes, and a tally kept in a variable is wrong the moment one of them
+   acts without telling the others.
+
+   Depth 0 and depth 3 are absent from the switch on purpose. The field always
+   has the hour and the photograph — it is the floor precisely because it can
+   never be empty — and nothing ever recedes INTO a subject.
+─────────────────────────────────────────────────────────────────────────── */
+function depthInhabited(depth) {
+  if (depth === DEPTH.SPREAD) {
+    return (document.getElementById("spread-lattice")?.childElementCount ?? 0) > 0;
+  }
+  if (depth === DEPTH.GLANCE) {
+    return (document.getElementById("glance-said")?.textContent ?? "").trim().length > 0;
+  }
+  return true;
+}
+
 function boot() {
-  initDepth();
+  initDepth({ inhabited: depthInhabited });
   initPresenceLight();
   initVoice({ enabled: true, lat: CITY.lat, lon: CITY.lon });
   onDepth(onDepthChange);
@@ -186,6 +209,15 @@ function boot() {
      band reaches it when someone is, and nothing below that earns the screen.
      initAttention() brings presence up with it. */
   initAttention();
+
+  /* Phase 3 — the two things that happen rather than being true. Both subscribe
+     to the same entity feed and neither writes the surface directly: the door
+     forces depth 3 with a camera because it has to be seen, and an arrival
+     announces a candidate and lets the queue decide, because it does not.
+
+     Registered AFTER initAttention() so `announce()` has an engine to reach. */
+  initAlerts();
+  initArrival();
 
   substrate = initSubstrate(el.substrate);
 
@@ -237,13 +269,23 @@ function boot() {
       houseCacheAgeMs: houseCacheAge()
     },
     attention: lastSelection(),
+    announced: announcements(),
+    alert: lastAlert(),
+    arrival: lastArrival(),
     presence: window.__v3Presence?.()
   });
 
   // Force a tick rather than waiting out the 30s cycle — the companion to
   // __forceCandidate, and the only way to drive the queue over CDP on the wall
   // without sitting through a full interval per probe.
-  window.__v3Tick = () => tickAttention();
+  //
+  // The optional clock is not decoration: `expiresAt` decay is the entire
+  // lifetime of an announced event (Phase 3), and without a way to ask "what
+  // does the queue look like in ten minutes" the only way to see a candidate
+  // expire is to wait ten minutes. This handle silently ignored its argument
+  // until a spec noticed, which is the same class of no-op as a font axis the
+  // API rejects.
+  window.__v3Tick = (now) => tickAttention(now == null ? new Date() : new Date(now));
 
   // Push one entity onto the bus exactly as the SSE would deliver it. The way
   // to drive motion, or any other cause, without walking into the kitchen —

@@ -95,6 +95,22 @@ const REASON_PREFIX = "attention:";
 let last = null;
 let timer = null;
 
+/* ── Announced events ───────────────────────────────────────────────────────
+   Phase 3. Things that HAPPEN — someone arriving, and whatever joins them —
+   rather than things that are merely true. They enter the queue as ordinary
+   candidates instead of writing the surface themselves, which is the whole
+   point: an event that painted the glance cell directly would be a second
+   author of a node the composer and the voice already share, and the ownership
+   bug Phase 2 spent a spec on would come straight back in a third shape.
+
+   Going through the queue means an announcement gets the ranking, the
+   interrupt/High rule, the personality voice, quiet mode and the cooldowns for
+   free — and, the part that matters most here, `expiresAt` decay. There is no
+   timer in this list and nothing to tear down: a stale announcement is dropped
+   by `rankQueue` the next time anything asks.
+─────────────────────────────────────────────────────────────────────────── */
+let announced = [];
+
 const el = { cell: null, said: null, measured: null };
 
 function modeForPresence() {
@@ -157,7 +173,13 @@ function clearGlance() {
  */
 export function tickAttention(now = new Date()) {
   const state = houseSnapshot({ now });
-  const sources = collectSources(state);
+  /* Announcements ride in as sources so the engine treats them exactly like
+     anything the house derived for itself — same ranking, same phrasing, same
+     gates. Pruned here as well as by rankQueue, or the list would grow for the
+     lifetime of the page: dropping a candidate from the QUEUE does not drop it
+     from the array it came out of, and this page runs for weeks. */
+  announced = announced.filter((c) => c.expiresAt == null || c.expiresAt > now.getTime());
+  const sources = [...collectSources(state), ...announced];
   const mode = modeForPresence();
   const sel = getSelection({ sources, now, mode });
 
@@ -238,6 +260,32 @@ export function tickAttention(now = new Date()) {
 /** The last selection, or null before the first tick. */
 export function lastSelection() {
   return last;
+}
+
+/**
+ * Put an event into the queue, and act on it now rather than up to 30 s from
+ * now — the tick's cadence is right for things that are true and far too slow
+ * for things that just happened.
+ *
+ * The candidate is an ordinary one and must carry `expiresAt`: an announcement
+ * with no end is a claim about the present that becomes a lie, and there is no
+ * timer here to clean it up. Callers that want it on the screen regardless of
+ * whether anyone is in the room set `interrupt`.
+ *
+ * @returns the resulting selection, so the caller can see whether it landed.
+ */
+export function announce(candidate, now = new Date()) {
+  if (!candidate?.id || !candidate.text) return null;
+  // Replace rather than append on a repeat id: two arrivals for the same person
+  // are one fact, not two, and the queue should not be able to hold both.
+  announced = announced.filter((c) => c.id !== candidate.id);
+  announced.push({ cooldownMs: 0, ...candidate });
+  return tickAttention(now);
+}
+
+/** What is currently announced, for __v3(). */
+export function announcements() {
+  return announced.map((c) => ({ id: c.id, source: c.source, score: c.score, expiresAt: c.expiresAt ?? null }));
 }
 
 export function initAttention() {
