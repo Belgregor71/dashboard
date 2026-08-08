@@ -277,8 +277,19 @@ test("half duplex: a barge-in stops the reply AND does not wedge the turn", asyn
   expect(pageErrors).toEqual([]);
 });
 
-test("half duplex off (default): V3 reports nothing and installs no observer", async ({ page }) => {
+// PINNED OFF, not left to the default. Flipping the flag back is the rollback
+// path, so the off state has to keep being tested after the default flips on —
+// a spec that asserts "off" by inheriting the default silently becomes a
+// second copy of the on-state test the day it ships.
+test("half duplex off: V3 reports nothing and installs no observer", async ({ page }) => {
   const speaking = [];
+  await page.route("**/js/config.js", async (route) => {
+    const res = await route.fetch();
+    await route.fulfill({
+      response: res,
+      body: (await res.text()) + "\nwindow.CONFIG.features.voiceHalfDuplex = false;\n"
+    });
+  });
   await page.route("**/api/tts/speak", (route) =>
     route.fulfill({ contentType: "audio/wav", body: silentWav(0.2) })
   );

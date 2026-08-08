@@ -448,8 +448,12 @@ window.CONFIG = {
     // /api/voice/barge-in, which silences the page mid-sentence and hands the
     // floor back. Off: no observer is installed, no request is made, and the
     // agent's speaking flag stays clear — which is exactly today's behaviour.
+    // Flipped ON 2026-08-09 after the two agent bugs were measured fixed on the
+    // G11 (feature buffer, melspectrogram and raw ring all byte-identical to
+    // cold start after a flush; the OLD reset left 1.2 s of the wake word in
+    // the detector). Verified on /v3/, the surface the wall actually runs.
     // One-line revert (-> false) is the rollback path.
-    voiceHalfDuplex: false,
+    voiceHalfDuplex: true,
 
     // Living-window Phase 1 (plan: review-the-design-scheme) — rain on glass.
     // A shared episode runtime (services/atmoFx/) draws bounded droplet/streak
