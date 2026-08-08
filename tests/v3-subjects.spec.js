@@ -308,7 +308,7 @@ test("⚠ nothing on the surface renders outside the panel", async ({ page }) =>
       const r = el.getBoundingClientRect();
       return { top: r.top, left: r.left, right: r.right, bottom: r.bottom, w: r.width };
     };
-    return { vw, vh, heard: box("#heard"), subject: box(".subject--calendar") };
+    return { vw, vh, heard: box("#heard"), subject: box(".subject--calendar"), title: box(".subject__title") };
   });
 
   // The transcript is on screen, in full, inside the panel.
@@ -322,6 +322,16 @@ test("⚠ nothing on the surface renders outside the panel", async ({ page }) =>
   expect(got.subject.top).toBe(0);
   expect(got.subject.right).toBe(got.vw);
   expect(got.subject.bottom).toBe(got.vh);
+
+  /* ⚠ And it does not land on the subject's own title. Parking the transcript
+     top-left to fix the clipping put it exactly on top of "8 AUGUST", and the
+     wall rendered the two strings overprinted into mush. Two absolutely
+     positioned things in one corner is a collision nobody sees until they look
+     at the glass, so it is asserted rather than remembered. */
+  const overlaps =
+    got.heard.left < got.title.right && got.heard.right > got.title.left &&
+    got.heard.top < got.title.bottom && got.heard.bottom > got.title.top;
+  expect(overlaps, "the transcript is printed over the subject's title").toBe(false);
   expect(pageErrors).toEqual([]);
 });
 

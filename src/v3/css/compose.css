@@ -186,15 +186,19 @@ html, body {
    every previous verification drove the surface over CDP and read textContent,
    which is exactly the thing a screenshot is for.
 
-   Top-left, inside the safe area, opposite the rail at bottom-right: the two
-   halves of the conversation on opposite corners, neither in the way of what
-   the subject is showing.
+   ⚠ AND THE FIX FOR THAT COLLIDED IN TURN, also caught by eye: parked at
+   top-LEFT it landed exactly on every subject's own title, overprinting
+   "8 AUGUST" with "show me the year" into unreadable mush. Each of the four
+   corners now has one owner and only one: the hour bottom-left, the rail
+   bottom-right, a subject's title top-left, the transcript top-right. Nothing
+   in V3 may take a corner without checking that list.
 ─────────────────────────────────────────────────────────────────────────── */
 .heard {
   position: absolute;
-  left: var(--safe);
+  right: var(--safe);
   top: var(--safe);
-  max-width: 46ch;
+  max-width: 40ch;
+  text-align: right;
   z-index: 1;                    /* above a subject's veil, never under it */
 }
 
@@ -344,6 +348,12 @@ html, body {
   text-transform: uppercase;
   margin: 0;
   flex: 0 0 auto;
+  /* Shrink to the words. A <p> in a flex column stretches to the full content
+     width by default, so the title's BOX reached the right-hand safe edge even
+     though its text sat on the left — which is a real collision with anything
+     parked in the top-right corner, not a notional one. The overlap assertion
+     in tests/v3-subjects.spec.js reads boxes, and it was right to. */
+  align-self: flex-start;
 }
 
 /* `flex: 1 1 auto` and not just `min-height: 0`. Without it a flex child sizes
