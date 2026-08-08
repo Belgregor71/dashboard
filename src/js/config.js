@@ -757,8 +757,25 @@ window.CONFIG = {
     // trigger (person/ring — NOT kitchen presence, and not plain motion) POSTs
     // /api/display/wake, which lights the panel for DISPLAY_WAKE_HOLD_MS and
     // then lets it fall back. Outside the window the route is a no-op.
-    // Default OFF = no fetch at all, byte-identical. One-line revert.
-    displayWake: false,
+    // FLIPPED ON 2026-08-08 on the owner's call, having been shipped flag-off
+    // since the audit. Prerequisites confirmed live on the G11 first: the
+    // crontab survived the Pi→G11 migration (`0 21` / `0 5`), `xset` is present
+    // and `GET /api/display/state` reports `dpmsEnabled: true, monitor: on`.
+    //
+    // ⚠ BOTH SURFACES. The incumbent's cameraPopupOverlay and V3's core/alerts
+    // share this one flag deliberately — same rule, one answer. On V3 it also
+    // requires `v3EnergySaver` below.
+    //
+    // ⚠ SCOPE IS WIDER THAN "THE DOORBELL". The gate is isLiveWorthy, which is
+    // {person, doorbell} across all six triggerEntityIds — so a PERSON detected
+    // on the driveway or in the backyard at 3am lights the panel too, not only a
+    // ring. Plain motion, pets and cars never do. If that turns out to be too
+    // much: narrow LIVE_WORTHY_DETECTIONS to ["doorbell"], or shorten the lit
+    // period with DISPLAY_WAKE_HOLD_MS in the G11's .env (default 90s).
+    //
+    // Revert = `displayWake: false`. Proven reversible by
+    // scripts/verify/flag-reversibility.mjs at flip time.
+    displayWake: true,
 
     // V3 step 5.1. Whether V3 knows the panel's power state at all.
     //
