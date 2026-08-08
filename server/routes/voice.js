@@ -13,6 +13,7 @@ import {
   SPEAKER_UNKNOWN_LINE
 } from "../services/voiceShape.js";
 import { searchVault, buildContext } from "../services/vaultIndex.js";
+import { createSoundDetector } from "../services/soundPresence.js";
 import { VOICE_REGISTER } from "./ai.js";
 
 // Phase 4 "Give it a voice" — the server half of the Mode 3 conversation lanes
@@ -234,6 +235,51 @@ router.post("/api/voice/speaking", (req, res) => {
   return res.status(204).end();
 });
 
+// --- Sound as presence ---
+// The agent reports room loudness once a second; soundPresence.js decides
+// whether that is a person. See that file for why the statistic is an excursion
+// above an adaptive floor rather than a threshold.
+//
+// ⚠ Deliberately NOT /api/voice/level. That one is the listening rim: ~12.5 Hz,
+// only during a capture, and it decays on the client. This is 1 Hz, always, and
+// it must not touch the rim — conflating them would make the ring glow whenever
+// the kitchen was noisy and never stop.
+//
+// The SSE carries TRANSITIONS, not samples. The detector lives here rather than
+// on the page precisely so that a permanent 1 Hz feed does not ride a stream the
+// page keeps open for weeks.
+const ambient = createSoundDetector();
+
+router.post("/api/voice/ambient", (req, res) => {
+  if (!isLoopback(req)) return res.status(403).json({ error: "loopback only" });
+  const rms = req.body?.rms;
+  // typeof, not Number(): Number(null) is 0, which is finite and non-negative,
+  // so a null rms would be recorded as genuine silence and drag the floor down.
+  if (typeof rms !== "number" || !Number.isFinite(rms) || rms < 0) {
+    return res.status(400).json({ error: "rms must be a non-negative number" });
+  }
+  // `speaking` is read from the server's own flag, not the body: the page is
+  // the author of that fact and already posts it, so asking the agent to
+  // re-assert it would create a second, laggier source of the same truth.
+  const result = ambient.push({ rms, speaking });
+  if (result.emit) {
+    voiceBus.emit("sound_presence", {
+      at: Date.now(),
+      db: Math.round(result.db * 10) / 10,
+      floorDb: Math.round(result.floor * 10) / 10,
+      excursionDb: Math.round(result.excursion * 10) / 10
+    });
+  }
+  return res.status(204).end();
+});
+
+// Read-only, and not loopback-gated: it is a handful of loudness statistics
+// with no audio in it, and it is the only way to tune the thresholds against
+// this actual kitchen rather than a guess.
+router.get("/api/voice/ambient", (_req, res) => {
+  res.json(ambient.state());
+});
+
 // The agent asking for the floor. It POSTs this when the wake word is spoken
 // over a reply; the page listens for the fan-out and calls tts.silence().
 router.post("/api/voice/barge-in", (req, res) => {
@@ -275,6 +321,9 @@ router.get("/api/voice/stream", (req, res) => {
     // house — a second stream for a cosmetic cue would be a poor trade.
     subscribe("level", "voice_level");
     subscribe("barge_in", "voice_barge_in");
+    // Transitions only — a rising edge, then at most one every 10s while the
+    // room stays busy. Cheap enough to ride the same connection.
+    subscribe("sound_presence", "voice_sound_presence");
   }
 
   const heartbeat = setInterval(() => res.write(": ping\n\n"), 20_000);
