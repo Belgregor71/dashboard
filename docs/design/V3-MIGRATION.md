@@ -1,8 +1,9 @@
 # V3 Migration — bringing the house onto the new surface
 
-**Status:** **Phases 1 and 2 complete (`3efb426`, `7d89002`, 2026-08-08).** Phase 1 is live
-and was demonstrated on the G11; **Phase 2 is committed but unpushed and has never been seen
-by eye.** Written 2026-08-08, after the wall was flipped to `/v3/` for ~15 minutes and
+**Status:** **Phases 1, 2 and 3 complete (`3efb426`, `7d89002`, `c20525a`, 2026-08-08)**, bar
+3.4, which is deferred into Phase 4 with its reason written down. Phase 1 is live and was
+demonstrated on the G11; **Phases 2 and 3 are committed but unpushed and have never been
+seen by eye.** Written 2026-08-08, after the wall was flipped to `/v3/` for ~15 minutes and
 pointed back. See
 [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) for the design law and
 `~/.claude/plans/i-want-to-see-synthetic-hummingbird.md` for the original V3 plan.
@@ -215,22 +216,82 @@ opened by dwelling and nothing else.
 **Still owed:** depth 2 has never been seen by eye, and the spread's marginal GPU cost is
 unmeasured. `__v3Presence("dwell")` collapses the 30 s wait for a CDP probe.
 
-### Phase 3 — The events that must interrupt
+### Phase 3 — The events that must interrupt — ✅ **COMPLETE 2026-08-08 (`c20525a`)**, except 3.4
 
-The household-critical ones. All small, because the camera subject already exists.
+| # | step | size | |
+|---|---|---|---|
+| 3.0 | **Recession must land somewhere inhabited** — not in the plan, and 3.1 is unsafe without it | S | ✅ |
+| 3.1 | Doorbell → forced D3 camera subject with decay | S | ✅ |
+| 3.2 | Camera motion trigger → D1 glance — verify rather than build | S | ✅ **verified: it must NOT** |
+| 3.3 | Arrival greeting → D1, with the minimum-away guard | M | ✅ |
+| 3.4 | Morning briefing at its window → D2 | S | ⛔ **deferred — see below** |
 
-⚠ **Phase 1 already did part of this.** An `interrupt` candidate reaches D1 with nobody in
-the room, and `cameraTriggerCandidate` already exists in `candidateSources.js`. So 3.2 is
-largely done, and what 3.1 still owes is the forced depth **3** subject, not the wake.
+**Done when:** someone at the door puts the door on the screen without anyone asking. **It
+does** — with nobody in the room, from the real entity feed, and it takes the screen off
+whatever subject was already up.
 
-| # | step | size |
-|---|---|---|
-| 3.1 | Doorbell → forced D3 camera subject with decay (`doorbellAlert.js` is 104 lines, 1 DOM ref) | S |
-| 3.2 | Camera motion trigger → D1 glance — mostly covered by 1.4; verify rather than build | S |
-| 3.3 | Arrival greeting → D1 (⚠ `arrivalGreeting.js:289` still has no minimum-away guard) | M |
-| 3.4 | Morning briefing at its window → D2 | S |
+> ⚠ **3.0 had to come first, and it is the finding of this phase.** `setDepth`'s recession
+> stepped down **exactly one level**, and depth 2 is empty unless something composed it while
+> depth 1 is empty unless something wrote its cell. So a subject timing out dropped the wall
+> onto a blank rectangle and held it there for that depth's full hold — 45 s of black, then
+> 90 more. **Nothing had hit it because every route to depth 3 so far was a spoken one**,
+> with a person standing there to say something else. Phase 3 is the first set of things
+> that drive the surface deep *with nobody watching*. Recession now falls to the deepest
+> **inhabited** depth, and the probe is **asked of the DOM at the moment the timer fires** —
+> what is on screen a minute later is not what was there when the timer was armed. Depth 0
+> is the floor because the hour and the photograph mean it can never be empty.
 
-**Done when:** someone at the door puts the door on the screen without anyone asking.
+> ⚠ **FORCED, not deepened.** `deepen(SUBJECT)` from depth 3 falls through to `sustain()`,
+> which re-arms the hold and **leaves the old camera mounted** — the doorbell would be
+> announced over a picture of the side gate, silently, looking exactly like the doorbell
+> camera being broken. The alert calls `setDepth` directly. This is the one thing in V3 that
+> overrides a subject the room asked for, and it should be the only one.
+
+> ⚠ **The boot snapshot again.** The opening SSE frame replays every entity including any
+> `binary_sensor` stuck `on` since this morning. presence.js paid for this once (a stuck PIR
+> faking someone in the kitchen at every load); here it would **announce a visitor out loud
+> and take the wall to depth 3 on every single page load.** `routeAlert` takes a
+> `minFreshMs`; V3 passes 30 s. A missing `last_changed` is treated as live, because that is
+> what a genuine push event looks like.
+
+> ⚠ **3.2's plan entry was wrong: a camera trigger CANNOT reach D1, and should not.**
+> `cameraTriggerCandidate` scores **45** (Low band, under the glance's 70) and carries
+> `stackOnly`, which bars it from ever being the hero — so an empty room never sees it at
+> all and a present-but-unsettled room doesn't either. It is **depth-2 traffic**, visible
+> only while someone is dwelling. That is the right answer, not a gap: the two cameras that
+> must interrupt are the front door and the side gate, and **both go through the alert path
+> and force depth 3**. A driveway that lit the wall every time a car went past would be the
+> "Chicken Fajitas" failure with a picture attached. Locked with three pure tests.
+
+> ⛔ **3.4 is deferred, and the plan mis-specified it twice.** There is no briefing candidate
+> in `candidateSources.js` and no briefing subject in V3 — Phase 4 lists Briefing as one of
+> the six depth-3 subjects still to build, so 3.4 is **blocked on Phase 4**, not small. And
+> the target depth is wrong: since Phase 2, depth 2 is a **composition built from ranked
+> candidates**, whereas a briefing is one thing at length — which is depth **3**'s shape.
+> Do it as the briefing subject in Phase 4, opened at its morning window.
+
+> **3.3 does not touch the screen, and that is the design.** `arrivalGreeting.js` is 313
+> lines because it owns a card. V3 already has a place for one true line and a rule for who
+> may write it, so arrival **announces a candidate** (`announce()` on `v3/core/attention.js`)
+> and stops — inheriting the ranking, the interrupt rule, the personality voice, quiet mode
+> and `expiresAt` decay rather than reimplementing any of them. An event that painted the
+> glance cell itself would be a **third** author of a node the composer and the voice already
+> share, and Phase 2 spent a whole spec on that bug in its second shape.
+>
+> ⚠ It also ships the **minimum-away guard the incumbent still lacks**
+> (`arrivalGreeting.js:289`). July's 27 false arrivals in five days were root-caused upstream
+> (`consider_home` 60 s → 900 s), but the dashboard believed all 27. Under 10 minutes away is
+> not an arrival. An *unknown* away time is treated as long enough — a missed greeting is a
+> worse failure than a duplicate one.
+
+> **`__v3Tick` silently ignored its argument.** There was no way to watch a candidate expire
+> without waiting out its real lifetime. It now takes an optional clock — which matters
+> because `expiresAt` is the entire lifetime of an announced event; there is no timer behind
+> `announce()` and nothing to tear down.
+
+New debug handles: `__v3Alert(entityId, state)`, `__v3Arrival(entityId, state)` (call it
+twice — a greeting needs a transition observed this session), `__v3Tick(now)`, and
+`__depth().recedesTo`, which answers where the current hold would land without waiting for it.
 
 ### Phase 4 — The remaining subjects
 
@@ -239,6 +300,15 @@ and must tear itself down on leave — a subject left mounted holds its MJPEG co
 forever.
 
 Calendar · Recipe · Memories · Media · Briefing · Lists — S–M each, parallelisable.
+
+⚠ **Briefing carries 3.4 with it.** The morning briefing should open at its window as a
+depth-**3** subject, not the depth 2 the plan said: since Phase 2, depth 2 is a composition
+built from ranked candidates, and a briefing is one thing at length. The forced-open path
+already exists — `v3/core/alerts.js` mounts a subject and calls `setDepth` directly with its
+own hold — so the briefing's window is that shape with a clock as the cause instead of a
+sensor. ⚠ **The one thing to get right: a clock is not an external cause.** Per the calm law
+(§5.1, "time passing is not a cause"), the briefing may open at its window *only while
+someone is present* — otherwise it is the surface moving for a reason the room cannot see.
 
 ### Phase 5 — Ambient parity
 
@@ -276,7 +346,7 @@ and the flip stays a URL.
 
 - [x] Depth moves without speech (Phase 1) — ✅ `3efb426`, demonstrated live
 - [x] Motion wakes the surface (3.2) — ✅ falls out of 1.4/1.5; still wants a real-event sighting
-- [ ] Doorbell reaches the screen unasked (3.1)
+- [x] Doorbell reaches the screen unasked (3.1) — ✅ `c20525a`; **wants a real-doorbell sighting**
 - [x] Depth 2 renders something (Phase 2) — ✅ `7d89002`; **not yet seen by eye**
 - [ ] Display sleeps overnight (5.1)
 - [ ] Ground never shows a screenshot (5.2)
