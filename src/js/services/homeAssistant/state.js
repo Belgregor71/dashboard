@@ -30,3 +30,14 @@ export function getEntity(entityId) {
 export function getAllEntities() {
   return entities;
 }
+
+/* Test seam. This cache is module-level state with no other way back to empty,
+   so a spec that seeded it leaked entities into every later spec in the same
+   worker — houseSnapshot's specs inject their entities instead precisely to
+   avoid that. The feed cannot: filling this cache is the thing it does.
+   The version is BUMPED rather than zeroed, because the derived lookups
+   memoize on it and a version that goes backwards hands them a stale answer. */
+export function __resetEntities() {
+  for (const key of Object.keys(entities)) delete entities[key];
+  entitiesVersion += 1;
+}

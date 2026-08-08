@@ -17,6 +17,10 @@ import { clearSubject, activeSubject } from "./subjects/index.js";
 import { clearVocabularyCard, vocabularyCardMounted } from "./core/vocabulary-card.js";
 import { railPhrase } from "../js/services/vocabulary.js";
 import { voiceSnapshot, refreshVoiceCache } from "../js/services/voiceSnapshot.js";
+import { connectHA, isHAConnected } from "../js/services/homeAssistant/client.js";
+import { registerEntityFeed } from "../js/services/homeAssistant/entityFeed.js";
+import { getAllEntities } from "../js/services/homeAssistant/state.js";
+import { refreshHouseCache, houseCacheAge } from "../js/services/houseSnapshot.js";
 
 /* Sun position only. City-level Brisbane, deliberately coarse: this repo is
    PUBLIC and its bundle is tracked, so no house-precise coordinate may appear
@@ -149,6 +153,26 @@ function boot() {
   initVoice({ enabled: true, lat: CITY.lat, lon: CITY.lon });
   onDepth(onDepthChange);
 
+  /* ── The house's feed ─────────────────────────────────────────────────────
+     Both halves of the state the decision layer reads. The entity cache is
+     filled by the SSE stream (live, push); the HTTP-backed half — weather,
+     calendar, commute, Plex — is prefetched on a timer because those are
+     request/response and must never be awaited on a tick.
+
+     The feed comes BEFORE connectHA() or the first snapshot arrives with
+     nobody subscribed, and that snapshot is the only bulk fill there is: after
+     it, only entities that actually change are sent. Miss it and the cache
+     stays near-empty until something in the house moves.
+
+     Nothing consumes this yet — the attention engine is wired in 1.3. It is
+     first because until it exists, houseSnapshot() reads an empty cache and
+     honestly answers null to every question, which looks like a broken engine
+     and is a missing feed. It also fixes the voice rail, which has been asking
+     the same empty cache since V3 booted. */
+  registerEntityFeed();
+  connectHA();
+  refreshHouseCache();
+
   substrate = initSubstrate(el.substrate);
 
   // The photograph and its scrim are one thing in two files: the ground knows
@@ -168,6 +192,7 @@ function boot() {
   setInterval(pushCauses, 60_000);  // sun moves; the field follows it
   setInterval(loadWeather, 600_000);
   setInterval(() => { refreshVoiceCache(); }, 300_000);
+  setInterval(() => { refreshHouseCache(); }, 300_000);
   setInterval(() => { railTick += 1; paintRail(); }, 90_000);
 
   setDepth(DEPTH.FIELD, "boot");
@@ -182,7 +207,16 @@ function boot() {
     ground: window.__ground?.(),
     scrim: window.__scrim?.(),
     rail: el.rail?.hidden === false ? el.rail.textContent : null,
-    weather: weather?.now?.condition?.label ?? null
+    weather: weather?.now?.condition?.label ?? null,
+    // The feed, in the two numbers that tell you whether it is alive. An entity
+    // count of 0 with connected:true means the snapshot has not landed yet; 0
+    // with connected:false means the stream is down and every reader is right
+    // to be answering null.
+    ha: {
+      connected: isHAConnected(),
+      entities: Object.keys(getAllEntities()).length,
+      houseCacheAgeMs: houseCacheAge()
+    }
   });
 
   console.info("V3 ready —", substrate?.backend ?? "no substrate");

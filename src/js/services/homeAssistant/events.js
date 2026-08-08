@@ -1,12 +1,7 @@
 import { emit, on } from "../../core/eventBus.js";
-import { CONFIG } from "../../core/config.js";
-import { getEntity, updateEntity } from "./state.js";
-import { getTodoEntityIds } from "./todoEntities.js";
 import { switchView } from "../../core/viewManager.js";
-import { requestShoppingList, requestTodoItems } from "./client.js";
+import { registerEntityFeed } from "./entityFeed.js";
 import { handleCalendarCommand } from "../calendar/commands.js";
-
-const SHOPPING_LIST_ENTITY_ID = CONFIG.homeAssistant?.shoppingListEntityId ?? "todo.shopping_list";
 
 let dashboardCommandBridgeRegistered = false;
 
@@ -23,61 +18,20 @@ function registerWindowDashboardCommandBridge() {
 
 export function registerHAEvents() {
   registerWindowDashboardCommandBridge();
-  on("ha:todo-items", ({ entityId, items }) => {
-    if (!entityId || !Array.isArray(items)) return;
 
-    const current = getEntity(entityId);
-    const attributes = {
-      ...(current?.attributes ?? {}),
-      items,
-      all_items: items
-    };
+  /* The entity cache is filled by services/homeAssistant/entityFeed.js, which is
+     DOM-free so V3 can share it. Registered from here rather than from app.js so
+     the incumbent's single call site stays the single call site, and so the feed
+     can never be forgotten on the surface that has always had it. */
+  registerEntityFeed();
 
-    updateEntity({
-      ...(current ?? {}),
-      entity_id: entityId,
-      attributes
-    });
-
-    document.dispatchEvent(
-      new CustomEvent("ha:state-updated", {
-        detail: { entity_id: entityId }
-      })
-    );
-  });
-
-  on("ha:states", (entities) => {
-    if (!Array.isArray(entities)) return;
-
-    entities.forEach((entity) => {
-      updateEntity(entity);
-      document.dispatchEvent(
-        new CustomEvent("ha:state-updated", {
-          detail: entity
-        })
-      );
-    });
-
-    getTodoEntityIds().forEach((entityId) => requestTodoItems(entityId));
-    requestShoppingList();
-  });
-
-  on("ha:event:state_changed", (data) => {
-    updateEntity(data.new_state);
-
-    document.dispatchEvent(
-      new CustomEvent("ha:state-updated", {
-        detail: data.new_state
-      })
-    );
-
-    const entityId = data?.new_state?.entity_id;
-    if (getTodoEntityIds().includes(entityId)) {
-      requestTodoItems(entityId);
-    }
-    if (entityId === SHOPPING_LIST_ENTITY_ID) {
-      requestShoppingList();
-    }
+  /* All this module keeps of the old cache path: the DOM re-broadcast. Twelve
+     modules listen for `ha:state-updated` on `document` and that stays exactly
+     true. `emit()` is synchronous, so the cache write in the feed still lands
+     immediately before the matching DOM event — same order as when both lived
+     in one function. */
+  on("ha:state-updated", (detail) => {
+    document.dispatchEvent(new CustomEvent("ha:state-updated", { detail }));
   });
 
   on("ha:event:dashboard_command", (data) => {
