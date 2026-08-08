@@ -212,8 +212,10 @@ test.describe("the status readout", () => {
       const values = [...document.querySelectorAll(".subject--status .subject__text")];
       const labels = [...document.querySelectorAll(".subject--status .subject__lead")];
       const xs = values.map((v) => Math.round(v.getBoundingClientRect().x));
+      const heights = labels.map((l) => Math.round(l.getBoundingClientRect().height));
       return {
         distinctValueX: [...new Set(xs)].length,
+        distinctLabelHeight: [...new Set(heights)].length,
         valueFont: getComputedStyle(values[0]).fontFamily,
         labelFont: getComputedStyle(labels[0]).fontFamily,
         valuePx: getComputedStyle(values[0]).fontSize,
@@ -222,6 +224,11 @@ test.describe("the status readout", () => {
     });
 
     expect(got.rows).toBeGreaterThan(1);
+    /* ⚠ And no label wraps. A first pass sized this column with a `ch` guess
+       and three of nine labels went to two lines, which is the same ragged
+       column in a different hat — `ch` is the advance of "0" and says almost
+       nothing about proportional lowercase. */
+    expect(got.distinctLabelHeight, "a feed label wrapped — the column is too narrow").toBe(1);
     // One column, one x. A staircase reads as every value at its own indent.
     expect(got.distinctValueX, "the value column is ragged — a staircase, not a readout").toBe(1);
     // Measured, not said: the house is not telling you this, you asked it.

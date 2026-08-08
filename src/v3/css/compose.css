@@ -516,12 +516,30 @@ html, body {
    the eye should sweep the left column and stop only where something is
    wrong. Which is what the level rule below is for: a fault is the one thing
    here in full ink, so it is findable without reading. */
-.subject--status .subject__row {
+/* ⚠ THE GRID IS ON THE LIST, AND THE ROWS ARE `display: contents`. Getting
+   this wrong is instructive and cost two passes:
+
+   - A grid on each ROW gives every row its own column track, so `max-content`
+     resolves per row — each value starts at its own label's width, which is
+     exactly the staircase this was added to remove. A shared column requires a
+     shared grid, and the only element that contains every row is the list.
+   - Sizing that column with a `ch` number instead (the first pass used 15ch)
+     does align the values, but `ch` is the advance of "0" and says almost
+     nothing about proportional lowercase: three of the nine labels wrapped to
+     a second line, and any number picked here is a guess that holds only until
+     the server grows a longer feed label.
+
+   `max-content` on the list's first track is the width of the widest label in
+   the readout, whatever that turns out to be, shared by every row. */
+.subject--status .subject__list {
   display: grid;
-  grid-template-columns: minmax(0, 15ch) 1fr;
+  grid-template-columns: max-content 1fr;
   align-items: baseline;
-  gap: var(--gutter);
+  column-gap: var(--gutter);
+  row-gap: 18px;
 }
+
+.subject--status .subject__row { display: contents; }
 
 .subject--status .subject__text { color: var(--ink-dim); }
 .subject--status .subject__row[data-level="error"] .subject__text { color: var(--ink); }
