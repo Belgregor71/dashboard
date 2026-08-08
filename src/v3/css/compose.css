@@ -277,6 +277,32 @@ html, body {
   overflow: hidden;
 }
 
+/* ⚠ SEEN ON THE WALL, 2026-08-08 — THE SCRIM IS THE WRONG SHAPE FOR THESE.
+   `--scrim` is a gradient `to top`: full alpha at the floor, 72% at 38%, and
+   TRANSPARENT BY 88%. That shape is right for depths 0 and 1, whose only text
+   is an hour and one line, both sitting at the bottom of the frame. Phase 4
+   put a title and six rows across the TOP half — i.e. into the part of the
+   photograph the scrim deliberately does not cover. "SATURDAY 8 AUGUST" over a
+   bright sky was legible only just, and that is the good case.
+
+   The fix is a flat veil at the SOLVED opacity rather than a second gradient.
+   core/scrim.js samples the real photograph and computes the smallest alpha
+   that clears 7:1 at the text band's WORST coverage; a flat veil applies that
+   same alpha at FULL coverage everywhere, which is strictly more covering than
+   the gradient's worst point. So the measured guarantee carries over rather
+   than being re-guessed — and no number is invented here, which is the whole
+   reason the sampler exists.
+
+   The media subject is excluded on purpose: its artwork IS the answer and it
+   carries its own local scrim under the caption instead. */
+.subject--calendar,
+.subject--list,
+.subject--recipe,
+.subject--year,
+.subject--briefing {
+  background: color-mix(in oklch, var(--scrim-base) calc(var(--scrim-opacity) * 100%), transparent);
+}
+
 /* The subject's name for itself. Deliberately quiet: it is a label on the
    thing, and the thing is what the room came to look at. */
 .subject__title {
@@ -287,6 +313,11 @@ html, body {
   flex: 0 0 auto;
 }
 
+/* `flex: 1 1 auto` and not just `min-height: 0`. Without it a flex child sizes
+   to its CONTENT and leaves the rest of the panel empty — which is what put
+   three letterboxed bands of photographs in the top two-thirds of the wall with
+   dead space under them. The child has to be told to consume the remaining
+   height before `min-height: 0` has anything to constrain. */
 .subject__list {
   list-style: none;
   margin: 0;
@@ -294,6 +325,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
 }
@@ -356,11 +388,17 @@ html, body {
 
 /* On this day: nine plates, square-cropped so the grid reads as a grid rather
    than as nine differently-shaped holes. */
+/* Same fix as .subject__list, and this is where it was actually seen: nine
+   plates rendered as three letterboxed strips with dead space between them,
+   because the grid sized to its rows' content instead of filling the frame.
+   `grid-template-rows` (not auto-rows) so all three rows are equal thirds of
+   whatever height the grid gets. */
 .subject__plates {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  grid-auto-rows: 1fr;
+  grid-template-rows: repeat(3, 1fr);
   gap: var(--gutter);
+  flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
 }

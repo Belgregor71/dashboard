@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { eventsForDay } from "../src/v3/subjects/calendar.js";
-import { yearsAgo } from "../src/v3/subjects/memories.js";
+import { eventsForDay, displayTitleOf } from "../src/v3/subjects/calendar.js";
+import { yearsAgo, assetDate, captionFor } from "../src/v3/subjects/memories.js";
 
 /* Phase 4 — the six remaining depth-3 subjects.
 
@@ -135,6 +135,55 @@ test.describe("how long ago a photograph was", () => {
   test("an undated asset says nothing rather than guessing", () => {
     expect(yearsAgo(undefined, now)).toBeNull();
     expect(yearsAgo("", now)).toBeNull();
+    expect(yearsAgo("not a date", now)).toBeNull();
+    /* ⚠ null specifically, and it is not paranoia — `new Date(null)` is the
+       EPOCH, so it sails past an isFinite check and captions an undated photo
+       "56 years ago". `new Date(undefined)` is invalid, which is exactly why
+       the line above passed while this one was broken. */
+    expect(yearsAgo(null, now)).toBeNull();
+  });
+
+  test("⚠ the date field is localDateTime — SEEN BLANK ON THE WALL", () => {
+    /* Nine photographs went up with not one caption, because this file was
+       written against the raw Immich asset's `takenAt` while the route returns
+       `slim(a)`, which renames it. Nothing threw; the captions were simply
+       absent and the screen looked deliberate. This is the exact payload
+       /api/immich/on-this-day really returns. */
+    const real = {
+      id: "29f27bb6-48c5-4b48-99a4-ccb20f57ede2",
+      localDateTime: "2022-08-09T17:57:10.444Z",
+      city: "Nudgee", state: "Queensland", country: "Australia"
+    };
+    expect(assetDate(real)).toBe("2022-08-09T17:57:10.444Z");
+    expect(captionFor(real, now)).toBe("4 years ago · Nudgee");
+  });
+
+  test("place is optional, and an asset with neither says nothing", () => {
+    expect(captionFor({ localDateTime: "2025-08-09T00:00:00Z", city: null }, now)).toBe("last year");
+    expect(captionFor({ city: "Nudgee" }, now)).toBe("Nudgee");
+    expect(captionFor({}, now)).toBeNull();
+  });
+
+  test("the older field names still work, so the fix is additive", () => {
+    expect(assetDate({ takenAt: "2020-01-01T00:00:00Z" })).toBe("2020-01-01T00:00:00Z");
+    expect(assetDate({ fileCreatedAt: "2020-01-01T00:00:00Z" })).toBe("2020-01-01T00:00:00Z");
+  });
+});
+
+test.describe("what a calendar row actually says", () => {
+  test("⚠ the Meal: routing prefix never reaches the glass — SEEN ON THE WALL", () => {
+    /* The wall read "6pm — Meal: Chicken Fajitas". `Meal:` is how tonightsMenu,
+       the recipe panel and houseSnapshot FIND dinner; it is not a word anyone
+       should read. Every other consumer strips it and this one did not. */
+    expect(displayTitleOf({ title: "Meal: Chicken Fajitas" })).toBe("Chicken Fajitas");
+    expect(displayTitleOf({ displayTitle: "Meal:   Lasagne" })).toBe("Lasagne");
+  });
+
+  test("an ordinary event is untouched, and an empty one still says something", () => {
+    expect(displayTitleOf({ title: "Dentist" })).toBe("Dentist");
+    // "Meal:" with nothing after it must not render as an empty row.
+    expect(displayTitleOf({ title: "Meal:" })).toBe("Meal:");
+    expect(displayTitleOf({})).toBe("Something");
   });
 });
 
@@ -186,11 +235,14 @@ test("a loaded-but-empty day is a real answer and does earn the screen", async (
 });
 
 test("the year mounts the photographs and captions how long ago they were", async ({ page }) => {
+  // The payload shape is the REAL one — localDateTime + city — because writing
+  // this against the upstream API's field names is what shipped nine blank
+  // captions to the wall.
   const { pageErrors } = await bootV3(page, {
     "/api/immich/on-this-day": {
       assets: [
-        { id: "aaa", takenAt: "2019-08-10T08:00:00Z" },
-        { id: "bbb", takenAt: "2024-08-10T08:00:00Z" }
+        { id: "aaa", localDateTime: "2019-08-10T08:00:00Z", city: "Nudgee" },
+        { id: "bbb", localDateTime: "2025-08-10T08:00:00Z", city: null }
       ]
     }
   });
@@ -200,7 +252,38 @@ test("the year mounts the photographs and captions how long ago they were", asyn
   expect(got.subject).toBe("show.year");
   expect(got.depth).toBe(3);
   expect(got.images).toBe(2);
-  expect(got.text).toContain("years ago");
+
+  const caps = await page.evaluate(() =>
+    Array.from(document.querySelectorAll(".subject__caption-sm")).map((n) => n.textContent)
+  );
+  // The one thing the subject is ABOUT. Blank captions are the failure that
+  // looked deliberate on the glass.
+  expect(caps).toEqual(["7 years ago · Nudgee", "last year"]);
+  expect(pageErrors).toEqual([]);
+});
+
+test("⚠ a text subject carries the solved scrim across the WHOLE frame", async ({ page }) => {
+  /* --scrim is a gradient `to top` that is transparent by 88%, which is right
+     for depths 0-1 (an hour and one line, both at the floor) and wrong for a
+     subject that writes across the top half. Seen on the wall: a title over
+     bright sky at the edge of legible. The veil uses the SOLVED opacity, so no
+     number is invented — it just applies it at full coverage. */
+  const { pageErrors } = await bootV3(page, { "/api/calendar/all": calToday() });
+  await page.evaluate(() => window.__v3Refresh());
+  await show(page, "show me my day");
+
+  const got = await page.evaluate(() => {
+    const el = document.querySelector(".subject--calendar");
+    const solved = getComputedStyle(document.documentElement).getPropertyValue("--scrim-opacity").trim();
+    const bg = getComputedStyle(el).backgroundColor;
+    const alpha = Number((bg.match(/[\d.]+\)$/) ?? ["1)"])[0].replace(")", ""));
+    return { solved: Number(solved), bg, alpha, opaque: bg !== "rgba(0, 0, 0, 0)" };
+  });
+
+  expect(got.opaque, `the subject painted no veil at all: ${got.bg}`).toBe(true);
+  // The veil tracks the sampler's answer rather than a hand-picked constant.
+  expect(got.alpha).toBeGreaterThan(0);
+  expect(Math.abs(got.alpha - got.solved)).toBeLessThan(0.06);
   expect(pageErrors).toEqual([]);
 });
 

@@ -15,6 +15,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { frame, title, column } from "./dom.js";
+import { MEAL_PREFIX } from "../../js/services/mealEvent.js";
 
 /* Six rows at 96px inside the safe area. The fix for a seventh is not a smaller
    row — nothing below the 32px floor is received at 3m, and a shrunken list is
@@ -34,6 +35,19 @@ function clock(d) {
     .toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: TZ })
     .replace(":00", "")
     .replace(" ", "");
+}
+
+/* ⚠ SEEN ON THE WALL, 2026-08-08: the day read "6pm — Meal: Chicken Fajitas".
+   `Meal:` is a ROUTING CONVENTION — it is how tonightsMenu, the recipe panel and
+   houseSnapshot find dinner in the calendar — and it is not something anybody
+   should ever read on the glass. Every other consumer strips it; the one that
+   puts the raw title on a 1920px wall did not. Stripped here at the last
+   possible moment, so the event is still matched by its real title everywhere
+   upstream. */
+export function displayTitleOf(event) {
+  const raw = event?.displayTitle || event?.title || "";
+  const stripped = raw.replace(MEAL_PREFIX, "").trim();
+  return stripped || raw.trim() || "Something";
 }
 
 /** Today's events in order, from `now` onwards, plus the ones already running.
@@ -67,7 +81,7 @@ export function showDay(snapshot, { now = new Date() } = {}) {
   } else {
     const rows = events.slice(0, MAX_ROWS).map((e) => ({
       lead: e.allDay ? "all day" : clock(e.at),
-      text: e.displayTitle || e.title || "Something"
+      text: displayTitleOf(e)
     }));
     if (events.length > MAX_ROWS) {
       rows.push({ text: `and ${events.length - MAX_ROWS} more` });
