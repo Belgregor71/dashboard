@@ -759,6 +759,26 @@ window.CONFIG = {
     // then lets it fall back. Outside the window the route is a no-op.
     // Default OFF = no fetch at all, byte-identical. One-line revert.
     displayWake: false,
+
+    // V3 step 5.1. Whether V3 knows the panel's power state at all.
+    //
+    // NOT a port of modules/energySaver.js — the panel already goes dark on V3,
+    // because DPMS belongs to the X display rather than to the URL and the
+    // `xset` crontab survived the Pi→G11 migration. What V3 lacked is the two
+    // things that follow from the panel being off: it kept animating the
+    // substrate at 15fps for a dark screen on any windy night, and its alert
+    // path — the one thing that puts itself on the wall unasked — announced a
+    // doorbell to a screen nobody could see.
+    //
+    // With this on, V3 tracks the off-window (server-owned, confirmed against
+    // X's own `monitor` reading so a broken DPMS cannot freeze a lit panel),
+    // pauses the substrate while dark, and lets core/alerts.js ask for the
+    // panel. That last part ALSO requires `displayWake` above: same rule, same
+    // flag, both surfaces — security events only, never kitchen presence.
+    //
+    // Default OFF = no timer, no fetch, no attribute; byte-identical to before.
+    // One-line revert, and the substrate's pause is the only surface effect.
+    v3EnergySaver: false,
   },
 
   /* --------------------------------------------------------------

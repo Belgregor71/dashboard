@@ -98,8 +98,13 @@ export function createCanvasSubstrate(canvas) {
   }
 
   const FRAME_MS = 66;
+
+  // See the note in gl.js — same contract, because initSubstrate may swap this
+  // in for the shader at any moment and the layer above must not notice.
+  let paused = false;
+
   function loop(now) {
-    if (!moving()) { raf = null; return; }
+    if (paused || !moving()) { raf = null; return; }
     if (now - last >= FRAME_MS) { last = now; draw(); }
     raf = requestAnimationFrame(loop);
   }
@@ -109,10 +114,22 @@ export function createCanvasSubstrate(canvas) {
     renderer: "canvas2d",
     update(next) {
       causes = { ...causes, ...next };
+      if (paused) return;
       draw();
       if (moving() && raf === null) raf = requestAnimationFrame(loop);
     },
-    stats: () => ({ frames, seconds: (performance.now() - t0) / 1000, animating: raf !== null }),
+    setPaused(next) {
+      if (next === paused) return;
+      paused = Boolean(next);
+      if (paused) {
+        if (raf) cancelAnimationFrame(raf);
+        raf = null;
+        return;
+      }
+      draw();
+      if (moving() && raf === null) raf = requestAnimationFrame(loop);
+    },
+    stats: () => ({ frames, seconds: (performance.now() - t0) / 1000, animating: raf !== null, paused }),
     destroy() {
       if (raf) cancelAnimationFrame(raf);
       raf = null;

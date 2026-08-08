@@ -1,6 +1,12 @@
 import express from "express";
 import { execFile } from "child_process";
 import { loopbackOnly } from "../middleware/security.js";
+import { isWithinOffWindow } from "../../src/js/services/displayWindow.js";
+
+// Re-exported, not re-implemented. V3 needs the same answer in the browser
+// (src/v3/core/display.js), so the arithmetic moved to a pure shared service
+// and this stays its published name — tests/display.spec.js imports it here.
+export { isWithinOffWindow };
 
 const router = express.Router();
 
@@ -41,27 +47,6 @@ function offWindow() {
 function holdMs() {
   const raw = Number(process.env.DISPLAY_WAKE_HOLD_MS);
   return Number.isFinite(raw) && raw > 0 ? raw : 90000;
-}
-
-function toMinutes(hhmm) {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm).trim());
-  if (!match) return null;
-  const h = Number(match[1]);
-  const m = Number(match[2]);
-  if (h > 23 || m > 59) return null;
-  return h * 60 + m;
-}
-
-// The window wraps midnight, so a naive start<=now<end is wrong for every real
-// setting of it. Exported for the contract test — this is the part worth pinning.
-export function isWithinOffWindow(now, start, end) {
-  const s = toMinutes(start);
-  const e = toMinutes(end);
-  if (s === null || e === null) return false;
-  const minutes = now.getHours() * 60 + now.getMinutes();
-  if (s === e) return false;              // degenerate: never off
-  if (s < e) return minutes >= s && minutes < e;
-  return minutes >= s || minutes < e;     // wraps midnight (21:00 → 05:00)
 }
 
 function xset(action) {

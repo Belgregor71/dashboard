@@ -149,8 +149,14 @@ export function createGlSubstrate(canvas) {
   // perceptibly different and every extra frame is pure cost.
   const FRAME_MS = 66;
 
+  /* Paused means the PANEL is off (core/display.js), not that the page is
+     hidden — DPMS does not fire visibilitychange, so nothing else stops this
+     loop overnight. Whether Chromium keeps servicing rAF with no display
+     attached is driver-dependent; pausing makes the answer ours instead. */
+  let paused = false;
+
   function loop(now) {
-    if (!moving()) { raf = null; return; }
+    if (paused || !moving()) { raf = null; return; }
     if (now - last >= FRAME_MS) { last = now; draw(); }
     raf = requestAnimationFrame(loop);
   }
@@ -163,10 +169,26 @@ export function createGlSubstrate(canvas) {
     })(),
     update(next) {
       causes = { ...causes, ...next };
+      // Causes keep accruing while dark — the sun still moves and the weather
+      // still changes — but nothing is drawn for them until the panel is back.
+      if (paused) return;
       draw();                                   // a cause changed: show it once
       if (moving() && raf === null) raf = requestAnimationFrame(loop);
     },
-    stats: () => ({ frames, seconds: (performance.now() - t0) / 1000, animating: raf !== null }),
+    setPaused(next) {
+      if (next === paused) return;
+      paused = Boolean(next);
+      if (paused) {
+        if (raf) cancelAnimationFrame(raf);
+        raf = null;
+        return;
+      }
+      // Waking: the field has to catch up in one frame, because the causes it
+      // is holding are up to a night old.
+      draw();
+      if (moving() && raf === null) raf = requestAnimationFrame(loop);
+    },
+    stats: () => ({ frames, seconds: (performance.now() - t0) / 1000, animating: raf !== null, paused }),
     destroy() {
       if (raf) cancelAnimationFrame(raf);
       raf = null;

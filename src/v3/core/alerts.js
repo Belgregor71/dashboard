@@ -40,6 +40,7 @@ import { speak } from "../../js/core/tts.js";
 import { setPhase, trackSpeech } from "./presence-light.js";
 import { showSubject } from "../subjects/index.js";
 import { DEPTH, setDepth } from "./depth.js";
+import { requestPanelWake } from "./display.js";
 
 /* How long the door holds the screen. Longer than an ordinary subject's 30 s
    (depth.js HOLD_MS) because the two are not the same event: "show me the
@@ -67,6 +68,19 @@ export async function raiseAlert(entity, { now = Date.now() } = {}) {
   if (!alert) return null;
 
   const { location, personName, line } = alert;
+
+  /* ── The panel, before anything else ──────────────────────────────────────
+     Step 5.1. Between 21:00 and 05:00 the crontab has the backlight off, and
+     everything below this line — the camera, the depth change, the spoken
+     announcement — happens to a screen nobody can see. `xset dpms force on` is
+     the fastest part of this whole sequence, so firing it first costs the
+     announcement nothing and buys the picture a chance of being up in time.
+
+     NOT awaited, deliberately. The door's job is to announce itself; if the
+     panel never comes up (route down, xset missing, flag off) the ring must
+     still ring. It no-ops entirely outside the off-window — the check is
+     local, so a daytime doorbell does not even make the request. */
+  requestPanelWake(`alert:${location.prefix}`).catch(() => {});
 
   /* The camera FIRST, and the depth only if it mounted. Same ordering rule the
      composer follows: nothing may flip the depth into a layer that has nothing

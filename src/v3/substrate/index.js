@@ -77,6 +77,12 @@ export function toCauses({
 export function initSubstrate(canvas, { forceBackend = null } = {}) {
   let impl = null;
 
+  // Held here as well as in the backend, because the backend can be REPLACED
+  // under us by the context-loss path below. A GPU reset at 3am that quietly
+  // resumed a 15fps loop against a powered-down panel is exactly the class of
+  // failure this phase exists to stop, and it would leave no trace by morning.
+  let paused = false;
+
   if (forceBackend !== "canvas2d") impl = createGlSubstrate(canvas);
   if (!impl) impl = createCanvasSubstrate(canvas);
   if (!impl) return null;
@@ -91,7 +97,9 @@ export function initSubstrate(canvas, { forceBackend = null } = {}) {
     canvas.removeEventListener("webglcontextlost", onLost);
     try { impl.destroy(); } catch { /* the context is already gone */ }
     impl = createCanvasSubstrate(canvas);
-    if (impl) impl.update({});
+    // Inherit the pause BEFORE the first update, or the replacement draws a
+    // frame the dark panel cannot show and then starts its own loop.
+    if (impl) { impl.setPaused(paused); impl.update({}); }
   };
   if (impl.backend === "webgl2") canvas.addEventListener("webglcontextlost", onLost);
 
@@ -99,6 +107,10 @@ export function initSubstrate(canvas, { forceBackend = null } = {}) {
 
   return {
     update: (causes) => impl.update(causes),
+    setPaused(next) {
+      paused = Boolean(next);
+      impl.setPaused(paused);
+    },
     get backend() { return impl.backend; },
     destroy() {
       canvas.removeEventListener("webglcontextlost", onLost);

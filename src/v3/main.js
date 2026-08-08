@@ -27,6 +27,7 @@ import { initAttention, lastSelection, tickAttention, announcements } from "./co
 import { initAlerts, lastAlert } from "./core/alerts.js";
 import { initArrival, lastArrival } from "./core/arrival.js";
 import { initBriefingWindow, lastBriefing } from "./core/briefing-window.js";
+import { initDisplay, onPanelDark, displayState } from "./core/display.js";
 
 /* Sun position only. City-level Brisbane, deliberately coarse: this repo is
    PUBLIC and its bundle is tracked, so no house-precise coordinate may appear
@@ -229,6 +230,19 @@ function boot() {
 
   substrate = initSubstrate(el.substrate);
 
+  /* ── Step 5.1 · the panel ─────────────────────────────────────────────────
+     The crontab powers the backlight down at 21:00 and DPMS says nothing to the
+     page about it, so without this the substrate animates at 15fps until 05:00
+     on any windy night, for a dark screen in an empty room.
+
+     Registered after the substrate exists because the pause is the only thing
+     it does here, and before nothing in particular — display.js holds no state
+     the rest of the boot depends on. Flag-off means it never runs, which is why
+     the wiring is a single subscription rather than a condition in the loop. */
+  if (initDisplay()) {
+    onPanelDark((isDark) => substrate?.setPaused(isDark));
+  }
+
   // The photograph and its scrim are one thing in two files: the ground knows
   // nothing about legibility and the scrim knows nothing about where photos
   // come from, and this line is the whole of the coupling between them.
@@ -281,6 +295,7 @@ function boot() {
     alert: lastAlert(),
     arrival: lastArrival(),
     briefing: lastBriefing(),
+    display: displayState(),
     presence: window.__v3Presence?.()
   });
 
