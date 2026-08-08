@@ -108,9 +108,24 @@ async function evaluateDetectionSwitches() {
 
 // ── Guard 2: eufy push lane ────────────────────────────────────
 
-function motionCanaryLevel() {
-  const feed = getHealth().feeds.find((f) => f.id === "motion");
+function feedLevel(id) {
+  const feed = getHealth().feeds.find((f) => f.id === id);
   return feed?.level ?? "ok";
+}
+
+/**
+ * Why this acts on `warn` while the house-wide canary needs `error`.
+ *
+ * The canary's error bar is 48h of TOTAL silence, which is right for a signal
+ * that a quiet night legitimately trips. Divergence is a far stronger claim
+ * before it says anything at all — the rest of the house busy, this camera
+ * silent for 90+ minutes, and (for the kitchen) someone actually home. Waiting
+ * for it to escalate would rebuild the delay that made the 2026-08-08 outage
+ * a 22-hour one. The reconnect is seconds long and cooled down 6h either way.
+ */
+function coverageWantsRepair() {
+  const level = feedLevel("motionCoverage");
+  return level === "warn" || level === "error";
 }
 
 async function evaluateEufyPushLane() {
@@ -134,15 +149,20 @@ async function evaluateEufyPushLane() {
       return;
     }
 
-    const canaryError = motionCanaryLevel() === "error";
+    const canaryError = feedLevel("motion") === "error";
+    const coverageFault = coverageWantsRepair();
     const pushDown = !status.pushConnected || !status.driverConnected;
-    if (!pushDown && !canaryError) return;
+    if (!pushDown && !canaryError && !coverageFault) return;
     if (Date.now() - lastEufyReconnectAt < EUFY_RECONNECT_COOLDOWN_MS) return;
 
     lastEufyReconnectAt = Date.now();
-    const reason = pushDown
-      ? `driver=${status.driverConnected} push=${status.pushConnected}`
-      : "motion canary stale";
+    // Named most-specific first: a driver reporting itself down explains
+    // everything below it, and "some cameras stopped" is a sharper diagnosis
+    // than "nothing has fired in two days".
+    let reason = "motion canary stale";
+    if (pushDown) reason = `driver=${status.driverConnected} push=${status.pushConnected}`;
+    else if (coverageFault) reason = getHealth().feeds.find((f) => f.id === "motionCoverage")?.detail
+      || "camera coverage diverged";
     record("eufy-push", "driver reconnect attempt", true, reason);
 
     try {

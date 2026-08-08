@@ -2,7 +2,7 @@ import express from "express";
 import os from "os";
 import { readFile, readdir } from "fs/promises";
 import { fetchWithTimeout } from "../utils/fetch.js";
-import { getHealth } from "../services/healthService.js";
+import { getHealth, getMotionCoverage } from "../services/healthService.js";
 import { getRecoveryLog } from "../services/recoveryService.js";
 
 const router = express.Router();
@@ -192,7 +192,13 @@ router.get("/api/system/ping", async (_req, res) => {
 });
 
 router.get("/api/system/health", (_req, res) => {
-  res.json({ ...getHealth(), recoveries: getRecoveryLog() });
+  // The per-camera table rides alongside the feeds so the divergence
+  // thresholds can be tuned against real numbers rather than guessed at again.
+  res.json({
+    ...getHealth(),
+    recoveries: getRecoveryLog(),
+    motionCoverage: getMotionCoverage().cameras
+  });
 });
 
 router.get("/api/system/metrics", async (_req, res) => {

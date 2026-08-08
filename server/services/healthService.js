@@ -1,4 +1,5 @@
 import { haPost } from "../ha/haRest.js";
+import { createCoverageTracker } from "./motionCoverage.js";
 
 // Watchdog: tracks per-feed freshness/failures, evaluates every minute, and
 // pushes a phone notification (via HA notify) when a feed degrades or recovers.
@@ -22,6 +23,10 @@ const FEEDS = {
   // like three unrelated faults. This names the one cause.
   wan: { label: "Internet", kind: "state", entity: "binary_sensor.archer_ax11000_wan_status", notify: false },
   motion: { label: "Motion events", kind: "heartbeat", staleMs: 24 * 60 * 60 * 1000 },
+  // The house-wide canary above is satisfied by ANY camera firing, which is the
+  // right question for a total outage and blind to a partial one. This feed
+  // asks the per-camera question instead — see motionCoverage.js.
+  motionCoverage: { label: "Motion coverage", kind: "coverage" },
   weather: { label: "Weather", kind: "heartbeat", staleMs: 45 * 60 * 1000 },
   calendar: { label: "Calendar", kind: "heartbeat", staleMs: 2 * 60 * 60 * 1000 },
   cameras: { label: "Camera snapshots", kind: "on-demand", failThreshold: 3 },
@@ -36,6 +41,7 @@ const DOORBELL_RING_ENTITY = "binary_sensor.doorbell_ringing";
 
 const startedAt = Date.now();
 const feedState = new Map(); // id → mutable state
+const coverage = createCoverageTracker({ startedAt });
 
 let haManager = null;
 let haConnected = false;
@@ -101,6 +107,36 @@ export function stateFeedLevel(entity, entityId = "sensor") {
   return { level: "warn", detail: `router reports ${entity.state}` };
 }
 
+/**
+ * Is anyone home, according to a signal INDEPENDENT of the eufy lane?
+ *
+ * `person.*` is fed by HA's own device trackers, so it stays truthful when the
+ * camera pipeline is the thing that is broken — which is the only case this is
+ * consulted in. Tri-state on purpose: no person entities at all is "unknown",
+ * not "away". See the warning on evaluate() in motionCoverage.js.
+ */
+export function occupancyFrom(states) {
+  const people = (states || []).filter((entity) => entity?.entity_id?.startsWith("person."));
+  if (!people.length) return "unknown";
+  if (people.some((entity) => entity.state === "home")) return "home";
+  // Every tracker reporting unknown/unavailable is not an empty house.
+  if (people.every((entity) => entity.state === "not_home")) return "away";
+  return "unknown";
+}
+
+function currentOccupancy() {
+  if (!haManager?.getStates) return "unknown";
+  try {
+    return occupancyFrom(haManager.getStates());
+  } catch {
+    return "unknown";
+  }
+}
+
+export function getMotionCoverage() {
+  return coverage.evaluate({ occupancy: currentOccupancy() });
+}
+
 function evaluateFeed(id) {
   const config = FEEDS[id];
   const state = getFeedState(id);
@@ -116,6 +152,12 @@ function evaluateFeed(id) {
       return { level: "error", detail: `connected but no events for ${formatAge(sinceEvent)}` };
     }
     return { level: "ok", detail: null };
+  }
+
+  if (config.kind === "coverage") {
+    if (!haManager) return { level: "ok", detail: "HA disabled" };
+    const { level, detail } = coverage.evaluate({ now, occupancy: currentOccupancy() });
+    return { level, detail };
   }
 
   // A state feed mirrors an HA binary_sensor rather than tracking our own calls.
@@ -215,10 +257,12 @@ export function getHealth() {
   let overall = "ok";
   const feeds = Object.entries(FEEDS).map(([id, config]) => {
     const state = getFeedState(id);
-    // A state feed accumulates no history, so read it LIVE. Otherwise a fresh
-    // boot — or a look between the one-minute eval ticks — reports the "ok"
-    // default at exactly the moment someone is asking why nothing is loading.
-    const view = config.kind === "state" ? evaluateFeed(id) : state;
+    // A state or coverage feed accumulates no history, so read it LIVE.
+    // Otherwise a fresh boot — or a look between the one-minute eval ticks —
+    // reports the "ok" default at exactly the moment someone is asking why
+    // nothing is loading.
+    const derived = config.kind === "state" || config.kind === "coverage";
+    const view = derived ? evaluateFeed(id) : state;
     if (levels[view.level] > levels[overall]) overall = view.level;
     return {
       id,
@@ -238,6 +282,10 @@ function noteMotionEntity(entityId, stateValue, changedAt) {
   const state = getFeedState("motion");
   const ts = changedAt ?? Date.now();
   if (!state.lastSuccessAt || ts > state.lastSuccessAt) state.lastSuccessAt = ts;
+  // The ring entity carries no camera name and is deliberately not counted: if
+  // the doorbell's motion lane died while rings still worked, motion IS broken
+  // and the divergence check should say so.
+  coverage.noteEvent(entityId, ts);
 }
 
 export function startHealthService({ manager = null } = {}) {
@@ -273,6 +321,8 @@ export function startHealthService({ manager = null } = {}) {
         if (!Number.isFinite(changed)) continue;
         const state = getFeedState("motion");
         if (!state.lastSuccessAt || changed > state.lastSuccessAt) state.lastSuccessAt = changed;
+        // Seeds last-seen only, never the house event log — see seed()'s note.
+        coverage.seed(entity.entity_id, changed);
       }
     });
   }
