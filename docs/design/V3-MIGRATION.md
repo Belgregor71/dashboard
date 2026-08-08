@@ -1,9 +1,9 @@
 # V3 Migration — bringing the house onto the new surface
 
-**Status:** **Phases 1, 2 and 3 complete (`3efb426`, `7d89002`, `c20525a`, 2026-08-08)**, bar
-3.4, which is deferred into Phase 4 with its reason written down. Phase 1 is live and was
-demonstrated on the G11; **Phases 2 and 3 are committed but unpushed and have never been
-seen by eye.** Written 2026-08-08, after the wall was flipped to `/v3/` for ~15 minutes and
+**Status:** **Phases 1, 2, 3 and 4 complete (`3efb426`, `7d89002`, `c20525a`, `b65085c`,
+2026-08-08)**, including 3.4, which Phase 4 carried. Phase 1 is live and was demonstrated on
+the G11; **Phases 2, 3 and 4 are committed but unpushed and have never been seen by eye.**
+Suite 898. Written 2026-08-08, after the wall was flipped to `/v3/` for ~15 minutes and
 pointed back. See
 [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) for the design law and
 `~/.claude/plans/i-want-to-see-synthetic-hummingbird.md` for the original V3 plan.
@@ -88,8 +88,8 @@ owns a panel; in V3 they are candidates and the composer decides if they are eve
 **Most already exist as candidate functions in `candidateSources.js`.** Once the keystone
 lands, these arrive in bulk rather than one at a time.
 
-**B · SUBJECTS** — depth 3, one thing full-bleed. Camera and radar are **built**. Six
-remain: calendar, recipe, memories, media, briefing, lists.
+**B · SUBJECTS** — depth 3, one thing full-bleed. ✅ **All eight built** (`b65085c`): camera
+and radar from Phase 1, plus calendar, recipe, memories, media, briefing and lists.
 
 **C · AMBIENT** — the resting surface. Substrate, ground, scrim, hour, presence-light are
 **built**, and built better than the incumbent's equivalents. The screensaver largely
@@ -293,22 +293,84 @@ New debug handles: `__v3Alert(entityId, state)`, `__v3Arrival(entityId, state)` 
 twice — a greeting needs a transition observed this session), `__v3Tick(now)`, and
 `__depth().recedesTo`, which answers where the current hold would land without waiting for it.
 
-### Phase 4 — The remaining subjects
+### Phase 4 — The remaining subjects ✅ **COMPLETE 2026-08-08 (`b65085c`), suite 898**
 
 Six depth-3 modules against the built pattern in `subjects/index.js`. Each owns its mount
 and must tear itself down on leave — a subject left mounted holds its MJPEG connection open
 forever.
 
-Calendar · Recipe · Memories · Media · Briefing · Lists — S–M each, parallelisable.
+Calendar · Recipe · Memories · Media · Briefing · Lists — all six shipped, plus **3.4**.
 
-⚠ **Briefing carries 3.4 with it.** The morning briefing should open at its window as a
-depth-**3** subject, not the depth 2 the plan said: since Phase 2, depth 2 is a composition
-built from ranked candidates, and a briefing is one thing at length. The forced-open path
-already exists — `v3/core/alerts.js` mounts a subject and calls `setDepth` directly with its
-own hold — so the briefing's window is that shape with a clock as the cause instead of a
-sensor. ⚠ **The one thing to get right: a clock is not an external cause.** Per the calm law
-(§5.1, "time passing is not a cause"), the briefing may open at its window *only while
-someone is present* — otherwise it is the surface moving for a reason the room cannot see.
+**What landed:** `subjects/dom.js` (the shared frame/column/plate vocabulary, and the
+teardown that matters) · `calendar.js` · `lists.js` · `recipe.js` · `memories.js` ·
+`media.js` · `briefing.js` · `core/briefing-window.js` · three extracted shared services ·
+`tests/v3-subjects.spec.js` (22) + `tests/briefing-schedule.spec.js` (16) + 8 lane specs.
+
+> **The registry inverted, and that was the design decision of the phase.** A subject now
+> **builds** its node and `subjects/index.js` **mounts** it, rather than six modules each
+> having an opinion about `replaceChildren`. The payoff is that "did anything actually
+> mount" is checked in exactly one place — the check Phase 2 spent a whole review learning
+> to make after both routes into depth 2 were found deepening into an empty lattice.
+> `showSubject()` now returns `false | {speech, refs}` rather than a boolean, because one
+> subject's words are not knowable in advance. `alerts.js` reads it as truthy and stores
+> `Boolean(shown)`.
+
+> ⚠ **A CLOCK IS NOT AN EXTERNAL CAUSE — and the fix is one line that is easy to leave out.**
+> `core/briefing-window.js` gates the fire on `isPresent()`. The window is a PERMISSION; the
+> person in the room is the cause. An empty kitchen at 5:35am gets nothing and the window
+> stays open for its full `CATCHUP_MS`, which is doing real work here that it never did on
+> the incumbent (where the briefing fired into an empty room and was over). It also
+> subscribes to presence as well as ticking, so walking in at 6:10 opens it immediately
+> rather than up to 30 s later. **Neuter-verified:** removing the gate fails exactly the
+> test named for it.
+
+> ⚠ **A new `show.*` intent cannot be added to the table — it will be shadowed, or it will
+> shadow.** Every noun the six subjects answer to ALREADY belongs to a spoken intent higher
+> up `localIntents.js` ("shopping list" → `list.shopping`, "what's playing" →
+> `house.media`). The resolver therefore runs **before** the table and **only when a show
+> verb is present**. And each new id **must carry an answerer in `localAnswers.js`**: the
+> incumbent has no depth 3, so it reaches these ids and falls straight through to
+> `answer()` — an id without one silently turns a working spoken reply on the wall into an
+> Assist round trip. Two ids are silent by design and are named in the spec rather than
+> inferred: `show.year` (the photographs are the answer) and `show.briefing` (its subject
+> speaks its own opening). ⚠ An earlier draft matched bare `today` / `what's on` and quietly
+> took "show me what's on today" off `cal.today`; the resolver's nouns are all **surface**
+> nouns now, and a regression guard asserts seven spoken phrasings are untouched.
+
+> ⚠ **A REAL PARITY BUG, found in passing and now fixed.** `houseSnapshot` returned the raw
+> HA `entity_picture`, but `focusHero` reads that value out of a rendered `<img src>` which
+> `mediaPanels` had already put through the image proxy. So the media candidate on V3 was
+> carrying a URL that would never load — nothing threw, and it would have surfaced as "the
+> artwork is broken on V3 only" long after the cause was forgettable. One resolver
+> (`services/mediaImage.js`), imported by both. **`tests/house-snapshot.spec.js:284` was
+> pinning the bug** and now pins the resolved URL with the reason written down.
+
+> **Three services extracted, following Phase 3's `alertRouter` precedent** — two surfaces
+> needing the same answer is the trigger, every time. `services/briefingSchedule.js` (when a
+> briefing is due; `morningBriefing.js` refactored onto it with behaviour unchanged),
+> `services/mealEvent.js` (tonight's dish — the `Meal:` regex had **four** copies; two are
+> converted, `modules/calendar.js` and `modules/recipePanel.js` still carry their own),
+> `services/mediaImage.js`. ⚠ **The briefing's fired-today key is deliberately NOT shared:**
+> both surfaces are served from the same origin, so one key would let the incumbent's 5:35
+> briefing mark V3's as done. V3 uses `dashboard:briefing-fired-v3`.
+
+> ⚠ **`/api/recipe` is the one billable leg in Phase 4** — a dish with no cache entry costs
+> one Claude web search. Same trade the incumbent's dinner panel has always made, and the
+> cache is shared, so asking out loud cannot cost more than the panel was going to spend.
+> Worth knowing rather than discovering on a bill.
+
+> **`show.tonight` and `show.day` both open the calendar.** The plan's original four `show.*`
+> ids predate the six subjects, and "what about tonight" is a question about the evening's
+> shape — the calendar's answer, not the recipe's.
+
+New debug handles: **`__v3Refresh()`** (await both halves of the prefetched cache — the boot
+tick reads a cold one and six subjects read it), **`__v3Subject(id, slots, snapshot)`**
+(mount any subject against an INJECTED snapshot, without speaking and without changing
+depth), **`__v3Briefing({now}|{force})`**, and `__v3().briefing`.
+
+⏳ **Owed on Phase 4:** never seen by eye; no GPU reading; and **the contrast sweep still
+only visits `/`** while Phase 4 has added far more V3 text than existed when that gap was
+first noted. `.subject__caption-sm` over a photograph is the likeliest worst case.
 
 ### Phase 5 — Ambient parity
 
@@ -348,6 +410,8 @@ and the flip stays a URL.
 - [x] Motion wakes the surface (3.2) — ✅ falls out of 1.4/1.5; still wants a real-event sighting
 - [x] Doorbell reaches the screen unasked (3.1) — ✅ `c20525a`; **wants a real-doorbell sighting**
 - [x] Depth 2 renders something (Phase 2) — ✅ `7d89002`; **not yet seen by eye**
+- [x] The eight subjects exist (Phase 4) — ✅ `b65085c`; **not yet seen by eye**
+- [x] The briefing arrives without being asked (3.4) — ✅ `b65085c`, presence-gated
 - [ ] Display sleeps overnight (5.1)
 - [ ] Ground never shows a screenshot (5.2)
 - [ ] Watchdog + self-heal running (Phase 6)
