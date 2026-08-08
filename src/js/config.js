@@ -432,6 +432,25 @@ window.CONFIG = {
     // for users. One-line revert (-> false) is the rollback path.
     voiceSession: true,
 
+    // HALF DUPLEX — the house stops talking when someone says the wake word,
+    // and never answers its own voice.
+    //
+    // The kiosk's microphone and its HDMI speakers share a room. The wake agent
+    // cannot tell our voice from a person's, so on 2026-08-08/09 it transcribed
+    // the dashboard's own replies back into the pipeline and the house answered
+    // itself: "It's 18 degrees and clear." came back as a question. (Two agent
+    // bugs made it far worse and are fixed unflagged in tools/voice-agent —
+    // Model.reset() never cleared the feature buffer, and arecord's backlog was
+    // replayed as live audio. This flag is the third leg: the agent knowing.)
+    //
+    // On: tts.speak() reports playback to /api/voice/speaking, the agent gates
+    // capture while it is set, and a wake word held over a reply POSTs
+    // /api/voice/barge-in, which silences the page mid-sentence and hands the
+    // floor back. Off: no observer is installed, no request is made, and the
+    // agent's speaking flag stays clear — which is exactly today's behaviour.
+    // One-line revert (-> false) is the rollback path.
+    voiceHalfDuplex: false,
+
     // Living-window Phase 1 (plan: review-the-design-scheme) — rain on glass.
     // A shared episode runtime (services/atmoFx/) draws bounded droplet/streak
     // "moments" on a front canvas, then hides it: the GPU-0% ambient baseline

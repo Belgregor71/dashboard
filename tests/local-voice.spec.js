@@ -79,6 +79,47 @@ test.describe("intent matching — precedence", () => {
   }
 });
 
+// Regression, 2026-08-09: asked about sleep, the house answered "I don't have
+// access to your sleep or the time" — from Claude, three lanes down, while
+// sensor.cpap_total_myair_score sat in memory reading 98. Only "how did i
+// sleep" was in the pattern, so every other way of asking fell through. The
+// point of the fast lane is that it OWNS the questions the house can answer.
+test.describe("self.sleep — the ways people actually ask", () => {
+  for (const utterance of [
+    "how did i sleep",
+    "how'd i sleep",
+    "how was my sleep",
+    "how did you sleep",
+    "how was my sleep last night",
+    "did i sleep well",
+    "what's my sleep score",
+    "how's my sleep quality",
+    "how long did i sleep last night",
+    "what was my ahi",
+    "how did the cpap go",
+    "what's my myair score"
+  ]) {
+    test(`"${utterance}" -> self.sleep`, () => {
+      const got = matchIntent(utterance);
+      expect(got, `"${utterance}" matched nothing`).not.toBeNull();
+      expect(got.id).toBe("self.sleep");
+    });
+  }
+
+  // The widening must not reach across the table. action.goodnight sits ABOVE
+  // self.sleep precisely so bedtime keeps its own verbs, and a pattern greedy
+  // enough to take "sleep mode" would silently stop the goodnight routine.
+  for (const [utterance, owner] of [
+    ["goodnight", "action.goodnight"],
+    ["sleep mode", "action.goodnight"],
+    ["i'm going to bed", "action.goodnight"]
+  ]) {
+    test(`"${utterance}" still belongs to ${owner}`, () => {
+      expect(matchIntent(utterance)?.id).toBe(owner);
+    });
+  }
+});
+
 test("an utterance the lane does not own falls through to null", () => {
   // These must NOT be claimed locally — they belong to Assist or the model.
   for (const text of [

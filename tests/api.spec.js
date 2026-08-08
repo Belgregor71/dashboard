@@ -1066,6 +1066,112 @@ test.describe("ai + tts", () => {
     expect(received).toContain("event: voice_level");
     expect(received).toContain('"rms":2222');
   });
+
+  /* ── Half duplex ─────────────────────────────────────────────────────────
+     The kiosk's mic hears its own speakers. On 2026-08-08 the wake agent
+     transcribed the dashboard's replies back into this very pipeline and the
+     house answered itself. Two facts have to cross the wire for that to stop:
+     the page saying "I am talking", and the agent saying "stop talking".     */
+
+  test("POST /api/voice/speaking rejects anything that is not a boolean", async ({ request }) => {
+    // Truthiness would be a disaster here: "false" and 0 are both things a
+    // caller sends by accident, and either one silently inverts the gate —
+    // muting the microphone for good, or never gating it at all.
+    for (const data of [{}, { speaking: "true" }, { speaking: 1 }, { speaking: null }]) {
+      const res = await request.post("/api/voice/speaking", { data });
+      expect(res.status(), `${JSON.stringify(data)} was accepted`).toBe(400);
+      expect((await res.json()).error).toBeTruthy();
+    }
+  });
+
+  test("POST /api/voice/speaking accepts a boolean and answers 204 with no body", async ({ request }) => {
+    for (const speaking of [true, false]) {
+      const res = await request.post("/api/voice/speaking", { data: { speaking } });
+      expect(res.status()).toBe(204);
+      expect(await res.text()).toBe("");
+    }
+  });
+
+  test("POST /api/voice/barge-in is accepted from loopback", async ({ request }) => {
+    const { status, body } = await expectJson(request, "/api/voice/barge-in", { method: "post", data: {} });
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+  });
+
+  test("the agent stream states the CURRENT speaking state on connect", async ({ request }) => {
+    // The agent reconnects after every deploy. A subscriber that learns
+    // nothing until the next CHANGE sits on a stale default through whatever
+    // is already playing as it connects — which is the exact window the fix
+    // exists to cover.
+    await request.post("/api/voice/speaking", { data: { speaking: true } });
+    const http = await import("node:http");
+    const received = await new Promise((resolve) => {
+      const req = http.get("http://127.0.0.1:3210/api/voice/stream?agent=1", (res) => {
+        let buf = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => {
+          buf += chunk;
+          if (buf.includes("event: voice_speaking")) { req.destroy(); resolve(buf); }
+        });
+      });
+      req.on("error", () => resolve("TIMEOUT"));
+      setTimeout(() => { req.destroy(); resolve("TIMEOUT"); }, 6000);
+    });
+    await request.post("/api/voice/speaking", { data: { speaking: false } }); // leave it clear
+
+    expect(received, "the agent stream said nothing on connect").not.toBe("TIMEOUT");
+    expect(received).toContain("event: voice_speaking");
+    expect(received).toContain('"speaking":true');
+  });
+
+  test("the agent stream carries speaking and NOT the level firehose", async ({ request }) => {
+    // ~12.5 level frames a second, pushed at the process that generated them.
+    // Harmless-looking, and the reason this route takes a flavour at all.
+    const http = await import("node:http");
+    const received = await new Promise((resolve) => {
+      const req = http.get("http://127.0.0.1:3210/api/voice/stream?agent=1", (res) => {
+        let buf = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => {
+          buf += chunk;
+          if (buf.includes('"speaking":true')) { req.destroy(); resolve(buf); }
+        });
+      });
+      req.on("error", () => resolve("TIMEOUT"));
+      setTimeout(() => { req.destroy(); resolve("TIMEOUT"); }, 6000);
+      setTimeout(async () => {
+        await request.post("/api/voice/level", { data: { rms: 3333 } });
+        await request.post("/api/voice/transcript", { data: { text: "agent stream isolation" } });
+        await request.post("/api/voice/speaking", { data: { speaking: true } });
+      }, 500);
+    });
+    await request.post("/api/voice/speaking", { data: { speaking: false } });
+
+    expect(received, "the agent never saw the speaking change").not.toBe("TIMEOUT");
+    expect(received).toContain('"speaking":true');
+    expect(received, "the level firehose leaked onto the agent stream").not.toContain("voice_level");
+    expect(received, "transcripts leaked onto the agent stream").not.toContain("voice_transcript");
+  });
+
+  test("a barge-in reaches the KIOSK stream, which is what silences the page", async ({ request }) => {
+    const http = await import("node:http");
+    const received = await new Promise((resolve) => {
+      const req = http.get("http://127.0.0.1:3210/api/voice/stream", (res) => {
+        let buf = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => {
+          buf += chunk;
+          if (buf.includes("event: voice_barge_in")) { req.destroy(); resolve(buf); }
+        });
+      });
+      req.on("error", () => resolve("TIMEOUT"));
+      setTimeout(() => { req.destroy(); resolve("TIMEOUT"); }, 6000);
+      setTimeout(() => request.post("/api/voice/barge-in", { data: {} }), 500);
+    });
+
+    expect(received, "no voice_barge_in frame reached the kiosk").not.toBe("TIMEOUT");
+    expect(received).toContain("event: voice_barge_in");
+  });
 });
 
 

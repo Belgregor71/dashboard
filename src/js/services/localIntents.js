@@ -77,7 +77,13 @@ const INTENTS = [
   { id: "house.downloads", re: /\b(download(s|ing)?|torrent|queue|sonarr|radarr)\b/ },
 
   // ── Personal ────────────────────────────────────────────────────────────
-  { id: "self.sleep", re: /\b(how did i sleep|my sleep|sleep score|slept|cpap|ahi)\b/ },
+  // Widened after the fast lane missed "how'd I sleep" and the turn fell all
+  // the way through to Claude, which has no CPAP data and said so. The house
+  // holds the answer (sensor.cpap_total_myair_score); the only thing between
+  // the question and it was this line. Bare "sleep" is still NOT enough — that
+  // would swallow "sleep mode" and "I'm going to sleep", which action.goodnight
+  // above already owns.
+  { id: "self.sleep", re: /\b(how.?(d|did|was).{0,12}(i|my|you).{0,6}sleep|did (i|you) sleep|my sleep|sleep score|slept|night.?s sleep|sleep last night|sleep quality|cpap|myair|ahi)\b/ },
   { id: "self.commute", re: /\b(commute|traffic|how long.*(work|drive)|drive to work|get to work)\b/ },
   { id: "self.fuel", re: /\b(fuel|petrol|gas price|servo|fill up|cheapest.*(fuel|petrol))\b/ },
 

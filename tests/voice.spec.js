@@ -143,6 +143,21 @@ test.describe("todayLine — the concierge has to know what day it is", () => {
   test("defaults to now, so the route never has to pass a clock", () => {
     expect(todayLine()).toMatch(/^Today is \w+ \d{1,2} \w+ \d{4}\./);
   });
+
+  // Regression, 2026-08-09: asked how the night had gone, the concierge said it
+  // had access to neither the sleep data nor the time. The second half was
+  // true — this line carried the date and no clock, so "later today",
+  // "tonight" and "have I got time" were all unanswerable from the prompt.
+  test("carries the clock, not just the calendar", () => {
+    const line = todayLine(new Date("2026-07-27T06:00:00Z")); // 16:00 Brisbane
+    expect(line).toMatch(/it is 4:00 pm right now/i);
+  });
+
+  test("the clock is Brisbane's too, not UTC's", () => {
+    // 22:30Z is 08:30 the next morning here. A concierge an hour out is
+    // merely wrong; one ten hours out greets the morning at bedtime.
+    expect(todayLine(new Date("2026-07-27T22:30:00Z"))).toMatch(/it is 8:30 am right now/i);
+  });
 });
 
 // The house voice is deliberately loud, and the knowledge base now names real

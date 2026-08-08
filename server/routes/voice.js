@@ -209,6 +209,39 @@ router.post("/api/voice/level", (req, res) => {
   return res.status(204).end();
 });
 
+// --- Half duplex: the house must not answer its own voice ---
+// The mic and the HDMI speakers share a room. On 2026-08-08/09 the wake agent
+// transcribed the dashboard's own replies straight back into this pipeline —
+// "It's 18 degrees and clear.", "Everything's healthy." — and the house
+// answered itself. The agent's half of that fix needs one fact it cannot
+// observe: whether a reply is playing right now. The page knows, so the page
+// says, and this holds the answer between them.
+//
+// One boolean of shared state, deliberately. It is a property of the single
+// kiosk's single pair of speakers, not of a session or a connection.
+let speaking = false;
+
+router.post("/api/voice/speaking", (req, res) => {
+  if (!isLoopback(req)) return res.status(403).json({ error: "loopback only" });
+  // Strict boolean, not truthiness: "false" and 0 are both things a caller
+  // sends by accident, and either would silently invert the gate.
+  const on = req.body?.speaking;
+  if (typeof on !== "boolean") {
+    return res.status(400).json({ error: "speaking must be a boolean" });
+  }
+  speaking = on;
+  voiceBus.emit("speaking", { speaking });
+  return res.status(204).end();
+});
+
+// The agent asking for the floor. It POSTs this when the wake word is spoken
+// over a reply; the page listens for the fan-out and calls tts.silence().
+router.post("/api/voice/barge-in", (req, res) => {
+  if (!isLoopback(req)) return res.status(403).json({ error: "loopback only" });
+  voiceBus.emit("barge_in", { at: Date.now() });
+  return res.json({ ok: true });
+});
+
 router.get("/api/voice/stream", (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -216,22 +249,40 @@ router.get("/api/voice/stream", (req, res) => {
   res.flushHeaders?.();
   res.write(": voice-stream open\n\n");
 
-  const onTranscript = (payload) => res.write(toSse("voice_transcript", payload));
-  voiceBus.on("transcript", onTranscript);
+  // Two flavours of subscriber on one route. The wake agent wants ONLY the
+  // speaking state; handing it the kiosk's feed would push ~12.5 level frames a
+  // second at the process that generated them. The kiosk wants everything
+  // except the speaking state, which it is the author of.
+  const forAgent = req.query?.agent === "1";
+  const listeners = [];
+  const subscribe = (event, name) => {
+    const fn = (payload) => res.write(toSse(name, payload));
+    voiceBus.on(event, fn);
+    listeners.push([event, fn]);
+  };
 
-  // Level rides the SAME connection as the transcript rather than opening its
-  // own. Six connections per host is the browser's ceiling, and two
-  // never-ending SSE streams have already starved a media request in this
-  // house — a second stream for a cosmetic cue would be a poor trade.
-  const onLevel = (payload) => res.write(toSse("voice_level", payload));
-  voiceBus.on("level", onLevel);
+  if (forAgent) {
+    // Current state first. The agent reconnects after every deploy, and a
+    // subscriber that learns nothing until the next CHANGE would sit on a
+    // stale default through the whole reply that is playing as it connects.
+    res.write(toSse("voice_speaking", { speaking }));
+    subscribe("speaking", "voice_speaking");
+  } else {
+    subscribe("transcript", "voice_transcript");
+    // Level rides the SAME connection as the transcript rather than opening its
+    // own. Six connections per host is the browser's ceiling, and two
+    // never-ending SSE streams have already starved a media request in this
+    // house — a second stream for a cosmetic cue would be a poor trade.
+    subscribe("level", "voice_level");
+    subscribe("barge_in", "voice_barge_in");
+  }
 
   const heartbeat = setInterval(() => res.write(": ping\n\n"), 20_000);
 
   req.on("close", () => {
     clearInterval(heartbeat);
-    voiceBus.off("transcript", onTranscript); // symmetric teardown per SSE client
-    voiceBus.off("level", onLevel);
+    // Symmetric teardown per SSE client — this page runs for weeks.
+    for (const [event, fn] of listeners) voiceBus.off(event, fn);
   });
 });
 

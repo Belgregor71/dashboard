@@ -11,14 +11,24 @@ GUARDRAIL (project-voice-mic-bridge): nothing leaves the Pi until the wake word
 fires. Audio then goes only to the PC on the home LAN; if the PC is unreachable
 we drop the turn (voice goes unavailable), never crash.
 
+HALF DUPLEX: the mic and the HDMI speakers share a room, so the house used to
+hear its own replies and answer them (see the 2026-08-08/09 logs — it
+transcribed "It's 18 degrees and clear." straight back at itself). The agent
+therefore tracks whether the dashboard is SPEAKING, via an SSE subscription,
+and never captures over its own voice. A wake word during playback is not a
+question, it is someone taking the floor: we tell the dashboard to shut up,
+wait for it to actually go quiet, and only then listen.
+
 Config via env: WAKE_MODEL (hey_jarvis), WAKE_THRESHOLD (0.5), MIC_DEVICE
-(plughw:3,0), STT_URL, DASH_URL, SILENCE_RMS, TRAIL_SILENCE_MS, MAX_UTTER_MS.
+(plughw:3,0), STT_URL, DASH_URL, SILENCE_RMS, TRAIL_SILENCE_MS, MAX_UTTER_MS,
+SPEAKING_URL, BARGE_URL, BARGE_THRESHOLD, BARGE_FRAMES.
 """
 import glob
 import io
 import json
 import os
 import queue
+import select
 import subprocess
 import threading
 import time
@@ -50,6 +60,27 @@ DASH_URL = os.environ.get("DASH_URL", "http://localhost:3000/api/voice/transcrip
 LEVEL_URL = os.environ.get("LEVEL_URL", "http://localhost:3000/api/voice/level")
 LEVEL_ENABLED = os.environ.get("LEVEL_ENABLED", "1") == "1"
 
+# ── Half duplex ──────────────────────────────────────────────────────────────
+# The agent-flavoured SSE stream carries one thing: whether the dashboard is
+# playing a reply. Its own endpoint rather than the kiosk's stream because that
+# one also fans out ~12.5 level frames a second, and the agent has no use for
+# the echo of its own telemetry.
+SPEAKING_URL = os.environ.get("SPEAKING_URL", "http://localhost:3000/api/voice/stream?agent=1")
+BARGE_URL = os.environ.get("BARGE_URL", "http://localhost:3000/api/voice/barge-in")
+HALF_DUPLEX = os.environ.get("HALF_DUPLEX", "1") == "1"
+# Barging in is destructive — it cuts the house off mid-sentence — so the bar is
+# higher than a normal wake and the score has to HOLD. A single frame spiking
+# over the line is what TV dialogue does; a spoken wake word holds for several.
+# The same discriminator the PROBE_ONLY mode below was built to measure, used
+# where it actually earns its keep instead of on the general wake path.
+BARGE_THRESHOLD = float(os.environ.get("BARGE_THRESHOLD", "0.7"))
+BARGE_FRAMES = int(os.environ.get("BARGE_FRAMES", "2"))
+# How long to wait for playback to stop after asking, and how long to let the
+# audio device settle once it has. Without the settle the tail of the cut-off
+# reply is the first thing in the capture.
+BARGE_WAIT_MS = int(os.environ.get("BARGE_WAIT_MS", "4000"))
+BARGE_SETTLE_MS = int(os.environ.get("BARGE_SETTLE_MS", "250"))
+
 # Energy-based endpointing (dependency-free): capture until trailing silence.
 SILENCE_RMS = int(os.environ.get("SILENCE_RMS", "500"))
 MIN_SPEECH_FRAMES = int(os.environ.get("MIN_SPEECH_FRAMES", "3"))
@@ -78,15 +109,55 @@ def rms(frame):
 def arecord_stream():
     cmd = ["arecord", "-q", "-D", MIC, "-f", "S16_LE", "-r", str(RATE),
            "-c", "1", "-t", "raw"]
-    return subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    # bufsize=0 so stdout is a raw FileIO holding no bytes of its own. drain()
+    # below reads the pipe directly through the fd, and it can only be trusted
+    # to have emptied it if Python is not also sitting on a buffer of its own.
+    return subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=0)
 
 
 def read_frame(proc):
+    """One 80 ms frame, assembled across short reads.
+
+    Unbuffered reads return whatever the pipe has, which is often less than a
+    full frame. The old version treated that as end-of-stream and restarted
+    arecord — so this loop is not just bufsize bookkeeping, it removes a
+    spurious restart. Only a genuine EOF (empty read) ends the stream.
+    """
     want = FRAME * 2  # int16 -> 2 bytes/sample
-    buf = proc.stdout.read(want)
-    if not buf or len(buf) < want:
-        return None
+    buf = b""
+    while len(buf) < want:
+        chunk = proc.stdout.read(want - len(buf))
+        if not chunk:
+            return None
+        buf += chunk
     return np.frombuffer(buf, dtype=np.int16)
+
+
+def drain(proc):
+    """Throw away everything arecord buffered while we were not reading it.
+
+    STT is a 2-9 second round trip and arecord does not pause for it — the
+    `overrun!!!` lines in the journal are that pipe backing up. Whatever is
+    sitting in it is seconds stale by the time the loop resumes, and reading it
+    as though it were live is how one capture on 2026-08-09 transcribed the
+    user's own wake word followed by the dashboard's reply to it.
+
+    Returns seconds discarded, for the log.
+    """
+    fd = proc.stdout.fileno()
+    dropped = 0
+    while True:
+        ready, _, _ = select.select([fd], [], [], 0)
+        if not ready:
+            break
+        try:
+            chunk = os.read(fd, 65536)
+        except OSError:
+            break
+        if not chunk:
+            break
+        dropped += len(chunk)
+    return dropped / 2 / RATE
 
 
 # ── Level relay ──────────────────────────────────────────────────────────────
@@ -177,10 +248,125 @@ def forward(text):
         log("dashboard forward failed:", e)
 
 
+# ── Is the house speaking? ───────────────────────────────────────────────────
+# One long-lived SSE connection on a daemon thread, not a poll: the capture loop
+# needs this answer every 80 ms and cannot afford a request to find it out. The
+# flag defaults to CLEAR on every failure path — a dashboard that is down, a
+# stream that drops, a flag that is off all mean "not speaking", which is the
+# agent's pre-existing behaviour. Half duplex degrades to full duplex; it never
+# degrades to a deaf microphone.
+_speaking = threading.Event()
+
+
+def _speaking_watcher():
+    while True:
+        try:
+            req = urllib.request.Request(SPEAKING_URL, headers={"Accept": "text/event-stream"})
+            with urllib.request.urlopen(req, timeout=None) as stream:
+                log("half duplex: subscribed to the dashboard's speaking state")
+                event = None
+                for raw in stream:
+                    line = raw.decode("utf-8", "replace").strip()
+                    if line.startswith("event:"):
+                        event = line[6:].strip()
+                    elif line.startswith("data:") and event == "voice_speaking":
+                        try:
+                            on = json.loads(line[5:].strip()).get("speaking") is True
+                        except ValueError:
+                            on = False
+                        _speaking.set() if on else _speaking.clear()
+                    elif not line:
+                        event = None
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            log("speaking stream lost:", e)
+        # The dashboard restarts on every deploy. Never hold a stale "it is
+        # talking" across the gap or the mic goes silent until the next reply.
+        _speaking.clear()
+        time.sleep(3)
+
+
+def barge_in():
+    """Ask the dashboard to stop talking. Fire and forget by design — if the
+    request fails we still fall through to the wait below, which times out and
+    abandons the turn rather than capturing over a voice we could not stop."""
+    try:
+        _post(BARGE_URL, b"{}", "application/json", 2)
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        log("barge-in request failed:", e)
+
+
+def wait_for_quiet(timeout_ms):
+    """Block until playback actually stops. Returns False on timeout."""
+    deadline = time.time() + timeout_ms / 1000.0
+    while _speaking.is_set():
+        if time.time() >= deadline:
+            return False
+        time.sleep(0.02)
+    return True
+
+
+# ── Detector flush ───────────────────────────────────────────────────────────
+# Model.reset() is NOT a reset. Measured against the installed openwakeword on
+# 2026-08-09:
+#
+#     feature_buffer survives reset(): True (120, 96)
+#     melspec survives reset():        True
+#     raw audio survives reset():      True (38400,) = 2.4 s
+#     prediction_buffer cleared:       True
+#
+# It empties the prediction deque and nothing else; there is no
+# AudioFeatures.reset() to call. Because predict() is never called during a
+# capture, the classification window stays FROZEN on the wake word that started
+# it — so the first predict() after the turn re-scores the same audio and fires
+# again. That is the whole signature in the logs: genuine wakes score 0.67-0.93,
+# every self-retrigger scored 0.99-1.00, because it was the model's own peak
+# handed back to it.
+#
+# The pristine buffers are snapshotted once at startup rather than rebuilt,
+# because feature_buffer is initialised by embedding ten seconds of silence —
+# cheap once, absurd per turn. Zeroing is not equivalent: the embedding of
+# silence is not a zero vector, and a zeroed window scores unpredictably.
+_pristine = {}
+
+
+def snapshot_detector(oww):
+    pre = getattr(oww, "preprocessor", None)
+    if pre is None:
+        return
+    _pristine["melspectrogram_buffer"] = np.array(pre.melspectrogram_buffer, copy=True)
+    _pristine["feature_buffer"] = np.array(pre.feature_buffer, copy=True)
+
+
 def reset(oww):
+    """Return the detector to its cold-start state, for real."""
     fn = getattr(oww, "reset", None)
     if callable(fn):
         fn()
+    pre = getattr(oww, "preprocessor", None)
+    if pre is None or not _pristine:
+        return
+    # Guarded field by field: an openwakeword upgrade that renames a buffer
+    # must degrade to the old (buggy) behaviour, never crash the microphone.
+    try:
+        if hasattr(pre, "raw_data_buffer"):
+            pre.raw_data_buffer.clear()
+        if hasattr(pre, "melspectrogram_buffer"):
+            pre.melspectrogram_buffer = np.array(_pristine["melspectrogram_buffer"], copy=True)
+        if hasattr(pre, "feature_buffer"):
+            pre.feature_buffer = np.array(_pristine["feature_buffer"], copy=True)
+        if hasattr(pre, "accumulated_samples"):
+            pre.accumulated_samples = 0
+    except (AttributeError, KeyError, TypeError) as e:
+        log("detector flush degraded:", e)
+
+
+def rearm(oww, proc, why):
+    """Drop stale audio, then cold-start the detector. Order matters: draining
+    after the flush would leave the discarded seconds already inside it."""
+    seconds = drain(proc)
+    reset(oww)
+    if seconds >= 0.1:
+        log(f"rearm ({why}) — dropped {seconds:.1f}s of stale audio")
 
 
 def resolve_model_path():
@@ -203,6 +389,10 @@ def main():
     # friendly name — discover it from a warm-up frame so the threshold check is
     # keyed correctly regardless of the version suffix.
     wake_key = next(iter(oww.predict(np.zeros(FRAME, dtype=np.int16)).keys()))
+    # Snapshot BEFORE any room audio has been through the model — this is the
+    # only moment its buffers are genuinely pristine, and every later flush
+    # restores from here.
+    snapshot_detector(oww)
     reset(oww)
     log(f"listening on {MIC} for '{WAKE_MODEL}' [{wake_key}] (threshold {WAKE_THRESHOLD})")
 
@@ -214,8 +404,13 @@ def main():
         threading.Thread(target=_level_worker, daemon=True).start()
         log(f"level relay on → {LEVEL_URL}")
 
+    if HALF_DUPLEX:
+        threading.Thread(target=_speaking_watcher, daemon=True).start()
+        log(f"half duplex on → {SPEAKING_URL} (barge-in ≥{BARGE_THRESHOLD} × {BARGE_FRAMES} frames)")
+
     proc = arecord_stream()
     run = []
+    held = 0          # consecutive above-barge-threshold frames while speaking
     try:
         while True:
             frame = read_frame(proc)
@@ -235,25 +430,55 @@ def main():
                         f"trace={[round(s, 2) for s in run]}")
                     run = []
                 continue
-            if score >= WAKE_THRESHOLD:
+
+            if _speaking.is_set():
+                # HALF DUPLEX. The mic can hear the HDMI speakers, so anything
+                # captured here would be the house's own reply — which is
+                # exactly what it spent 2026-08-08 answering. A wake word during
+                # playback therefore does ONE thing: take the floor back.
+                held = held + 1 if score >= BARGE_THRESHOLD else 0
+                if held < BARGE_FRAMES:
+                    continue
+                held = 0
+                log(f"WAKE ({score:.2f}) while speaking — taking the floor")
+                barge_in()
+                if not wait_for_quiet(BARGE_WAIT_MS):
+                    # It would not stop. Capturing anyway just feeds it its own
+                    # voice again, which is the bug, so abandon the turn.
+                    log("playback did not stop — abandoning the turn")
+                    rearm(oww, proc, "barge-in timeout")
+                    continue
+                time.sleep(BARGE_SETTLE_MS / 1000.0)
+                rearm(oww, proc, "barge-in")
+            elif score >= WAKE_THRESHOLD:
+                held = 0
                 log(f"WAKE ({score:.2f}) — capturing…")
-                pcm = capture_utterance(proc)
-                # The turn is over: drop the rim now rather than leaving the
-                # client's decay to guess. Cheap, and it makes "I have stopped
-                # listening" a fact the room can see instead of an inference.
-                send_level(0)
-                reset(oww)
-                if pcm is None:
-                    log("no speech after wake")
-                    continue
-                text = transcribe(to_wav(pcm))
-                if not text:
-                    log("empty transcript")
-                    continue
-                log("heard:", repr(text))
-                forward(text)
-                time.sleep(COOLDOWN_S)
-                reset(oww)
+            else:
+                held = 0
+                continue
+
+            pcm = capture_utterance(proc)
+            # The turn is over: drop the rim now rather than leaving the
+            # client's decay to guess. Cheap, and it makes "I have stopped
+            # listening" a fact the room can see instead of an inference.
+            send_level(0)
+            if pcm is None:
+                log("no speech after wake")
+                rearm(oww, proc, "no speech")
+                continue
+            text = transcribe(to_wav(pcm))
+            if not text:
+                log("empty transcript")
+                rearm(oww, proc, "empty transcript")
+                continue
+            log("heard:", repr(text))
+            forward(text)
+            time.sleep(COOLDOWN_S)
+            # Rearm AFTER the cooldown, not before: the seconds spent in STT and
+            # in the sleep are precisely the seconds arecord was filling the
+            # pipe behind our back, and the detector is still holding the wake
+            # word that opened this turn.
+            rearm(oww, proc, "turn complete")
     finally:
         proc.terminate()
 

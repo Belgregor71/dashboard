@@ -150,7 +150,10 @@ export function startApp() {
   // Phase 4 — the Mode 3 voice session (docs/vision/phase-4-voice.md). Off by
   // default until the mic lands; must init before initVoiceCommands so the
   // local lane registration finds it armed.
-  initVoiceSession({ enabled: isEnabled("voiceSession", false) });
+  initVoiceSession({
+    enabled: isEnabled("voiceSession", false),
+    halfDuplex: isEnabled("voiceHalfDuplex", false)
+  });
   initVoiceCommands();
   initMotionTrigger();
 

@@ -1,6 +1,42 @@
 let currentAudio = null;
 let currentAudioUrl = null;
 
+/* ── Half duplex ────────────────────────────────────────────────────────────
+   The kiosk's microphone can hear its own speakers, and the wake agent spent
+   2026-08-08 transcribing the house's replies back into the voice pipeline. It
+   cannot tell our voice from a person's, so it has to be TOLD when we are
+   talking — and this module is the one chokepoint every surface speaks
+   through, incumbent and V3 alike.
+
+   An observer rather than a fetch: with the flag off nothing is installed, and
+   this file makes no request it did not make before. Installed by
+   voiceSession, which owns the flag and the endpoint. */
+let onSpeakingChange = null;
+let announced = false;
+
+export function setSpeakingObserver(fn) {
+  onSpeakingChange = typeof fn === "function" ? fn : null;
+  announced = false;
+}
+
+/* Transitions only. speak() opens with silence(), and silence() reports too, so
+   an unguarded version posts a redundant "not speaking" before every single
+   utterance — a wasted request on each turn, and a state change the agent has
+   to process for nothing.
+
+   Reporting must never cost the room its reply, so a throwing observer is
+   swallowed here rather than allowed to abort playback. */
+function announce(on) {
+  const next = on === true;
+  if (!onSpeakingChange || next === announced) return;
+  announced = next;
+  try {
+    onSpeakingChange(next);
+  } catch {
+    /* the answer matters more than the microphone's opinion of it */
+  }
+}
+
 // Blob object URLs pin the full audio buffer for the lifetime of the page
 // unless revoked — on a kiosk that never reloads, every utterance would
 // leak its WAV otherwise.
@@ -49,8 +85,12 @@ async function speakWithBrowserTts(text, { rate, pitch, volume }) {
   utterance.volume = volume;
 
   return new Promise((resolve) => {
-    utterance.onend   = resolve;
-    utterance.onerror = resolve; // don't block callers on TTS error
+    // The fallback voice comes out of the same speakers, so the mic has to be
+    // told about it too — a degraded TTS path is still a talking house.
+    const done = () => { announce(false); resolve(); };
+    utterance.onstart = () => announce(true);
+    utterance.onend   = done;
+    utterance.onerror = done; // don't block callers on TTS error
     window.speechSynthesis.speak(utterance);
   });
 }
@@ -88,12 +128,15 @@ export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0, onAu
     }
 
     return new Promise((resolve) => {
-      audio.onended = () => { releaseAudioUrl(audioUrl); resolve(); };
-      audio.onerror = (e) => { releaseAudioUrl(audioUrl); resolve(e); };
-      audio.play().catch(() => {
-        releaseAudioUrl(audioUrl);
-        resolve();
-      });
+      const finish = (value) => { announce(false); releaseAudioUrl(audioUrl); resolve(value); };
+      audio.onended = () => finish();
+      audio.onerror = (e) => finish(e);
+      // announce(true) on the play() PROMISE, not on the fetch: the round trip
+      // to Kokoro can take seconds, and a mic muted for the wait would be deaf
+      // through the pause where someone is most likely to speak again.
+      // Two-handler .then, never .catch-after: the rejection is handled here,
+      // and a trailing .finally() would re-throw it onto a fresh chain.
+      audio.play().then(() => announce(true), () => finish());
     });
   } catch (err) {
     // Non-fatal — fall back to robotic browser TTS rather than going silent.
@@ -113,4 +156,9 @@ export function silence() {
   if (window.speechSynthesis?.speaking || window.speechSynthesis?.pending) {
     window.speechSynthesis.cancel();
   }
+  // Unconditional, and last. pause() fires no 'ended', and cancel() fires no
+  // 'end' for an utterance that never started — so neither handler above can be
+  // relied on to clear the flag. A mic that stays gated after we stop talking
+  // is a mic that has stopped listening, which is worse than the echo.
+  announce(false);
 }

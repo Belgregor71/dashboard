@@ -99,7 +99,17 @@ export function todayLine(now = new Date()) {
     month: "long",
     year: "numeric"
   });
-  return `Today is ${today}. Work out any age, duration or "how long ago" from that date rather than estimating.`;
+  // The clock, not just the calendar. Asked "how did I sleep" on the morning of
+  // 2026-08-09 the concierge answered that it had access to neither the sleep
+  // data nor the time — and the second half of that was true of this prompt.
+  // A house that cannot say whether it is morning cannot judge "later today",
+  // "tonight" or "have I got time", which is most of what gets asked of it.
+  const time = now.toLocaleTimeString("en-AU", {
+    timeZone: HOUSE_TIME_ZONE,
+    hour: "numeric",
+    minute: "2-digit"
+  });
+  return `Today is ${today}. It is ${time} right now. Work out any age, duration or "how long ago" from that date rather than estimating.`;
 }
 
 export function buildConverseSystem(baseLines, context) {

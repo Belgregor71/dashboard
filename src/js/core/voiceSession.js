@@ -1,6 +1,6 @@
 import { getMode, setMode, MODES } from "./presence.js";
 import { setVoiceState } from "./voiceOverlay.js";
-import { speak } from "./tts.js";
+import { speak, silence, setSpeakingObserver } from "./tts.js";
 import { resetIdleTimer } from "../modules/screensaver.js";
 
 // Phase 4 "Give it a voice" (docs/vision/phase-4-voice.md) — the Mode 3
@@ -173,7 +173,48 @@ function initTranscriptStream() {
   });
 }
 
-export function initVoiceSession({ enabled: on = false } = {}) {
+/* ── Half duplex ────────────────────────────────────────────────────────────
+   Two halves of one conversation rule: the house tells the mic when it is
+   talking, and the mic can tell the house to stop.
+
+   Without it the wake agent hears the reply through the kiosk's own speakers
+   and answers it — the 2026-08-08 logs are full of the house transcribing
+   "It's 18 degrees and clear." back at itself. With it, the agent simply does
+   not capture while we are speaking, and a wake word over a reply means
+   someone wants the floor rather than someone asking a question. */
+function reportSpeaking(on) {
+  // Fire and forget. The reply is already playing; nothing here is allowed to
+  // await, retry or throw, because the only thing at stake is whether the mic
+  // gates for the next two seconds.
+  fetch("/api/voice/speaking", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ speaking: on === true }),
+    // The kiosk does not unload, but a deploy-time teardown mid-utterance
+    // would otherwise leave the agent gated on a page that no longer exists.
+    keepalive: true
+  }).catch(() => { /* the agent fails open — see its _speaking default */ });
+}
+
+function initHalfDuplex() {
+  setSpeakingObserver(reportSpeaking);
+  transcriptStream?.addEventListener("voice_barge_in", () => {
+    silence();
+    // Hold the session open. Someone who cuts a reply short is mid-turn, not
+    // done — receding to GLANCE here would make the follow-up a cold start.
+    if (active) {
+      clearLinger();
+      phase = "linger";
+      lingerTimer = setTimeout(() => {
+        lingerTimer = null;
+        endSession("barge-in");
+      }, LINGER_MS);
+    }
+    setVoiceState("listening", "Listening");
+  });
+}
+
+export function initVoiceSession({ enabled: on = false, halfDuplex = false } = {}) {
   enabled = on === true;
 
   // Debug/verification hooks — the hardware-free drivers (match __presence /
@@ -185,6 +226,7 @@ export function initVoiceSession({ enabled: on = false } = {}) {
     turns: history.length,
     conversationId: assistConversationId,
     streamOpen,
+    halfDuplex: halfDuplex === true,
     mode: getMode()
   });
   window.__voiceTranscript = (text) =>
@@ -192,6 +234,10 @@ export function initVoiceSession({ enabled: on = false } = {}) {
 
   if (enabled) {
     initTranscriptStream();
+    // After the stream exists — initHalfDuplex subscribes to it, and a listener
+    // registered against a null EventSource is the kind of ordering bug this
+    // suite has caught before.
+    if (halfDuplex === true) initHalfDuplex();
     console.info("Voice session ready — Mode 3 lanes armed (local → assist → converse)");
   }
 }
