@@ -21,7 +21,7 @@
 import { matchIntent } from "../../js/services/localIntents.js";
 import { answer } from "../../js/services/localAnswers.js";
 import { voiceSnapshot, rememberReply } from "../../js/services/voiceSnapshot.js";
-import { speak, silence } from "../../js/core/tts.js";
+import { speak, silence, setSpeakingObserver } from "../../js/core/tts.js";
 import { setPhase, setFailure, trackSpeech } from "./presence-light.js";
 import { deepen, sustain, DEPTH } from "./depth.js";
 import { showSubject } from "../subjects/index.js";
@@ -264,6 +264,53 @@ export function reportUnheard() {
   setFailure("unheard");
 }
 
+/* Read per-call, never at module load: ES imports hoist above the point where
+   /js/config.js has set window.CONFIG, so a module-level read is frozen to
+   `undefined` and the flag silently reads false forever. */
+function flag(name) {
+  return Boolean(globalThis.window?.CONFIG?.features?.[name]);
+}
+
+/* ── Half duplex ────────────────────────────────────────────────────────────
+   THIS is the surface on the wall — /v3/, not the incumbent — so the mic's
+   half of the conversation has to be wired here or it is wired nowhere.
+
+   The kiosk's microphone hears its own speakers. On 2026-08-08 the wake agent
+   transcribed V3's replies back into this very EventSource and the house
+   answered itself. Two facts cross the wire: we say when we are talking, and
+   the agent says when someone wants us to stop.
+
+   Note submit() already opens with silence() — a NEW TURN cancelling the old
+   reply. That path cannot fire while we are speaking any more, because the
+   agent no longer captures over us. Barge-in replaces it for that case, and it
+   arrives while `busy` is still held, which is why tts.silence() has to settle
+   the pending speak() promise rather than leave say() awaiting forever.
+─────────────────────────────────────────────────────────────────────────── */
+function reportSpeaking(on) {
+  // Fire and forget: the reply is already playing and nothing here may await,
+  // retry or throw. The agent fails open, so a dropped report costs one turn
+  // of echo, never a deaf microphone.
+  fetch("/api/voice/speaking", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ speaking: on === true }),
+    keepalive: true
+  }).catch(() => {});
+}
+
+function initHalfDuplex() {
+  setSpeakingObserver(reportSpeaking);
+  stream.addEventListener("voice_barge_in", () => {
+    silence();
+    // Someone took the floor mid-sentence. The turn is over, but they are
+    // still here — hold the readout for the follow-up rather than snapping
+    // the screen back, and drop the light out of "speaking" now rather than
+    // when a promise that was cut short gets round to it.
+    setPhase("idle");
+    endTurn();
+  });
+}
+
 export function initVoice({ enabled: on = false, lat = null, lon = null } = {}) {
   enabled = on === true;
   coords = { lat, lon };
@@ -274,7 +321,13 @@ export function initVoice({ enabled: on = false, lat = null, lon = null } = {}) 
 
   // Debug hooks, matching the house convention so CDP can drive a turn with no
   // microphone and no person in the room.
-  window.__v3Voice = () => ({ enabled, busy, failures: consecutiveFailures, streamOpen: stream?.readyState === 1 });
+  window.__v3Voice = () => ({
+    enabled,
+    busy,
+    failures: consecutiveFailures,
+    streamOpen: stream?.readyState === 1,
+    halfDuplex: flag("voiceHalfDuplex")
+  });
   window.__v3Transcript = (t) => submit(t, { source: "debug" });
 
   if (!enabled) return;
@@ -290,4 +343,7 @@ export function initVoice({ enabled: on = false, lat = null, lon = null } = {}) 
       if (text) submit(String(text).toLowerCase(), { source: "mic" });
     } catch { /* malformed frame — never throw into the stream */ }
   });
+
+  // After the stream exists — it is what the barge-in listener attaches to.
+  if (flag("voiceHalfDuplex")) initHalfDuplex();
 }

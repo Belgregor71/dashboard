@@ -163,3 +163,134 @@ test("the rail only ever offers something the lane can actually answer", async (
     expect(["what time is it", "show me the driveway", "show me the front door", "brief me"]).toContain(rail);
   }
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HALF DUPLEX — on /v3/, which is the surface actually on the wall.
+
+   Regression, 2026-08-08/09: the kiosk's mic hears its own HDMI speakers, so
+   the wake agent transcribed V3's replies back into this EventSource and the
+   house answered itself. The flag adds the two facts that stop it — we say
+   when we are talking, the agent says when to stop.
+
+   The hazard these pin is not the echo, it is the CURE: barge-in silences a
+   reply while submit() is awaiting say(), and pause() fires no 'ended'. Left
+   unsettled, that await never returns, `busy` latches true, and the house goes
+   permanently deaf — a far worse failure than the one being fixed.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function silentWav(seconds, rate = 8000) {
+  const samples = Math.floor(rate * seconds);
+  const buf = Buffer.alloc(44 + samples * 2);
+  buf.write("RIFF", 0); buf.writeUInt32LE(36 + samples * 2, 4); buf.write("WAVE", 8);
+  buf.write("fmt ", 12); buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(1, 22); buf.writeUInt32LE(rate, 24); buf.writeUInt32LE(rate * 2, 28);
+  buf.writeUInt16LE(2, 32); buf.writeUInt16LE(16, 34);
+  buf.write("data", 36); buf.writeUInt32LE(samples * 2, 40);
+  return buf;
+}
+
+async function bootHalfDuplex(page, { speaking, replySeconds = 30 }) {
+  // The catch-all shape this repo insists on: config.js first, because
+  // page.route matches LAST-registered first and a later stub must win.
+  await page.route("**/js/config.js", async (route) => {
+    const res = await route.fetch();
+    await route.fulfill({
+      response: res,
+      body: (await res.text()) + "\nwindow.CONFIG.features.voiceHalfDuplex = true;\n"
+    });
+  });
+  await page.route("**/api/tts/speak", (route) =>
+    route.fulfill({ contentType: "audio/wav", body: silentWav(replySeconds) })
+  );
+  await page.route("**/api/voice/speaking", async (route) => {
+    speaking.push(route.request().postDataJSON()?.speaking);
+    await route.fulfill({ status: 204, body: "" });
+  });
+  await page.addInitScript(() => {
+    // tts.js plays through `new Audio(url)`, which is never appended to the
+    // document — querySelectorAll("audio") cannot see it.
+    const Native = window.Audio;
+    window.__ttsAudio = [];
+    window.Audio = function (...args) {
+      const el = new Native(...args);
+      window.__ttsAudio.push(el);
+      return el;
+    };
+    window.Audio.prototype = Native.prototype;
+  });
+  return boot(page);
+}
+
+test("half duplex: V3 tells the mic when it is speaking", async ({ page }) => {
+  const speaking = [];
+  const pageErrors = await bootHalfDuplex(page, { speaking, replySeconds: 0.2 });
+
+  expect(await page.evaluate(() => window.__v3Voice().halfDuplex)).toBe(true);
+  await page.evaluate(() => window.__v3Transcript("what time is it"));
+
+  expect(speaking[0], "V3 never reported that it had started talking").toBe(true);
+  await expect.poll(() => speaking[speaking.length - 1], { timeout: 10_000 }).toBe(false);
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("half duplex: a barge-in stops the reply AND does not wedge the turn", async ({ page, request }) => {
+  const speaking = [];
+  const pageErrors = await bootHalfDuplex(page, { speaking });
+
+  await expect
+    .poll(() => page.evaluate(() => window.__v3Voice().streamOpen), { timeout: 10_000 })
+    .toBe(true);
+
+  // Half a minute of reply, so "it stopped" cannot be the clip simply ending.
+  const turn = page.evaluate(() => window.__v3Transcript("what time is it"));
+  await expect.poll(() => speaking[speaking.length - 1], { timeout: 10_000 }).toBe(true);
+  const playingBefore = await page.evaluate(() => window.__ttsAudio.some((a) => !a.paused));
+
+  expect((await request.post("/api/voice/barge-in", { data: {} })).status()).toBe(200);
+
+  await expect
+    .poll(() => page.evaluate(() => window.__ttsAudio.every((a) => a.paused)), { timeout: 10_000 })
+    .toBe(true);
+
+  // THE ONE THAT MATTERS. submit() is awaiting say() with `busy` held; if
+  // silence() does not settle that promise the turn never returns and the
+  // house is deaf from here on. Both halves are asserted: the turn resolves,
+  // and the very next utterance is accepted rather than refused as busy.
+  const result = await Promise.race([
+    turn,
+    new Promise((r) => setTimeout(() => r({ wedged: true }), 10_000))
+  ]);
+  expect(result.wedged, "the interrupted turn never resolved — busy is latched").toBeUndefined();
+  expect(await page.evaluate(() => window.__v3Voice().busy)).toBe(false);
+
+  // Short reply for the follow-up, or this simply waits out another half
+  // minute of silence. Registered last, so it is matched first.
+  await page.route("**/api/tts/speak", (route) =>
+    route.fulfill({ contentType: "audio/wav", body: silentWav(0.2) })
+  );
+  const next = await page.evaluate(() => window.__v3Transcript("what time is it"));
+  expect(next.reason, "the house refused the follow-up as busy").not.toBe("busy");
+  expect(next.handled).toBe(true);
+
+  expect(playingBefore, "nothing was playing, so nothing was interrupted").toBe(true);
+  expect(pageErrors).toEqual([]);
+});
+
+test("half duplex off (default): V3 reports nothing and installs no observer", async ({ page }) => {
+  const speaking = [];
+  await page.route("**/api/tts/speak", (route) =>
+    route.fulfill({ contentType: "audio/wav", body: silentWav(0.2) })
+  );
+  await page.route("**/api/voice/speaking", async (route) => {
+    speaking.push(route.request().postDataJSON()?.speaking);
+    await route.fulfill({ status: 204, body: "" });
+  });
+  const pageErrors = await boot(page);
+
+  expect(await page.evaluate(() => window.__v3Voice().halfDuplex)).toBe(false);
+  await page.evaluate(() => window.__v3Transcript("what time is it"));
+
+  expect(speaking, "the flag-off build reported speaking state").toEqual([]);
+  expect(pageErrors).toEqual([]);
+});

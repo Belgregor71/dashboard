@@ -1,5 +1,11 @@
 let currentAudio = null;
 let currentAudioUrl = null;
+/* Settles the in-flight speak() promise. Load-bearing for barge-in: silence()
+   PAUSES the element, and pause fires no 'ended', so without this the awaiting
+   caller waits forever. V3 awaits say() with its `busy` latch held — one
+   interrupted reply would have made the house permanently deaf, which is a
+   worse failure than the echo this whole change is fixing. */
+let currentFinish = null;
 
 /* ── Half duplex ────────────────────────────────────────────────────────────
    The kiosk's microphone can hear its own speakers, and the wake agent spent
@@ -87,7 +93,12 @@ async function speakWithBrowserTts(text, { rate, pitch, volume }) {
   return new Promise((resolve) => {
     // The fallback voice comes out of the same speakers, so the mic has to be
     // told about it too — a degraded TTS path is still a talking house.
-    const done = () => { announce(false); resolve(); };
+    const done = () => {
+      if (currentFinish === done) currentFinish = null;
+      announce(false);
+      resolve();
+    };
+    currentFinish = done;
     utterance.onstart = () => announce(true);
     utterance.onend   = done;
     utterance.onerror = done; // don't block callers on TTS error
@@ -128,7 +139,13 @@ export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0, onAu
     }
 
     return new Promise((resolve) => {
-      const finish = (value) => { announce(false); releaseAudioUrl(audioUrl); resolve(value); };
+      const finish = (value) => {
+        if (currentFinish === finish) currentFinish = null;
+        announce(false);
+        releaseAudioUrl(audioUrl);
+        resolve(value);
+      };
+      currentFinish = finish;
       audio.onended = () => finish();
       audio.onerror = (e) => finish(e);
       // announce(true) on the play() PROMISE, not on the fetch: the round trip
@@ -147,6 +164,9 @@ export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0, onAu
 }
 
 export function silence() {
+  // Taken before the teardown below, because finish() clears it.
+  const finish = currentFinish;
+  currentFinish = null;
   if (currentAudio) {
     currentAudio.pause();
     currentAudio.currentTime = 0;
@@ -156,9 +176,13 @@ export function silence() {
   if (window.speechSynthesis?.speaking || window.speechSynthesis?.pending) {
     window.speechSynthesis.cancel();
   }
-  // Unconditional, and last. pause() fires no 'ended', and cancel() fires no
-  // 'end' for an utterance that never started — so neither handler above can be
-  // relied on to clear the flag. A mic that stays gated after we stop talking
-  // is a mic that has stopped listening, which is worse than the echo.
+  // Settle whoever is awaiting the reply. pause() fires no 'ended' and
+  // cancel() fires no 'end' for an utterance that never started, so without
+  // this an interrupted reply leaves its caller awaiting forever — and V3
+  // holds its `busy` latch across that await.
+  if (finish) finish();
+  // Unconditional, and last, for the same reason: neither handler can be
+  // relied on to have run. A mic that stays gated after we stop talking is a
+  // mic that has stopped listening, which is worse than the echo.
   announce(false);
 }
