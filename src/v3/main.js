@@ -21,6 +21,7 @@ import { connectHA, isHAConnected } from "../js/services/homeAssistant/client.js
 import { registerEntityFeed } from "../js/services/homeAssistant/entityFeed.js";
 import { getAllEntities } from "../js/services/homeAssistant/state.js";
 import { refreshHouseCache, houseCacheAge } from "../js/services/houseSnapshot.js";
+import { initAttention, lastSelection, tickAttention } from "./core/attention.js";
 
 /* Sun position only. City-level Brisbane, deliberately coarse: this repo is
    PUBLIC and its bundle is tracked, so no house-precise coordinate may appear
@@ -173,6 +174,11 @@ function boot() {
   connectHA();
   refreshHouseCache();
 
+  /* The house's opinion, scored but not yet obeyed. See core/attention.js —
+     it reads and publishes, and nothing here lets it move the surface until
+     1.4 maps the queue's bands onto depth. */
+  initAttention();
+
   substrate = initSubstrate(el.substrate);
 
   // The photograph and its scrim are one thing in two files: the ground knows
@@ -216,8 +222,14 @@ function boot() {
       connected: isHAConnected(),
       entities: Object.keys(getAllEntities()).length,
       houseCacheAgeMs: houseCacheAge()
-    }
+    },
+    attention: lastSelection()
   });
+
+  // Force a tick rather than waiting out the 30s cycle — the companion to
+  // __forceCandidate, and the only way to drive the queue over CDP on the wall
+  // without sitting through a full interval per probe.
+  window.__v3Tick = () => tickAttention();
 
   console.info("V3 ready —", substrate?.backend ?? "no substrate");
 }

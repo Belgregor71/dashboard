@@ -82,6 +82,20 @@
   <!-- The house's presence. Not an object — the light of the screen itself. -->
   <div class="presence"></div>
 
+  <!-- The same two globals the incumbent boots with, and for the same reason:
+       core/config.js reads window.__ENV__ / __DASH_CONFIG__ at module load, and
+       attentionEngine gates four phases on window.CONFIG.features. Without
+       these V3 does not fall back to sensible defaults — it silently reads
+       every one of those flags as false, and the two surfaces would be running
+       measurably different houses while claiming to share an engine.
+
+       Order holds regardless of where the build puts these: a module script is
+       deferred, so it runs after the parser has finished, and these two plain
+       scripts execute during parsing. Vite hoists the module tag into <head>
+       and the globals are still set first. -->
+  <script src="/env.js"></script>
+  <script src="/js/config.js"></script>
+
   <script type="module" src="./main.js"></script>
 </body>
 </html>
