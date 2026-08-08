@@ -63,7 +63,19 @@ When debugging camera/doorbell staleness, check config sources (preferredSnapsho
 ### Environment & Deployment Gotchas
 
 - Environment config is a frequent failure point: confirm `.env` vars (HA_HOST vs HA_URL, correct port, location coordinates) match the target Pi environment before deploying. The HA token in the Pi's `.env` is double-quoted — strip quotes when extracting.
-- Never use broad `pkill -f` patterns over SSH — a past pattern matched the SSH shell's own process and killed the session.
+- **Any process-matching over SSH is SELF-matching — this is broader than `pkill -f` and has
+  now killed a session twice, the second time while deliberately avoiding `pkill`.** The
+  pattern you are matching on is *in the command line of the very shell running the match*:
+  `ssh host 'for p in $(ps -eo pid=); do grep -q myprofile /proc/$p/cmdline && kill $p; done'`
+  finds its own `bash -c` and kills it (SSH exits 255). Moving the loop into a script file is
+  **not** enough — the pattern is still `argv[1]`.
+  - Safe recipe: exclude `$$` **and the whole ancestor chain** (walk field 4 of `/proc/$p/stat`
+    up to PID 1), then match. Prefer targeting by port, PID file, or `pgrep -x <exact-binary>`
+    over matching a command-line substring at all.
+  - **Same trap in measurement form:** a "how many are left?" check that greps for the pattern
+    counts *itself* and its subshell. A detector that matches itself reported 2 survivors when
+    the true answer was 0 — verify with something the probe cannot be (a dead port, an absent
+    profile dir), never with a count that includes the counter.
 
 ### UI / CSS Workflow
 
