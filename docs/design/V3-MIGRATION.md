@@ -1,7 +1,9 @@
 # V3 Migration — bringing the house onto the new surface
 
-**Status:** **Phase 1 complete and live (`3efb426`, 2026-08-08).** Written 2026-08-08, after
-the wall was flipped to `/v3/` for ~15 minutes and pointed back. See
+**Status:** **Phases 1 and 2 complete (`3efb426`, `7d89002`, 2026-08-08).** Phase 1 is live
+and was demonstrated on the G11; **Phase 2 is committed but unpushed and has never been seen
+by eye.** Written 2026-08-08, after the wall was flipped to `/v3/` for ~15 minutes and
+pointed back. See
 [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) for the design law and
 `~/.claude/plans/i-want-to-see-synthetic-hummingbird.md` for the original V3 plan.
 
@@ -154,20 +156,64 @@ reason `attention:absent`, cell cleared.
 **Do not skip 1.2 by letting features reach the screen directly.** That shortcut is
 precisely how the incumbent became eleven phases of accretion, and V3 exists to escape it.
 
-### Phase 2 — The composer
+### Phase 2 — The composer — ✅ **COMPLETE 2026-08-08 (`7d89002`)**
 
-Depth 2 currently renders an empty lattice. `e3e9630` had to add a guard so it could not be
-*entered* empty and black the wall out mid-sentence — that guard is a placeholder for this
-phase.
+| # | step | size | |
+|---|---|---|---|
+| 2.1 | `core/grammar.js` — the legal rectangles and the named templates | M | ✅ |
+| 2.2 | `core/composer.js` — pick a template from the ranked queue; never free-form | M | ✅ |
+| 2.3 | Haiku authors **words only**, never placement; `personality.phrase()` on failure | S | ✅ |
+| 2.4 | `core/spread.js` + the dwell rule — not in the plan, and depth 2 does not render without it | M | ✅ |
 
-| # | step | size |
-|---|---|---|
-| 2.1 | `core/grammar.js` — 12×7 module grid, the fixed legal rectangles, ~6 named templates | M |
-| 2.2 | `core/composer.js` — pick a template from the ranked queue; never free-form | M |
-| 2.3 | Haiku authors **words only**, never placement; `personality.phrase()` on failure | S |
+**Invariant, and it held:** layout composed by rules, language composed by the model.
 
-**Invariant:** layout composed by rules, language composed by the model. This is the whole
-defence against slop and against destroying learnability, and it is not negotiable.
+**Done when:** depth 2 renders something. It does — `pair-note` on the live low-band queue,
+opened by dwelling and nothing else.
+
+> ⚠ **The plan's "~6 named templates" landed at four, and "five rectangles" at four plus
+> `full`.** Both numbers were written from the design study rather than from the shipped
+> `compose.css`, and **the CSS is the truth** — a rectangle named in JS with no class in the
+> stylesheet is an invisible cell, content placed nowhere with no error anywhere. A spec now
+> parses the stylesheet and compares coordinates. `cell--rail` is deliberately excluded: it
+> spans rows 7–8 and therefore **overlaps both `wide` and `side`**, and depth 2 already
+> prints the vocabulary rail in that corner. Five- and six-cell templates would be geometry
+> nothing can reach, because `selectForMode` caps the DWELL stack at three.
+
+> ⚠ **The High band gates depth 1 and must NOT gate depth 2.** They are opposite
+> transactions: D1 is the house interrupting you (score ≥ 70, or the wall lights up for
+> "Chicken Fajitas"), D2 is you having stayed in the room for thirty seconds. The entire
+> Low-band readout queue — commute 42, now playing 41, menu 40 — is exactly what belongs at
+> D2 and nowhere else.
+
+> ⚠ **`sustain()` re-arms a depth WITHOUT changing it, so no `onDepth` listener fires.** Any
+> ownership flag maintained from that subscription is therefore stale the moment the voice
+> takes over a depth attention opened — and the vocabulary card reaches depth 2 through
+> exactly that path when the surface is already there. The composer took the screen back off
+> the card on the next 30 s tick, mid-conversation, silently. **Ownership is asked, never
+> remembered:** `getReason()` (new export on `depth.js`) plus `spreadMounted()`, which reads
+> the DOM. The same shape as the render signature, for the same reason.
+
+> ⚠ **2.3 was already true and the work was keeping it true.** Text reaches the composer
+> already phrased by `attentionEngine` — AI via `/api/ai/brief`, `personality.phrase()` when
+> it fails — so the honest job was making sure the composer does not quietly become a second
+> author. No fetch, no interpolation, no fallback copy, and a spec that reads the two pure
+> files and fails on `document`/`window`/`fetch(`/`localStorage`/`setTimeout`.
+
+> ⚠ **`tests/v3-spread.spec.js` answers every `/api/**` 503.** Its first run composed a
+> `triple-footer` instead of the expected pair because a **real Plex candidate arrived from
+> the developer's own NAS** — the same trap as the suite hitting live HA. Which template is
+> chosen is a function of how many candidates there are, so a template spec cannot share the
+> queue with whatever happens to be playing in the living room.
+
+> **Two latent bugs fixed in passing.** `css/type.css` has carried
+> `.said[data-len="long"]` since V3 shipped and **nothing ever set it**, so every long line
+> has been trying to hold 132px; `setSaidText()` now applies it at both depths, at
+> focusHero's own 41-character threshold. And `__v3()` had **two writers for `presence`**, so
+> the second ate the first and the presence *light* was unreachable from the handle — it is
+> now `light`.
+
+**Still owed:** depth 2 has never been seen by eye, and the spread's marginal GPU cost is
+unmeasured. `__v3Presence("dwell")` collapses the 30 s wait for a CDP probe.
 
 ### Phase 3 — The events that must interrupt
 
@@ -231,7 +277,7 @@ and the flip stays a URL.
 - [x] Depth moves without speech (Phase 1) — ✅ `3efb426`, demonstrated live
 - [x] Motion wakes the surface (3.2) — ✅ falls out of 1.4/1.5; still wants a real-event sighting
 - [ ] Doorbell reaches the screen unasked (3.1)
-- [ ] Depth 2 renders something (Phase 2)
+- [x] Depth 2 renders something (Phase 2) — ✅ `7d89002`; **not yet seen by eye**
 - [ ] Display sleeps overnight (5.1)
 - [ ] Ground never shows a screenshot (5.2)
 - [ ] Watchdog + self-heal running (Phase 6)
@@ -259,6 +305,8 @@ broken. Call `__v3Tick()` first.
 
 V3 debug handles: `__v3()`, `__v3Tick()`, `__emitHaState(entity)`, `__v3Presence(bool)`,
 `__depth()`, `__setDepth(n)`, plus the engine's own `__forceCandidate` / `__refreshAttention`.
+⚠ **Depth 2 needs `__v3Presence("dwell")`**, not `true` — dwelling is 30 s of sustained
+presence and the spread is gated on it, so `true` alone will only ever show you a glance.
 
 ## Flipping, and getting back
 
