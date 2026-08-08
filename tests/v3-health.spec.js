@@ -17,7 +17,24 @@ import { worstFault } from "../src/v3/core/health.js";
    Pure, so it runs without a browser — the same reason the fast lane's tests do.
 ─────────────────────────────────────────────────────────────────────────── */
 
-const feed = (id, level, detail = null) => ({ id, label: id, level, detail });
+/* ⚠ THE LABELS ARE THE SERVER'S REAL ONES, and that is load-bearing rather
+   than decorative. A first draft used the feed id as the label, so every
+   fixture label was one short word — and the "no label wraps" assertion below
+   passed happily while the live wall was wrapping four of nine labels onto a
+   second line. A fixture that cannot produce the defect cannot catch it.
+   Mirrors the FEEDS map in server/services/healthService.js. */
+const LABELS = {
+  ha: "Home Assistant",
+  wan: "Internet",
+  motion: "Motion events",
+  weather: "Weather",
+  calendar: "Calendar",
+  cameras: "Camera snapshots",
+  ai: "AI briefings",
+  tts: "Text-to-speech"
+};
+
+const feed = (id, level, detail = null) => ({ id, label: LABELS[id] ?? id, level, detail });
 
 test.describe("the fault worth naming", () => {
   test("a healthy house names nothing", () => {
@@ -84,6 +101,25 @@ const BROKEN = {
   updatedAt: Date.now(),
   feeds: [feed("wan", "error", "internet is down"), feed("weather", "error", "no success for 2h")],
   recoveries: [{ at: Date.now(), kind: "detection-switch", action: "re-armed switch.kitchen_motion_detection", ok: true }]
+};
+
+/* The whole board, which is what the wall actually renders — including the four
+   labels long enough to wrap ("Home Assistant", "Motion events", "Camera
+   snapshots", "Text-to-speech"). The geometry assertions use this one. */
+const FULL = {
+  overall: "error",
+  updatedAt: Date.now(),
+  feeds: [
+    feed("ha", "ok"),
+    feed("wan", "error", "internet is down"),
+    feed("motion", "warn", "no success for 26h"),
+    feed("weather", "error", "no success for 2h"),
+    feed("calendar", "ok"),
+    feed("cameras", "ok"),
+    feed("ai", "error", "2 consecutive failures"),
+    feed("tts", "ok")
+  ],
+  recoveries: []
 };
 
 const METRICS = { cpuLoadPercent: 7, cpuCount: 8, uptimeSeconds: 90_000, tempC: 41.2, hostname: "g11" };
@@ -205,7 +241,7 @@ test.describe("the status readout", () => {
           in a staircase.
        2. column() sets its value half in the SAID voice at 96px, so "fine",
           eight times over, was the largest thing on a diagnostic panel. */
-    await bootV3(page, { health: BROKEN });
+    await bootV3(page, { health: FULL });
     const got = await page.evaluate(async () => {
       await window.__v3Subject("show.status");
       window.__setDepth(3, "spec");
