@@ -20,6 +20,7 @@ import { voiceSnapshot, refreshVoiceCache } from "../js/services/voiceSnapshot.j
 import { connectHA, isHAConnected } from "../js/services/homeAssistant/client.js";
 import { registerEntityFeed } from "../js/services/homeAssistant/entityFeed.js";
 import { getAllEntities } from "../js/services/homeAssistant/state.js";
+import { emit as emitBus } from "../js/core/eventBus.js";
 import { refreshHouseCache, houseCacheAge } from "../js/services/houseSnapshot.js";
 import { initAttention, lastSelection, tickAttention } from "./core/attention.js";
 
@@ -174,9 +175,10 @@ function boot() {
   connectHA();
   refreshHouseCache();
 
-  /* The house's opinion, scored but not yet obeyed. See core/attention.js —
-     it reads and publishes, and nothing here lets it move the surface until
-     1.4 maps the queue's bands onto depth. */
+  /* The house's opinion, and its permission to act on it. See core/attention.js:
+     an interrupt reaches the glance whether or not anyone is there, the High
+     band reaches it when someone is, and nothing below that earns the screen.
+     initAttention() brings presence up with it. */
   initAttention();
 
   substrate = initSubstrate(el.substrate);
@@ -223,13 +225,20 @@ function boot() {
       entities: Object.keys(getAllEntities()).length,
       houseCacheAgeMs: houseCacheAge()
     },
-    attention: lastSelection()
+    attention: lastSelection(),
+    presence: window.__v3Presence?.()
   });
 
   // Force a tick rather than waiting out the 30s cycle — the companion to
   // __forceCandidate, and the only way to drive the queue over CDP on the wall
   // without sitting through a full interval per probe.
   window.__v3Tick = () => tickAttention();
+
+  // Push one entity onto the bus exactly as the SSE would deliver it. The way
+  // to drive motion, or any other cause, without walking into the kitchen —
+  // and the companion to __forceCandidate for the half of the rule that is
+  // about presence rather than about score.
+  window.__emitHaState = (entity) => { emitBus("ha:state-updated", entity); return entity?.entity_id ?? null; };
 
   console.info("V3 ready —", substrate?.backend ?? "no substrate");
 }

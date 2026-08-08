@@ -52,22 +52,30 @@ test("a cold house scores nothing rather than inventing something", async ({ pag
   expect(attention.sourceCount).toBe(0);
 });
 
-test("depth 0 asks the engine as AMBIENT, which admits interrupts only", async ({ page }) => {
+test("an empty room asks the engine as AMBIENT, which admits interrupts only", async ({ page }) => {
   await bootV3(page);
 
-  // The mode is borrowed from depth until 1.4 inverts it. At rest that must be
-  // AMBIENT: if it read GLANCE, the resting wall would be eligible for the
-  // ordinary queue the moment 1.4 gives the selection any authority.
-  expect(await page.evaluate(() => window.__v3().depth.depth)).toBe(0);
-  expect(await page.evaluate(() => window.__v3().attention.mode)).toBe("ambient");
+  /* ⚠ REWRITTEN AT 1.4, and worth saying why rather than quietly editing. This
+     test used to assert the OPPOSITE — that the mode was borrowed from depth,
+     so `__setDepth(2)` produced "dwell". That was 1.3's deliberate placeholder
+     and 1.4 inverted it: the mode now comes from presence, and depth follows
+     attention instead of leading it. The old assertion failing is the change
+     landing correctly, so the assertion is turned around rather than deleted. */
+  const rest = await page.evaluate(() => {
+    window.__v3Presence(false);
+    return { depth: window.__depth().depth, mode: window.__v3Tick().mode };
+  });
+  expect(rest.depth).toBe(0);
+  expect(rest.mode).toBe("ambient");
 
-  // And it tracks: put the surface deeper and the engine is asked a different
-  // question. This is the seam 1.4 turns around.
+  // Depth must no longer be able to talk back to the mode. If it could, a
+  // voice-held SUBJECT would tell the engine the room is dwelling when there may
+  // be nobody in it at all.
   const deep = await page.evaluate(() => {
     window.__setDepth(2, "spec");
     return window.__v3Tick().mode;
   });
-  expect(deep).toBe("dwell");
+  expect(deep).toBe("ambient");
 });
 
 test("the flags the engine gates four phases on are actually set", async ({ page }) => {
