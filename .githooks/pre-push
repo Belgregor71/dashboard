@@ -5,7 +5,8 @@
 #   2. API contract tests + browser smoke test must pass
 #   3. known-defect patterns in the outgoing diff (slug guards, hook order,
 #      brightness clamps) must be absent
-#   4. worst-case text contrast across all 8 atmosphere tokens must clear WCAG AA
+#   4. worst-case text contrast must clear WCAG AA — on the incumbent across all
+#      8 atmosphere tokens, and on V3 across 13 surfaces x 2 grounds x day/night
 #   5. cross-layer contracts hold: no frontend fetch to an undeclared /api route,
 #      no eventBus subscription without an emitter. Whole-tree, not the diff —
 #      both halves of a contract rarely move in the same commit.
@@ -52,7 +53,7 @@ npm test
 echo "[pre-push] 4/5 known-defect pattern scan"
 node scripts/verify/scan-patterns.mjs
 
-echo "[pre-push] 5/5 worst-case contrast sweep (8 atmosphere tokens)"
+echo "[pre-push] 5/5 worst-case contrast sweep (incumbent tokens + the V3 surface)"
 npm run verify:contrast
 
 echo ""

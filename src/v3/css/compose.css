@@ -229,6 +229,41 @@ html, body {
   list-style: none;
 }
 
+/* ⚠ MEASURED 2026-08-08 AT 1.00:1 — the worst text in the whole of V3.
+   The card is a `cell--dominant`, which spans lattice rows 1-5, i.e. the top
+   two-thirds of the frame. `--scrim` is a gradient `to top` that is TRANSPARENT
+   BY 88% BY DESIGN, so six 48px lines and a 96px lead were being printed
+   straight onto the photograph with nothing between them. On a bright sky the
+   ink and the ground land on the same luminance and the text simply is not
+   there.
+
+   It matters more than the number does. This card is what depth 2 shows on the
+   third strike — the person has already not been understood three times, and an
+   unreadable list of what to say instead is where they stop talking to the wall.
+
+   The fix is the Phase 4 answer, not a new one: a flat veil at the SOLVED
+   opacity, full bleed. Full bleed and not on the cell, because a veiled
+   rectangle inside the safe inset is the "card floating on the photograph"
+   that depth 3 was corrected away from — V3 retired blur and has no card
+   material at all. The card is one thing at length, so it gets a subject's
+   treatment.
+
+   `:has()` rather than a class set from JS: the lattice has two tenants and
+   this must be true exactly while the card is the one mounted. A flag would be
+   another thing to keep in sync, and spread.js already documents what happens
+   when the two tenants disagree about who owns the node.
+
+   The ::before is a pseudo-element, so it is the layer's FIRST child and the
+   real .lattice paints over it — both are positioned at z-index auto, and DOM
+   order decides. */
+.depth--spread:has(.vocab)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in oklch, var(--scrim-base) calc(var(--scrim-opacity) * 100%), transparent);
+  pointer-events: none;
+}
+
 .vocab__item {
   font-family: var(--font-said);
   font-optical-sizing: auto;
@@ -269,6 +304,50 @@ html, body {
   left: var(--safe);
   bottom: var(--safe);
   text-shadow: var(--ink-shadow);
+  z-index: 1;                    /* over the caption band below, never under it */
+}
+
+/* ── The caption band ───────────────────────────────────────────────────────
+   ⚠ MEASURED 2026-08-08: the camera caption at 2.03:1 and the media title at
+   1.01:1 over a bright frame.
+
+   These two subjects are PHOTOGRAPHS THAT FILL THE SCREEN, so they sit ON TOP
+   of the main scrim rather than under it — the scrim is z-index 2 and the stage
+   is 10. Every other subject gets a flat veil; these two cannot have one,
+   because the picture IS the answer and veiling it uniformly would be veiling
+   the thing the room asked to see.
+
+   ⚠ AND THE COMMENT ON THE VEIL RULE SAID THIS WAS ALREADY HANDLED. It read
+   "the media subject is excluded on purpose: it carries its own local scrim
+   under the caption instead" — and there was no such scrim anywhere, not on
+   .subject__over and not on .subject--media. A false comment is worse than no
+   comment: it is what stops the next person checking.
+
+   So: the same shape as the main scrim, at the bottom of the frame, at the
+   SAME SOLVED OPACITY — core/scrim.js sampled the ground and computed the
+   smallest alpha that clears the target, and reusing it means no number is
+   invented here either. The band is steep and short so it costs the picture
+   only the strip the words are actually on.
+─────────────────────────────────────────────────────────────────────────── */
+.subject--camera::after,
+.subject--media::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  /* ⚠ SIZED TO THE TALLEST CAPTION, NOT TO TASTE. The camera's caption is one
+     96px line ~198px off the floor; the media's is a title AND a line, ~269px.
+     A band that held at 42% cleared the camera and left the media title at
+     2.27:1 at night, because --ink-dim is the dimmest thing V3 paints and the
+     title's own top edge was already into the fade. The plateau runs past 269px
+     before it starts falling away. */
+  height: 46%;
+  background: linear-gradient(
+    to top,
+    color-mix(in oklch, var(--scrim-base) calc(var(--scrim-opacity) * 100%), transparent) 0%,
+    color-mix(in oklch, var(--scrim-base) calc(var(--scrim-opacity) * 96%), transparent) 60%,
+    transparent 100%
+  );
+  pointer-events: none;
 }
 
 /* Radar: a 3x3 mosaic, rain over basemap, both from our own cache. */
@@ -330,8 +409,10 @@ html, body {
    than being re-guessed — and no number is invented here, which is the whole
    reason the sampler exists.
 
-   The media subject is excluded on purpose: its artwork IS the answer and it
-   carries its own local scrim under the caption instead. */
+   The media subject is excluded on purpose: its artwork IS the answer, so it
+   takes the caption band (see .subject--media::after) rather than a veil over
+   the whole picture. ⚠ This comment used to claim that band already existed. It
+   did not — see the note there. */
 .subject--calendar,
 .subject--list,
 .subject--recipe,
@@ -464,12 +545,28 @@ html, body {
    different photograph, so no single global answer exists. A local gradient
    under the caption band is the same mechanism as the main scrim at one-ninth
    the area, and it costs one composite on a static image. */
+/* ⚠ AND THE FIRST VERSION OF IT WAS THE RIGHT MECHANISM AT THE WRONG SIZE —
+   measured 2026-08-08 at 1.40-1.74:1, barely better than no band at all. A
+   two-stop gradient from 0.85 to transparent over 45% of the plate reaches only
+   ~0.37 effective alpha at the TOP of the caption, and the caption is a 48px
+   line in a ~285px plate, so most of its glyph height sat in the thin part of
+   its own protection. Reasoning about the bottom of a gradient is not the same
+   as reasoning about the box that sits in it.
+
+   Taller, and held near-full for the caption's own height before it starts to
+   fall away. Still a gradient rather than a bar, because nine hard-edged bands
+   across a grid of photographs is chrome. */
 .subject__plate::after {
   content: "";
   position: absolute;
   inset: auto 0 0 0;
-  height: 45%;
-  background: linear-gradient(to top, oklch(0.08 0.01 var(--atmo-hue) / 0.85), transparent);
+  height: 58%;
+  background: linear-gradient(
+    to top,
+    oklch(0.08 0.01 var(--atmo-hue) / 0.94) 0%,
+    oklch(0.08 0.01 var(--atmo-hue) / 0.88) 46%,
+    transparent 100%
+  );
   pointer-events: none;
 }
 
@@ -498,6 +595,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  z-index: 1;                    /* over the caption band, never under it */
 }
 
 /* Sun-agreed light: every lift on the surface throws its shadow where the real
