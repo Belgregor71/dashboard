@@ -151,7 +151,23 @@ const HEALTHY = {
   recoveries: []
 };
 
-const METRICS = { cpuLoadPercent: 7, cpuCount: 8, uptimeSeconds: 90_000, tempC: 41.2, hostname: "g11" };
+/* ⚠ THE LIVE SHAPE, and it is nine feeds — the G11's watchdog reports a
+   `motionCoverage` feed the older fixtures in v3-health.spec.js do not carry.
+   Nine feeds plus the box line is ten rows, which is exactly the panel's
+   ceiling, which is why the surface row is the one that overflows it. A
+   fixture with eight feeds cannot produce this defect. */
+const NINE_FEEDS = {
+  overall: "ok",
+  updatedAt: Date.now(),
+  recoveries: [],
+  feeds: [
+    ["ha", "Home Assistant"], ["wan", "Internet"], ["motion", "Motion events"],
+    ["motionCoverage", "Motion coverage"], ["weather", "Weather"], ["calendar", "Calendar"],
+    ["cameras", "Camera snapshots"], ["ai", "AI briefings"], ["tts", "Text-to-speech"]
+  ].map(([id, label]) => ({ id, label, level: "ok", detail: null }))
+};
+
+const METRICS = { cpuLoadPercent: 7, cpuCount: 8, uptimeSeconds: 706_000, tempC: 49, hostname: "g11" };
 
 async function bootV3(page, { boom = null, health = HEALTHY } = {}) {
   const pageErrors = [];
@@ -307,5 +323,42 @@ test.describe("saying so", () => {
     expect(got.speech).toBe("Part of the screen didn't start.");
     // Two feeds, the box line, and the surface row on top of them.
     expect(got.rows).toBe(4);
+  });
+
+  test("⚠ SEEN ON THE GLASS: the surface row does not push a row off the bottom", async ({ page }) => {
+    /* The regression this actually caused, caught by a screenshot of the live
+       wall and by nothing else. The live house reports NINE feeds, which with
+       the box line is ten rows — and ten is the panel's real ceiling (measured:
+       last baseline 980 against a content box ending at 984). §4's surface row
+       made eleven, and `overflow: hidden` took the box line clean off the
+       bottom. Every textContent assertion stayed green.
+
+       ⚠ MEASURE THE CELLS, NOT THE ROWS. `.subject__row` is `display: contents`
+       — it generates no box at all, so its getBoundingClientRect() is always
+       zero and a check written against it passes for every layout, including
+       the broken one. */
+    await bootV3(page, { boom: "ground", health: NINE_FEEDS });
+
+    const got = await page.evaluate(async () => {
+      await window.__v3Subject("show.status");
+      window.__setDepth(3, "spec");
+      const frame = document.querySelector(".subject--status");
+      const cells = [...document.querySelectorAll(".subject--status .subject__text")];
+      const bottom = frame.getBoundingClientRect().bottom - parseFloat(getComputedStyle(frame).paddingBottom);
+      return {
+        rows: cells.length,
+        zeroBoxes: cells.filter((c) => c.getBoundingClientRect().height === 0).length,
+        clipped: cells.filter((c) => c.getBoundingClientRect().bottom > bottom + 1).map((c) => c.parentElement.textContent),
+        first: cells[0].parentElement.textContent
+      };
+    });
+
+    // The fixture must be able to produce the defect: real boxes, and enough of
+    // them that an uncapped list would overflow.
+    expect(got.zeroBoxes, "measuring display:contents rows — this check cannot fail").toBe(0);
+    expect(got.rows).toBe(10);
+    expect(got.clipped, "a row is painted past the bottom of the frame, where nothing can scroll it back").toEqual([]);
+    // And the row that survives the squeeze is the one that matters.
+    expect(got.first).toContain("Surface");
   });
 });

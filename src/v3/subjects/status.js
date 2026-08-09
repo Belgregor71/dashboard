@@ -69,9 +69,27 @@ function readout(rows) {
   return list;
 }
 
-/* Eight feeds, a box line and a recovery or two. The panel's honest ceiling is
-   twelve rows at this size — see lists.js, same reasoning, same number. */
+/* Eight feeds, a box line and a recovery or two. */
 const MAX_RECOVERIES = 2;
+
+/* ⚠ MEASURED ON THE GLASS 2026-08-09, and it is TEN — the "twelve rows at this
+   size" this comment used to claim was a guess, and it was wrong.
+   At 1920×1080 the frame's content box ends at 984px; ten rows put the last
+   baseline at 980, and the eleventh at 1018. `overflow: hidden` is a guarantee
+   on this wall rather than a fallback (there is no pointer, so nothing can
+   scroll a row into view), which makes an eleventh row not "small" — it is a
+   row that does not exist as far as the room is concerned.
+
+   The live house already sits at ten: nine feeds plus the box line. So §4's
+   surface row is the eleventh, and it clipped the box line clean off the bottom
+   — invisible to every textContent assertion, obvious in one screenshot. The
+   ninth defect this project has paid for that way.
+
+   ⚠ There is no "1 more" line, deliberately: on a one-row overflow it would
+   cost exactly the row it is reporting on. What gets dropped is the box's
+   temperature, which this file already calls the least important row here, in
+   favour of a row saying part of the screen never started. */
+const MAX_ROWS = 10;
 
 /** Plain words for a level. The server's own `detail` is used wherever it has
  *  one, because it is already written in this register ("no success for 26h",
@@ -182,7 +200,15 @@ export async function showStatus() {
     });
   }
 
-  node.appendChild(readout(rows));
+  /* The budget, applied last and in one place. `rows` is already in priority
+     order — the surface's own fault, then every feed, then the box line, then
+     the repairs — so the cheapest correct thing is to cut from the end.
+
+     ⚠ Feeds are never what gets dropped while anything less important is still
+     in the list, which is the whole reason the order above is not arbitrary. If
+     the server ever grows enough feeds to fill the panel on its own, then the
+     ceiling really has been reached and truncating is the honest answer. */
+  node.appendChild(readout(rows.slice(0, MAX_ROWS)));
 
   return { node, teardown, speech: speechFor(health) };
 }
