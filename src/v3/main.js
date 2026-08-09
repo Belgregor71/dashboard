@@ -329,6 +329,18 @@ function boot() {
   // about presence rather than about score.
   window.__emitHaState = (entity) => { emitBus("ha:state-updated", entity); return entity?.entity_id ?? null; };
 
+  /* The same favour for the room's other presence source. A spec cannot reach
+     `eventBus` by path — the build bundles it into a hashed asset, so a dynamic
+     `import("/js/core/eventBus.js")` 404s against dist and fails for a reason
+     that has nothing to do with the feature. This is the seam presence.js
+     actually subscribes to; presence-light's SSE listener is only what feeds it
+     in production. */
+  window.__emitSoundPresence = (frame) => {
+    const payload = { at: Date.now(), db: -32, floorDb: -48, excursionDb: 16, ...frame };
+    emitBus("sound:presence", payload);
+    return payload;
+  };
+
   /* Both halves of the prefetched cache, awaited. The boot tick reads a COLD
      HTTP cache — refreshHouseCache() has not resolved yet — so the first read
      of anything calendar-shaped is empty and looks broken when it is merely

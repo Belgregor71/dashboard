@@ -27,19 +27,24 @@ async function bootV3(page, { soundPresence }) {
   });
 
   await page.goto("/v3/");
-  await page.waitForFunction(() => typeof window.__v3Presence === "function");
+  await page.waitForFunction(() =>
+    typeof window.__v3Presence === "function" &&
+    typeof window.__emitSoundPresence === "function"
+  );
   await page.evaluate(() => window.__v3Presence(false));
   return pageErrors;
 }
 
 /* The bus, not the SSE: presence-light owns the only EventSource carrying this
    event and re-broadcasts it, so the bus is the real seam presence subscribes
-   to. Driving it directly tests the half that is V3's. */
+   to. Driving it directly tests the half that is V3's.
+
+   ⚠ Via the debug handle, NOT `import("/js/core/eventBus.js")` — the build
+   bundles that module into a hashed asset, so importing it by path 404s against
+   the dist the test server serves, and the spec fails for a reason that has
+   nothing to do with sound presence. */
 async function emitSound(page) {
-  await page.evaluate(async () => {
-    const { emit } = await import("/js/core/eventBus.js");
-    emit("sound:presence", { at: Date.now(), db: -32, floorDb: -48, excursionDb: 16 });
-  });
+  await page.evaluate(() => window.__emitSoundPresence());
 }
 
 test("flag ON: a sound event is somebody being there", async ({ page }) => {
