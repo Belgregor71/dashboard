@@ -1,3 +1,10 @@
+/* ═══ V3-SHARED-RUNTIME ═════════════════════════════════════════════════════
+   Loaded by BOTH surfaces: the incumbent (/) and V3 (/v3/).
+   `src/js/` is not the old dashboard — it is V3's runtime library. A cleanup
+   that retires "the legacy tree" takes this file out from under V3 with it.
+   docs/design/V3-CUTOVER.md §1 · guarded by tests/v3-closure.spec.js
+   ════════════════════════════════════════════════════════════════════════ */
+
 // Nudgee, QLD — the suburb this dashboard reports on. Suburb centroid, not the
 // house: this file is public and ships in the browser bundle.
 export const WEATHER_LAT = -27.3691;

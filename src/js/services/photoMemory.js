@@ -1,3 +1,10 @@
+/* ═══ V3-SHARED-RUNTIME ═════════════════════════════════════════════════════
+   Loaded by BOTH surfaces: the incumbent (/) and V3 (/v3/).
+   `src/js/` is not the old dashboard — it is V3's runtime library. A cleanup
+   that retires "the legacy tree" takes this file out from under V3 with it.
+   docs/design/V3-CUTOVER.md §1 · guarded by tests/v3-closure.spec.js
+   ════════════════════════════════════════════════════════════════════════ */
+
 import { seasonOf } from "./houseModel.js";
 
 // Turn Immich's on-this-day asset feed into a memory entry — Phase 9.5

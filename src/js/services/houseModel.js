@@ -1,3 +1,10 @@
+/* ═══ V3-SHARED-RUNTIME ═════════════════════════════════════════════════════
+   Loaded by BOTH surfaces: the incumbent (/) and V3 (/v3/).
+   `src/js/` is not the old dashboard — it is V3's runtime library. A cleanup
+   that retires "the legacy tree" takes this file out from under V3 with it.
+   docs/design/V3-CUTOVER.md §1 · guarded by tests/v3-closure.spec.js
+   ════════════════════════════════════════════════════════════════════════ */
+
 // The House Model — Phase 6 (docs/vision/phase-6-intent.md). A pure reducer that
 // fuses signals the store already carries into a single *intent* posture, same
 // contract as atmosphere.js / predictiveRules.js: no imports, no DOM, no IO, so

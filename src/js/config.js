@@ -1,3 +1,11 @@
+/* ═══ V3-SHARED-RUNTIME ═════════════════════════════════════════════════════
+   Loaded by BOTH surfaces as a plain `<script src="/js/config.js">`, not an
+   import — so no dependency graph shows this edge. It sets `window.CONFIG`,
+   and every V3 flag read is optional-chained: lose this file and V3 boots
+   with all features silently OFF rather than failing. Do not let it go.
+   docs/design/V3-CUTOVER.md §1 · guarded by tests/v3-closure.spec.js
+   ════════════════════════════════════════════════════════════════════════ */
+
 // static/js/config.js
 
 /* ------------------------------------------------------------------

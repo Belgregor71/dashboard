@@ -13,19 +13,24 @@ import { dirname, join, resolve, relative, sep, extname } from "node:path";
    engine, the TTS lane. A cleanup that "retires the legacy tree" would take
    all of it out from under the only surface still running.
 
+   Forty-two, in fact. §1 counted imports; `js/config.js` arrives by
+   `<script>` tag and is the one whose loss is silent. See SCRIPT_TAG below.
+
    §1 offered two ways to make that visible: a header comment on each module
    (cheap) or a move to `src/shared/` (durable). The move costs 234 import
    rewrites across 95 files, 155 of them in the incumbent tree the cutover is
    not supposed to touch. So: the comment, plus this — which is what makes the
    comment durable. A header only warns whoever opens the file. This goes red.
 
-   Four assertions, and they fail in different directions on purpose:
+   Five assertions, and they fail in different directions on purpose:
 
      1. every specifier in the closure resolves     → deletion / rename
      2. the src/js/ members equal the manifest      → silent coupling drift,
                                                        both directions
      3. each manifest member carries the marker     → header dropped in a rewrite
-     4. nothing else carries the marker             → header left behind after a
+     4. v3/index.html still loads /js/config.js     → the dependency no import
+                                                       graph can see
+     5. nothing else carries the marker             → header left behind after a
                                                        module genuinely left
 
    ⚠ The manifest below is not a cache to refresh until green. A diff against it
@@ -90,7 +95,19 @@ const V3_ONLY = [
   "js/services/houseSnapshot.js"
 ];
 
-const MANIFEST = [...SHARED_BOTH, ...V3_ONLY].sort();
+/* Not imported by anything — `src/v3/index.html:110` loads it as a plain
+   `<script src="/js/config.js">`, exactly as the incumbent does. §1 missed it
+   for that reason: it is invisible to an import graph.
+
+   ⚠ It is also the worst of the 42 to lose. It sets `window.CONFIG`, and every
+   V3 flag read is `window.CONFIG?.features?.x` — optional-chained. Retire
+   `src/js/` and V3 does not throw. It boots with every feature flag silently
+   false, which is a total flag rollback presenting as normal operation. An
+   error would have been kinder. Hence the separate script-tag assertion. */
+const SCRIPT_TAG = ["js/config.js"];
+
+const IMPORTED = [...SHARED_BOTH, ...V3_ONLY];
+const MANIFEST = [...IMPORTED, ...SCRIPT_TAG].sort();
 
 /* The same walk the cutover plan used: static `from "…"` / `import "…"`
    specifiers, transitively. Complete for this tree — there are no dynamic
@@ -164,8 +181,8 @@ test.describe("V3 ↔ src/js boundary (cutover §1)", () => {
     const { files } = importClosure(ENTRY);
     const actual = files.filter((f) => f.startsWith("js/")).sort();
 
-    const added = actual.filter((f) => !MANIFEST.includes(f));
-    const removed = MANIFEST.filter((f) => !actual.includes(f));
+    const added = actual.filter((f) => !IMPORTED.includes(f));
+    const removed = IMPORTED.filter((f) => !actual.includes(f));
 
     expect(
       { added, removed },
@@ -183,8 +200,12 @@ test.describe("V3 ↔ src/js boundary (cutover §1)", () => {
   });
 
   test("every shared module carries the boundary header", () => {
+    // A file that is gone entirely is assertion 1's failure, not this one —
+    // each assertion should name one cause. (health.js's rule, applied here.)
     const missing = MANIFEST.filter(
-      (f) => !readFileSync(join(SRC, f), "utf8").includes(MARKER)
+      (f) =>
+        existsSync(join(SRC, f)) &&
+        !readFileSync(join(SRC, f), "utf8").includes(MARKER)
     );
     expect(
       missing,
@@ -194,12 +215,21 @@ test.describe("V3 ↔ src/js boundary (cutover §1)", () => {
     ).toEqual([]);
   });
 
+  test("V3 still loads the feature flags it silently depends on", () => {
+    const html = readFileSync(join(SRC, "v3", "index.html"), "utf8");
+    expect(
+      /<script\s+src="\/js\/config\.js"\s*>/.test(html),
+      `src/v3/index.html no longer loads /js/config.js. V3 will not throw — ` +
+        `every flag read is optional-chained, so the page boots with all ` +
+        `features off and looks like it is working.`
+    ).toBe(true);
+  });
+
   test("no module claims to be shared when it is not", () => {
-    const closure = new Set(importClosure(ENTRY).files);
     const stale = jsFilesUnder(join(SRC, "js"))
       .filter((f) => readFileSync(f, "utf8").includes(MARKER))
       .map(rel)
-      .filter((f) => !closure.has(f))
+      .filter((f) => !MANIFEST.includes(f))
       .sort();
 
     expect(

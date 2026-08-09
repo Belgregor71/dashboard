@@ -1,3 +1,10 @@
+/* ═══ V3-SHARED-RUNTIME ═════════════════════════════════════════════════════
+   Loaded by BOTH surfaces: the incumbent (/) and V3 (/v3/).
+   `src/js/` is not the old dashboard — it is V3's runtime library. A cleanup
+   that retires "the legacy tree" takes this file out from under V3 with it.
+   docs/design/V3-CUTOVER.md §1 · guarded by tests/v3-closure.spec.js
+   ════════════════════════════════════════════════════════════════════════ */
+
 // The temperament authority — Phase 10 (docs/vision/phase-10-temperament.md).
 // The single place the house's *manners* live. Pure: no imports, no DOM, no IO,
 // so the whole module unit-tests in plain node (tests/personality.spec.js) and a

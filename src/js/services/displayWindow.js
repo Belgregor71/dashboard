@@ -1,3 +1,10 @@
+/* ═══ V3-SHARED-RUNTIME ═════════════════════════════════════════════════════
+   Loaded by V3 (/v3/) ONLY. It lives in `src/js/` for history, not because
+   the incumbent uses it — so deleting it with "the old dashboard" breaks V3
+   alone, and nothing on / goes wrong to warn you.
+   docs/design/V3-CUTOVER.md §1 · guarded by tests/v3-closure.spec.js
+   ════════════════════════════════════════════════════════════════════════ */
+
 /* ═══════════════════════════════════════════════════════════════════════════
    THE OFF-WINDOW — when the panel is powered down, as one answer.
 

@@ -1,3 +1,10 @@
+/* ═══ V3-SHARED-RUNTIME ═════════════════════════════════════════════════════
+   Loaded by BOTH surfaces: the incumbent (/) and V3 (/v3/).
+   `src/js/` is not the old dashboard — it is V3's runtime library. A cleanup
+   that retires "the legacy tree" takes this file out from under V3 with it.
+   docs/design/V3-CUTOVER.md §1 · guarded by tests/v3-closure.spec.js
+   ════════════════════════════════════════════════════════════════════════ */
+
 // Moments / the emotional timeline. Pure, in the contract of the other service
 // reducers (no imports, no DOM, no IO) so it unit-tests in plain node
 // (tests/memory.spec.js). Phase 9 (docs/vision/phase-9-remember.md) generalises
