@@ -276,8 +276,11 @@ router.post("/api/voice/ambient", (req, res) => {
 // Read-only, and not loopback-gated: it is a handful of loudness statistics
 // with no audio in it, and it is the only way to tune the thresholds against
 // this actual kitchen rather than a guess.
-router.get("/api/voice/ambient", (_req, res) => {
-  res.json(ambient.state());
+// `?series=1` adds the raw dB series behind it — the only thing that can tune
+// `consecutive`, since a lone 12 dB peak and two adjacent 9 dB samples share
+// every summary statistic and disagree about whether anyone is there.
+router.get("/api/voice/ambient", (req, res) => {
+  res.json(ambient.state(Date.now(), { series: req.query?.series === "1" }));
 });
 
 // The agent asking for the floor. It POSTs this when the wake word is spoken

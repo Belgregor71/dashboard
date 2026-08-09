@@ -132,10 +132,22 @@ export function createSoundDetector({
       return { active, changed, emit, db, floor, excursion, samples: samples.length };
     },
 
-    /** Diagnostic seam — what the thresholds should be tuned against. */
-    state(at = Date.now()) {
+    /** Diagnostic seam — what the thresholds should be tuned against.
+     *
+     * ⚠ `series` is not a nicety. Summary statistics CANNOT tune `consecutive`:
+     * a peak 12 dB over the floor and two adjacent samples 9 dB over are the
+     * same `peakDb` and different verdicts, so a margin swept against summaries
+     * is a guess wearing a measurement's clothes. Measured 2026-08-09: a real
+     * kitchen conversation peaked 12.6 dB above the floor and still never fired,
+     * because it never did it twice in a row.
+     *
+     * Off by default because it is ~300 numbers, and asked for by the tuner —
+     * the alternative is making somebody hold another conversation every time a
+     * candidate threshold needs testing. Still only loudness: no audio, no
+     * transcript, nothing that says what was said. */
+    state(at = Date.now(), { series = false } = {}) {
       const dbs = samples.map((s) => s.db);
-      return {
+      const out = {
         active,
         samples: samples.length,
         floorDb: round(percentile(dbs, FLOOR_PERCENTILE)),
@@ -145,6 +157,10 @@ export function createSoundDetector({
         marginDb,
         ageMs: samples.length ? at - samples[0].at : 0
       };
+      // Ages, not wall-clock timestamps: the consumer is replaying a window, and
+      // a relative offset survives the reader's clock disagreeing with the box's.
+      if (series) out.series = samples.map((s) => [at - s.at, round(s.db)]);
+      return out;
     }
   };
 }

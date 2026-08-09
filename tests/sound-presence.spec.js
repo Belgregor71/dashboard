@@ -224,4 +224,35 @@ test.describe("route contract", () => {
     const res = await request.post("/api/voice/ambient", { data: { rms: 140 } });
     expect(res.status()).toBe(204);
   });
+
+  test("the raw series is absent by default and present on request", async ({ request }) => {
+    // It is ~300 numbers, and only a tuner wants them.
+    const plain = await (await request.get("/api/voice/ambient")).json();
+    expect(plain.series).toBeUndefined();
+
+    await request.post("/api/voice/ambient", { data: { rms: 140 } });
+    const withSeries = await (await request.get("/api/voice/ambient?series=1")).json();
+    expect(Array.isArray(withSeries.series)).toBe(true);
+    expect(withSeries.series.length).toBe(withSeries.samples);
+
+    // [ageMs, db] — ages, not wall clock, so a replay survives clock skew
+    // between the reader and the box. Ages must be non-negative and the series
+    // ordered oldest-first, or a trailing-window replay reads the wrong samples.
+    const ages = withSeries.series.map(([age]) => age);
+    expect(ages.every((a) => typeof a === "number" && a >= 0)).toBe(true);
+    for (let i = 1; i < ages.length; i += 1) expect(ages[i]).toBeLessThanOrEqual(ages[i - 1]);
+    expect(withSeries.series.every(([, db]) => typeof db === "number")).toBe(true);
+  });
+
+  test("?series=1 carries loudness only — nothing about what was said", async ({ request }) => {
+    // The privacy claim is load-bearing: the mic is open 24/7, and the reason
+    // this is acceptable is that only a float leaves the box. A diagnostic that
+    // quietly widened that would break the promise the whole feature rests on.
+    await request.post("/api/voice/ambient", { data: { rms: 140 } });
+    const body = await (await request.get("/api/voice/ambient?series=1")).json();
+    for (const entry of body.series) {
+      expect(entry).toHaveLength(2);
+      expect(entry.every((n) => typeof n === "number")).toBe(true);
+    }
+  });
 });
