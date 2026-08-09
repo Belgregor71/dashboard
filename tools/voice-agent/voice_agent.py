@@ -59,6 +59,14 @@ DASH_URL = os.environ.get("DASH_URL", "http://localhost:3000/api/voice/transcrip
 # the rim breathes with the actual room instead of on a timer.
 LEVEL_URL = os.environ.get("LEVEL_URL", "http://localhost:3000/api/voice/level")
 LEVEL_ENABLED = os.environ.get("LEVEL_ENABLED", "1") == "1"
+# Ambient loudness — also never audio. A SECOND, much slower relay, and the
+# separation is deliberate: LEVEL_URL is the listening rim (~12.5 Hz, only
+# during a capture, decays on the client), while this runs 1 Hz forever so the
+# server can tell a person from the Sonos. Sharing one endpoint would make the
+# rim glow whenever the kitchen was noisy and never stop.
+AMBIENT_URL = os.environ.get("AMBIENT_URL", "http://localhost:3000/api/voice/ambient")
+AMBIENT_ENABLED = os.environ.get("AMBIENT_ENABLED", "1") == "1"
+AMBIENT_PERIOD_S = float(os.environ.get("AMBIENT_PERIOD_S", "1.0"))
 
 # ── Half duplex ──────────────────────────────────────────────────────────────
 # The agent-flavoured SSE stream carries one thing: whether the dashboard is
@@ -189,6 +197,49 @@ def send_level(rms_value):
         _level_q.put_nowait(rms_value)
     except queue.Full:
         pass  # a newer frame is already in flight; this one is stale anyway
+
+
+# ── Ambient relay ────────────────────────────────────────────────────────────
+# Same drop-on-full discipline as the level relay, and for the same reason: the
+# wake loop is timing-critical and a blocking POST in it trades a working
+# microphone for a presence cue.
+#
+# The value sent is the PEAK rms of the second, not the mean. A mean over 12
+# frames buries a short sentence in the surrounding room tone, which is exactly
+# the event we are trying to see; the floor the server compares against is a
+# percentile over minutes, so it is unaffected by using peaks.
+_ambient_q = queue.Queue(maxsize=1)
+_ambient_peak = 0
+_ambient_last = 0.0
+
+
+def _ambient_worker():
+    while True:
+        rms_value = _ambient_q.get()
+        try:
+            _post(AMBIENT_URL, json.dumps({"rms": rms_value}).encode(),
+                  "application/json", 2)
+        except (urllib.error.URLError, OSError, ValueError):
+            pass  # the dashboard may be restarting; the mic must not care
+
+
+def ambient_tick(frame):
+    """Called for EVERY frame of the wake loop. Cheap by construction."""
+    global _ambient_peak, _ambient_last
+    if not AMBIENT_ENABLED:
+        return
+    value = rms(frame)
+    if value > _ambient_peak:
+        _ambient_peak = value
+    now = time.time()
+    if now - _ambient_last < AMBIENT_PERIOD_S:
+        return
+    _ambient_last = now
+    try:
+        _ambient_q.put_nowait(_ambient_peak)
+    except queue.Full:
+        pass
+    _ambient_peak = 0
 
 
 def capture_utterance(proc):
@@ -404,6 +455,10 @@ def main():
         threading.Thread(target=_level_worker, daemon=True).start()
         log(f"level relay on → {LEVEL_URL}")
 
+    if AMBIENT_ENABLED:
+        threading.Thread(target=_ambient_worker, daemon=True).start()
+        log(f"ambient relay on → {AMBIENT_URL} every {AMBIENT_PERIOD_S}s")
+
     if HALF_DUPLEX:
         threading.Thread(target=_speaking_watcher, daemon=True).start()
         log(f"half duplex on → {SPEAKING_URL} (barge-in ≥{BARGE_THRESHOLD} × {BARGE_FRAMES} frames)")
@@ -420,6 +475,9 @@ def main():
                 proc = arecord_stream()
                 reset(oww)
                 continue
+            # Before the wake check, and unconditionally: presence is a fact
+            # about the room, not about whether anyone said the wake word.
+            ambient_tick(frame)
             score = oww.predict(frame).get(wake_key, 0.0)
             if PROBE_ONLY:
                 if score >= PROBE_FLOOR:

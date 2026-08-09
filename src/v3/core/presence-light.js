@@ -11,6 +11,8 @@
      --presence-sweep  actual TTS playback position, from the <audio> element
    ═══════════════════════════════════════════════════════════════════════════ */
 
+import { emit } from "../../js/core/eventBus.js";
+
 const root = document.documentElement;
 
 let phase = "idle";
@@ -167,6 +169,19 @@ export function initPresenceLight({ enabled = true } = {}) {
       if (phase !== "listening") setPhase("listening");
       writeLevel(normalise(rms));
       startDecay();
+    } catch { /* malformed frame — ignore, never throw into the stream */ }
+  });
+
+  /* ⚠ RE-BROADCAST, DO NOT ACT. Sound presence has nothing to do with the
+     light, and this module has no business deciding anything about the room —
+     but it owns the only EventSource that carries the event, and V3 already
+     holds TWO streams to this route (here and core/voice.js) against a
+     six-per-host ceiling. Opening a third so presence.js could listen directly
+     would spend a connection on tidiness. So it goes onto the shared bus, the
+     same way entityFeed hands HA state to everyone who wants it. */
+  stream.addEventListener("voice_sound_presence", (event) => {
+    try {
+      emit("sound:presence", JSON.parse(event.data));
     } catch { /* malformed frame — ignore, never throw into the stream */ }
   });
 }

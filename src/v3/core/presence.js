@@ -43,9 +43,25 @@ export const DWELL_MS = 30_000;
 let present = false;
 let dwelling = false;
 let lastMotionAt = 0;
+let lastReason = null;
 let lingerTimer = null;
 let dwellTimer = null;
 let unsubscribe = null;
+let unsubscribeSound = null;
+
+/* Sound is a SECOND source of the same signal, not a replacement, and the two
+   are deliberately additive: whichever notices first wins, and neither can veto
+   the other. That is what makes the camera safe to lose — a household member
+   switches its detection off, recoveryService guard 1 switches it back on, and
+   the house has been quietly overriding a person's deliberate choice. With a
+   second source the camera can simply stay off.
+
+   ⚠ Sound reports ACTIVITY, so it feeds sawMotion() and nothing else. Absence
+   stays the linger's job, exactly as it is for the PIR — a person reading the
+   screen in silence trips neither, and the linger is what covers them. */
+function soundEnabled() {
+  return Boolean(window.CONFIG?.features?.soundPresence);
+}
 
 const listeners = new Set();
 
@@ -85,6 +101,7 @@ function armLinger() {
 
 function sawMotion(reason) {
   lastMotionAt = Date.now();
+  lastReason = reason;
   armLinger();
 
   if (!present) {
@@ -139,6 +156,14 @@ export function initPresence() {
      document listener for it at all. */
   unsubscribe = on("ha:state-updated", onStateUpdated);
 
+  /* The flag is read per EVENT, not once at init, so flipping it costs a
+     config change and not a reload — and so the off state is genuinely inert
+     rather than merely unsubscribed. */
+  unsubscribeSound = on("sound:presence", () => {
+    if (!soundEnabled()) return;
+    sawMotion("sound");
+  });
+
   window.__v3Presence = (force) => {
     if (force === true) sawMotion("debug");
     if (force === false) goAbsent("debug");
@@ -160,7 +185,12 @@ export function initPresence() {
       dwelling,
       lastMotionAt: lastMotionAt || null,
       lingerMs: lingerMs(),
-      sinceMotionMs: lastMotionAt ? Date.now() - lastMotionAt : null
+      sinceMotionMs: lastMotionAt ? Date.now() - lastMotionAt : null,
+      /* WHICH source last saw someone. With two of them the difference between
+         "the camera is dead" and "the room is quiet" is otherwise unreadable
+         from the outside — and that ambiguity is exactly what cost 22 hours. */
+      lastReason,
+      soundEnabled: soundEnabled()
     };
   };
 
@@ -170,10 +200,12 @@ export function initPresence() {
 /** Test seam — drops every timer and subscription so a spec starts cold. */
 export function __resetPresence() {
   if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+  if (unsubscribeSound) { unsubscribeSound(); unsubscribeSound = null; }
   if (lingerTimer) { clearTimeout(lingerTimer); lingerTimer = null; }
   if (dwellTimer) { clearTimeout(dwellTimer); dwellTimer = null; }
   present = false;
   dwelling = false;
   lastMotionAt = 0;
+  lastReason = null;
   listeners.clear();
 }

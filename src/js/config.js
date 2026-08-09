@@ -455,6 +455,29 @@ window.CONFIG = {
     // One-line revert (-> false) is the rollback path.
     voiceHalfDuplex: true,
 
+    // SOUND PRESENCE — the room's own noise as a second presence source.
+    //
+    // V3 reads presence from binary_sensor.kitchen_motion_detected, and that
+    // camera's detection gets deliberately switched off by a member of the
+    // household. recoveryService guard 1 then re-arms it, so the house has been
+    // quietly undoing a person's choice. A second source means the camera can
+    // just stay off.
+    //
+    // The mic is already open 24/7 for the wake word; nothing new listens. The
+    // agent reports one loudness number per second over loopback — no audio, no
+    // transcript, nothing logged — and server/services/soundPresence.js decides
+    // whether it is a person by excursion above an adaptive floor, so the Sonos
+    // and the rangehood raise the floor and stop counting.
+    //
+    // On: a `sound:presence` bus event feeds presence.sawMotion(), additively
+    // with the camera — whichever notices first wins, neither can veto. Off: the
+    // event is still emitted and still ignored, so the surface behaves exactly
+    // as it does today. One-line revert (-> false) is the rollback path.
+    //
+    // ⚠ Default-off until MARGIN_DB is tuned against this kitchen rather than
+    // guessed. GET /api/voice/ambient publishes the numbers to tune from.
+    soundPresence: false,
+
     // Living-window Phase 1 (plan: review-the-design-scheme) — rain on glass.
     // A shared episode runtime (services/atmoFx/) draws bounded droplet/streak
     // "moments" on a front canvas, then hides it: the GPU-0% ambient baseline
