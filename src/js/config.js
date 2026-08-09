@@ -873,10 +873,22 @@ window.CONFIG = {
     // depth 0), and there is no per-second repaint — no progress bar, and the
     // glass is written only when the ANSWER changes, never per entity update.
     //
-    // ⚠ Default-off pending a live flip through /flag-flip: the contrast
-    // reading over a real photograph and the artwork-on-the-glass check are
-    // both owed on the wall. One-line revert (-> false) is the rollback path.
-    v3NowPlaying: false,
+    // FLIPPED ON 2026-08-09, after being SEEN ON THE GLASS with the flag forced
+    // on for one page load (CDP addScriptToEvaluateOnNewDocument, nothing
+    // shipped) rather than flipped and hoped for. `DISPLAY=:0 scrot` at 17:33
+    // showed the band bottom-right, the hour bottom-left, no collision, and the
+    // band's box measured at x1482 y864 342x120 — bottom 984 and right 1824,
+    // i.e. exactly the 96px safe inset on a 1920x1080 panel.
+    //
+    // That look caught two defects the 1035-green suite did not, because both
+    // are about what the pixels LOOK like: the Plex episode was named by its
+    // date ("2022-01-27") instead of its show, and a 16:9 still was being
+    // centre-cropped into a square plate and read as a rendering fault. Both
+    // fixed before this flip.
+    //
+    // Revert = `v3NowPlaying: false`. Proven reversible by
+    // scripts/verify/flag-reversibility.mjs at flip time.
+    v3NowPlaying: true,
   },
 
   /* --------------------------------------------------------------

@@ -261,10 +261,24 @@ html, body {
    120px it costs the photograph almost nothing. `.lift` in the markup gives it
    the same sun-agreed shadow every other raised thing in V3 has, so it sits ON
    the photograph rather than being pasted over it. */
+/* ⚠ SEEN ON THE GLASS, 2026-08-09 — THE PLATE WAS SQUARE AND THE ARTWORK IS NOT.
+   The first cut was a 120x120 box with object-fit: cover, which assumed album
+   art. It is right for Spotify and wrong for everything else: the live wall was
+   showing a Plex episode whose thumb is 1920x1080, centre-cropped to a square
+   chip in which nothing was legible. It did not read as artwork, it read as a
+   rendering fault.
+
+   Fixed height, AUTO width: a replaced element with one axis fixed takes the
+   other from its own intrinsic aspect, so the plate becomes whatever shape the
+   picture is — square for a cover, 16:9 for an episode still — with no JS and
+   no second source of truth about aspect. Same principle as the archive crop,
+   which reads the loaded image and never EXIF. `max-width` + cover is the bound
+   for the rare panorama, so one strange asset cannot walk across the wall. */
 .now-playing__art {
   flex: 0 0 auto;
-  width: 120px;
   height: 120px;
+  width: auto;
+  max-width: 240px;
   object-fit: cover;
   border-radius: 6px;
   display: block;

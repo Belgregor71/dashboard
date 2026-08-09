@@ -232,6 +232,33 @@ test("an active Plex stream carries a proxied poster url", async () => {
   expect(collectSources(snap).find((c) => c.source === "plex")).toBeTruthy();
 });
 
+test("an episode is named by its SHOW, not by its episode title", async () => {
+  /* ⚠ SEEN ON THE GLASS, 2026-08-09, with the real payload below: the wall
+     named what was playing "2022-01-27", because `title` on an episode is the
+     episode and this show's episodes are dated rather than titled. The show
+     name was in the same response the whole time. */
+  stubFetch({
+    "/api/plex/sessions": {
+      sessions: [{
+        title: "2022-01-27",
+        grandparentTitle: "And Just Like That...",
+        parentTitle: "Season 1",
+        type: "episode",
+        thumb: "/library/metadata/31022/thumb/1785381091"
+      }]
+    }
+  });
+  await refreshHouseCache();
+
+  expect(houseSnapshot({ now: NOW }).plexText).toBe("And Just Like That...");
+});
+
+test("a film has no show above it and keeps its own title", async () => {
+  stubFetch({ "/api/plex/sessions": { sessions: [{ title: "Arrival", type: "movie", thumb: "/t" }] } });
+  await refreshHouseCache();
+  expect(houseSnapshot({ now: NOW }).plexText).toBe("Arrival");
+});
+
 test("no sessions is not a candidate", async () => {
   stubFetch({ "/api/plex/sessions": { sessions: [] } });
   await refreshHouseCache();

@@ -265,8 +265,23 @@ function plexFrom(sessions) {
   if (!Array.isArray(sessions) || !sessions.length) return null;
   const session = sessions[0];
   if (!session?.title) return null;
+
+  /* ⚠ SEEN ON THE GLASS, 2026-08-09. `session.title` alone is the EPISODE, and
+     for the show that was actually playing that episode is called "2022-01-27"
+     — so the wall named what was on as a bare date. `grandparentTitle` ("And
+     Just Like That...") was sitting in the same payload, unused.
+
+     The show is what a person says when asked what they're watching, so the
+     show is what this returns. The episode is deliberately dropped rather than
+     appended: this string is a single line on a wall read from three or four
+     metres — it is the incumbent's hero card, V3's ambient band (capped at 26ch
+     before it ellipsises) and V3's depth-3 caption — and "And Just Like That...
+     — Season 1 · 2022-01-27" is a string that fits none of them and helps
+     nobody. A movie has no grandparentTitle, so it keeps its own title. */
+  const text = session.grandparentTitle || session.title;
+
   return {
-    text: session.title,
+    text,
     image: session.thumb ? `/api/plex/image?path=${encodeURIComponent(session.thumb)}` : null
   };
 }
