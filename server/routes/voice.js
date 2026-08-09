@@ -258,16 +258,31 @@ router.post("/api/voice/ambient", (req, res) => {
   if (typeof rms !== "number" || !Number.isFinite(rms) || rms < 0) {
     return res.status(400).json({ error: "rms must be a non-negative number" });
   }
+  /* Silero's speech probability, when the agent is new enough to send it. It is
+     OPTIONAL on purpose: the agent lives outside the repo and is copied by hand,
+     so a dashboard newer than the agent is a real state, and it must degrade to
+     loudness rather than 400 the mic's only presence relay.
+     Out-of-range values are dropped rather than clamped — a 7 from a mismatched
+     future agent means something we do not understand, and clamping it to 1
+     would silently assert "definitely a person" forever. */
+  const rawSpeech = req.body?.speech;
+  const speech = typeof rawSpeech === "number" && Number.isFinite(rawSpeech)
+    && rawSpeech >= 0 && rawSpeech <= 1 ? rawSpeech : null;
   // `speaking` is read from the server's own flag, not the body: the page is
   // the author of that fact and already posts it, so asking the agent to
   // re-assert it would create a second, laggier source of the same truth.
-  const result = ambient.push({ rms, speaking });
+  const result = ambient.push({ rms, speech, speaking });
   if (result.emit) {
     voiceBus.emit("sound_presence", {
       at: Date.now(),
       db: Math.round(result.db * 10) / 10,
       floorDb: Math.round(result.floor * 10) / 10,
-      excursionDb: Math.round(result.excursion * 10) / 10
+      excursionDb: Math.round(result.excursion * 10) / 10,
+      // What actually decided, carried to the client for the same reason
+      // presence reports lastReason: two sources that look identical from
+      // outside are how 22 hours got lost to a dead camera.
+      speech: result.speech,
+      decidedBy: result.speech === null ? "loudness" : "speech"
     });
   }
   return res.status(204).end();

@@ -20,6 +20,31 @@
 // that thinks someone is always present never rests — the calm law's plainest
 // violation, and the sound-shaped twin of "the driveway camera fires on cars".
 //
+// ── ⚠ THE LOUDNESS DETECTOR BELOW IS NOT THE DECISION ANY MORE ──────────────
+//
+// It was, and it FAILED against this actual kitchen (measured 2026-08-09).
+// Kept because it is now the diagnostic baseline, and because the reasoning is
+// worth not re-deriving:
+//
+//   real conversation   median 2.2 dB over floor, loudest 7.7 dB
+//   EMPTY room          median 1.6 dB over floor, loudest 6.5 dB
+//
+// The distributions OVERLAP, so no MARGIN_DB separates them — the failure is in
+// the statistic, not the threshold. Cause: capture gain is +22.5 dB so room tone
+// already sits at ~-30 dBFS, and the mic compresses hard (a 6x louder stimulus
+// moved the reading ~2 dB). Speech has nowhere to excurse to.
+//
+// The wake word scores 0.70 in that same room. It classifies SPECTRALLY, and
+// that is the whole lesson: A LEVEL METER CANNOT SEE WHAT A SPEECH MODEL CAN.
+// The decision is now silero's speech probability (see isSpeech below), which
+// also makes the Sonos/rangehood problem mostly disappear on its own — a fan is
+// loud and is not speech.
+//
+// ⚠ What it does NOT solve: sung vocals and TV dialogue ARE speech. The
+// speaking-state drop handles the house's own voice; a television left on is a
+// genuine open question and the reason this ships flag-off.
+//
+// The loudness path, retained as the baseline:
 // So the statistic is an EXCURSION ABOVE AN ADAPTIVE FLOOR, in dB:
 //
 //   floor      = a low percentile of the last few minutes
@@ -45,6 +70,11 @@ export const WINDOW_MS = 5 * 60 * 1000;
 export const FLOOR_PERCENTILE = 20;
 export const MARGIN_DB = 9;
 export const CONSECUTIVE = 2; // 2s — rejects a single door-slam impulse
+/* Silero's own conventional operating point. Kept as a named export so it is
+   tuned from measured series (`GET /api/voice/ambient?series=1`) rather than
+   nudged in place — the loudness threshold was a guess, and guessing is what
+   cost this feature its first attempt. */
+export const SPEECH_THRESHOLD = 0.5;
 /* Below this many samples there is no floor worth trusting, and a detector that
    guesses during its first seconds would fire on the first sound after every
    restart. Silence is the safe answer while it learns. */
@@ -78,10 +108,12 @@ export function createSoundDetector({
   marginDb = MARGIN_DB,
   consecutive = CONSECUTIVE,
   minSamples = MIN_SAMPLES,
-  repeatMs = REPEAT_MS
+  repeatMs = REPEAT_MS,
+  speechThreshold = SPEECH_THRESHOLD
 } = {}) {
-  const samples = []; // ascending [{ at, db }]
+  const samples = []; // ascending [{ at, db, speech }]
   let run = 0;
+  let speechRun = 0;
   let active = false;
   let lastEmitAt = 0;
 
@@ -94,14 +126,19 @@ export function createSoundDetector({
      *   detecting itself — the same trap that had it answering its own voice.
      * @returns {{active, changed, emit, db, floor, excursion, samples}}
      */
-    push({ rms, speaking = false, at = Date.now() } = {}) {
+    push({ rms, speech = null, speaking = false, at = Date.now() } = {}) {
       const db = toDb(rms);
+      // A number, not truthiness: 0.0 is a legitimate reading meaning "certainly
+      // not speech", and `speech || null` would turn it into "no VAD present" —
+      // which reads as the opposite thing to every branch below.
+      const speechProb = typeof speech === "number" && Number.isFinite(speech) ? speech : null;
+      const hasSpeech = speechProb !== null;
 
       if (speaking) {
-        return { active, changed: false, emit: false, db, floor: null, excursion: null, samples: samples.length, speaking: true };
+        return { active, changed: false, emit: false, db, speech: speechProb, floor: null, excursion: null, samples: samples.length, speaking: true };
       }
 
-      samples.push({ at, db });
+      samples.push({ at, db, speech: speechProb });
       const cutoff = at - windowMs;
       let drop = 0;
       while (drop < samples.length && samples[drop].at < cutoff) drop += 1;
@@ -110,15 +147,26 @@ export function createSoundDetector({
       const floor = percentile(samples.map((s) => s.db), FLOOR_PERCENTILE);
       const excursion = db - floor;
 
-      if (samples.length < minSamples) {
+      /* ⚠ minSamples guards the FLOOR, which needs history before it means
+         anything. A speech probability needs none — it is an absolute judgement
+         about one frame — so when the VAD is reporting, the detector is useful
+         from its first second instead of blind for thirty. */
+      if (!hasSpeech && samples.length < minSamples) {
         run = 0;
+        speechRun = 0;
         const changed = active;
         active = false;
-        return { active, changed, emit: false, db, floor, excursion, samples: samples.length };
+        return { active, changed, emit: false, db, speech: speechProb, floor, excursion, samples: samples.length };
       }
 
+      speechRun = hasSpeech && speechProb >= speechThreshold ? speechRun + 1 : 0;
       run = excursion >= marginDb ? run + 1 : 0;
-      const next = run >= consecutive;
+      /* Speech is the verdict when the agent reports it; loudness is only the
+         fallback for an agent too old to send it. They are deliberately NOT
+         combined — an OR would hand the loudness detector a veto it has already
+         been measured to be wrong about, and an AND would make the good signal
+         wait on the bad one. */
+      const next = hasSpeech ? speechRun >= consecutive : run >= consecutive;
       const changed = next !== active;
       active = next;
 
@@ -129,7 +177,7 @@ export function createSoundDetector({
         lastEmitAt = at;
       }
 
-      return { active, changed, emit, db, floor, excursion, samples: samples.length };
+      return { active, changed, emit, db, speech: speechProb, floor, excursion, samples: samples.length };
     },
 
     /** Diagnostic seam — what the thresholds should be tuned against.
@@ -147,6 +195,7 @@ export function createSoundDetector({
      * transcript, nothing that says what was said. */
     state(at = Date.now(), { series = false } = {}) {
       const dbs = samples.map((s) => s.db);
+      const speeches = samples.map((s) => s.speech).filter((s) => typeof s === "number");
       const out = {
         active,
         samples: samples.length,
@@ -155,11 +204,22 @@ export function createSoundDetector({
         peakDb: round(percentile(dbs, 100)),
         lastDb: dbs.length ? round(dbs[dbs.length - 1]) : null,
         marginDb,
-        ageMs: samples.length ? at - samples[0].at : 0
+        ageMs: samples.length ? at - samples[0].at : 0,
+        /* Which statistic is actually deciding. Without this, a silent fallback
+           to loudness — an agent that failed to load the VAD — looks exactly
+           like a working install from the outside. */
+        decidedBy: speeches.length ? "speech" : "loudness",
+        speechThreshold,
+        speechSamples: speeches.length,
+        lastSpeech: speeches.length ? speeches[speeches.length - 1] : null,
+        peakSpeech: speeches.length ? Math.max(...speeches) : null,
+        speechOverThreshold: speeches.filter((s) => s >= speechThreshold).length
       };
       // Ages, not wall-clock timestamps: the consumer is replaying a window, and
       // a relative offset survives the reader's clock disagreeing with the box's.
-      if (series) out.series = samples.map((s) => [at - s.at, round(s.db)]);
+      // Both statistics per entry, so the two stay comparable on IDENTICAL audio
+      // — the comparison that showed loudness was the wrong choice.
+      if (series) out.series = samples.map((s) => [at - s.at, round(s.db), s.speech]);
       return out;
     }
   };

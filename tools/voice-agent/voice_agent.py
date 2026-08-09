@@ -204,20 +204,81 @@ def send_level(rms_value):
 # wake loop is timing-critical and a blocking POST in it trades a working
 # microphone for a presence cue.
 #
-# The value sent is the PEAK rms of the second, not the mean. A mean over 12
-# frames buries a short sentence in the surrounding room tone, which is exactly
-# the event we are trying to see; the floor the server compares against is a
-# percentile over minutes, so it is unaffected by using peaks.
+# The value sent is the PEAK of the second, not the mean. A mean over 12 frames
+# buries a short sentence in the surrounding room tone, which is exactly the
+# event we are trying to see.
+#
+# ── WHY A SPEECH PROBABILITY AND NOT JUST LOUDNESS ───────────────────────────
+# Loudness was tried first and MEASURED AGAINST THIS KITCHEN on 2026-08-09. It
+# does not work here, and no threshold fixes it: a real conversation sat 2.2 dB
+# above the adaptive floor at the median and 7.7 dB at its loudest, while the
+# EMPTY room reached 6.5 dB on its own. The distributions overlap. Room tone is
+# ~-30 dBFS because capture gain is +22.5 dB, and the mic ("MUSIC-BOOST")
+# compresses, so a 6x louder stimulus moved the reading about 2 dB — speech has
+# nowhere left to excurse to.
+#
+# The wake word works fine at 0.70 in that same room, which is the clue: it
+# classifies SPECTRALLY. A level meter cannot see what a speech model can. So we
+# report silero's speech probability, which is already bundled inside the
+# installed openWakeWord — no new dependency, no new listener, still one float.
+# Measured cost: 0.61 ms/frame (0.76% of one core) against the wake model's
+# 4.23 ms already being spent. It rounds to nothing.
+#
+# rms is still sent alongside it, deliberately: it costs nothing, it keeps the
+# two statistics comparable on identical audio, and the loudness numbers remain
+# the diagnostic baseline that justified the switch.
 _ambient_q = queue.Queue(maxsize=1)
 _ambient_peak = 0
+_ambient_speech_peak = 0.0
 _ambient_last = 0.0
+
+# 1280-sample frames, so 640 gives exactly 2 onnx passes and is the even divisor
+# nearest silero's canonical 512. 320 also divides evenly and costs 68% more for
+# no measured benefit.
+VAD_FRAME_SIZE = int(os.environ.get("VAD_FRAME_SIZE", "640"))
+VAD_ENABLED = os.environ.get("VAD_ENABLED", "1") == "1"
+_vad = None
+
+
+def _init_vad():
+    """Load silero from openWakeWord's own bundle. Failure must never be fatal:
+    a missing VAD costs presence, and a crashed agent costs the wake word."""
+    global _vad
+    if not (VAD_ENABLED and AMBIENT_ENABLED):
+        return
+    try:
+        import numpy as _np  # noqa: F401  (already a hard dep of openwakeword)
+        from openwakeword.vad import VAD
+        _vad = VAD()
+        log(f"vad on → silero speech probability, frame_size {VAD_FRAME_SIZE}")
+    except Exception as exc:  # pragma: no cover - environment-dependent
+        _vad = None
+        log(f"vad unavailable, falling back to loudness only: {exc}")
+
+
+def _speech_probability(frame):
+    """⚠ Fed EVERY frame, including while the house is speaking, and that is
+    deliberate. Silero is RECURRENT (h/c LSTM state); skipping frames to save
+    work hands it discontinuous audio, and this project has already been bitten
+    once by assuming a model's internal buffers can be cheaply reset —
+    openWakeWord's reset() left a 2.4 s ring and a (120,96) feature buffer
+    intact, and the house answered its own voice for it. Keep the stream
+    continuous and let the SERVER drop the samples it must not count."""
+    if _vad is None:
+        return 0.0
+    try:
+        import numpy as np
+        return float(_vad.predict(np.frombuffer(frame, dtype="<i2"),
+                                  frame_size=VAD_FRAME_SIZE))
+    except Exception:
+        return 0.0
 
 
 def _ambient_worker():
     while True:
-        rms_value = _ambient_q.get()
+        payload = _ambient_q.get()
         try:
-            _post(AMBIENT_URL, json.dumps({"rms": rms_value}).encode(),
+            _post(AMBIENT_URL, json.dumps(payload).encode(),
                   "application/json", 2)
         except (urllib.error.URLError, OSError, ValueError):
             pass  # the dashboard may be restarting; the mic must not care
@@ -225,21 +286,26 @@ def _ambient_worker():
 
 def ambient_tick(frame):
     """Called for EVERY frame of the wake loop. Cheap by construction."""
-    global _ambient_peak, _ambient_last
+    global _ambient_peak, _ambient_speech_peak, _ambient_last
     if not AMBIENT_ENABLED:
         return
     value = rms(frame)
     if value > _ambient_peak:
         _ambient_peak = value
+    speech = _speech_probability(frame)
+    if speech > _ambient_speech_peak:
+        _ambient_speech_peak = speech
     now = time.time()
     if now - _ambient_last < AMBIENT_PERIOD_S:
         return
     _ambient_last = now
     try:
-        _ambient_q.put_nowait(_ambient_peak)
+        _ambient_q.put_nowait({"rms": _ambient_peak,
+                               "speech": round(_ambient_speech_peak, 3)})
     except queue.Full:
         pass
     _ambient_peak = 0
+    _ambient_speech_peak = 0.0
 
 
 def capture_utterance(proc):
@@ -456,6 +522,7 @@ def main():
         log(f"level relay on → {LEVEL_URL}")
 
     if AMBIENT_ENABLED:
+        _init_vad()
         threading.Thread(target=_ambient_worker, daemon=True).start()
         log(f"ambient relay on → {AMBIENT_URL} every {AMBIENT_PERIOD_S}s")
 
