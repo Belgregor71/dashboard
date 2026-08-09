@@ -90,6 +90,35 @@ export const CONSECUTIVE = 2; // 2s — rejects a single door-slam impulse
    the loudness threshold was a guess, and guessing is what cost this feature
    its first attempt. */
 export const SPEECH_THRESHOLD = 0.3;
+/* ── ⚠ THE PROXIMITY GATE — speech alone is NOT presence ──────────────────────
+   Measured 2026-08-09, and it took the owner to explain it: a 3.6-minute window
+   read `active:true` with NOBODY IN THE KITCHEN, 76 samples over threshold and
+   peaks of 0.988. The cause was CHILDREN PLAYING NEXT DOOR. The VAD was right —
+   that is speech — and the presence verdict was wrong, because THIS MIC HEARS
+   OUTSIDE THE HOUSE.
+
+   Speech answers "is this a voice". Only level can answer "is it in THIS room",
+   because that is a question about distance:
+
+                                level              speech      gate firings
+     quiet room                 -27..-33 dB        0.02-0.10        0
+     neighbours (empty kitchen) -25..-30 dB        up to 0.99       0
+     a person at the panel      -11..-25 dB        0.83-0.998   many (runs of 9)
+
+   The neighbours DO produce isolated loud speech-positive samples (-12.9 dB at
+   0.321, -18.7 at 0.988), so a level bar alone would fire on them. What
+   separates a person is loud AND speech-shaped ON CONSECUTIVE SECONDS — outside
+   noise arriving through a window does not sustain. That is why CONSECUTIVE is
+   load-bearing here and not merely an impulse filter.
+
+   ⚠ ABSOLUTE dBFS, deliberately, NOT an excursion above the floor: this encodes
+   a physical fact about distance, not about how noisy the room happens to be.
+   The consequence is that it is COUPLED TO THE MIC'S CAPTURE GAIN (+22.5 dB,
+   23/30, `amixer -c Microphone`). If that gain is ever changed, this number is
+   void and must be re-measured — an excursion-relative version would not have
+   saved us either, since the loudest neighbour sample sat 16 dB above the floor,
+   further than most human samples. */
+export const NEAR_DB = -24;
 /* Below this many samples there is no floor worth trusting, and a detector that
    guesses during its first seconds would fire on the first sound after every
    restart. Silence is the safe answer while it learns. */
@@ -124,7 +153,8 @@ export function createSoundDetector({
   consecutive = CONSECUTIVE,
   minSamples = MIN_SAMPLES,
   repeatMs = REPEAT_MS,
-  speechThreshold = SPEECH_THRESHOLD
+  speechThreshold = SPEECH_THRESHOLD,
+  nearDb = NEAR_DB
 } = {}) {
   const samples = []; // ascending [{ at, db, speech }]
   let run = 0;
@@ -174,13 +204,16 @@ export function createSoundDetector({
         return { active, changed, emit: false, db, speech: speechProb, floor, excursion, samples: samples.length };
       }
 
-      speechRun = hasSpeech && speechProb >= speechThreshold ? speechRun + 1 : 0;
+      /* Both, together, or it is not somebody in this room. ⚠ This REVERSES an
+         earlier rule in this file that said speech and loudness must never be
+         combined. That rule was about loudness as the PRIMARY signal, where it
+         measured wrong; as a proximity gate it does a different job — see
+         NEAR_DB. The neighbours' children are what forced the change. */
+      const near = db >= nearDb;
+      speechRun = hasSpeech && speechProb >= speechThreshold && near ? speechRun + 1 : 0;
       run = excursion >= marginDb ? run + 1 : 0;
-      /* Speech is the verdict when the agent reports it; loudness is only the
-         fallback for an agent too old to send it. They are deliberately NOT
-         combined — an OR would hand the loudness detector a veto it has already
-         been measured to be wrong about, and an AND would make the good signal
-         wait on the bad one. */
+      /* Speech (gated by proximity) is the verdict when the agent reports it;
+         loudness alone is only the fallback for an agent too old to send it. */
       const next = hasSpeech ? speechRun >= consecutive : run >= consecutive;
       const changed = next !== active;
       active = next;
@@ -225,6 +258,7 @@ export function createSoundDetector({
            like a working install from the outside. */
         decidedBy: speeches.length ? "speech" : "loudness",
         speechThreshold,
+        nearDb,
         speechSamples: speeches.length,
         lastSpeech: speeches.length ? speeches[speeches.length - 1] : null,
         peakSpeech: speeches.length ? Math.max(...speeches) : null,

@@ -218,12 +218,22 @@ test.describe("speech probability is the verdict", () => {
     expect(det.state().decidedBy).toBe("speech");
   });
 
-  test("quiet speech IS a person: soft, but speech", () => {
-    // The case the level meter provably could not see — someone talking across
-    // the kitchen, barely above room tone.
+  test("FAINT speech is not a person — that is what next door sounds like", () => {
+    /* ⚠ This assertion used to be the OPPOSITE ("quiet speech IS a person"),
+       on the theory that the level meter simply could not see someone talking
+       softly. The neighbours' children disproved it: faint speech is the
+       signature of a voice OUTSIDE THE HOUSE, and believing it held the house
+       present for 3.6 minutes with an empty kitchen. */
     const det = createSoundDetector();
     feed(det, QUIET, 40, T0);
-    const res = feed(det, QUIET * 1.1, 2, T0 + 40_000, { speech: 0.93 });
+    const res = feed(det, QUIET * 1.1, 6, T0 + 40_000, { speech: 0.93 });
+    expect(res.active).toBe(false);
+  });
+
+  test("speech AT THE PANEL is a person", () => {
+    const det = createSoundDetector();
+    feed(det, QUIET, 40, T0);
+    const res = feed(det, VOICE, 2, T0 + 40_000, { speech: 0.93 });
     expect(res.active).toBe(true);
   });
 
@@ -239,7 +249,7 @@ test.describe("speech probability is the verdict", () => {
     // judgement about one frame needs no history, so a fresh restart is useful
     // immediately instead of deaf for half a minute.
     const det = createSoundDetector();
-    const res = feed(det, QUIET, 2, T0, { speech: 0.88 });
+    const res = feed(det, VOICE, 2, T0, { speech: 0.88 });
     expect(res.active).toBe(true);
     expect(det.state().samples).toBeLessThan(MIN_SAMPLES);
   });
@@ -277,13 +287,61 @@ test.describe("speech probability is the verdict", () => {
     expect(det.state().speechOverThreshold).toBe(0);
   });
 
-  test("speech and loudness are not combined", () => {
-    // An OR would give the measured-wrong statistic a veto; an AND would make
-    // the good one wait on the bad one.
+  test("loud but not speech is not a person", () => {
+    // The rangehood. Speech is what rejects it.
     const det = createSoundDetector();
     feed(det, QUIET, 40, T0);
-    // loud enough to clear the margin, but not speech
     const res = feed(det, VOICE * 4, 6, T0 + 40_000, { speech: 0.05 });
+    expect(res.active).toBe(false);
+  });
+
+  /* ── the proximity gate, replayed from the REAL captures ───────────────────
+     THIS MIC HEARS NEXT DOOR. Speech alone said `active:true` for 3.6 minutes
+     with nobody in the kitchen, because children were playing outside. Levels
+     below are the actual dB from those windows; `rmsFor` inverts toDb so the
+     detector sees the same numbers it saw live. */
+  const rmsFor = (dbWanted) => 32768 * 10 ** (dbWanted / 20);
+
+  test("NEIGHBOURS: speech-shaped, but too far away to be in this room", () => {
+    // The real speech-positive neighbour samples, in the order captured. The
+    // loud ones are ISOLATED — that is what the consecutive requirement catches.
+    const NEIGHBOURS = [
+      [-28.4, 0.358], [-27.0, 0.349], [-25.7, 0.314], [-28.0, 0.457],
+      [-27.7, 0.525], [-25.2, 0.386], [-26.8, 0.301], [-27.6, 0.304],
+      [-24.8, 0.314], [-26.2, 0.598], [-27.8, 0.408], [-28.1, 0.315],
+      [-12.9, 0.321], [-28.0, 0.599], [-25.7, 0.406], [-26.3, 0.535],
+      [-23.4, 0.962], [-26.1, 0.510], [-18.7, 0.988], [-25.5, 0.221],
+      [-21.2, 0.871], [-28.7, 0.272], [-28.4, 0.586], [-25.5, 0.795]
+    ];
+    const det = createSoundDetector();
+    let everActive = false;
+    NEIGHBOURS.forEach(([db, speech], i) => {
+      if (det.push({ rms: rmsFor(db), speech, at: T0 + i * 1000 }).active) everActive = true;
+    });
+    expect(everActive).toBe(false);
+  });
+
+  test("A PERSON AT THE PANEL: loud and speech-shaped, held", () => {
+    // The real conversation, captured 2026-08-09 with no wake word so sampling
+    // stayed continuous. Runs of 9 consecutive gate-passes live.
+    const AT_PANEL = [
+      [-23.2, 0.976], [-21.5, 0.995], [-23.7, 0.985], [-22.2, 0.988],
+      [-27.2, 0.983], [-21.8, 0.989], [-19.5, 0.994], [-16.8, 0.992],
+      [-14.2, 0.996], [-23.6, 0.972], [-22.0, 0.868], [-14.1, 0.998],
+      [-21.4, 0.956], [-19.5, 0.982]
+    ];
+    const det = createSoundDetector();
+    let everActive = false;
+    AT_PANEL.forEach(([db, speech], i) => {
+      if (det.push({ rms: rmsFor(db), speech, at: T0 + i * 1000 }).active) everActive = true;
+    });
+    expect(everActive).toBe(true);
+  });
+
+  test("one isolated near-and-speechy second is still not a person", () => {
+    // Captured in a genuinely quiet stretch: -21.8 dB at 0.412, alone.
+    const det = createSoundDetector();
+    const res = det.push({ rms: rmsFor(-21.8), speech: 0.412, at: T0 });
     expect(res.active).toBe(false);
   });
 
