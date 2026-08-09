@@ -314,6 +314,58 @@ test("a paused player is not playing", () => {
   expect(houseSnapshot({ now: NOW, entities }).nowPlayingActive).toBe(false);
 });
 
+/* ── TV audio ──────────────────────────────────────────────────────────────
+   Owner's call, 2026-08-09: a Sonos carrying TV audio is not "what's playing".
+   MEASURED on the live house first — `media_player.living_room` in that mode
+   reports `source: "TV"` (one entry in a `source_list` whose every other member
+   is a music service) and carries no title, artist or artwork at all.
+─────────────────────────────────────────────────────────────────────────── */
+
+test("a Sonos carrying TV audio is not what's playing", () => {
+  const entities = [{
+    entity_id: "media_player.living_room",
+    state: "playing",
+    // The generous case on purpose: even WITH a title, TV audio is not it.
+    // The no-title case would fall out for free and would prove less.
+    attributes: { source: "TV", media_title: "Channel 9", entity_picture: "/tv.jpg" }
+  }];
+  expect(houseSnapshot({ now: NOW, entities }).nowPlayingActive).toBe(false);
+});
+
+test("TV audio silences ONE PLAYER, not the house", () => {
+  /* ⚠ The regression this exists for. The scan is ordered by config and the
+     Lounge group is scanned FIRST, so a `return null` on the TV would blank the
+     answer while music played in the piano room — and it would only ever be
+     seen by someone with the TV on and Spotify going at the same time. */
+  const entities = [
+    {
+      entity_id: "media_player.living_room",
+      state: "playing",
+      attributes: { source: "TV", media_title: "Channel 9" }
+    },
+    {
+      entity_id: "media_player.piano_room",
+      state: "playing",
+      attributes: { source: "Spotify Connect", media_title: "Live to Tell", media_artist: "Madonna" }
+    }
+  ];
+
+  const snap = houseSnapshot({ now: NOW, entities });
+  expect(snap.nowPlayingActive).toBe(true);
+  expect(snap.nowPlayingTitle).toBe("Live to Tell");
+});
+
+test("only TV is dropped — every other source is a music service", () => {
+  for (const source of ["Spotify Connect", "TV Radio", "", undefined]) {
+    const entities = [{
+      entity_id: "media_player.living_room",
+      state: "playing",
+      attributes: { source, media_title: "Nightswimming" }
+    }];
+    expect(houseSnapshot({ now: NOW, entities }).nowPlayingActive, `source ${JSON.stringify(source)}`).toBe(true);
+  }
+});
+
 test("an unconfigured player that is playing is deliberately ignored", () => {
   // Which player speaks for the house stays a config decision, not a scan.
   const entities = [{

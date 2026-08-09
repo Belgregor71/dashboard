@@ -205,7 +205,34 @@ function nextEventFrom(events, now) {
    from `CONFIG.homeAssistant.mediaPlayers`, so the entity cache is the same
    source one hop earlier. Configured players are preferred over a blanket scan
    so the choice of WHICH player speaks stays a config decision.
+
+   ── TV audio is not "now playing" ──────────────────────────────────────────
+
+   Owner's call, 2026-08-09: when the Sonos is carrying TV audio, the house is
+   not to display it as what's playing. Two reasons it is the right answer
+   rather than only the asked-for one. There is nothing to show — MEASURED on
+   the live house, `media_player.living_room` in this mode reports no
+   `media_title`, no artist and no `entity_picture`, so the honest render is a
+   speaker's name and a blank rectangle. And when the thing on the TV is
+   actually worth naming, `plexFrom` below already names it properly, with a
+   title and a poster.
+
+   ⚠ `continue`, NOT `return null`. The scan is ordered by config and the Lounge
+   group comes first, so bailing out here would blank the answer while Spotify
+   was playing in the piano room. TV audio makes that ONE PLAYER silent to this
+   reader; it does not make the house silent.
+
+   ⚠ The match is exact and measured, not guessed: `source_list` on
+   `media_player.living_room` is ["TV", "12\" Classics", ...] — one input named
+   "TV", and everything else is a music service. If another input is ever added
+   (optical, HDMI, a second TV) it belongs in this set, and it will present as a
+   new entry in that same `source_list`.
 ─────────────────────────────────────────────────────────────────────────── */
+const NOT_NOW_PLAYING_SOURCES = new Set(["tv"]);
+
+const isTvAudio = (entity) =>
+  NOT_NOW_PLAYING_SOURCES.has(String(entity?.attributes?.source ?? "").trim().toLowerCase());
+
 function nowPlayingFrom(byId) {
   const groups = CONFIG?.homeAssistant?.mediaPlayers;
   if (!Array.isArray(groups)) return null;
@@ -214,6 +241,7 @@ function nowPlayingFrom(byId) {
     for (const id of group?.entityIds ?? []) {
       const entity = byId[id];
       if (!entity || entity.state !== "playing") continue;
+      if (isTvAudio(entity)) continue;
       const title = entity.attributes?.media_title;
       if (!title) continue;
       const source = entity.attributes?.media_series_title || entity.attributes?.media_artist || group?.label || null;

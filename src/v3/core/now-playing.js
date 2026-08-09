@@ -51,13 +51,12 @@
    things — and it is the same reader the attention queue scores, so the spread
    agrees too.
 
-   ⚠ KNOWN LIMIT, not a defect of this file. `houseSnapshot`'s reader requires
-   `media_title`, so a Sonos playing TV audio (`media_player.living_room`,
-   source TV — the path the owner confirmed is audible in the kitchen) may
-   report `playing` with no title and produce nothing here. If that turns out to
-   matter, the fix belongs in `nowPlayingFrom()` in houseSnapshot.js where BOTH
-   surfaces and the attention queue would get it at once. Fixing it locally here
-   would be exactly the divergence this module is shaped to avoid.
+   ⚠ TV AUDIO IS DELIBERATELY NOT SHOWN, and the rule is NOT in this file. The
+   owner's call is that a Sonos carrying TV audio is not "what's playing", and
+   `houseSnapshot.nowPlayingFrom` drops it there — because the scan is ordered
+   by config and the Lounge group comes first, so a filter applied HERE would
+   have blanked the band while music played in the piano room. When what is on
+   the TV is worth naming, the Plex fallback names it properly, with a poster.
 
    ── What it costs at rest ───────────────────────────────────────────────────
 

@@ -863,6 +863,11 @@ window.CONFIG = {
     // attribute — the nodes sit in index.html inert at `visibility: hidden`,
     // the way every V3 mount does before its phase lands.
     //
+    // ⚠ TV audio is not "what's playing" — owner's call, and the rule lives in
+    // houseSnapshot.nowPlayingFrom (one authority, both surfaces) rather than
+    // in the band, because the config scan is ordered and a filter at the band
+    // would have blanked it while music played in the other room.
+    //
     // Nothing else changes: the hour does not move (the band is absolutely
     // positioned), the rail cannot collide with it (rail is depths 1-2, this is
     // depth 0), and there is no per-second repaint — no progress bar, and the
