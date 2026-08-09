@@ -29,6 +29,9 @@ import { renderVocabularyCard } from "./vocabulary-card.js";
 
 const LINGER_MS = 8_000;
 const DEIXIS_MS = 4_200;
+/* Matches voiceSession.js — 3 exchanges. The server bounds it again in
+   buildConverseMessages(), so this is a courtesy to the wire, not the guard. */
+const MAX_TURNS = 6;
 
 let enabled = false;
 let busy = false;
@@ -37,6 +40,19 @@ let lingerTimer = null;
 let deixisTimer = null;
 let consecutiveFailures = 0;
 let coords = { lat: null, lon: null };
+/* ── What was already said ──────────────────────────────────────────────────
+   A turn is not the unit of conversation; the linger window is. "What's the
+   weather" → "and tomorrow?" only works if the second utterance arrives with
+   the first still attached, and BOTH upstreams take context — the converse
+   lane as a rolling transcript, HA Assist as a conversation id it minted.
+   V3 sent neither until now, so every follow-up was a cold start against a
+   server that was already built to receive one.
+
+   Both are cleared when the linger expires, which is the same boundary the
+   incumbent calls endSession(): the room went quiet, so the thread is over.
+─────────────────────────────────────────────────────────────────────────── */
+let history = [];
+let assistConversationId = null;
 
 const el = {
   heard: null,
@@ -113,12 +129,29 @@ function clearLinger() {
   }
 }
 
-function endTurn() {
+function pushTurn(role, text) {
+  if (typeof text !== "string" || !text.trim()) return;
+  history.push({ role, text: text.trim() });
+  if (history.length > MAX_TURNS) history = history.slice(-MAX_TURNS);
+}
+
+/* Called at EVERY exit from submit(), including the ones that answered
+   nothing — an utterance the house could not act on is still something the
+   person said, and dropping it makes the repair turn read as the first.
+
+   The turns are recorded HERE rather than at the top of submit() for one
+   load-bearing reason: the converse lane passes the current utterance as
+   `text` alongside `history`, so pushing it early would send it twice. */
+function endTurn(said, replied) {
+  pushTurn("user", said);
+  pushTurn("assistant", replied);
   clearLinger();
   lingerTimer = setTimeout(() => {
     lingerTimer = null;
     hideHeard();
     clearDeixis();
+    history = [];
+    assistConversationId = null;
   }, LINGER_MS);
 }
 
@@ -181,7 +214,7 @@ export async function submit(text, { source = "unknown" } = {}) {
           }
 
           consecutiveFailures = 0;
-          endTurn();
+          endTurn(clean, reply?.speech);
           return { handled: true, lane: "local" };
         }
         // Nothing to show — fall through rather than pretend.
@@ -199,7 +232,7 @@ export async function submit(text, { source = "unknown" } = {}) {
           await say(reply.speech, reply.refs);
           rememberReply(reply.speech);
           consecutiveFailures = 0;
-          endTurn();
+          endTurn(clean, reply.speech);
           return { handled: true, lane: "local" };
         }
       }
@@ -207,19 +240,37 @@ export async function submit(text, { source = "unknown" } = {}) {
 
     // ── Lane 2: HA Assist ───────────────────────────────────────────────────
     setPhase("thinking");
-    const assist = await postJson("/api/voice/assist", { text: clean });
-    if (assist?.handled && assist.speech) {
-      setPhase("speaking");
+    const assist = await postJson("/api/voice/assist", {
+      text: clean,
+      conversationId: assistConversationId
+    });
+    // Kept even when the lane declines, because HA mints the id on the FIRST
+    // exchange of a clarification ("turn on the lamp" → "which one?") and that
+    // first exchange is exactly the one it reports as unhandled.
+    if (assist?.conversationId) assistConversationId = assist.conversationId;
+
+    /* `handled` alone, not `handled && speech`. HA answers a completed action
+       with response_type "action_done" and sometimes no plain speech at all —
+       the lights are already on. Requiring speech sent that turn down to the
+       house voice, which would then answer a question about something that had
+       already happened. Silence after acting is a legitimate reply; asking
+       Claude about it is not. */
+    if (assist?.handled) {
       deepen(DEPTH.GLANCE, "voice-assist");
-      await say(assist.speech, []);
-      rememberReply(assist.speech);
+      if (assist.speech) {
+        setPhase("speaking");
+        await say(assist.speech, []);
+        rememberReply(assist.speech);
+      } else {
+        setPhase("idle");
+      }
       consecutiveFailures = 0;
-      endTurn();
+      endTurn(clean, assist.speech);
       return { handled: true, lane: "assist" };
     }
 
     // ── Lane 3: the house voice ─────────────────────────────────────────────
-    const converse = await postJson("/api/voice/converse", { text: clean });
+    const converse = await postJson("/api/voice/converse", { text: clean, history });
     if (converse?.reply) {
       setPhase("speaking");
       deepen(DEPTH.GLANCE, "voice-converse");
@@ -228,7 +279,7 @@ export async function submit(text, { source = "unknown" } = {}) {
       await say(converse.reply, converse.refs);
       rememberReply(converse.reply);
       consecutiveFailures = 0;
-      endTurn();
+      endTurn(clean, converse.reply);
       return { handled: true, lane: "converse" };
     }
 
@@ -251,7 +302,7 @@ export async function submit(text, { source = "unknown" } = {}) {
       const vocab = answer({ id: "meta.vocabulary", slots: {} }, snap);
       if (vocab) await say(vocab.speech, []);
     }
-    endTurn();
+    endTurn(clean);
     return { handled: false };
   } finally {
     busy = false;
@@ -326,7 +377,12 @@ export function initVoice({ enabled: on = false, lat = null, lon = null } = {}) 
     busy,
     failures: consecutiveFailures,
     streamOpen: stream?.readyState === 1,
-    halfDuplex: flag("voiceHalfDuplex")
+    halfDuplex: flag("voiceHalfDuplex"),
+    // The thread, readable from outside — the incumbent's __voiceSession has
+    // reported exactly these two since Phase 4, and the only reason V3's
+    // follow-ups could go missing unnoticed is that nothing could see them.
+    turns: history.length,
+    conversationId: assistConversationId
   });
   window.__v3Transcript = (t) => submit(t, { source: "debug" });
 

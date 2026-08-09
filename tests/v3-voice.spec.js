@@ -277,6 +277,108 @@ test("half duplex: a barge-in stops the reply AND does not wedge the turn", asyn
   expect(pageErrors).toEqual([]);
 });
 
+/* ── Lanes 2 and 3: the thread ──────────────────────────────────────────────
+   V3 had no coverage of assist or converse at all, and that is exactly how it
+   shipped without sending either upstream the context it was built to take.
+   `tests/voice-session.spec.js` has asserted both for the incumbent since
+   Phase 4; these are the same invariants against the surface that is about to
+   become the whole dashboard.
+
+   "zzz ..." is deliberately unmatchable, so the local lane declines and the
+   turn reaches the network lanes the way a real unrecognised question does. */
+async function bootLanes(page, { assist, converse = [] }) {
+  await page.route("**/api/tts/speak", (route) =>
+    route.fulfill({ contentType: "audio/wav", body: silentWav(0.2) })
+  );
+  await page.route("**/api/voice/assist", (route) => {
+    assist.push(route.request().postDataJSON());
+    return route.fulfill({ json: assist.reply ?? { handled: false, speech: null, conversationId: null } });
+  });
+  await page.route("**/api/voice/converse", (route) => {
+    converse.push(route.request().postDataJSON());
+    return route.fulfill({ json: { reply: `reply ${converse.length}` } });
+  });
+  return boot(page);
+}
+
+test("a follow-up reaches the house voice with what was already said", async ({ page }) => {
+  const assist = [];
+  const converse = [];
+  const pageErrors = await bootLanes(page, { assist, converse });
+
+  const first = await page.evaluate(() => window.__v3Transcript("zzz what is the weather"));
+  expect(first.lane).toBe("converse");
+  // The first turn is a cold start by definition — nothing said yet.
+  expect(converse[0].history ?? []).toEqual([]);
+  expect(converse[0].text).toBe("zzz what is the weather");
+
+  await page.evaluate(() => window.__v3Transcript("zzz and tomorrow"));
+
+  /* THE ONE THAT MATTERS. Without this the second question arrives at the
+     model with no idea what the first one was, and "and tomorrow?" is not a
+     question anyone can answer cold. The current utterance rides in `text`,
+     so it must NOT also appear in the history it is sent with. */
+  expect(converse[1].history).toEqual([
+    { role: "user", text: "zzz what is the weather" },
+    { role: "assistant", text: "reply 1" }
+  ]);
+  expect(converse[1].text).toBe("zzz and tomorrow");
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("HA's conversation id is threaded back, so a clarification can resolve", async ({ page }) => {
+  const assist = [];
+  // "which lamp?" — HA declines the first exchange and mints the id on it, so
+  // an id kept only on `handled` would be thrown away exactly when it is needed.
+  assist.reply = { handled: false, speech: null, conversationId: "conv-v3" };
+  const pageErrors = await bootLanes(page, { assist });
+
+  await page.evaluate(() => window.__v3Transcript("zzz turn on the lamp"));
+  expect(assist[0].conversationId ?? null).toBeNull();
+  expect(await page.evaluate(() => window.__v3Voice().conversationId)).toBe("conv-v3");
+
+  await page.evaluate(() => window.__v3Transcript("zzz the bedside one"));
+  expect(assist[1].conversationId).toBe("conv-v3");
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("an action HA completed without speaking is not handed to the house voice", async ({ page }) => {
+  const assist = [];
+  const converse = [];
+  // response_type "action_done" with no plain speech: the lights are already on.
+  assist.reply = { handled: true, speech: null, conversationId: null };
+  const pageErrors = await bootLanes(page, { assist, converse });
+
+  const result = await page.evaluate(() => window.__v3Transcript("zzz turn off the lamp"));
+  expect(result.handled).toBe(true);
+  expect(result.lane).toBe("assist");
+  // Asking Claude about something the house has already done is the failure
+  // here — it would answer as if the request were still pending.
+  expect(converse, "a completed action was escalated to the house voice").toEqual([]);
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("the thread ends when the room goes quiet", async ({ page }) => {
+  const assist = [];
+  const converse = [];
+  assist.reply = { handled: false, speech: null, conversationId: "conv-expiring" };
+  await bootLanes(page, { assist, converse });
+
+  await page.evaluate(() => window.__v3Transcript("zzz something"));
+  expect(await page.evaluate(() => window.__v3Voice().turns)).toBeGreaterThan(0);
+
+  // The linger window IS the conversation. Once it lapses the next person to
+  // speak is starting a new one, and inheriting the last one's context would
+  // answer them about somebody else's question.
+  await expect
+    .poll(() => page.evaluate(() => window.__v3Voice().turns), { timeout: 15_000 })
+    .toBe(0);
+  expect(await page.evaluate(() => window.__v3Voice().conversationId)).toBeNull();
+});
+
 // PINNED OFF, not left to the default. Flipping the flag back is the rollback
 // path, so the off state has to keep being tested after the default flips on —
 // a spec that asserts "off" by inheriting the default silently becomes a
