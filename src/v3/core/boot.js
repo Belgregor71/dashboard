@@ -98,12 +98,19 @@ function fail(name, error) {
  * rather than being left to become an unhandled rejection.
  */
 export function stage(name, fn) {
-  if (boomed(name)) {
-    fail(name, new Error(`__boom=${name} — deliberate fault injection`));
-    return undefined;
-  }
+  /* ⚠ The injected fault THROWS FROM INSIDE THE TRY rather than short-circuiting
+     around it, and that is not a detail. A seam that returns early instead
+     records the same report while never touching the catch — so every spec
+     driving `?__boom=` would pass against a stage() with no try/catch at all,
+     which is the one defect they exist to see. Measured: it did, three of them,
+     before this line looked like this. A fixture that cannot produce the defect
+     cannot catch it. */
+  const body = boomed(name)
+    ? () => { throw new Error(`__boom=${name} — deliberate fault injection`); }
+    : fn;
+
   try {
-    const value = fn();
+    const value = body();
     stages.push({ name, ok: true });
     if (value && typeof value.then === "function") {
       value.then(undefined, (error) => fail(name, error));

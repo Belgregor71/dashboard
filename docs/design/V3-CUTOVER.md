@@ -211,15 +211,74 @@ wrong reason. A dead root route is invisible until the moment you need it to wor
 
 ### 4. `boot()` is a 44-edge single point of failure
 
+> ✅ **DONE 2026-08-09 (`856aad5` + this commit). `src/v3/core/boot.js`, and
+> `tests/v3-boot.spec.js` — 14 assertions, five mutations.**
+>
+> `stage(name, fn)` wraps every `init*()`: a throw is caught, recorded, and the sequence
+> continues. **`boot()` itself can no longer throw**, which also takes it out of the
+> uncaught-page-error class the suite exists to catch.
+>
+> **The FIRST failure is the cause.** Boot is ordered, so a later stage failing is usually a
+> consequence — the attention queue cannot be blamed for a feed that never registered. This
+> is health.js's one-cause-not-three-symptoms rule applied to a sequence instead of to feeds,
+> and it is why `bootFault()` takes the earliest failure rather than the loudest.
+>
+> 🔑 **The handles now register FIRST, before anything that can break.** At the bottom of
+> `boot()` — where they lived — they were registered precisely when nothing had gone wrong.
+> A wall that came up black was also a wall you could not ask why. Safe for the twelve specs
+> that wait on `typeof window.__v3 === "function"`: `boot()` is synchronous, so no polled
+> predicate can observe the page mid-sequence.
+>
+> **The timers got the same treatment.** `guard()` wraps each interval callback, because
+> `setInterval` keeps firing after its callback throws — a broken `pushCauses` is not a
+> stopped clock, it is an uncaught error every 60 s for as long as the page is up, which here
+> is weeks. First is logged, the rest counted (40k identical lines a month would bury the one
+> that mattered). ⚠ Three failures, not one, before it becomes a fault: **a wall that
+> announces blips is ignored by the time something is actually broken.**
+>
+> **Visible in the room, not just the console.** `bootFault()` is read by `core/health.js`
+> (the one-line notice into the attention queue, presence-gated at 72) and by
+> `subjects/status.js` (the readout, which is the only place the stage NAMES appear —
+> "substrate" is not a word anyone in a kitchen should need). Both already existed, so this
+> adds **no new writer of any cell**. Two consequences worth recording:
+> - **the surface's own boot outranks every feed** — `PRIORITY` reasons about which upstream
+>   broke the others; this is a level above that argument, because the feeds describe what the
+>   surface is *reporting on*. A half-booted wall telling you the calendar is late is
+>   answering the wrong question with whichever subsystems are still alive;
+> - **it survives an unreadable server.** `poll()` used to return early when the fetch failed
+>   — correctly, since announcing from a snapshot it could not read would be inventing a
+>   fault. But a boot failure is known LOCALLY, so reporting it is not inventing it, and
+>   without that clause a half-booted wall is silent for exactly as long as the server is also
+>   dark: the deploy that broke both.
+>
+> ⚠ **`?__boom=<stage>` injects a fault, and the seam THROWS FROM INSIDE THE TRY rather than
+> short-circuiting around it.** This is not a detail — measured: with the early-return version,
+> **three browser specs driving `?__boom=` passed against a `stage()` with no try/catch at
+> all.** They recorded the identical report while never touching the catch, i.e. every spec
+> for the one defect they existed to see was green. 🔑 A fixture that cannot produce the
+> defect cannot catch it — the same lesson as Phase 6's one-word feed labels.
+>
+> 🔑 **Isolation cannot be verified by reading the code.** The property is "the wall works
+> when a subsystem is dead", and the only way to check it is to kill one. That is what the
+> seam is for, and it works over CDP on the kiosk exactly as it does in a spec.
+>
+> ⚠ **Isolation is also what would HIDE a stage that quietly started throwing in production**
+> — the wall looks nearly right and nothing goes red. Hence the assertion that a healthy page
+> fails **no** stage (`window.__v3Boot().failed` is `[]`), which is the guard that matters
+> most once this is the only surface.
+>
+> Suite green in both root-surface states: **1075 / 1075**.
+
 `src/v3/main.js` is the densest V3 node in the graph (79 edges); `boot()` at
 `src/v3/main.js:184` carries 44. Every subsystem initialises through it.
 
 Today a throw in `boot()` degrades a secondary surface. After the flip it is a **black wall
 with nothing behind it**.
 
-**Action:** isolate each `init*()` call so one subsystem's throw cannot abort the rest, and
-make the failure visible — `src/v3/core/health.js` and the 9th subject already exist to say
-so, and `health.js` is built to report **one cause, not three symptoms**.
+**Action:** ~~isolate each `init*()` call so one subsystem's throw cannot abort the rest, and
+make the failure visible~~ ✅ done — `src/v3/core/health.js` and the 9th subject already
+existed to say so, and `health.js` is built to report **one cause, not three symptoms**.
+Both now do, for the surface as well as for the server's feeds.
 
 ### 5. Re-derive V3 test coverage properly — the graph's answer is WRONG
 
@@ -285,15 +344,24 @@ Ignore it.
 
 ```
 2 → 1 → 3 → 4    then 5 and 6 before it sits overnight
-✅   ✅   ✅   ↑ next
+✅   ✅   ✅   ✅        ↑ next
 ```
 
 Items **2** and **4** are the ones that produce silent wrong behaviour or a dark wall.
 Item **1** is the one that bites a future session.
 
-§3 shipped the mechanism, not the cutover: the default is still `"incumbent"`. The live
-run at `V3_DEFAULT=1` is owed, and §4 is next regardless — the flag makes a `boot()` throw
-switchable, it does not make it survivable.
+§3 shipped the mechanism, not the cutover: the default is still `"incumbent"`. §4 has
+shipped the isolation — the flag only made a `boot()` throw switchable, it never made one
+survivable; now it is.
+
+**Still owed before `DEFAULT_ROOT_SURFACE` changes:**
+
+- the live run at `V3_DEFAULT=1` on the kiosk, across a sunset and a wake;
+- §4's live proof: `/v3/?__boom=ground` over CDP on the wall, seen still painting, and
+  `__v3Boot().failed` read back from the real page. Isolation cannot be verified by reading
+  the code, and this project does not call a fix done until it has been seen on the glass;
+- §5 (runtime coverage) and §6 (the three deferred sub-AA contrast findings, re-decided
+  rather than inherited).
 
 ---
 
