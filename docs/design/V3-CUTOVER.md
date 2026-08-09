@@ -27,6 +27,39 @@ surface, not to paper over with the retired legacy app (Phase 5 removed
 
 ### 1. V3 is NOT standalone — it imports ~25 incumbent modules (118 edges)
 
+> ✅ **DONE 2026-08-09 (`6960e65` + `ce83e21`). The boundary is now enforced by
+> `tests/v3-closure.spec.js`, and the count below is wrong — read this box, not the
+> estimate.**
+>
+> The closure, **computed rather than estimated**: **71 files, 41 of them in `src/js/`.**
+> "~25" counted only the direct named imports. **39 of the 41 are in the incumbent's
+> closure too**; exactly two — `services/houseSnapshot.js` and `services/displayWindow.js` —
+> live in `src/js/` but are loaded by **V3 alone**, so losing them breaks nothing on `/`
+> to warn you.
+>
+> 🔑 **It is 42, and the 42nd is not an import.** `src/v3/index.html:110` loads
+> `/js/config.js` as a plain `<script>` — invisible to any dependency graph, which is why
+> this section missed it. V3 reads `window.CONFIG?.features?.…` in four places, **optional-
+> chained**, so retiring `src/js/` does **not** throw: V3 boots with every feature flag
+> silently `false`. A total flag rollback presenting as normal operation. An error would
+> have been kinder. (Vite warns about the same tag on every build — the signal was always
+> there.)
+>
+> **The choice, resolved with numbers:** the `src/shared/` move measured **234 import
+> rewrites across 95 files, 155 of them in the incumbent tree** the cutover is not supposed
+> to touch. So: the header comment on all 42, **plus a guard spec** — which is what makes
+> the cheap option durable. A comment only warns whoever opens the file; the guard goes red.
+> Marker token `V3-SHARED-RUNTIME`, one grep finds every member.
+>
+> Five assertions, each naming **one** cause, and **every one proven red by mutation before
+> it was kept**: an unresolvable specifier · the `src/js/` closure drifting from the recorded
+> manifest (both directions) · a header dropped in a rewrite · the `/js/config.js` script tag
+> disappearing · a stale marker left on a module that genuinely left.
+>
+> ⚠ **The manifest in that spec is not a cache to refresh until green.** A diff against it
+> means V3's coupling to the incumbent tree just changed — the exact event this section
+> exists to notice. Read the change, then record it.
+
 `src/v3/main.js` has these direct `../js/` imports (read from the file, lines 9-25):
 
 ```
@@ -50,9 +83,12 @@ Across the rest of `src/v3/`, add: `core/tts.js`, `config/alertLines.js`,
 actually V3's runtime library. A future cleanup that retires the legacy tree takes
 `eventBus` and the Home Assistant client with it.
 
-**Action:** make the boundary visible in the filesystem. Either move the genuinely shared
+**Action:** ~~make the boundary visible in the filesystem. Either move the genuinely shared
 modules to `src/shared/`, or add a load-bearing header comment to each of the ~25. The
-comment is cheap; the move is durable. Do one, not neither.
+comment is cheap; the move is durable. Do one, not neither.~~
+✅ **Done — header on all 42 plus `tests/v3-closure.spec.js`. See the box at the top of this
+section.** The framing "cheap *or* durable" turned out to be a false pair: a comment and a
+guard together cost less than the move and enforce more than either.
 
 ### 2. Nineteen symbols exist in BOTH trees — and have already diverged
 
@@ -175,7 +211,7 @@ Ignore it.
 
 ```
 2 → 1 → 3 → 4    then 5 and 6 before it sits overnight
-✅   ↑ next
+✅   ✅   ↑ next
 ```
 
 Items **2** and **4** are the ones that produce silent wrong behaviour or a dark wall.
