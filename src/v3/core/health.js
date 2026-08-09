@@ -55,6 +55,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { announce } from "./attention.js";
+import { bootFault } from "./boot.js";
 
 const POLL_MS = 60_000;
 
@@ -100,7 +101,8 @@ let timer = null;
 let last = null;
 
 /**
- * The fault to name, or null. Pure, so the choice is testable without a fetch.
+ * The fault to name, or null. Pure over its argument — the one thing it reads
+ * besides `health` is the surface's own boot, which is deliberate: see below.
  *
  * ⚠ Only `error` announces. `warn` is a feed that is merely late — weather at
  * 46 minutes is not news, and a wall that reports lateness trains the room to
@@ -109,6 +111,19 @@ let last = null;
  * @param {{feeds?: Array<{id: string, level: string, detail: string|null}>}} health
  */
 export function worstFault(health) {
+  /* ⚠ THE SURFACE'S OWN BOOT OUTRANKS EVERY FEED (cutover §4). PRIORITY below
+     is the healthService's reasoning about which upstream broke the others;
+     this is one level above that argument entirely. The feeds describe what
+     the surface is reporting ON — a half-booted wall telling you the calendar
+     is late is answering the wrong question, and worse, it is doing it with
+     whichever subsystems happen to still be alive.
+
+     Both readers of this function get it for free, which is the point: the
+     one-line notice and the status readout cannot disagree about the cause,
+     the alertRouter precedent this file already follows. */
+  const surface = bootFault();
+  if (surface) return surface;
+
   const feeds = Array.isArray(health?.feeds) ? health.feeds : [];
   const broken = new Map();
   for (const feed of feeds) {
@@ -130,21 +145,33 @@ export function worstFault(health) {
 
 async function poll() {
   let health = null;
+  let read = false;
   try {
     const res = await fetch("/api/system/health", { signal: AbortSignal.timeout(5000) });
-    health = res.ok ? await res.json() : null;
+    if (res.ok) {
+      health = await res.json();
+      read = true;
+    }
   } catch {
     /* ⚠ The server being unreachable is NOT a fault to announce. This page is
        served BY that server, so a failed poll means either a restart in
        progress or a page that is about to stop working anyway — and announcing
        from a snapshot we could not read would be inventing a fault. Absent is
        not empty; the last real reading simply ages out. */
-    return null;
   }
 
-  const fault = worstFault(health);
+  /* ⚠ The one fault that survives an unreadable snapshot is the surface's own
+     (cutover §4): it is known locally, so reporting it is not inventing it.
+     Without this clause a boot failure would be silent for exactly as long as
+     the server was also dark — which is precisely the moment a wall that came
+     up wrong most needs to say so. */
+  const fault = read ? worstFault(health) : bootFault();
+
   if (!fault) {
-    last = { at: new Date().toISOString(), fault: null };
+    /* Only record a verdict we actually took. An unread poll writing "no
+       fault" would be the same confident-from-nothing reading the catch above
+       refuses to announce. */
+    if (read) last = { at: new Date().toISOString(), fault: null };
     return null;
   }
 

@@ -27,6 +27,7 @@
 
 import { frame, title, getJson } from "./dom.js";
 import { worstFault } from "../core/health.js";
+import { bootFault } from "../core/boot.js";
 
 /* ⚠ SEEN ON THE GLASS 2026-08-09 — this does NOT use the shared column().
    Two reasons, both invisible to a textContent read and both obvious in a
@@ -152,6 +153,19 @@ export async function showStatus() {
     text: feedLine(feed),
     level: feed.level === "ok" ? null : feed.level
   }));
+
+  /* ⚠ The surface's own boot, FIRST (cutover §4). Everything below this row is
+     the server's reading of the house; this row is whether the thing rendering
+     those readings came up whole. It is at the top because it is the only row
+     that can make the others untrustworthy — a subsystem that never started
+     cannot be reporting on anything.
+
+     This is the one place the stage NAMES are shown. The one-line notice keeps
+     them out of the room's earshot on purpose ("substrate" is not a word
+     anyone in a kitchen should need); a readout you deliberately asked for is
+     exactly where they belong. */
+  const surface = bootFault();
+  if (surface) rows.unshift({ lead: "Surface", text: surface.detail, level: "error" });
 
   const box = boxLine(metrics);
   if (box) rows.push({ lead: "Box", text: box });

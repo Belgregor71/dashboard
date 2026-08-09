@@ -7,6 +7,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { getPosition } from "../js/vendor/suncalc.js";
+import { stage, guard, bootReport } from "./core/boot.js";
 import { initSubstrate, toCauses } from "./substrate/index.js";
 import { initDepth, setDepth, onDepth, DEPTH } from "./core/depth.js";
 import { initPresenceLight } from "./core/presence-light.js";
@@ -182,11 +183,31 @@ function depthInhabited(depth) {
   return true;
 }
 
+/* ── Boot ───────────────────────────────────────────────────────────────────
+   Every step runs inside stage(). Cutover §4: this used to be a flat sequence,
+   so a throw at line nine cost the substrate, the timers, the depth machinery
+   and every debug handle below it — and while V3 was secondary that degraded a
+   page nobody was looking at. Once `/` serves V3 there is nothing behind it.
+   See core/boot.js for the rules; the short version is that stages continue,
+   the FIRST failure is the cause, and the failure reaches the room through
+   health.js rather than only the console.
+─────────────────────────────────────────────────────────────────────────── */
 function boot() {
-  initDepth({ inhabited: depthInhabited });
-  initPresenceLight();
-  initVoice({ enabled: true, lat: CITY.lat, lon: CITY.lon });
-  onDepth(onDepthChange);
+  /* ⚠ The handles come FIRST, before anything that could break. They are the
+     only way to ask a wall that came up wrong what happened to it, and at the
+     bottom of the sequence — where they used to live — they are registered
+     precisely when nothing has gone wrong. Nothing here touches a subsystem;
+     every reader below returns module state that is null before its init runs.
+
+     Safe for the specs that wait on `typeof window.__v3 === "function"` as
+     their readiness signal: boot() is synchronous, so no polled predicate can
+     observe the page between this line and the end of the function. */
+  stage("handles", registerHandles);
+
+  stage("depth", () => initDepth({ inhabited: depthInhabited }));
+  stage("presence-light", () => initPresenceLight());
+  stage("voice", () => initVoice({ enabled: true, lat: CITY.lat, lon: CITY.lon }));
+  stage("depth-teardown", () => onDepth(onDepthChange));
 
   /* ── The house's feed ─────────────────────────────────────────────────────
      Both halves of the state the decision layer reads. The entity cache is
@@ -203,10 +224,16 @@ function boot() {
      first because until it exists, houseSnapshot() reads an empty cache and
      honestly answers null to every question, which looks like a broken engine
      and is a missing feed. It also fixes the voice rail, which has been asking
-     the same empty cache since V3 booted. */
-  registerEntityFeed();
-  connectHA();
-  refreshHouseCache();
+     the same empty cache since V3 booted.
+
+     One stage, not three: the feed, the socket and the first prefetch are one
+     fact about the house being reachable, and three names for it would be
+     three symptoms of one cause. */
+  stage("ha-feed", () => {
+    registerEntityFeed();
+    connectHA();
+    refreshHouseCache();
+  });
 
   /* The field's second fact. Before the first snapshot lands, for the same
      reason the feed itself is: it subscribes to `ha:state-updated`, and the
@@ -214,29 +241,31 @@ function boot() {
      After it, only entities that change are sent — so a subscriber that arrives
      late learns nothing until the next track. Flag-off returns false having
      registered nothing. */
-  initNowPlaying();
+  stage("now-playing", () => initNowPlaying());
 
   /* The house's opinion, and its permission to act on it. See core/attention.js:
      an interrupt reaches the glance whether or not anyone is there, the High
      band reaches it when someone is, and nothing below that earns the screen.
      initAttention() brings presence up with it. */
-  initAttention();
+  stage("attention", () => initAttention());
 
   /* Phase 3 — the two things that happen rather than being true. Both subscribe
      to the same entity feed and neither writes the surface directly: the door
      forces depth 3 with a camera because it has to be seen, and an arrival
      announces a candidate and lets the queue decide, because it does not.
 
-     Registered AFTER initAttention() so `announce()` has an engine to reach. */
-  initAlerts();
-  initArrival();
+     Registered AFTER initAttention() so `announce()` has an engine to reach.
+     Separate stages: the door and an arrival are genuinely two subsystems, and
+     the door is the one that must not be lost to the other's bad day. */
+  stage("alerts", () => initAlerts());
+  stage("arrival", () => initArrival());
 
   /* Phase 4's one unasked-for subject. The window is a PERMISSION, not a
      trigger — a clock is not an external cause, so the briefing opens only
      while someone is actually in the room to receive it. It subscribes to
      presence, so it must come up after initAttention() has brought presence
      with it. */
-  initBriefingWindow();
+  stage("briefing-window", () => initBriefingWindow());
 
   /* Phase 6 — the box saying it is broken. The watchdog and the self-heal are
      server-side and already running; what V3 lacked was any way to tell the
@@ -245,10 +274,15 @@ function boot() {
      candidate like arrival does, so the queue decides whether anyone sees it.
 
      After initAttention() for the same reason arrival is: `announce()` needs an
-     engine to reach. */
-  initHealth();
+     engine to reach.
 
-  substrate = initSubstrate(el.substrate);
+     ⚠ This is also the stage that carries every OTHER stage's failure to the
+     room — health.js polls bootFault() alongside the server's feeds. So a boot
+     where this one is the casualty is the boot with no voice to say so, which
+     is why the console line in stage() is not redundant with it. */
+  stage("health", () => initHealth());
+
+  stage("substrate", () => { substrate = initSubstrate(el.substrate); });
 
   /* ── Step 5.1 · the panel ─────────────────────────────────────────────────
      The crontab powers the backlight down at 21:00 and DPMS says nothing to the
@@ -259,32 +293,62 @@ function boot() {
      it does here, and before nothing in particular — display.js holds no state
      the rest of the boot depends on. Flag-off means it never runs, which is why
      the wiring is a single subscription rather than a condition in the loop. */
-  if (initDisplay()) {
-    onPanelDark((isDark) => substrate?.setPaused(isDark));
-  }
+  stage("display", () => {
+    if (initDisplay()) {
+      onPanelDark((isDark) => substrate?.setPaused(isDark));
+    }
+  });
 
   // The photograph and its scrim are one thing in two files: the ground knows
   // nothing about legibility and the scrim knows nothing about where photos
   // come from, and this line is the whole of the coupling between them.
-  initScrim();
-  initGround(el.ground, { onPhoto: (img, meta) => applyScrim(img, meta) });
+  //
+  // One stage for the same reason: the scrim without the ground has nothing to
+  // measure, and the ground without the scrim is unreadable text over a photo.
+  // Half of this pair working is not a partial success.
+  stage("ground", () => {
+    initScrim();
+    initGround(el.ground, { onPhoto: (img, meta) => applyScrim(img, meta) });
+  });
 
-  paintHour();
-  pushCauses();
-  loadWeather();
-  refreshVoiceCache().then(paintRail, paintRail);
+  stage("hour", () => paintHour());
+  stage("causes", () => pushCauses());
+  stage("weather", () => loadWeather());
+  // Two handlers rather than .finally(): a rejection handled on a fresh chain
+  // re-throws, and an uncaught page error on the kiosk is the bug class the
+  // suite exists to catch. The rail is best-effort either way.
+  stage("rail", () => refreshVoiceCache().then(guard("rail", paintRail), guard("rail", paintRail)));
 
-  // Init-once intervals only. Per-event timers are where this house has leaked
-  // before; these are registered exactly once at startup and never re-created.
-  setInterval(paintHour, 20_000);   // cheap, and keeps the minute honest
-  setInterval(pushCauses, 60_000);  // sun moves; the field follows it
-  setInterval(loadWeather, 600_000);
-  setInterval(() => { refreshVoiceCache(); }, 300_000);
-  setInterval(() => { refreshHouseCache(); }, 300_000);
-  setInterval(() => { railTick += 1; paintRail(); }, 90_000);
+  /* Init-once intervals only. Per-event timers are where this house has leaked
+     before; these are registered exactly once at startup and never re-created.
 
-  setDepth(DEPTH.FIELD, "boot");
+     ⚠ Each callback is guarded. setInterval keeps firing after its callback
+     throws, so a broken pushCauses is not a stopped clock — it is an uncaught
+     error every sixty seconds for as long as the page is up, which on this
+     wall is weeks. guard() logs the first and counts the rest. */
+  stage("timers", () => {
+    setInterval(guard("hour", paintHour), 20_000);   // cheap, keeps the minute honest
+    setInterval(guard("causes", pushCauses), 60_000); // sun moves; the field follows it
+    setInterval(guard("weather", loadWeather), 600_000);
+    setInterval(guard("voice-cache", () => { refreshVoiceCache(); }), 300_000);
+    setInterval(guard("house-cache", () => { refreshHouseCache(); }), 300_000);
+    setInterval(guard("rail", () => { railTick += 1; paintRail(); }), 90_000);
+  });
 
+  // Last, and outside everything that could have failed: whatever else did or
+  // did not come up, the field is the floor and the wall shows it.
+  stage("field", () => setDepth(DEPTH.FIELD, "boot"));
+
+  console.info("V3 ready —", substrate?.backend ?? "no substrate");
+}
+
+/* ── The handles ────────────────────────────────────────────────────────────
+   Lifted out of boot() so they can be registered before it. Every reader below
+   is a state accessor that answers null until its subsystem has come up, so
+   calling this first is safe — and it means a half-booted wall can still be
+   interrogated over CDP, which is exactly when you need to.
+─────────────────────────────────────────────────────────────────────────── */
+function registerHandles() {
   window.__v3 = () => ({
     depth: window.__depth?.(),
     substrate: window.__substrate?.(),
@@ -318,7 +382,11 @@ function boot() {
     health: lastHealth(),
     display: displayState(),
     nowPlaying: nowPlayingState(),
-    presence: window.__v3Presence?.()
+    presence: window.__v3Presence?.(),
+    // Cutover §4. `failed: []` is the assertion worth making on a healthy
+    // wall — a stage that started throwing in production is otherwise silent
+    // by construction, because isolation is the thing hiding it.
+    boot: bootReport()
   });
 
   // Force a tick rather than waiting out the 30s cycle — the companion to
@@ -378,7 +446,11 @@ function boot() {
       snapshot === undefined ? voiceSnapshot({ lat: CITY.lat, lon: CITY.lon }) : snapshot
     );
 
-  console.info("V3 ready —", substrate?.backend ?? "no substrate");
+  /* What the boot actually did, stage by stage. Separate from __v3() on
+     purpose: __v3() reads twenty subsystems and any one of them could be the
+     thing that is broken, so the question "what broke?" must not be asked
+     through a handle that a broken subsystem can take down with it. */
+  window.__v3Boot = () => bootReport();
 }
 
 if (document.readyState === "loading") {
