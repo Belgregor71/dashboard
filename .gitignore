@@ -45,3 +45,6 @@ tools/voice-pc/*.log
 tools/voice-agent/*.log
 **/__pycache__/
 *.pyc
+
+# graphify knowledge-graph output (regenerable; 5.7MB)
+graphify-out/
