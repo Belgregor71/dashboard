@@ -11,15 +11,24 @@ Scope: **V3 only.** Findings that affect the incumbent surface alone are deliber
 
 ## 0. What "becoming default" actually is
 
-- `server.js:167` serves `dist/index.html` for `/` — that is the **incumbent**.
+> ⚠ **CORRECTED 2026-08-09 (§3, `9486a89`). `server.js:167` did not serve `/`. It was dead
+> code, and had been since the Vite build landed.** `express.static(dist)` is mounted
+> fourteen lines above it and serve-static answers `/` with `dist/index.html` **itself** —
+> its `index` option defaults to `"index.html"`. The `app.get("/")` below it was never
+> reached; a handler returning 418 there was measured unreachable. **The "one line" this
+> whole plan was scoped around would have flipped nothing, and a deploy of it would have
+> looked entirely successful.** 🔑 A route below a static mount is not a route.
+
 - V3 is served at `/v3/`. Both are real Vite entry points (`vite.config.js:18-21`:
   `index → src/index.html`, `v3 → src/v3/index.html`).
-- So the flip is a **one-line serve change**. That is exactly why the coupling in §1 has to
-  be settled first: the change is trivial, the consequences are not.
+- The flip is still small, but it is a **re-ordering** plus a flag, not an edit in place —
+  see §3 for the shipped shape.
+- The kiosk opens a **bare `http://localhost:3000`** (`dashboard-kiosk.service` on the G11,
+  confirmed 2026-08-09). Nothing on the Pi names a surface, so `/` alone is the wall.
 
-Note `server.js:165-166` already says a missing `dist/index.html` is "a build failure to
+Note the old handler already said a missing `dist/index.html` is "a build failure to
 surface, not to paper over with the retired legacy app (Phase 5 removed
-`static/index.html`)". There is no third fallback.
+`static/index.html`)". There is no third fallback, and the replacement keeps that.
 
 ---
 
@@ -127,9 +136,60 @@ the four **voice** duplicates — that is the half-duplex path, which is newly d
 
 ### 3. The flip must be flag-gated and reversible
 
+> ✅ **DONE 2026-08-09 (`9486a89`). The mechanism is shipped and default-off. What remains
+> is the live verification and the default change itself — see "What is left" below.**
+
 Project rule, and there is no fallback surface once `/` is V3. Put serve-path selection
 behind a flag; the off state must serve the incumbent byte-identically. ⚠ Verify the suite
 passes in **both** states — flag flips have broken tests here that assumed the old default.
+
+**Shipped shape.** `resolveRootSurface(env)` in `server/config.js` names the surface;
+`server.js` registers `app.get("/")` **above** `express.static(dist)` and sends
+`SURFACE_ENTRY[surface]`.
+
+- `DEFAULT_ROOT_SURFACE = "incumbent"` is the committed default. **Flipping that constant is
+  the cutover**, and `tests/root-surface.spec.js` is written so the flip is a deliberate
+  edit rather than a surprise.
+- `V3_DEFAULT` overrides it in **both** directions (`1`/`true`, `0`/`false`). So the Pi can
+  be pinned either way from `.env` with a restart and **no deploy** — that is the fast
+  rollback, and it is also how the on-state was first exercised.
+- The resolver takes `env` as an argument rather than reading `process.env` at module load:
+  `server/config.js` is imported by `server.js`, so its top level runs **before**
+  `dotenv.config()`. A value captured up there is frozen at whatever the shell had (audit
+  2026-07-26, M2 — that exact bug has shipped here once already).
+
+**Both surfaces keep fixed, flag-independent URLs**: `/index.html` is always the incumbent,
+`/v3/` is always V3, `/` is whichever the flag names. The one that loses `/` is a URL away
+rather than stranded — which is the fallback this section says V3 otherwise has none of.
+
+**The specs had to stop conflating "the incumbent" with "the default."** 26 specs navigated
+to `/`; all now name `/index.html`. That coupling — not the serve change — is what would
+have turned the flip into 26 red specs. One more would have gone red for an unrelated
+reason: `api.spec.js`'s document-root test asserted `<!DOCTYPE html>` case-sensitively, and
+Vite emits `<!doctype html>` lowercase for V3's entry. It is `/i` now, and stays on `/` on
+purpose — *which* document `/` serves is this flag's business, not that test's.
+
+**Two guards, deliberately overlapping** (`tests/root-surface.spec.js`), both proven red by
+mutation (sink the root route back below the static mount):
+
+1. a **runtime** contract — `/` is byte-for-byte the entry the flag names, and unmistakably
+   not the other one;
+2. a **source-order** assertion — the root route stays above the dist static mount.
+
+🔑 **Only (2) can see the original defect from the off state.** Measured with the mutation
+in place: flag-off, (1) **passes** — `/` still serves the incumbent, correctly, for the
+wrong reason. A dead root route is invisible until the moment you need it to work.
+
+**Suite green in both states, full runs:** 1061 passed flag-off, 1061 passed with
+`V3_DEFAULT=1`.
+
+**What is left before the default changes:**
+
+- run V3 at `/` on the live kiosk (`V3_DEFAULT=1` in the Pi's `.env` + restart — no deploy),
+  for long enough to include a sunset and a wake;
+- §4 boot isolation, and §6 re-decided — both are about V3 being the *only* surface;
+- then flip `DEFAULT_ROOT_SURFACE` to `"v3"` and update the expectation in
+  `tests/root-surface.spec.js` in the same commit.
 
 ---
 
@@ -211,11 +271,15 @@ Ignore it.
 
 ```
 2 → 1 → 3 → 4    then 5 and 6 before it sits overnight
-✅   ✅   ↑ next
+✅   ✅   ✅   ↑ next
 ```
 
 Items **2** and **4** are the ones that produce silent wrong behaviour or a dark wall.
 Item **1** is the one that bites a future session.
+
+§3 shipped the mechanism, not the cutover: the default is still `"incumbent"`. The live
+run at `V3_DEFAULT=1` is owed, and §4 is next regardless — the flag makes a `boot()` throw
+switchable, it does not make it survivable.
 
 ---
 
