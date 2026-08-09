@@ -2,6 +2,7 @@ import { CONFIG } from "../core/config.js";
 import { on } from "../core/eventBus.js";
 import { getEntity } from "../services/homeAssistant/state.js";
 import { resolveMediaImage } from "../services/mediaImage.js";
+import { isTvAudio } from "../services/mediaSource.js";
 
 const PANEL_IDS = ["media-panel-1", "media-panel-2"];
 
@@ -83,7 +84,19 @@ function updateProgress(panel, attributes) {
 
 function renderPanel(panel, entity, config) {
   if (!panel) return;
-  if (!entity || entity.state !== "playing") {
+  /* TV audio is not "now playing" — owner's call, 2026-08-09, and the predicate
+     is shared with houseSnapshot so both surfaces answer the same way.
+
+     ⚠ THIS IS THE SURFACE IT ACTUALLY MATTERS ON. The kiosk serves the
+     incumbent at `/`, and without this the Sonos on TV rendered a Lounge Room
+     panel whose title fell back to the literal string "Now Playing" with no
+     artwork and no subtitle — a panel that says nothing, about something the
+     household explicitly does not want shown.
+
+     It also removes the attention candidate for free: focusHero SCRAPES
+     `.media-panel__title` out of this rendered panel, so a hidden panel is a
+     candidate that was never offered. One rule, one place, both effects. */
+  if (!entity || entity.state !== "playing" || isTvAudio(entity)) {
     hidePanel(panel);
     return;
   }
@@ -138,7 +151,10 @@ export function initMediaPanels() {
     for (const entityId of config.entityIds) {
       const entity = getEntity(entityId);
       if (!entity) continue;
-      if (entity.state === "playing") return entity;
+      // TV audio does not win the panel for its group. Same reason
+      // houseSnapshot `continue`s rather than bailing out: a group may hold a
+      // second player that IS carrying music, and the TV must not speak for it.
+      if (entity.state === "playing" && !isTvAudio(entity)) return entity;
       if (!fallback) fallback = entity;
     }
 

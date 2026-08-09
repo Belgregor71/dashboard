@@ -37,6 +37,7 @@
 import { getAllEntities } from "./homeAssistant/state.js";
 import { menuFrom } from "./mealEvent.js";
 import { resolveMediaImage } from "./mediaImage.js";
+import { isTvAudio } from "./mediaSource.js";
 import { getBomWarnings } from "./weather/bom.js";
 import { robotAttentionFrom, cameraSnapshotUrl } from "./candidateSources.js";
 import { CONFIG } from "../core/config.js";
@@ -222,17 +223,12 @@ function nextEventFrom(events, now) {
    was playing in the piano room. TV audio makes that ONE PLAYER silent to this
    reader; it does not make the house silent.
 
-   ⚠ The match is exact and measured, not guessed: `source_list` on
-   `media_player.living_room` is ["TV", "12\" Classics", ...] — one input named
-   "TV", and everything else is a music service. If another input is ever added
-   (optical, HDMI, a second TV) it belongs in this set, and it will present as a
-   new entry in that same `source_list`.
+   ⚠ The predicate lives in services/mediaSource.js and is IMPORTED, not copied.
+   The incumbent's own media panels apply the same rule from the same module —
+   and the incumbent is what the kiosk serves at `/`, so a rule that lived only
+   here would hide TV audio on a surface nobody is looking at while leaving it on
+   the one they are. That is the mediaImage.js bug in a new shape.
 ─────────────────────────────────────────────────────────────────────────── */
-const NOT_NOW_PLAYING_SOURCES = new Set(["tv"]);
-
-const isTvAudio = (entity) =>
-  NOT_NOW_PLAYING_SOURCES.has(String(entity?.attributes?.source ?? "").trim().toLowerCase());
-
 function nowPlayingFrom(byId) {
   const groups = CONFIG?.homeAssistant?.mediaPlayers;
   if (!Array.isArray(groups)) return null;
