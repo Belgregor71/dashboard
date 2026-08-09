@@ -23,8 +23,16 @@ Scope: **V3 only.** Findings that affect the incumbent surface alone are deliber
   `index → src/index.html`, `v3 → src/v3/index.html`).
 - The flip is still small, but it is a **re-ordering** plus a flag, not an edit in place —
   see §3 for the shipped shape.
-- The kiosk opens a **bare `http://localhost:3000`** (`dashboard-kiosk.service` on the G11,
-  confirmed 2026-08-09). Nothing on the Pi names a surface, so `/` alone is the wall.
+- `dashboard-kiosk.service` launches Chromium on a **bare `http://localhost:3000`** (G11,
+  confirmed 2026-08-09) and nothing navigates it afterwards. So the flag decides the wall
+  **from the next kiosk restart**, not immediately.
+- ⚠ **The RUNNING page is not the launch URL.** Checked over CDP 2026-08-09 19:40: the live
+  page was on `http://localhost:3000/v3/`, left there by a hand navigation during an earlier
+  V3 verification. That navigation is **not persisted anywhere** — a Chromium restart takes
+  the wall back to `/`, i.e. back to the incumbent while the flag is off. 🔑 **The wall's
+  current surface and the wall's configured surface are two different facts; `ps` and the
+  unit file only tell you the second.** Ask CDP (`curl 127.0.0.1:9222/json` on the host) for
+  the first.
 
 Note the old handler already said a missing `dist/index.html` is "a build failure to
 surface, not to paper over with the retired legacy app (Phase 5 removed
@@ -161,6 +169,12 @@ passes in **both** states — flag flips have broken tests here that assumed the
 **Both surfaces keep fixed, flag-independent URLs**: `/index.html` is always the incumbent,
 `/v3/` is always V3, `/` is whichever the flag names. The one that loses `/` is a URL away
 rather than stranded — which is the fallback this section says V3 otherwise has none of.
+
+⚠ **The flag changes what a NAVIGATION to `/` returns; it does not move a page that is
+already loaded.** The kiosk holds one page for weeks. Flipping the flag therefore takes
+effect on the next kiosk restart or CDP `Page.reload` — the same lag every deploy already
+has (see [[project-kiosk-cdp-verification]]), but easy to misread here as "the flip didn't
+work".
 
 **The specs had to stop conflating "the incumbent" with "the default."** 26 specs navigated
 to `/`; all now name `/index.html`. That coupling — not the serve change — is what would
