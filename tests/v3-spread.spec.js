@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/coverage.js";
 
 /* Phase 2 on a real page — the half tests/v3-composer.spec.js cannot cover.
    The choosing is pure and tested in node; what needs a browser is everything

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/coverage.js";
 
 /* Steps 1.4 + 1.5 — the point of Phase 1: the surface moves because the house
    moved, not because someone spoke to it.

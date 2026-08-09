@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/coverage.js";
 import { eventsForDay, displayTitleOf } from "../src/v3/subjects/calendar.js";
 import { yearsAgo, assetDate, captionFor } from "../src/v3/subjects/memories.js";
 

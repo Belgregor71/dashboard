@@ -14,7 +14,8 @@
     "verify:contrast": "playwright test --config playwright.verify.config.js",
     "verify:flags": "node scripts/verify/flag-reversibility.mjs",
     "verify:patterns": "node scripts/verify/scan-patterns.mjs",
-    "verify:contracts": "node scripts/verify/scan-contracts.mjs"
+    "verify:contracts": "node scripts/verify/scan-contracts.mjs",
+    "verify:v3-coverage": "node scripts/verify/v3-coverage.mjs --run"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",

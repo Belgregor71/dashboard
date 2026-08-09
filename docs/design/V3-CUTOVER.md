@@ -282,6 +282,52 @@ Both now do, for the surface as well as for the server's feeds.
 
 ### 5. Re-derive V3 test coverage properly — the graph's answer is WRONG
 
+> ✅ **DONE 2026-08-10. The answer lives in `docs/design/V3-COVERAGE.md` — read that, and
+> re-take it with `npm run verify:v3-coverage` rather than re-deriving the method.**
+>
+> **304 of 387 functions execute (79%); 415 of 4,177 code lines never run (10%).** All 31
+> V3 files are in the `/v3/` bundle — there are no orphans, and the graph's 17 was, as
+> predicted here, an artefact.
+>
+> The pass takes coverage from **both** runtimes, because V3 has two: 109 browser captures
+> through an opt-in `page` fixture (`tests/fixtures/coverage.js`, `V3_COVERAGE=1`), and 11
+> `NODE_V8_COVERAGE` dumps for the 8 modules specs import directly. Either alone lies —
+> node-only sees almost nothing, browser-only reads `grammar.js` and `composer.js` as dead.
+>
+> ⚠⚠ **THE NODE SIDE'S OFFSETS ARE NOT OFFSETS INTO THE FILE ON DISK.** Playwright's loader
+> transforms every module it imports; the script V8 measured is ~3× the file
+> (`attention.js`: 51,095 bytes vs 18,146). Merging the two runtimes on `file:line:col`
+> therefore merged **nothing**, and the first report claimed `initAttention`, `setDepth` and
+> `poll` had never run — of a surface that boots. It read as a finding: `attention.js` came
+> out at 61% when it is 94%. 🔑 **A coverage report's failure mode is a plausible answer,
+> not an error** — which is why the decoder now self-checks (V8's own function name against
+> the source line the map points at: 28,078/28,187, 99.6%).
+>
+> ⚠ **Tree-shaking must be OFF for the measurement.** Rollup deletes unexercised exports, and
+> deleted code is not uncovered — it is absent. **The percentage rises as coverage falls.**
+> Same class of problem as V8's lazy compilation, which never compiles a function nested
+> inside one that was never entered; hence the dead-LINE column beside the function one.
+>
+> **The three findings that matter for this cutover**, in order:
+> 1. **`substrate/canvas2d.js` is 100% dead (100 lines)** — the silent WebGL fallback, plus
+>    `index.js`'s `webglcontextlost` handler and **both** `destroy()` methods. Headless
+>    Chromium always has WebGL2, so no spec has ever taken that branch. After the flip, a
+>    lost GL context drops the whole wall into code that has never executed once.
+> 2. **Three voice dispatch entries never fire** — `show.sky` (+ `showSky`, 38 lines),
+>    `show.tonight`, `show.media` (+ all of `media.js`). This is the same table whose
+>    `show.status` was shadowed by `NAV_KEYWORD_MAP` in Phase 6.
+> 3. **`ground.js` at 22%** — `dissolve()`, `tick()`, `oneShot()` all dark, while
+>    `window.__groundDissolve`/`__groundRetry` sit there to drive exactly that and are
+>    called by nothing.
+>
+> Also: **11 seams have no caller anywhere in the repo** (7 `__reset*`, `isPanelDark`,
+> `reportUnheard`, and the two ground handles) — dead, not merely untested. And
+> `presence-light.js`'s sound-presence lane is uncovered, which is the *next* flag due to be
+> flipped.
+>
+> Structural and deliberately not chased: speech-completion callbacks (TTS is stubbed to a
+> dead port) and 90-300 s interval bodies (a spec's budget is 30 s).
+
 ⚠ The graph reports 17 of 29 V3 files as having "no edge to any spec". **Do not act on
 this.** Playwright specs drive a browser; they never `import` the modules, so **no static
 edge can exist** and the metric is structurally incapable of being right. There are 12
@@ -293,8 +339,10 @@ v3-scrim   v3-sound-presence  v3-spread  v3-subjects  v3-voice
 verify/v3-contrast
 ```
 
-The coverage question is genuinely open — but answer it with a **runtime** coverage pass,
-not this graph.
+~~The coverage question is genuinely open — but answer it with a **runtime** coverage pass,
+not this graph.~~ ✅ Answered that way — see the box above and `docs/design/V3-COVERAGE.md`.
+The count of V3-named specs is now 14 (`v3-now-playing` and `v3-closure` joined since);
+**13 of them reach V3 at runtime**, which is the number the pass measures.
 
 ### 6. The three deferred sub-AA contrast findings change status on flip
 
@@ -343,8 +391,8 @@ Ignore it.
 ## Suggested order
 
 ```
-2 → 1 → 3 → 4    then 5 and 6 before it sits overnight
-✅   ✅   ✅   ✅        ↑ next
+2 → 1 → 3 → 4 → 5    then 6 before it sits overnight
+✅   ✅   ✅   ✅   ✅        ↑ next
 ```
 
 Items **2** and **4** are the ones that produce silent wrong behaviour or a dark wall.
@@ -360,8 +408,11 @@ survivable; now it is.
 - §4's live proof: `/v3/?__boom=ground` over CDP on the wall, seen still painting, and
   `__v3Boot().failed` read back from the real page. Isolation cannot be verified by reading
   the code, and this project does not call a fix done until it has been seen on the glass;
-- §5 (runtime coverage) and §6 (the three deferred sub-AA contrast findings, re-decided
-  rather than inherited).
+- ~~§5 (runtime coverage)~~ ✅ done — `docs/design/V3-COVERAGE.md`. It leaves three gaps
+  worth closing before the wall is unattended: the WebGL fallback (100 dead lines on the
+  path a lost GL context takes), the three never-fired voice dispatch entries, and
+  `ground.js`'s dissolve;
+- §6 (the three deferred sub-AA contrast findings, re-decided rather than inherited).
 
 ---
 

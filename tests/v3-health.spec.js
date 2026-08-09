@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/coverage.js";
 import { worstFault } from "../src/v3/core/health.js";
 
 /* Phase 6 — the invisible layer.

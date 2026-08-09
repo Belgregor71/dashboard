@@ -36,6 +36,9 @@ static/js/
 # Playwright test artifacts
 test-results/
 playwright-report/
+# Raw V8 coverage from `npm run verify:v3-coverage` (~40MB, regenerable).
+# The conclusions live in docs/design/V3-COVERAGE.md; this is the working data.
+coverage/
 flag-reversibility-failure.log
 
 # PC-side voice services (Stage B, project-voice-mic-bridge) — venv/models/caches/logs

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/coverage.js";
 import { isWithinOffWindow } from "../src/js/services/displayWindow.js";
 import { isWithinOffWindow as fromRoute } from "../server/routes/display.js";
 

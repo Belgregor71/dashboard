@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/coverage.js";
 import { cameraTriggerCandidate } from "../src/js/services/candidateSources.js";
 import { rankQueue, selectForMode, MODE } from "../src/js/services/attentionRank.js";
 

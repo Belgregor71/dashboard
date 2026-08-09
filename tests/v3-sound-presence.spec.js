@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/coverage.js";
 
 /* The client half of sound presence: a `sound:presence` bus event has to reach
    V3's presence module and count as somebody being there — but only with the

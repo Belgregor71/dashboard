@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../fixtures/coverage.js";
 import { existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";

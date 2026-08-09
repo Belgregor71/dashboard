@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/coverage.js";
 import { playingFrom } from "../src/v3/core/now-playing.js";
 
 /* ═══════════════════════════════════════════════════════════════════════════

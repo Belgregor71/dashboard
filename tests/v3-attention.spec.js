@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/coverage.js";
 
 /* V3's attention tick — step 1.3. The engine itself is already covered in plain
    node by tests/insights.spec.js and tests/attention.spec.js, and the feed by

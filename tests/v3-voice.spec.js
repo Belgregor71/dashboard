@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/coverage.js";
 
 /* V3's voice turn: which depth it lands on, which cells light, and — the one
    that actually matters for a surface that runs for weeks — whether a subject
