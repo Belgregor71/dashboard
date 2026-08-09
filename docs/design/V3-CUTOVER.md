@@ -56,6 +56,17 @@ comment is cheap; the move is durable. Do one, not neither.
 
 ### 2. Nineteen symbols exist in BOTH trees — and have already diverged
 
+> ✅ **DONE 2026-08-09 — the answers live in `docs/design/V3-DUPLICATES.md`. Read that,
+> not this section, and do not re-derive the table below.** Headline: only **five** of the
+> nineteen are genuine same-concept pairs; fourteen are name collisions between unrelated
+> code (`normalise` is RMS vs text, `readState` is a fetch vs a candidate read, and so on).
+> One pair carried a real defect — V3's voice lane sent **neither** upstream the context it
+> takes, so follow-ups and HA clarifications were both broken. Fixed in `2e59dd1` with the
+> lane-2/3 spec coverage V3 never had. 🔑 The load-bearing method: a duplicate can only
+> collide if both copies load in the same page, and **`js/core/presence.js` is not in V3's
+> import closure** (70 files, 40 of them in `src/js/`) — so most of this table cannot
+> collide under any circumstances.
+
 | Symbol | V3 | Incumbent |
 | --- | --- | --- |
 | `initPresence()` | `src/v3/core/presence.js` | `src/js/core/presence.js` |
@@ -164,6 +175,7 @@ Ignore it.
 
 ```
 2 → 1 → 3 → 4    then 5 and 6 before it sits overnight
+✅   ↑ next
 ```
 
 Items **2** and **4** are the ones that produce silent wrong behaviour or a dark wall.
