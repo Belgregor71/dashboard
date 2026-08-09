@@ -70,11 +70,26 @@ export const WINDOW_MS = 5 * 60 * 1000;
 export const FLOOR_PERCENTILE = 20;
 export const MARGIN_DB = 9;
 export const CONSECUTIVE = 2; // 2s — rejects a single door-slam impulse
-/* Silero's own conventional operating point. Kept as a named export so it is
-   tuned from measured series (`GET /api/voice/ambient?series=1`) rather than
-   nudged in place — the loudness threshold was a guess, and guessing is what
-   cost this feature its first attempt. */
-export const SPEECH_THRESHOLD = 0.5;
+/* MEASURED on the G11 against this kitchen, 2026-08-09 — not silero's
+   conventional 0.5, which was tried first and is too high for this room:
+   26 s of real speech played across it crossed 0.5 exactly ONCE, so a 2-sample
+   run could never form.
+                          median    max
+     quiet room (settled)  0.022    0.055
+     speech across room    0.142    0.548   (a run of 3 ≥ 0.325)
+   0.3 sits ~5x above the settled quiet ceiling and caught a 3-sample run, and a
+   person actually in the room is a stronger stimulus than the speakers were.
+
+   ⚠ The two highest "quiet" readings in that window (0.205, 0.182) were the
+   FIRST TWO SAMPLES AFTER THE AGENT RESTARTED — silero is recurrent and its
+   state needs a moment to settle. Both are still far below 0.3, and CONSECUTIVE
+   already covers a lone spike, but do not mistake a warm-up artefact for the
+   room's noise floor when re-tuning.
+
+   Tune from `GET /api/voice/ambient?series=1`, never by nudging this in place:
+   the loudness threshold was a guess, and guessing is what cost this feature
+   its first attempt. */
+export const SPEECH_THRESHOLD = 0.3;
 /* Below this many samples there is no floor worth trusting, and a detector that
    guesses during its first seconds would fire on the first sound after every
    restart. Silence is the safe answer while it learns. */

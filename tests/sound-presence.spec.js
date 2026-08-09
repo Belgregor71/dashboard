@@ -287,6 +287,33 @@ test.describe("speech probability is the verdict", () => {
     expect(res.active).toBe(false);
   });
 
+  test("the measured quiet room does not fire, the measured speech does", () => {
+    /* Replays the ACTUAL series captured on the G11 on 2026-08-09, so the
+       threshold is pinned to the room it was tuned against. If someone raises it
+       back toward silero's conventional 0.5, the speech case fails; if they drop
+       it toward the quiet ceiling, the quiet case fails. */
+    const QUIET_SETTLED = [0.053, 0.045, 0.036, 0.035, 0.027, 0.025, 0.023, 0.024,
+      0.022, 0.025, 0.022, 0.022, 0.023, 0.022, 0.02, 0.025, 0.02, 0.026, 0.054,
+      0.017, 0.021, 0.02, 0.024, 0.021, 0.02, 0.017, 0.019, 0.023];
+    const SPEECH_ACROSS_ROOM = [0.262, 0.129, 0.022, 0.018, 0.02, 0.548, 0.44,
+      0.325, 0.161, 0.261, 0.42, 0.248, 0.174, 0.123, 0.105, 0.22, 0.087];
+
+    const quiet = createSoundDetector();
+    let res = null;
+    QUIET_SETTLED.forEach((speech, i) => {
+      res = quiet.push({ rms: 900, speech, at: T0 + i * 1000 });
+    });
+    expect(res.active).toBe(false);
+    expect(quiet.state().speechOverThreshold).toBe(0);
+
+    const talking = createSoundDetector();
+    let everActive = false;
+    SPEECH_ACROSS_ROOM.forEach((speech, i) => {
+      if (talking.push({ rms: 2400, speech, at: T0 + i * 1000 }).active) everActive = true;
+    });
+    expect(everActive).toBe(true);
+  });
+
   test("the series carries both statistics on identical audio", () => {
     // The head-to-head has to stay sweepable, or the next threshold question
     // needs another person holding another conversation in the kitchen.
