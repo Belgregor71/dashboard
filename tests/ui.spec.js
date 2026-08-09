@@ -31,7 +31,7 @@ test("dashboard boots with no uncaught exceptions and core panels render", async
   page.on("pageerror", (err) => pageErrors.push(err.message));
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => document.body?.dataset?.view === "home");
 
   // Clock renders a real time within a couple of ticks.
@@ -70,7 +70,7 @@ test("view switching cycles without errors and lottie wrappers stay bounded", as
     await route.fulfill({ response: res, body: (await res.text()) + `\nwindow.CONFIG.features.ambientSubstrate = false;\n` });
   });
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__switchView === "function");
   await page.waitForTimeout(2_000);
 

@@ -56,7 +56,7 @@ test("presence on: FSM tracks the screensaver boundary and suppresses the click-
   await enablePresence(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__presence === "function");
 
   // Boot: the dashboard is visibly awake → glance.
@@ -88,7 +88,7 @@ test("presence on: FSM tracks the screensaver boundary and suppresses the click-
 test("presence off: the click-cycle still advances the view", async ({ page }) => {
   await disablePresence(page);
   await page.clock.setFixedTime(MIDDAY);
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => document.body?.dataset?.view === "home");
   await page.waitForTimeout(500);
 

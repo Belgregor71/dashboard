@@ -57,7 +57,7 @@ test("dissolve on: new photo fades in over the old, old node removed, id handed 
   await stubImmich(page);
   await enableFlags(true)(page);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   // Boot photo loaded (stub answers instantly).
   await page.waitForFunction(
     () => document.getElementById("awake-photo")?.classList.contains("is-loaded")
@@ -98,7 +98,7 @@ test("dissolve off (default): no hook, the photo holds", async ({ page }) => {
   await stubImmich(page);
   await enableFlags(false)(page);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => document.getElementById("awake-photo") !== null);
 
   expect(await page.evaluate(() => typeof window.__forcePhotoDissolve)).toBe("undefined");
@@ -137,7 +137,7 @@ test.describe("recovering from a dead Immich", () => {
     );
     await enableFlags(true)(page);
 
-    await page.goto("/");
+    await page.goto("/index.html");
     await page.waitForFunction(() => document.getElementById("awake-photo") !== null);
 
     // The layer exists but carries no photo — the sky gradient is showing.
@@ -188,7 +188,7 @@ test.describe("recovering from a dead Immich", () => {
     );
     await enableFlags(true)(page);
 
-    await page.goto("/");
+    await page.goto("/index.html");
     await page.waitForFunction(() => document.getElementById("awake-photo")?.getAttribute("src") !== null);
     expect(
       await page.evaluate(() => document.getElementById("awake-photo").classList.contains("is-loaded"))
@@ -223,7 +223,7 @@ test.describe("recovering from a dead Immich", () => {
     });
     await enableFlags(true)(page);
 
-    await page.goto("/");
+    await page.goto("/index.html");
     await page.waitForFunction(
       () => document.getElementById("awake-photo")?.classList.contains("is-loaded")
     );

@@ -51,7 +51,7 @@ test("fold home tiles on: dinner rides the queue, #home-stack hidden", async ({ 
   await enableFlags(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__attention === "function");
 
   await expect(page.locator("body")).toHaveClass(/fold-home-tiles/);
@@ -80,7 +80,7 @@ test("fold home tiles off: no menu candidate, tiles visible (byte-identical)", a
   await enableFlags(false)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__attention === "function");
 
   await expect(page.locator("body")).not.toHaveClass(/fold-home-tiles/);

@@ -57,7 +57,7 @@ test("sky ramp on: syncNight steps --sky-warmth and the substrate mixes it in", 
   await forceFlags({ skyRamp: true })(page);
   await page.clock.setFixedTime(LATE_GOLDEN);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => document.body.classList.contains("sky-ramp"));
   await page.waitForFunction(() => document.body.style.getPropertyValue("--sky-warmth") !== "");
 
@@ -90,7 +90,7 @@ test("sky ramp off (default): no body class, no --sky-warmth written", async ({ 
   await forceFlags({ skyRamp: false })(page);
   await page.clock.setFixedTime(LATE_GOLDEN);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__atmosphere === "function");
 
   expect(await page.evaluate(() => document.body.classList.contains("sky-ramp"))).toBe(false);
@@ -105,7 +105,7 @@ test("night sky on: a forced twinkle paints the field, then reconciles it away",
   await forceFlags({ nightSky: true })(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__forceAtmoEpisode === "function");
 
   expect(await page.evaluate(() => window.__atmoFx().enabled.nightSky)).toBe(true);
@@ -158,7 +158,7 @@ test("night sky off (default): the planner never emits a twinkle", async ({ page
   await forceFlags({ nightSky: false })(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__forceAtmoEpisode === "function");
 
   expect(await page.evaluate(() => window.__atmoFx().enabled.nightSky)).toBe(false);

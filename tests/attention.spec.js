@@ -50,7 +50,7 @@ test("dwell reveals the top 3; glance collapses to 1; ambient needs an interrupt
   await enableFlags(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(
     () => typeof window.__attention === "function" && typeof window.__forceCandidate === "function"
   );
@@ -119,7 +119,7 @@ test("a short-lived predictive candidate decays out of the queue", async ({ page
     await route.fulfill({ response: res, body });
   });
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(
     () => typeof window.__attention === "function" && typeof window.__forceCandidate === "function"
   );

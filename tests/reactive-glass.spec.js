@@ -80,7 +80,7 @@ test("reactive glass on: the atmo token retunes the glass tokens", async ({ page
   await forceReactiveGlass(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => document.body.classList.contains("reactive-glass"));
 
   // No token → the base glass (variables.css) stands untouched.
@@ -114,7 +114,7 @@ test("reactive glass on: a lightning strike pulses the sheen then releases", asy
   await forceReactiveGlass(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => document.body.classList.contains("reactive-glass"));
   await page.waitForFunction(() => typeof window.__forceAtmoEpisode === "function");
 
@@ -150,7 +150,7 @@ test("reactive glass off (default): no body class, tokens and strikes leave the 
   await forceReactiveGlass(false)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__forceAtmoEpisode === "function");
 
   expect(await page.evaluate(() => document.body.classList.contains("reactive-glass"))).toBe(false);

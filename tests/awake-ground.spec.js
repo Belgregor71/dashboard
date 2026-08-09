@@ -48,7 +48,7 @@ test("awake ground on: photo layer created, aurora retired, readability gradient
   await forceAwakeGround(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => document.body.dataset.view === "home");
   await page.waitForFunction(() => document.getElementById("awake-photo") !== null);
 
@@ -91,7 +91,7 @@ test("awake ground off: aurora intact, no photo layer (byte-identical)", async (
   await forceAwakeGround(false)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => document.body.dataset.view === "home");
 
   await expect(page.locator("body")).not.toHaveClass(/awake-ground/);

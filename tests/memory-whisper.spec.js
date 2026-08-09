@@ -44,7 +44,7 @@ test("memory whisper on: eyebrow + title surface bottom-right for today's annive
   await forceMemoryWhisper(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__engageScreensaver === "function");
 
   // Seed today's anniversary the way the calendar feed does, then engage Mode 0.
@@ -77,7 +77,7 @@ test("memory whisper on: hidden when today has no anniversary (silence is defaul
   await forceMemoryWhisper(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__engageScreensaver === "function");
   await page.evaluate(() => { window.__CAL_EVENTS__ = []; });
   await page.evaluate(() => window.__engageScreensaver());
@@ -93,7 +93,7 @@ test("memory whisper off: no whisper element (byte-identical)", async ({ page })
   await forceMemoryWhisper(false)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__engageScreensaver === "function");
   await page.evaluate(() => window.__engageScreensaver());
 

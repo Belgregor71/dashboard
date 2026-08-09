@@ -72,7 +72,7 @@ test("ambient memory on: a tender memory surfaces wordless, held, and spends the
   await forceAmbientMemory(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(
     () => typeof window.__forceAmbientMemory === "function" && typeof window.__ambientMemory === "function"
   );
@@ -112,7 +112,7 @@ test("ambient memory off: no mark element, no hooks (byte-identical)", async ({ 
   await forceAmbientMemory(false)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__engageScreensaver === "function");
   await page.evaluate(() => window.__engageScreensaver());
 

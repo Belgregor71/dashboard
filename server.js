@@ -13,7 +13,7 @@ import { getHaWsManager } from "./server/ha/haWs.js";
 import { startHealthService } from "./server/services/healthService.js";
 import { startRecoveryService } from "./server/services/recoveryService.js";
 import { startTtsWarmer } from "./server/services/ttsWarmer.js";
-import { normalizeBaseUrl } from "./server/config.js";
+import { normalizeBaseUrl, resolveRootSurface, SURFACE_ENTRY } from "./server/config.js";
 import arrRoutes from "./server/routes/arr.js";
 import { createHaRouter } from "./server/ha/haRoutes.js";
 import haSnapshotRoutes from "./server/routes/haSnapshot.js";
@@ -146,7 +146,31 @@ if (VAULT_ENABLED) app.use(vaultRoutes);
 // Home Assistant image/camera proxy
 attachHaProxy(app);
 
-// Built assets (Vite output) — served before static/ so hashed bundles take priority
+// ── Which surface the kiosk sees (docs/design/V3-CUTOVER.md §3) ─────────────
+// THIS MUST STAY ABOVE express.static(dist). serve-static answers a request for
+// "/" with dist/index.html on its own — its `index` option defaults to
+// "index.html" — so the `app.get("/")` that used to sit BELOW the static mounts
+// was unreachable dead code. Measured 2026-08-09: a handler returning 418 there
+// never ran. Editing that line would have flipped nothing while looking exactly
+// like a successful deploy.
+//
+// Flag-gated, default-off. With V3_DEFAULT unset this sends the same
+// dist/index.html serve-static was already sending, from the same `send`
+// pipeline — same bytes, same headers. `V3_DEFAULT=0` on the Pi forces the
+// incumbent back without a deploy; that is the rollback path.
+//
+// No fallback to a legacy file if the entry is missing: a missing build output
+// is a build failure to surface (Phase 5 removed static/index.html), so
+// sendFile's ENOENT is allowed to become a 5xx rather than be papered over.
+const ROOT_SURFACE = resolveRootSurface(process.env);
+console.log(`[surface] / serves the ${ROOT_SURFACE} dashboard (${SURFACE_ENTRY[ROOT_SURFACE]})`);
+app.get("/", (_req, res) => {
+  res.sendFile(path.join(__dirname, "dist", SURFACE_ENTRY[ROOT_SURFACE]));
+});
+
+// Built assets (Vite output) — served before static/ so hashed bundles take
+// priority. Its index resolution is what keeps /index.html and /v3/ reachable
+// whichever way the flag above points.
 app.use(express.static(path.join(__dirname, "dist")));
 // Raw static assets that bypass the build step (photos, icons, weather videos, data)
 app.use(express.static(path.join(__dirname, "static")));
@@ -159,13 +183,6 @@ app.use(
 );
 app.use("/photos", express.static(path.join(__dirname, "static", "photos")));
 app.use("/icons", express.static(path.join(__dirname, "static", "icons")));
-
-app.get("/", (_req, res) => {
-  // The Vite-built app is the only entry point (npm run build every deploy).
-  // A missing dist/index.html is a build failure to surface, not to paper over
-  // with the retired legacy app (Phase 5 removed static/index.html).
-  res.sendFile(path.join(__dirname, "dist", "index.html"));
-});
 
 // MEASURED on the Pi 2026-07-26 (audit S5), because the behaviour is not what
 // the mount paths suggest: Express strips the mount prefix before

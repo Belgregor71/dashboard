@@ -46,7 +46,7 @@ test("textures on: forced fog-drift and heat-pulse episodes run and clean up", a
   await forceFlag(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__forceAtmoEpisode === "function");
   expect(await page.evaluate(() => document.body.classList.contains("fx-textures"))).toBe(true);
   expect(await page.evaluate(() => window.__atmoFx().enabled.textures)).toBe(true);
@@ -87,7 +87,7 @@ test("textures on: the static CSS contract (vignettes, photo filters, cold glass
   await forceFlag(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => document.body.classList.contains("fx-textures"));
 
   const readings = await page.evaluate(() => {
@@ -156,7 +156,7 @@ test("textures off (default): no marker class, forced texture episodes refuse", 
   await forceFlag(false)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__forceAtmoEpisode === "function");
 
   expect(await page.evaluate(() => document.body.classList.contains("fx-textures"))).toBe(false);

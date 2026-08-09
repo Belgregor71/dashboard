@@ -43,7 +43,7 @@ test("bare top row on: body class, bare clock, hidden date/icon/wind/range, uppe
   await forceBareTopRow(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => document.body.dataset.view === "home");
 
   await expect(page.locator("body")).toHaveClass(/bare-top-row/);
@@ -86,7 +86,7 @@ test("bare top row off: chrome intact (byte-identical)", async ({ page }) => {
   await forceBareTopRow(false)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => document.body.dataset.view === "home");
 
   await expect(page.locator("body")).not.toHaveClass(/bare-top-row/);

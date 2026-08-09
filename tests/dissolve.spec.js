@@ -51,7 +51,7 @@ test("substrate on: the atmosphere token persists across a presence mode change"
   await forceSubstrate(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__atmosphere === "function");
 
   // Awake at boot: the shared root is marked and dressed.
@@ -85,7 +85,7 @@ test("substrate on: the atmosphere token persists across a presence mode change"
 test("substrate on: passive navigation into a retired view is gated off", async ({ page }) => {
   await forceSubstrate(true)(page);
   await page.clock.setFixedTime(MIDDAY);
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__switchView === "function");
   await page.waitForFunction(() => document.body?.dataset?.view === "home");
 
@@ -98,7 +98,7 @@ test("substrate on: passive navigation into a retired view is gated off", async 
 test("substrate off: navigation into the rich views is unchanged", async ({ page }) => {
   await forceSubstrate(false)(page);
   await page.clock.setFixedTime(MIDDAY);
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__switchView === "function");
   await page.waitForFunction(() => document.body?.dataset?.view === "home");
 

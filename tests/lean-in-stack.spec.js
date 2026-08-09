@@ -64,7 +64,7 @@ test("lean-in on: DWELL stack cards carry the full glass; GLANCE collapses to 1"
   await enableFlags(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(
     () =>
       typeof window.__attention === "function" &&
@@ -104,7 +104,7 @@ test("lean-in off: DWELL stack cards stay flat (byte-identical)", async ({ page 
   await enableFlags(false)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(
     () => typeof window.__attention === "function" && typeof window.__forceCandidate === "function"
   );

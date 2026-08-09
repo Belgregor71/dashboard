@@ -73,7 +73,7 @@ async function bootAsleep(page, gateOn) {
   await stubLiveStream(page);
   await forceGate(gateOn)(page);
   await page.clock.setFixedTime(MIDDAY);
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__engageScreensaver === "function");
   await page.evaluate(() => window.__engageScreensaver());
   await expect(page.locator("body")).toHaveClass(/screensaver-active/);
@@ -137,7 +137,7 @@ test("gate ON: motion while AWAKE still pops — the gate is asleep-only", async
   await stubLiveStream(page);
   await forceGate(true)(page);
   await page.clock.setFixedTime(MIDDAY);
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__engageScreensaver === "function");
   // Never engaged: the dashboard is awake, so a glance surface costs nothing.
   await expect(page.locator("body")).not.toHaveClass(/screensaver-active/);

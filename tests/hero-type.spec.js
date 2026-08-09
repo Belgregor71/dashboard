@@ -58,7 +58,7 @@ test("the hero line picks its type tier from character count", async ({ page }) 
   page.on("pageerror", (err) => pageErrors.push(err.message));
   await enableFlags(page);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(
     () => typeof window.__forceCandidate === "function" && typeof window.__heroType === "function"
   );

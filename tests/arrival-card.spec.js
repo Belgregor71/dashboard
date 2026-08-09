@@ -44,7 +44,7 @@ test("arrival card on: glass overlay, warm crown, CSS drain, warm variant drops 
   await forceArrivalCard(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(
     () => typeof window.__forceArrival === "function" && typeof window.__arrivalCard === "function"
   );
@@ -87,7 +87,7 @@ test("arrival card off: cool card, JS drain, no hooks (byte-identical)", async (
   await forceArrivalCard(false)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.CONFIG === "object");
 
   // The study hooks exist only when the flag is on.
@@ -140,7 +140,7 @@ test("arrival bottom on: bottom-center geometry, 64px welcome, name in --warm", 
   await forceArrivalFlags({ card: true, bottom: true })(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__forceArrival === "function");
   await page.evaluate(() => window.__forceArrival({ name: "Greg", warm: false }));
 
@@ -177,7 +177,7 @@ test("arrival bottom off: the shipped top-slide card is unchanged", async ({ pag
   await forceArrivalFlags({ card: true, bottom: false })(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__forceArrival === "function");
   await page.evaluate(() => window.__forceArrival({ name: "Greg", warm: false }));
 

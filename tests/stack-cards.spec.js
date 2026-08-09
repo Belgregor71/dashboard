@@ -74,7 +74,7 @@ test("stack cards on: rich card, hero-glass top, severity stripe, resting note",
   await enableFlags(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(
     () => typeof window.__forceCandidate === "function" && typeof window.__presence === "function"
   );
@@ -138,7 +138,7 @@ test("stack cards off (default): one-line chips, no rich elements, no note", asy
   await enableFlags(false)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(
     () => typeof window.__forceCandidate === "function" && typeof window.__presence === "function"
   );

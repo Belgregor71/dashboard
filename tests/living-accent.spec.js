@@ -82,7 +82,7 @@ test("living accent on: the atmo token drives --accent over the tint cycle", asy
   await forceLivingAccent(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => document.body.classList.contains("living-accent"));
 
   // Golden hour → the sanctioned §6 warm accent (not --warm).
@@ -107,7 +107,7 @@ test("living accent off (default): no body class, atmo token leaves --accent alo
   await forceLivingAccent(false)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => document.body.classList.contains("tint-day") || document.body.className !== "");
 
   expect(await page.evaluate(() => document.body.classList.contains("living-accent"))).toBe(false);

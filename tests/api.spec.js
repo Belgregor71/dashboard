@@ -328,12 +328,19 @@ test.describe("document root", () => {
   // Phase 5 removed the legacy static/index.html fallback — `/` must serve the
   // Vite-built document unconditionally. Guards against a broken build or a
   // regression that 404s the kiosk's entry point.
+  //
+  // Surface-agnostic on purpose: WHICH built document `/` serves is the V3
+  // cutover flag's business (tests/root-surface.spec.js), and this test must
+  // stay green in both states. Hence the case-insensitive doctype — Vite emits
+  // `<!DOCTYPE html>` for the incumbent entry and `<!doctype html>` for V3's,
+  // and a case-sensitive assertion here would have gone red on the flip for a
+  // reason that has nothing to do with what it is guarding.
   test("GET / returns 200 and the built HTML document", async ({ request }) => {
     const res = await request.get("/");
     expect(res.status()).toBe(200);
     expect(res.headers()["content-type"] || "").toContain("text/html");
     const html = await res.text();
-    expect(html).toContain("<!DOCTYPE html>");
+    expect(html).toMatch(/<!doctype html>/i);
     // The built app links the split-tree bundle, never the retired legacy CSS.
     expect(html).toContain("/assets/");
     expect(html).not.toContain("/css/styles.css");

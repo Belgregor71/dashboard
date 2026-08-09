@@ -45,7 +45,7 @@ test("ambient clock on: tabular face, meridiem span, sun-altitude dim", async ({
   await forceAmbientClock(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(
     () => typeof window.__engageScreensaver === "function" && typeof window.__ambientClock === "function"
   );
@@ -82,7 +82,7 @@ test("ambient clock off: byte-identical plain clock", async ({ page }) => {
   await forceAmbientClock(false)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__engageScreensaver === "function");
   await page.evaluate(() => window.__engageScreensaver());
 

@@ -56,7 +56,7 @@ test("bare hero on: container stripped, scored glyph glows, concierge goes matte
   await enableFlags(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(
     () => typeof window.__attention === "function" && typeof window.__forceCandidate === "function"
   );
@@ -106,7 +106,7 @@ test("bare hero off: container intact, no concierge class (byte-identical)", asy
   await enableFlags(false)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__forceCandidate === "function");
 
   await expect(page.locator("body")).not.toHaveClass(/bare-hero/);
@@ -132,7 +132,7 @@ test("the attention surface is scoped to home — hidden on the force-only views
   await enableFlags(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__forceCandidate === "function" && typeof window.__switchView === "function");
 
   // A hero is up on home.
@@ -158,7 +158,7 @@ test("a populated stack never overlaps the centred hero", async ({ page }) => {
   await enableFlags(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(
     () => typeof window.__attention === "function" && typeof window.__forceCandidate === "function"
   );

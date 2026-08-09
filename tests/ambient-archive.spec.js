@@ -78,7 +78,7 @@ const MEMORY = {
 async function bootArchive(page, flags = ARCHIVE_ON) {
   await forceFlags(flags)(page);
   await page.clock.setFixedTime(MIDDAY);
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__engageScreensaver === "function");
 }
 
@@ -859,7 +859,7 @@ test.describe("the motion burst", () => {
     // a second time.
     await forceFlags(MOTION_ON)(page);
     await page.clock.setFixedTime(new Date("2026-07-06T23:30:00"));
-    await page.goto("/");
+    await page.goto("/index.html");
     await page.waitForFunction(() => typeof window.__engageScreensaver === "function");
     await engaged(page);
     await page.waitForFunction(

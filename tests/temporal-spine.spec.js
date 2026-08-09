@@ -298,7 +298,7 @@ test.describe("the spine surface", () => {
     page.on("pageerror", (err) => pageErrors.push(err.message));
     await forceFlags({ temporalSpine: false })(page);
     await page.clock.setFixedTime(MIDDAY);
-    await page.goto("/");
+    await page.goto("/index.html");
     await page.waitForFunction(() => Boolean(window.CONFIG));
 
     expect(await page.locator("#temporal-spine").count()).toBe(0);
@@ -320,7 +320,7 @@ test.describe("the spine surface", () => {
     page.on("pageerror", (err) => pageErrors.push(err.message));
     await forceFlags({ temporalSpine: true })(page);
     await page.clock.setFixedTime(MIDDAY);
-    await page.goto("/");
+    await page.goto("/index.html");
     await page.waitForFunction(() => typeof window.__spine === "function");
 
     expect(await page.locator("#temporal-spine canvas.temporal-spine__canvas").count()).toBe(1);
@@ -350,7 +350,7 @@ test.describe("the spine surface", () => {
   test("the spine survives the screensaver blank rule — it never leaves", async ({ page }) => {
     await forceFlags({ temporalSpine: true })(page);
     await page.clock.setFixedTime(MIDDAY);
-    await page.goto("/");
+    await page.goto("/index.html");
     await page.waitForFunction(() => typeof window.__spine === "function");
 
     const vis = await page.evaluate(() => {
@@ -377,7 +377,7 @@ test.describe("the spine surface", () => {
   test("nobody home renders no words and no breath", async ({ page }) => {
     await forceFlags({ temporalSpine: true })(page);
     await page.clock.setFixedTime(MIDDAY);
-    await page.goto("/");
+    await page.goto("/index.html");
     await page.waitForFunction(() => typeof window.__spine === "function");
 
     await page.evaluate(() => window.__presence("ambient"));
@@ -392,7 +392,7 @@ test.describe("the spine surface", () => {
   test("the breath is bound to its cause — no media playing, no loop", async ({ page }) => {
     await forceFlags({ temporalSpine: true })(page);
     await page.clock.setFixedTime(MIDDAY);
-    await page.goto("/");
+    await page.goto("/index.html");
     await page.waitForFunction(() => typeof window.__spine === "function");
 
     // Silence the room FIRST, and mean it. This used to rely on "the stubbed
@@ -421,7 +421,7 @@ test.describe("the spine surface", () => {
     page.on("pageerror", (err) => pageErrors.push(err.message));
     await forceFlags({ temporalSpine: true })(page);
     await page.clock.setFixedTime(MIDDAY);
-    await page.goto("/");
+    await page.goto("/index.html");
     await page.waitForFunction(() => typeof window.__spine === "function");
 
     // Scoped to the spine's own subtree: this is an assertion about the spine's
@@ -457,7 +457,7 @@ test.describe("the spine surface", () => {
   test("a named year lights exactly one stratum", async ({ page }) => {
     await forceFlags({ temporalSpine: true })(page);
     await page.clock.setFixedTime(MIDDAY);
-    await page.goto("/");
+    await page.goto("/index.html");
     await page.waitForFunction(() => typeof window.__spine === "function");
 
     const year = await page.evaluate(() => new Date().getFullYear() - 2);

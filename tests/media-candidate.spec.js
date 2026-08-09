@@ -59,7 +59,7 @@ test("media candidate on: now-playing rides the queue, standalone panel hidden",
   await enableFlags(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__attention === "function");
 
   await expect(page.locator("body")).toHaveClass(/media-candidate/);
@@ -101,7 +101,7 @@ test("media candidate off: no now-playing candidate, panel visible (byte-identic
   await enableFlags(false)(page);
   await page.clock.setFixedTime(MIDDAY);
 
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__attention === "function");
 
   await expect(page.locator("body")).not.toHaveClass(/media-candidate/);

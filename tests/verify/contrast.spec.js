@@ -275,7 +275,7 @@ for (const token of TOKENS) {
     await stageSpineDay(page);
     await page.clock.setFixedTime(MIDDAY);
 
-    await page.goto("/");
+    await page.goto("/index.html");
     await page.waitForFunction(
       () =>
         typeof window.__attention === "function" &&

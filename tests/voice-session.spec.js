@@ -47,7 +47,7 @@ async function boot(page, { voiceSession, halfDuplex = false }) {
   page.on("pageerror", (err) => pageErrors.push(err.message));
   await enableFlags(voiceSession, halfDuplex)(page);
   await page.clock.setFixedTime(MIDDAY);
-  await page.goto("/");
+  await page.goto("/index.html");
   await page.waitForFunction(
     () =>
       typeof window.__voiceSession === "function" &&
