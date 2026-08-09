@@ -86,7 +86,10 @@ const V3_TARGET = 7;
    when the decision lands; do not raise a floor to make a run go green.
 
    `floor` is the worst measured across all four ground x phase combinations,
-   with a little slack for renderer noise. Numbers taken 2026-08-08.
+   with a little slack for renderer noise. Numbers taken 2026-08-08 and re-taken
+   2026-08-10 against the rewritten MEASURE, which moved the two surviving
+   entries by less than 0.1 (nothing is painted over either of them, which is
+   the only case the old model got wrong). The third was withdrawn — see below.
 ─────────────────────────────────────────────────────────────────────────── */
 const KNOWN_OPEN = [
   {
@@ -100,16 +103,29 @@ const KNOWN_OPEN = [
     floor: 1.5,
     why: "dominant said line reaches above the band the scrim solved for"
   },
-  {
-    // `.presence` is z-index 20 and `.stage` is 10, so the house's own light
-    // paints OVER the text rather than under it — unlike `.presence-cool`,
-    // which is z5 precisely so "the field cools without tinting the text". The
-    // briefing is the case that bites: it SPEAKS while it is on screen, so the
-    // rim is up by definition. Moving it changes what the light looks like.
-    match: (m) => m.surface === "3-briefing" && m.selector.startsWith("p.subject__prose"),
-    floor: 1.15,
-    why: ".presence (z20) composites over .stage (z10) while the house speaks"
-  },
+  /* ── CLOSED 2026-08-10: ".presence (z20) composites over .stage (z10)" ──────
+     Registered at a floor of 1.15:1 and deleted rather than paid, because the
+     defect was in this file. The entry was created from a number MEASURE
+     produced by compositing the ink over a backdrop that already contained the
+     rim — the ink treated as the last thing painted, when the whole point of
+     the finding was that it is not. The rim tints the glyph as well as the
+     ground. Same frame, same pixels, measured rather than modelled:
+
+         reported   1.51:1 day / 1.22:1 night
+         actual     8.07:1 day / 6.13:1 night
+         no rim    12.38:1 day / 9.95:1 night
+
+     So the rim is real and it costs real contrast — a third of it — and it was
+     never within reach of AA. It is now reported on every run by the "painted
+     OVER" block instead, which names any text with something above it and by
+     how much, and the briefing prose measures 12.47:1 there.
+
+     ⚠ The cost of getting this wrong was not the wrong number, it was the
+     floor. Registered at 1.15:1, the entry told the gate that anything above
+     1.15 was expected — so the most-looked-at prose on the wall could have
+     decayed to 1.16:1 and four green runs would have said the debt was held.
+     🔑 A debt recorded at a number the surface never occupied is not a debt,
+     it is a hole shaped like one. */
   {
     // The token decision that has been waiting since the voiceRail flip:
     // --ink-faint's ceiling is 4.29 day / 3.16 night against a fully opaque
@@ -408,6 +424,27 @@ const COLLECT = () => {
   return out;
 };
 
+/* The shadow comes off for every frame. It is the design's second legibility
+   mechanism and it genuinely helps on the wall, but WCAG gives it no credit and
+   its dark halo would otherwise contaminate both the glyph search and the
+   ground. Stripping it keeps this gate conservative and keeps every number
+   comparable with the ones taken before the measurement was rewritten. */
+const SHADOWLESS = () => {
+  for (const el of document.querySelectorAll("*")) {
+    el.style.setProperty("text-shadow", "none", "important");
+  }
+};
+
+/* Paint only the MEASURED nodes in one flat colour. V3 uses `currentColor`
+   nowhere (checked), so `color` moves glyph pixels and nothing else — which is
+   what makes the pair of these two frames a clean readout of glyph coverage. */
+const FORCE = (css) => {
+  for (const el of document.querySelectorAll("[data-sweep-idx]")) {
+    el.style.setProperty("-webkit-text-fill-color", css, "important");
+    el.style.setProperty("color", css, "important");
+  }
+};
+
 const STRIP = () => {
   for (const el of document.querySelectorAll("*")) {
     el.style.setProperty("-webkit-text-fill-color", "transparent", "important");
@@ -434,25 +471,83 @@ const RESTORE = () => {
 };
 
 /**
- * For each box, the backdrop pixel that yields the LOWEST contrast against that
- * box's text colour. One getImageData for the whole frame — the per-pixel call
- * the incumbent sweep uses is ~3k round trips per surface and this runs eleven
- * surfaces per test.
+ * The worst contrast in each box, measured from THE PIXELS THAT ARE ACTUALLY ON
+ * THE GLASS — the painted glyph against the ground beside it.
+ *
+ * ⚠⚠ THIS USED TO MODEL THE COMPOSITE INSTEAD, AND THE MODEL HAD THE STACKING
+ * ORDER BACKWARDS FOR ANY LAYER THAT PAINTS OVER TEXT. It took one screenshot
+ * with the glyphs stripped and composited the ink token over each backdrop
+ * pixel — which silently assumes the ink is the LAST thing painted. `.presence`
+ * is z-index 20 and `.stage` is 10, so the house's warm rim paints over the
+ * text as well as over the ground, and the model credited the rim to the
+ * backdrop only. Measured on the briefing prose, white ground:
+ *
+ *     model  1.51:1 day / 1.22:1 night      <- reported for three months
+ *     true   8.07:1 day / 6.13:1 night      <- the same frame, the same pixels
+ *     rim hidden entirely, model  12.38:1 day / 9.95:1 night
+ *
+ * So the rim does cost real contrast — 12.38 -> 8.07 — but nothing there was
+ * ever within reach of AA, and KNOWN_OPEN carried it at a floor of 1.15:1. A
+ * debt registered at a number the surface never occupied is not a debt; it is a
+ * hole in the gate, because everything from 1.15 upward passed as "held".
+ *
+ * 🔑 A contrast model is a guess about paint order. The frame is not.
+ *
+ * ── The method ──────────────────────────────────────────────────────────────
+ *
+ * Three frames of the identical screen, all with text-shadow off, differing
+ * ONLY in how the measured glyphs are filled: white (`lit`), black (`dark`),
+ * and stripped away entirely (`bare`).
+ *
+ * Let T be whatever the layers ABOVE the text do to a pixel — for a stack of
+ * translucent overlays that is an affine map, T(v) = A·C + (1-A)·v, whatever
+ * their number and shape. At a pixel the glyph covers completely:
+ *
+ *     lit  = T(255)        dark = T(0)        bare = T(ground)
+ *     =>   A·C = dark      and   (1-A) = (lit - dark) / 255
+ *     =>   glyph = T(ink)  = dark + (lit - dark) · ink/255
+ *
+ * per channel, exactly, with nothing assumed about what is painted over the
+ * text or how much of it there is. `bare` is the ground the eye compares that
+ * glyph against, already carrying the same overlay.
+ *
+ * 🔑 `lit - dark` is ALSO the coverage mask, and that is the load-bearing part.
+ * It is proportional to glyph coverage and INDEPENDENT OF THE BACKGROUND, so an
+ * antialiased edge is identifiable as an edge even where ink and ground are the
+ * same colour. Locating glyphs by "where the painted frame differs from the
+ * stripped one" — the obvious method, and the one tried first — cannot do that:
+ * its signal vanishes exactly where contrast is worst, so the pixels it fails
+ * to find are precisely the ones the gate exists to catch. It also mistook the
+ * top scanline of a letter for the letter and invented 18 failures.
+ *
+ * The glyph is compared against the worst ground pixel WITHIN ONE EM in the
+ * same row. Locally, because the scrim and the rim are both gradients, and a
+ * letter has no perceptual relationship with the ground 400px away.
  */
-const MEASURE = async ({ shot, items }) => {
-  const img = new Image();
-  await new Promise((res, rej) => {
-    img.onload = res;
-    img.onerror = () => rej(new Error("backdrop screenshot failed to decode"));
-    img.src = shot;
-  });
-  const cv = document.createElement("canvas");
-  cv.width = img.width;
-  cv.height = img.height;
-  const ctx = cv.getContext("2d", { willReadFrequently: true });
-  ctx.drawImage(img, 0, 0);
-  const data = ctx.getImageData(0, 0, cv.width, cv.height).data;
-  const scale = img.width / window.innerWidth;
+const MEASURE = async ({ lit, dark, bare, items }) => {
+  const load = (src) =>
+    new Promise((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = () => rej(new Error("contrast screenshot failed to decode"));
+      i.src = src;
+    });
+  const [imgL, imgD, imgB] = await Promise.all([load(lit), load(dark), load(bare)]);
+
+  const pixels = (img) => {
+    const cv = document.createElement("canvas");
+    cv.width = img.width;
+    cv.height = img.height;
+    const ctx = cv.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0);
+    return ctx.getImageData(0, 0, cv.width, cv.height).data;
+  };
+  const L = pixels(imgL);
+  const D = pixels(imgD);
+  const B = pixels(imgB);
+  const W = imgL.width;
+  const H = imgL.height;
+  const scale = W / window.innerWidth;
 
   const srgb = (c) => {
     const v = c / 255;
@@ -461,41 +556,91 @@ const MEASURE = async ({ shot, items }) => {
   const lum = (r, g, b) => 0.2126 * srgb(r) + 0.7152 * srgb(g) + 0.0722 * srgb(b);
   const ratio = (l1, l2) => (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
 
-  return items.map((it) => {
-    // Already sRGB: COLLECT resolved it by painting, because the computed value
-    // of an OKLCH colour is an OKLCH string and cannot be parsed as rgb().
-    const t = { r: it.ink[0], g: it.ink[1], b: it.ink[2] };
-    const ta = it.inkAlpha * it.alpha;
+  // Coverage, 0..255 summed over three channels. A fully covered pixel under no
+  // overlay reads 765; the rim at its strongest takes maybe a quarter off that,
+  // so the bar is deliberately low and the PLATEAU below is what proves full
+  // coverage. Under this, the pixel is an edge or the box is empty here.
+  const cover = (i) => L[i] - D[i] + (L[i + 1] - D[i + 1]) + (L[i + 2] - D[i + 2]);
+  const MIN_COVER = 90;
 
+  return items.map((it) => {
     const x0 = Math.max(0, Math.floor(it.rect.x * scale));
     const y0 = Math.max(0, Math.floor(it.rect.y * scale));
-    const x1 = Math.min(cv.width - 1, Math.ceil((it.rect.x + it.rect.w) * scale));
-    const y1 = Math.min(cv.height - 1, Math.ceil((it.rect.y + it.rect.h) * scale));
+    const x1 = Math.min(W - 1, Math.ceil((it.rect.x + it.rect.w) * scale));
+    const y1 = Math.min(H - 1, Math.ceil((it.rect.y + it.rect.h) * scale));
 
-    // Bounded but dense: 32x32 across the box, which for the widest thing on
-    // this surface is a sample every ~50px and for a caption every 2px.
-    const stepX = Math.max(1, Math.floor((x1 - x0) / 32));
-    const stepY = Math.max(1, Math.floor((y1 - y0) / 32));
+    const win = Math.max(24, it.fontSize) * scale;
+    // Every row is scanned horizontally, so no stem is stepped over; rows go in
+    // twos because a stem at V3's 32px floor is taller than that.
+    const stepY = 2;
 
     let worst = Infinity;
     let worstBg = null;
+    let rows = 0;
+    // The LEAST-covered fully-covered row, i.e. the most heavily overlaid part
+    // of this text. Taking the peak instead would answer a useless question:
+    // most boxes reach outside the rim's 260px band somewhere, so the maximum
+    // is 765 for nearly everything and the overlay would never show up at all.
+    let minCover = Infinity;
+
     for (let y = y0; y <= y1; y += stepY) {
-      for (let x = x0; x <= x1; x += stepX) {
-        const i = (y * cv.width + x) * 4;
-        const br = data[i], bg = data[i + 1], bb = data[i + 2];
-        // Composite the (possibly translucent) ink over this pixel — what the
-        // eye actually sees, not what the token says.
-        const c = ratio(
-          lum(t.r * ta + br * (1 - ta), t.g * ta + bg * (1 - ta), t.b * ta + bb * (1 - ta)),
-          lum(br, bg, bb)
-        );
+      let best = MIN_COVER;
+      let gx = -1;
+      for (let x = x0; x <= x1; x++) {
+        const c = cover((y * W + x) * 4);
+        if (c > best) {
+          best = c;
+          gx = x;
+        }
+      }
+      if (gx < 0) continue;
+
+      /* ⚠ THE PLATEAU TEST, and it is the difference between a measurement and
+         an artefact. The topmost scanline of a letter is partially covered
+         across its whole width, so it HAS a peak — and that peak is a blend of
+         ink and ground, which is neither, and always worse than both. Inside a
+         stem the coverage is flat in y; on the letter's top or bottom edge the
+         neighbouring row is more covered. Requiring the local maximum in y
+         therefore keeps stem interiors and drops edges, without ever looking at
+         the background. */
+      if (y > 0 && cover(((y - 1) * W + gx) * 4) > best) continue;
+      if (y + 1 < H && cover(((y + 1) * W + gx) * 4) > best) continue;
+
+      rows += 1;
+      if (best < minCover) minCover = best;
+
+      // glyph = dark + (lit - dark) * ink/255, per channel. Exact.
+      const gi = (y * W + gx) * 4;
+      const g = [0, 1, 2].map((k) => D[gi + k] + ((L[gi + k] - D[gi + k]) * it.ink[k]) / 255);
+      const lg = lum(g[0], g[1], g[2]);
+
+      const lo = Math.max(x0, Math.round(gx - win));
+      const hi = Math.min(x1, Math.round(gx + win));
+      for (let x = lo; x <= hi; x++) {
+        const i = (y * W + x) * 4;
+        const c = ratio(lg, lum(B[i], B[i + 1], B[i + 2]));
         if (c < worst) {
           worst = c;
-          worstBg = `rgb(${br}, ${bg}, ${bb})`;
+          worstBg = `rgb(${B[i]}, ${B[i + 1]}, ${B[i + 2]})`;
         }
       }
     }
-    return { ...it, contrast: Math.round(worst * 100) / 100, worstBg };
+
+    /* No covered pixel anywhere in the box: the element reports a rect but puts
+       nothing on the glass — clipped by an ancestor, scrolled out, or painted
+       under something opaque. Worth SAYING rather than returning a number for a
+       screen nobody is looking at. The caller counts these. */
+    if (!rows) return { ...it, contrast: Infinity, worstBg: null, unpainted: true };
+
+    return {
+      ...it,
+      contrast: Math.round(worst * 100) / 100,
+      worstBg,
+      rows,
+      // 765 means nothing is painted over this text; less is an overlay, and
+      // how much less is exactly how much of it.
+      overlay: Math.round((1 - minCover / 765) * 100)
+    };
   });
 };
 
@@ -684,15 +829,27 @@ async function sweepSurface(page, surface) {
   const items = await page.evaluate(COLLECT);
   expect(items.length, `${surface.id}: nothing visible to measure`).toBeGreaterThan(0);
 
+  /* Three frames of one screen: glyphs white, glyphs black, glyphs gone. See
+     MEASURE — the pair solves whatever is painted over the text, and their
+     difference is a background-independent coverage mask. */
+  await page.evaluate(SHADOWLESS);
+  await page.evaluate(FORCE, "#fff");
+  const lit = await page.screenshot({ type: "png" });
+  await page.evaluate(FORCE, "#000");
+  const dark = await page.screenshot({ type: "png" });
+
   const stillPainted = await page.evaluate(STRIP);
   expect(
     stillPainted,
     `${surface.id}: text strip failed on ${stillPainted.join(", ")} — measurements would be self-referential`
   ).toHaveLength(0);
 
-  const shot = await page.screenshot({ type: "png" });
+  const bare = await page.screenshot({ type: "png" });
+  const b64 = (b) => `data:image/png;base64,${b.toString("base64")}`;
   const measured = await page.evaluate(MEASURE, {
-    shot: `data:image/png;base64,${shot.toString("base64")}`,
+    lit: b64(lit),
+    dark: b64(dark),
+    bare: b64(bare),
     items
   });
   await page.evaluate(RESTORE);
@@ -715,9 +872,33 @@ for (const ground of Object.keys(GROUNDS)) {
 
       expect(all.length, "the sweep measured nothing at all").toBeGreaterThan(20);
 
-      const below = all.filter((m) => m.contrast < (m.isLarge ? AA_LARGE : AA_NORMAL));
-      const short = all.filter((m) => m.contrast < V3_TARGET);
-      const worst = all.reduce((a, b) => (a.contrast < b.contrast ? a : b));
+      /* A node COLLECT judged visible that puts no pixel on the glass. It has no
+         contrast ratio, so it cannot be measured — but it must not therefore be
+         WAIVED, which is what dropping it quietly would do.
+
+         ⚠ THIS IS THE HOLE THE MUTATION FOUND. Replacing the presence rim with
+         a flat opaque block — the most complete legibility failure available,
+         the hour erased outright — left the whole sweep green to the digit,
+         because a glyph that is entirely covered has zero coverage and fell out
+         of `measured` as "unmeasurable". A gate that stays green precisely
+         BECAUSE the text disappeared is worse than no gate.
+
+         COLLECT has already excluded everything legitimately not on screen —
+         display:none, visibility:hidden, zero opacity, an empty rect, offscreen.
+         Anything that survives all of that and still paints nothing is a defect
+         by construction, so it fails here. */
+      const unpainted = all.filter((m) => m.unpainted);
+      const measured = all.filter((m) => !m.unpainted);
+      expect(measured.length, "every measured node came back unpainted").toBeGreaterThan(20);
+      expect(
+        unpainted.map((m) => `${m.surface} ${m.selector} "${m.sample}"`),
+        `${ground}/${phase}: ${unpainted.length} visible text node(s) put NO pixel on the glass — ` +
+          "covered by something opaque, or clipped away entirely"
+      ).toHaveLength(0);
+
+      const below = measured.filter((m) => m.contrast < (m.isLarge ? AA_LARGE : AA_NORMAL));
+      const short = measured.filter((m) => m.contrast < V3_TARGET);
+      const worst = measured.reduce((a, b) => (a.contrast < b.contrast ? a : b));
 
       /* A known-open node fails only if it has got WORSE than the floor it was
          registered at. Anything else below AA is a regression, including a node
@@ -747,9 +928,29 @@ for (const ground of Object.keys(GROUNDS)) {
         if (!debts[m.open.why] || debts[m.open.why].contrast > m.contrast) debts[m.open.why] = m;
       }
 
+      /* Text with something painted OVER it. This is printed because it is the
+         one class of finding the old modelled measurement could not see at all,
+         and because a NEW entry appearing here means a layer just moved above
+         the stage — which is a design change, whatever its contrast comes out
+         at. `over` is how much of the glyph the overlay owns. */
+      const overlaid = measured
+        .filter((m) => m.overlay >= 2)
+        .sort((a, b) => b.overlay - a.overlay);
+
       console.log(
-        `\n  v3 ${ground}/${phase}: ${all.length} text nodes across ${SURFACES.length} surfaces\n` +
-          `    worst ${worst.contrast}:1 — ${worst.surface} ${worst.selector} (${worst.token ?? worst.color})\n` +
+        `\n  v3 ${ground}/${phase}: ${measured.length} text nodes across ${SURFACES.length} surfaces` +
+          (unpainted.length
+            ? `\n    ⚠ ${unpainted.length} node(s) reported a rect but painted nothing: ` +
+              unpainted.map((m) => `${m.surface} ${m.selector}`).join(", ")
+            : "") +
+          (overlaid.length
+            ? `\n    painted OVER (overlay owns n% of the glyph):\n` +
+              overlaid
+                .slice(0, 6)
+                .map((m) => `      ${String(m.overlay).padStart(3)}%  ${m.surface} ${m.selector} — measures ${m.contrast}:1`)
+                .join("\n")
+            : "") +
+          `\n    worst ${worst.contrast}:1 — ${worst.surface} ${worst.selector} (${worst.token ?? worst.color})\n` +
           `    below V3's own ${V3_TARGET}:1 target: ${short.length}\n` +
           `    worst per ink:\n` +
           Object.values(byToken).map(line).join("\n") +
