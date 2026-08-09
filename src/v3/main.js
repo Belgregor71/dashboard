@@ -29,6 +29,7 @@ import { initArrival, lastArrival } from "./core/arrival.js";
 import { initBriefingWindow, lastBriefing } from "./core/briefing-window.js";
 import { initHealth, lastHealth } from "./core/health.js";
 import { initDisplay, onPanelDark, displayState } from "./core/display.js";
+import { initNowPlaying, nowPlayingState } from "./core/now-playing.js";
 
 /* Sun position only. City-level Brisbane, deliberately coarse: this repo is
    PUBLIC and its bundle is tracked, so no house-precise coordinate may appear
@@ -207,6 +208,14 @@ function boot() {
   connectHA();
   refreshHouseCache();
 
+  /* The field's second fact. Before the first snapshot lands, for the same
+     reason the feed itself is: it subscribes to `ha:state-updated`, and the
+     opening bulk fill is the one event that says what is ALREADY playing.
+     After it, only entities that change are sent — so a subscriber that arrives
+     late learns nothing until the next track. Flag-off returns false having
+     registered nothing. */
+  initNowPlaying();
+
   /* The house's opinion, and its permission to act on it. See core/attention.js:
      an interrupt reaches the glance whether or not anyone is there, the High
      band reaches it when someone is, and nothing below that earns the screen.
@@ -308,6 +317,7 @@ function boot() {
     briefing: lastBriefing(),
     health: lastHealth(),
     display: displayState(),
+    nowPlaying: nowPlayingState(),
     presence: window.__v3Presence?.()
   });
 

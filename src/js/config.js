@@ -842,6 +842,36 @@ window.CONFIG = {
     // Default OFF = no timer, no fetch, no attribute; byte-identical to before.
     // One-line revert, and the substrate's pause is the only surface effect.
     v3EnergySaver: false,
+
+    // V3's ambient now-playing surface. Whether the field says what the room
+    // can hear.
+    //
+    // V3 has had a media surface since Phase 4 and nobody has ever seen it:
+    // subjects/media.js is DEPTH 3 and VOICE-SUMMONED ("show me what's
+    // playing"). Nothing in V3 has ever put music on the screen because music
+    // STARTED. Confirmed by `DISPLAY=:0 scrot` on the G11 on 2026-08-09 while
+    // media_player.living_room was playing: photograph and hour, nothing else.
+    // The owner's call — "when plex or spotify is playing I would want it to
+    // see it on the screen anyway" — is what this builds.
+    //
+    // On: core/now-playing.js subscribes to media_player entity updates and
+    // writes a small band at the bottom right of DEPTH 0 ONLY — artwork,
+    // artist, title, in the clock's measured voice. It reads houseSnapshot(),
+    // the same reader subjects/media.js and the attention queue use, so the
+    // ambient band, the depth-2 spread and the depth-3 subject can never
+    // disagree about what is playing. Off: no subscription, no timer, no
+    // attribute — the nodes sit in index.html inert at `visibility: hidden`,
+    // the way every V3 mount does before its phase lands.
+    //
+    // Nothing else changes: the hour does not move (the band is absolutely
+    // positioned), the rail cannot collide with it (rail is depths 1-2, this is
+    // depth 0), and there is no per-second repaint — no progress bar, and the
+    // glass is written only when the ANSWER changes, never per entity update.
+    //
+    // ⚠ Default-off pending a live flip through /flag-flip: the contrast
+    // reading over a real photograph and the artwork-on-the-glass check are
+    // both owed on the wall. One-line revert (-> false) is the rollback path.
+    v3NowPlaying: false,
   },
 
   /* --------------------------------------------------------------

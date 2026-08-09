@@ -178,6 +178,101 @@ html, body {
   text-shadow: var(--ink-shadow);
 }
 
+/* ── What's playing, ambiently (depth 0) ────────────────────────────────────
+   The one thing besides the hour that the field is allowed to state, and it
+   states it the same way: MEASURED, not said. The depth-3 subject sets a track
+   title in the serif because it is the house ANSWERING "show me what's playing";
+   nobody asked this one. It is a readout of what the room can already hear,
+   standing in the same relationship to the wall as the clock — so it takes the
+   clock's voice, and the two corners read as one system rather than as two.
+
+   ⚠ NO PROGRESS BAR, and that is a decision rather than an omission. A bar that
+   drains is a repaint every second, forever, on a surface whose resting cost is
+   budgeted at <=8% of one core — and it tells the room something it can hear
+   better than it can see. The calm law's surviving clause is "never move for a
+   reason the room can't see"; a track changing is such a reason, a track
+   PROGRESSING is not.
+
+   Positioned absolutely rather than stacked above the hour in flow: the hour
+   must not move when music starts. `visibility` (not display) so the fade
+   actually runs, and it costs no layout either way because nothing else in this
+   layer is in flow with it.
+─────────────────────────────────────────────────────────────────────────── */
+.now-playing {
+  position: absolute;
+  right: var(--safe);
+  bottom: var(--safe);
+  display: flex;
+  align-items: flex-end;
+  gap: var(--gutter);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--m-calm) var(--ease), visibility 0s linear var(--m-calm);
+}
+/* ⚠ MEASURED, and worth knowing before writing a spec against this: an explicit
+   `visibility: visible` here OVERRIDES the inherited `hidden` from
+   `.depth--field`, and opacity does not inherit at all — so at depth 1 this node
+   still computes `opacity: 1; visibility: visible` on its own. What actually
+   takes it off the glass at every other depth is the LAYER's opacity, exactly as
+   for the hour. Anything asking "is this visible" must ask the ancestors too
+   (`checkVisibility({ opacityProperty: true })`); a getComputedStyle reading of
+   the node alone reports it visible at every depth and is simply wrong. */
+.now-playing[data-shown="1"] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--m-calm) var(--ease), visibility 0s linear 0s;
+}
+
+.now-playing__lines {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;                     /* the same air .subject__over puts under a title */
+  min-width: 0;
+  text-align: right;
+}
+
+/* One line each, always. There is no pointer on this wall and no second glance
+   budget at depth 0, so a long title is truncated rather than wrapped — the
+   artwork and the artist carry it, and the whole answer is one voice command
+   away at depth 3. The caps are in `ch` off the two type sizes, so they hold
+   whatever the ink and the grade do. */
+.now-playing__sub {
+  font-size: var(--t-rail);
+  color: var(--ink-dim);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  max-width: 34ch;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.now-playing__title {
+  font-size: var(--t-measured-2);
+  color: var(--ink);
+  max-width: 26ch;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The album cover, small. It is the fastest thing on this surface to read from
+   four metres — the eye knows it is music before it has read a word — and at
+   120px it costs the photograph almost nothing. `.lift` in the markup gives it
+   the same sun-agreed shadow every other raised thing in V3 has, so it sits ON
+   the photograph rather than being pasted over it. */
+.now-playing__art {
+  flex: 0 0 auto;
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 6px;
+  display: block;
+}
+/* No artwork, or artwork that 404'd. `display: none` and not `opacity: 0`, so
+   the row closes up instead of leaving a 120px hole beside the title. */
+.now-playing__art[data-blank="1"] { display: none; }
+
 /* ── What the house heard ───────────────────────────────────────────────────
    ⚠ SEEN ON THE WALL, 2026-08-08: this had NO POSITIONING AT ALL and never has
    — it has been a bare <p> flowing at the top-left corner of a fixed, unpadded

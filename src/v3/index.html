@@ -46,6 +46,19 @@
          is the only text. Resting cost must be <=8% of one core. -->
     <section class="depth depth--field">
       <div class="hour" id="hour" data-cell="hour">--:--</div>
+
+      <!-- The field's other ambient fact: what the room can hear. Bottom right,
+           which is the rail's corner — and the two are mutually exclusive by
+           construction, because the rail only appears at depths 1-2 and this
+           lives inside the depth-0 layer. core/now-playing.js writes it, and
+           only when the answer changes. -->
+      <div class="now-playing" id="now-playing" data-cell="nowPlaying">
+        <div class="now-playing__lines">
+          <p class="now-playing__sub measured" id="now-playing-sub"></p>
+          <p class="now-playing__title measured" id="now-playing-title"></p>
+        </div>
+        <img class="now-playing__art lift" id="now-playing-art" alt="" data-blank="1" />
+      </div>
     </section>
 
     <!-- DEPTH 1 — GLANCE. Exactly one thing, at editorial scale. If it needs a
