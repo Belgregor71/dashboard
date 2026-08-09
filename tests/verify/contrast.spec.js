@@ -292,6 +292,33 @@ for (const token of TOKENS) {
     // to have actually landed before measuring. Skipped when the flag is off.
     if (await page.evaluate(() => typeof window.__spine === "function")) {
       await expect.poll(() => page.evaluate(() => window.__spine().labels.length)).toBe(3);
+
+      /* ⚠ AND THEN WAIT FOR THEM TO SETTLE — existing is not the same as shown.
+         `.spine-label` fades in over 700ms (opacity 0 → the rank ladder
+         1.0/0.88/0.76), and the sampler above multiplies every ancestor opacity
+         into the text's effective alpha. A screenshot taken mid-fade therefore
+         measures an alpha NOBODY EVER READS, and reports it as a contrast
+         defect in the surface.
+
+         That is not hypothetical: this gate failed a full-suite pre-push run at
+         `a=0.63` on .spine-label__time (4.43:1, needs 4.5) and then passed 3/3
+         in isolation at 4.58-4.73. 0.63 is on none of the ladder and is not a
+         product of any pair of it — it is 82% of the way through the fade to
+         0.76. A loaded machine simply lands earlier in the transition, which is
+         why the everyday suite never saw it and the pre-push gate did.
+
+         Asked of the browser rather than slept for: a CSS transition IS an
+         Animation, and a finished one is no longer returned by
+         `getAnimations()` — so an empty list means settled. `.spine-label`
+         carries no infinite animation (only `.spine-breath` does), so this
+         cannot hang waiting on a loop. */
+      await page.waitForFunction(() => {
+        const labels = [...document.querySelectorAll(".spine-label")];
+        return (
+          labels.length > 0 &&
+          labels.every((el) => el.getAnimations().every((a) => a.playState === "finished"))
+        );
+      });
     }
 
     // Force the token directly rather than waiting on real weather: the whole
