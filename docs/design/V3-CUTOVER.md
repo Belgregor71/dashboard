@@ -158,7 +158,7 @@ passes in **both** states — flag flips have broken tests here that assumed the
 - `DEFAULT_ROOT_SURFACE = "incumbent"` is the committed default. **Flipping that constant is
   the cutover**, and `tests/root-surface.spec.js` is written so the flip is a deliberate
   edit rather than a surprise.
-- `V3_DEFAULT` overrides it in **both** directions (`1`/`true`, `0`/`false`). So the Pi can
+- `V3_DEFAULT` overrides it in **both** directions (`1`/`true`, `0`/`false`). So the wall can
   be pinned either way from `.env` with a restart and **no deploy** — that is the fast
   rollback, and it is also how the on-state was first exercised.
 - The resolver takes `env` as an argument rather than reading `process.env` at module load:
@@ -199,8 +199,8 @@ wrong reason. A dead root route is invisible until the moment you need it to wor
 
 **What is left before the default changes:**
 
-- run V3 at `/` on the live kiosk (`V3_DEFAULT=1` in the Pi's `.env` + restart — no deploy),
-  for long enough to include a sunset and a wake;
+- run V3 at `/` on the live kiosk (`V3_DEFAULT=1` in the **G11's** `.env` + restart — no
+  deploy), for long enough to include a sunset and a wake;
 - §4 boot isolation, and §6 re-decided — both are about V3 being the *only* surface;
 - then flip `DEFAULT_ROOT_SURFACE` to `"v3"` and update the expectation in
   `tests/root-surface.spec.js` in the same commit.
@@ -457,8 +457,8 @@ Ignore it.
 ## Suggested order
 
 ```
-2 → 1 → 3 → 4 → 5    then 6 before it sits overnight
-✅   ✅   ✅   ✅   ✅        ↑ next
+2 → 1 → 3 → 4 → 5 → 6     ALL SIX DONE
+✅   ✅   ✅   ✅   ✅   ✅
 ```
 
 Items **2** and **4** are the ones that produce silent wrong behaviour or a dark wall.
@@ -468,17 +468,89 @@ Item **1** is the one that bites a future session.
 shipped the isolation — the flag only made a `boot()` throw switchable, it never made one
 survivable; now it is.
 
-**Still owed before `DEFAULT_ROOT_SURFACE` changes:**
+---
 
-- the live run at `V3_DEFAULT=1` on the kiosk, across a sunset and a wake;
-- §4's live proof: `/v3/?__boom=ground` over CDP on the wall, seen still painting, and
-  `__v3Boot().failed` read back from the real page. Isolation cannot be verified by reading
-  the code, and this project does not call a fix done until it has been seen on the glass;
-- ~~§5 (runtime coverage)~~ ✅ done — `docs/design/V3-COVERAGE.md`. It leaves three gaps
-  worth closing before the wall is unattended: the WebGL fallback (100 dead lines on the
-  path a lost GL context takes), the three never-fired voice dispatch entries, and
-  `ground.js`'s dissolve;
-- §6 (the three deferred sub-AA contrast findings, re-decided rather than inherited).
+## HANDOVER — state at 2026-08-10, and the next four moves
+
+**Every numbered step in this plan is done.** What separates here from the flip is
+**verification and one code gap**, not design. Nothing below needs re-deriving.
+
+### Where the tree is
+
+Three commits **local and UNPUSHED** on `main`, working tree clean, not behind `origin`:
+
+```
+af1013c  step 6 — the three deferred contrast findings re-decided
+6ac7162  the contrast sweep had the paint order backwards
+83a23dd  step 5 — runtime coverage
+```
+
+⚠ **Pushing deploys the live wall.** Two sessions share this working tree — run
+`git log origin/main..main` before any push, and never `git stash` here.
+
+⚠ **Suite is 1076/1077, not green.** The failure is `ambient-archive.spec.js`'s
+motion-burst spec — the known connection-starvation class (`d839ca9`), on the incumbent
+surface, passing in isolation at 19.3s against a 30s budget. **Do not "fix" the victim
+spec.** The pre-push hook runs the full suite, so expect to need a second run.
+
+### ⚠ THE WALL IS THE G11, AND THE SSH ALIAS LIES ON PURPOSE
+
+`ssh pi-dashboard` → **GMKtec G11, 192.168.0.183**, repo at `/home/dashboard/dashboard`.
+The name is historical and **deliberately unchanged** so the deploy chain and all seven
+skills need zero edits. There is no Raspberry Pi in the live path.
+
+`ssh pi4-rollback` → **Pi 4, 192.168.0.186**, the warm rollback host. **Its kiosk is
+disabled**; only `dashboard.service` and `dashboard-deploy.timer` run, so it stays
+code-current. ⚠ **It has no glass — no soak, sighting or screenshot can happen there.**
+
+### The four moves, in order
+
+**1 · Close the WebGL-loss gap** (code, no waiting — the only remaining item with a real
+failure mode on an unattended wall). `src/v3/substrate/canvas2d.js` is **138 lines that
+have never executed once**, along with `index.js`'s `webglcontextlost` handler and *both*
+`destroy()` methods — headless Chromium always has WebGL2. After the flip, a GPU reset at
+3am drops the **only** surface into code with zero runtime coverage. The seam already
+exists: `initSubstrate(canvas, { forceBackend: "canvas2d" })` at `index.js:77`, and
+`WEBGL_lose_context` forces the genuine handler path rather than just the fallback branch.
+Ride along with §5's two smaller gaps: the three never-fired voice dispatch entries
+(`show.sky` + `showSky`, `show.tonight`, `show.media` — **the same table that shadowed
+`show.status` in Phase 6**) and `ground.js`'s `dissolve()`/`tick()`/`oneShot()`.
+
+**2 · Push, then verify steps 5 and 6 on the glass.** One deploy covers both. Step 6 owes
+three sightings, none of which any spec can stand in for:
+- a **wrapped glance line** showing the veil (`:has(.said[data-wrapped])`) — drive a hero
+  over 20 characters;
+- `.rail` and `#heard` at the **lifted `--ink-faint` (0.62)**, judged from 3–4 m;
+- a **real briefing** in its corrected column — the bug was a third of it clipped away, and
+  `textContent` cannot see that.
+
+⚠ After a deploy the kiosk still runs the old bundle until a CDP `Page.reload`, and the
+first fetch after a page load takes ~6 s — **warm the page before believing any timeout.**
+
+**3 · Start the `V3_DEFAULT=1` soak on the G11.** `V3_DEFAULT=1` in the **G11's** `.env`
+plus a `dashboard.service` restart — **no deploy, no push**, and it is the fast rollback in
+both directions. Needs to span **a sunset and a wake**, so start it before the flip rather
+than after. ⚠ **The wall's current surface ≠ its configured surface** — the unit file
+launches a bare `http://localhost:3000` and nothing navigates it afterwards, so only CDP
+(`curl 127.0.0.1:9222/json` **on the host**) answers "what is it showing right now".
+
+**4 · Flip `DEFAULT_ROOT_SURFACE` to `"v3"`** in `server/config.js`, updating the
+expectation in `tests/root-surface.spec.js` **in the same commit** — the spec is written so
+the flip has to be deliberate. Verify the suite in **both** states before pushing.
+
+### Two debts deliberately left unpaid
+
+Both are registered in `KNOWN_OPEN` in `tests/verify/v3-contrast.spec.js`, print on every
+run, and fail the gate if they degrade. **Neither is a bug to quietly fix** — they are
+priced decisions, and both numbers are measured over the **synthetic white** ground, which
+is brighter than any photograph by construction:
+
+- an **unwrapped** 132px said line at **2.83:1** (floor 2.7) — a single line *is* inside the
+  band the scrim solves for; this is `SCRIM_MAX` being honest about a white ground;
+- **`--ink-faint` under the presence rim** at **2.93:1** (floor 2.8), ~2% under AA-large.
+  The next 0.02 of token would close it and put faint 0.02 from `--ink-dim` at night. ⚠ **If
+  the night ramp's third step is wanted back, move `--ink-dim` UP — do not put
+  `--ink-faint` back under 0.62.**
 
 ---
 
