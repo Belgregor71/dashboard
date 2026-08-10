@@ -37,7 +37,17 @@
      point the same way. A dim COOL screen is doing half the job. */
   --ink:       oklch(0.93 0.010 85);
   --ink-dim:   oklch(0.74 0.012 85);
-  --ink-faint: oklch(0.55 0.014 85);
+  /* ⚠ LIFTED 0.55 -> 0.62 (2026-08-10) BECAUSE NO SCRIM CAN RESCUE IT. At 0.55
+     this token's CEILING — its contrast against a fully opaque scrim, the best
+     it could ever manage over any photograph at any opacity — was 4.29 by day
+     and 3.16 at night, and it measured 2.33:1 / 1.72:1 over the sweep's white
+     ground. Its two users, `.rail` and `.heard`, are 32px and 48px, so the bar
+     that applies is WCAG AA-large at 3.0:1 and both sat under it.
+     0.62 measures 3.12:1 worst-case with a ceiling of 5.74. See the
+     KNOWN_OPEN note in tests/verify/v3-contrast.spec.js, which carried this as
+     an owner decision from the voiceRail flip until the V3 cutover forced it:
+     the same defect on a surface that is about to be the only one. */
+  --ink-faint: oklch(0.62 0.014 85);
 
   /* Accent. L and C are fixed; only H moves with the weather. Contrast against
      --surface is therefore an invariant of the system, not a per-tint accident. */
@@ -174,7 +184,14 @@
   --atmo-hue: 40;
   --ink:       oklch(0.86 0.014 55);
   --ink-dim:   oklch(0.66 0.016 55);
-  --ink-faint: oklch(0.48 0.018 55);
+  /* ⚠ 0.48 -> 0.62, and this is where the finding was WORST (1.72:1): the night
+     block dims every ink, but --ink-faint was already under the bar by day.
+     ⚠ IT IS NOW 0.04 FROM --ink-dim, so the night ramp is three steps in name
+     and two on the wall. That is the price of the lift and it was taken
+     deliberately — a peripheral rail that cannot be read is not peripheral, it
+     is absent. If the ramp needs its third step back, --ink-dim moves up; do
+     not solve it by putting this one back under 0.62. */
+  --ink-faint: oklch(0.62 0.018 55);
   --accent-l: 0.70;
   --grade: 80;
 }

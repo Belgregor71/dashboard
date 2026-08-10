@@ -26,6 +26,7 @@ import { setPhase, setFailure, trackSpeech } from "./presence-light.js";
 import { deepen, sustain, DEPTH } from "./depth.js";
 import { showSubject } from "../subjects/index.js";
 import { renderVocabularyCard } from "./vocabulary-card.js";
+import { setSaidText } from "./spread.js";
 
 const LINGER_MS = 8_000;
 const DEIXIS_MS = 4_200;
@@ -113,8 +114,20 @@ function hideHeard() {
   delete el.heard.dataset.failed;
 }
 
+/* ⚠ THIS WROTE `textContent` DIRECTLY UNTIL 2026-08-10, which meant the one
+   line on the wall that matters most — what the house just SAID to someone
+   standing in front of it — was the only said line in V3 exempt from the said
+   rules. No `data-len`, so a 60-character answer tried to hold 132px; and no
+   `data-wrapped`, so the veil that the wrapped-line contrast finding was fixed
+   with did not come up under it. The contrast sweep caught the second half:
+   after the veil landed, the glance measured 13.59:1 and the voice's own line
+   on the very next surface still measured 1.97:1.
+
+   🔑 A rule enforced by a helper is only enforced on the callers that use it.
+   `renderGlance()` in attention.js is the other writer of this node and it goes
+   through setSaidText; these two must not disagree about the same element. */
 function say(text, refs) {
-  el.glanceSaid && (el.glanceSaid.textContent = text);
+  setSaidText(el.glanceSaid, text);
   lightRefs(refs);
   // The sweep is driven by real playback position, so it arrives at the last
   // word rather than at a guess about it.

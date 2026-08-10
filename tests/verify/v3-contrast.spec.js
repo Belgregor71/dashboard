@@ -93,15 +93,30 @@ const V3_TARGET = 7;
 ─────────────────────────────────────────────────────────────────────────── */
 const KNOWN_OPEN = [
   {
-    // The scrim solves for the text band at y <= 0.46 and its own comment
-    // assumes the dominant line "bottom-aligns near y=0.32". A WRAPPED 132px
-    // line is ~280px tall, so its top reaches y=0.59 — above the band it was
-    // solved for. Fixing it means capping the line or covering the top
-    // two-thirds, and the second costs the photograph at the most-looked-at
-    // depth. Deferred by the owner 2026-08-08.
+    /* MOSTLY PAID 2026-08-10, and the floor is raised to prove it stays paid.
+       The scrim solves for the text band at y <= 0.46 and its own comment
+       assumes the dominant line "bottom-aligns near y=0.32" — true of ONE line.
+       A wrapped 132px line is ~280px tall, so its top reached y=0.59, above the
+       band, where no opacity can help because the gradient is transparent by
+       0.88 by design.
+
+       The wrapped case now takes a flat veil at the solved opacity
+       (compose.css `:has(.said[data-wrapped])`), driven by a Range's line-box
+       count rather than the character estimate beside it — 132px holds 20
+       characters and SAID_LONG_MAX is 40, so counting could not tell the two
+       apart. The glance went 2.59:1 -> 13.59:1, and voice.js stopped writing
+       this node's textContent behind setSaidText's back, which is what kept the
+       veil off the surface right after it.
+
+       ⚠ WHAT IS LEFT IS THE UNWRAPPED LINE, and it is a different finding
+       wearing the same name: a single 132px line IS inside the solved band, and
+       still measures 2.83:1 over the synthetic white ground at night, because
+       the scrim is clamped at SCRIM_MAX and white is brighter than any
+       photograph. That is the clamp being honest, not the band being wrong.
+       Floor raised 1.5 -> 2.7 so the veil cannot silently stop working. */
     match: (m) => /^[12]-/.test(m.surface) && (m.selector === "#glance-said" || m.selector.startsWith("p.said")),
-    floor: 1.5,
-    why: "dominant said line reaches above the band the scrim solved for"
+    floor: 2.7,
+    why: "unwrapped 132px said line over the white bound (the wrapped case is veiled)"
   },
   /* ── CLOSED 2026-08-10: ".presence (z20) composites over .stage (z10)" ──────
      Registered at a floor of 1.15:1 and deleted rather than paid, because the
@@ -127,13 +142,23 @@ const KNOWN_OPEN = [
      🔑 A debt recorded at a number the surface never occupied is not a debt,
      it is a hole shaped like one. */
   {
-    // The token decision that has been waiting since the voiceRail flip:
-    // --ink-faint's ceiling is 4.29 day / 3.16 night against a fully opaque
-    // scrim, so `.rail` and `.heard` can never reach V3's 7:1 at any opacity.
-    // No scrim is the fix; the token is.
+    /* MOSTLY PAID 2026-08-10 by lifting the token, which is what this entry
+       always said the fix was: --ink-faint's CEILING — its contrast against a
+       fully opaque scrim, the best it could ever reach over any photograph at
+       any opacity — was 4.29 day / 3.16 night at L 0.55/0.48, so no scrim was
+       ever going to be the answer. Lifted to 0.62 in both phases: 2.33 -> 3.12
+       by day, 1.72 -> 3.12 at night, ceiling 5.74.
+
+       ⚠ WHAT IS LEFT IS ONLY WHERE THE PRESENCE RIM OVERLAYS IT — `#heard` at
+       depth 0 while the house is listening, 2.93:1, about 2% under the bar. The
+       lift was calibrated against a backdrop measured without the rim, and this
+       is the first time the rim's real cost to a glyph has been measurable at
+       all (see the withdrawn entry above). The next 0.02 of token would close it
+       and would put faint 0.02 from dim at night, which is the ramp collapsing
+       to buy 2% — so it is recorded rather than spent. Floor 1.6 -> 2.8. */
     match: (m) => m.token === "--ink-faint",
-    floor: 1.6,
-    why: "--ink-faint cannot reach the target at any scrim opacity — lift the token"
+    floor: 2.8,
+    why: "--ink-faint under the presence rim (the token itself is lifted)"
   }
 ];
 

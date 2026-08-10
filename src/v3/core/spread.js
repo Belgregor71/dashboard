@@ -43,15 +43,45 @@ function lattice() {
 }
 
 /**
- * Set a said line, stepping the size down when it is too long to hold 132px.
+ * Set a said line, stepping the size down when it is too long to hold 132px,
+ * and recording whether it ended up wrapping.
  * Exported because the glance cell needs exactly the same rule and there is no
  * reason for the two depths to disagree about when a line is long.
+ *
+ * ⚠ `data-wrapped` IS A LEGIBILITY FLAG, NOT A TYPOGRAPHIC ONE, and it is the
+ * character count's admission that it cannot answer this. core/scrim.js solves
+ * the scrim for the band where text lives and its comment assumes the dominant
+ * line "bottom-aligns near y=0.32" — true of ONE line. A second line pushes the
+ * top of the block to y=0.59, where the gradient has thinned to ~0.42 of the
+ * solved opacity and is transparent outright by 0.88 BY DESIGN. No opacity
+ * reaches it, so the scrim cannot be the answer and compose.css veils the layer
+ * instead (`:has(.said[data-wrapped])`).
+ *
+ * Measured, not assumed: 132px holds 20 characters on one line and 96px holds
+ * 28, so SAID_LONG_MAX at 40 lets a 35-character line wrap at BOTH sizes. That
+ * is the case the sweep has been reporting at 1.59:1 — a count of characters
+ * cannot know the width of the ones it counted.
+ *
+ * A Range's client rects are one per line box, which asks the renderer the
+ * question directly rather than dividing heights and hoping. It costs a forced
+ * layout, once per glance render, and the depths are hidden with `visibility`
+ * rather than `display` — so the box is laid out and the answer is real even
+ * when the depth is not the one on screen.
  */
 export function setSaidText(node, text) {
   if (!node) return;
   node.textContent = text ?? "";
   if ((text ?? "").trim().length > SAID_LONG_MAX) node.dataset.len = "long";
   else delete node.dataset.len;
+
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  // 0 rects means the node is not laid out at all (detached, or a spec's
+  // fragment). That is not a wrapped line, and guessing that it is would veil
+  // the photograph for a screen that does not exist.
+  if (range.getClientRects().length > 1) node.dataset.wrapped = "1";
+  else delete node.dataset.wrapped;
+  range.detach();
 }
 
 function signatureOf(composition) {

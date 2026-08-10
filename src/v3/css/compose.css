@@ -373,6 +373,34 @@ html, body {
   pointer-events: none;
 }
 
+/* ⚠ A WRAPPED DOMINANT LINE LEAVES THE BAND THE SCRIM SOLVED FOR, and no
+   opacity brings it back. core/scrim.js solves for text living at y <= ~0.46;
+   one 132px line bottom-aligns near y=0.32 and is inside it, but a second line
+   puts the top of the block at y=0.59, where the gradient has thinned to ~0.42
+   of the solved opacity — and it is transparent by y=0.88 BY DESIGN, because
+   that shape is the composition's statement about where text belongs. Measured
+   at 1.59:1 white/night, and registered as a known-open debt since 2026-08-08.
+
+   So the answer is the same one the vocabulary card got, for the same reason:
+   a flat veil at the SOLVED opacity, full bleed. Full bleed rather than on the
+   cell, because a veiled rectangle inside the safe inset is the "card floating
+   on the photograph" that depth 3 was corrected away from — V3 retired blur and
+   has no card material.
+
+   🔑 IT COSTS THE PHOTOGRAPH ONLY WHEN THE LINE ACTUALLY WRAPS. That is why the
+   flag is set from a Range's line-box count in spread.js rather than from the
+   character count next to it: at 132px the wrap happens at 20 characters and
+   SAID_LONG_MAX is 40, so a count cannot tell a one-line glance from a two-line
+   one, and either every glance pays or the ones that need it do not. */
+.depth--glance:has(.said[data-wrapped])::before,
+.depth--spread:has(.said[data-wrapped])::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in oklch, var(--scrim-base) calc(var(--scrim-opacity) * 100%), transparent);
+  pointer-events: none;
+}
+
 .vocab__item {
   font-family: var(--font-said);
   font-optical-sizing: auto;
@@ -655,15 +683,42 @@ html, body {
 
 /* The briefing. Prose, measured column width — the one surface here that is
    read as sentences rather than scanned as a list. */
+/* ⚠⚠ THE MEASURE WAS BEING TAKEN IN THE WRONG FONT, and it clipped a third of
+   the briefing off the wall. `max-width: 26ch` sat here, on the stack — and
+   `ch` resolves against the element's OWN font-size, which is the 32px body
+   floor, not the 96px Fraunces of the prose inside it. So the "measured column"
+   computed to 416px and then had 96px text poured into it: eleven ragged lines
+   about five characters wide, needing 1663px of a stack 800px tall, with the
+   `overflow: hidden` below quietly eating the rest. Measured 2026-08-10.
+
+   🔑 `ch` on a parent is not the child's measure. The unit is only a typographic
+   measure when it is read in the same type it is measuring.
+
+   The measure therefore moves onto .subject__prose itself, where 1ch is the
+   prose's own character — and 26 of them is ~1300px, which is a real measure
+   for a line this size rather than an accident. Verified to fit unclipped
+   rather than assumed to: tests/v3-subjects.spec.js asserts scrollHeight
+   against clientHeight, because "it fits" is exactly the claim that was wrong
+   here and no amount of reading the CSS would have caught it. */
 .subject__prose-stack {
   display: flex;
   flex-direction: column;
   gap: 28px;
-  max-width: 26ch;
   min-height: 0;
   overflow: hidden;
 }
-.subject__prose { text-wrap: pretty; }
+.subject__prose {
+  text-wrap: pretty;
+  max-width: 26ch;
+  /* ⚠ .said sets 1.06, which is a DISPLAY leading — correct for the 132px
+     glance line it was written for, and too tight to contain its own ink at
+     96px: measured, each line box overflowed its line-height box by 7.3px, and
+     the stack's `overflow: hidden` clipped exactly that much off the descenders
+     of the last line. 1.2 contains it, and prose read as sentences wants looser
+     leading than a display line regardless — this is the one surface here that
+     is read rather than scanned. */
+  line-height: 1.2;
+}
 
 /* On this day: nine plates, square-cropped so the grid reads as a grid rather
    than as nine differently-shaped holes. */

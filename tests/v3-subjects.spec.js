@@ -638,6 +638,65 @@ test("the briefing opens forced, holds longer than a subject, and speaks only it
   expect(pageErrors).toEqual([]);
 });
 
+/* ⚠⚠ THE BRIEFING WAS CLIPPING A THIRD OF ITSELF OFF THE WALL and every spec
+   above passed throughout, because they all read `textContent` — which returns
+   the whole string whether or not the screen ever showed it.
+
+   `.subject__prose-stack` carried `max-width: 26ch`, and `ch` resolves against
+   the element's OWN font-size — the 32px body floor, not the 96px Fraunces of
+   the prose inside it. The "measured column" computed to 416px and then had
+   96px text poured into it: eleven ragged lines about five characters wide,
+   needing 1663px of an 800px stack, with `overflow: hidden` eating the rest.
+   Found 2026-08-10 while measuring this surface for something else entirely.
+
+   🔑 `ch` on a parent is not the child's measure — the unit is a typographic
+   measure only when it is read in the type it is measuring.
+
+   So this asserts the LAYOUT, not the text: a stack that overflows itself has
+   lost content no textContent assertion can miss. Two independent numbers,
+   because they fail differently — scrollHeight catches the block overflowing
+   the stack, and the last line box's bottom catches the subtler one underneath
+   it (`.said`'s 1.06 display leading could not contain its own ink at 96px, so
+   the final line's descenders were clipped by 7.3px even once the width was
+   right). */
+test("the briefing fits the stack it is given — no line is clipped away", async ({ page }) => {
+  const { pageErrors } = await bootV3(page, {
+    "/api/ai/brief": {
+      summary:
+        "A cool start, clearing by lunch and warm by the middle of the afternoon. " +
+        "Nothing on the calendar until four. The bins go out tonight, and the green one is due."
+    }
+  });
+
+  const got = await page.evaluate(async () => {
+    await window.__v3Briefing({ force: true });
+    const stack = document.querySelector(".subject__prose-stack");
+    const prose = document.querySelector(".subject--briefing .subject__prose");
+    const sr = stack.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(stack.lastElementChild);
+    const rects = [...range.getClientRects()];
+    const lastLine = rects[rects.length - 1];
+    return {
+      overflow: stack.scrollHeight - stack.clientHeight,
+      overhang: lastLine.bottom - sr.bottom,
+      // The measure must be taken in the prose's own type, so the column has to
+      // be far wider than the 416px the stack's 32px `ch` produced.
+      proseWidth: prose.getBoundingClientRect().width,
+      proseFont: parseFloat(getComputedStyle(prose).fontSize)
+    };
+  });
+
+  expect(got.proseFont).toBe(96);
+  // 26ch of 96px Fraunces is ~1480px. Anything near 416 means the measure has
+  // been read in the wrong font again.
+  expect(got.proseWidth).toBeGreaterThan(1000);
+  // 1px of sub-pixel rounding is not a clip; a line is ~115px.
+  expect(got.overflow).toBeLessThanOrEqual(1);
+  expect(got.overhang).toBeLessThan(2);
+  expect(pageErrors).toEqual([]);
+});
+
 test("⚠ a model that answers nothing never touches the depth", async ({ page }) => {
   // Nothing may flip the depth into a layer with nothing in it. The briefing is
   // the only Phase 4 subject whose content is generated, so it is the only one

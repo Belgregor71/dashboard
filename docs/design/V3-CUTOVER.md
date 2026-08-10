@@ -346,10 +346,76 @@ The count of V3-named specs is now 14 (`v3-now-playing` and `v3-closure` joined 
 
 ### 6. The three deferred sub-AA contrast findings change status on flip
 
-`KNOWN_OPEN` carries: the wrapped dominant line, `.presence` z20 painting **over** `.stage`
-z10, and `--ink-faint`. These were deferred while V3 was the *secondary* surface. Same
-defects, different blast radius once it is the only one. **Re-decide rather than inherit the
-deferral.**
+> ✅ **DONE 2026-08-10 (`6ac7162` + this commit). All three re-decided, and one of them
+> turned out to be this gate's own defect rather than the surface's.**
+>
+> Worst text in V3, across all four ground × phase runs: **1.59:1 → 2.83:1**. Nodes below
+> WCAG AA: **5 / 13 / 1 / 11 → 0 / 1 / 1 / 1**, each matching a registered debt whose floor
+> was **raised** to the new number so the fix cannot silently stop working.
+>
+> **① `.presence` (z20) over `.stage` (z10) — WITHDRAWN. The defect was in the sweep.**
+> `MEASURE` took one screenshot with the glyphs stripped and composited the ink token over
+> each backdrop pixel, which silently assumes the ink is the LAST thing painted. The rim
+> paints over the text as well as the ground, and the model credited it to the ground alone:
+>
+> | | day | night |
+> | --- | --- | --- |
+> | reported | 1.51:1 | 1.22:1 |
+> | **actual** | **8.07:1** | **6.13:1** |
+> | rim hidden | 12.38:1 | 9.95:1 |
+>
+> The rim is real and costs a third of the contrast; it was never near AA. ⚠ **The cost was
+> not the wrong number, it was the floor.** Registered at 1.15:1, the entry told the gate
+> that anything above 1.15 was expected — the most-looked-at prose on the wall could have
+> decayed to 1.16 and four green runs would have called the debt held. 🔑 **A debt recorded
+> at a number the surface never occupied is a hole shaped like one.**
+>
+> Contrast is now measured from **three frames of one screen** — glyphs white, black, gone.
+> For any stack of translucent overlays `T(v) = A·C + (1-A)·v`, so `lit = T(255)` and
+> `dark = T(0)` give `glyph = dark + (lit-dark)·ink/255` exactly, assuming nothing about what
+> is above the text. ⚠⚠ **`lit - dark` is also a coverage mask that is INDEPENDENT OF THE
+> BACKGROUND, and that is the load-bearing part** — locating glyphs by "where the painted
+> frame differs from the stripped one" (the obvious method, tried first) loses its signal
+> exactly where contrast is worst, and mistook the top scanline of a letter for the letter:
+> 18 invented failures. Any text with something painted over it is now reported on every run.
+>
+> **② The wrapped dominant line — PAID with a veil, and it exposed a second writer.**
+> A wrapped 132px line is ~280px tall, so its top reaches y=0.59 while the scrim solves for
+> y ≤ 0.46 and is transparent by 0.88 **by design** — no opacity reaches it. It now takes the
+> vocabulary card's flat veil at the solved opacity, full bleed, gated on
+> `:has(.said[data-wrapped])`. ⚠ **The flag is a Range's line-box count, not a character
+> count: 132px holds 20 characters and `SAID_LONG_MAX` is 40**, so counting cannot tell a
+> one-line glance from a two-line one, and either every glance pays or the ones that need it
+> do not. Glance: **2.59:1 → 13.59:1**.
+>
+> ⚠⚠ **And the veil did not come up on the very next surface, because `voice.js:say()` wrote
+> `textContent` directly** — so the one line that matters most, what the house just SAID to
+> someone standing in front of it, was the only said line in V3 exempt from the said rules:
+> no `data-len` (a 60-character answer trying to hold 132px) and no veil. 🔑 **A rule
+> enforced by a helper is only enforced on the callers that use it.**
+>
+> **③ `--ink-faint` — PAID by lifting the token, which is what the entry always said.**
+> Its *ceiling* (against a fully opaque scrim — the best it could reach over any photograph
+> at any opacity) was 4.29 day / 3.16 night, so no scrim was ever the answer. Both users
+> (`.rail` 32px, `.heard` 48px) are large text, so the bar is **AA-large 3.0**, and both sat
+> under it. Lifted **0.55 → 0.62** day and **0.48 → 0.62** night: 2.33 / 1.72 → **3.12:1**,
+> ceiling 5.74. ⚠ It is now 0.04 from `--ink-dim` at night — the ramp is three steps in name
+> and two on the wall, taken deliberately, because a peripheral rail that cannot be read is
+> not peripheral, it is absent.
+>
+> **What is left, recorded rather than spent:** an unwrapped 132px line at 2.83:1 and
+> `--ink-faint` under the rim at 2.93:1, both over the *synthetic white* ground, which is
+> brighter than any photograph by construction. The next 0.02 of token would close the second
+> and put faint 0.02 from dim.
+>
+> ⚠ **Found while measuring, unrelated to contrast, now fixed:** the briefing was **clipping
+> a third of itself off the wall**. `.subject__prose-stack` carried `max-width: 26ch` and
+> `ch` resolves against the element's OWN font-size — the 32px body floor, not the 96px
+> Fraunces inside it. The "measured column" computed to **416px** with 96px text poured into
+> it: eleven ragged ~5-character lines needing **1663px of an 800px stack**, `overflow:
+> hidden` eating the rest. 🔑 **`ch` on a parent is not the child's measure.** Every existing
+> briefing spec passed throughout because they all read `textContent`, which returns the
+> whole string whether or not the screen showed it.
 
 ---
 
