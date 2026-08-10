@@ -505,16 +505,21 @@ code-current. ⚠ **It has no glass — no soak, sighting or screenshot can happ
 
 ### The four moves, in order
 
-**1 · Close the WebGL-loss gap** (code, no waiting — the only remaining item with a real
-failure mode on an unattended wall). `src/v3/substrate/canvas2d.js` is **138 lines that
-have never executed once**, along with `index.js`'s `webglcontextlost` handler and *both*
-`destroy()` methods — headless Chromium always has WebGL2. After the flip, a GPU reset at
-3am drops the **only** surface into code with zero runtime coverage. The seam already
-exists: `initSubstrate(canvas, { forceBackend: "canvas2d" })` at `index.js:77`, and
-`WEBGL_lose_context` forces the genuine handler path rather than just the fallback branch.
-Ride along with §5's two smaller gaps: the three never-fired voice dispatch entries
-(`show.sky` + `showSky`, `show.tonight`, `show.media` — **the same table that shadowed
-`show.status` in Phase 6**) and `ground.js`'s `dissolve()`/`tick()`/`oneShot()`.
+**1 · ✅ DONE (`9d17ef4`) — the WebGL-loss gap, and it was not a coverage gap.**
+`src/v3/substrate/canvas2d.js` was 138 lines that had never executed once, along with
+`index.js`'s `webglcontextlost` handler and *both* `destroy()`s. **The first real context
+loss found a defect: a canvas keeps its context type for life, so `getContext("2d")` on the
+element the shader was using returns null and the handler built `impl = null`** — a frozen
+field, an uncaught TypeError on every causes tick, and the night's panel darkening broken
+with it. Fixed by swapping in a cloned canvas, an `INERT` backend instead of null, and a
+wrapped rebuild; `?__backend=canvas2d` now reaches the `forceBackend` seam, which nothing at
+runtime could set. `tests/v3-substrate.spec.js`, 8 assertions, 7 mutations. canvas2d
+0% → 88%, gl.js 80% → **100%**; full detail in `docs/design/V3-COVERAGE.md` finding 1.
+⚠ **The two ride-alongs are NOT done** and are now the standing code work: §5's three
+never-fired voice dispatch entries (`show.sky` + `showSky`, `show.tonight`, `show.media` —
+**the same table that shadowed `show.status` in Phase 6**) and `ground.js`'s
+`dissolve()`/`tick()`/`oneShot()`. Both are the same shape as this one: a path the wall
+takes when nobody is watching it.
 
 **2 · Push, then verify steps 5 and 6 on the glass.** One deploy covers both. Step 6 owes
 three sightings, none of which any spec can stand in for:
@@ -523,6 +528,12 @@ three sightings, none of which any spec can stand in for:
 - `.rail` and `#heard` at the **lifted `--ink-faint` (0.62)**, judged from 3–4 m;
 - a **real briefing** in its corrected column — the bug was a third of it clipped away, and
   `textContent` cannot see that.
+
+Move ① adds a fourth sighting, and it is the cheapest one on the list: **`/v3/?__backend=canvas2d`
+on the glass.** The fallback now works, but "works" has only ever been judged by a spec
+reading pixel values out of a 480×270 backing store. What the room would actually be looking
+at after a GPU reset — a flatter field, upscaled the same way — has never been seen by
+anyone. If it looks wrong, that is a thing to know **before** it is the only surface.
 
 ⚠ After a deploy the kiosk still runs the old bundle until a CDP `Page.reload`, and the
 first fetch after a page load takes ~6 s — **warm the page before believing any timeout.**

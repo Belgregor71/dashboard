@@ -1,15 +1,24 @@
 # V3 Runtime Coverage — the answer to V3-CUTOVER.md §5
 
 **Taken 2026-08-10**, suite green (168 passed), against commit `881d7b4`.
-Reproduce with `npm run verify:v3-coverage`, then **`npm run build`** to put
-`dist/` back.
+**Re-taken 2026-08-10 against `9d17ef4`, after finding 1 was closed** — every
+number in this document is the second reading. Reproduce with
+`npm run verify:v3-coverage`, then **`npm run build`** to put `dist/` back.
 
 > §5 said the graph's answer ("17 of 29 V3 files have no edge to any spec") is
 > structurally wrong, and that the real question had to be answered at runtime.
-> It now is. **304 of 387 functions execute (79%); 415 of 4,177 code lines never
-> run (10% dead).** Nothing is uncovered wholesale — but the three things that
-> are uncovered are, between them, the GPU-failure path, the voice-summoned
-> subjects, and the photo ground.
+> It now is. **318 of 399 functions execute (80%); 298 of 4,232 code lines never
+> run (7% dead).** Nothing is uncovered wholesale — and of the three things that
+> were, the GPU-failure path is now closed (**and it was broken**, see finding
+> 1); the voice-summoned subjects and the photo ground remain.
+
+> **First reading, for the diff:** 304/387 functions (79%), 415/4,177 lines dead
+> (10%). The whole of the movement is the substrate — see finding 1. ⚠ Note the
+> function DENOMINATOR grew (387 → 399) while coverage improved: V8 never
+> reported the eight functions nested inside `createCanvasSubstrate` while it
+> had never been entered, so running it for the first time both added seven hits
+> and seven-plus to the total. **A rising denominator is the healthy direction
+> here** — it is the tree-shaking trap (§ Method 1) in its other form.
 
 ---
 
@@ -18,11 +27,11 @@ Reproduce with `npm run verify:v3-coverage`, then **`npm run build`** to put
 | | |
 | --- | --- |
 | Files in `src/v3/` | 31, **all 31 in the `/v3/` bundle** — no orphans |
-| Functions executed | **304 / 387 (79%)** |
-| Code lines never run | **415 / 4,177 (10%)** |
-| Specs that reach V3 at runtime | **13** (12 browser + `v3-composer`, node-only) |
-| Files at 100% | 12 |
-| Files at 0% | **2** — `subjects/media.js`, `substrate/canvas2d.js` |
+| Functions executed | **318 / 399 (80%)** |
+| Code lines never run | **298 / 4,232 (7%)** |
+| Specs that reach V3 at runtime | **14** (13 browser + `v3-composer`, node-only) |
+| Files at 100% | 11, `substrate/gl.js` newly among them |
+| Files at 0% | **1** — `subjects/media.js` |
 
 ---
 
@@ -33,7 +42,7 @@ badly misleading:
 
 - **browser** — the specs' `page.goto("/v3/")` loads `dist/assets/v3-*.js`.
   `tests/fixtures/coverage.js` (an opt-in `page` fixture, `V3_COVERAGE=1`)
-  records raw V8 coverage per test: 109 captures.
+  records raw V8 coverage per test: 118 captures (109 in the first reading).
 - **node** — 8 V3 modules are *also* imported directly by specs and called as
   plain functions in the worker. `NODE_V8_COVERAGE` writes that for free: 11
   dumps. Without it, `grammar.js` and `composer.js` read as dead.
@@ -107,10 +116,10 @@ src/v3/core/now-playing.js             19    16   84%      12/215
 src/v3/core/presence-light.js          16    10   63%      39/144   ← 4
 src/v3/core/presence.js                18    13   72%      23/161
 src/v3/core/scrim.js                   38    37   97%       4/303
-src/v3/core/spread.js                   9     9  100%        0/88
+src/v3/core/spread.js                   9     9  100%        0/93
 src/v3/core/vocabulary-card.js          4     4  100%        0/56
-src/v3/core/voice.js                   24    20   83%      11/309
-src/v3/main.js                         42    38   90%       4/328
+src/v3/core/voice.js                   24    20   83%      11/320
+src/v3/main.js                         42    38   90%       4/335
 src/v3/subjects/briefing.js             5     4   80%        1/70
 src/v3/subjects/calendar.js             9     9  100%        0/67
 src/v3/subjects/dom.js                  7     7  100%        0/83
@@ -120,32 +129,66 @@ src/v3/subjects/media.js                1     0    0%       27/45   ← 2
 src/v3/subjects/memories.js             4     4  100%        0/92
 src/v3/subjects/recipe.js               4     4  100%        0/71
 src/v3/subjects/status.js               8     8  100%       0/158
-src/v3/substrate/canvas2d.js            1     0    0%     100/110   ← 1
-src/v3/substrate/gl.js                 10     8   80%      14/165   ← 1
-src/v3/substrate/index.js               8     6   75%      12/62    ← 1
+src/v3/substrate/canvas2d.js            8     7   88%       4/110   ← 1
+src/v3/substrate/gl.js                 10    10  100%       0/165   ← 1
+src/v3/substrate/index.js              13    11   85%        5/94   ← 1
 ```
 
 ---
 
 ## Findings, ranked by what the cutover changes
 
-### 1. ⚠ The GPU-failure path is 100% unexercised — and it is the kiosk's
+### 1. ✅ CLOSED (`9d17ef4`) — the GPU-failure path was 100% unexercised, **and it was broken**
 
-`substrate/canvas2d.js` is **entirely dead**: `createCanvasSubstrate()` (lines
-16-138, 100 code lines) has never run. It is the silent fallback
-`substrate/index.js:86` selects when WebGL is unavailable — and headless Chromium
-always has WebGL2, so no spec has ever taken that branch. With it:
+The original finding: `substrate/canvas2d.js` entirely dead —
+`createCanvasSubstrate()` (100 code lines) never run, along with `onLost` (the
+`webglcontextlost` handler), **both `destroy()`s**, and `gl.js`'s rAF `loop`.
+Headless Chromium always has WebGL2, so no spec had ever taken the branch. It is
+the finding that changed character at the cutover: after the flip, **the wall's
+entire ground falls into code that has never executed once**, on a box that runs
+for weeks.
 
-- `substrate/index.js:94` `onLost` — the `webglcontextlost` handler, never run;
-- `substrate/index.js:115` and `gl.js:192` — **both `destroy()` methods**, never run;
-- `gl.js:158` `loop` — the rAF frame loop, never run in a spec.
+⚠⚠ **RUNNING IT FOUND A REAL DEFECT ON THE FIRST TRY. A canvas keeps its context
+type for life** — `getContext("2d")` on an element that has ever held a `webgl2`
+context returns **null**, lost context or not. So the loss handler built
+`impl = null`, and the next `.backend` read threw *"Cannot read properties of
+null"*. On the wall: a frozen field, an uncaught TypeError on every 60 s causes
+tick for as long as the page lives, and — because nothing above the substrate
+knows or may ask which backend it got — **that night's panel darkening broken
+too, from inside an unrelated subsystem.** Reading the handler cannot show this;
+losing a real context does, immediately.
 
-This is the finding that changes character at the cutover. Today a lost GL context
-degrades a secondary surface. After it, **the wall's entire ground falls into 110
-lines of code that have never executed once**, on a box that runs for weeks — and
-[[project-g11-vaapi-unused]] already established the G11 does all its video in
-software. `index.js:86` takes `forceBackend`, so the seam to test it already
-exists and nothing uses it.
+🔑 **Unexercised code is not code that probably works.** This was the only
+finding in this report whose subject is a *recovery* path, and recovery paths
+are exactly where "it looks right" is worth nothing.
+
+Closed with `tests/v3-substrate.spec.js` (8 assertions, 7 mutations, each proven
+red first) and two ways in that cover different code:
+
+- **`?__backend=canvas2d`** — the cold fallback, a machine with no WebGL at all.
+  `initSubstrate`'s `forceBackend` seam already existed and **nothing at runtime
+  could set it**; `main.js` now reads it off the query string, which is also the
+  only way to look at the 2D field on the glass.
+- **`WEBGL_lose_context`** — the genuine handler path, which the forced backend
+  cannot reach.
+
+The fix swaps in a shallow-cloned canvas (id, class and the 480×270 backing store
+come with it), falls back to an `INERT` backend rather than `null` if even 2D is
+refused, and wraps the rebuild — it runs inside an event dispatch, where a throw
+is an uncaught page error *and* leaves the dead GL backend in place.
+
+**Result: canvas2d 0% → 88%, gl.js 80% → 100%, index.js 75% → 85%** (its
+denominator grew from 8 functions to 13 with the new code). Three misses remain
+and all three are the same one: **`destroy()` has no caller.** V3 never unmounts
+the field, so the wrapper's `destroy()`, `canvas2d`'s and `INERT`'s are teardown
+kept for the contract's sake. `gl.js`'s `destroy()` is no longer among them — the
+loss path calls it.
+
+⚠ **`playwright.coverage.config.js` lists the specs by name.** A V3 spec that is
+not added to that list does not make its subject read as *uncovered* — it makes
+it read as **dead**, which is the same lie pointing the other way. This spec
+covered `canvas2d.js` fully and the report still called it 100% dead until the
+filename was added.
 
 ### 2. Three entries in the voice dispatch table never fire
 
@@ -205,6 +248,11 @@ them — but they should not survive the cutover unexamined.
 - **Long intervals.** `main.js`'s 300 s cache ticks and 90 s rail tick, plus
   `health.js`'s poll interval and `now-playing.js`'s recheck, never fire inside a
   30 s spec. Their bodies are covered by direct calls; only the timer arms are dark.
+- **The substrate's teardown** (added after finding 1 closed). `initSubstrate`'s
+  `destroy()`, `canvas2d`'s and `INERT`'s have no caller: the field is mounted
+  once at boot and V3 never unmounts it. They are the backend contract's
+  symmetric half, not a gap — and `gl.js`'s `destroy()`, which the loss path
+  really does call, is the reason the contract is worth keeping.
 
 ---
 
@@ -226,7 +274,7 @@ them — but they should not survive the cutover unexamined.
 ## Re-running
 
 ```bash
-npm run verify:v3-coverage     # build + 13 specs + report  (~2 min)
+npm run verify:v3-coverage     # build + 14 specs + report  (~2 min)
 npm run build                  # ⚠ REQUIRED — puts dist/ back to the real bundle
 ```
 

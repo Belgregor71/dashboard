@@ -4,8 +4,14 @@ import base from "./playwright.config.js";
  * The V3 runtime-coverage run (V3-CUTOVER.md §5). Same server, same stubbed
  * upstreams, same specs — one launch flag different.
  *
- * It exists to name the 13 specs that actually reach V3 at runtime, so the pass
+ * It exists to name the 14 specs that actually reach V3 at runtime, so the pass
  * measures the surface rather than the whole suite.
+ *
+ * ⚠ THIS LIST IS THE DENOMINATOR'S OTHER HALF. A new V3 spec that is not added
+ * here does not read as uncovered — the code it exercises reads as DEAD, which
+ * is the same lie in the other direction. v3-substrate.spec.js was written to
+ * cover canvas2d.js and the report still called it 100% dead until it was
+ * listed here.
  *
  * NEGATIVE RESULT, recorded so nobody tries it twice: `--js-flags=--no-lazy` was
  * added here to force V8 to compile every function, on the theory that lazy
@@ -35,6 +41,7 @@ export default {
     "v3-sound-presence.spec.js",
     "v3-spread.spec.js",
     "v3-subjects.spec.js",
+    "v3-substrate.spec.js",
     "v3-voice.spec.js"
   ]
 };
