@@ -282,7 +282,15 @@ function boot() {
      is why the console line in stage() is not redundant with it. */
   stage("health", () => initHealth());
 
-  stage("substrate", () => { substrate = initSubstrate(el.substrate); });
+  /* `?__backend=canvas2d` forces the fallback — see substrate/index.js. The
+     backend is chosen by capability and every machine in this house has WebGL2,
+     so this is the only way the 2D field is ever looked at, here or on the
+     wall. Any other value is ignored rather than validated: the seam can only
+     ever ask for the weaker backend, so a typo is a normal boot. */
+  stage("substrate", () => {
+    const forceBackend = new URLSearchParams(location.search).get("__backend");
+    substrate = initSubstrate(el.substrate, { forceBackend });
+  });
 
   /* ── Step 5.1 · the panel ─────────────────────────────────────────────────
      The crontab powers the backlight down at 21:00 and DPMS says nothing to the
