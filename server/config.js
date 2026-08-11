@@ -31,10 +31,18 @@ export const SURFACE_ENTRY = {
 };
 
 /**
- * Committed default. Flip to "v3" only after the flag-on state has been seen
- * on the live kiosk (project rule: default-off until Pi-verified).
+ * Committed default — the cutover itself. "incumbent" until 2026-08-11, flipped
+ * to "v3" after a 23.6 h V3_DEFAULT=1 soak on the G11 spanning a sunset, a
+ * night, a wake and a full day: 21 boot stages with none failed, no interval
+ * body thrown (`ticks: []`), substrate still on webgl2 with one canvas, and a
+ * page that never reloaded sitting at 41 DOM nodes / 4.1 MB heap against the
+ * incumbent's 1683 / 9.8 MB at the same 24 h mark.
+ *
+ * Rollback does NOT need this constant, a deploy or a push: `V3_DEFAULT=0` in
+ * the kiosk's .env plus a dashboard.service restart overrides it in place.
+ * root-surface.spec.js pins this value, so changing it is always deliberate.
  */
-export const DEFAULT_ROOT_SURFACE = "incumbent";
+export const DEFAULT_ROOT_SURFACE = "v3";
 
 /**
  * Resolve which surface `/` serves. Takes `env` as an argument rather than

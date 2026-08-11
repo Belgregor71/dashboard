@@ -25,15 +25,20 @@ import { resolveRootSurface, SURFACE_ENTRY, DEFAULT_ROOT_SURFACE } from "../serv
  * off: `/` keeps serving the incumbent, correctly, for the wrong reason. Only
  * a source-order assertion can see it from the off state, so both a runtime
  * contract and a source guard are kept here deliberately.
+ *
+ * Since the 2026-08-11 cutover the committed default is "v3", so a sunk route
+ * WOULD now break the runtime contract too. The source guard stays anyway: it
+ * is the only one of the two that still sees the defect from the rollback
+ * state (V3_DEFAULT=0), which is exactly the state the kiosk falls back to.
  */
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 // What the running test server resolved. playwright.config.js spreads
 // process.env into the webServer, and deliberately does NOT pin V3_DEFAULT, so
-// the suite exercises the committed default — and `V3_DEFAULT=1 npm test`
-// exercises the flipped state end to end, with this file tracking it rather
-// than needing an edit.
+// the suite exercises the committed default — now "v3" — and
+// `V3_DEFAULT=0 npm test` exercises the rollback state end to end, with this
+// file tracking it rather than needing an edit.
 const EXPECTED_SURFACE = resolveRootSurface(process.env);
 
 /** Markers that only ever appear in one of the two built documents. */
@@ -93,11 +98,18 @@ test.describe("root surface", () => {
     ).toBeLessThan(distMount);
   });
 
-  test("the committed default is off until V3 has been seen on the kiosk", () => {
-    // Project rule: ship flag-gated and default-off, flip only after live
-    // verification. When that flip happens this expectation is the thing to
-    // change — deliberately, in the same commit, not as a surprise.
-    expect(["incumbent", "v3"]).toContain(DEFAULT_ROOT_SURFACE);
+  test("the committed default is pinned to the surface that was soaked", () => {
+    // This is the cutover constant: it decides what the wall shows after a
+    // Chromium restart, on a box where nothing navigates the kiosk afterwards.
+    //
+    // It MUST be an equality check. Until 2026-08-11 this asserted only
+    // `["incumbent","v3"]).toContain(...)`, which passes for either value — so
+    // the guard that was documented as making the flip deliberate would have
+    // gone green on the flip with no edit at all. A membership test of a
+    // two-element set over a two-valued constant cannot fail; it looks like a
+    // pin and is a tautology. Changing the line below is the cutover, and this
+    // expectation is what forces that change to be typed on purpose.
+    expect(DEFAULT_ROOT_SURFACE).toBe("v3");
     expect(SURFACE_ENTRY[DEFAULT_ROOT_SURFACE]).toBeTruthy();
   });
 });
