@@ -1,5 +1,10 @@
 # V3 Cutover Plan
 
+> ✅ **THE CUTOVER IS COMPLETE (2026-08-11, `77f5fb1`). `/` serves V3 by default on the live
+> wall.** Every numbered step and all four handover moves are done. **This document is now a
+> record, not a to-do list** — read the HANDOVER section at the bottom for the final state,
+> the soak readings, and the one-command rollback.
+
 **Written 2026-08-09.** Derived from a `graphify --code-only` knowledge graph of the repo
 (2,649 nodes / 6,056 edges / 163 communities, 98% EXTRACTED). Every finding below was
 **verified by reading the code**, not taken from the graph alone — the graph proposed the
@@ -155,9 +160,11 @@ passes in **both** states — flag flips have broken tests here that assumed the
 `server.js` registers `app.get("/")` **above** `express.static(dist)` and sends
 `SURFACE_ENTRY[surface]`.
 
-- `DEFAULT_ROOT_SURFACE = "incumbent"` is the committed default. **Flipping that constant is
-  the cutover**, and `tests/root-surface.spec.js` is written so the flip is a deliberate
-  edit rather than a surprise.
+- `DEFAULT_ROOT_SURFACE` is the committed default. **Flipping that constant is the cutover.**
+  It was `"incumbent"` until 2026-08-11 and is now **`"v3"`** (`77f5fb1`).
+  `tests/root-surface.spec.js` pins it with an equality so the change is always a deliberate
+  edit rather than a surprise — ⚠ **it did not, until the flip itself; see move 4 in the
+  handover for how a `toContain` over a two-valued constant faked that guarantee.**
 - `V3_DEFAULT` overrides it in **both** directions (`1`/`true`, `0`/`false`). So the wall can
   be pinned either way from `.env` with a restart and **no deploy** — that is the fast
   rollback, and it is also how the on-state was first exercised.
@@ -197,13 +204,16 @@ wrong reason. A dead root route is invisible until the moment you need it to wor
 **Suite green in both states, full runs:** 1061 passed flag-off, 1061 passed with
 `V3_DEFAULT=1`.
 
-**What is left before the default changes:**
+**What was left before the default changed — all ✅ as of 2026-08-11:**
 
-- run V3 at `/` on the live kiosk (`V3_DEFAULT=1` in the **G11's** `.env` + restart — no
-  deploy), for long enough to include a sunset and a wake;
-- §4 boot isolation, and §6 re-decided — both are about V3 being the *only* surface;
-- then flip `DEFAULT_ROOT_SURFACE` to `"v3"` and update the expectation in
-  `tests/root-surface.spec.js` in the same commit.
+- ✅ run V3 at `/` on the live kiosk (`V3_DEFAULT=1` in the **G11's** `.env` + restart — no
+  deploy), for long enough to include a sunset and a wake — **23.6 h, clean**;
+- ✅ §4 boot isolation, and §6 re-decided — both are about V3 being the *only* surface;
+- ✅ then flip `DEFAULT_ROOT_SURFACE` to `"v3"` and update the expectation in
+  `tests/root-surface.spec.js` in the same commit — `77f5fb1`, suite **1085/1085 in both
+  states**.
+
+⇒ **Done. See the handover for the readings and the rollback command.**
 
 ---
 
@@ -464,34 +474,51 @@ Ignore it.
 Items **2** and **4** are the ones that produce silent wrong behaviour or a dark wall.
 Item **1** is the one that bites a future session.
 
-§3 shipped the mechanism, not the cutover: the default is still `"incumbent"`. §4 has
-shipped the isolation — the flag only made a `boot()` throw switchable, it never made one
-survivable; now it is.
+§3 shipped the mechanism, not the cutover — **the cutover itself was handover move 4
+(`77f5fb1`, 2026-08-11), which flipped the default to `"v3"`.** §4 shipped the isolation:
+the flag only made a `boot()` throw switchable, it never made one survivable; now it is.
 
 ---
 
-## HANDOVER — state at 2026-08-10, and the next four moves
+## HANDOVER — ✅ COMPLETE as of 2026-08-11
 
-**Every numbered step in this plan is done.** What separates here from the flip is
-**verification and one code gap**, not design. Nothing below needs re-deriving.
+**Every numbered step AND all four moves are done. `/` serves V3 by default on the live
+wall** (`77f5fb1`, pushed and deployed 2026-08-11 17:59). This section is now a record of
+how it landed, not a to-do list. Nothing below needs re-deriving.
 
 ### Where the tree is
 
-Three commits **local and UNPUSHED** on `main`, working tree clean, not behind `origin`:
-
-```
-af1013c  step 6 — the three deferred contrast findings re-decided
-6ac7162  the contrast sweep had the paint order backwards
-83a23dd  step 5 — runtime coverage
-```
+Everything is **pushed**; `git log origin/main..main` is empty and the tree is clean. The
+cutover commit is `77f5fb1`, on top of `de07e3f`.
 
 ⚠ **Pushing deploys the live wall.** Two sessions share this working tree — run
 `git log origin/main..main` before any push, and never `git stash` here.
 
-⚠ **Suite is 1076/1077, not green.** The failure is `ambient-archive.spec.js`'s
-motion-burst spec — the known connection-starvation class (`d839ca9`), on the incumbent
-surface, passing in isolation at 19.3s against a 30s budget. **Do not "fix" the victim
-spec.** The pre-push hook runs the full suite, so expect to need a second run.
+**Suite is 1085/1085 green, verified in BOTH root-surface states** (the committed `"v3"`
+default, and `V3_DEFAULT=0` for the rollback path). ⚠ Clear port 3210 between back-to-back
+runs — a stale test server there makes the second run test the *old* server code.
+⚠ `ambient-archive.spec.js`'s motion-burst spec remains the known connection-starvation
+class (`d839ca9`); it passed in both full runs here, but if it goes red, **do not "fix" the
+victim spec** — re-run it.
+
+### ⚠ Rollback, now that this is the only surface
+
+**No deploy, no push, no revert, and it does not touch `DEFAULT_ROOT_SURFACE`:**
+
+```bash
+ssh pi-dashboard
+echo 'V3_DEFAULT=0' >> /home/dashboard/dashboard/.env
+sudo systemctl restart dashboard.service     # passwordless for exactly this
+# …then RELOAD the kiosk page — see below
+```
+
+⚠ **The restart alone is not enough.** The flag decides what a *navigation* to `/` returns;
+it does not move an already-loaded page, and the kiosk holds one for weeks. The flip lands
+on the next Chromium restart or a CDP `Page.reload`.
+⚠ **A page that boots *while* `dashboard.service` is restarting misses its boot fetches and
+can sit bare for up to ten minutes** — so the reload is also what makes the restart safe.
+Pre-cutover copies of the G11's `.env` are kept beside it as `.env.pre-cutover` and
+`.env.pre-v3soak`.
 
 ### ⚠ THE WALL IS THE G11, AND THE SSH ALIAS LIES ON PURPOSE
 
@@ -521,8 +548,16 @@ never-fired voice dispatch entries (`show.sky` + `showSky`, `show.tonight`, `sho
 `dissolve()`/`tick()`/`oneShot()`. Both are the same shape as this one: a path the wall
 takes when nobody is watching it.
 
-**2 · Push, then verify steps 5 and 6 on the glass.** One deploy covers both. Step 6 owes
-three sightings, none of which any spec can stand in for:
+**2 · ✅ DONE (`de07e3f`, pushed + seen 2026-08-10) — steps 5 and 6 on the glass.** One
+deploy covered both. The move ① sighting was the notable one: a real `WEBGL_lose_context` on
+the actual radeonsi/ANGLE hardware went to `canvas2d` with one canvas, still connected,
+480×270 intact, `failed: []` — and **the before/after screenshots are identical**, which is
+the whole property. ⚠ The 2D field is **invisible behind the awake photograph at depth 0**;
+it can only be *seen* with the ground gone — **`/v3/?__boom=ground&__backend=canvas2d`**, the
+two seams composing. ⚠ A screenshot taken <10 s after a navigate catches the boot fade and
+reads as a black field. Live `--ink-faint` confirmed at `oklch(.62 …)`.
+
+The three step-6 sightings this move owed, none of which any spec can stand in for:
 - a **wrapped glance line** showing the veil (`:has(.said[data-wrapped])`) — drive a hero
   over 20 characters;
 - `.rail` and `#heard` at the **lifted `--ink-faint` (0.62)**, judged from 3–4 m;
@@ -538,16 +573,54 @@ anyone. If it looks wrong, that is a thing to know **before** it is the only sur
 ⚠ After a deploy the kiosk still runs the old bundle until a CDP `Page.reload`, and the
 first fetch after a page load takes ~6 s — **warm the page before believing any timeout.**
 
-**3 · Start the `V3_DEFAULT=1` soak on the G11.** `V3_DEFAULT=1` in the **G11's** `.env`
-plus a `dashboard.service` restart — **no deploy, no push**, and it is the fast rollback in
-both directions. Needs to span **a sunset and a wake**, so start it before the flip rather
-than after. ⚠ **The wall's current surface ≠ its configured surface** — the unit file
-launches a bare `http://localhost:3000` and nothing navigates it afterwards, so only CDP
-(`curl 127.0.0.1:9222/json` **on the host**) answers "what is it showing right now".
+**3 · ✅ DONE — the `V3_DEFAULT=1` soak ran 23.6 h (2026-08-10 17:55 → 2026-08-11 17:35) and
+was clean.** It began *after* that day's sunset, so it spanned night → wake → a full day →
+the next sunset. Read on a page that **never reloaded** (`pageAgeHours` 23.62, matching the
+restart exactly):
 
-**4 · Flip `DEFAULT_ROOT_SURFACE` to `"v3"`** in `server/config.js`, updating the
-expectation in `tests/root-surface.spec.js` **in the same commit** — the spec is written so
-the flip has to be deliberate. Verify the suite in **both** states before pushing.
+- **21 boot stages, `failed: []`, `ticks: []`, `fault: null`.** 🔑 **`ticks: []` is the
+  load-bearing one** — that is step 4's `guard()` counter, so **not one interval body threw
+  in 23.6 h**, the failure mode (a `setInterval` keeps firing after a throw) that would
+  otherwise be an uncaught error every 60 s for weeks.
+- Substrate still **`webgl2`**, **one** canvas, `ground.layers: 1` — no context loss, no
+  canvas or layer accumulation. `weather` non-null throughout.
+- **41 DOM nodes / 4.1 MB heap / 274 cdpNodes / 39 listeners**, against the incumbent's own
+  24 h baseline of **1683 / 9.8 MB / 3789 / 97** at a near-identical uptime
+  (`docs/audit/HOST-BASELINES.md`, 2026-08-05). ⚠ **Verify `domNodes` before disbelieving
+  it** — it is a literal `document.querySelectorAll("*").length`, so 41 is the real count of
+  V3's entire wall, not a probe under-reading a surface it doesn't know.
+  ⚠ **This is ONE point, not a slope** — no mid-soak sample was taken, so the claim is "far
+  below a known-healthy 24 h baseline", **not** "measured flat".
+- GPU/CPU ≈ **11.4 %** of the 8-core box, inside the ≤25 % live budget. **Zero V3 errors**
+  in 23.6 h of log; all 25 error lines were pre-existing upstream noise.
+- ⚠ `heap-metrics.cjs` prints **"liveness not assessable — the archive probe is absent"** on
+  V3. That is **expected, not a fault**: `__archive` is an incumbent handle V3 never
+  publishes.
+
+⚠ **The wall's current surface ≠ its configured surface** — the unit file launches a bare
+`http://localhost:3000` and nothing navigates it afterwards, so only CDP
+(`curl 127.0.0.1:9222/json` **on the host**) answers "what is it showing right now". The
+soak was only meaningful because the wall was confirmed to be on `/`.
+
+**4 · ✅ DONE (`77f5fb1`) — `DEFAULT_ROOT_SURFACE = "v3"`, the cutover itself.**
+Verified live: log `[surface] / serves the v3 dashboard`, `/` **md5-identical to `/v3/`**
+and distinct from `/index.html`, kiosk reloaded onto the shipped bundle, then 21 stages /
+`failed: []` / `ticks: []` / `fault: null` — and photographed on the glass.
+⇒ **The `V3_DEFAULT=1` soak lines were removed from the G11's `.env` in the same operation**
+(`grep -c V3_DEFAULT .env` = 0), so **the committed constant is what drives the wall** rather
+than an override masking it. A flip nobody exercises is a flip nobody has tested.
+
+⚠⚠ **THE GUARD THIS PLAN DESCRIBED AS MAKING THE FLIP DELIBERATE WAS A TAUTOLOGY.**
+`root-surface.spec.js` asserted `expect(["incumbent","v3"]).toContain(DEFAULT_ROOT_SURFACE)`
+— **a membership test of a two-element set over a two-valued constant, which cannot fail.**
+The flip would have gone green with no test edit at all, and every *other* assertion in that
+file tracks the default dynamically (`EXPECTED_SURFACE = resolveRootSurface(process.env)` —
+even the test *title* interpolates it), so nothing else would have caught it either. Now
+`toBe("v3")` and **mutation-proven: reverting the constant fails exactly that one test while
+the other five stay green** — which is itself the proof the old line had no teeth.
+🔑 **A guard whose assertion enumerates every value its subject can take is decoration. When
+a spec's other assertions all FOLLOW the config, the one pinning it is the whole gate —
+check that it is an equality.**
 
 ### Two debts deliberately left unpaid
 
