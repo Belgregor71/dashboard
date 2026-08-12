@@ -472,19 +472,35 @@ window.CONFIG = {
     // just stay off.
     //
     // The mic is already open 24/7 for the wake word; nothing new listens. The
-    // agent reports one loudness number per second over loopback — no audio, no
-    // transcript, nothing logged — and server/services/soundPresence.js decides
-    // whether it is a person by excursion above an adaptive floor, so the Sonos
-    // and the rangehood raise the floor and stop counting.
+    // agent reports one level AND one silero speech probability per second over
+    // loopback — no audio, no transcript, nothing logged — and
+    // server/services/soundPresence.js requires BOTH: speech >= SPEECH_THRESHOLD
+    // (0.3) AND level >= NEAR_DB (-24 dBFS), on CONSECUTIVE (2) seconds.
+    //
+    // Speech answers "is this a voice"; level answers "is it in THIS room".
+    // Loudness alone CANNOT work at any threshold — a real conversation and the
+    // empty room overlap (see the measured tables in soundPresence.js). The
+    // neighbours' children are what forced the proximity half: their voices are
+    // genuinely speech, so the VAD is right and the presence verdict was wrong.
+    // CONSECUTIVE is load-bearing, not an impulse filter — outside noise through
+    // a window produces isolated loud speech-positive samples but does not hold.
+    //
+    // ⚠ NEAR_DB is ABSOLUTE dBFS and is therefore COUPLED TO THE MIC'S CAPTURE
+    // GAIN (+22.5 dB, 23/30). Change the gain and this number is void. Re-check
+    // with GET /api/voice/ambient: floorDb should sit near -30 dB.
     //
     // On: a `sound:presence` bus event feeds presence.sawMotion(), additively
     // with the camera — whichever notices first wins, neither can veto. Off: the
     // event is still emitted and still ignored, so the surface behaves exactly
-    // as it does today. One-line revert (-> false) is the rollback path.
+    // as it did before. One-line revert (-> false) is the rollback path.
     //
-    // ⚠ Default-off until MARGIN_DB is tuned against this kitchen rather than
-    // guessed. GET /api/voice/ambient publishes the numbers to tune from.
-    soundPresence: false,
+    // Flipped default-on 2026-08-12, after the failure it was built for actually
+    // happened: four eufy cameras (incl. the kitchen) delivered nothing for days
+    // because eufy-ws re-presented a stale FCM push token, so the wall sat
+    // presence-blind while every automated recovery reported "ok". Verified the
+    // same day: floorDb -30.9 (gain unchanged), decidedBy "speech", peakSpeech
+    // 0.995. A second source means one dead sensor can no longer blind the room.
+    soundPresence: true,
 
     // Living-window Phase 1 (plan: review-the-design-scheme) — rain on glass.
     // A shared episode runtime (services/atmoFx/) draws bounded droplet/streak
