@@ -29,18 +29,44 @@ import { SAFE_SERVICES } from "../ha/haRoutes.js";
 //
 // `name` is what a person would say out loud, not HA's friendly_name — it is
 // the only description of the entity the model gets.
+// Seeded 2026-08-12 from the live G11's /api/ha/states, not from the repo —
+// src/js/core/config.js:57 still names `media_player.lounge_room`, which DOES
+// NOT EXIST (the real one is `lounge_hub`). A roster copied from the codebase
+// would have shipped an entity the house has never heard of.
 export const VOICE_ENTITIES = [
-  // Seeded from src/js/core/config.js:57,61 — these three are referenced by the
-  // media lane, so they are known-real. Everything else is yours to add.
-  { id: "media_player.lounge_room", name: "lounge speaker" },
-  { id: "media_player.living_room", name: "living room TV" },
-  { id: "media_player.piano_room", name: "piano room speaker" },
+  // The outdoor floodlights. They are Eufy camera lights, so HA models them as
+  // switches, not lights — "turn on the backyard light" is a set_switch call.
+  { id: "switch.backyard_light", name: "backyard light" },
+  { id: "switch.driveway_light", name: "driveway light" },
+  { id: "switch.front_yard_light", name: "front yard light" },
+  { id: "switch.patio_light", name: "patio light" },
+  { id: "switch.side_gate_light", name: "side gate light" },
 
-  // TODO (seed on the G11): lights, switches, and the routines worth speaking to.
-  // { id: "light.<real_id>",  name: "lounge light" },
-  // { id: "switch.<real_id>", name: "heater" },
-  // { id: "script.<real_id>", name: "goodnight routine" },
+  // The only two house scenes. Everything else under script.* is dashboard
+  // NAVIGATION (script.dashboard_show_weather and ~40 siblings) — those belong
+  // to the local lane, which already matches them without a model round-trip,
+  // and listing them here would only invite the house voice to change the view
+  // when someone asked it a question.
+  { id: "scene.mode_goodnight", name: "goodnight" },
+  { id: "scene.mode_movie", name: "movie mode" },
+
+  // Rooms, not device models: the house has kd_55x8500c and four near-duplicate
+  // `_2` entries that no one would ever say out loud.
+  { id: "media_player.living_room", name: "living room" },
+  { id: "media_player.piano_room", name: "piano room" },
+  { id: "media_player.lounge_hub", name: "lounge" },
 ];
+
+// DELIBERATELY ABSENT, and worth stating so nobody "helpfully" adds them:
+//   · every switch.*_motion_detection / _camera_enabled / _status_led / _rtsp_
+//     — the Eufy camera config surface. Turning one off breaks the motion-wake
+//     chain and the cameras, and recoveryService.js exists precisely to re-arm
+//     them. A voice model must not be able to reach it.
+//   · switch.roborock_* and switch.qbittorrent_* — settings, not requests.
+//   · script.dashboard_* — see above.
+//
+// There are NO light.* entities in this house at all (checked: zero). set_light
+// therefore ships inert — toolDefs() emits it only if a light ever appears.
 
 const DOMAIN_OF = (entityId) => String(entityId).split(".")[0];
 

@@ -192,6 +192,30 @@ test("every input the tool definitions permit is allowed, on a safe service", ()
   expect(allowed, "no combination was exercised — the guard proved nothing").toBeGreaterThan(0);
 });
 
+// The roster is the whole security surface — everything else in this file
+// assumes it was curated with care. This is the one invariant about its
+// CONTENTS, not its plumbing: the house's switch.* domain is overwhelmingly
+// Eufy camera configuration (~60 of it), and a voice model that can turn off
+// switch.doorbell_motion_detection can break the motion-wake chain and the
+// cameras in one sentence. recoveryService.js exists to re-arm exactly these.
+test("no camera-config or appliance-settings switch is voice-reachable", () => {
+  const FORBIDDEN = /_(motion_detection|camera_enabled|status_led|audio_recording|microphone|speaker|rtsp_stream|antitheft_detection|auto_nightvision|pet_detection|motion_tracking)|^switch\.(roborock|qbittorrent)|_notification_/;
+
+  for (const entity of VOICE_ENTITIES) {
+    expect(
+      FORBIDDEN.test(entity.id),
+      `${entity.id} is a settings toggle, not something to ask for out loud`
+    ).toBe(false);
+  }
+
+  // Dashboard navigation belongs to the local lane, which matches it without a
+  // model round-trip. Listing it here invites the house voice to change the
+  // view when someone asked it a question.
+  for (const entity of VOICE_ENTITIES) {
+    expect(entity.id.startsWith("script.dashboard_"), `${entity.id} is navigation`).toBe(false);
+  }
+});
+
 test("the roster line is empty when the roster is, and names every entity when not", () => {
   const line = entityRoster();
   if (!VOICE_ENTITIES.length) {
