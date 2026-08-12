@@ -519,7 +519,7 @@ window.CONFIG = {
     // that surfaced them on every entry would be furniture inside a week.
     // ⚠ The bar is read PER TICK, not cached — presence changes between ticks
     // and the bar has to move with it. Live readout: `__v3().attention.bar`.
-    presenceEarnsMedium: false,
+    presenceEarnsMedium: true,
 
     // TIMELY CANDIDATES — a fact that matters for twenty minutes is scored for
     // those twenty minutes, not for the whole day.
@@ -544,7 +544,7 @@ window.CONFIG = {
     // the old flat scores — deliberate, since the incumbent is the rollback
     // surface and should not drift while it is the thing we fall back to.
     // ⚠ Windows are LOCAL time and half-open: 08:00 is already outside.
-    timelyCandidates: false,
+    timelyCandidates: true,
 
     // GROUND MEMORIES — the ambient photograph becomes "on this day".
     //
