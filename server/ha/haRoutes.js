@@ -3,7 +3,11 @@ import { getHaWsManager } from "./haWs.js";
 import { haDelete, haGet, haPatch, haPost } from "./haRest.js";
 import { readHaConfig } from "./haConfig.js";
 
-const SAFE_SERVICES = new Set([
+// Exported since 2026-08-12: the voice tool lane (server/services/voiceTools.js)
+// validates against THIS set rather than keeping a copy, so widening the boundary
+// is one edit in one place. tests/voice-tools.spec.js asserts every service that
+// lane can emit is a member — a tool added without a service here fails the suite.
+export const SAFE_SERVICES = new Set([
   "script.turn_on",
   "scene.turn_on",
   "input_select.select_option",

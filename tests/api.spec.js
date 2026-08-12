@@ -992,6 +992,11 @@ test.describe("ai + tts", () => {
     expect(body).toHaveProperty("error");
   });
 
+  // Also the flag-off contract for the tool lane (VOICE_TOOLS_ENABLED unset here):
+  // no `tools` key is sent and the shape is unchanged. The loop itself cannot be
+  // covered from this suite — ANTHROPIC_API_KEY is stubbed to "" in
+  // playwright.config.js, so the Claude leg never runs. What decides whether a
+  // tool call is ALLOWED is pure and covered in tests/voice-tools.spec.js instead.
   test("POST /api/voice/converse answers with a reply key (AI stubbed off)", async ({ request }) => {
     const { body } = await expectJson(request, "/api/voice/converse", {
       method: "post",

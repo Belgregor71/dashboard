@@ -14,6 +14,7 @@ import {
 } from "../services/voiceShape.js";
 import { searchVault, buildContext } from "../services/vaultIndex.js";
 import { createSoundDetector } from "../services/soundPresence.js";
+import { toolDefs, entityRoster, planCall } from "../services/voiceTools.js";
 import { VOICE_REGISTER } from "./ai.js";
 
 // Phase 4 "Give it a voice" — the server half of the Mode 3 conversation lanes
@@ -75,15 +76,40 @@ const CONVERSE_BASE = [
 //
 // With the vault off, or with no note clearing the score floor, the context is
 // empty and buildConverseSystem returns the original prompt byte for byte.
-function converseSystem(text) {
+// The tool lane, armed per request for the same reason VAULT_ENABLED is read
+// here and not at module scope (see the note above): server.js's static imports
+// all evaluate before its dotenv.config(), so a module-scope read sees undefined
+// on the G11 every time.
+//
+// Default OFF. With the flag off — or with the roster left unseeded, which
+// makes toolDefs() return [] — no `tools` key reaches the API and the request is
+// byte-identical to before this lane existed.
+function armedTools() {
+  return process.env.VOICE_TOOLS_ENABLED === "1" ? toolDefs() : [];
+}
+
+function converseSystem(text, tools) {
   const context =
     process.env.VAULT_ENABLED === "1" ? buildContext(searchVault(text)) : "";
   // todayLine() is appended per request, not baked into CONVERSE_BASE — the
   // date has to be current at answer time, and this route outlives midnight.
-  return buildConverseSystem([...CONVERSE_BASE, todayLine()], context);
+  // The roster rides along only when tools actually shipped: naming things the
+  // model has no tool for is how you get a confident claim that the light is off.
+  const lines = [...CONVERSE_BASE, todayLine()];
+  if (tools.length) lines.push(entityRoster());
+  return buildConverseSystem(lines, context);
 }
 
-const CONVERSE_MAX_TOKENS = 150;
+// Raised from 150 when the tool lane landed. max_tokens caps tool_use blocks and
+// the spoken reply TOGETHER, and 150 truncates mid-tool-call — which surfaces as
+// a turn that says nothing and does nothing. The reply stays short because
+// CONVERSE_BASE asks for 1-2 sentences, not because the ceiling forces it.
+const CONVERSE_MAX_TOKENS = 400;
+
+// A device turn costs a round-trip per tool round. Three is enough for "turn off
+// the lamp and pause the music" (one round, two parallel calls) plus a retry
+// after a rejection; past that the house is stuck in a loop nobody asked for.
+const MAX_TOOL_ROUNDS = 3;
 
 let anthropic = null;
 function getAnthropic() {
@@ -97,17 +123,69 @@ function getAnthropic() {
   return anthropic;
 }
 
-async function converseWithClaude(messages, system) {
+// Execute one tool_use block and shape its tool_result. Never throws: a refusal
+// and a dead HA are both answers the model can speak, and an exception here
+// would drop the whole turn into the Ollama fallback, which has no tools and
+// would cheerfully claim the light is off.
+async function runToolCall(block) {
+  const plan = planCall(block.name, block.input);
+  if (!plan.ok) {
+    return { type: "tool_result", tool_use_id: block.id, content: plan.reason, is_error: true };
+  }
+  try {
+    await haPost(`/api/services/${plan.domain}/${plan.service}`, plan.body);
+    reportSuccess("ha");
+    return { type: "tool_result", tool_use_id: block.id, content: "done" };
+  } catch (err) {
+    console.error(`[Voice] tool ${plan.domain}.${plan.service} failed:`, err.message);
+    reportFailure("ha", err.message);
+    return {
+      type: "tool_result",
+      tool_use_id: block.id,
+      content: "the house did not respond",
+      is_error: true
+    };
+  }
+}
+
+async function converseWithClaude(messages, system, tools = []) {
   const client = getAnthropic();
   if (!client) return null;
-  const msg = await client.messages.create({
-    model:      process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5",
-    max_tokens: CONVERSE_MAX_TOKENS,
-    system,
-    messages,
-  });
-  const text = msg.content.find(b => b.type === "text")?.text ?? "";
-  return text.trim() || null;
+
+  const turns = [...messages];
+  for (let round = 0; ; round += 1) {
+    const msg = await client.messages.create({
+      model:      process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5",
+      max_tokens: CONVERSE_MAX_TOKENS,
+      system,
+      messages:   turns,
+      // Omitted entirely when disarmed, so the flag-off request is unchanged.
+      ...(tools.length ? { tools } : {})
+    });
+
+    const text = (msg.content.find(b => b.type === "text")?.text ?? "").trim();
+    if (msg.stop_reason !== "tool_use") return text || null;
+
+    if (round >= MAX_TOOL_ROUNDS) {
+      // Still asking for tools at the cap. The pending calls are deliberately
+      // NOT run. Answer honestly rather than returning null: null falls through
+      // to the Ollama leg, which has no tools, no idea a device was involved,
+      // and would happily say the light is off.
+      console.warn(`[Voice] tool loop hit ${MAX_TOOL_ROUNDS} rounds; stopping`);
+      return text || "I got tangled up doing that — can you ask me again?";
+    }
+
+    // The full content, not just the text: dropping the tool_use blocks breaks
+    // the pairing the next request validates against.
+    turns.push({ role: "assistant", content: msg.content });
+
+    const calls = msg.content.filter(b => b.type === "tool_use");
+    const results = await Promise.all(calls.map(runToolCall));
+    // ALL results in ONE user message. Splitting them across messages trains the
+    // model out of asking for parallel calls, and "lights off and pause the
+    // music" is exactly the turn that wants them.
+    turns.push({ role: "user", content: results });
+  }
 }
 
 async function converseWithOllama(messages, system) {
@@ -136,12 +214,16 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
   if (!text) return res.status(400).json({ error: "text is required" });
 
   const messages = buildConverseMessages(text, req.body?.history);
+  // Armed once per turn so the roster in the prompt and the tools in the request
+  // can never disagree — naming a light the model has no tool for is how you get
+  // a confident lie about it.
+  const tools = armedTools();
   // Retrieved once and shared by both legs, so the Ollama fallback answers from
   // the same notes rather than reverting to "I don't know".
-  const system = converseSystem(text);
+  const system = converseSystem(text, tools);
 
   try {
-    const reply = await converseWithClaude(messages, system);
+    const reply = await converseWithClaude(messages, system, tools);
     if (reply) {
       reportSuccess("ai");
       return res.json({ reply, source: "claude" });
