@@ -396,7 +396,11 @@ test.describe("slim — the motion id rides only when the knob is on", () => {
     exifInfo: { city: "Nudgee", state: "Queensland", country: "Australia", latitude: -27.3, longitude: 153.07 },
     people: [{ name: "Joe Perry-McHugh" }]
   };
-  const BASE_KEYS = ["id", "localDateTime", "city", "state", "country", "lat", "lng", "people"];
+  /* NINE since 2026-08-12:  was added for the ambient ground, which
+     orders landscape photographs before portrait ones. A portrait preview is
+     the only image in the path that gets upscaled (1.33x) and it is cropped to
+     ~42% of its content, so orientation decides how good the wall looks. */
+  const BASE_KEYS = ["id", "localDateTime", "city", "state", "country", "lat", "lng", "people", "aspect"];
 
   const withKnob = (value, fn) => {
     const prev = process.env.IMMICH_LIVE_MOTION;
@@ -408,7 +412,7 @@ test.describe("slim — the motion id rides only when the knob is on", () => {
     }
   };
 
-  test("unset → exactly the eight keys, and no motion id anywhere", () => {
+  test("unset → exactly the nine keys, and no motion id anywhere", () => {
     withKnob(null, () => {
       expect(liveMotionEnabled()).toBe(false);
       const out = slim(ASSET);
@@ -417,7 +421,7 @@ test.describe("slim — the motion id rides only when the knob is on", () => {
     });
   });
 
-  test("on → the same eight plus motionId, nothing else moved", () => {
+  test("on → the same nine plus motionId, nothing else moved", () => {
     withKnob("1", () => {
       expect(liveMotionEnabled()).toBe(true);
       const out = slim(ASSET);

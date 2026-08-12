@@ -818,3 +818,52 @@ html, body {
     calc(sin(var(--sun-az)) * 18px + 10px)
     46px oklch(0.05 0 0 / 0.42);
 }
+
+/* ── The ground caption ─────────────────────────────────────────────────────
+   Who, where, when — under the photograph, bottom left, quiet.
+
+   ⚠ It sits over a PHOTOGRAPH, which is the worst-case backdrop in this house
+   (see tests/verify/v3-contrast.spec.js): a blown-out sky puts white ink on
+   near-white. The local scrim below is what makes it legible without dimming
+   the picture, and it is a gradient rather than a slab so the photograph keeps
+   its bottom edge. Same pattern the depth-2 surfaces settled on.
+
+   ⚠ HIDDEN AT NIGHT, matching Daily Memories: after dark the wall is a clock
+   and a dim photograph, and a name floating in a dark room reads as an alert. */
+.ground-caption {
+  position: fixed;
+  left: var(--gutter, 3.2rem);
+  bottom: calc(var(--gutter, 3.2rem) * 0.72);
+  z-index: 2;                 /* above .photo (1), below the substrate stack */
+  margin: 0;
+  max-width: 44ch;
+  font-size: 1.4rem;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  color: var(--ink-dim);
+  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.4);
+  opacity: 1;
+  transition: opacity 1.2s ease;
+  pointer-events: none;
+}
+
+/* An empty caption must not leave a scrim hanging over the photograph. */
+.ground-caption[data-blank="1"] { opacity: 0; }
+
+.ground-caption::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--gutter, 3.2rem) * -0.5);
+  right: -2rem;
+  top: -0.6rem;
+  bottom: -0.8rem;
+  z-index: -1;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0));
+  border-radius: 2px;
+}
+
+:root[data-night="1"] .ground-caption { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ground-caption { transition: none; }
+}

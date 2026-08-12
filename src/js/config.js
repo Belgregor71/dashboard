@@ -502,6 +502,77 @@ window.CONFIG = {
     // 0.995. A second source means one dead sensor can no longer blind the room.
     soundPresence: true,
 
+    // PRESENCE EARNS MEDIUM — the bar moves with the room.
+    //
+    // attention.js normally requires score >= 70 (High) before a candidate can
+    // take the glance cell. That line exists so the wall never lights up for
+    // nobody. When someone IS in the room that reason is spent — the house has
+    // an audience, and the audience is the visible cause the calm law asks for.
+    //
+    // On: while isPresent(), the bar drops to the Medium floor (50), so things
+    // that are worth a glance if you are already standing there — bin night, a
+    // real change in the day — can earn depth 1. Off: the bar is 70 always, so
+    // the flag-off surface is behaviourally identical to before.
+    //
+    // ⚠ Low band (40-49) never earns the screen at ANY presence. Commute, plex
+    // and tonight's menu are the day's readouts — permanently true, and a wall
+    // that surfaced them on every entry would be furniture inside a week.
+    // ⚠ The bar is read PER TICK, not cached — presence changes between ticks
+    // and the bar has to move with it. Live readout: `__v3().attention.bar`.
+    presenceEarnsMedium: false,
+
+    // TIMELY CANDIDATES — a fact that matters for twenty minutes is scored for
+    // those twenty minutes, not for the whole day.
+    //
+    // Some candidates are permanently true and only sometimes worth the screen.
+    // The drive to work is identical at 07:00 Tuesday, when it is the most
+    // useful thing the wall can say, and at 23:00 Sunday, when it is noise — so
+    // a fixed score (42, Low band) meant it could never be shown at all.
+    //
+    // On, the windows are:
+    //   commute        weekdays 06:30–08:00  → 72 (High: earns the hero)
+    //   tonight's menu every day 17:00–18:30 → 72, AND stackOnly lifted
+    //
+    // ⚠ The menu needed BOTH. attentionRank picks the hero with
+    // `eligible.find(c => !c.stackOnly)`, so a stackOnly candidate can never be
+    // the centred hero at any score — raising its number alone changes nothing.
+    //
+    // Off: every score and every stackOnly is exactly as before, so the flag-off
+    // surface is behaviourally identical. One-line revert (-> false).
+    //
+    // ⚠ V3 only. focusHero (the incumbent) does not pass `timely`, so it keeps
+    // the old flat scores — deliberate, since the incumbent is the rollback
+    // surface and should not drift while it is the thing we fall back to.
+    // ⚠ Windows are LOCAL time and half-open: 08:00 is already outside.
+    timelyCandidates: false,
+
+    // GROUND MEMORIES — the ambient photograph becomes "on this day".
+    //
+    // The ground held ONE photograph for the whole day by design (see the long
+    // note at the top of v3/core/ground.js). In practice a day spent with a
+    // picture you don't much like has no way out, and the wall stops being
+    // looked at — which fails the only test that matters.
+    //
+    // On: /api/immich/on-this-day supplies the same date across every year in
+    // the library (116 photographs from 2011–2023 on the day this shipped),
+    // drawn ONCE per local day, walked in shuffled order, one cross-fade per
+    // ten-minute tick — no new timer, and no repeat until the day's set is
+    // exhausted. A caption names who / where / when where Immich knows them.
+    //
+    // ⚠ The screenshot and receipt filter rides along already: the memories
+    // search requests `withExif`, which is what lets `isScreenshot` see the
+    // dimensions and missing camera make at all. IMMICH_EXCLUDE_SCREENSHOTS=1
+    // is set on the G11. ⚠ Two more aggressive filters were built and REJECTED
+    // for dropping real memories — sample the library before building a third.
+    //
+    // ⚠ Falls back to the old random endpoint on a date with no memories; some
+    // days have none, and a blank wall is worse than a random photograph.
+    // ⚠ The caption is hidden at night, matching Daily Memories.
+    //
+    // Off: one random photograph held for the day, and no caption — byte-for-
+    // byte the previous behaviour. One-line revert (-> false).
+    groundMemories: false,
+
     // Living-window Phase 1 (plan: review-the-design-scheme) — rain on glass.
     // A shared episode runtime (services/atmoFx/) draws bounded droplet/streak
     // "moments" on a front canvas, then hides it: the GPU-0% ambient baseline

@@ -31,7 +31,11 @@
 
   <!-- The photographic ground. An <img>, not a background-image, because the
        scrim sampler needs to read its pixels to compute legibility per photo. -->
-  <div class="photo"><img id="ground" alt="" /></div>
+  <div class="photo"><img id="ground" alt="" />
+    <!-- Who, where, when. Empty (and invisible) unless groundMemories is on and
+         the library actually knows something about the photograph. -->
+    <p id="ground-caption" class="ground-caption" data-blank="1"></p>
+  </div>
 
   <!-- Shaped gradient scrim. Opacity is COMPUTED from the measured luminance
        under the text, not guessed. Blur is not a material in V3. -->

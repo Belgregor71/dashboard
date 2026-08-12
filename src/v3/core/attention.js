@@ -90,6 +90,18 @@ const TICK_MS = 30_000;
    line between something worth surfacing and chatter. */
 const HIGH_MIN_SCORE = 70;
 
+/* The Medium band floor, also from candidateSources.js. Only ever used while
+   someone is IN THE ROOM (see earnsGlance) — an empty room keeps the High bar.
+
+   The 70 line exists so the wall does not light up for nobody. When the room is
+   occupied that reason is spent: the house has an audience, and the audience is
+   the visible cause the calm law asks for. Medium is "worth a glance if you are
+   already here" — bin night, a rubbish collection, a real change in the day.
+   ⚠ Low (40-49) STILL never earns the screen at any presence: commute, plex and
+   tonight's menu are the day's readouts, permanently true, and a wall that
+   surfaced those on every entry would be furniture inside a week. */
+const MEDIUM_MIN_SCORE = 50;
+
 const REASON_PREFIX = "attention:";
 
 let last = null;
@@ -134,10 +146,21 @@ function ownsDepth() {
   return String(getReason() ?? "").startsWith(REASON_PREFIX);
 }
 
+/* The bar this candidate has to clear. High (70) by default; Medium (50) while
+   someone is in the room, behind `presenceEarnsMedium`.
+
+   ⚠ Read PER CALL, never cached: presence changes between ticks and the whole
+   point is that the bar moves with it. `isPresent()` is the same source
+   `modeForPresence()` uses, so the bar and the mode can never disagree. */
+function glanceBar() {
+  const lowered = Boolean(globalThis.window?.CONFIG?.features?.presenceEarnsMedium);
+  return lowered && isPresent() ? MEDIUM_MIN_SCORE : HIGH_MIN_SCORE;
+}
+
 /** Does this candidate earn the surface, or is it just the day's readouts? */
 function earnsGlance(hero) {
   if (!hero) return false;
-  return hero.interrupt === true || hero.score >= HIGH_MIN_SCORE;
+  return hero.interrupt === true || hero.score >= glanceBar();
 }
 
 /* ── The glance cell ────────────────────────────────────────────────────────
@@ -179,7 +202,18 @@ export function tickAttention(now = new Date()) {
      lifetime of the page: dropping a candidate from the QUEUE does not drop it
      from the array it came out of, and this page runs for weeks. */
   announced = announced.filter((c) => c.expiresAt == null || c.expiresAt > now.getTime());
-  const sources = [...collectSources(state), ...announced];
+  /* `now` and the timely flag ride in with the rest of the state — see the
+     window block in candidateSources.js for why the flag is passed rather than
+     read there. The tick already owns a clock, so the windows and the queue's
+     own expiry can never disagree about the moment. */
+  const sources = [
+    ...collectSources({
+      ...state,
+      now,
+      timely: Boolean(globalThis.window?.CONFIG?.features?.timelyCandidates)
+    }),
+    ...announced
+  ];
   const mode = modeForPresence();
   const sel = getSelection({ sources, now, mode });
 
@@ -245,6 +279,9 @@ export function tickAttention(now = new Date()) {
     depth: getDepth(),
     reason: getReason(),
     earned,
+    // The bar the hero had to clear, so a "why didn't it show?" reading is one
+    // number rather than an inference from present + flag + score.
+    bar: glanceBar(),
     acted,
     owns: ownsDepth(),
     template: composition?.template ?? spreadMounted(),

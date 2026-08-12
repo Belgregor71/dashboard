@@ -62,15 +62,66 @@ export function nextEventCandidate({ nextEventActive, nextEventText, nextEventTi
   };
 }
 
-/** Plain commute readout — low band. */
-export function commuteCandidate({ commuteActive, commuteText } = {}) {
+/* ── Timely windows ─────────────────────────────────────────────────────────
+   Some facts are permanently true and matter for twenty minutes. The drive to
+   work is the clearest case: identical at 07:00 on a Tuesday, when it is the
+   most useful thing the wall can say, and at 23:00 on a Sunday, when it is
+   noise. A fixed score cannot tell those apart, so the wall never showed it.
+
+   `leaveBy` in insightRules.js already scores this way (84 + proximity), but it
+   only fires for a CALENDAR EVENT with a drive — a routine departure that lives
+   in nobody's calendar produces no candidate at all. These windows cover that.
+
+   ⚠ Gated on `timely` from the runtime, not read from CONFIG here: this module
+   has no imports and no globals by design, so the surface passes the flag in
+   with everything else. Absent `timely`, every score below is unchanged.
+   ⚠ `now` likewise comes IN — collectSources injects it once at the boundary. */
+const IN_WINDOW_SCORE = 72; // clears the High floor (70) — earns the hero
+
+const COMMUTE_WINDOW = { fromMin: 6 * 60 + 30, toMin: 8 * 60, weekdaysOnly: true };
+const MENU_WINDOW = { fromMin: 17 * 60, toMin: 18 * 60 + 30, weekdaysOnly: false };
+
+/* The camera's window is measured from the TRIGGER, not the clock — three
+   minutes is roughly how long someone is still at the door or walking away. */
+const CAMERA_TRIGGER_HOT_MS = 3 * 60 * 1000;
+
+/** `now` as epoch ms, accepting a Date, a number, or nothing. */
+function nowMs(now) {
+  if (now instanceof Date) return now.getTime();
+  if (typeof now === "number" && Number.isFinite(now)) return now;
+  return Number.NaN; // NaN comparisons are false → never "hot", never a window
+}
+
+/** Minutes since local midnight, or null when `now` is unusable. */
+function minutesOfDay(now) {
+  const d = now instanceof Date ? now : new Date(now ?? NaN);
+  return Number.isNaN(d.getTime()) ? null : d.getHours() * 60 + d.getMinutes();
+}
+
+/** Is `now` inside the window? Half-open [from, to) so 08:00 is already out. */
+function inWindow(now, { fromMin, toMin, weekdaysOnly }) {
+  const mins = minutesOfDay(now);
+  if (mins === null) return false;
+  if (weekdaysOnly) {
+    const day = (now instanceof Date ? now : new Date(now)).getDay();
+    if (day === 0 || day === 6) return false;
+  }
+  return mins >= fromMin && mins < toMin;
+}
+
+/** Plain commute readout — low band, except on a weekday morning. */
+export function commuteCandidate({ commuteActive, commuteText, now, timely } = {}) {
   if (!commuteActive || !commuteText) return null;
+  const timelyNow = Boolean(timely) && inWindow(now, COMMUTE_WINDOW);
   return {
     id: `commute:${commuteText}`,
     source: "commute",
     icon: "🚗",
     text: commuteText,
-    score: 42,
+    /* Flat, not climbing like leaveBy: you want the drive time EARLY enough to
+       act on it, so a score that peaks at the end of the window would surface it
+       exactly when it is too late to help. Constant through the window. */
+    score: timelyNow ? IN_WINDOW_SCORE : 42,
     cooldownMs: 0
   };
 }
@@ -127,8 +178,9 @@ export function plexCandidate({ plexActive, plexText, plexImage } = {}) {
  * follow-up). Only present when the runtime reads it (gated on
  * features.foldHomeTiles), so flag-off carries no candidate.
  */
-export function tonightsMenuCandidate({ menuActive, menuName } = {}) {
+export function tonightsMenuCandidate({ menuActive, menuName, now, timely } = {}) {
   if (!menuActive || !menuName) return null;
+  const timelyNow = Boolean(timely) && inWindow(now, MENU_WINDOW);
   return {
     id: `tonights-menu:${menuName}`,
     source: "tonightsMenu",
@@ -137,8 +189,12 @@ export function tonightsMenuCandidate({ menuActive, menuName } = {}) {
     // Tier-1a rich-card slots: the dish over its standing eyebrow.
     title: menuName,
     sub: "Tonight's menu",
-    score: 40,
-    stackOnly: true, // stack card only, never the centred hero
+    score: timelyNow ? IN_WINDOW_SCORE : 40,
+    /* ⚠ THE SCORE ALONE WOULD CHANGE NOTHING. attentionRank picks the hero with
+       `eligible.find((c) => !c.stackOnly)`, so a stackOnly candidate can never
+       be the centred hero at ANY score. The window has to lift both, or the
+       menu stays a stack card nobody sees on a surface that renders the hero. */
+    stackOnly: !timelyNow,
     cooldownMs: 0
   };
 }
@@ -176,8 +232,15 @@ export function cameraSnapshotUrl({ cameraId, at, now = Date.now() } = {}) {
   return `/api/camera/${encodeURIComponent(cameraId)}/snapshot?ts=${ts}`;
 }
 
-export function cameraTriggerCandidate({ cameraTriggerName, cameraTriggerAt, cameraTriggerLabel, cameraTriggerImage } = {}) {
+export function cameraTriggerCandidate({ cameraTriggerName, cameraTriggerAt, cameraTriggerLabel, cameraTriggerImage, now, timely } = {}) {
   if (!cameraTriggerName || !cameraTriggerAt) return null;
+  /* Unlike the commute and the menu, this window is relative to the EVENT, not
+     to the clock: someone reached the door, and it matters for the couple of
+     minutes you might still catch them. After that it decays back to a stack
+     card for the rest of its 15-minute life rather than vanishing, because a
+     recent trigger is still worth having in the stack when you walk past. */
+  const ageMs = nowMs(now) - cameraTriggerAt;
+  const hot = Boolean(timely) && ageMs >= 0 && ageMs <= CAMERA_TRIGGER_HOT_MS;
   return {
     id: `camera-trigger:${cameraTriggerAt}`,
     source: "cameraTrigger",
@@ -189,8 +252,8 @@ export function cameraTriggerCandidate({ cameraTriggerName, cameraTriggerAt, cam
     image: cameraTriggerImage || null,
     title: cameraTriggerName,
     sub: cameraTriggerLabel || null,
-    score: 45,
-    stackOnly: true, // rides the lean-in stack, never the centred hero
+    score: hot ? IN_WINDOW_SCORE : 45,
+    stackOnly: !hot, // outside the hot window: the lean-in stack, never the hero
     expiresAt: cameraTriggerAt + CAMERA_TRIGGER_FRESH_MS,
     cooldownMs: 0
   };
@@ -324,9 +387,15 @@ export const SOURCES = [
 
 /** Run every source adapter over the runtime-read state; drop nulls. */
 export function collectSources(state = {}) {
+  /* `now` is injected ONCE here rather than read inside each adapter: the
+     adapters stay pure and unit-testable in plain node (a spec passes any clock
+     it likes), and a single tick cannot have two adapters disagreeing about
+     what time it is. A caller that supplies its own `now` — every spec, and the
+     V3 tick, which already has one — keeps it. */
+  const withNow = state.now == null ? { ...state, now: Date.now() } : state;
   return SOURCES.map((fn) => {
     try {
-      return fn(state);
+      return fn(withNow);
     } catch {
       return null; // one bad adapter must never take down the hero
     }

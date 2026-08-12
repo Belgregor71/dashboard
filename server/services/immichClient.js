@@ -134,9 +134,37 @@ export function liveMotionEnabled() {
  * different design argument entirely — see §7 of the ambient-motion plan. Relax
  * this and full-length videos start appearing in every rotation by accident.
  */
+/* The panel is 1920 wide and the ambient ground overscans it, so anything whose
+   ORIGINAL long edge is under this was always going to be upscaled mush.
+
+   ⚠ MEASURED BEFORE IT WAS CHOSEN, because two earlier filters here were built
+   on reasoning and rejected for dropping real memories. Sample of 250 assets
+   across the on-this-day range on the live library (2026-08-12): long edge
+   min 1136 · p5 1920 · p50 3238 · max 7493 — exactly ONE asset under 1200.
+   So this threshold removes ~0.4% and cannot be the cause of a soft-looking
+   wall. It is a guard against genuine outliers, not a sharpness fix.
+
+   🔑 THE REAL CAUSE OF SOFTNESS IS DELIVERY, NOT SOURCE: fetchRendition asks
+   for `size=preview` (~1440px long edge) with the stated reason "so the Pi
+   never decodes a full-res original" — and the Pi was replaced by the G11 on
+   2026-08-01. A 1440px rendition upscaled onto an overscanned 1920 panel is
+   soft no matter how sharp the original is.
+
+   ⚠ Zero dimensions mean the caller did not ask for `withExif`, NOT a small
+   photo. Fail open — the same trap isScreenshot documents. */
+const MIN_LONG_EDGE = 1200;
+
+export function isLowResolution(a) {
+  const w = Number(a?.exifInfo?.exifImageWidth) || 0;
+  const h = Number(a?.exifInfo?.exifImageHeight) || 0;
+  if (!w || !h) return false; // unknown is not small
+  return Math.max(w, h) < MIN_LONG_EDGE;
+}
+
 function usableImage(a) {
   if (!(a && a.id && a.type === "IMAGE" && !a.isTrashed && !a.isArchived)) return false;
   if (excludeScreenshots() && isScreenshot(a)) return false;
+  if (isLowResolution(a)) return false;
   return true;
 }
 
@@ -159,6 +187,17 @@ export function slim(a) {
     // caption anything. Only the daily-memories windows ask for withPeople, so
     // this is [] for the random/browse callers.
     people: (a.people || []).map((p) => String(p?.name || "").trim()).filter(Boolean),
+    /* Orientation, for the ambient ground. A PORTRAIT photograph on a 32"
+       landscape wall is the worst case twice over: object-fit cover must scale
+       a 1440x1920 preview by 1.33 to fill 1920 wide (the only upscale in the
+       whole path — a landscape preview lands at exactly 1.0), and it crops away
+       ~58% of the picture doing it. Null when the caller did not ask for
+       withExif, which callers must treat as unknown, never as portrait. */
+    aspect: (() => {
+      const w = Number(a?.exifInfo?.exifImageWidth) || 0;
+      const h = Number(a?.exifInfo?.exifImageHeight) || 0;
+      return w && h ? Math.round((w / h) * 1000) / 1000 : null;
+    })(),
     // The id of this photo's motion half, when it has one and the knob is on.
     // Spread conditionally so the knob-off object keeps exactly the eight keys
     // it has always had (asserted in the contract test).
