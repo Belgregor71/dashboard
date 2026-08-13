@@ -27,10 +27,33 @@ function buildPlexUrl(baseUrl, pathValue) {
   return `${trimmedBase}${normalizedPath}`;
 }
 
+/* ⚠ SEEN ON THE GLASS, 2026-08-13: the ambient band read `X-Men &#39;97`.
+   These are XML attribute values and the entities in them are ENCODING, not
+   content — an apostrophe in a show title arrives as `&#39;`, an ampersand as
+   `&amp;`. Nothing decoded them, and every consumer renders with textContent
+   (correctly — this is data), so the raw entity went straight to the wall.
+
+   Decoded here, at the parse boundary, rather than in each reader: `thumb` is a
+   URL whose query string arrives with `&amp;` separators and must be decoded to
+   be usable, and a title is a title. The named set plus numeric escapes covers
+   what XML actually permits unescaped. */
+function decodeEntities(value) {
+  return value
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    /* LAST, always. `&amp;lt;` is a literal "&lt;" and decoding the ampersand
+       first would turn it into a "<" that was never there. */
+    .replace(/&amp;/g, "&");
+}
+
 function tagAttributes(tag) {
   const attributes = {};
   for (const [, key, value] of tag.matchAll(/(\w+)="([^"]*)"/g)) {
-    attributes[key] = value;
+    attributes[key] = decodeEntities(value);
   }
   return attributes;
 }

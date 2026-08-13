@@ -611,6 +611,34 @@ test.describe("parsePlexSessions", () => {
     expect(sessions[1].player).toBe("Brett's iPhone");
   });
 
+  test("XML entities are decoded — the wall showed `X-Men &#39;97`", async () => {
+    /* ⚠ SEEN ON THE GLASS, 2026-08-13, in the ambient band. These are attribute
+       values: the entities are XML encoding, not content. Every consumer renders
+       with textContent — correctly, this is data — so an undecoded `&#39;` goes
+       to the wall verbatim. */
+    const { parsePlexSessions } = await import("../server/routes/plex.js");
+    const [s] = parsePlexSessions(
+      `<Video title="X-Men &#39;97" grandparentTitle="Law &amp; Order" thumb="/p?w=1&amp;h=2">
+         <Player title="Brett&apos;s iPhone" />
+       </Video>`
+    );
+
+    expect(s.title).toBe("X-Men '97");
+    expect(s.grandparentTitle).toBe("Law & Order");
+    expect(s.player).toBe("Brett's iPhone");
+    // The thumb is a URL, and `&amp;` is how XML spells the separator. Left
+    // encoded it would be requested as a literal "&amp;" and 404.
+    expect(s.thumb).toBe("/p?w=1&h=2");
+  });
+
+  test("a double-escaped entity decodes once, not twice", async () => {
+    // `&amp;lt;` is a literal "&lt;". Decoding the ampersand before the angle
+    // brackets would invent a "<" that was never in the title.
+    const { parsePlexSessions } = await import("../server/routes/plex.js");
+    const [s] = parsePlexSessions(`<Video title="a &amp;lt; b" thumb="/t" />`);
+    expect(s.title).toBe("a &lt; b");
+  });
+
   test("a client with no friendly name falls back, and no player is null", async () => {
     const { parsePlexSessions } = await import("../server/routes/plex.js");
 
