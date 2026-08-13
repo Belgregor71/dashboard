@@ -177,6 +177,17 @@ test("a populated stack never overlaps the centred hero", async ({ page }) => {
   await expect.poll(() => page.evaluate(() => window.__attention().hero?.id)).toBe("t-hero");
   await expect.poll(() => page.evaluate(() => document.querySelectorAll("#focus-stack .focus-stack__item").length)).toBe(2);
 
+  /* ⚠ WAIT FOR THE HERO TO BE LAID OUT, not merely for the data to be right.
+     Observed failing once in a full-suite run and passing in isolation: the two
+     polls above are satisfied by the ENGINE (hero id) and by the STACK (item
+     count), and neither says the hero element itself has a box yet. Under load
+     the rect came back all zeros, so `heroBottom <= stackTop` passed for the
+     worst possible reason and `heroTop >= 180` reported 0. A geometry assertion
+     has to wait on geometry. */
+  await expect
+    .poll(() => page.evaluate(() => document.getElementById("focus-hero").getBoundingClientRect().height))
+    .toBeGreaterThan(0);
+
   const geom = await page.evaluate(() => {
     const h = document.getElementById("focus-hero").getBoundingClientRect();
     const s = document.getElementById("focus-stack").getBoundingClientRect();
