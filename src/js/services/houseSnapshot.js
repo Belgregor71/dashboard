@@ -51,7 +51,9 @@ import { CONFIG } from "../core/config.js";
 import {
   COMMUTE_ORIGIN,
   COMMUTE_GREG_DEST,
-  COMMUTE_BRETT_DEST
+  COMMUTE_BRETT_DEST,
+  COMMUTE_GREG_LABEL,
+  COMMUTE_BRETT_LABEL
 } from "../config/config.js";
 
 /* The HTTP-backed half. Refreshed on an init-once timer by the host surface,
@@ -92,12 +94,20 @@ async function fetchLeg(origin, destination) {
   return `${Math.round(data.seconds / 60)} min`;
 }
 
+/* ⚠ EACH LEG CARRIES ITS NAME. Seen on the glass 2026-08-13: "11 min · 18 min"
+   at 132px, with nothing anywhere saying whose drive either number was. A
+   duration with no subject is not a readout, it is a riddle — and it was the
+   dominant cell of the spread. One failed leg still contributes nothing, so the
+   surviving one is named rather than silently becoming "the" commute. */
 async function fetchCommute() {
   const [greg, brett] = await Promise.all([
     fetchLeg(COMMUTE_ORIGIN, COMMUTE_GREG_DEST),
     fetchLeg(COMMUTE_ORIGIN, COMMUTE_BRETT_DEST)
   ]);
-  const parts = [greg, brett].filter(Boolean);
+  const parts = [
+    greg ? `${COMMUTE_GREG_LABEL} ${greg}` : null,
+    brett ? `${COMMUTE_BRETT_LABEL} ${brett}` : null
+  ].filter(Boolean);
   return parts.length ? parts.join(" · ") : null;
 }
 
@@ -247,7 +257,9 @@ function nowPlayingFrom(byId) {
       if (isTvAudio(entity)) continue;
       const title = entity.attributes?.media_title;
       if (!title) continue;
-      const source = entity.attributes?.media_series_title || entity.attributes?.media_artist || group?.label || null;
+      const artist = entity.attributes?.media_series_title || entity.attributes?.media_artist || null;
+      const room = group?.label || null;
+      const source = artist || room;
       return {
         text: [source, title].filter(Boolean).join(" — "),
         /* Resolved, not raw. focusHero reads this value out of a rendered
@@ -256,7 +268,13 @@ function nowPlayingFrom(byId) {
            this whole module exists to guarantee. See services/mediaImage.js. */
         image: resolveMediaImage(entity.attributes?.entity_picture) || null,
         title,
-        sub: source
+        /* ⚠ THE ROOM IS THE CONTEXT, and it used to be the first thing dropped:
+           `source` falls back to the group label only when there is no artist,
+           so a track with an artist named the artist and never said WHERE it
+           was playing. Both, joined — and `artist || room` above means the two
+           can never be the same string, so this cannot print "Lounge Room ·
+           Lounge Room". */
+        sub: [artist, room].filter(Boolean).join(" · ") || null
       };
     }
   }
@@ -289,6 +307,12 @@ function plexFrom(sessions) {
 
   return {
     text,
+    /* WHERE, which is the half the wall never had. "Colin from Accounts" alone
+       is a phrase with no context; over "Lounge Room TV" it is an answer. The
+       server parses the `<Player>` child for this (routes/plex.js) — before
+       2026-08-13 it dropped it, so an older payload has no `player` and the
+       eyebrow falls back to naming the source rather than the room. */
+    sub: session.player || "Plex",
     image: session.thumb ? `/api/plex/image?path=${encodeURIComponent(session.thumb)}` : null
   };
 }
@@ -399,6 +423,7 @@ export function houseSnapshot({ now = new Date(), insight = null, entities: inje
 
     plexActive: Boolean(plex),
     plexText: plex?.text ?? null,
+    plexSub: plex?.sub ?? null,
     plexImage: plex?.image ?? null,
 
     menuActive: Boolean(menuName),

@@ -30,7 +30,7 @@ const READ_STATE_KEYS = [
   "commuteActive", "commuteText",
   "nextEventActive", "nextEventText", "nextEventTitle", "nextEventSub",
   "nowPlayingActive", "nowPlayingText", "nowPlayingImage", "nowPlayingTitle", "nowPlayingSub",
-  "plexActive", "plexText", "plexImage",
+  "plexActive", "plexText", "plexSub", "plexImage",
   "menuActive", "menuName",
   "cameraTriggerName", "cameraTriggerAt", "cameraTriggerLabel", "cameraTriggerImage"
 ];
@@ -200,12 +200,17 @@ test("tomorrow's meal is not tonight's dinner", async () => {
 
 /* ── Commute ──────────────────────────────────────────────────────────────── */
 
-test("both legs join with the separator the panel uses", async () => {
+test("both legs join with the separator the panel uses, and each one is NAMED", async () => {
+  /* ⚠ SEEN ON THE GLASS, 2026-08-13: "11 min · 18 min" as the dominant cell of
+     the spread, at 132px, with nothing anywhere saying whose drive either
+     number was. Two durations and a dot is not a readout. This is the assertion
+     that the names cannot be dropped again — the numbers alone would still look
+     entirely correct in a diff. */
   stubFetch({ "/api/commute": { seconds: 1380 } });
   await refreshHouseCache();
 
   const snap = houseSnapshot({ now: NOW });
-  expect(snap.commuteText).toBe("23 min · 23 min");
+  expect(snap.commuteText).toBe("Greg 23 min · Brett 23 min");
   expect(snap.commuteActive).toBe(true);
   expect(collectSources(snap).find((c) => c.source === "commute")).toBeTruthy();
 });
@@ -257,6 +262,32 @@ test("a film has no show above it and keeps its own title", async () => {
   stubFetch({ "/api/plex/sessions": { sessions: [{ title: "Arrival", type: "movie", thumb: "/t" }] } });
   await refreshHouseCache();
   expect(houseSnapshot({ now: NOW }).plexText).toBe("Arrival");
+});
+
+test("a Plex stream says WHERE it is playing", async () => {
+  /* ⚠ SEEN ON THE GLASS, 2026-08-13: "Colin from Accounts" alone in the corner
+     of the spread. The show was on the lounge room TV and the wall never said
+     so — three unattached words. The `<Player>` element carrying the room has
+     been in every payload all along; routes/plex.js started forwarding it in
+     the same change as this. */
+  stubFetch({
+    "/api/plex/sessions": {
+      sessions: [{ title: "Colin from Accounts", player: "Lounge Room TV", thumb: "/t" }]
+    }
+  });
+  await refreshHouseCache();
+
+  const snap = houseSnapshot({ now: NOW });
+  expect(snap.plexSub).toBe("Lounge Room TV");
+  expect(collectSources(snap).find((c) => c.source === "plex").sub).toBe("Lounge Room TV");
+});
+
+test("a payload with no player still names its source rather than nothing", async () => {
+  // An older server (or a client Plex cannot identify) has no `player`. The
+  // eyebrow must degrade to the source, never to an empty label.
+  stubFetch({ "/api/plex/sessions": { sessions: [{ title: "Arrival", thumb: "/t" }] } });
+  await refreshHouseCache();
+  expect(houseSnapshot({ now: NOW }).plexSub).toBe("Plex");
 });
 
 test("no sessions is not a candidate", async () => {

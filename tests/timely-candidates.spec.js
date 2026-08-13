@@ -31,26 +31,60 @@ test("commute: 72 inside the weekday morning window", () => {
   expect(c.score).toBeGreaterThanOrEqual(70);
 });
 
-test("commute: the window is half-open — 06:30 is in, 08:00 is already out", () => {
+test("commute: the window is half-open — 06:30 is in, 08:30 is already out", () => {
   const open = commuteCandidate({ ...COMMUTE, now: at("2026-08-11T06:30:00"), timely: true });
-  const shut = commuteCandidate({ ...COMMUTE, now: at("2026-08-11T08:00:00"), timely: true });
+  const shut = commuteCandidate({ ...COMMUTE, now: at("2026-08-11T08:30:00"), timely: true });
   const before = commuteCandidate({ ...COMMUTE, now: at("2026-08-11T06:29:00"), timely: true });
+  const last = commuteCandidate({ ...COMMUTE, now: at("2026-08-11T08:29:00"), timely: true });
 
   expect(open.score).toBe(72);
-  expect(shut.score).toBe(42);
-  expect(before.score).toBe(42);
+  expect(last.score).toBe(72);
+  expect(shut).toBeNull();
+  expect(before).toBeNull();
+});
+
+test("commute: OUTSIDE the window it is gone, not merely demoted", () => {
+  /* ⚠ SEEN ON THE GLASS AT 16:28, 2026-08-13. Score 42 is Low and correctly
+     never earns depth 1 — but depth 2 is opened by DWELL and composes off the
+     ranked stack with NO score floor at all, so the drive to work was the
+     dominant cell of the spread in the middle of the afternoon. A demotion is
+     not a suppression on the surface that was showing it.
+
+     This is the case that fails the moment anyone "restores" the flat score. */
+  const afternoon = commuteCandidate({ ...COMMUTE, now: at("2026-08-11T16:28:00"), timely: true });
+  const night = commuteCandidate({ ...COMMUTE, now: at("2026-08-11T23:00:00"), timely: true });
+
+  expect(afternoon).toBeNull();
+  expect(night).toBeNull();
+  expect(collectSources({ ...COMMUTE, timely: true, now: at("2026-08-11T16:28:00") })
+    .find((c) => c.source === "commute")).toBeUndefined();
 });
 
 test("commute: a Saturday morning is not a commute", () => {
   // Same clock time, weekend. The whole point of the window is that it knows
   // which day it is — a time-only check would fire here and be wrong.
   const sat = commuteCandidate({ ...COMMUTE, now: at("2026-08-15T07:00:00"), timely: true });
-  expect(sat.score).toBe(42);
+  expect(sat).toBeNull();
 });
 
-test("commute: flag off leaves the old flat score, mid-window", () => {
-  const off = commuteCandidate({ ...COMMUTE, now: at("2026-08-11T07:00:00"), timely: false });
-  expect(off.score).toBe(42);
+test("commute: the drive carries a label saying what the numbers are", () => {
+  // "11 min · 18 min" with no eyebrow is how this reached the wall. The cell
+  // context renders `sub`, so a candidate with no `sub` is a labelless cell.
+  const c = commuteCandidate({ ...COMMUTE, now: at("2026-08-11T07:00:00"), timely: true });
+  expect(c.sub).toBe("Drive to work");
+});
+
+test("commute: flag off is the rollback — flat score, and NEVER suppressed", () => {
+  /* Both halves. `timelyCandidates: false` has to restore the behaviour that
+     shipped before the windows existed, and the suppression above is the part
+     that would otherwise leak through the flag and delete the readout for
+     twenty-two hours a day with no way back short of a revert. */
+  const mid = commuteCandidate({ ...COMMUTE, now: at("2026-08-11T07:00:00"), timely: false });
+  const afternoon = commuteCandidate({ ...COMMUTE, now: at("2026-08-11T16:28:00"), timely: false });
+
+  expect(mid.score).toBe(42);
+  expect(afternoon).not.toBeNull();
+  expect(afternoon.score).toBe(42);
 });
 
 test("menu: in its window it scores 72 AND stops being stack-only", () => {
@@ -90,17 +124,25 @@ test("collectSources injects one clock, and a caller's own clock wins", () => {
   const mid = collectSources({ ...COMMUTE, timely: true, now: at("2026-08-11T07:00:00") });
   expect(mid.find((c) => c.source === "commute").score).toBe(72);
 
-  // No `now` supplied: it still produces a candidate rather than throwing on an
-  // undefined clock, which is the failure this defaulting exists to prevent.
-  const bare = collectSources({ ...COMMUTE, timely: true });
-  expect(bare.find((c) => c.source === "commute")).toBeTruthy();
+  /* No `now` supplied: it still produces a candidate rather than throwing on an
+     undefined clock, which is the failure this defaulting exists to prevent.
+
+     ⚠ THE MENU, NOT THE COMMUTE. The commute is suppressed outside its window
+     now, so asserting it survives a defaulted clock would be an assertion about
+     what time the suite happens to run — green all morning and red every
+     afternoon. That is precisely the time-of-day flake CLAUDE.md names. */
+  const bare = collectSources({ ...MENU, timely: true });
+  expect(bare.find((c) => c.source === "tonightsMenu")).toBeTruthy();
 });
 
-test("an unusable clock is not a window — it falls back to the flat score", () => {
+test("an unusable clock is not a window — and never fails open", () => {
   // A malformed `now` must never read as "in window". Failing open here would
-  // put the commute on the wall at midnight.
-  const c = commuteCandidate({ ...COMMUTE, now: "not a date", timely: true });
-  expect(c.score).toBe(42);
+  // put the commute on the wall at midnight; the drive is a morning fact and
+  // an unreadable clock is not a morning.
+  expect(commuteCandidate({ ...COMMUTE, now: "not a date", timely: true })).toBeNull();
+  // The menu is demoted rather than suppressed, so the same bad clock leaves it
+  // as the quiet stack card — the two rules read differently on purpose.
+  expect(tonightsMenuCandidate({ ...MENU, now: "not a date", timely: true }).score).toBe(40);
 });
 
 /* ── The camera trigger: a window measured from the EVENT, not the clock ──── */

@@ -566,7 +566,61 @@ test.describe("feeds", () => {
   });
 
   test("GET /api/plex/sessions", async ({ request }) => {
-    await expectJson(request, "/api/plex/sessions", { statuses: [200, 500, 502] });
+    const { status, body } = await expectJson(request, "/api/plex/sessions", { statuses: [200, 500, 502] });
+    /* Contract, not live data — Plex may be off on any machine, and on this one
+       it usually is. What must hold is that every session names WHERE it is
+       playing (or honestly says null), because the wall now renders that as the
+       eyebrow over the title. `player` missing entirely is the shape that put
+       "Colin from Accounts" on the glass with no room attached. */
+    if (status === 200 && Array.isArray(body.sessions)) {
+      for (const s of body.sessions) {
+        expect(s, "a session must carry a player field, even as null").toHaveProperty("player");
+      }
+    }
+  });
+});
+
+/* ── The Plex session parser ────────────────────────────────────────────────
+   Pure, and unreachable through the route on a box with no Plex — which is
+   every box the suite runs on. The payload below is the real shape: `<Player>`
+   is a CHILD of `<Video>`, which is exactly why the opening-tag scan this
+   replaced could never see it.
+─────────────────────────────────────────────────────────────────────────── */
+test.describe("parsePlexSessions", () => {
+  const XML = `<MediaContainer size="2">
+    <Video ratingKey="1" title="2022-01-27" grandparentTitle="Colin from Accounts" type="episode" thumb="/library/metadata/1/thumb">
+      <Media id="1" />
+      <User id="1" title="greg" />
+      <Player address="192.168.0.50" device="SHIELD" product="Plex for Android (TV)" title="Lounge Room TV" state="playing" />
+    </Video>
+    <Video ratingKey="2" title="Arrival" type="movie" thumb="/library/metadata/2/thumb">
+      <Player address="192.168.0.51" device="iPhone" product="Plex for iOS" title="Brett's iPhone" state="playing" />
+    </Video>
+  </MediaContainer>`;
+
+  test("each session gets the player NESTED INSIDE IT, never the next one's", async () => {
+    const { parsePlexSessions } = await import("../server/routes/plex.js");
+    const sessions = parsePlexSessions(XML);
+
+    expect(sessions).toHaveLength(2);
+    expect(sessions[0].grandparentTitle).toBe("Colin from Accounts");
+    expect(sessions[0].player).toBe("Lounge Room TV");
+    /* The attribution guard. A document-wide `<Player>` search would give both
+       sessions the first player, and the wall would confidently name the wrong
+       room — worse than naming none. */
+    expect(sessions[1].player).toBe("Brett's iPhone");
+  });
+
+  test("a client with no friendly name falls back, and no player is null", async () => {
+    const { parsePlexSessions } = await import("../server/routes/plex.js");
+
+    const [noTitle] = parsePlexSessions(
+      `<Video title="X" thumb="/t"><Player device="SHIELD" product="Plex for Android" /></Video>`
+    );
+    expect(noTitle.player).toBe("SHIELD");
+
+    const [none] = parsePlexSessions(`<Video title="X" thumb="/t"><Media id="1" /></Video>`);
+    expect(none.player).toBeNull();
   });
 });
 

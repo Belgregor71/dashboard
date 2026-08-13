@@ -44,6 +44,11 @@ export const COMMUTE_ORIGIN = "46 O'Doherty Cct, Nudgee QLD 4014";
 export const COMMUTE_GREG_DEST = "935 Kingsford Smith Dr, Eagle Farm QLD 4009";
 export const COMMUTE_BRETT_DEST = "71 Charles Ulm Dr, Eagle Farm QLD 4009";
 
+/* Whose leg is whose. Without these the wall renders "11 min · 18 min" — two
+   durations with no subject, which is exactly how it read on the glass. */
+export const COMMUTE_GREG_LABEL = "Greg";
+export const COMMUTE_BRETT_LABEL = "Brett";
+
 export const WEATHER_ANIMATIONS = {
   0: { day: "clear-day.json", night: "clear-night.json" },
   1: { day: "clear-day.json", night: "clear-night.json" },

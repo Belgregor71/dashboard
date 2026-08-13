@@ -78,7 +78,9 @@ export function nextEventCandidate({ nextEventActive, nextEventText, nextEventTi
    ⚠ `now` likewise comes IN — collectSources injects it once at the boundary. */
 const IN_WINDOW_SCORE = 72; // clears the High floor (70) — earns the hero
 
-const COMMUTE_WINDOW = { fromMin: 6 * 60 + 30, toMin: 8 * 60, weekdaysOnly: true };
+/* 06:30–08:30, owner's call 2026-08-13. The upper bound was 08:00 and is now
+   08:30 because that is when the second of the two legs is actually driven. */
+const COMMUTE_WINDOW = { fromMin: 6 * 60 + 30, toMin: 8 * 60 + 30, weekdaysOnly: true };
 const MENU_WINDOW = { fromMin: 17 * 60, toMin: 18 * 60 + 30, weekdaysOnly: false };
 
 /* The camera's window is measured from the TRIGGER, not the clock — one minute
@@ -114,19 +116,39 @@ function inWindow(now, { fromMin, toMin, weekdaysOnly }) {
   return mins >= fromMin && mins < toMin;
 }
 
-/** Plain commute readout — low band, except on a weekday morning. */
+/**
+ * The morning drive — a weekday-morning candidate and nothing else.
+ *
+ * ⚠ SUPPRESSED OUTSIDE THE WINDOW, NOT MERELY DEMOTED. Seen on the glass at
+ * 16:28 on 2026-08-13: the drive times were the DOMINANT cell of the spread in
+ * the middle of the afternoon. Score 42 is Low, which correctly never earns
+ * depth 1 — but depth 2 is opened by DWELL and composes off the ranked stack
+ * without any score floor at all (core/attention.js: "Low-band readouts are
+ * exactly what belongs there"). So a demotion is not a suppression on the one
+ * surface that was showing it, and only returning null keeps the drive to work
+ * out of the evening.
+ *
+ * ⚠ The whole gate is behind `timely`, which is the rollback path: with the
+ * flag off this is the flat score-42 readout it always was.
+ */
 export function commuteCandidate({ commuteActive, commuteText, now, timely } = {}) {
   if (!commuteActive || !commuteText) return null;
-  const timelyNow = Boolean(timely) && inWindow(now, COMMUTE_WINDOW);
+  if (Boolean(timely) && !inWindow(now, COMMUTE_WINDOW)) return null;
   return {
     id: `commute:${commuteText}`,
     source: "commute",
     icon: "🚗",
     text: commuteText,
+    /* The context line. Two bare durations joined by a dot answer "how long"
+       without ever saying WHAT — which is how "11 min · 18 min" ended up on the
+       wall as a hero nobody could read. The legs carry their names now (see
+       houseSnapshot.fetchCommute) and this says what the numbers are. */
+    title: commuteText,
+    sub: "Drive to work",
     /* Flat, not climbing like leaveBy: you want the drive time EARLY enough to
        act on it, so a score that peaks at the end of the window would surface it
        exactly when it is too late to help. Constant through the window. */
-    score: timelyNow ? IN_WINDOW_SCORE : 42,
+    score: Boolean(timely) ? IN_WINDOW_SCORE : 42,
     cooldownMs: 0
   };
 }
@@ -160,7 +182,7 @@ export function nowPlayingCandidate({ nowPlayingActive, nowPlayingText, nowPlayi
  * (not HA). Carries the poster thumb so the attention thumb shows the artwork.
  * Present only when the runtime reads it (gated on features.mediaCandidate).
  */
-export function plexCandidate({ plexActive, plexText, plexImage } = {}) {
+export function plexCandidate({ plexActive, plexText, plexSub, plexImage } = {}) {
   if (!plexActive || !plexText) return null;
   return {
     id: `plex:${plexText}`,
@@ -168,9 +190,13 @@ export function plexCandidate({ plexActive, plexText, plexImage } = {}) {
     icon: "🎬",
     image: plexImage || null,
     text: plexText,
-    // Tier-1a rich-card slots: the stream title over its source.
+    /* Tier-1a rich-card slots: the stream title over WHERE it is playing.
+       "Plex" is the fallback, not the answer — the room name comes from the
+       session's `<Player>` (houseSnapshot.plexFrom). A bare show title with no
+       room is what put "Colin from Accounts" on the wall as three unattached
+       words on 2026-08-13. */
     title: plexText,
-    sub: "Plex",
+    sub: plexSub || "Plex",
     score: 41,
     stackOnly: true, // stack card only, never the centred hero (like now-playing)
     cooldownMs: 0

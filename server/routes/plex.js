@@ -27,15 +27,38 @@ function buildPlexUrl(baseUrl, pathValue) {
   return `${trimmedBase}${normalizedPath}`;
 }
 
-function parsePlexSessions(xmlText) {
-  const sessions = [];
-  const mediaTags = xmlText.match(/<(Video|Track|Photo)\b[^>]*>/g) || [];
+function tagAttributes(tag) {
+  const attributes = {};
+  for (const [, key, value] of tag.matchAll(/(\w+)="([^"]*)"/g)) {
+    attributes[key] = value;
+  }
+  return attributes;
+}
 
-  for (const tag of mediaTags) {
-    const attributes = {};
-    for (const [, key, value] of tag.matchAll(/(\w+)="([^"]*)"/g)) {
-      attributes[key] = value;
-    }
+/* WHERE it is playing — the answer the wall was missing.
+   `<Player>` is a CHILD of `<Video>`, so the opening-tag scan below could never
+   see it: `session.title` said "Colin from Accounts" and nothing anywhere said
+   "on the lounge room TV". Each media element's own slice of the document is
+   taken (from its opening tag to the next one) so a Player can only ever be
+   attributed to the session it is nested in.
+
+   `title` is what Plex shows the user for that client ("Lounge Room TV");
+   `device`/`product` are the fallbacks when a client reports no friendly name. */
+function playerNameIn(chunk) {
+  const tag = chunk.match(/<Player\b[^>]*>/);
+  if (!tag) return null;
+  const attributes = tagAttributes(tag[0]);
+  return attributes.title || attributes.device || attributes.product || null;
+}
+
+export function parsePlexSessions(xmlText) {
+  const sessions = [];
+  const mediaTags = [...(xmlText ?? "").matchAll(/<(Video|Track|Photo)\b[^>]*>/g)];
+
+  for (const [i, match] of mediaTags.entries()) {
+    const tag = match[0];
+    const chunk = xmlText.slice(match.index, mediaTags[i + 1]?.index ?? xmlText.length);
+    const attributes = tagAttributes(tag);
     const title =
       attributes.title || attributes.grandparentTitle || attributes.parentTitle || "Plex Stream";
     const thumbPath =
@@ -50,6 +73,7 @@ function parsePlexSessions(xmlText) {
       parentThumb: attributes.parentThumb || null,
       grandparentThumb: attributes.grandparentThumb || null,
       art: attributes.art || null,
+      player: playerNameIn(chunk),
       sessionKey: attributes.sessionKey
     });
   }
