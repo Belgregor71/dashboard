@@ -31,11 +31,7 @@
 
   <!-- The photographic ground. An <img>, not a background-image, because the
        scrim sampler needs to read its pixels to compute legibility per photo. -->
-  <div class="photo"><img id="ground" alt="" />
-    <!-- Who, where, when. Empty (and invisible) unless groundMemories is on and
-         the library actually knows something about the photograph. -->
-    <p id="ground-caption" class="ground-caption" data-blank="1"></p>
-  </div>
+  <div class="photo"><img id="ground" alt="" /></div>
 
   <!-- Shaped gradient scrim. Opacity is COMPUTED from the measured luminance
        under the text, not guessed. Blur is not a material in V3. -->
@@ -44,6 +40,24 @@
   <!-- The field cools ~2% while the house is thinking. Above the substrate,
        below the content, so the text is never tinted. -->
   <div class="presence-cool"></div>
+
+  <!-- Who, where, when. Empty (and invisible) unless groundMemories is on and
+       the library actually knows something about the photograph.
+
+       ⚠⚠ IT LIVES HERE, NOT INSIDE .photo, AND THAT IS THE WHOLE FIX. As a child
+       of .photo (position:fixed, z-index:1 — a stacking context) its own
+       z-index:2 was confined to that context, so it painted BENEATH the scrim:
+       the one piece of text in V3 underneath the very layer whose job is to make
+       text legible. Measured over the white ground in daylight, the scrim owned
+       84% of the glyph and the caption read 1.02:1. Out here it reads 5.29:1.
+       Nothing about how it looks changed — it was already position:fixed and no
+       ancestor is transformed, so this move is geometrically a no-op.
+
+       ⚠ PROVEN BY PUTTING IT BACK: with this node inside .photo the contrast
+       gate fails on 13 surfaces — not as a low ratio but as "reports a rect and
+       paints nothing", i.e. buried outright — and both specs in
+       tests/v3-caption-legibility.spec.js go red. -->
+  <p id="ground-caption" class="ground-caption" data-blank="1"></p>
 
   <main class="stage">
     <!-- DEPTH 0 — FIELD. Nobody present. The photograph carries it and the hour

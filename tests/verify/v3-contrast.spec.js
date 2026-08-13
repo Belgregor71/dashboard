@@ -268,9 +268,33 @@ const ROUTES = {
    worst case for each of them is the worst case for the ground. */
 const IMAGE_PATH = /\/(thumb|snapshot|live|image|basemap|overlay|art)/;
 
+/* ⚠⚠ FLAGS ARE PINNED ON, NOT INHERITED — and this is a hole this gate has
+   already fallen through once. `#ground-caption` renders only behind
+   groundMemories. With the flag off the element is EMPTY, COLLECT skips any
+   element with no text of its own, and the sweep went green across four runs
+   for a node it had never once looked at. When it was finally measured it came
+   back at 1.02:1: it was painting beneath the scrim.
+
+   🔑 A gate cannot fail on a surface a flag stops rendering, so a default-off
+   flag is not a reason to leave the surface unmeasured — it is a reason to pin
+   it. The same shape as the mutation that found "a fully covered glyph falls
+   out as unmeasurable and the run stays green".
+
+   Pinned ON here regardless of the shipped default, so the flip ceremony is a
+   decision about the wall rather than the first time anyone measures it. */
+const PINNED_FLAGS = { groundMemories: true };
+
 async function bootV3(page, { ground, phase }) {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
+
+  await page.route("**/js/config.js", async (route) => {
+    const res = await route.fetch();
+    const body = Object.entries(PINNED_FLAGS)
+      .map(([k, v]) => `window.CONFIG.features.${k} = ${v};`)
+      .join("\n");
+    await route.fulfill({ response: res, body: `${await res.text()}\n${body}\n` });
+  });
 
   const png = encodePng(GROUND_W, GROUND_H, GROUNDS[ground]);
 
@@ -920,6 +944,18 @@ for (const ground of Object.keys(GROUNDS)) {
         `${ground}/${phase}: ${unpainted.length} visible text node(s) put NO pixel on the glass — ` +
           "covered by something opaque, or clipped away entirely"
       ).toHaveLength(0);
+
+      /* Proof that the pin took and the caption was actually looked at. Without
+         this the coverage is silent: a flag pin that stops working, or a caption
+         that stops rendering, restores the exact blind spot this gate just
+         closed — and it restores it GREEN. Night is exempt because the caption
+         is opacity:0 after dark by design, which COLLECT correctly skips. */
+      if (phase === "day") {
+        expect(
+          measured.filter((m) => m.selector === "#ground-caption").length,
+          "the ground caption was never measured — the groundMemories pin did not take"
+        ).toBeGreaterThan(0);
+      }
 
       const below = measured.filter((m) => m.contrast < (m.isLarge ? AA_LARGE : AA_NORMAL));
       const short = measured.filter((m) => m.contrast < V3_TARGET);

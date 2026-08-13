@@ -861,13 +861,27 @@ html, body {
    the picture, and it is a gradient rather than a slab so the photograph keeps
    its bottom edge. Same pattern the depth-2 surfaces settled on.
 
+   ⚠⚠ THE Z-INDEX ONLY WORKS BECAUSE THE ELEMENT IS A CHILD OF <body>. It used
+   to sit inside .photo, which is position:fixed with z-index:1 and therefore a
+   STACKING CONTEXT — so this line said 2 and the browser painted it at 1,
+   underneath the scrim. The comment here said "above .photo (1)" and was wrong
+   for as long as it existed. Measured over the white ground in daylight, the
+   scrim owned 84% of the glyph and this text read 1.02:1; out of that context
+   it reads 5.29:1. 🔑 A z-index is a claim about a stacking context, not about
+   the page. If this ever goes back inside a positioned ancestor, the number
+   goes back to 1:1 and nothing about the CSS will look wrong.
+
    ⚠ HIDDEN AT NIGHT, matching Daily Memories: after dark the wall is a clock
    and a dim photograph, and a name floating in a dark room reads as an alert. */
 .ground-caption {
   position: fixed;
   left: var(--gutter, 3.2rem);
   bottom: calc(var(--gutter, 3.2rem) * 0.72);
-  z-index: 2;                 /* above .photo (1), below the substrate stack */
+  /* Above .scrim (2) and .presence-cool (5) — the cool wash is documented as
+     sitting below the content so it never tints text, and this is content.
+     Below .stage (10), because it is ground chrome rather than a depth. The
+     presence rim (20) still paints over it, exactly as it does over the hour. */
+  z-index: 6;
   margin: 0;
   max-width: 44ch;
   font-size: 1.4rem;
@@ -896,6 +910,31 @@ html, body {
 }
 
 :root[data-night="1"] .ground-caption { opacity: 0; }
+
+/* ── And it belongs to DEPTH 0, where the photograph is the wall ─────────────
+   From depth 1 up, this surface deliberately veils the ground: every subject in
+   the list above paints a FULL-BLEED flat veil at the solved scrim opacity, and
+   the glance and spread do the same behind a wrapped line or the vocabulary
+   card. The photograph is pushed back on purpose so that content can be read.
+
+   A caption naming who and where and when is a label ON THAT PHOTOGRAPH. Once
+   the photograph has gone behind a full-coverage veil, the line is describing
+   something the room can no longer see — and it is sitting underneath the very
+   layer built to suppress what it describes. At depth 0 the opposite is true:
+   the photograph IS the wall, and the caption is the only thing that says why
+   it just changed.
+
+   ⚠ THE GATE FOUND THIS, not the eye, and only after the stacking fix made the
+   caption measurable at all. Lifted above the scrim it read a healthy 5.29:1 at
+   depth 0 and 1.13:1 everywhere else — one number per depth, from one element,
+   because the veil above it changes and nothing else does. Hiding it is the
+   honest resolution: absent text and buried text are different states, and only
+   one of them is a defect.
+
+   ⚠ Keyed on the ACTIVE depth rather than on which subject is mounted: depths
+   hide with `visibility`, not `display`, so a subject can be mounted while
+   depth 0 is still on the glass. */
+:root:not([data-depth="0"]) .ground-caption { opacity: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   .ground-caption { transition: none; }
