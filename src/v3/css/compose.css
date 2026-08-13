@@ -884,7 +884,18 @@ html, body {
   z-index: 6;
   margin: 0;
   max-width: 44ch;
-  font-size: 1.4rem;
+  /* ⚠ WAS 1.4rem — 22.4px, THIRTY PERCENT UNDER THE SYSTEM'S FLOOR. tokens.css
+     states the law plainly: nothing below --t-rail exists, because below ~30px
+     at 3m the text is not received, so it spends contrast budget and paint cost
+     for nothing. This line was the only text in V3 breaking it, and the reason
+     it went unnoticed is the same reason its 1.02:1 contrast went unnoticed —
+     the flag that renders it is default-off, so nothing ever measured it.
+
+     Legibility first, and the contrast is a consequence: at 32px this also
+     crosses WCAG's 24px large-text threshold, so the bar it is judged against
+     moves from 4.5 to 3.0 — but the point is that a caption nobody can read at
+     three metres is not made acceptable by clearing a ratio. */
+  font-size: var(--t-rail);
   line-height: 1.35;
   letter-spacing: 0.01em;
   color: var(--ink-dim);
