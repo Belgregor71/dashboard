@@ -1012,6 +1012,26 @@ window.CONFIG = {
     // Revert = `v3NowPlaying: false`. Proven reversible by
     // scripts/verify/flag-reversibility.mjs at flip time.
     v3NowPlaying: true,
+
+    // ── V3 CELL CONTEXT ────────────────────────────────────────────────────
+    // The eyebrow above every composed cell and above the glance line: what the
+    // value underneath it IS. Owner's verdict on a photograph of the live wall,
+    // 2026-08-13 — "we have gone too far minimalist and lost context on most of
+    // the information". The spread was showing "11 min · 18 min" at 132px with
+    // nothing saying whose drive either number was, and "Colin from Accounts"
+    // with nothing saying it was the lounge room TV.
+    //
+    // Nothing is authored for this. Every candidate has carried `title`/`sub`
+    // since the Tier-1a rich cards and V3 simply never rendered them; the flag
+    // turns the existing field into a rendered line (core/spread.js labelNode).
+    // `text` remains the line — attentionEngine rewrites `text` with the AI/
+    // personality phrasing and leaves `title` alone, so rendering the title
+    // instead would throw the house's own voice away.
+    //
+    // Flag-off is NO NODE and no attribute, not an empty label: the off DOM is
+    // the one that shipped before this, which is what makes it the rollback.
+    // Flip to true only after it has been seen on the glass.
+    v3CellContext: false,
   },
 
   /* --------------------------------------------------------------

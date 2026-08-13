@@ -83,6 +83,19 @@ export function compose(selection) {
          happened to land in today. */
       ref: candidate.source ?? "house",
       text: candidate.text,
+      /* The context line, and the reason it is `sub` and NOT anything composed
+         here. Every candidate has carried `title`/`sub` since the Tier-1a rich
+         cards; V3 renders only `text`, so the wall has been showing "11 min ·
+         18 min" and "Colin from Accounts" — values with their labels stripped
+         off. Passing the candidate's own field through is not authoring: the
+         rule at the top of this file survives intact, and a candidate with no
+         `sub` still renders exactly as it does today.
+
+         ⚠ `text` STAYS the line. attentionEngine rewrites `text` — AI phrasing
+         (`phrasedById`) then `personality.phrase()` — and leaves `title`
+         untouched, so rendering the title instead would silently throw the
+         house's own voice away. */
+      label: candidate.sub ?? null,
       id: candidate.id,
       candidate
     };

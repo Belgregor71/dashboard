@@ -141,6 +141,48 @@ html, body {
   min-width: 0;                  /* grid children must be allowed to shrink */
 }
 
+/* ── The context line ───────────────────────────────────────────────────────
+   What the value underneath it IS. Owner's verdict on the glass 2026-08-13:
+   "11 min · 18 min" as the dominant cell of the spread, "Colin from Accounts"
+   beside it — every label stripped, so the wall read as words rather than as
+   information. The eyebrow is the label put back.
+
+   32px is --t-rail, THE FLOOR of the whole system, and this sits on it rather
+   than under it: tokens.css states plainly that nothing below --t-rail exists
+   because below ~30px at 3 m the text is not received. A label nobody can read
+   is worse than no label, because it still takes the room.
+
+   Uppercase and tracked, which is the one piece of styling doing real work: it
+   makes the eyebrow unmistakably a LABEL at a glance, so it is never misread as
+   a second fact competing with the line below it. --ink-dim, not --ink-faint —
+   faint is already under the contrast bar by day (see tokens.css).
+─────────────────────────────────────────────────────────────────────────── */
+.cell__label {
+  font-size: var(--t-rail);
+  font-weight: 500;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  /* One line, always. A label that wraps has stopped being an eyebrow, and it
+     would push the value out of the band core/scrim.js solved for. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Tighter than the cell's standing gap: the eyebrow belongs TO the line under
+   it, and at the full 16px the two read as two separate things stacked. Only
+   labelled cells are touched, so an unlabelled one keeps the geometry it has
+   always had. */
+.cell:has(.cell__label) { gap: 10px; }
+
+/* ⚠ THE GLANCE CELL'S LABEL IS ITS SECOND CHILD. index.html has carried
+   `#glance-said` then `#glance-measured` since V3 shipped, and the eyebrow has
+   to sit ABOVE the line. Scoped to [data-labelled] rather than applied
+   unconditionally: without the attribute an `order: -1` would move the flex gap
+   above the text and shift the flag-off wall by 16px for nothing. */
+#glance-cell[data-labelled] #glance-measured { order: -1; }
+
 /* Cells enter without JS timing. @starting-style animates from the initial
    state on first render, which structurally avoids the bug class this house
    has been bitten by twice: transitionend/animationend NEVER FIRE while the
@@ -357,8 +399,16 @@ html, body {
   opacity: 0;
   transition: opacity var(--m-calm) var(--ease);
 }
-:root[data-depth="1"] .rail-slot,
-:root[data-depth="2"] .rail-slot { opacity: 1; }
+/* ⚠ DEPTH 1 ONLY. It used to show at depth 2 as well, and that is where it did
+   harm: seen on the glass 2026-08-13 sharing the bottom-right corner with a
+   composed spread, where a floating quoted fragment — "what's on the shopping
+   list" — reads as a fourth piece of content with no context rather than as an
+   offer. Owner's verdict: no value on that screen.
+
+   The rail is not deleted, because discoverability is real. It keeps depth 1,
+   where it has the corner to itself against ONE line, and the full vocabulary
+   card is still one "what can I say" away. */
+:root[data-depth="1"] .rail-slot { opacity: 1; }
 
 /* ── The vocabulary card (depth 2) ──────────────────────────────────────────
    Shown, never recited. A voice reading a menu aloud is the failure the

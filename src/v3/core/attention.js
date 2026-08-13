@@ -78,7 +78,7 @@ import { houseSnapshot } from "../../js/services/houseSnapshot.js";
 import { MODE } from "../../js/services/attentionRank.js";
 import { DEPTH, deepen, sustain, setDepth, getDepth, getReason, onDepth } from "./depth.js";
 import { initPresence, onPresence, isPresent, isDwelling } from "./presence.js";
-import { renderSpread, spreadMounted, setSaidText } from "./spread.js";
+import { renderSpread, spreadMounted, setSaidText, contextEnabled } from "./spread.js";
 
 /* The incumbent's focusHero tick, matched exactly. Not a number worth choosing
    independently: two surfaces asking the same engine at different rates would
@@ -177,13 +177,33 @@ function renderGlance(hero) {
   // `.said[data-len="long"]` since V3 shipped and nothing ever set it, so a
   // 60-character line has been trying to hold 132px this whole time.
   setSaidText(el.said, hero.text ?? "");
-  if (el.measured) el.measured.textContent = "";
+  /* Depth 1's context line. `#glance-measured` has existed since V3 shipped and
+     has only ever been blanked — so the one cell the house interrupts you with
+     was a bare string with no label, the same defect the spread had. Same
+     source as the spread's eyebrow (`sub`) and the same flag, so the two depths
+     cannot disagree about what a thing is called.
+     ⚠ `data-labelled`, not CSS alone: the node is the SECOND child of the cell,
+     so the stylesheet has to lift it above the line to make it an eyebrow —
+     and an unconditional `order: -1` would move the flex gap above the text and
+     shift the flag-off wall by 16px. The attribute is what keeps flag-off
+     identical rather than merely blank. */
+  setLabel(el.cell, el.measured, contextEnabled() ? hero.sub : null);
+}
+
+/** Write (or strip) a cell's eyebrow. Shared by the glance and its teardown so
+ *  the class, the attribute and the text can never fall out of step. */
+function setLabel(cell, node, text) {
+  if (!node) return;
+  const label = typeof text === "string" ? text.trim() : "";
+  node.textContent = label;
+  node.classList.toggle("cell__label", Boolean(label));
+  if (cell) cell.toggleAttribute("data-labelled", Boolean(label));
 }
 
 function clearGlance() {
   if (!el.cell) return;
   setSaidText(el.said, "");
-  if (el.measured) el.measured.textContent = "";
+  setLabel(el.cell, el.measured, null);
 }
 
 /**

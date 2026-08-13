@@ -84,8 +84,44 @@ export function setSaidText(node, text) {
   range.detach();
 }
 
+/* ── The context line ───────────────────────────────────────────────────────
+   The eyebrow above a cell's line: "Drive to work", "Lounge Room TV",
+   "Tonight's menu". Owner's verdict on the glass, 2026-08-13 — "no context on
+   most of the information". V3 rendered one bare string per cell, so a spread
+   of readouts came out as "11 min · 18 min", "Colin from Accounts" and a
+   floating quoted phrase: values with their labels removed, which reads as
+   random words rather than as a screen.
+
+   Flag-gated and default-off. Off is not "the label is blank", it is NO NODE —
+   the flag-off DOM is the one that shipped before this, which is what makes the
+   flag the rollback rather than a switch that leaves a gap in the layout.
+─────────────────────────────────────────────────────────────────────────── */
+export function contextEnabled() {
+  // Per-call, never at module load: ES imports hoist above the point where
+  // /js/config.js sets window.CONFIG, and this repo has paid for that read
+  // being frozen to `undefined` three times.
+  return Boolean(globalThis.window?.CONFIG?.features?.v3CellContext);
+}
+
+/** The eyebrow node for a cell, or null when there is nothing to label with. */
+export function labelNode(text) {
+  const label = typeof text === "string" ? text.trim() : "";
+  if (!label || !contextEnabled()) return null;
+  const node = document.createElement("p");
+  node.className = "cell__label measured";
+  node.textContent = label;   // textContent, never innerHTML — this is data
+  return node;
+}
+
+/* ⚠ THE LABEL IS PART OF THE SIGNATURE. The tick re-composes every 30 s and
+   skips the DOM write when the signature matches — so with the label outside
+   it, flipping the flag on a live wall (or a candidate changing only its room)
+   would leave the old label-less cells mounted until the candidate id itself
+   changed. That is the shape of bug this repo calls "the flag looked shipped
+   and changed nothing". */
 function signatureOf(composition) {
-  return `${composition.template}|${composition.cells.map((c) => c.id).join("|")}`;
+  const cells = composition.cells.map((c) => `${c.id}~${contextEnabled() ? (c.label ?? "") : ""}`);
+  return `${composition.template}|${cells.join("|")}`;
 }
 
 /** What is actually on the wall right now, in the same form. Null when this file
@@ -93,7 +129,8 @@ function signatureOf(composition) {
 function mountedSignature(host) {
   const template = host.dataset.template;
   if (!template) return null;
-  return `${template}|${Array.from(host.children).map((n) => n.dataset.cellId ?? "").join("|")}`;
+  const cells = Array.from(host.children).map((n) => `${n.dataset.cellId ?? ""}~${n.dataset.cellLabel ?? ""}`);
+  return `${template}|${cells.join("|")}`;
 }
 
 /**
@@ -125,6 +162,16 @@ export function renderSpread(selection) {
     // The deixis address, so a spoken reference lights the right rectangle.
     node.dataset.cell = cell.ref;
     node.dataset.cellId = cell.id;
+
+    /* The eyebrow goes in FIRST — above the line it labels, which is what makes
+       it read as a label rather than as a caption or a second fact. The cell is
+       a column that justifies its content to the bottom, so both stay anchored
+       in the band the scrim was solved for. */
+    const eyebrow = labelNode(cell.label);
+    if (eyebrow) {
+      node.appendChild(eyebrow);
+      node.dataset.cellLabel = cell.label;
+    }
 
     const line = document.createElement("p");
     if (cell.voice === "said") {
