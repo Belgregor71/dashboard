@@ -101,6 +101,22 @@ test("Plex is the fallback, not the primary", () => {
   expect(plex.title).toBe("The Other Woman");
 });
 
+test("a Plex session names the ROOM above the title, not the word 'Playing'", () => {
+  /* Seen on the glass 2026-08-13 as "Colin from Accounts" with no room. The
+     band and the composed cell read the same field for the same reason the two
+     share houseSnapshot at all — a surface that named the room while the other
+     said "Playing" would be the mediaImage.js divergence in a new shape. */
+  const named = playingFrom({
+    nowPlayingActive: false, plexActive: true,
+    plexText: "Colin from Accounts", plexSub: "Lounge Room TV"
+  });
+  expect(named.sub).toBe("Lounge Room TV");
+
+  // A client Plex cannot name keeps the old word rather than an empty line.
+  const unnamed = playingFrom({ nowPlayingActive: false, plexActive: true, plexText: "Arrival" });
+  expect(unnamed.sub).toBe("Playing");
+});
+
 test("nothing playing is null, and so is a cold house", () => {
   expect(playingFrom(EMPTY)).toBeNull();
   expect(playingFrom(null)).toBeNull();

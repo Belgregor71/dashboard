@@ -131,7 +131,13 @@ export function playingFrom(house) {
     };
   }
   if (house?.plexActive && house.plexText) {
-    return { cell: "plex", title: house.plexText, sub: NO_SUB, image: house.plexImage || null };
+    /* The ROOM, when the session names one. "Playing" over "Colin from
+       Accounts" is true and says nothing; "Lounge Room TV" over it is the
+       answer. Same field the spread's eyebrow renders, so the ambient band and
+       the composed cell cannot describe the same stream differently — which is
+       the whole reason both surfaces read through houseSnapshot. NO_SUB stays
+       the fallback for a client Plex cannot name. */
+    return { cell: "plex", title: house.plexText, sub: house.plexSub || NO_SUB, image: house.plexImage || null };
   }
   return null;
 }
