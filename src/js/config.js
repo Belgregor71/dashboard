@@ -1030,8 +1030,20 @@ window.CONFIG = {
     //
     // Flag-off is NO NODE and no attribute, not an empty label: the off DOM is
     // the one that shipped before this, which is what makes it the rollback.
-    // Flip to true only after it has been seen on the glass.
-    v3CellContext: false,
+    //
+    // FLIPPED ON 2026-08-13, after being SEEN ON THE GLASS with the flag forced
+    // on for one page load over CDP (nothing shipped) rather than flipped and
+    // hoped for. `DISPLAY=:0 scrot` at 18:29 showed the three cells the owner
+    // photographed, each now carrying its label: TONIGHT'S MENU over the dish,
+    // DRIVE TO WORK over "Greg 11 min · Brett 18 min", LOUNGE ROOM TV over
+    // "Colin from Accounts" — and no rail fragment in the corner. The same
+    // probe read `commuteInQueue: false` at 18:28, which is the afternoon
+    // commute gone from the live house rather than merely from a spec.
+    //
+    // Revert = `v3CellContext: false`. The off state is asserted by
+    // tests/v3-cell-context.spec.js at both depths, so the rollback is a tested
+    // state and not an assumption.
+    v3CellContext: true,
   },
 
   /* --------------------------------------------------------------
