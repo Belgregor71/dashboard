@@ -206,7 +206,16 @@ test("both legs join with the separator the panel uses, and each one is NAMED", 
      number was. Two durations and a dot is not a readout. This is the assertion
      that the names cannot be dropped again — the numbers alone would still look
      entirely correct in a diff. */
-  stubFetch({ "/api/commute": { seconds: 1380 } });
+  /* One request for both legs, and the LABELS come back with the numbers — the
+     client no longer knows (or is allowed to know) either address. */
+  stubFetch({
+    "/api/commute/all": {
+      legs: [
+        { id: "greg", label: "Greg", seconds: 1380, trafficDelaySeconds: 0 },
+        { id: "brett", label: "Brett", seconds: 1380, trafficDelaySeconds: 0 }
+      ]
+    }
+  });
   await refreshHouseCache();
 
   const snap = houseSnapshot({ now: NOW });
@@ -216,13 +225,31 @@ test("both legs join with the separator the panel uses, and each one is NAMED", 
 });
 
 test("a commute upstream that fails contributes nothing rather than 'Unavailable'", async () => {
-  stubFetch({ "/api/commute": null });
+  stubFetch({ "/api/commute/all": null });
   await refreshHouseCache();
 
   const snap = houseSnapshot({ now: NOW });
   expect(snap.commuteText).toBeNull();
   expect(snap.commuteActive).toBe(false);
   expect(collectSources(snap).find((c) => c.source === "commute")).toBeUndefined();
+});
+
+test("ONE dead leg leaves the other one NAMED, not promoted to 'the' commute", async () => {
+  /* The route answers per-leg, so a half-failure is a leg with `seconds: null`
+     rather than a failed request. The surviving leg has to keep its name — a
+     bare "23 min" with no subject is the exact defect this whole change exists
+     to remove, and a half-outage is the sneakiest way back to it. */
+  stubFetch({
+    "/api/commute/all": {
+      legs: [
+        { id: "greg", label: "Greg", seconds: null, trafficDelaySeconds: null },
+        { id: "brett", label: "Brett", seconds: 1080, trafficDelaySeconds: 0 }
+      ]
+    }
+  });
+  await refreshHouseCache();
+
+  expect(houseSnapshot({ now: NOW }).commuteText).toBe("Brett 18 min");
 });
 
 /* ── Plex ─────────────────────────────────────────────────────────────────── */

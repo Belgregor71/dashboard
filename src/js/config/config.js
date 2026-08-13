@@ -1,8 +1,17 @@
-/* ═══ V3-SHARED-RUNTIME ═════════════════════════════════════════════════════
-   Loaded by BOTH surfaces: the incumbent (/) and V3 (/v3/).
-   `src/js/` is not the old dashboard — it is V3's runtime library. A cleanup
-   that retires "the legacy tree" takes this file out from under V3 with it.
-   docs/design/V3-CUTOVER.md §1 · guarded by tests/v3-closure.spec.js
+/* ═══ INCUMBENT ONLY ════════════════════════════════════════════════════════
+   V3 no longer imports this. It carried the shared-runtime marker until
+   2026-08-13, when the commute addresses — the only thing V3 read from here —
+   moved to the server's .env (server/routes/commute.js). What is left is
+   WEATHER_LAT/WEATHER_LON and the incumbent's own tables, and six modules
+   under / still import them.
+
+   ⚠ The marker string itself is deliberately not spelled out above.
+   tests/v3-closure.spec.js matches it literally, so even naming it in a comment
+   explaining its removal re-flags the file — which is the guard being right.
+
+   A stale shared-marker is worse than none: it protects a file that no longer
+   needs protecting and teaches the next reader to distrust the rest. Removed
+   deliberately, and tests/v3-closure.spec.js asserts both halves.
    ════════════════════════════════════════════════════════════════════════ */
 
 // Nudgee, QLD — the suburb this dashboard reports on. Suburb centroid, not the
@@ -40,14 +49,20 @@ export const EVENT_ICONS = {
   travel: "🧳"
 };
 
-export const COMMUTE_ORIGIN = "46 O'Doherty Cct, Nudgee QLD 4014";
-export const COMMUTE_GREG_DEST = "935 Kingsford Smith Dr, Eagle Farm QLD 4009";
-export const COMMUTE_BRETT_DEST = "71 Charles Ulm Dr, Eagle Farm QLD 4009";
+/* ⚠ THE COMMUTE ADDRESSES ARE GONE FROM HERE, ON PURPOSE.
+   COMMUTE_ORIGIN was this house's street address, and it lived in a file that
+   is tracked in a PUBLIC repository AND bundled to the browser — so it was
+   readable in the repo, in dist/, and in the query string of every
+   `/api/commute` request the wall made.
 
-/* Whose leg is whose. Without these the wall renders "11 min · 18 min" — two
-   durations with no subject, which is exactly how it read on the glass. */
-export const COMMUTE_GREG_LABEL = "Greg";
-export const COMMUTE_BRETT_LABEL = "Brett";
+   They are `.env` values on the server now (COMMUTE_ORIGIN, COMMUTE_GREG_DEST,
+   COMMUTE_BRETT_DEST, and the matching *_LABEL). The client asks for a leg BY
+   NAME and gets back a label and a number: `/api/commute/all`, or
+   `/api/commute?leg=greg`. See server/routes/commute.js.
+
+   Do not reintroduce them. The route ignores a client-supplied `origin`
+   entirely, so a caller that passed one would silently route from the wrong
+   place rather than fail loudly. */
 
 export const WEATHER_ANIMATIONS = {
   0: { day: "clear-day.json", night: "clear-night.json" },

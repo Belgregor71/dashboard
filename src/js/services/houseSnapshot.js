@@ -48,13 +48,6 @@ import { isTvAudio } from "./mediaSource.js";
 import { getBomWarnings } from "./weather/bom.js";
 import { robotAttentionFrom, cameraSnapshotUrl } from "./candidateSources.js";
 import { CONFIG } from "../core/config.js";
-import {
-  COMMUTE_ORIGIN,
-  COMMUTE_GREG_DEST,
-  COMMUTE_BRETT_DEST,
-  COMMUTE_GREG_LABEL,
-  COMMUTE_BRETT_LABEL
-} from "../config/config.js";
 
 /* The HTTP-backed half. Refreshed on an init-once timer by the host surface,
    never fetched while a tick is waiting. A null field means "not loaded" and is
@@ -84,30 +77,24 @@ async function getJson(url) {
    than the panel's "Unavailable"/"Error" strings, which are display copy and
    have no business becoming a scored candidate's text.
 ─────────────────────────────────────────────────────────────────────────── */
-async function fetchLeg(origin, destination) {
-  if (!origin || !destination) return null;
-  const data = await getJson(
-    `/api/commute?origin=${encodeURIComponent(origin)}` +
-    `&destination=${encodeURIComponent(destination)}`
-  );
-  if (typeof data?.seconds !== "number") return null;
-  return `${Math.round(data.seconds / 60)} min`;
-}
-
 /* ⚠ EACH LEG CARRIES ITS NAME. Seen on the glass 2026-08-13: "11 min · 18 min"
    at 132px, with nothing anywhere saying whose drive either number was. A
    duration with no subject is not a readout, it is a riddle — and it was the
-   dominant cell of the spread. One failed leg still contributes nothing, so the
-   surviving one is named rather than silently becoming "the" commute. */
+   dominant cell of the spread.
+
+   ⚠ THE LABELS AND THE ADDRESSES BOTH COME FROM THE SERVER. This module used to
+   import COMMUTE_ORIGIN from the bundled config and put the house's street
+   address in a query string; server/routes/commute.js owns both ends now and
+   this asks for legs by name. A leg with no number is dropped rather than
+   rendered as "Unavailable" — display copy has no business becoming a scored
+   candidate's text — so the surviving leg stays NAMED instead of silently
+   becoming "the" commute. */
 async function fetchCommute() {
-  const [greg, brett] = await Promise.all([
-    fetchLeg(COMMUTE_ORIGIN, COMMUTE_GREG_DEST),
-    fetchLeg(COMMUTE_ORIGIN, COMMUTE_BRETT_DEST)
-  ]);
-  const parts = [
-    greg ? `${COMMUTE_GREG_LABEL} ${greg}` : null,
-    brett ? `${COMMUTE_BRETT_LABEL} ${brett}` : null
-  ].filter(Boolean);
+  const data = await getJson("/api/commute/all");
+  const legs = Array.isArray(data?.legs) ? data.legs : [];
+  const parts = legs
+    .filter((leg) => typeof leg?.seconds === "number")
+    .map((leg) => `${leg.label} ${Math.round(leg.seconds / 60)} min`);
   return parts.length ? parts.join(" · ") : null;
 }
 

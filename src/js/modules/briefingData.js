@@ -7,11 +7,6 @@
 
 import { getAllEntities } from "../services/homeAssistant/state.js";
 import { sleepSummary } from "../services/sleepSummary.js";
-import {
-  COMMUTE_ORIGIN,
-  COMMUTE_GREG_DEST,
-  COMMUTE_BRETT_DEST
-} from "../config/config.js";
 
 // Single gatherer for everything the briefing needs — the view's fact tiles
 // and the AI prompt both render from this one context object, so what's
@@ -109,10 +104,22 @@ function pickAnniversaries(events, now) {
 
 // ── Commute (weekday mornings only) ────────────────────────────
 
+/* ⚠ NO ORIGIN IN THE URL. The origin is this house's street address and lives
+   in the server's .env now (see server/routes/commute.js) — the route routes
+   FROM HOME by definition. `destination` here is a calendar event's location,
+   which is the leave-by path and not private. */
 async function fetchDrive(destination) {
-  const url = `/api/commute?origin=${encodeURIComponent(COMMUTE_ORIGIN)}` +
-              `&destination=${encodeURIComponent(destination)}`;
-  const data = await getJson(url);
+  const data = await getJson(`/api/commute?destination=${encodeURIComponent(destination)}`);
+  if (typeof data.seconds !== "number") return null;
+  return {
+    mins:     Math.round(data.seconds / 60),
+    delayMin: Math.round((data.trafficDelaySeconds ?? 0) / 60),
+  };
+}
+
+/** A configured leg by NAME — both ends resolved server-side. */
+async function fetchLeg(id) {
+  const data = await getJson(`/api/commute?leg=${encodeURIComponent(id)}`);
   if (typeof data.seconds !== "number") return null;
   return {
     mins:     Math.round(data.seconds / 60),
@@ -252,8 +259,8 @@ export async function gatherBriefingContext(type) {
       getJson("/api/fuel"),
       getJson("/api/news"),
       getJson("/api/weather/nowcast"),
-      wantCommute ? fetchDrive(COMMUTE_GREG_DEST)  : Promise.resolve(null),
-      wantCommute ? fetchDrive(COMMUTE_BRETT_DEST) : Promise.resolve(null),
+      wantCommute ? fetchLeg("greg")  : Promise.resolve(null),
+      wantCommute ? fetchLeg("brett") : Promise.resolve(null),
     ]);
 
   const val = (r) => (r.status === "fulfilled" ? r.value : null);

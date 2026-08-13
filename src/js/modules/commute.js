@@ -1,8 +1,3 @@
-import {
-  COMMUTE_ORIGIN,
-  COMMUTE_GREG_DEST,
-  COMMUTE_BRETT_DEST
-} from "../config/config.js";
 import { setCommuteActive } from "./middleSlot.js";
 
 function loadCommuteLottie() {
@@ -25,25 +20,31 @@ function loadCommuteLottie() {
 // Below this, a traffic delay is just noise not worth flagging on the panel.
 const DELAY_THRESHOLD_MIN = 2;
 
-async function getDriveTime(origin, destination) {
-  const url =
-    `/api/commute?origin=${encodeURIComponent(origin)}` +
-    `&destination=${encodeURIComponent(destination)}`;
-
+/* ⚠ ONE REQUEST FOR BOTH LEGS, AND NO ADDRESSES IN IT. This used to build
+   `/api/commute?origin=<the house's street address>&destination=...` from
+   bundled constants — see server/routes/commute.js on why that had to stop. The
+   server owns both ends now and returns the labels with the numbers. */
+async function fetchLegs() {
   try {
-    const res = await fetch(url);
+    const res = await fetch("/api/commute/all");
     const data = await res.json();
-    if (!res.ok || typeof data.seconds !== "number") return { text: "Unavailable" };
-
-    const minutes = Math.round(data.seconds / 60);
-    // TomTom already bakes traffic into `seconds`; trafficDelaySeconds is the
-    // portion of that due to congestion vs free-flow (already fetched server-side).
-    const delayMin = Math.round((data.trafficDelaySeconds ?? 0) / 60);
-    return { text: `${minutes} min`, delayMin };
+    if (!res.ok || !Array.isArray(data.legs)) return null;
+    return data.legs;
   } catch (err) {
     console.error("Commute API error:", err);
-    return { text: "Error" };
+    return null;
   }
+}
+
+/** One leg, in the shape the row renderer wants. */
+function legResult(leg) {
+  if (typeof leg?.seconds !== "number") return { text: "Unavailable" };
+  // TomTom already bakes traffic into `seconds`; trafficDelaySeconds is the
+  // portion of that due to congestion vs free-flow (already fetched server-side).
+  return {
+    text: `${Math.round(leg.seconds / 60)} min`,
+    delayMin: Math.round((leg.trafficDelaySeconds ?? 0) / 60)
+  };
 }
 
 function renderCommuteRow(el, name, result) {
@@ -60,13 +61,18 @@ function renderCommuteRow(el, name, result) {
 }
 
 export async function updateCommuteTimes() {
-  const [greg, brett] = await Promise.all([
-    getDriveTime(COMMUTE_ORIGIN, COMMUTE_GREG_DEST),
-    getDriveTime(COMMUTE_ORIGIN, COMMUTE_BRETT_DEST)
-  ]);
+  const legs = await fetchLegs();
 
-  renderCommuteRow(document.getElementById("commute-greg"), "Greg", greg);
-  renderCommuteRow(document.getElementById("commute-brett"), "Brett", brett);
+  /* The panel has one element per leg, named for the leg. A leg the server does
+     not return still gets its row rendered as "Unavailable" rather than left
+     with whatever it said an hour ago — a stale drive time is worse than an
+     admitted absent one, because it looks current. */
+  for (const id of ["greg", "brett"]) {
+    const el = document.getElementById(`commute-${id}`);
+    if (!el) continue;
+    const leg = legs?.find((l) => l.id === id) ?? null;
+    renderCommuteRow(el, leg?.label ?? id.charAt(0).toUpperCase() + id.slice(1), legResult(leg));
+  }
 }
 
 // Debug hook (same convention as __switchView / __engageScreensaver) — lets

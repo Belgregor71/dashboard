@@ -47,7 +47,17 @@ const MARKER = "V3-SHARED-RUNTIME";
 // Loaded by BOTH surfaces — the incumbent at / and V3 at /v3/.
 const SHARED_BOTH = [
   "js/config/alertLines.js",
-  "js/config/config.js",
+  /* ⚠ `js/config/config.js` LEFT V3'S CLOSURE on 2026-08-13, and the drift is
+     the point rather than an accident. It was reachable only because
+     houseSnapshot.js and briefingData.js imported COMMUTE_ORIGIN and the two
+     destinations from it — this house's street address, in a file that is
+     tracked in a PUBLIC repo and bundled to the browser. Those constants are
+     `.env` values on the server now (server/routes/commute.js), so nothing V3
+     loads reaches this module any more.
+
+     It is still very much alive on the INCUMBENT surface, where six modules
+     import WEATHER_LAT/WEATHER_LON from it. Removed from this list, not
+     deleted from the tree. */
   "js/core/config.js",
   "js/core/contextStore.js",
   "js/core/eventBus.js",
