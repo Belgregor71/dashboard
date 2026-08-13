@@ -25,6 +25,17 @@
    on purpose, because an unset day key is precisely what tells the tick to come
    back for it. The incumbent surface shipped without that and spent whole days
    with an empty ground and no retry.
+
+   ⚠ BEHIND `groundDiptych` A FRAME MAY HOLD TWO PHOTOGRAPHS, and that is why
+   everything below counts FRAMES rather than <img>s. A portrait preview is
+   1440x1920; full-bleed on this 1920x1080 wall it is upscaled 1.33x and cropped
+   to ~42% of its content — the worst thing the ground does. Side by side, each
+   half is ~952x1080: a 0.667x DOWNSCALE keeping ~84% of the picture, which is a
+   better rendition than a landscape photograph gets today. The cost is that the
+   one-shot terminal path now has to resolve for a PAIR (half a diptych with the
+   substrate showing through the other half is worse than no photograph), and
+   that every teardown removes two elements — removing only the first is how
+   this would leak one <img> per rotation, forever, on a page that never reloads.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* 30s is far beyond a LAN thumbnail and far under the tick that would retry it. */
@@ -52,30 +63,38 @@ const localDayKey = () => new Date().toDateString();
 
 const thumbUrl = (id) => `/api/immich/asset/${encodeURIComponent(id)}/thumb`;
 
-/** One-shot terminal path: whichever of load / error / stall arrives first wins,
- *  and the other two become no-ops. */
-function oneShot() {
+/**
+ * One-shot terminal path for a WHOLE FRAME, which may be one photograph or two.
+ * Whichever arrives first wins and the rest become no-ops: the LAST load, the
+ * FIRST error, or the stall.
+ *
+ * ⚠ `half()` is terminal only when every half is in. A diptych with one image
+ * decoded is not a frame — it is one photograph beside a hole, which reads as a
+ * broken wall rather than as a memory. And the first error is terminal for the
+ * pair, because the alternative is waiting out the stall for a half that has
+ * already told us it will never arrive.
+ */
+function frameLatch(count = 1) {
   let done = false;
+  let loaded = 0;
   let stall = null;
-  const take = (fn) => () => {
-    if (done) return;
+  const finish = (fn) => {
     done = true;
     clearTimeout(stall);
     stall = null;
     fn();
   };
+  const take = (fn) => () => { if (!done) finish(fn); };
   return {
     take,
+    half: (fn) => () => {
+      if (done) return;
+      if (++loaded >= count) finish(fn);
+    },
     arm(fn, ms = STALL_MS) { stall = setTimeout(take(fn), ms); }
   };
 }
 
-/**
- * Pick the next photograph. Asks for two and prefers one that is not already on
- * the glass: the server caches `rnd:N` for ten minutes, which makes drawing the
- * same asset twice in a row far likelier than chance, and spending the day's
- * one settle on a visual no-op is worse than not settling at all.
- */
 /* ── On this day ────────────────────────────────────────────────────────────
    One photograph a day was deliberate and it was wrong in practice: a day spent
    with a picture you don't much like has no way out, and the wall stops being
@@ -91,11 +110,21 @@ function oneShot() {
 const MEMORIES_URL = "/api/immich/on-this-day";
 const RANDOM_URL = "/api/immich/random?count=2";
 
+/* Items, not assets: each entry is a FRAME — one photograph, or a pair of
+   portraits shown side by side behind `groundDiptych`. */
 let pool = [];
 let poolCursor = 0;
 let poolDayKey = null;
 
 const memoriesEnabled = () => Boolean(globalThis.window?.CONFIG?.features?.groundMemories);
+
+/* ⚠ The diptych rides ON TOP of groundMemories and cannot be had without it.
+   Pairing needs `aspect` and `localDateTime`, which only the on-this-day pool
+   carries; the flag-off random endpoint hands over one asset at a time with no
+   way to know what the next one will be. Flag off (either flag) restores
+   landscape-first ordering exactly — that is the rollback path. */
+const diptychEnabled = () =>
+  memoriesEnabled() && Boolean(globalThis.window?.CONFIG?.features?.groundDiptych);
 
 /** Fisher–Yates, so "next" is a walk rather than a repeated random draw. */
 function shuffled(list) {
@@ -132,40 +161,138 @@ function orderByFit(list) {
   return [...shuffled(landscape), ...shuffled(rest)];
 }
 
+/* A portrait we KNOW is a portrait. `aspect` is null when the caller did not
+   request withExif, and the ordering above deliberately treats unknown as
+   portrait (conservative: it gets seen last). Pairing must not: an unknown
+   asset could be a landscape, and a landscape in a 952-wide half is a heavier
+   crop than the full-bleed it would otherwise get. Unknown stays full-bleed. */
+const isKnownPortrait = (a) => Number(a?.aspect) > 0 && Number(a.aspect) < LANDSCAPE_MIN_ASPECT;
+
+/** ISO strings sort chronologically; anything else sorts as unknown. */
+const timeKey = (a) => (typeof a?.localDateTime === "string" ? a.localDateTime : "");
+
+/**
+ * The day's pool as FRAMES.
+ *
+ * Flag off: exactly `orderByFit`, one photograph per frame — the rollback path,
+ * unchanged to the element.
+ *
+ * Flag on: portraits are paired SAME YEAR, NEAREST IN TIME. On-this-day means
+ * every photograph in the pool was taken on the same date, so two portraits
+ * from the same year are almost always the same occasion — which is what makes
+ * a diptych read as one moment rather than as a collage, and what lets the two
+ * halves share one true caption line. Everything else (landscapes, and anything
+ * whose orientation the library does not know) stays a full-bleed frame, and
+ * the frames are shuffled TOGETHER: once a portrait pair is the best-rendered
+ * thing on the wall there is no reason left to defer it, and deferring it meant
+ * that on a day you glance twice you never saw a portrait at all.
+ *
+ * ⚠ AN ODD PORTRAIT IS OMITTED — owner's call, 2026-08-13. Not repeated (the
+ * same photograph twice is a mistake, not a diptych), not shown full-bleed
+ * (that is the 1.33x upscale this exists to avoid), not held for tomorrow (the
+ * pool is per-day and holding one needs state that outlives the day). It is
+ * simply not seen this year, and there is at most one per year in the set.
+ */
+export function buildItems(list, diptych = false) {
+  const assets = (list ?? []).filter((a) => a?.id);
+  if (!diptych) return orderByFit(assets).map((a) => [a]);
+
+  const singles = assets.filter((a) => !isKnownPortrait(a)).map((a) => [a]);
+
+  const byYear = new Map();
+  for (const a of assets.filter(isKnownPortrait)) {
+    // "" is its own bucket: photographs whose date we could not parse pair with
+    // each other rather than gatecrashing a real year.
+    const year = yearOf(a);
+    if (!byYear.has(year)) byYear.set(year, []);
+    byYear.get(year).push(a);
+  }
+
+  const pairs = [];
+  for (const group of byYear.values()) {
+    group.sort((x, y) => timeKey(x).localeCompare(timeKey(y)));
+    for (let i = 0; i + 1 < group.length; i += 2) pairs.push([group[i], group[i + 1]]);
+  }
+
+  return shuffled([...singles, ...pairs]);
+}
+
 /**
  * The line under the photograph: who, where, when — omitting whatever the
  * library does not know, and returning "" when it knows nothing worth saying.
  * Pure, so a spec can pin every shape without a network or a DOM.
  */
+/* ⚠ TRIM BEFORE FILTERING. Immich returns a person record with an empty or
+   whitespace name for a detected-but-unnamed face, and `"  "` is truthy — a
+   bare .filter(Boolean) puts a blank name on the wall followed by a stray
+   separator. Caught by a spec, not by looking at it. */
+const namesOf = (asset) => (asset?.people ?? []).map((p) => String(p ?? "").trim()).filter(Boolean);
+
+/* City alone is the useful grain — "Nudgee" says more than "Queensland,
+   Australia" to someone standing in Nudgee. Country only when it is the only
+   thing known, which is what makes a holiday photo still say something. */
+const placeOf = (asset) => asset?.city || asset?.country || "";
+
+/* Strings only. The route returns an ISO `localDateTime`; anything else is a
+   shape we do not understand, and slicing a number like 20230812 yields
+   "2023" — a year that LOOKS right and was never actually parsed. */
+function yearOf(asset) {
+  const raw = asset?.localDateTime;
+  const year = typeof raw === "string" ? raw.slice(0, 4) : "";
+  return /^\d{4}$/.test(year) ? year : "";
+}
+
+/* Two names read as a couple; beyond that the line becomes a list and stops
+   being glanceable, so it degrades to a count. */
+function joinPeople(people) {
+  if (people.length === 1) return people[0];
+  if (people.length === 2) return `${people[0]} & ${people[1]}`;
+  if (people.length > 2) return `${people[0]} & ${people.length - 1} others`;
+  return "";
+}
+
+const uniq = (list) => [...new Set(list)];
+
 export function captionFor(asset) {
   if (!asset) return "";
   const parts = [];
 
-  /* ⚠ TRIM BEFORE FILTERING. Immich returns a person record with an empty or
-     whitespace name for a detected-but-unnamed face, and `"  "` is truthy — a
-     bare .filter(Boolean) puts a blank name on the wall followed by a stray
-     separator. Caught by a spec, not by looking at it. */
-  const people = (asset.people ?? [])
-    .map((p) => String(p ?? "").trim())
-    .filter(Boolean);
-  // Two names read as a couple; beyond that the line becomes a list and stops
-  // being glanceable, so it degrades to a count.
-  if (people.length === 1) parts.push(people[0]);
-  else if (people.length === 2) parts.push(`${people[0]} & ${people[1]}`);
-  else if (people.length > 2) parts.push(`${people[0]} & ${people.length - 1} others`);
+  const people = joinPeople(namesOf(asset));
+  if (people) parts.push(people);
 
-  // City alone is the useful grain — "Nudgee" says more than "Queensland,
-  // Australia" to someone standing in Nudgee. Country only when it is the
-  // only thing known, which is what makes a holiday photo still say something.
-  if (asset.city) parts.push(asset.city);
-  else if (asset.country) parts.push(asset.country);
+  const place = placeOf(asset);
+  if (place) parts.push(place);
 
-  /* Strings only. The route returns an ISO `localDateTime`; anything else is a
-     shape we do not understand, and slicing a number like 20230812 yields
-     "2023" — a year that LOOKS right and was never actually parsed. */
-  const raw = asset.localDateTime;
-  const year = typeof raw === "string" ? raw.slice(0, 4) : "";
-  if (/^\d{4}$/.test(year)) parts.push(year);
+  const year = yearOf(asset);
+  if (year) parts.push(year);
+
+  return parts.join(" · ");
+}
+
+/**
+ * The line under a FRAME — one photograph or a diptych.
+ *
+ * A pair gets ONE line, not two: the halves were chosen to be the same moment,
+ * so repeating "Nudgee · 2013 / Nudgee · 2013" would be noise. Each category is
+ * merged and de-duplicated — "&" joins within a category, "·" between them —
+ * which means the common pair (same place, same year, no named faces) reads
+ * exactly like a single photograph's caption, because it is describing exactly
+ * the same thing. Differing years can only appear via the unknown-date bucket;
+ * the line stays true rather than pretending.
+ */
+export function captionForFrame(assets) {
+  const list = (assets ?? []).filter(Boolean);
+  if (list.length < 2) return captionFor(list[0]);
+
+  const parts = [];
+  const people = joinPeople(uniq(list.flatMap(namesOf)));
+  if (people) parts.push(people);
+
+  const places = uniq(list.map(placeOf).filter(Boolean));
+  if (places.length) parts.push(places.join(" & "));
+
+  const years = uniq(list.map(yearOf).filter(Boolean)).sort();
+  if (years.length) parts.push(years.join(" & "));
 
   return parts.join(" · ");
 }
@@ -180,6 +307,12 @@ async function fetchPool() {
   }
 }
 
+/**
+ * The flag-off draw. Asks for two and prefers one that is not already on the
+ * glass: the server caches `rnd:N` for ten minutes, which makes drawing the same
+ * asset twice in a row far likelier than chance, and spending the day's one
+ * settle on a visual no-op is worse than not settling at all.
+ */
 async function pickRandom(exclude) {
   try {
     const res = await fetch(RANDOM_URL, { signal: AbortSignal.timeout(8000) });
@@ -193,16 +326,27 @@ async function pickRandom(exclude) {
   }
 }
 
-/** @returns {Promise<object|null>} the whole asset, not just its id — the
- *  caption needs the people and the place that came down with it. */
-async function pickAsset(exclude) {
-  if (!memoriesEnabled()) return pickRandom(exclude);
+/** One frame's worth of assets — always an array, 1 or 2 long, never empty.
+ *  The whole asset, not just its id: the caption needs the people and the place
+ *  that came down with it.
+ *  @returns {Promise<object[]|null>} */
+async function pickItem(exclude) {
+  const single = async () => {
+    const asset = await pickRandom(exclude);
+    return asset ? [asset] : null;
+  };
+  if (!memoriesEnabled()) return single();
 
   const today = localDayKey();
   if (poolDayKey !== today || poolCursor >= pool.length) {
     const fresh = await fetchPool();
-    if (fresh.length) {
-      pool = orderByFit(fresh);
+    // ⚠ Only adopt a NON-EMPTY set. With the diptych on, a day whose portraits
+    // are all unpaired can build to nothing at all, and adopting an empty pool
+    // would pin poolDayKey to today and leave the wall permanently on the
+    // random fallback with no way back until midnight.
+    const items = fresh.length ? buildItems(fresh, diptychEnabled()) : [];
+    if (items.length) {
+      pool = items;
       poolCursor = 0;
       poolDayKey = today;
     }
@@ -210,52 +354,108 @@ async function pickAsset(exclude) {
 
   // A date with nothing in the library, or a fetch that failed: the old
   // behaviour is the fallback, never a blank wall.
-  if (!pool.length || poolDayKey !== today) return pickRandom(exclude);
+  if (!pool.length || poolDayKey !== today) return single();
 
   let next = pool[poolCursor++];
-  // Only matters when the day's set is a single photograph.
-  if (next?.id === exclude && poolCursor < pool.length) next = pool[poolCursor++];
-  return next ?? null;
+  // Only matters when the day's set is a single frame.
+  if (next?.[0]?.id === exclude && poolCursor < pool.length) next = pool[poolCursor++];
+  return next?.length ? next : null;
 }
-
 
 /** The caption element is optional — a surface without one simply has no line. */
 function paintCaption() {
   const el = document.getElementById("ground-caption");
   if (!el) return;
-  const text = memoriesEnabled() ? captionFor(current?.asset) : "";
+  const text = memoriesEnabled() ? captionForFrame(current?.assets) : "";
   el.textContent = text;
   el.dataset.blank = text ? "0" : "1";
 }
 
-/** The first photograph of the session. */
+/* ── The diptych's DOM ──────────────────────────────────────────────────────
+   The halves are marked in the document rather than tracked only in JS: the CSS
+   that places them left and right keys off `data-half`, and the probe counts
+   FRAMES by ignoring the right half of each pair. */
+function markPair(imgs) {
+  imgs.forEach((img, i) => { img.dataset.half = String(i); });
+  if (host) host.dataset.diptych = "1";
+}
+
+function unmarkFrame(imgs) {
+  for (const img of imgs) delete img.dataset.half;
+}
+
+/**
+ * Set the container flag from the DOM's own state. Only ever clears late.
+ *
+ * ⚠ WHY IT CANNOT BE CLEARED WHEN THE INCOMING FRAME IS A SINGLE: the flag is
+ * what makes every ground <img> absolutely positioned, and an absolutely
+ * positioned element paints ABOVE a static sibling regardless of DOM order.
+ * Clear it while an outgoing diptych is still fading and the old pair would
+ * jump on top of the incoming photograph, turning the settle into a cut with
+ * the wrong picture on the glass for a minute.
+ */
+function syncDiptychAttr() {
+  if (!host) return;
+  if (host.querySelector("img[data-half]")) host.dataset.diptych = "1";
+  else delete host.dataset.diptych;
+}
+
+/* A single photograph is handed to the scrim as an ELEMENT, exactly as before
+   the diptych existed; only a pair is handed over as an array. That keeps the
+   flag-off call signature identical rather than merely equivalent. */
+const frameArg = (imgs) => (imgs.length > 1 ? imgs : imgs[0]);
+
+/** The first frame of the session. */
 async function loadFirst(stallMs = STALL_MS) {
   if (inFlight || current) return false;
-  const img = host?.querySelector("img");
-  if (!img) return false;
+  const first = host?.querySelector("img");
+  if (!first) return false;
 
   inFlight = true;
   let handedOff = false;
   try {
-    const asset = await pickAsset(null);
-    const assetId = asset?.id ?? null;
-    if (!assetId) return false;
+    const assets = await pickItem(null);
+    if (!assets?.length) return false;
 
-    const shot = oneShot();
-    img.onload = shot.take(() => {
-      img.dataset.shown = "1";
-      current = { img, assetId, asset, dayKey: localDayKey() };
-      paintCaption();
-      inFlight = false;
-      onPhoto(img, { transitioning: false });
-    });
+    /* #ground is in index.html; a pair's second half is created here — and
+       removed again on any failure, so a frame that never arrives leaves
+       exactly the DOM it started with. */
+    const imgs = [first];
+    for (let i = 1; i < assets.length; i++) {
+      const extra = document.createElement("img");
+      extra.alt = "";
+      imgs.push(extra);
+    }
+    if (imgs.length > 1) markPair(imgs);
+
+    const shot = frameLatch(imgs.length);
     // Both failure paths leave `current` null on purpose — that is what the
     // tick reads to know there is still no photograph.
-    img.onerror = shot.take(() => { inFlight = false; });
-    shot.arm(() => { inFlight = false; }, stallMs);
+    const fail = () => {
+      unmarkFrame(imgs);
+      for (const extra of imgs.slice(1)) extra.remove();
+      syncDiptychAttr();
+      inFlight = false;
+    };
+    const settle = () => {
+      for (const el of imgs) el.dataset.shown = "1";
+      current = { imgs, assets, assetId: assets[0].id, dayKey: localDayKey() };
+      paintCaption();
+      inFlight = false;
+      onPhoto(frameArg(imgs), { transitioning: false });
+    };
 
-    img.decoding = "async";
-    img.src = thumbUrl(assetId);
+    for (const el of imgs) {
+      el.onload = shot.half(settle);
+      el.onerror = shot.take(fail);
+    }
+    shot.arm(fail, stallMs);
+
+    imgs.forEach((el, i) => {
+      el.decoding = "async";
+      if (i > 0) host.append(el);
+      el.src = thumbUrl(assets[i].id);
+    });
     handedOff = true;
     return true;
   } catch {
@@ -285,49 +485,63 @@ async function dissolve(settleMs = DISSOLVE_MS, stallMs = STALL_MS) {
   inFlight = true;
   let handedOff = false;
   try {
-    const asset = await pickAsset(current.assetId);
-    const assetId = asset?.id ?? null;
-    if (!assetId) return false;   // keep the photograph we have; retry next tick
+    const assets = await pickItem(current.assetId);
+    if (!assets?.length) return false;   // keep the frame we have; retry next tick
 
     const old = current;
-    const next = document.createElement("img");
-    next.alt = "";
-    next.decoding = "async";
-    next.style.transition = `opacity ${settleMs}ms linear`;
+    const imgs = assets.map(() => {
+      const el = document.createElement("img");
+      el.alt = "";
+      el.decoding = "async";
+      el.style.transition = `opacity ${settleMs}ms linear`;
+      return el;
+    });
+    if (imgs.length > 1) markPair(imgs);
 
-    const shot = oneShot();
+    const shot = frameLatch(imgs.length);
     const settle = () => {
-      next.dataset.shown = "1";
-      current = { img: next, assetId, asset, dayKey: localDayKey() };
+      for (const el of imgs) el.dataset.shown = "1";
+      current = { imgs, assets, assetId: assets[0].id, dayKey: localDayKey() };
       paintCaption();
       inFlight = false;
 
       // The incoming photograph's own opacity may be lower than the outgoing
       // one's. It may not be applied yet — for the length of the settle both
       // are on the glass, and the scrim has to protect the brighter of them.
-      onPhoto(next, { transitioning: true });
+      onPhoto(frameArg(imgs), { transitioning: true });
 
       setTimeout(() => {
-        old.img.remove();
+        // ⚠ EVERY element of the outgoing frame. Removing only the first is how
+        // a diptych leaks one <img> per rotation on a page that runs for weeks.
+        for (const el of old.imgs) el.remove();
         // #ground names whatever photograph is currently the ground. Carrying
         // the id across keeps that true for the life of the page, so nothing
-        // that looks it up ever holds a detached node.
-        next.id = old.img.id || "ground";
-        onPhoto(next, { transitioning: false });
+        // that looks it up ever holds a detached node. On a pair it names the
+        // left half — the one the scrim samples first and the specs read.
+        imgs[0].id = old.imgs[0].id || "ground";
+        syncDiptychAttr();
+        onPhoto(frameArg(imgs), { transitioning: false });
       }, settleMs + CLEANUP_BUFFER_MS);
     };
 
-    next.onload = shot.take(settle);
-    // A dead incoming photograph must not take the live one with it: drop the
-    // half-built node and leave the day key as it was so the tick retries.
-    next.onerror = shot.take(() => { next.remove(); inFlight = false; });
-    shot.arm(() => { next.remove(); inFlight = false; }, stallMs);
+    // A dead incoming frame must not take the live one with it: drop the
+    // half-built nodes and leave the day key as it was so the tick retries.
+    const fail = () => {
+      for (const el of imgs) el.remove();
+      syncDiptychAttr();
+      inFlight = false;
+    };
+    for (const el of imgs) {
+      el.onload = shot.half(settle);
+      el.onerror = shot.take(fail);
+    }
+    shot.arm(fail, stallMs);
 
     // Appended BEFORE the src so the element has rendered one frame at opacity
     // 0 — a node inserted already at its final state has nothing to transition
     // from and would cut rather than settle.
-    host.append(next);
-    next.src = thumbUrl(assetId);
+    for (const el of imgs) host.append(el);
+    imgs.forEach((el, i) => { el.src = thumbUrl(assets[i].id); });
     handedOff = true;
     return true;
   } catch {
@@ -366,13 +580,21 @@ export function initGround(img, opts = {}) {
 
   window.__ground = () => ({
     assetId: current?.assetId ?? null,
+    // Both halves of a diptych, so "which memories are on the wall" is one read.
+    assetIds: (current?.assets ?? []).map((a) => a.id),
     dayKey: current?.dayKey ?? null,
-    shown: current?.img?.dataset.shown === "1",
-    layers: host.querySelectorAll("img").length,
+    shown: Boolean(current?.imgs?.length) && current.imgs.every((i) => i.dataset.shown === "1"),
+    /* ⚠ `layers` STILL MEANS PHOTOGRAPHIC LAYERS — 1 at rest, 2 mid-settle.
+       It is the soak metric the cutover doc reads, so it must not silently
+       start counting the diptych's second half as a leak. Frames are counted by
+       ignoring right halves; `imgs` is the raw element count beside it. */
+    layers: host.querySelectorAll('img:not([data-half="1"])').length,
+    imgs: host.querySelectorAll("img").length,
+    pair: (current?.imgs?.length ?? 0) > 1,
     inFlight
   });
   // The specs drive the day boundary rather than sitting out a real one, and
   // drive the stall rather than sitting out 30 seconds to prove a latch clears.
   window.__groundDissolve = (settleMs, stallMs) => dissolve(settleMs, stallMs);
-  window.__groundRetry = () => loadFirst();
+  window.__groundRetry = (stallMs) => loadFirst(stallMs);
 }

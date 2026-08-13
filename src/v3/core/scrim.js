@@ -316,7 +316,8 @@ const INK_TOKENS = ["--ink", "--ink-dim", "--ink-faint"];
 
 let sampleCanvas = null;
 let probeCanvas = null;
-let currentImg = null;
+/* The frame on the glass: one photograph, or the two halves of a diptych. */
+let currentImgs = [];
 let last = { alpha: null, reason: "not sampled yet" };
 
 /* A colour that does not exist anywhere in the palette. If it survives an
@@ -356,11 +357,20 @@ function resolveColor(css) {
 
 /**
  * Sample the photograph as the wall shows it.
- * @returns {Array<{rgb:number[], coverage:number}>|null} null when the image
+ *
+ * @param {HTMLImageElement|HTMLImageElement[]} img  one photograph, or the two
+ *        halves of a diptych in left-to-right order. A pair is sampled into its
+ *        OWN half of the grid: the two halves are different photographs with
+ *        different brightness, and averaging them would let a dark left half pay
+ *        for a bright right one — precisely the "mean hides the failing patch"
+ *        error this module already refuses to make within one photograph.
+ * @returns {Array<{rgb:number[], coverage:number}>|null} null when any image
  *          has no pixels yet, or when the canvas is tainted.
  */
 export function sampleCells(img, boxW, boxH) {
-  if (!img?.naturalWidth || !img.naturalHeight || !boxW || !boxH) return null;
+  const frame = (Array.isArray(img) ? img : [img]).filter(Boolean);
+  if (!frame.length || !boxW || !boxH) return null;
+  if (frame.some((i) => !i.naturalWidth || !i.naturalHeight)) return null;
 
   if (!sampleCanvas) sampleCanvas = document.createElement("canvas");
   sampleCanvas.width = GRID_W;
@@ -373,10 +383,24 @@ export function sampleCells(img, boxW, boxH) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
 
-  const { sx, sy, sw, sh } = coverRect(img.naturalWidth, img.naturalHeight, boxW, boxH);
+  /* The seam between the halves is 16px of substrate out of 1920 — 0.8% of the
+     width, and dark. It is not modelled here: it would move every column
+     boundary by a fraction of a cell to account for a strip narrower than one
+     sample, and the honest simplification is to sample each half over its own
+     equal share of the grid. */
   let data;
   try {
-    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, GRID_W, GRID_H);
+    frame.forEach((el, i) => {
+      const x0 = Math.round((i * GRID_W) / frame.length);
+      const x1 = Math.round(((i + 1) * GRID_W) / frame.length);
+      const { sx, sy, sw, sh } = coverRect(
+        el.naturalWidth,
+        el.naturalHeight,
+        boxW / frame.length,
+        boxH
+      );
+      ctx.drawImage(el, sx, sy, sw, sh, x0, 0, x1 - x0, GRID_H);
+    });
     data = ctx.getImageData(0, 0, GRID_W, GRID_H).data;
   } catch {
     // A cross-origin photo taints the canvas. Ours are same-origin through
@@ -404,19 +428,22 @@ function record(reason) {
 }
 
 /**
- * Measure one photograph and set --scrim-opacity from it.
+ * Measure one frame and set --scrim-opacity from it.
  *
- * @param {HTMLImageElement} img
- * @param {{transitioning?: boolean}} opts  During a day-boundary cross-fade
- *        both photographs are on the glass at once, so the opacity may only
- *        RISE — settling to the incoming photo's own value once the old one is
- *        gone. Lowering it mid-fade would un-protect the outgoing photo for a
- *        minute, which is a minute of unreadable text once a day.
+ * @param {HTMLImageElement|HTMLImageElement[]} img  the photograph, or both
+ *        halves of a diptych. The text band runs the full width of the wall, so
+ *        the whole frame is one measurement — not one per half.
+ * @param {{transitioning?: boolean}} opts  During a cross-fade both frames are
+ *        on the glass at once, so the opacity may only RISE — settling to the
+ *        incoming frame's own value once the old one is gone. Lowering it
+ *        mid-fade would un-protect the outgoing photo for a minute, which is a
+ *        minute of unreadable text.
  */
 export function applyScrim(img, opts = {}) {
-  const target = img ?? currentImg;
-  if (!target) return record("no photograph");
-  currentImg = target;
+  const frame = (Array.isArray(img) ? img : [img]).filter(Boolean);
+  const target = frame.length ? frame : currentImgs;
+  if (!target.length) return record("no photograph");
+  currentImgs = target;
 
   const root = document.documentElement;
   const cs = getComputedStyle(root);
@@ -453,6 +480,10 @@ export function applyScrim(img, opts = {}) {
     p90Luminance: Number(chosen.p90Luminance.toFixed(4)),
     target: CONTRAST_TARGET,
     transitioning: Boolean(opts.transitioning),
+    // How many photographs this measurement covered — 2 says a diptych was
+    // measured as one wall, which is the only way to tell a correct pair
+    // reading from a reading of the left half alone.
+    halves: target.length,
     // ⚠ THE NUMBERS TO READ IN A CONTRAST SWEEP are `worst` and `atFloor` —
     // what each ink actually measures at, over this photograph, at this
     // opacity. They are the two ends of the band and they differ a lot, because
@@ -477,10 +508,10 @@ export function applyScrim(img, opts = {}) {
   return last;
 }
 
-/** Re-measure the photograph already on the glass — for the night flip, which
+/** Re-measure the frame already on the glass — for the night flip, which
  *  changes the ink and therefore changes the answer. */
 export function resampleScrim(opts = {}) {
-  return currentImg ? applyScrim(currentImg, opts) : record("no photograph");
+  return currentImgs.length ? applyScrim(currentImgs, opts) : record("no photograph");
 }
 
 export function initScrim() {
@@ -488,8 +519,13 @@ export function initScrim() {
   // sweeps and the contrast spec can read the real number rather than infer it.
   window.__scrim = () => last;
   window.__resampleScrim = (opts) => resampleScrim(opts);
-  // Measure whatever is in #ground right now. The specs drive this with a
+  // Measure whatever is on the glass right now. The specs drive this with a
   // known image rather than waiting on Immich, and the kiosk sweep uses it to
   // force a re-measure without reloading the page and losing the soak clock.
-  window.__applyScrim = (opts) => applyScrim(document.getElementById("ground"), opts);
+  //
+  // ⚠ The frame we last measured, falling back to #ground: on a diptych,
+  // #ground is only the LEFT half, and a sweep that reads it alone would report
+  // a number for half a wall while claiming it measured the wall.
+  window.__applyScrim = (opts) =>
+    applyScrim(currentImgs.length ? currentImgs : document.getElementById("ground"), opts);
 }

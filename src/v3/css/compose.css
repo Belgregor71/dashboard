@@ -65,6 +65,39 @@ html, body {
 }
 .photo img[data-shown="1"] { opacity: 1; }
 
+/* ── The diptych ────────────────────────────────────────────────────────────
+   Two portraits side by side, behind `groundDiptych`. Full-bleed, a 1440x1920
+   preview is upscaled 1.33x onto this wall and cropped to ~42% of the picture;
+   in a half it is DOWNSCALED to ~0.667x and keeps ~84%. The arithmetic is the
+   whole argument for the feature.
+
+   The gap is the living substrate showing through, like the matting between two
+   framed prints — 16px, so that two photographs from the same afternoon read as
+   two photographs. A butt joint at 960 would spend nothing and buy an ambiguity:
+   two unrelated pictures meeting edge to edge look like one torn image.
+
+   ⚠ THE POSITIONING IS ON EVERY GROUND IMAGE, NOT ONLY THE HALVES, and that is
+   load-bearing. A positioned element paints above a static sibling whatever the
+   DOM order, so during the settle from a diptych to a single photograph the
+   outgoing pair would sit on top of the incoming one. ground.js therefore sets
+   this flag when a pair ARRIVES and clears it only once the pair is off the
+   glass. With no diptych anywhere, none of this applies and the ground is the
+   plain full-bleed <img> it has always been. */
+.photo { --diptych-gap: 16px; }
+
+.photo[data-diptych="1"] img {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.photo[data-diptych="1"] img[data-half] {
+  width: calc((100% - var(--diptych-gap)) / 2);
+}
+.photo[data-diptych="1"] img[data-half="1"] {
+  left: auto;
+  right: 0;
+}
+
 /* ── The lattice ────────────────────────────────────────────────────────────
    12 x 7 modules inside the safe inset. The composer may place content only in
    one of the legal rectangles named below; it never emits arbitrary geometry.

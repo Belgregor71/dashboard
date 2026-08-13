@@ -573,6 +573,34 @@ window.CONFIG = {
     // byte the previous behaviour. One-line revert (-> false).
     groundMemories: false,
 
+    // GROUND DIPTYCH — two portraits side by side instead of one, butchered.
+    //
+    // The arithmetic is the whole argument. An Immich preview of a portrait is
+    // 1440x1920 and there is no larger rendition to fetch (measured 2026-08-12:
+    // `?size=fullsize` 302s to the same file, `/original` is HEIC and Chromium
+    // cannot render it). Full-bleed on the 1920x1080 wall that preview is
+    // upscaled 1.33x and cropped to ~42% of the picture — the only upscale
+    // anywhere in the path. In a 952x1080 half it is DOWNSCALED to 0.667x and
+    // keeps ~84%: a better rendition than a landscape photograph gets today,
+    // and a crop that goes from half-butchered to slightly tightened.
+    //
+    // On: portraits from the day's on-this-day pool are paired SAME YEAR,
+    // NEAREST IN TIME — on-this-day means one date, so same-year portraits are
+    // almost always the same occasion, which is what makes a pair read as one
+    // moment and lets both halves share one true caption. 16px of the living
+    // substrate sits between them, like matting between two framed prints.
+    // Frames (landscapes and pairs alike) are then shuffled together, because a
+    // paired portrait is no longer the case worth deferring.
+    //
+    // ⚠ AN ODD PORTRAIT IS OMITTED — not repeated, not shown full-bleed, not
+    // held for tomorrow (owner's call, 2026-08-13). At most one per year.
+    // ⚠ REQUIRES groundMemories: pairing needs `aspect` + `localDateTime`, and
+    // only the on-this-day pool carries them. This flag alone does nothing.
+    //
+    // Off: landscape-first ordering, one photograph per frame — the previous
+    // behaviour to the element. One-line revert (-> false).
+    groundDiptych: false,
+
     // Living-window Phase 1 (plan: review-the-design-scheme) — rain on glass.
     // A shared episode runtime (services/atmoFx/) draws bounded droplet/streak
     // "moments" on a front canvas, then hides it: the GPU-0% ambient baseline
