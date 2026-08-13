@@ -108,12 +108,23 @@ test("an unusable clock is not a window — it falls back to the flat score", ()
 const CAM = { cameraTriggerName: "Front Door", cameraTriggerLabel: "Person", cameraTriggerAt: 0 };
 const trigger = (atIso) => ({ ...CAM, cameraTriggerAt: at(atIso).getTime() });
 
-test("camera: hot for three minutes after the trigger, and takes the hero", () => {
+test("camera: hot for one minute after the trigger, and takes the hero", () => {
   const t = trigger("2026-08-11T19:00:00");
-  const c = cameraTriggerCandidate({ ...t, now: at("2026-08-11T19:01:00"), timely: true });
+  const c = cameraTriggerCandidate({ ...t, now: at("2026-08-11T19:00:30"), timely: true });
 
   expect(c.score).toBe(72);
   expect(c.stackOnly).toBe(false); // same trap as the menu — score alone is not enough
+});
+
+test("camera: cold by two minutes — the window is a battery budget", () => {
+  // The hot window costs a fresh HA snapshot fetch per 30 s stack tick, each one
+  // waking a battery camera. This case is the one that fails if the window ever
+  // creeps back out to the original three minutes.
+  const t = trigger("2026-08-11T19:00:00");
+  const c = cameraTriggerCandidate({ ...t, now: at("2026-08-11T19:02:00"), timely: true });
+
+  expect(c.score).toBe(45);
+  expect(c.stackOnly).toBe(true);
 });
 
 test("camera: after the hot window it decays to a stack card, still alive", () => {

@@ -81,9 +81,14 @@ const IN_WINDOW_SCORE = 72; // clears the High floor (70) — earns the hero
 const COMMUTE_WINDOW = { fromMin: 6 * 60 + 30, toMin: 8 * 60, weekdaysOnly: true };
 const MENU_WINDOW = { fromMin: 17 * 60, toMin: 18 * 60 + 30, weekdaysOnly: false };
 
-/* The camera's window is measured from the TRIGGER, not the clock — three
-   minutes is roughly how long someone is still at the door or walking away. */
-const CAMERA_TRIGGER_HOT_MS = 3 * 60 * 1000;
+/* The camera's window is measured from the TRIGGER, not the clock — one minute
+   is about as long as someone is still at the door or walking away.
+   ⚠ This is a BATTERY budget, not a taste call. A hero camera card rebuilds its
+   <img> on every 30 s stack tick, and the snapshot route refetches from HA per
+   request (no-store), waking a battery camera each time. Three minutes cost ~6
+   wakes per trigger; one costs ~2. Don't widen it without accounting for that —
+   the battery cams take 15-20 s to wake, and live view is wired-only. */
+const CAMERA_TRIGGER_HOT_MS = 1 * 60 * 1000;
 
 /** `now` as epoch ms, accepting a Date, a number, or nothing. */
 function nowMs(now) {
