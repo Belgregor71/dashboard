@@ -646,10 +646,18 @@ window.CONFIG = {
     // television, a guest, half a sentence — so without a way back one
     // mishearing removes a photograph permanently and silently.
     //
-    // Off: the intents never match, nothing can ever be added to the list, and
-    // an empty list filters nothing — so the flag-off wall is unchanged.
+    // ✅ DEFAULT-ON 2026-08-14, after the whole round trip was proven on the
+    // live box: a real photograph vetoed, persisted to data/photos/hidden.json,
+    // absent from the next on-this-day search, then restored by the undo and
+    // back in the pool — the library left exactly as it was found.
+    //
+    // Off: the handler refuses and the turn falls through to the next lane
+    // exactly as it did before this existed, so nothing can ever be added to
+    // the list, and an empty list filters nothing. (The intent still MATCHES —
+    // the matcher is pure and shared with the incumbent — which is why the
+    // rollback is asserted on the POST never happening, not on the words.)
     // One-line revert (-> false).
-    photoVeto: false,
+    photoVeto: true,
 
     // Living-window Phase 1 (plan: review-the-design-scheme) — rain on glass.
     // A shared episode runtime (services/atmoFx/) draws bounded droplet/streak
