@@ -25,38 +25,39 @@ noise than it saves.
 
 ---
 
-### S2 · Triage the 34 `innerHTML` sites — audit H6, never done
-**~2 h for the triage; the fix is smaller than the audit assumed.**
+### S2 · ✅ **DONE — and it was already done before this session started**
 
-H6 was scoped as "`innerHTML` → `textContent` on upstream-sourced strings, 4 h". **The
-cutover shrank it.** Measured 2026-08-14 — imports from `src/v3/`:
+**H6 was closed at the time of the audit and its register was never ticked.** I listed it as
+open here on 2026-08-14 off a raw grep count, which is the same mistake the audit made.
 
-| Module | refs from `src/v3/` | Runs on the wall? |
-|---|---|---|
-| `modules/calendar.js` (6 sites) | **0** | no |
-| `services/weather/renderer.js` (5) | **0** | no |
-| `modules/cameraTiles.js` (4) | **0** | no |
-| `modules/fuelPrices.js`, `arrActivity.js`, `recipePanel.js`, `mediaPanels.js` | **0** | no |
-| `modules/screensaver.js` (3) | **2** | **yes** |
+`tests/escape-html.spec.js` already existed, cites *"Audit 2026-07-26 S6/H6"* in its header,
+and records the correct classification: of the 51 sites, most are `innerHTML=""` clears,
+static shells, or numeric/date-only interpolations; **five genuinely interpolate
+upstream-controlled strings, and all five escape.** Re-swept by hand 2026-08-14 — still true,
+across `src/js` and `src/v3` both.
 
-So the live exposure is far smaller than 34 sites. Note also that V3's own surfaces are
-already disciplined and say so in comments — `v3/core/spread.js:112,182`,
-`v3/core/vocabulary-card.js:59`, `v3/subjects/dom.js:19` all use `textContent` deliberately,
-and `src/js/core/escapeHtml.js` exists with its own spec.
+⚠ **Two corrections to what this file said in its first draft:**
+- The `modules/screensaver.js` row claimed 2 refs from `src/v3/`. Those two hits are
+  **comments** in `v3/core/presence.js:22,35` citing screensaver's `IDLE_MS` constants, not
+  imports. **Zero** of the `innerHTML` sites are in V3's closure — the authority is the
+  manifest in `tests/v3-closure.spec.js`, not a path grep.
+- "None of it runs on the wall" is true but does **not** make it dead code: the incumbent
+  tree is the documented rollback path (`V3_DEFAULT=0`, `V3-CUTOVER.md:504`). Cold standby,
+  not deletable. This weakens **C3** below — read it again before acting on it.
 
-**Do, in order:**
-1. Resolve the genuinely-live set: `screensaver.js` (its one interpolating site, :487,
-   **already** wraps in `escapeHtml` — confirm the other two are static), plus close the
-   import-closure question on `core/voiceOverlay.js:59` and `modules/arrivalGreeting.js:190`,
-   which were not in the table above.
-2. Fix only what is both live **and** interpolating upstream text.
-3. Everything else becomes input to **C3** (delete, don't sanitize dead code).
+**What this session added**, since the escaping discipline was real but only half-pinned:
+three upstream-carrying sites used a **local** escaper rather than the shared helper
+(`cameraTiles.js` `escHtml`, `recipePanel.js` its own `escapeHtml`) or took upstream text raw
+for a correct reason (`mediaPanels.js`'s detached-`<textarea>` entity decoder, `699d1d8`).
+The old spec's comment waved all three through as "already escaped" without asserting it — and
+a local helper is easier to drop in a refactor than an imported one, because deleting it
+breaks no import. Four assertions added, **each proven red by neutering the thing it guards**.
 
-⚠ Do not "fix" all 34 mechanically. Several are building static markup or SVG from numbers
-we generate — `escapeHtml.js:6` already records why the blanket rule does not apply to them.
-
-**Done when:** every live interpolation of upstream text is escaped or `textContent`, and the
-dead set is listed for C3.
+⚠ **A regex cannot do this job in general — do not try again.** A scanner rule was written
+and thrown away the same session: it fired on **18 sites that are all correct**, because
+separating upstream-derived strings from locally-computed ones (`bucket.label`, `iconId`,
+`points.join(" ")`) is a taint analysis. `scan-patterns.mjs`'s own principle applies —
+*a rule nobody trusts gets disabled*. The narrow source-reading spec is the durable form.
 
 ---
 
