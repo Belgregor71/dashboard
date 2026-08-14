@@ -27,6 +27,7 @@
 import { getAllEntities } from "./homeAssistant/state.js";
 import { getTodoEntityIds, openTodoSummaries, getShoppingEntityId } from "./homeAssistant/todoEntities.js";
 import { menuFrom } from "./mealEvent.js";
+import { isTvAudio } from "./mediaSource.js";
 import { getTimes } from "../vendor/suncalc.js";
 
 /* Refreshed on a timer; never fetched at answer time. */
@@ -94,12 +95,25 @@ function peopleFrom(entities) {
 
 /* null when the house has no media players AT ALL — which is what a
    disconnected Home Assistant looks like from here. An empty array means the
-   players exist and none of them is playing, which is a different sentence. */
+   players exist and none of them is playing, which is a different sentence.
+
+   ⚠⚠ TV AUDIO IS NOT MEDIA, AND THIS READER WAS THE ONE THAT NEVER LEARNT IT.
+   `mediaSource.js` names the three readers that must share the rule — the
+   incumbent's panels, `houseSnapshot`, and this one — and says in its own
+   header that a rule living in only some of them is "a house that says one
+   thing on the wall and another out loud." That is exactly what was measured on
+   2026-08-15: `media_player.living_room` sat `playing` with `source: "TV"`, the
+   screen correctly showed nothing playing, and the voice answered **"TV."**
+
+   ⚠ Note the header's 2026-08-09 measurement has since MOVED — that player now
+   carries `media_title: "TV"` where it used to carry none. The `source` test is
+   what saved this, which is why that header says the source test is the whole
+   test. Do not switch to a title check. */
 function mediaFrom(entities) {
   const players = entities.filter((e) => e?.entity_id?.startsWith("media_player."));
   if (players.length === 0) return null;
   return players
-    .filter((e) => e.state === "playing")
+    .filter((e) => e.state === "playing" && !isTvAudio(e))
     .map((e) => ({
       title: e.attributes?.media_title ?? null,
       artist: e.attributes?.media_artist ?? e.attributes?.media_series_title ?? null

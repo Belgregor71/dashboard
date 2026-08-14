@@ -62,19 +62,45 @@ test("the set is lower-cased, or the exact match silently never fires", () => {
    to whichever surface they happen to be looking at.
 ─────────────────────────────────────────────────────────────────────────── */
 
-test("both surfaces import the one predicate", () => {
+test("all THREE surfaces import the one predicate", () => {
+  /* ⚠⚠ THIS TEST NAMED THREE READERS AND CHECKED TWO, and the unchecked one had
+     never had the rule at all. Measured on the live wall 2026-08-15:
+     `media_player.living_room` sat `playing` with `source: "TV"`, the screen
+     correctly showed nothing playing — and asked what was playing, the house
+     said **"TV."** out loud. The header above had already written down what
+     that costs; the assertion just did not cover the surface it was describing.
+
+     A test that enumerates N things and asserts N-1 of them is worse than one
+     that asserts nothing, because it reads as coverage. */
   const panels = src("src/js/modules/mediaPanels.js");
   const snapshot = src("src/js/services/houseSnapshot.js");
+  const voice = src("src/js/services/voiceSnapshot.js");
 
-  expect(panels, "the incumbent's panels — the surface the kiosk serves at /")
+  expect(panels, "the incumbent's panels — the rollback surface")
     .toMatch(/import \{ isTvAudio \} from "\.\.\/services\/mediaSource\.js"/);
   expect(snapshot, "the DOM-free reader — all of V3")
     .toMatch(/import \{ isTvAudio \} from "\.\/mediaSource\.js"/);
+  expect(voice, "the fast lane — what the house SAYS")
+    .toMatch(/import \{ isTvAudio \} from "\.\/mediaSource\.js"/);
 
-  // And neither carries its own copy of the literal the rule turns on.
-  for (const [name, text] of [["mediaPanels.js", panels], ["houseSnapshot.js", snapshot]]) {
+  // And none carries its own copy of the literal the rule turns on.
+  for (const [name, text] of [
+    ["mediaPanels.js", panels],
+    ["houseSnapshot.js", snapshot],
+    ["voiceSnapshot.js", voice]
+  ]) {
     expect(text.includes('Set(["tv"])'), `${name} must not re-declare the source set`).toBe(false);
   }
+});
+
+test("the spoken lane drops a TV-sourced player before it counts as playing", () => {
+  /* The behavioural half, asserted against the source for the same reason the
+     panel's is: `mediaFrom` is module-private and its only input is an entity
+     cache with no seam a node spec can seed. The end-to-end proof — a TV player
+     injected into the live cache, and the house declining to name it — is in
+     tests/v3-subjects.spec.js, which has a page to do it on. */
+  const voice = src("src/js/services/voiceSnapshot.js");
+  expect(voice).toMatch(/e\.state === "playing" && !isTvAudio\(e\)/);
 });
 
 test("the incumbent hides the panel rather than titling it 'Now Playing'", () => {

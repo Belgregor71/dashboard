@@ -780,6 +780,41 @@ test("the sky mounts the real radar mosaic, from a spoken 'show me the radar'", 
   expect(pageErrors).toEqual([]);
 });
 
+test("⚠ every radar tile is SQUARE — a 256px tile in a 16:9 cell loses 44% of the map", async ({ page }) => {
+  /* Found by LOOKING, on the wall, the first time this subject was ever shown.
+     The mosaic was `inset: 0` across the whole panel, so each of the nine cells
+     was 640×360 and `object-fit: cover` cropped 140px off the top and bottom of
+     every 256×256 tile — nine crops butted together and passed off as a
+     continuous map of the coast. Nothing threw, nothing failed to load, and the
+     result was plausible enough to survive unlooked-at since Phase 4.
+
+     A geometry assertion is the only kind that can catch this: the tiles all
+     loaded, the grid had nine children, and every textContent read was empty
+     because a map has no text. */
+  const { pageErrors } = await bootV3(page, { "/api/weather/radar/meta": RADAR_META });
+  await show(page, "show me the radar");
+
+  const got = await page.evaluate(() => {
+    const cells = [...document.querySelectorAll(".subject__tile")].map((t) => {
+      const r = t.getBoundingClientRect();
+      return { w: Math.round(r.width), h: Math.round(r.height) };
+    });
+    const imgs = [...document.querySelectorAll(".subject--sky img")];
+    return {
+      cells,
+      // A tile that is square in CSS and square in pixels cannot be cropped by
+      // `cover`, whatever `cover` is doing.
+      natural: [...new Set(imgs.map((i) => `${i.naturalWidth}x${i.naturalHeight}`))]
+    };
+  });
+
+  expect(got.cells).toHaveLength(9);
+  for (const { w, h } of got.cells) {
+    expect(Math.abs(w - h), `a ${w}×${h} cell crops a square tile`).toBeLessThanOrEqual(1);
+  }
+  expect(pageErrors).toEqual([]);
+});
+
 test("⚠ no radar meta is a decline, not a blank mosaic", async ({ page }) => {
   // The upstream is RainViewer via our own cache, and it 502s. An empty grid of
   // nine broken tiles at 1920px is worse than not answering.
@@ -919,6 +954,41 @@ test("⚠ nothing playing: the fast lane ANSWERS instead of falling to Assist", 
   expect(got.children).toBe(0);
   expect(got.depth).toBe(1);                  // a spoken answer earns a glance
   expect(got.reason).toBe("voice-show.media");
+  expect(pageErrors).toEqual([]);
+});
+
+test("⚠ TV audio is not what's playing — on the screen OR out loud", async ({ page }) => {
+  /* SEEN AND HEARD ON THE WALL, 2026-08-15, driving show.media for the first
+     time. `media_player.living_room` was `playing` with `source: "TV"`. The
+     screen was right — houseSnapshot applies `isTvAudio`, so the subject
+     declined — and then the fast lane, which never had the rule, answered
+     "TV." The two readers of one house disagreed out loud, which is the entire
+     thing services/mediaSource.js was extracted to prevent.
+
+     ⚠ The player carries `media_title: "TV"` here because that is what the live
+     entity carries NOW — mediaSource's header measured no title at all on
+     2026-08-09. The source test is the whole test; a title check would pass
+     this fixture and fail the house. */
+  const { pageErrors } = await bootV3(page);
+  await page.evaluate(() => window.__emitHaState({
+    entity_id: "media_player.living_room",
+    state: "playing",
+    attributes: { source: "TV", media_title: "TV" }
+  }));
+
+  const got = await page.evaluate(async () => {
+    const res = await window.__v3Transcript("show me what's playing");
+    return {
+      handled: res?.handled ?? false,
+      subject: window.__v3().subject,
+      said: document.getElementById("glance-said")?.textContent ?? ""
+    };
+  });
+
+  expect(got.subject).toBeNull();               // the screen was always right
+  expect(got.said).not.toContain("TV");         // and now the voice is too
+  expect(got.said).toContain("Nothing's playing");
+  expect(got.handled).toBe(true);
   expect(pageErrors).toEqual([]);
 });
 

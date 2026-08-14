@@ -571,9 +571,22 @@ html, body {
 }
 
 /* Radar: a 3x3 mosaic, rain over basemap, both from our own cache. */
+/* ⚠ SQUARE, AND CENTRED — SEEN ON THE WALL 2026-08-15, the first time this
+   subject was ever shown. The tiles are 256×256 and a 3×3 mosaic is therefore a
+   SQUARE map. Stretched across the whole 1920×1080 panel each cell was 640×360,
+   so `object-fit: cover` cropped 21.9% off the top and bottom of every tile and
+   butted the nine remaining strips together: 43.75% of the map thrown away, and
+   a discontinuity at every horizontal seam. It read as a plausible map of the
+   coast, which is exactly why it survived a year of not being looked at.
+
+   `aspect-ratio: 1` with `margin: auto` inside `inset: 0` gives 1080×1080
+   centred on the panel, tiles undistorted and whole, ground either side. */
 .subject__radar {
   position: absolute;
   inset: 0;
+  margin: auto;
+  height: 100%;
+  aspect-ratio: 1;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
