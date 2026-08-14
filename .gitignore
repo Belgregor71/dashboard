@@ -11,6 +11,17 @@ node_modules/
 logs
 dist/
 .claude/
+# Agent scaffolding, all of it local and regenerable. `.agents/` is a MIRROR of
+# `.claude/` (same files, s/CLAUDE.md/AGENTS.md/) and AGENTS.md is CLAUDE.md
+# with a different H1 — so tracking them while `.claude/` above is ignored would
+# make the copy canonical and let it drift from the original unwatched. It had
+# already drifted two days in: the generator's s/.claude/.Codex/ left
+# `.agents/skills/audit/SKILL.md` invoking a path that does not exist.
+# .codex/ is Codex's own hooks. None of it is this project's source, and this
+# repo is public.
+.agents/
+.codex/
+AGENTS.md
 *.env.local
 screenshot*.png
 .reference/
