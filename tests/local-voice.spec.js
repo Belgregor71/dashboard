@@ -257,8 +257,32 @@ test.describe("show-me surfaces — the new subjects", () => {
     expect(matchIntent("show me what's on today").id).toBe("cal.today");
   });
 
+  test("⚠ the ONE phrase show.tonight cannot have, and why that is right", () => {
+    /* `show.tonight`'s own pattern offers `what's (on )?tonight`, and the second
+       half of it is unreachable: cal.today's `what.s on` sits seven rows higher
+       and eats "what's on tonight" whole. Found driving the row for the first
+       time, 2026-08-15, and deliberately left alone — cal.today ANSWERS OUT
+       LOUD in a fifth of a second, and taking the whole wall to depth 3 for a
+       question someone asked in passing is the calm law's plainest violation.
+       The phrases that do reach the subject all ask for the screen. */
+    expect(matchIntent("what's on tonight").id).toBe("cal.today");
+    for (const utterance of ["show me tonight", "what about tonight", "what's tonight"]) {
+      expect(matchIntent(utterance).id, `"${utterance}" no longer reaches the subject`).toBe("show.tonight");
+    }
+  });
+
   test("⚠ every surface the INCUMBENT can reach can still say something", () => {
-    /* The incumbent handles show.camera and show.sky itself and falls through
+    /* ⚠ READ THIS BEFORE TRUSTING THE WORD "INCUMBENT" HERE — it was written
+       before the cutover and describes a surface that is no longer on the wall.
+       `/` has served V3 since `77f5fb1`, so voiceCommands.js is not what
+       answers a spoken "show me the radar" in this house any more; V3's
+       registry mounts a depth-3 subject and every id below reaches one
+       (tests/v3-subjects.spec.js drives all ten). The list still earns its keep
+       for one reason: the incumbent tree is the DOCUMENTED ROLLBACK PATH
+       (`V3_DEFAULT=0`, V3-CUTOVER.md:504), and a rollback surface that has gone
+       mute is a rollback nobody can use. Cold standby, still checked.
+
+       The incumbent handles show.camera and show.sky itself and falls through
        to answer() for everything else. Two ids are silent BY DESIGN and are
        named here rather than inferred: the year is answered by the
        photographs, and the briefing's text does not exist until it has been
@@ -271,6 +295,11 @@ test.describe("show-me surfaces — the new subjects", () => {
        unreachable by "show me the status" unless voiceCommands answered the id
        explicitly. It does — see the branch beside show.sky. */
     const surfaceHandledByIncumbent = ["show.camera", "show.sky", "show.status"];
+    /* show.tonight is silent because it OPENS THE DAY, and the calendar on the
+       glass is the answer — the same reason the year is silent. On the
+       incumbent it reaches neither, which is a rollback-only gap and the
+       cheapest kind: it costs one Assist round trip on a surface nobody is
+       looking at. */
     const silentByDesign = ["show.year", "show.briefing", "show.tonight"];
     const mustAnswer = INTENT_IDS.filter(
       (id) =>

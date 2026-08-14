@@ -190,7 +190,17 @@ it read as **dead**, which is the same lie pointing the other way. This spec
 covered `canvas2d.js` fully and the report still called it 100% dead until the
 filename was added.
 
-### 2. Three entries in the voice dispatch table never fire
+### 2. ✅ CLOSED 2026-08-15 — three entries in the voice dispatch table never fire
+
+> All three are now driven end to end from an utterance (`tests/v3-subjects.spec.js`), and the
+> warning below was right for a reason nobody had guessed: **`media.js` was not merely
+> untested, it was UNDRIVABLE.** `__emitHaState` emitted `ha:state-updated` without writing
+> the entity cache, so no probe could ever put a playing `media_player` where `houseSnapshot`
+> would see it, and the subject declined every time it was asked. Two other defects came out
+> with it — a declining subject discarded the fast lane's spoken answer, and `media.js`'s
+> private copy of the now-playing precedence had drifted from the ambient band's. See
+> `docs/BACKLOG.md` F2.
+
 
 `subjects/index.js` maps intents to subjects. Never executed:
 

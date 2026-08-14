@@ -6,7 +6,12 @@ Where a doc and the code disagreed, the code won and the doc is flagged for corr
 
 Ordering: **security → new features → the measurement debt that gates them → cleanup.**
 
-> ## ✅ P0, **F1**, **P4** and **M1** ARE CLOSED. Start at **F2**.
+> ## ✅ P0, **F1**, **F2**, **P4** and **M1** ARE CLOSED. Start at **F3**.
+>
+> **2026-08-15 — F2 is closed** and it was not the three-hour dispatch-table chore it read
+> as. The matcher was fine; what the driving found was a turn that threw away the fast lane's
+> answer whenever a subject declined, and a debug hook that announced entities without ever
+> writing them to the cache — which is why `media.js` had 0% coverage. Read the item.
 >
 > **2026-08-15 — the instrument is repaired.** It was dark on V3: every hook
 > `kiosk-sweep.sh` drove was `undefined` on the wall, so it would have logged ambient three
@@ -168,23 +173,40 @@ this path fails **towards LIT** by design — do not "fix" that if a probe reads
 
 ---
 
-### F2 · The three voice dispatch entries that have never fired
-**~3 h. This is feature completion, not cleanup.**
+### F2 · ✅ **DONE 2026-08-15 — all three driven end to end, and two defects were under them**
 
-`src/v3/subjects/index.js` — `show.sky` (:181, plus `showSky()` at :117-154), `show.tonight`
-(:183) and `show.media` (:187, plus all of `media.js`, the only V3 file at **0%** coverage).
-Three things the house is supposed to be able to show and currently cannot.
+**The matcher was never the problem.** All three ids resolve from real phrases and always did
+("show me the radar", "what about tonight", "show me what's playing"), and nine tests now
+drive each the whole way — transcript → `matchIntent` → registry → mounted node → depth 3.
+What the driving found was two silent defects, both invisible to every check run so far, and
+each proven red by neutering the thing it guards:
 
-⚠⚠ **This is the same dispatch table that already shipped a real defect** — Phase 6's
-`show.status` was shadowed by `NAV_KEYWORD_MAP` because `matchIntent` runs before `matchNav`,
-and nobody noticed. An unexercised entry in *this* table is not a theoretical gap; it is the
-exact shape of a bug this project has already had once.
+- 🔑 **A subject that DECLINES threw the fast lane's answer away.** `voice.js` fell straight
+  to HA Assist when `showSubject()` returned false — so `show.media` with nothing playing (the
+  exact state measured on the wall at 06:44) took a **2-4 s round trip to an agent that does
+  not own the question**, in place of "Nothing's playing." in 0.015 ms. *Nothing to SHOW is
+  not nothing to SAY.* The answerers already are the absent-is-not-empty authority, so a cold
+  cache still falls through untouched.
+- 🔑🔑 **`__emitHaState` never wrote the entity cache** — it emitted `ha:state-updated` only,
+  while `entityFeed.js`'s own header calls the cache-before-broadcast order load-bearing. A
+  probe could announce a playing `media_player` to the page and every **reader** —
+  `houseSnapshot`, `voiceSnapshot`, the attention queue — still described the house as it was
+  before it. **That is why `media.js` was the one V3 file at 0% coverage: it was undrivable**,
+  and it declined every single time it was asked. Same disarmed-instrument shape as M1, third
+  time now.
+- **`media.js` also carried its own copy of the now-playing precedence**, and the copy never
+  learned what the ambient band learned on 2026-08-13: a Plex session names the **room**. The
+  band said "Lounge Room TV" and the depth-3 subject said "Playing" about the same stream.
+  `playingFrom()` is imported now, not repeated.
 
-⚠ `tests/local-voice.spec.js:273` still lists `show.sky` as *"handled by the incumbent"*.
-**Re-read that assumption** — since the cutover, `/` serves V3, so "the incumbent handles it"
-may no longer describe the wall.
+⚠ **One phrase is deliberately not the subject's:** `show.tonight`'s own `what's (on )?tonight`
+alternative is unreachable — `cal.today`'s `what.s on` sits seven rows higher and eats it.
+Left alone on purpose and now pinned by a test: that question is answered out loud in a fifth
+of a second, and taking the whole wall to depth 3 for it would be the calm law's plainest
+violation. "show me tonight" / "what about tonight" / "what's tonight" all reach the subject.
 
-**Done when:** each of the three is driven end-to-end and lands a subject on the surface.
+⚠ `tests/local-voice.spec.js`'s "handled by the incumbent" list is **corrected, not deleted**:
+it describes the rollback surface (`V3_DEFAULT=0`), not the wall.
 
 ---
 
@@ -373,4 +395,6 @@ skill whose whole job is to be trusted. Fixed; both referenced scripts now resol
   caveat recorded. The 5.1 row now carries the live evidence instead of the ⏳.
 - `docs/design/HANDOVER-AMBIENT-ARCHIVE.md:3` — "flag-off" is now only half true
   (`archiveFitToPrint` is on).
-- `tests/local-voice.spec.js:273` — "handled by the incumbent" predates the cutover. See F2.
+- ✅ `tests/local-voice.spec.js` — **done 2026-08-15.** "Handled by the incumbent" now says
+  which surface it means: the rollback one, not the wall. The list is kept, not dropped — a
+  rollback surface that has gone mute is a rollback nobody can use.
