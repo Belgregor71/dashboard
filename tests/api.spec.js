@@ -218,6 +218,33 @@ test.describe("security middleware", () => {
     });
     expect(res.status()).toBe(200);
   });
+
+  // ORDER, which security.js:158 calls load-bearing and nothing above checks:
+  // applySecurity (server.js:90) must stay ABOVE express.json (server.js:91), so
+  // a rejected write is never parsed. Reversing those two lines changes no
+  // status code on any test in this file — every body above is small and legal —
+  // so the invariant would go quietly.
+  //
+  // A body over the 256kb json limit is the discriminator, because the two
+  // orders disagree on it and on nothing else:
+  //   guard first  -> 403, the body is never read
+  //   parser first -> 413, the server buffered a quarter-megabyte for a request
+  //                   it was always going to refuse
+  // Which matters beyond one wasted read: it is the shape that lets an attacker
+  // page make this box do work before it says no.
+  test("a cross-origin write is refused BEFORE its body is parsed", async ({ request }) => {
+    const oversized = { routines: { junk: "x".repeat(300 * 1024) } };
+    const res = await request.put("/api/routines", {
+      headers: { Origin: "http://evil.example" },
+      data: oversized
+    });
+
+    expect(
+      res.status(),
+      "413 means express.json() parsed the body first — applySecurity must stay above it in server.js"
+    ).toBe(403);
+    expect((await res.json()).error).toContain("Cross-origin");
+  });
 });
 
 // S5. The HA proxy mounts forward to HA with the bearer token attached, and

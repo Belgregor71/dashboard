@@ -6,9 +6,25 @@ Where a doc and the code disagreed, the code won and the doc is flagged for corr
 
 Ordering: **security → new features → the measurement debt that gates them → cleanup.**
 
+> ## ✅ P0 IS CLOSED (2026-08-14). Start at **F1**.
+>
+> **And the headline finding is that two of the three P0 items were already done** before this
+> session began — H6 at the time of the audit, the security contract inside `api.spec.js`. Both
+> were listed open here because of how they were looked for, not what was found:
+>
+> 🔑🔑 **A raw `grep` count is not a finding, and a filename is not coverage.** S2 was counted
+> off 34 `innerHTML` hits without asking which interpolate upstream text (five do; all five
+> escaped). S3 was declared uncovered because no file was *named* `security.spec.js`. The
+> audit's own H6 estimate ("47 sites, mechanical, ~4 h") was made the same way, so this is the
+> second time this specific mistake has been paid for. **Read what the code does before
+> recording what it lacks.**
+>
+> Net real work: one dependency fix, and five assertions closing three genuine
+> never-asserted invariants. Suite **1190 → 1194**, 0 failed.
+
 ---
 
-## P0 — Security
+## P0 — Security ✅ COMPLETE
 
 ### S1 · `npm audit fix` — one live high advisory
 **~15 min. Do this first; it is the cheapest item in the file.**
@@ -61,26 +77,37 @@ separating upstream-derived strings from locally-computed ones (`bucket.label`, 
 
 ---
 
-### S3 · The security middleware has no dedicated contract test
-**~2 h. Highest-leverage security item in the file.**
+### S3 · ✅ **DONE — and this one was already covered too**
 
-`server/middleware/security.js` is real and **is mounted** (`server.js:90`, `applySecurity(app)`).
-It carries helmet, a CORS allowlist, a global `/api` rate limiter, and `blockCrossOriginWrites()`
-— i.e. audit items C2, C3, C4 and H4 all landed there.
+⚠ **The claim in this file's first draft was wrong, and how it was wrong is the part worth
+keeping.** It said *"no spec covers it — only `tests/api.spec.js` mentions Origin; there is no
+`tests/security.spec.js`."* That was a **filename search reported as a coverage finding**. The
+coverage was there all along, at `tests/api.spec.js:122-220`, which is exactly where this
+repo's convention puts it — *"when adding a server route, add its contract test in the same
+change"*. Absence of a file named after a concern is not absence of the concern.
 
-**But no spec covers it.** Only `tests/api.spec.js` mentions Origin at all; there is no
-`tests/security.spec.js`. That is precisely this project's own recorded failure mode — *a gate
-is green for a node it never looked at* — sitting on the one middleware whose silent removal
-has no visible symptom. Nothing on the wall changes if `applySecurity` stops being called.
+Already covered, 14 tests: helmet's headers; CSP report-only **and** its directives **and** the
+absence of `upgrade-insecure-requests` on a plain-HTTP LAN; the loopback rate-limit exemption
+(asserted as an exemption, with the measured reason a real ceiling would throttle the kiosk);
+the foreign-origin CORS grant plus the preflight 403; **eight** distinct cross-origin write
+vectors; the `Sec-Fetch-Site`-only browser; and the kiosk's own same-origin write still
+passing. `loopbackOnly`'s LAN leg is a **documented** gap — the test client is loopback, so it
+is proved live on the Pi instead (`api.spec.js:807`).
 
-**Do:** add `tests/security.spec.js` asserting, per house practice, **each one proven red by
-neutering it first**:
-- helmet's headers present on an `/api` response;
-- a cross-origin `POST` to a mutating route is rejected, same-origin passes;
-- the rate limiter trips at its configured ceiling;
-- the CORS allowlist rejects an origin outside it.
+**What this session added — the one genuinely unasserted invariant.** `security.js:158` calls
+the mount ORDER load-bearing: `applySecurity` (`server.js:90`) must stay above
+`express.json({ limit: "256kb" })` (`:91`), so a rejected write is never parsed. Nothing
+checked it.
 
-**Done when:** the four assertions exist, each demonstrated red with its own fix neutered.
+🔑 **Reversing those two lines left all 14 other security tests green.** Every body they send
+is small and legal, so both orders agree on all of them — the invariant would have gone
+quietly, which is this repo's recorded order-invariant shape (the `entityFeed` cache-before-
+broadcast lesson). An **over-limit** body is the only discriminator: guard-first returns
+**403** and never reads it; parser-first returns **413**, having buffered a quarter-megabyte
+for a request it was always going to refuse. Beyond one wasted read, that is the shape that
+lets an attacker page make this box do work before it says no.
+
+Proven red by actually reversing the two lines in `server.js` — not by neutering the test.
 
 ---
 
