@@ -1020,9 +1020,42 @@ window.CONFIG = {
     // panel. That last part ALSO requires `displayWake` above: same rule, same
     // flag, both surfaces — security events only, never kitchen presence.
     //
-    // Default OFF = no timer, no fetch, no attribute; byte-identical to before.
-    // One-line revert, and the substrate's pause is the only surface effect.
-    v3EnergySaver: false,
+    // FLIPPED ON 2026-08-14, the last actionable box on the V3 parity bar.
+    // Verified across a GENUINE 21:00 crontab transition on the G11 — not a
+    // forced belief and not a simulated window. At 21:01 X's own `monitor` read
+    // `off`, `data-panel-dark` went to "1", and the substrate reported paused.
+    // The saving is measured, not argued: 15.0 fps sustained beforehand (459
+    // frames in 30.6 s), then ZERO frames in the next 30.6 s, with the
+    // gpu-process falling 5.9% → 0.0% of one core and the renderer 5.3% → 0.0%.
+    // Then a synthetic doorbell (`__v3Alert()`) took it all the way back: X went
+    // `off` → `on`, `wakes` 1, depth forced to 3 `alert:doorbell`, substrate
+    // resumed. Numbers and confounds in docs/audit/HOST-BASELINES.md.
+    //
+    // ⚠ THIS IS THE FLAG THAT MAKES `displayWake` REAL. displayWake has been on
+    // since 2026-08-08 but has never once taken effect on the wall, because the
+    // V3 half needs this flag too and `/` has served V3 since the cutover.
+    //
+    // ⚠ AND ITS SCOPE NOTE ABOVE IS STALE FOR THE LIVE SURFACE. "{person,
+    // doorbell} across all six triggerEntityIds… a PERSON on the driveway or in
+    // the backyard at 3am" describes cameraPopupOverlay, which is the INCUMBENT
+    // and is cold standby. V3's night-wake scope is alertRouter.LOCATIONS:
+    // THREE entities — doorbell_ringing, doorbell_person_detected,
+    // side_gate_person_detected. No driveway, no backyard. Measured before the
+    // flip: across the whole of the previous 21:00→05:00 window all three held
+    // an unbroken `off` — zero wakes — and the doorbell person sensor is alive
+    // (it fired that afternoon), so that is a quiet night and not a dead feed.
+    //
+    // ⚠ EVERY UNKNOWN IN THIS PATH FAILS TOWARDS LIT BY DESIGN — no window from
+    // the server, an unparseable one, or an unreachable server all answer "not
+    // dark". Do not "fix" a probe that reads lit; read the header of
+    // src/v3/core/display.js first. The one deliberate exception is inside the
+    // window with no `xset` at all (any dev box): monitor null is not "on", so
+    // the clock wins. That is what makes the suite's night behaviour real.
+    //
+    // Revert = `v3EnergySaver: false` = no timer, no fetch, no attribute, and
+    // the substrate never pauses. Proven reversible by
+    // scripts/verify/flag-reversibility.mjs at flip time.
+    v3EnergySaver: true,
 
     // V3's ambient now-playing surface. Whether the field says what the room
     // can hear.

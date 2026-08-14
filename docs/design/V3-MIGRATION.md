@@ -521,8 +521,14 @@ and the flip stays a URL.
 - [x] The briefing arrives without being asked (3.4) — ✅ `b65085c`, presence-gated
 - [x] Display sleeps overnight (5.1) — ✅ and it always did: the crontab, not the page. What
       landed is V3 *knowing* it: substrate paused while dark, and the door able to ask for the
-      panel back. ⏳ **Flag-off; owed a flag-on verification at/after 21:00 on the real panel**
-- [ ] Ground never shows a screenshot (5.2)
+      panel back. ✅ **Default-on 2026-08-14, seen across a real 21:00 transition on the G11**:
+      X's `monitor` → `off`, `data-panel-dark` → "1", substrate paused, **15.0 fps → 0 frames**
+      and gpu-process **5.9% → 0.0%** of one core; then a doorbell lit it again (X `off` → `on`,
+      depth 3, substrate resumed). Revert = `v3EnergySaver: false`.
+- [x] Ground never shows a screenshot (5.2) — ✅ `isScreenshot()` is live in
+      `immichClient.js:96`, applied at `:167`, with `IMMICH_EXCLUDE_SCREENSHOTS=1` set in the
+      G11's `.env` (all three confirmed 2026-08-14). ⚠ Screenshots only — real-photo junk (the
+      supplement bottle, the sandwich) is what `photoVeto` answers, not this.
 - [x] Watchdog + self-heal running (Phase 6) — ✅ and they always were: both are
       server-side and surface-independent, verified live. What landed is V3 *showing* it —
       the announced fault line and the status subject. ⏳ **Owed: a real degradation seen on

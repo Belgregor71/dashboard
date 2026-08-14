@@ -6,7 +6,11 @@ Where a doc and the code disagreed, the code won and the doc is flagged for corr
 
 Ordering: **security → new features → the measurement debt that gates them → cleanup.**
 
-> ## ✅ P0 IS CLOSED (2026-08-14). Start at **F1**.
+> ## ✅ P0, **F1** and **P4** ARE CLOSED (2026-08-14). M1 is half done. Start at **F2**.
+>
+> ⛔ **But read M1 first if you were going to touch F3 or F4.** The measurement instrument is
+> dark on V3 — every hook `kiosk-sweep.sh` drives is `undefined` on the wall — so those two
+> are gated behind repairing it, not behind taking a reading.
 >
 > **And the headline finding is that two of the three P0 items were already done** before this
 > session began — H6 at the time of the audit, the security contract inside `api.spec.js`. Both
@@ -117,7 +121,29 @@ Everything here is **already built**. None of it is new code of consequence; all
 waiting on a live verification that nobody has run. That makes this the cheapest feature
 value in the repo.
 
-### F1 · Flip `v3EnergySaver` on ⭐ *start here*
+### F1 · ✅ **DONE 2026-08-14 — flipped, and seen across a real 21:00 transition**
+
+Verified flag-on **before** the default moved (CDP-injected via a `window.CONFIG` setter, no
+deploy), then shipped. At 21:01 X's own `monitor` read `off`, `data-panel-dark` → "1",
+substrate paused. The saving is measured: **15.0 fps → 0 frames** in the next 30.6 s,
+gpu-process **5.9% → 0.0%** of one core, renderer **5.3% → 0.0%**. A synthetic doorbell then
+took the whole path back: X `off` → `on`, `wakes` 1, depth 3 `alert:doorbell`, substrate
+resumed, and it fell back on its own after the 90 s hold.
+
+🔑 **The flip's real risk was the SUITE, not the panel.** Default-on means every V3 spec that
+does not stub `/api/**` fetches `/api/display/state`, and no dev box has `xset` — so inside
+the off-window `monitor: null` is not `"on"` and the substrate pauses. Forcing the window to
+cover the whole day: **245 tests across all 23 V3-booting specs stayed green**, and a
+throwaway probe proved the dark path was actually *reached* rather than passing unlooked-at.
+
+⚠ **This is the flag that made `displayWake` real** — it has been on since 2026-08-08 and had
+never taken effect, because `/` serves V3. And `displayWake`'s "six triggerEntityIds /
+driveway / backyard at 3am" warning describes the **incumbent**: V3's night-wake scope is
+`alertRouter.LOCATIONS`, **three** entities, doorbell + side gate only. Zero wakes across the
+previous night's whole off-window, with the doorbell sensor confirmed alive.
+
+<details><summary>original item</summary>
+
 **~1 h, at/after 21:00, on the real panel.**
 
 `src/js/config.js:1025` is still `false`. The feature is complete — `v3/core/display.js`,
@@ -132,6 +158,8 @@ see nothing at all.
 this path fails **towards LIT** by design — do not "fix" that if a probe reads lit.
 
 **Done when:** seen paused after 21:00 on the real panel, and a security event still lights it.
+
+</details>
 
 ---
 
@@ -195,14 +223,36 @@ which is unstarted.
 
 ## P2 — Measurement debt (gates P1)
 
-### M1 · Re-measure CPU/GPU ⭐ *do before F3/F4*
-**~1 h.** The parity bar's *"quiescent ≤8% of one core, live ≤25%, peak ≤35%"* has **not been
-re-measured since the attention engine and the SSE landed**, and the ground has since gained
-the diptych, on-this-day memories and the veto. The A/B on record predates all of it.
+### M1 · Re-measure CPU/GPU ⭐ *do before F3/F4* — **HALF DONE, and the other half is a repair**
 
-`docs/audit/HOST-BASELINES.md:165` also carries a **"live ambient ≤25% sustained —
-*new state, unmeasured*"** row, open since the calm law was rewritten. Close both in one pass
-and write the numbers into HOST-BASELINES as a new row.
+✅ **The live-ambient row is closed** (2026-08-14, `HOST-BASELINES.md`): gpu-process **5.9%**
+of one core, renderer **5.3%**, one shared 30 s window, substrate animating at a measured
+**15.0 fps** on a real windy night. Ceiling ≤25 ⇒ ~4.2× headroom. Plus the dark state the
+energy saver creates: **0.0% / 0.0%**, zero frames.
+
+⛔ **The rest of M1 cannot be done by taking readings — the instrument is dark on V3.**
+Probed live: `__wakeScreensaver`, `__engageScreensaver`, `__forceAtmoEpisode`, `__switchView`,
+`__archive` and `__atmosphere` are **all `undefined`** on the wall. They are incumbent hooks
+and `/` has served V3 since the cutover. So:
+
+- **`kiosk-sweep.sh` — the tool `/kiosk-metrics` says to PREFER — would log ambient three
+  times and label the second one a peak.** Same disarmed-tripwire shape as the 2026-07-30
+  `kiosk-drive.cjs cycle` no-op recorded in that script's own header. Caused again, by the
+  cutover.
+- **The peak row (≤35) is not measurable on V3 at all** — there is no atmoFx module under
+  `src/v3/` (verified), so `rain-heavy` does not exist on the current wall. The 22.5 on record
+  is an incumbent number.
+- **The heap/DOM baselines describe a ~20× larger page.** V3 measures `domNodes` 42 /
+  `cdpNodes` 268 / listeners 29 / lottieWrappers 0, against a "healthy" band of 926 / 2,315 /
+  67 / 5. Not a gate any more.
+- **`heap-metrics.cjs`'s liveness block is permanently not-assessable** — it reads
+  `window.__archive()`. It refuses rather than passing falsely, but nothing watches Live Photo.
+- 🔑 **`anims` cannot see the substrate** (rAF on a canvas, not a Web Animation), so the
+  table's own "record `anims`" rule would file a live-ambient sample under the quiescent row.
+  On V3 the discriminator is `__substrate().animating`/`paused`.
+
+**Next:** give V3 the seams the sweep needs, then re-run it. **F3/F4 stay gated behind that** —
+they cannot be judged against a baseline the instrument cannot take.
 
 ### M2 · The 72 h soak
 Never run. A 23.6 h soak ran clean at the cutover (`V3-CUTOVER.md:576`) — the 72 h one is still
@@ -253,23 +303,31 @@ point (the Memory Studio / Recipe Book LAN portals) **before** removing.
 
 ---
 
-## P4 — Do now, unrelated to the above
+## P4 — ✅ **DONE 2026-08-14 — gitignored** (`e3af8b0`)
 
-**`.agents/`, `.codex/` and `AGENTS.md` are untracked** in the working tree (created
-2026-08-12). ⚠ A `git clean` in a second session has already destroyed untracked files in this
-tree once. Commit them or `.gitignore` them — do not leave them loose.
+Answered as **generated, local, disposable**, matching the `.claude/` precedent already at
+`.gitignore:13`.
 
-`AGENTS.md` is currently a near-copy of `CLAUDE.md`. If it is meant to stay, it will drift;
-decide now whether it is generated, symlinked, or maintained.
+The decision was made easy by what the files turned out to be: **`.agents/` is a generated
+MIRROR of `.claude/`** — every file byte-identical apart from `s/CLAUDE.md/AGENTS.md/`, and
+`AGENTS.md` is `CLAUDE.md` with a different H1. (The od-contribute files that looked wholly
+different were CRLF vs LF.) Since the *original* is ignored, tracking the *copy* would have
+made the copy canonical.
+
+🔑 **And it had already drifted, two days in, in the way that matters.** The generator also ran
+`s/.claude/.Codex/` — wrong twice (the directory is `.codex/`, and the skills live in
+`.agents/`) — leaving `.agents/skills/audit/SKILL.md` instructing the reader to run
+`node .Codex/skills/audit/scripts/reachability.mjs`, a path that does not exist, inside a
+skill whose whole job is to be trusted. Fixed; both referenced scripts now resolve.
 
 ---
 
 ## Docs that are stale and should be corrected in passing
 
-- `docs/design/V3-MIGRATION.md:511` — the parity bar shows `[ ] Ground never shows a
-  screenshot (5.2)`, but `isScreenshot()` is **live** in `immichClient.js:96` with
-  `IMMICH_EXCLUDE_SCREENSHOTS=1` set. Tick it, with the caveat that real-photo junk (the
-  supplement bottle, the sandwich) is what `photoVeto` now answers.
+- ✅ `docs/design/V3-MIGRATION.md` — **done 2026-08-14.** 5.2 ticked (all three of
+  `isScreenshot()` at `immichClient.js:96`, its application at `:167`, and
+  `IMMICH_EXCLUDE_SCREENSHOTS=1` in the G11's `.env` re-confirmed first), with the `photoVeto`
+  caveat recorded. The 5.1 row now carries the live evidence instead of the ⏳.
 - `docs/design/HANDOVER-AMBIENT-ARCHIVE.md:3` — "flag-off" is now only half true
   (`archiveFitToPrint` is on).
 - `tests/local-voice.spec.js:273` — "handled by the incumbent" predates the cutover. See F2.
