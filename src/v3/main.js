@@ -21,7 +21,7 @@ import { railPhrase } from "../js/services/vocabulary.js";
 import { voiceSnapshot, refreshVoiceCache } from "../js/services/voiceSnapshot.js";
 import { connectHA, isHAConnected } from "../js/services/homeAssistant/client.js";
 import { registerEntityFeed } from "../js/services/homeAssistant/entityFeed.js";
-import { getAllEntities } from "../js/services/homeAssistant/state.js";
+import { getAllEntities, updateEntity } from "../js/services/homeAssistant/state.js";
 import { emit as emitBus } from "../js/core/eventBus.js";
 import { refreshHouseCache, houseCacheAge } from "../js/services/houseSnapshot.js";
 import { initAttention, lastSelection, tickAttention, announcements } from "./core/attention.js";
@@ -409,11 +409,30 @@ function registerHandles() {
   // API rejects.
   window.__v3Tick = (now) => tickAttention(now == null ? new Date() : new Date(now));
 
-  // Push one entity onto the bus exactly as the SSE would deliver it. The way
-  // to drive motion, or any other cause, without walking into the kitchen —
-  // and the companion to __forceCandidate for the half of the rule that is
-  // about presence rather than about score.
-  window.__emitHaState = (entity) => { emitBus("ha:state-updated", entity); return entity?.entity_id ?? null; };
+  /* Push one entity onto the bus exactly as the SSE would deliver it. The way
+     to drive motion, or any other cause, without walking into the kitchen —
+     and the companion to __forceCandidate for the half of the rule that is
+     about presence rather than about score.
+
+     ⚠⚠ IT DID NOT WRITE THE CACHE UNTIL 2026-08-15, and "exactly as the SSE
+     would deliver it" was therefore false in the one way that matters.
+     `entityFeed.js`'s own header calls the order load-bearing — each entity is
+     written to the cache immediately BEFORE its event fires, because the
+     readers all read the cache from inside that event. This hook emitted only.
+     So every listener saw the change and every READER — houseSnapshot,
+     voiceSnapshot, the attention queue — still saw the house as it was before
+     it, with nothing thrown and no symptom. That is why `subjects/media.js` sat
+     at 0% coverage: a playing media_player could be announced to the page but
+     never actually arrive in the house, so the subject was undrivable and
+     declined every time it was asked (HOST-BASELINES, 2026-08-15 06:44).
+
+     Same disarmed-instrument shape as the seams M1 repaired, and the same
+     lesson: a probe that cannot produce the state cannot test for it. */
+  window.__emitHaState = (entity) => {
+    updateEntity(entity);                 // no-ops on a malformed entity, as the feed does
+    emitBus("ha:state-updated", entity);
+    return entity?.entity_id ?? null;
+  };
 
   /* The same favour for the room's other presence source. A spec cannot reach
      `eventBus` by path — the build bundles it into a hashed asset, so a dynamic

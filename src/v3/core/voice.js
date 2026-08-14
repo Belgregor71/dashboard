@@ -285,7 +285,33 @@ export async function submit(text, { source = "unknown" } = {}) {
           endTurn(clean, reply?.speech);
           return { handled: true, lane: "local" };
         }
-        // Nothing to show — fall through rather than pretend.
+
+        /* ── The subject declined ────────────────────────────────────────────
+           Nothing to SHOW is not nothing to SAY, and until 2026-08-15 this
+           path treated them as the same thing: `showSubject` returned false and
+           the turn fell all the way to Assist, throwing away an answer the fast
+           lane already held. Measured on the wall (HOST-BASELINES, 06:44):
+           `show.media` declined because nothing was playing — and the local
+           answerer's reply to exactly that state is "Nothing's playing.", in
+           0.015 ms. Instead the room got a 2-4 s round trip to an agent that
+           does not own this question.
+
+           ⚠ The answerers are ALREADY the absent-is-not-empty authority — each
+           one returns null for a cache that has never resolved and a sentence
+           only for a state it can vouch for. So this cannot resurrect the
+           "nothing on today" claim a cold cache must never make: with no
+           answer, the fall-through below is unchanged. */
+        const spoken = answer(intent, snap);
+        if (spoken?.speech) {
+          setPhase("speaking");
+          deepen(DEPTH.GLANCE, `voice-${intent.id}`);
+          await say(spoken.speech, spoken.refs);
+          rememberReply(spoken.speech);
+          consecutiveFailures = 0;
+          endTurn(clean, spoken.speech);
+          return { handled: true, lane: "local" };
+        }
+        // Nothing to show and nothing to say — fall through rather than pretend.
       } else {
         const reply = answer(intent, snap);
         if (reply) {

@@ -719,3 +719,260 @@ test("⚠ a model that answers nothing never touches the depth", async ({ page }
   expect(got.depth).not.toBe(3);
   expect(pageErrors).toEqual([]);
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   F2 — THE THREE DISPATCH ENTRIES THAT HAD NEVER FIRED.
+
+   `show.sky`, `show.tonight` and `show.media` have been in the registry since
+   Phase 4 and not one of them had ever been driven from an utterance. That is
+   not a theoretical gap in THIS table: Phase 6 shipped `show.status` shadowed by
+   voiceCommands' NAV_KEYWORD_MAP and nobody noticed, because nothing exercised
+   the row. The sweep of 2026-08-15 then found `show.media` declining on the
+   wall with 0% coverage behind it.
+
+   So each of the three is driven the whole way here — transcript, matcher,
+   registry, mount — and the two defects that were sitting under them are
+   pinned:
+
+     · a subject that DECLINES threw away the fast lane's spoken answer and sent
+       the turn to Assist (voice.js)
+     · `__emitHaState` announced an entity without ever writing it to the cache,
+       so no reader could see it and the media subject was undrivable (main.js)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** A radar meta payload in the server's real shape (routes/radar.js). */
+const RADAR_META = {
+  z: 7,
+  frameTime: 1755000000,
+  tiles: [
+    { x: 117, y: 71 }, { x: 118, y: 71 }, { x: 119, y: 71 },
+    { x: 117, y: 72 }, { x: 118, y: 72 }, { x: 119, y: 72 },
+    { x: 117, y: 73 }, { x: 118, y: 73 }, { x: 119, y: 73 }
+  ]
+};
+
+/** A configured player (core/config.js names both of these "Lounge Room"),
+ *  mid-track, with artwork on the HA-relative path the resolver has to fix. */
+const PLAYING = {
+  entity_id: "media_player.living_room",
+  state: "playing",
+  attributes: {
+    media_title: "Wichita Lineman",
+    media_artist: "Glen Campbell",
+    entity_picture: "/api/media_player_proxy/media_player.living_room",
+    source: "Spotify Connect"
+  }
+};
+
+test("the sky mounts the real radar mosaic, from a spoken 'show me the radar'", async ({ page }) => {
+  const { pageErrors } = await bootV3(page, { "/api/weather/radar/meta": RADAR_META });
+
+  const got = await show(page, "show me the radar");
+
+  expect(got.handled).toBe(true);
+  expect(got.lane).toBe("local");
+  expect(got.depth).toBe(3);
+  expect(got.reason).toBe("voice-show.sky");
+  expect(got.subject).toBe("show.sky");
+  expect(got.cell).toBe("sky");
+  // Nine tiles, each a basemap with the rain layered over it.
+  expect(got.images).toBe(18);
+  expect(pageErrors).toEqual([]);
+});
+
+test("⚠ no radar meta is a decline, not a blank mosaic", async ({ page }) => {
+  // The upstream is RainViewer via our own cache, and it 502s. An empty grid of
+  // nine broken tiles at 1920px is worse than not answering.
+  const { pageErrors } = await bootV3(page, { "/api/weather/radar/meta": null });
+
+  const got = await show(page, "show me the radar");
+
+  expect(got.subject).toBeNull();
+  expect(got.children).toBe(0);
+  expect(got.depth).not.toBe(3);
+  expect(pageErrors).toEqual([]);
+});
+
+test("'what about tonight' opens the day, the same one 'show me my day' opens", async ({ page }) => {
+  /* Both ids resolve to showDay on purpose — the evening's shape is a question
+     about the calendar, not about the recipe. What had never been checked is
+     that the utterance reaches the row at all. */
+  const { pageErrors } = await bootV3(page, { "/api/calendar/all": calToday() });
+  await page.evaluate(() => window.__v3Refresh());
+
+  const got = await show(page, "what about tonight");
+
+  expect(got.handled).toBe(true);
+  expect(got.depth).toBe(3);
+  expect(got.reason).toBe("voice-show.tonight");
+  expect(got.subject).toBe("show.tonight");
+  expect(got.cell).toBe("calendar");
+  expect(got.rows).toBe(3);
+  expect(got.text).toContain("Dentist");
+  expect(pageErrors).toEqual([]);
+});
+
+test("⚠ an entity a probe pushes actually ARRIVES in the house", async ({ page }) => {
+  /* The guard on __emitHaState, and the reason media.js sat at 0% coverage.
+     The hook emitted the bus event without writing the cache, so every listener
+     saw the change and every READER — houseSnapshot, voiceSnapshot, the
+     attention queue — still described the house as it was before it. Nothing
+     threw. entityFeed.js's header calls that ordering load-bearing; this is the
+     assertion that the debug seam obeys it too. */
+  const { pageErrors } = await bootV3(page);
+
+  const got = await page.evaluate((entity) => {
+    const before = window.__v3().ha.entities;
+    window.__emitHaState(entity);
+    return { before, after: window.__v3().ha.entities };
+  }, PLAYING);
+
+  expect(got.before).toBe(0);
+  expect(got.after).toBe(1);
+  expect(pageErrors).toEqual([]);
+});
+
+test("what's playing mounts the artwork at editorial scale, named by room", async ({ page }) => {
+  const { pageErrors } = await bootV3(page);
+  await page.evaluate((entity) => window.__emitHaState(entity), PLAYING);
+
+  const got = await show(page, "show me what's playing");
+
+  expect(got.handled).toBe(true);
+  expect(got.lane).toBe("local");
+  expect(got.depth).toBe(3);
+  expect(got.reason).toBe("voice-show.media");
+  expect(got.subject).toBe("show.media");
+  expect(got.cell).toBe("nowPlaying");
+  expect(got.text).toContain("Wichita Lineman");
+  // The artist AND the room — houseSnapshot joins them, and the eyebrow is the
+  // only place the wall says where the music is coming from.
+  expect(got.text).toContain("Glen Campbell · Lounge Room");
+  expect(got.images).toBe(1);
+  expect(got.html).toContain("/api/image_proxy/api/media_player_proxy/");
+  expect(pageErrors).toEqual([]);
+});
+
+test("⚠ the subject and the ambient band cannot name a Plex stream differently", async ({ page }) => {
+  /* subjects/media.js carried its own copy of the precedence, and the copy
+     never learned what the band learned on 2026-08-13: a Plex session names the
+     ROOM it is playing in. The band said "Lounge Room TV" over the title and
+     the depth-3 subject said "Playing" over the same title — two readers of one
+     snapshot disagreeing about it, which is the bug houseSnapshot exists to
+     make impossible. The precedence is now imported, not repeated. */
+  const { pageErrors } = await bootV3(page, {
+    "/api/plex/sessions": {
+      sessions: [{
+        title: "2022-01-27",
+        grandparentTitle: "Colin from Accounts",
+        player: "Lounge Room TV",
+        thumb: "/library/metadata/1/thumb"
+      }]
+    }
+  });
+  await page.evaluate(() => window.__v3Refresh());
+
+  const got = await show(page, "show me what we're watching");
+
+  expect(got.subject).toBe("show.media");
+  expect(got.cell).toBe("plex");
+  // The SHOW, never the episode — "2022-01-27" is what the wall said once.
+  expect(got.text).toContain("Colin from Accounts");
+  expect(got.text).not.toContain("2022-01-27");
+  expect(got.text).toContain("Lounge Room TV");
+  expect(got.text).not.toContain("Playing");
+  expect(pageErrors).toEqual([]);
+});
+
+test("⚠ nothing playing: the fast lane ANSWERS instead of falling to Assist", async ({ page }) => {
+  /* Measured on the wall at 06:44 on 2026-08-15 — show.media declined because
+     nothing was playing, which is correct — and then the turn fell all the way
+     through to HA Assist, discarding a sentence the local lane already held.
+     A 2-4 s round trip to an agent that does not own the question, in place of
+     0.015 ms. Nothing to SHOW is not nothing to SAY.
+
+     ⚠ The player is injected PAUSED on purpose: `voiceSnapshot.media` is null
+     when the house knows of no players at all, and null must still fall
+     through. It is the difference between "nothing's playing" and "I can't see
+     the players", and only the first earns a sentence. */
+  const { pageErrors } = await bootV3(page);
+  await page.evaluate((entity) => window.__emitHaState({ ...entity, state: "paused" }), PLAYING);
+
+  const got = await page.evaluate(async () => {
+    const res = await window.__v3Transcript("show me what's playing");
+    return {
+      lane: res?.lane ?? null,
+      handled: res?.handled ?? false,
+      depth: window.__depth().depth,
+      reason: window.__depth().reason,
+      subject: window.__v3().subject,
+      children: document.getElementById("subject-mount").childElementCount,
+      said: document.getElementById("glance-said")?.textContent ?? ""
+    };
+  });
+
+  expect(got.handled).toBe(true);
+  expect(got.lane).toBe("local");             // never "assist", never unhandled
+  expect(got.said).toContain("Nothing's playing");
+  // The screen stays where it was: there is nothing to show, so nothing mounts.
+  expect(got.subject).toBeNull();
+  expect(got.children).toBe(0);
+  expect(got.depth).toBe(1);                  // a spoken answer earns a glance
+  expect(got.reason).toBe("voice-show.media");
+  expect(pageErrors).toEqual([]);
+});
+
+test("⚠ a house that cannot see its players still says nothing at all", async ({ page }) => {
+  // The other half of the line above, and the one that must NOT speak. With no
+  // media_player entities known, `voiceSnapshot.media` is null — the answerer
+  // returns null and the turn falls through, exactly as it did before.
+  const { pageErrors } = await bootV3(page);
+
+  const got = await show(page, "show me what's playing");
+
+  expect(got.handled).toBe(false);
+  expect(got.subject).toBeNull();
+  expect(got.children).toBe(0);
+  expect(got.depth).not.toBe(3);
+  expect(pageErrors).toEqual([]);
+});
+
+test("⚠ the three leave nothing behind either — ten cycles, same DOM", async ({ page }) => {
+  /* The teardown proof, widened to the rows it had never covered. The radar is
+     the worst case in the whole registry: eighteen <img> elements, every one of
+     them a live connection to our own tile cache. */
+  const { pageErrors } = await bootV3(page, {
+    "/api/weather/radar/meta": RADAR_META,
+    "/api/calendar/all": calToday()
+  });
+  await page.evaluate(() => window.__v3Refresh());
+  await page.evaluate((entity) => window.__emitHaState(entity), PLAYING);
+
+  const got = await page.evaluate(async () => {
+    const count = () => document.querySelectorAll("*").length;
+    const settle = count();
+    const seen = new Set();
+    for (let i = 0; i < 10; i++) {
+      for (const utterance of ["show me the radar", "what about tonight", "show me what's playing"]) {
+        await window.__v3Transcript(utterance);
+        seen.add(window.__v3().subject);
+        window.__setDepth(0, "spec");
+      }
+    }
+    const mount = document.getElementById("subject-mount");
+    return {
+      settle,
+      after: count(),
+      seen: [...seen],
+      children: mount.childElementCount,
+      // Any <img> still holding a tile or an artwork after the last teardown.
+      liveSrcs: [...document.querySelectorAll("#subject-mount img")].map((i) => i.getAttribute("src"))
+    };
+  });
+
+  expect(got.seen.sort()).toEqual(["show.media", "show.sky", "show.tonight"]);
+  expect(got.children).toBe(0);
+  expect(got.liveSrcs).toEqual([]);
+  expect(got.after).toBe(got.settle);
+  expect(pageErrors).toEqual([]);
+});
