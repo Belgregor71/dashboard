@@ -569,9 +569,18 @@ window.CONFIG = {
     // days have none, and a blank wall is worse than a random photograph.
     // ⚠ The caption is hidden at night, matching Daily Memories.
     //
+    // ✅ DEFAULT-ON 2026-08-14. It was held off for two days by the caption's
+    // contrast gate, which turned out to be a defect in the CAPTION, not in the
+    // feature: `#ground-caption` sat inside `.photo`'s stacking context and
+    // painted UNDER the scrim at 1.02:1 (4fb64fc), at a size 30% below the
+    // system's type floor (ad4ec3f). Fixed, it measures 5.29:1 white / 5.77:1
+    // sky in daylight, 4.60:1 worst-case under the presence rim. The gate now
+    // PINS THIS FLAG ON and asserts the caption was actually measured — flag-off
+    // green said nothing about flag-on, which is how a 1.02:1 survived four runs.
+    //
     // Off: one random photograph held for the day, and no caption — byte-for-
     // byte the previous behaviour. One-line revert (-> false).
-    groundMemories: false,
+    groundMemories: true,
 
     // GROUND DIPTYCH — two portraits side by side instead of one, butchered.
     //
