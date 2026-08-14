@@ -49,6 +49,12 @@ const CHECK_MS = 10 * 60 * 1000;
    photographic change in a day should not be an event, it should be something
    you notice happened rather than something you watch happen. */
 const DISSOLVE_MS = 60 * 1000;
+/* The answer to "not this one" — brisk on purpose, and the exception that
+   proves the rule above. The sixty-second drift is right for a change with no
+   cause the room can see; this one has the most visible cause there is, since
+   someone in the room just said so out loud. Slow here does not read as calm,
+   it reads as not listening. */
+const VETO_SETTLE_MS = 1200;
 const CLEANUP_BUFFER_MS = 2000;
 
 let host = null;                 // the .photo container
@@ -618,6 +624,83 @@ async function dissolve(settleMs = DISSOLVE_MS, stallMs = STALL_MS) {
   }
 }
 
+/**
+ * "Not this one." Hide every photograph currently on the ground and move on.
+ *
+ * Returns what it hid so the voice can say something true — how many, and
+ * nothing at all when there was nothing to hide. A frame is hidden WHOLE: on a
+ * diptych the room is looking at both halves and pointing at neither, and
+ * hiding one would leave the other to come back tomorrow beside a new partner,
+ * which is not what anyone meant.
+ *
+ * ⚠ THE POOL IS DRAWN ONCE A DAY, so the server list alone is not enough — the
+ * rejected photograph is already in memory and would keep coming round until
+ * midnight, which looks exactly like the veto not working. Both are cleared.
+ *
+ * @returns {Promise<{ hidden: string[], pair: boolean }>}
+ */
+export async function vetoCurrent() {
+  const assets = current?.assets ?? [];
+  const ids = assets.map((a) => a.id).filter(Boolean);
+  if (!ids.length) return { hidden: [], pair: false };
+
+  const pair = ids.length > 1;
+  const gone = new Set(ids);
+  // Drop every FRAME that contains one, so half a vetoed pair cannot survive as
+  // a single. Filtering in place keeps the cursor's meaning: entries before it
+  // have been seen, and removing a seen one would show an unseen frame twice.
+  let removedBehind = 0;
+  pool = pool.filter((frame, i) => {
+    const doomed = frame.some((a) => gone.has(a.id));
+    if (doomed && i < poolCursor) removedBehind++;
+    return !doomed;
+  });
+  poolCursor = Math.max(0, poolCursor - removedBehind);
+
+  try {
+    await fetch("/api/immich/hidden", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids })
+    });
+  } catch {
+    /* The wall obeys either way — it has already dropped them from today's pool
+       and is about to move on. A veto that only lasts until midnight is a much
+       better failure than a voice turn that errors out mid-sentence. */
+  }
+
+  /* ⚠ NOT the ambient dissolve. `DISSOLVE_MS` is a full SIXTY SECONDS, because
+     the ten-minute rotation has no cause the room can see and a slow drift is
+     how it stays calm. A veto is the opposite: someone just spoke to the wall,
+     so the cause is the most visible thing in the room, and the calm law allows
+     movement exactly here. Left on the ambient setting the photograph the room
+     just rejected sits there fading for a minute, which reads as being ignored
+     — caught by a spec, not by looking at it. */
+  await dissolve(VETO_SETTLE_MS);
+  return { hidden: ids, pair };
+}
+
+/**
+ * "Bring that back." Undoes the most recent veto, server-side.
+ *
+ * ⚠ It does NOT put the photograph back into today's pool, and that is honest
+ * rather than lazy: the pool is a shuffled walk drawn once a day, and splicing
+ * a frame back into a position that has already been passed would either show
+ * it twice or not at all. It returns tomorrow, which is what "on this day"
+ * means anyway.
+ *
+ * @returns {Promise<{ restored: string[] }>}
+ */
+export async function restoreLastVeto() {
+  try {
+    const res = await fetch("/api/immich/hidden/undo", { method: "POST" });
+    const body = await res.json();
+    return { restored: Array.isArray(body?.restored) ? body.restored : [] };
+  } catch {
+    return { restored: [] };
+  }
+}
+
 function tick() {
   if (!current) { void loadFirst(); return; }
   if (current.dayKey !== localDayKey()) { void dissolve(); return; }
@@ -663,5 +746,9 @@ export function initGround(img, opts = {}) {
   // The specs drive the day boundary rather than sitting out a real one, and
   // drive the stall rather than sitting out 30 seconds to prove a latch clears.
   window.__groundDissolve = (settleMs, stallMs) => dissolve(settleMs, stallMs);
+  // The veto without the microphone — how a spec drives it, and the only way to
+  // prove it on the kiosk without saying "not this one" at the real wall and
+  // really losing a photograph.
+  window.__groundVeto = () => vetoCurrent();
   window.__groundRetry = (stallMs) => loadFirst(stallMs);
 }

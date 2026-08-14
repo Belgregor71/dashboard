@@ -23,6 +23,12 @@ function jsFilesUnder(dir) {
   const walk = (d) => {
     for (const name of readdirSync(d)) {
       if (name === "node_modules" || name.startsWith(".")) continue;
+      /* ⚠ NEVER walk into a directory a LIVE process is writing. tts-cache is
+         pruned by the running test server's warmer, so the readdir above can
+         list a .wav that the statSync below no longer finds — an ENOENT that
+         fails this spec for a reason that has nothing to do with env vars, at
+         random, roughly once a suite. It holds audio; it can never hold source. */
+      if (name === "tts-cache") continue;
       const full = join(d, name);
       if (statSync(full).isDirectory()) walk(full);
       else if ([".js", ".mjs", ".cjs"].includes(extname(name))) out.push(full);

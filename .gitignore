@@ -24,6 +24,10 @@ data/memories/
 data/immich-cache/
 data/delight/
 data/recipe-cache/
+# The photographs the room has said "not this one" to. Per-install judgement,
+# not code — and it must never be committed, or one house's vetoes would arrive
+# on another's wall (services/photoVeto.js).
+data/photos/
 # The house knowledge base is a SEPARATE private git repo cloned in here
 # (docs/design/VAULT.md). Ignored so the nested clone never shows up as a
 # stray gitlink in this repo's status.

@@ -625,6 +625,32 @@ window.CONFIG = {
     // behaviour to the element. One-line revert (-> false).
     groundDiptych: true,
 
+    // PHOTO VETO — "not this one", and the wall never shows it again.
+    //
+    // The ground holds a photograph for ten minutes at a time and there was no
+    // way to say no to one. Every automatic alternative was measured and
+    // rejected first (2026-08-14, 494 assets): favourites 0.2%, star ratings 0%,
+    // Immich duplicate detection never run, and a sharpness sweep ranked the
+    // photograph the owner actually objected to 20th of 118 while the soft end
+    // of the distribution was almost all legitimate night photographs. There is
+    // no signal to filter on, so this asks instead of guessing.
+    //
+    // On: "not this one" (and kin) hides every photograph currently on the
+    // ground — both halves of a diptych, since that is the frame being looked
+    // at — and moves on. "Bring that back" undoes the last one. The list lives
+    // server-side in data/photos/hidden.json and is applied at the single choke
+    // point every Immich search passes through, so a veto also holds on the
+    // screensaver and in Daily Memories.
+    //
+    // ⚠ THE UNDO IS NOT A NICETY. A veto is spoken and speech misfires — the
+    // television, a guest, half a sentence — so without a way back one
+    // mishearing removes a photograph permanently and silently.
+    //
+    // Off: the intents never match, nothing can ever be added to the list, and
+    // an empty list filters nothing — so the flag-off wall is unchanged.
+    // One-line revert (-> false).
+    photoVeto: false,
+
     // Living-window Phase 1 (plan: review-the-design-scheme) — rain on glass.
     // A shared episode runtime (services/atmoFx/) draws bounded droplet/streak
     // "moments" on a front canvas, then hides it: the GPU-0% ambient baseline

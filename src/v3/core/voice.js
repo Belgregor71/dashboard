@@ -27,6 +27,7 @@ import { deepen, sustain, DEPTH } from "./depth.js";
 import { showSubject } from "../subjects/index.js";
 import { renderVocabularyCard } from "./vocabulary-card.js";
 import { setSaidText } from "./spread.js";
+import { vetoCurrent, restoreLastVeto } from "./ground.js";
 
 const LINGER_MS = 8_000;
 const DEIXIS_MS = 4_200;
@@ -181,6 +182,41 @@ async function postJson(url, body) {
   }
 }
 
+const vetoEnabled = () => Boolean(globalThis.window?.CONFIG?.features?.photoVeto);
+
+/**
+ * The one local intent that changes something, and the copy that reports it.
+ *
+ * Returns the line to speak, or null to fall through to the next lane — which
+ * is the honest answer when the flag is off, when no photograph is on the
+ * ground, or when there is nothing left to undo. A veto that hid nothing must
+ * never SOUND like it hid something.
+ *
+ * ⚠ Register: this is memory-adjacent, so it keeps one light beat and no more.
+ * The room is throwing away a photograph of its own life; a joke about it would
+ * be the house being pleased with itself at the wrong moment (VOICE.md §8).
+ *
+ * @param {"photo.veto"|"photo.restore"} id
+ * @returns {Promise<string|null>}
+ */
+async function handlePhotoVeto(id) {
+  if (!vetoEnabled()) return null;
+
+  if (id === "photo.restore") {
+    const { restored } = await restoreLastVeto();
+    if (!restored.length) return null;
+    return restored.length > 1
+      ? "Both of those are back — you'll see them again."
+      : "Back it comes.";
+  }
+
+  const { hidden, pair } = await vetoCurrent();
+  if (!hidden.length) return null;
+  return pair
+    ? "Righto — both of those, gone for good."
+    : "Righto — you won't see that one again.";
+}
+
 /**
  * One turn. Returns { handled, lane }.
  */
@@ -201,7 +237,26 @@ export async function submit(text, { source = "unknown" } = {}) {
     if (intent) {
       const snap = voiceSnapshot(coords);
 
-      if (intent.id.startsWith("show.")) {
+      /* The photograph veto. Handled before the answerers because it ACTS: the
+         other local intents all read state and describe it, and this one is the
+         only place a spoken sentence changes what the wall will show tomorrow.
+
+         ⚠ Falls through rather than replying when there is nothing to hide —
+         the flag is off, or no photograph is on the ground. "Not this one" said
+         to a wall with no picture on it is far more likely to be about
+         something else, and pretending otherwise would answer the wrong
+         question with a confident sentence. */
+      if (intent.id === "photo.veto" || intent.id === "photo.restore") {
+        const spoken = await handlePhotoVeto(intent.id);
+        if (spoken) {
+          setPhase("speaking");
+          await say(spoken);
+          rememberReply(spoken);
+          consecutiveFailures = 0;
+          endTurn(clean, spoken);
+          return { handled: true, lane: "local" };
+        }
+      } else if (intent.id.startsWith("show.")) {
         setPhase("idle");
         const shown = await showSubject(intent, snap);
         if (shown) {

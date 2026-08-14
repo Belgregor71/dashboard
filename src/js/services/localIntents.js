@@ -230,9 +230,36 @@ export function matchCamera(text) {
 const MUTATION_RE =
   /^(please\s+)?(can|could|would)?\s*(you\s+)?(add|put|remove|delete|clear|set|turn|switch|play|pause|stop|open|close|lock|unlock|dim|brighten|remind|create|schedule|start|make|send|call)\b/;
 
+/* ── The photograph veto ────────────────────────────────────────────────────
+   "Not this one" is the only quality signal the photo library has; everything
+   automatic was measured and rejected (see services/photoVeto.js). Matching it
+   here rather than in INTENTS because of the mutation guard below.
+
+   ⚠⚠ THESE MUST BE TESTED BEFORE `MUTATION_RE`, and the exception is principled
+   rather than convenient. That guard sends commands to HA Assist because Assist
+   owns the things a command can change — but Assist cannot hide a photograph on
+   this wall, and neither can the model behind it. "delete this photo" and
+   "remove that one" open with banned verbs, so without this they fall through
+   to a lane that can only *sound* like it complied. The local lane is the only
+   lane that can act, so it is the only lane allowed to match.
+
+   Kept narrow deliberately: every alternative names a photograph, or is one of
+   the two bare demonstratives ("not this one"/"not that one") that only ever
+   mean this while a photograph is on the wall. The handler falls through when
+   the ground has nothing showing, so a stray match costs a beat, not a memory. */
+const PHOTO_VETO_RE =
+  /\b(not (this|that) (one|photo|picture|image)|(hide|delete|remove) (this|that|it)( ?(one|photo|picture|image))?|never show (this|that|it)( one| photo| picture| image)?( again)?|get rid of (this|that|it)( one| photo| picture| image)?|don.t (show|like) (this|that)( one| photo| picture| image)?)\b/;
+
+/* The way back. Speech misfires, and a veto with no undo turns one mishearing
+   into a photograph nobody can find again. */
+const PHOTO_RESTORE_RE =
+  /\b(bring (that|it|the photo|the picture) back|put (that|it) back|undo( that)?|i did ?n.t mean (that|it)|bring back (that|the last) (one|photo|picture))\b/;
+
 export function matchIntent(raw) {
   const text = normalise(raw);
   if (!text) return null;
+  if (PHOTO_RESTORE_RE.test(text)) return { id: "photo.restore" };
+  if (PHOTO_VETO_RE.test(text)) return { id: "photo.veto" };
   if (MUTATION_RE.test(text)) return null;
 
   // "show me the driveway" and friends resolve first when a camera is named,

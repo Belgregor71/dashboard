@@ -1,4 +1,5 @@
 import { fetchWithTimeout } from "../utils/fetch.js";
+import { isHidden } from "./photoVeto.js";
 
 // Read-only Immich client — Phase 9.5 (docs/vision/photo-source-immich.md). The
 // house's photo source lives on the Synology (LAN, on-device). This module holds
@@ -165,6 +166,14 @@ function usableImage(a) {
   if (!(a && a.id && a.type === "IMAGE" && !a.isTrashed && !a.isArchived)) return false;
   if (excludeScreenshots() && isScreenshot(a)) return false;
   if (isLowResolution(a)) return false;
+  /* The one filter that is not a guess: the room said no to this photograph out
+     loud. Applied here rather than per-route because this is the single choke
+     point every search passes through — a veto spoken at the ambient ground
+     also has to hold on the screensaver and in Daily Memories, or the same
+     photograph comes back on a different surface an hour later. Unconditional
+     because the list starts empty and filters nothing until something is in
+     it. See services/photoVeto.js. */
+  if (isHidden(a.id)) return false;
   return true;
 }
 

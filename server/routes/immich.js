@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import { isConfigured, searchRandom, onThisDay, searchTaken, fetchRendition } from "../services/immichClient.js";
 import { getDailySet, getMapTile, hasMapKey, initDailyMemories } from "../services/dailyMemories.js";
 import { clipPathFor, hasClip, hasSkip } from "../services/liveMotion.js";
+import { hiddenIds, hide, undo } from "../services/photoVeto.js";
 
 // Dashboard-facing Immich proxy — Phase 9.5 (docs/vision/photo-source-immich.md).
 // The browser only ever talks to these three endpoints; the API key stays in the
@@ -62,6 +63,50 @@ router.get("/api/immich/on-this-day", async (_req, res) => {
   if (cached) return res.json({ assets: cached });
   const assets = await onThisDay(new Date());
   res.json({ assets: memSet(key, assets) });
+});
+
+/* ── The veto ───────────────────────────────────────────────────────────────
+   "Not this one", said to the room, is the only quality signal this library
+   has (server/services/photoVeto.js explains why nothing else works).
+
+   ⚠ EVERY WRITE CLEARS THE METADATA CACHE, and it must. on-this-day is memoised
+   for an hour and the random feed for ten minutes, so without this the
+   photograph the room just rejected keeps being served from memory — the veto
+   would look broken for exactly as long as it takes to give up on it.
+
+   ⚠ Clears the WHOLE memo rather than the three key prefixes it knows about.
+   A prefix list is a second place to remember, and it was wrong within minutes
+   of being written (`browse:`, not `brw:`). This map holds nothing but search
+   metadata, all of it re-fetchable, so the cost of over-clearing is one extra
+   Immich round trip and the cost of under-clearing is a feature that looks
+   broken. */
+function forgetCachedSearches() {
+  mem.clear();
+}
+
+router.get("/api/immich/hidden", (_req, res) => {
+  res.json({ ids: hiddenIds() });
+});
+
+router.post("/api/immich/hidden", express.json(), (req, res) => {
+  const raw = req.body?.ids ?? req.body?.id;
+  const ids = (Array.isArray(raw) ? raw : [raw]).filter((id) => UUID_RE.test(String(id ?? "")));
+  // A veto with nothing to veto is the caller's mistake, not a server error —
+  // and saying so plainly is what stops a silent no-op reading as success.
+  if (!ids.length) return res.status(400).json({ error: "no valid asset id" });
+
+  const result = hide(ids);
+  forgetCachedSearches();
+  res.json(result);
+});
+
+/* The safety rail. A veto is SPOKEN, and speech misfires — the television, a
+   guest, half a sentence. Without a way back one mishearing removes a
+   photograph permanently and the room never learns which one it lost. */
+router.post("/api/immich/hidden/undo", express.json(), (_req, res) => {
+  const result = undo();
+  forgetCachedSearches();
+  res.json(result);
 });
 
 router.get("/api/immich/random", async (req, res) => {
