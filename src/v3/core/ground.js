@@ -171,6 +171,67 @@ const isKnownPortrait = (a) => Number(a?.aspect) > 0 && Number(a.aspect) < LANDS
 /** ISO strings sort chronologically; anything else sorts as unknown. */
 const timeKey = (a) => (typeof a?.localDateTime === "string" ? a.localDateTime : "");
 
+/* ⚠⚠ A BURST IS NOT TWO MOMENTS — it is one photograph printed twice, and the
+   seam makes the duplication MORE obvious rather than less. Seen on the glass
+   2026-08-14: the first pair the wall ever showed was the same cocktails twice.
+
+   🔑 THE REAL SHAPE, measured on that day's live pool (32 portraits across six
+   years): EIGHT pairs share an identical `localDateTime` TO THE MILLISECOND.
+   They are not library duplicates — the thumbnails differ in bytes and in
+   framing — so they are separate exposures that Immich stamped with the same
+   capture time. Nearest-in-time therefore does not merely *sometimes* pair a
+   burst; on this library it pairs them PREFERENTIALLY, because a zero gap sorts
+   adjacent and wins every time. That is why the very first pair on the wall was
+   a double, and why this is a rule rather than a nicety.
+
+   🔑 THE THRESHOLD IS READ OFF A GAP IN THE DATA, not chosen by taste. The
+   sorted gaps within a year run: 0s (x8), 6.7s, 87s, then 3m47s, 31min, 35min,
+   43min, 63min, … — so every value between ~90 SECONDS and ~3.5 MINUTES
+   produces exactly the same result on this pool. Two minutes sits in the middle
+   of that empty band, which is the most defensible place to put it. The 3m47s
+   pair stays paired, and it should: two frames four minutes apart are two looks
+   at one scene, which is the diptych working. */
+const BURST_MS = 2 * 60 * 1000;
+
+/* ⚠ FAILS OPEN, and it has to. `Date.parse` of anything we do not understand is
+   NaN, and every comparison with NaN is false — so an unparseable pair is never
+   called a burst. Dropping a photograph needs positive evidence that a near-
+   identical one is already in the pool; not knowing is not evidence. */
+function isBurst(a, b) {
+  const t1 = Date.parse(timeKey(a));
+  const t2 = Date.parse(timeKey(b));
+  return Math.abs(t2 - t1) < BURST_MS;
+}
+
+/**
+ * One photograph per moment, from a list already sorted by time.
+ *
+ * Each survivor is compared against the last one KEPT, not against its
+ * immediate predecessor: a five-shot burst is one moment, and comparing
+ * neighbours would keep every second frame of it.
+ *
+ * ⚠ A dropped frame is OMITTED from the day, exactly as the odd portrait is —
+ * not shown full-bleed (that is the 1.33x upscale this feature exists to
+ * avoid), not held for tomorrow. A near-identical photograph taken in the same
+ * second is not a second memory, and the pool already prefers omitting a frame
+ * to showing a bad one.
+ *
+ * ⚠ WHAT IT COSTS, measured on the live pool the day it shipped: pairs 15 -> 8
+ * and omissions 2 -> 16. Of the 14 newly omitted, ELEVEN are the same-moment
+ * duplicates this exists to remove; the other THREE are parity — collapsing an
+ * even group to an odd one leaves a new odd portrait out. Eight of the fifteen
+ * pairs it replaced were doubles, so the wall trades ~7 frames a day for not
+ * showing the same photograph beside itself.
+ */
+function oneFrameEach(sorted) {
+  const kept = [];
+  for (const asset of sorted) {
+    if (kept.length && isBurst(kept[kept.length - 1], asset)) continue;
+    kept.push(asset);
+  }
+  return kept;
+}
+
 /**
  * The day's pool as FRAMES.
  *
@@ -186,6 +247,10 @@ const timeKey = (a) => (typeof a?.localDateTime === "string" ? a.localDateTime :
  * the frames are shuffled TOGETHER: once a portrait pair is the best-rendered
  * thing on the wall there is no reason left to defer it, and deferring it meant
  * that on a day you glance twice you never saw a portrait at all.
+ *
+ * ⚠ A BURST COLLAPSES TO ONE FRAME before any pairing happens — see BURST_MS.
+ * Nearest-in-time is the right rule and it has two bad ends; this closes the
+ * near one, where the pair is the same photograph twice.
  *
  * ⚠ AN ODD PORTRAIT IS OMITTED — owner's call, 2026-08-13. Not repeated (the
  * same photograph twice is a mistake, not a diptych), not shown full-bleed
@@ -211,7 +276,9 @@ export function buildItems(list, diptych = false) {
   const pairs = [];
   for (const group of byYear.values()) {
     group.sort((x, y) => timeKey(x).localeCompare(timeKey(y)));
-    for (let i = 0; i + 1 < group.length; i += 2) pairs.push([group[i], group[i + 1]]);
+    // One frame per moment BEFORE pairing, or a burst pairs with itself.
+    const moments = oneFrameEach(group);
+    for (let i = 0; i + 1 < moments.length; i += 2) pairs.push([moments[i], moments[i + 1]]);
   }
 
   return shuffled([...singles, ...pairs]);

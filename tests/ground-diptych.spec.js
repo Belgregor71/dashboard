@@ -63,6 +63,112 @@ test("portraits pair within a year, nearest in time", () => {
   expect(pair.map((a) => a.id)).toEqual(["dawn", "nine"]);
 });
 
+/* ── The burst ──────────────────────────────────────────────────────────────
+   Found on the glass, not in a test: the first pair the wall ever showed was
+   two frames of the same cocktails seconds apart, and it read as one photograph
+   printed twice with a seam through it. Nearest-in-time is still the right
+   rule — it just has a near end as well as a far one. */
+
+test("a burst is one moment, so it is never paired with itself", () => {
+  const items = buildItems(
+    [
+      portrait("burst-a", "2013-08-13T18:00:00Z"),
+      portrait("burst-b", "2013-08-13T18:00:20Z"),
+      portrait("later", "2013-08-13T19:30:00Z")
+    ],
+    true
+  );
+
+  // The failure this replaces: [burst-a, burst-b] as a pair, and "later" the
+  // odd one out — the same photograph twice on the wall, and a real second
+  // moment omitted to make room for it.
+  const pair = items.find((frame) => frame.length === 2);
+  expect(pair.map((a) => a.id)).toEqual(["burst-a", "later"]);
+  expect(idsIn(items)).not.toContain("burst-b");
+});
+
+test("two exposures stamped with the SAME instant are one moment — the live shape", () => {
+  /* This is what the real library actually does, and it is worse than a burst:
+     eight pairs in one day's pool share a localDateTime to the millisecond.
+     They are not duplicate files (different bytes, different framing) — but a
+     zero gap sorts adjacent, so nearest-in-time pairs them PREFERENTIALLY.
+     Sorting is stable, so the survivor is the one the library listed first. */
+  const items = buildItems(
+    [
+      portrait("kept", "2021-08-14T17:54:21.112Z"),
+      portrait("twin", "2021-08-14T17:54:21.112Z"),
+      portrait("other", "2021-08-14T18:40:00.000Z"),
+      portrait("other2", "2021-08-14T19:10:00.000Z")
+    ],
+    true
+  );
+
+  expect(idsIn(items)).not.toContain("twin");
+  expect(items.find((f) => f.length === 2).map((a) => a.id)).toEqual(["kept", "other"]);
+});
+
+test("a five-shot burst collapses to ONE frame, not to every second frame", () => {
+  // Each survivor is compared against the last one KEPT. Comparing neighbours
+  // instead would keep shots 1, 3 and 5 of this and pair two of them.
+  const shots = ["00", "10", "20", "30", "40"].map((s) =>
+    portrait(`s${s}`, `2013-08-13T18:00:${s}Z`)
+  );
+  const items = buildItems([...shots, portrait("evening", "2013-08-13T21:00:00Z")], true);
+
+  expect(idsIn(items).sort()).toEqual(["evening", "s00"]);
+});
+
+test("four minutes apart is a second frame of the scene, and still pairs", () => {
+  // The threshold is read off a gap in the real distribution, not chosen: the
+  // within-year gaps run 0s (x8), 6.7s, 87s, then 3m47s, 31min, … so the rule
+  // must take everything up to 87s and leave 3m47s alone. This is the guard on
+  // the far side — without it the rule stops being about duplicates and starts
+  // thinning the day.
+  const items = buildItems(
+    [portrait("a", "2013-08-13T18:00:00Z"), portrait("b", "2013-08-13T18:04:00Z")],
+    true
+  );
+
+  expect(items).toHaveLength(1);
+  expect(items[0].map((x) => x.id)).toEqual(["a", "b"]);
+});
+
+test("the window is half-open: exactly two minutes apart is not a burst", () => {
+  const items = buildItems(
+    [portrait("a", "2013-08-13T18:00:00Z"), portrait("b", "2013-08-13T18:02:00Z")],
+    true
+  );
+
+  expect(items[0]).toHaveLength(2);
+});
+
+test("an unreadable timestamp is never called a burst — dropping needs evidence", () => {
+  // Date.parse gives NaN and every comparison with NaN is false, so these pair
+  // rather than collapse. Not knowing when two photographs were taken is not
+  // evidence that they are the same one.
+  const items = buildItems(
+    [
+      portrait("x", "sometime in 2013", { localDateTime: "sometime in 2013" }),
+      portrait("y", "also unclear", { localDateTime: "also unclear" })
+    ],
+    true
+  );
+
+  expect(items[0]).toHaveLength(2);
+  expect(idsIn(items).sort()).toEqual(["x", "y"]);
+});
+
+test("the burst rule is off when the diptych is off — the rollback keeps every photograph", () => {
+  // Thinning the pool is part of PAIRING, so flag-off must still be byte-for-
+  // byte the old behaviour: every asset present, one per frame.
+  const items = buildItems(
+    [portrait("burst-a", "2013-08-13T18:00:00Z"), portrait("burst-b", "2013-08-13T18:00:20Z")],
+    false
+  );
+
+  expect(idsIn(items).sort()).toEqual(["burst-a", "burst-b"]);
+});
+
 test("the odd portrait is OMITTED — not repeated, not full-bleed, not held", () => {
   const items = buildItems(
     [
