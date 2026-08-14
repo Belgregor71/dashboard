@@ -50,9 +50,34 @@ async function main() {
     return Object.fromEntries(metrics.map((m) => [m.name, m.value]));
   };
 
+  /* ── The substrate frame counter ─────────────────────────────────────────
+     Bracketed here rather than in a script of its own, because this is already
+     the probe that owns a two-point window — and because THIS is the file that
+     reports `framesPerSec` and `animations`, both of which are blind to V3's
+     substrate. `AnimationsCount` counts Web Animations; the substrate is a rAF
+     loop on a canvas. A sample reading `animations: 0` while the field draws 15
+     frames a second is not a contradiction, it is the instrument looking in the
+     wrong place — and it filed a healthy live-ambient reading under the
+     quiescent row once already.
+
+     `frames` is monotonic since page load, so the DELTA over this window is the
+     only honest fps. Absent on the incumbent surface (no __substrate) → null,
+     never 0: "no counter" and "no frames" are different answers and the dark
+     panel makes the second one meaningful.
+  ──────────────────────────────────────────────────────────────────────── */
+  const substrate = async () => {
+    const r = await send("Runtime.evaluate", {
+      expression: `JSON.stringify(window.__substrate ? window.__substrate() : null)`,
+      returnByValue: true
+    });
+    try { return JSON.parse(r.result.value); } catch { return null; }
+  };
+
   const a = await read();
+  const sa = await substrate();
   await new Promise((r) => setTimeout(r, windowS * 1000));
   const b = await read();
+  const sb = await substrate();
 
   const dt = b.Timestamp - a.Timestamp;
   const rate = (name) => +(((b[name] ?? 0) - (a[name] ?? 0)) / dt).toFixed(2);
@@ -70,7 +95,17 @@ async function main() {
     framesPerSec: rate("FramesPerSecond") || undefined,
     jsHeapMB: +((b.JSHeapUsedSize ?? 0) / 1048576).toFixed(1),
     nodes: b.Nodes,
-    animations: b.AnimationsCount ?? null
+    // ⚠ Blind to the substrate — read `substrateFps` below, not this, when
+    // judging whether V3's field was moving. Kept because it is still the right
+    // number for the incumbent's CSS/lottie animations.
+    animations: b.AnimationsCount ?? null,
+    substrateBackend: sb?.backend ?? null,
+    substrateAnimating: sb?.animating ?? null,
+    substratePaused: sb?.paused ?? null,
+    substrateFrames: sa && sb ? sb.frames - sa.frames : null,
+    substrateFps: sa && sb && sb.seconds > sa.seconds
+      ? +((sb.frames - sa.frames) / (sb.seconds - sa.seconds)).toFixed(1)
+      : null
   }));
 
   ws.close();

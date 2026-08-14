@@ -6,11 +6,16 @@ Where a doc and the code disagreed, the code won and the doc is flagged for corr
 
 Ordering: **security → new features → the measurement debt that gates them → cleanup.**
 
-> ## ✅ P0, **F1** and **P4** ARE CLOSED (2026-08-14). M1 is half done. Start at **F2**.
+> ## ✅ P0, **F1**, **P4** and **M1's repair** ARE CLOSED. Start at **F2**.
 >
-> ⛔ **But read M1 first if you were going to touch F3 or F4.** The measurement instrument is
-> dark on V3 — every hook `kiosk-sweep.sh` drives is `undefined` on the wall — so those two
-> are gated behind repairing it, not behind taking a reading.
+> **2026-08-15 — the instrument is repaired.** It was dark on V3: every hook
+> `kiosk-sweep.sh` drove was `undefined` on the wall, so it would have logged ambient three
+> times and called one a peak. It is surface-aware now, it **refuses to sample** when a
+> declared seam is missing, and `tests/kiosk-instrument.spec.js` keeps it that way. **F3 is
+> unblocked**; one real sweep on the G11 is still owed, and it is a reading, not a blocker.
+>
+> ⛔ **F4 is NOT unblocked — it is re-scoped.** The ambient archive does not exist in `src/v3/`
+> at all, so `archiveMotionLoop` has no V3 half to flip. Read the item before picking it up.
 >
 > **And the headline finding is that two of the three P0 items were already done** before this
 > session began — H6 at the time of the audit, the security contract inside `api.spec.js`. Both
@@ -192,12 +197,30 @@ may no longer describe the wall.
 | `robotCandidate` | :412 | the flag-off no-op proven on the panel |
 | `gamingQuiet` | :423 | a live judgement call |
 
-Each is byte-identical when off and carries a one-line revert. **Do these after M1** — you
-cannot judge a new flag's cost against a baseline that predates the engine and the SSE.
+Each is byte-identical when off and carries a one-line revert. ✅ **Unblocked 2026-08-15** —
+the instrument can take an honest V3 reading again. Take the ambient and peak rows on the G11
+first and write them into `HOST-BASELINES.md`: you still cannot judge a new flag's cost
+against a baseline that predates the engine and the SSE, and the peak row does **not**
+continue across the cutover, so there is nothing to diff until a V3 peak is on record.
 
 ---
 
-### F4 · Ambient Archive — finish the half that never reached the panel
+### F4 · Ambient Archive — ⛔ **RE-SCOPED 2026-08-15: there is no V3 half to flip**
+
+**The estimate below is wrong and the item is bigger than it reads.** Verified by grep across
+`src/v3/`: the ambient archive does not exist on the V3 surface at all — one hit, a CSS
+comment. `archiveMotionLoop` is an *incumbent* flag, and `/` has served V3 since the cutover,
+so flipping it changes nothing on the wall. The same fact retires `heap-metrics.cjs`'s old
+liveness block (fixed; see M1) and explains why it has been "not assessable" ever since.
+
+So F4 is not "flip a flag and take a GPU reading". It is either **a port of the archive onto
+V3** (real work, real design questions, and V3's ground already answers much of what the
+archive was for) or **a decision to let it stay an incumbent-only feature**. That is the
+owner's call and it should be made before any of the open judgements below are chased —
+every one of them assumes a surface that is not on the wall.
+
+<details><summary>original item</summary>
+
 **~3 h + a soak.**
 
 `docs/design/HANDOVER-AMBIENT-ARCHIVE.md:3` still reads *"BUILT 2026-08-01, flag-off, not yet
@@ -208,6 +231,8 @@ Open judgements from `AMBIENT-ARCHIVE.md:264`, all of which need a portrait memo
 the −12° yaw foreshortening (`--arch-deck-plane` is the one-line lever), whether the echo reads
 as visible tiling on a bright frame (`brightness(.17)` assumes a dark one), and the §8.5 soak,
 which is unstarted.
+
+</details>
 
 ---
 
@@ -223,7 +248,22 @@ which is unstarted.
 
 ## P2 — Measurement debt (gates P1)
 
-### M1 · Re-measure CPU/GPU ⭐ *do before F3/F4* — **HALF DONE, and the other half is a repair**
+### M1 · Re-measure CPU/GPU ⭐ *do before F3/F4* — **REPAIRED 2026-08-15; one sweep still owed**
+
+> ✅ **The repair is done and tested.** `scripts/kiosk/surface.cjs` declares the seams the
+> instrument drives, `kiosk-eval.cjs --detect` refuses to sample when one is missing,
+> `kiosk-sweep.sh` aborts instead of logging three ambients, `kiosk-drive.cjs` gained a V3
+> subject cycle and a real peak, `perf-metrics.cjs` measures `substrateFps`, and
+> `heap-metrics.cjs` judges V3's ground instead of an archive that does not exist here.
+> `tests/kiosk-instrument.spec.js` pins the whole contract (neuter-verified: renaming
+> `__ground` in the source turns two of its assertions red — after a rebuild, since the suite
+> serves `dist/`).
+>
+> ⏳ **Owed: one real sweep on the G11**, in daylight, and the peak row transcribed into the
+> table above. That is a reading, not a repair — F3/F4 are unblocked either way, but the peak
+> number is what F3's flags get judged against.
+>
+> ⛔ **F4 needs re-scoping before it is picked up** — see the correction on it above.
 
 ✅ **The live-ambient row is closed** (2026-08-14, `HOST-BASELINES.md`): gpu-process **5.9%**
 of one core, renderer **5.3%**, one shared 30 s window, substrate animating at a measured

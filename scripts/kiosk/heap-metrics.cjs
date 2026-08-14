@@ -36,6 +36,117 @@ const ORIGIN = process.env.DASHBOARD_ORIGIN || "http://127.0.0.1:3000";
 // thirty missed opportunities, not a quiet patch.
 const BURST_SILENCE_MS = 15 * 60 * 1000;
 
+// ── The V3 half (added 2026-08-15) ──────────────────────────────────────────
+// The block above was written for the incumbent screensaver and asks about Live
+// Photo motion. **That surface does not exist on the wall any more, and this is
+// not a flag being off.** `src/v3/` contains no ambient archive at all — one
+// grep across the whole tree returns a single CSS comment — so `__archive()` is
+// permanently absent and the verdict was permanently "not assessable: the
+// archive probe is absent — flag off, or not the kiosk page".
+//
+// That wording is now actively misleading: it names two causes, and the true one
+// is neither. Worse, the liveness half was added precisely BECAUSE a healthy-
+// looking soak missed sixteen hours of dead motion — and since the cutover it
+// has been watching a surface nobody can see, which is the same failure wearing
+// the cutover's clothes.
+//
+// So V3 gets its own liveness question, and it is the right one for this
+// surface: **the ground IS the screen.** It is held all day by design, it is the
+// most-looked-at thing in the house, and if it fails to load, fails to reveal,
+// or stops turning over at the day boundary, every counter above still reads
+// perfectly flat.
+const GROUND_SOURCES = ["/api/immich/on-this-day", "/api/immich/random?count=2"];
+
+/** What the server believes is on offer for the ground today. Same principle as
+ *  serverClips(): asked of the box, not of the page, because the failure worth
+ *  catching lives in the gap between them. */
+function serverGround() {
+  const ask = (path) => new Promise((resolve) => {
+    const req = http.get(`${ORIGIN}${path}`, (res) => {
+      let body = "";
+      res.on("data", (c) => (body += c));
+      res.on("end", () => {
+        try {
+          const j = JSON.parse(body);
+          const arr = Array.isArray(j) ? j : (j?.assets ?? j?.photos ?? []);
+          resolve({ path, count: arr.length });
+        } catch { resolve({ path, count: null }); }
+      });
+    });
+    req.on("error", () => resolve({ path, count: null }));
+    req.setTimeout(5000, () => { req.destroy(); resolve({ path, count: null }); });
+  });
+  return Promise.all(GROUND_SOURCES.map(ask));
+}
+
+/**
+ * The V3 verdict. Three outcomes like its sibling, and for the same reason —
+ * "I could not look" must never read as "I looked and it was fine".
+ */
+function judgeGround(ground, pool, todayKey) {
+  if (!ground) {
+    return { assessable: false, why: "__ground is absent — this page has no photographic ground (not the V3 kiosk, or ground.js failed to init)", faults: [] };
+  }
+  // A dark panel is drawing nothing on purpose. v3EnergySaver makes this the
+  // expected state for eight hours a night, and the soak samples are taken at
+  // bedtime — so this is the normal answer, not a degraded one.
+  if (ground.__dark) {
+    return { assessable: false, why: "the panel is dark (v3EnergySaver) — nothing is drawn by design; take this reading in daylight", faults: [] };
+  }
+
+  const faults = [];
+  const reachable = pool?.filter((p) => p.count != null) ?? [];
+  const anyOffered = reachable.some((p) => p.count > 0);
+
+  if (!ground.assetId) {
+    if (reachable.length === 0) {
+      return { assessable: false, why: `could not reach ${ORIGIN} to ask what the ground can show`, faults: [] };
+    }
+    if (!anyOffered) {
+      // Not a page fault: an empty pool is an Immich story, and a page showing
+      // no photograph because none was offered is behaving correctly.
+      return {
+        assessable: false,
+        why: `the server offers no ground asset today (${reachable.map((p) => `${p.path}=${p.count}`).join(", ")}) — look at Immich, not the page`,
+        faults: []
+      };
+    }
+    faults.push(
+      `NO GROUND: the wall is showing no photograph while the server offers ` +
+      `${reachable.map((p) => `${p.path}=${p.count}`).join(", ")}. On V3 the ground IS the screen — ` +
+      `this is a blank wall, uptime ${ground.__uptimeMin} min.`
+    );
+    return { assessable: true, why: null, faults };
+  }
+
+  // Loaded but never revealed. This is the paint/reveal failure class, and it is
+  // invisible to every counter above: the <img> is in the DOM, the heap is flat,
+  // and the room sees nothing.
+  if (!ground.shown && !ground.inFlight) {
+    faults.push(`LOADED BUT NOT SHOWN: asset ${ground.assetId} is mounted with inFlight=false but has never been revealed.`);
+  }
+
+  // The day boundary. `awakePhotoDissolve`'s equivalent question was unprovable
+  // for weeks because nothing persisted the asset id — here the page states its
+  // own dayKey, so the check is one comparison.
+  if (todayKey && ground.dayKey && ground.dayKey !== todayKey) {
+    faults.push(
+      `STALE DAY: the ground is still on dayKey ${ground.dayKey} but today is ${todayKey}. ` +
+      `The day-boundary dissolve did not fire — the wall is showing yesterday's memories.`
+    );
+  }
+
+  // `layers` counts photographic frames, ignoring a diptych's right half: 1 at
+  // rest, 2 mid-settle. Two at rest with nothing in flight is a settle that
+  // never finished, which is exactly the transitionend-never-fires shape this
+  // house has paid for before.
+  if (ground.layers > 1 && !ground.inFlight) {
+    faults.push(`SETTLE STUCK: ${ground.layers} photographic layers at rest with inFlight=false — a cross-fade did not complete its cleanup.`);
+  }
+
+  return { assessable: true, why: null, faults };
+}
+
 // What the server believes is playable today. Read from the box rather than
 // asserted from the page, because the bug being guarded against lives exactly in
 // the gap between the two.
@@ -168,7 +279,15 @@ async function main() {
       domNodes: document.querySelectorAll("*").length,
       lottieWrappers: document.querySelectorAll(".lottie-fade").length,
       lottieSvgs: document.querySelectorAll(".lottie-fade svg").length,
-      view: document.body.dataset.view,
+      // ⚠ V3 sets neither of the incumbent's two positional fields. It reports
+      // depth and (maybe) a subject instead — recorded side by side so one log
+      // can hold rows from both surfaces and a null is never mistaken for a
+      // reading. The V3 heap/DOM band is ~20x SMALLER than the incumbent's
+      // (42 nodes vs 926), so comparing a V3 row against the old healthy band
+      // means a leak could grow twentyfold before it looked abnormal.
+      view: document.body.dataset.view ?? null,
+      depth: window.__depth ? window.__depth().depth : null,
+      subject: window.__v3 ? window.__v3().subject : null,
       uptimeMin: +(performance.now() / 60000).toFixed(1)
     })`,
     returnByValue: true
@@ -188,8 +307,32 @@ async function main() {
   let archive = null;
   try { archive = JSON.parse(archiveResult.result.value); } catch { /* absent → null */ }
 
-  const clips = await serverClips();
-  const verdict = judge(archive, clips);
+  // The same read for V3's ground. `__todayKey` is taken from the PAGE's clock,
+  // not this process's: the dayKey it is compared against is `toDateString()` on
+  // the kiosk, and a probe run from another box in another hour would otherwise
+  // manufacture a "stale day" fault out of a timezone.
+  const groundResult = await send("Runtime.evaluate", {
+    expression: `JSON.stringify(typeof window.__ground === "function"
+      ? { ...window.__ground(),
+          __dark: window.__v3Display ? window.__v3Display().dark : (document.documentElement.dataset.panelDark === "1"),
+          __todayKey: new Date().toDateString(),
+          __uptimeMin: +(performance.now() / 60000).toFixed(1) }
+      : null)`,
+    returnByValue: true
+  });
+  let ground = null;
+  try { ground = JSON.parse(groundResult.result.value); } catch { /* absent → null */ }
+
+  /* Route by which probe actually answered, never by an assumption about what
+     `/` serves. Both branches stay live: the incumbent is the documented
+     rollback (`V3_DEFAULT=0`) and pi4-rollback is kept code-current, so a sweep
+     there must still get its archive verdict. */
+  const onV3 = ground !== null;
+  const clips = onV3 ? null : await serverClips();
+  const pool = onV3 ? await serverGround() : null;
+  const verdict = onV3
+    ? judgeGround(ground, pool, ground?.__todayKey ?? null)
+    : judge(archive, clips);
 
   console.log(JSON.stringify({
     label,
@@ -200,17 +343,32 @@ async function main() {
     cdpJsEventListeners: domCounters.jsEventListeners,
     live: {
       ...verdict,
+      surface: onV3 ? "v3" : "incumbent",
       // Carried on every sample so the DIFF is the assertion, the same way the
       // leak counters work: `bursts` is monotonic, so a 24 h row whose bursts
       // match t0's says nothing played all day even if the instant of sampling
       // was legitimately quiet. `photo` differing between samples is the cheapest
       // possible proof the rotation itself is still turning.
+      //
+      // On V3 `assetId` plays that role: two samples a day apart showing the
+      // same asset means the day boundary never turned over. There is no
+      // `bursts` equivalent because there is no Live Photo motion on this
+      // surface at all — stated as its own key rather than left as a null that
+      // reads like a feature which failed.
       active: archive?.active ?? null,
       photo: archive?.photo ?? null,
       bursts: archive?.motion?.bursts ?? null,
       lastBurstAt: archive?.motion?.lastBurstAt ?? null,
       night: archive?.motion?.night ?? null,
-      clips
+      clips,
+      assetId: ground?.assetId ?? null,
+      assetIds: ground?.assetIds ?? null,
+      dayKey: ground?.dayKey ?? null,
+      layers: ground?.layers ?? null,
+      pair: ground?.pair ?? null,
+      dark: ground?.__dark ?? null,
+      motion: onV3 ? "not on this surface — V3 has no ambient archive" : undefined,
+      pool
     }
   }));
 
@@ -232,7 +390,7 @@ async function main() {
 // no-op for weeks, and the leak regression it was meant to catch went unwatched
 // the whole time. This one is only ever assessable in daylight Mode 0, so
 // waiting for the real conditions to test it is how it would go the same way.
-module.exports = { judge, BURST_SILENCE_MS };
+module.exports = { judge, judgeGround, BURST_SILENCE_MS };
 
 if (require.main === module) {
   main().catch((err) => { console.error("ERROR:", err.message); process.exit(1); });

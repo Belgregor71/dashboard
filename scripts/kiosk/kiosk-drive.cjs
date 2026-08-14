@@ -1,5 +1,13 @@
-// Drive the kiosk page via CDP: reload, or cycle views to exercise lottie churn.
-// Usage: node kiosk-drive.cjs reload | cycle
+// Drive the kiosk page via CDP: reload, cycle the surface, or hold it at peak.
+// Usage: node kiosk-drive.cjs reload | cycle | peak [seconds] | restore
+//
+// ⚠ 2026-08-15: `cycle` is surface-aware. Since the V3 cutover, `/` serves a
+// page with no views, no `data-view` and no `__switchView` — so the incumbent
+// cycle below was `undefined()` six times in a row. It threw inside the page
+// rather than printing a wrong number, but `kiosk-sweep.sh` swallowed it and
+// sampled anyway. Same disarmed tripwire as the 2026-07-30 no-op documented
+// below, caused the same way: the drive step never checked that its seams
+// existed. surface.cjs is where that check lives now.
 //
 // ⚠ 2026-07-30 bugfix: `cycle` alternated __switchView("weather") / ("home") with
 // no options, and had been a TOTAL NO-OP since Phase 7 "Dissolve" shipped.
@@ -25,12 +33,48 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const WebSocket = require("ws");
+const { detectExpr, verdict } = require("./surface.cjs");
 
 // Ends on `home`, and every step is a genuine change of view. `weather` first
 // because it carries the heaviest lottie set (services/weather/renderer.js);
 // `timeline` also bears them via calendar.js.
 const CYCLE_VIEWS = ["weather", "cameras", "timeline", "briefing", "status", "home"];
 const DWELL_MS = 1800;
+
+/* ── V3's equivalent of the view cycle ───────────────────────────────────────
+   V3 has no views. What it has is nine subjects, each mounted into
+   `#subject-mount` with its own `teardown()`, and `showSubject()` tears the
+   previous one down before building the next. Cycling them is therefore the
+   same test the view cycle was: a churn that exercises every teardown path in
+   sequence and leaves the surface where it started.
+
+   ⚠ The leak signature is DIFFERENT here and the old one does not apply. V3
+   renders zero lotties (`lottieWrappers: 0` on the live wall), so
+   wrappers-vs-svgs measures nothing. The V3 shapes worth catching:
+     · a subject node surviving its own teardown → `#subject-mount` not empty
+     · an MJPEG <img> left with a src → showCamera's own comment calls this
+       "not a leak, a fire": the connection stays open and decoding forever
+     · listeners/nodes ratcheting across the cycle
+
+   ⚠ `false` from a subject is a LEGITIMATE answer, not a failure. show.media
+   with nothing playing and show.sky with no radar meta both decline by design —
+   `showSubject` returns false and the caller falls through rather than leaving
+   the screen empty and confident. So a decline is REPORTED, never fatal. What
+   IS fatal is a subject claiming it mounted while `activeSubject()` disagrees.
+─────────────────────────────────────────────────────────────────────────── */
+const CYCLE_SUBJECTS = [
+  // camera first: the heaviest, and the only one holding an open connection.
+  { id: "show.camera", slots: { camera: "driveway" } },
+  { id: "show.sky", slots: {} },
+  { id: "show.day", slots: {} },
+  { id: "show.tonight", slots: {} },
+  { id: "show.list", slots: { list: "shopping" } },
+  { id: "show.recipe", slots: {} },
+  { id: "show.year", slots: {} },
+  { id: "show.media", slots: {} },
+  { id: "show.briefing", slots: {} },
+  { id: "show.status", slots: {} }
+];
 
 function getJson(url) {
   return new Promise((resolve, reject) => {
@@ -40,6 +84,201 @@ function getJson(url) {
       res.on("end", () => { try { resolve(JSON.parse(body)); } catch (e) { reject(e); } });
     }).on("error", reject);
   });
+}
+
+/* ── V3: the subject cycle, the peak, and the way back ───────────────────────
+   Returns a process exit code (0 = fine) rather than calling process.exit, so
+   the websocket is always closed by the caller.
+─────────────────────────────────────────────────────────────────────────── */
+async function driveV3(send, mode, seconds) {
+  const evalPage = async (expression) => {
+    const r = await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
+    if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description ?? "page threw");
+    return typeof r.result.value === "string" ? JSON.parse(r.result.value) : r.result.value;
+  };
+
+  if (mode === "cycle") {
+    const report = await evalPage(`(async () => {
+      const subjects = ${JSON.stringify(CYCLE_SUBJECTS)};
+      const dwell = ${DWELL_MS};
+      const sample = () => ({
+        mounted: window.__v3().subject,
+        mountChildren: (document.getElementById("subject-mount")?.children.length) ?? null,
+        // The MJPEG check. An <img> still pointed at a /live endpoint after its
+        // subject was torn down is an open connection decoding forever.
+        liveImgs: [...document.querySelectorAll("img")].filter(i => (i.getAttribute("src") || "").includes("/live")).length,
+        nodes: document.querySelectorAll("*").length
+      });
+
+      // Start from nothing mounted so every step below is a real mount. An
+      // unknown id is the documented way to clear: showSubject() tears the
+      // previous subject down BEFORE it looks the new id up, then returns false.
+      await window.__v3Subject("__sweep.none__");
+      await new Promise(r => setTimeout(r, dwell));
+      const base = sample();
+
+      const steps = [];
+      for (const s of subjects) {
+        const claimed = await window.__v3Subject(s.id, s.slots);
+        await new Promise(r => setTimeout(r, dwell));
+        const after = sample();
+        steps.push({
+          id: s.id,
+          // What the subject SAID it did, and what the surface says is true.
+          // Disagreement between these two is the only hard failure here.
+          claimed: Boolean(claimed),
+          mounted: after.mounted === s.id,
+          declined: claimed === false,
+          liveImgs: after.liveImgs,
+          nodes: after.nodes
+        });
+      }
+
+      await window.__v3Subject("__sweep.none__");
+      await new Promise(r => setTimeout(r, dwell));
+      const final = sample();
+      return JSON.stringify({ steps, base, final });
+    })()`);
+
+    for (const s of report.steps) {
+      const verdictWord = s.declined ? "decl" : s.mounted ? "ok  " : "FAIL";
+      console.log(
+        `${verdictWord} ${s.id}${s.declined ? "  (no data to show — legitimate)" : ""}` +
+        `${!s.declined && !s.mounted ? "  claimed a mount that did not land" : ""}` +
+        `  nodes ${s.nodes}${s.liveImgs ? `  live-img ${s.liveImgs}` : ""}`
+      );
+    }
+
+    const mountedCount = report.steps.filter((s) => s.mounted).length;
+    const declined = report.steps.filter((s) => s.declined).map((s) => s.id);
+    const inconsistent = report.steps.filter((s) => s.claimed && !s.mounted);
+    console.log(
+      `cycled ${mountedCount}/${report.steps.length} subjects` +
+      `, nodes ${report.base.nodes} -> ${report.final.nodes}` +
+      `, mount ${report.final.mountChildren} child(ren), ${report.final.liveImgs} live img(s)` +
+      (declined.length ? `, declined: ${declined.join(" ")}` : "")
+    );
+
+    let code = 0;
+    // A subject that declines every time is F2's territory, not a leak — but it
+    // is also exactly the shape of the show.status defect (shadowed in the
+    // dispatch table, nobody noticed), so it is said loudly rather than logged.
+    if (declined.length) {
+      console.error(
+        `NOTE: ${declined.length} subject(s) showed nothing: ${declined.join(", ")}. ` +
+        `Legitimate when the house has no data for them — but an entry that NEVER mounts is ` +
+        `an unexercised dispatch row, which this table has already shipped one real defect from.`
+      );
+    }
+    if (inconsistent.length) {
+      console.error(
+        `ERROR: ${inconsistent.map((s) => s.id).join(", ")} returned a successful mount but ` +
+        `activeSubject() disagrees. The teardown/mount bookkeeping is inconsistent — heap deltas ` +
+        `across this cycle mean nothing until it is fixed.`
+      );
+      code = 1;
+    }
+    if (report.final.mountChildren) {
+      console.error(
+        `ERROR: #subject-mount still holds ${report.final.mountChildren} node(s) after the cycle ` +
+        `was cleared — a teardown did not remove its own node. This is V3's zombie-wrapper.`
+      );
+      code = 1;
+    }
+    if (report.final.liveImgs) {
+      console.error(
+        `ERROR: ${report.final.liveImgs} <img> still pointed at a /live endpoint after teardown. ` +
+        `showCamera's own comment calls this a fire, not a leak: the MJPEG connection stays open ` +
+        `and keeps decoding forever on a surface that runs for weeks.`
+      );
+      code = 1;
+    }
+    return code;
+  }
+
+  if (mode === "peak") {
+    /* The heaviest state V3 can actually be in, held for the whole window.
+       Deliberately NOT a synthetic effect: there is no atmoFx in V3 and no
+       `rain-heavy` to force, so the peak is defined as the heaviest REAL
+       composite the surface has — the live MJPEG camera subject at depth 3 over
+       an animating substrate, with the photographic ground crossfading under it.
+
+       ⚠⚠ It REFUSES on a dark panel instead of sampling. The incumbent sweep
+       merely warned about this ("inside the DISPLAY_OFF window the wake is
+       refused... so a night run measures ambient twice"), and a warning inside a
+       log nobody re-reads is how ambient got labelled a peak. With v3EnergySaver
+       on it is worse than a tie: the substrate is PAUSED, so a night "peak"
+       would read lower than a daytime ambient. */
+    const state = await evalPage(`JSON.stringify({
+      dark: window.__v3Display ? window.__v3Display().dark : null,
+      hasWake: typeof window.__v3Wake === "function"
+    })`);
+    if (state.dark) {
+      if (!state.hasWake) {
+        console.error("REFUSING: the panel is dark and __v3Wake is absent — cannot reach a peak state.");
+        return 1;
+      }
+      await evalPage(`JSON.stringify({ woke: window.__v3Wake("sweep") ?? null })`);
+      await new Promise((r) => setTimeout(r, 1500));
+      const after = await evalPage(`JSON.stringify({ dark: window.__v3Display().dark })`);
+      if (after.dark) {
+        console.error(
+          "REFUSING: the panel stayed dark through a wake request, so this window would measure a " +
+          "PAUSED substrate and log it as a peak. Take the peak row in daylight."
+        );
+        return 1;
+      }
+    }
+
+    const held = await evalPage(`(async () => {
+      const until = Date.now() + ${seconds * 1000};
+      await window.__v3Subject("show.camera", { camera: "driveway" });
+      // Re-assert on a 5s beat for the same reason the incumbent re-fired its
+      // atmoFx episode: depth 3 recedes after HOLD_MS, and a peak that expires
+      // mid-window under-reports itself.
+      while (Date.now() < until) {
+        window.__setDepth(3, "sweep-peak", { holdMs: 15000 });
+        if (window.__v3().subject !== "show.camera") await window.__v3Subject("show.camera", { camera: "driveway" });
+        await new Promise(r => setTimeout(r, 5000));
+      }
+      const s = window.__substrate();
+      return JSON.stringify({
+        depth: window.__depth().depth,
+        subject: window.__v3().subject,
+        substrateAnimating: s.animating,
+        substratePaused: s.paused
+      });
+    })()`);
+
+    console.log(`peak held ${seconds}s — ${JSON.stringify(held)}`);
+    // The peak must BE a peak. Each of these silently turns the sample back into
+    // an ambient reading, which is the failure this whole repair is about.
+    if (held.depth !== 3 || held.subject !== "show.camera" || held.substratePaused) {
+      console.error(
+        `ERROR: the peak did not hold (depth ${held.depth}, subject ${held.subject}, ` +
+        `substrate ${held.substratePaused ? "paused" : "running"}). This window is NOT a peak — ` +
+        `discard the row rather than filing it next to the real ones.`
+      );
+      return 1;
+    }
+    return 0;
+  }
+
+  if (mode === "restore") {
+    const back = await evalPage(`(async () => {
+      await window.__v3Subject("__sweep.none__");
+      window.__setDepth(0, "sweep-restore");
+      // Let the display window decide for itself whether the panel should be
+      // dark now — the sweep's wake must not outlive the sweep.
+      if (window.__v3DisplayTick) await window.__v3DisplayTick();
+      return JSON.stringify({ depth: window.__depth().depth, subject: window.__v3().subject });
+    })()`);
+    console.log(`restored — ${JSON.stringify(back)}`);
+    return back.depth === 0 && back.subject === null ? 0 : 1;
+  }
+
+  console.error(`ERROR: unknown mode "${mode}" (expected cycle | peak | restore | reload)`);
+  return 1;
 }
 
 async function main() {
@@ -107,6 +346,33 @@ async function main() {
     }
     ws.close();
     return;
+  }
+
+  /* Every mode below DRIVES the page, so the seam check happens once, here,
+     before any of them. An `undefined()` in the page throws where nobody looks;
+     a refusal here is visible in the sweep log and stops the sample. */
+  const detected = JSON.parse((await send("Runtime.evaluate", {
+    expression: detectExpr(),
+    returnByValue: true
+  })).result.value);
+  const v = verdict(detected);
+  if (!v.ok) {
+    console.error(`REFUSING TO DRIVE: ${v.why}`);
+    ws.close();
+    process.exit(1);
+  }
+
+  if (detected.surface === "v3") {
+    const code = await driveV3(send, mode, Number(process.argv[3]) || 30);
+    ws.close();
+    if (code) process.exit(code);
+    return;
+  }
+
+  if (mode !== "cycle") {
+    console.error(`ERROR: "${mode}" is a V3 mode; on the incumbent surface the sweep drives the peak inline with kiosk-eval.`);
+    ws.close();
+    process.exit(1);
   }
 
   const result = await send("Runtime.evaluate", {

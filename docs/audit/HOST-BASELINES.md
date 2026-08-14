@@ -182,6 +182,12 @@ canvas** and is invisible to it. The 2026-08-14 reading below is `anims:0` with 
 `paused` — not `anims`.** A reading recorded the old way will file a live-ambient sample
 under the quiescent row and appear to blow a ceiling it never touched.
 
+✅ **You no longer have to remember this.** As of 2026-08-15 the sweep's `state(pre)`/
+`state(post)` lines carry `substrate.animating`, `substrate.paused` and the frame counter on
+V3, and `perf-metrics.cjs` reports **`substrateFps`** — a real frame delta across the same
+window it already brackets. `anims` is still printed, and only so that a row records that it
+was uninformative here. **Read `substrateFps`; `anims: 0` on V3 means nothing at all.**
+
 #### Live ambient, measured 2026-08-14 20:33 (V3, G11)
 
 The row above was closed on a genuinely windy night rather than a forced one — the substrate
@@ -198,9 +204,30 @@ State, recorded per the rule above: `animating: true`, `paused: false`, **459 fr
 "0"`), `tempC` 49.25, `/proc/pressure/cpu` `avg10=0.00`. Both pids sampled over **one shared
 30 s window**. `v3EnergySaver` was on (CDP-injected, pre-deploy).
 
-⚠⚠ **The measurement apparatus is dark on V3 — read this before trusting any new sweep.**
-Probed live on 2026-08-14: `__wakeScreensaver`, `__engageScreensaver`, `__forceAtmoEpisode`,
-`__switchView`, `__archive` and `__atmosphere` are **all `undefined`** on the wall. They are
+✅ **REPAIRED 2026-08-15 — the instrument is surface-aware, and it now refuses rather than
+guesses.** The block below is kept as written because it is the *diagnosis*, and the
+consequences it lists are what the repair had to answer one by one. What changed:
+
+- **`scripts/kiosk/surface.cjs` is the new contract.** It declares, per surface, the seams the
+  instrument drives. `kiosk-eval.cjs --detect` checks them against the live page and **exits
+  non-zero when one is missing**, and `kiosk-sweep.sh` aborts before its first sample rather
+  than logging three ambients. A sweep can no longer report a number it did not take.
+- **`tests/kiosk-instrument.spec.js` makes the contract durable.** It asserts every declared
+  seam exists on the real V3 page, and proves the refusal fires by *removing* one. This is the
+  test that would have caught the cutover: both disarmings so far were silent because a
+  missing hook is `undefined`, and `undefined` is not an error until something calls it.
+  (⚠ It runs against `dist/` — `node server.js` serves the build — so a source change without
+  `npm run build` tests the old bundle. The neuter was only real after a rebuild.)
+- **fps is measured, not inferred.** `perf-metrics.cjs` now brackets `__substrate().frames`
+  across its own window and reports `substrateFps`. That is the number the 15.0 above was
+  taken by hand; it is automatic now, in the same file that reports the `animations` count
+  which cannot see it.
+- **The peak row is redefined rather than abandoned** — see the peak bullet below.
+- **`heap-metrics.cjs` has a V3 liveness verdict** (`judgeGround`) — see the archive bullet.
+
+⚠⚠ **The measurement apparatus was dark on V3 — the diagnosis, 2026-08-14.**
+Probed live: `__wakeScreensaver`, `__engageScreensaver`, `__forceAtmoEpisode`,
+`__switchView`, `__archive` and `__atmosphere` were **all `undefined`** on the wall. They are
 incumbent hooks in `modules/screensaver.js` and friends, and `/` has served V3 since the
 cutover. Consequences, none of which announce themselves:
 
@@ -209,9 +236,28 @@ cutover. Consequences, none of which announce themselves:
   no-ops, so it would log **ambient three times** and label the second one a peak. This is
   the *same disarmed-tripwire shape* as the 2026-07-30 `kiosk-drive.cjs cycle` bug recorded
   in that script's own header — caused again, by the cutover.
+  ✅ **Answered by the seam check above, plus a V3 cycle.** V3 has no views; it has nine
+  subjects, each with its own `teardown()`, and `showSubject()` tears the previous one down
+  before building the next — so cycling them is the same churn the view cycle was. ⚠ The leak
+  signature is **different** and the old one measures nothing: V3 renders zero lotties, so
+  wrappers-vs-svgs is meaningless. What the V3 cycle checks instead is a node surviving its own
+  teardown, an **MJPEG `<img>` left with a `src`** (showCamera's own comment calls that "not a
+  leak, a fire" — the connection stays open and decodes forever), and nodes/listeners
+  ratcheting. ⚠ A subject returning `false` is **legitimate** (nothing to show), so it is
+  reported and never fatal — but a subject that *never* mounts is an unexercised dispatch row,
+  which is precisely the shape of the `show.status` defect. That list is F2's input.
 - **The peak-episode row (≤ 35) is not measurable on V3 at all**: there is no atmoFx module
   under `src/v3/`, so `rain-heavy` does not exist on the current wall. The 22.5 in the table
   is an *incumbent* number retained for history. V3's continuous motion is the substrate.
+  ✅ **Answered by redefining the peak, not by forcing an effect.** V3's peak is now the
+  heaviest state it can *actually* be in — the live MJPEG camera subject at depth 3 over the
+  animating substrate and the photographic ground — held for the whole window by
+  `kiosk-drive.cjs peak`, which re-asserts depth on a 5 s beat because depth 3 recedes after
+  `HOLD_MS` and an expired peak under-reports itself. ⚠⚠ **It REFUSES on a dark panel** and
+  tells the reader to discard the row: with `v3EnergySaver` on, a night "peak" measures a
+  *paused* substrate and would come in **below** daytime ambient. The old script only warned
+  about that in a comment. ⚠ **The peak row does not continue across the cutover — 22.5 and
+  the V3 number are different measurements. Do not diff them.**
 - **The heap/DOM baselines below describe the incumbent page.** V3 on 2026-08-14 measured
   `domNodes` **42**, `cdpNodes` **268**, `cdpJsEventListeners` **29**, `lottieWrappers` **0**
   — against an incumbent "healthy" band of 926 / 2,315 / 67 / 5. A V3 leak would have to grow
@@ -219,6 +265,19 @@ cutover. Consequences, none of which announce themselves:
 - **`heap-metrics.cjs`'s `live` block is permanently not-assessable** (`"the archive probe is
   absent"`), because it reads `window.__archive()`. It refuses to judge rather than passing
   falsely, which is the right design — but nothing is watching Live Photo motion on the wall.
+  ⛔ **CORRECTION, 2026-08-15: this is not a flag being off — the ambient archive does not
+  exist in V3 at all.** One grep across `src/v3/` returns a single CSS comment. So the wording
+  named two causes and the true one was neither, and **there is no Live Photo motion on the
+  wall to watch.** ⚠ That also means **F4 in `docs/BACKLOG.md` is not a flag flip**:
+  `archiveMotionLoop` has no V3 half to turn on.
+  ✅ **Answered with the right question for this surface.** `judgeGround()` judges the thing
+  V3 actually does: **the ground IS the screen**, held all day. It faults on a blank wall while
+  the server offers assets, on a photograph loaded but never revealed, on a `dayKey` that did
+  not turn over at midnight (which finally makes `awakePhotoDissolve`'s old unprovable question
+  a one-sample check), and on a cross-fade left at two layers with nothing in flight. It stays
+  not-assessable on a dark panel and when Immich itself has nothing to offer — because "I could
+  not look" must never read as "I looked and it was fine". Covered in
+  `tests/soak-liveness.spec.js`, including the guard that a **diptych is not a leak**.
 
 ⚠ **The idle-freeze invariant is retired as a pass/fail.** Ambient `BeginMainFrame` n=7 in 3 s
 (~2.3 fps) was the tripwire; a legal continuous effect may now run ambient at 60 fps. The
