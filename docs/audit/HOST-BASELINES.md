@@ -279,6 +279,52 @@ cutover. Consequences, none of which announce themselves:
   not look" must never read as "I looked and it was fine". Covered in
   `tests/soak-liveness.spec.js`, including the guard that a **diptych is not a leak**.
 
+#### The first repaired sweep — 2026-08-15 06:44 AEST (V3, G11, daylight)
+
+`kiosk-sweep.sh` at `0d2bf07`, one shared window per row, temp 49.3 °C, `avg10=0.00`,
+load 0.64, clock 2767 MHz. Panel lit, `monitor: on`, WebGL2 backend, page uptime 572 min.
+**Every row below was taken by an instrument that verified its own seams first** — the
+detector cleared `{"surface":"v3","missing":[],"absent":[]}` before the first sample.
+
+| row | gpu-process | renderer | `substrateFps` | ceiling | headroom |
+|---|---|---|---|---|---|
+| **ambient** (lit, substrate animating) | **5.7** | **6.8** | **15.0** | ≤ 25 live | ~3.7× |
+| **peak** — camera live, depth 3, held 34 s | **7.2** | **9.0** | **15.1** | ≤ 35 peak | ~4.9× |
+| cycle — 10 subjects mounted in sequence | 6.0 | 6.4 | 15.1 | — | — |
+
+🔑 **V3's peak is barely above its ambient — +1.5 gpu / +2.2 renderer.** The substrate is the
+cost, and it is already paid at rest; the live MJPEG and a mounted subject add very little on
+top. That is a different shape from the incumbent, whose peak was 7× its ambient (22.5 vs 3.1)
+because a forced atmoFx episode was a genuinely additional effect. **It also means the ≤ 35
+peak ceiling is no longer the binding constraint on this surface** — the ambient row is, and
+`v3EnergySaver` already takes it to 0.0 for eight hours a night.
+
+⚠ The ambient `state(pre)`/`state(post)` both read `layers: 2` — which is the SETTLE STUCK
+signature and was **not** a fault: a cross-fade was legitimately in flight across the whole
+window (06:44 is inside the sunrise rotation). `inFlight` is now carried in the state line for
+exactly this reason. Note also `anims: 1` here and `anims: 0` in the peak row — the *reverse*
+of the truth, since the peak was the busier state. Read `substrateFps`.
+
+**The cycle is symmetric — measured, not reasoned.** 9/10 subjects mounted, `#subject-mount`
+empty afterwards, **0 `<img>` left on a `/live` endpoint**, `domNodes` 42 → 42. Then a *second*
+full cycle from a settled page: `cdpJsEventListeners` **153 → 153**, `cdpNodes` **333 → 333**,
+`domNodes` **42 → 42**. Nothing ratchets.
+
+⚠ **Open, and not attributable to the sweep: listeners read 153, against the 29 recorded on
+2026-08-14.** Those are different page loads — this page booted ~21:15 on 08-14, after the
+`v3EnergySaver` deploy reload, and the 29 was taken at 20:33 on the load before it. The second
+cycle proves the *subjects* add none of it. Two points on two different loads is not a slope
+([[project-listener-climb]]'s lesson), so this needs a fresh-page reading before it means
+anything. **Do not file it as a leak, and do not file 29 as the V3 baseline either.**
+
+⛔ **`show.media` declined — it mounted nothing.** Legitimate on its face (nothing was playing
+at 06:44), but it is the one subject in the dispatch table with **0% coverage** and it is
+F2's first suspect. The cycle now says so on every run instead of leaving the row unexercised.
+
+**Liveness: `assessable: true, faults: []`** — the first time anything has been assessable on
+this wall since the cutover. Ground `6a1c0d56…`, `dayKey` "Sat Aug 15 2026" (today), 1 layer,
+shown, against a server pool of **102** on-this-day assets.
+
 ⚠ **The idle-freeze invariant is retired as a pass/fail.** Ambient `BeginMainFrame` n=7 in 3 s
 (~2.3 fps) was the tripwire; a legal continuous effect may now run ambient at 60 fps. The
 quiescent row replaces it — that is where an accidental decorative loop still shows up.

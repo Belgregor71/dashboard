@@ -6,7 +6,7 @@ Where a doc and the code disagreed, the code won and the doc is flagged for corr
 
 Ordering: **security → new features → the measurement debt that gates them → cleanup.**
 
-> ## ✅ P0, **F1**, **P4** and **M1's repair** ARE CLOSED. Start at **F2**.
+> ## ✅ P0, **F1**, **P4** and **M1** ARE CLOSED. Start at **F2**.
 >
 > **2026-08-15 — the instrument is repaired.** It was dark on V3: every hook
 > `kiosk-sweep.sh` drove was `undefined` on the wall, so it would have logged ambient three
@@ -248,7 +248,7 @@ which is unstarted.
 
 ## P2 — Measurement debt (gates P1)
 
-### M1 · Re-measure CPU/GPU ⭐ *do before F3/F4* — **REPAIRED 2026-08-15; one sweep still owed**
+### M1 · Re-measure CPU/GPU — ✅ **CLOSED 2026-08-15: instrument repaired, sweep taken**
 
 > ✅ **The repair is done and tested.** `scripts/kiosk/surface.cjs` declares the seams the
 > instrument drives, `kiosk-eval.cjs --detect` refuses to sample when one is missing,
@@ -259,9 +259,12 @@ which is unstarted.
 > `__ground` in the source turns two of its assertions red — after a rebuild, since the suite
 > serves `dist/`).
 >
-> ⏳ **Owed: one real sweep on the G11**, in daylight, and the peak row transcribed into the
-> table above. That is a reading, not a repair — F3/F4 are unblocked either way, but the peak
-> number is what F3's flags get judged against.
+> ✅ **The sweep has been run, in daylight, on the wall (2026-08-15 06:44).** Ambient
+> **5.7 / 6.8** at 15.0 fps; peak (camera live at depth 3, held 34 s) **7.2 / 9.0**; cycle
+> symmetric across two runs. Rows and the three caveats are in `HOST-BASELINES.md`.
+> 🔑 **V3's peak is barely above its ambient (+1.5 gpu)** — the substrate is the cost and it is
+> paid at rest, so the ≤ 35 peak ceiling is no longer what binds this surface.
+> **M1 is closed.**
 >
 > ⛔ **F4 needs re-scoping before it is picked up** — see the correction on it above.
 

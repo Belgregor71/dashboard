@@ -91,7 +91,13 @@ const STATE_EXPR = {
       },
       panelDark: disp?.dark ?? (document.documentElement.dataset.panelDark === "1" ? true : null),
       monitor: disp?.monitor ?? null,
-      ground: g && { assetId: g.assetId, layers: g.layers, imgs: g.imgs, pair: g.pair, shown: g.shown },
+      /* ⚠ inFlight is carried because without it "layers: 2" is ambiguous, and
+         the first live run hit exactly that: the 06:44 ambient sample read two
+         photographic layers at rest, which is the SETTLE STUCK signature — and
+         was in fact a perfectly normal cross-fade caught mid-flight. One field
+         separates "a photograph arriving" from "a fade that never cleaned up".
+         (No backticks in here — this comment lives inside a template literal.) */
+      ground: g && { assetId: g.assetId, layers: g.layers, imgs: g.imgs, pair: g.pair, shown: g.shown, inFlight: g.inFlight },
       // Carried to record that it is BLIND to the substrate, not to be read as
       // the activity level. See the block comment above.
       anims: document.getAnimations().filter(a => a.playState === "running").length
