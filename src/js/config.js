@@ -606,9 +606,24 @@ window.CONFIG = {
     // ⚠ REQUIRES groundMemories: pairing needs `aspect` + `localDateTime`, and
     // only the on-this-day pool carries them. This flag alone does nothing.
     //
+    // ✅ DEFAULT-ON 2026-08-14, after a real pair was SEEN — drawn from the live
+    // on-this-day pool in the headless probe on the G11, wall untouched:
+    // `pair: true`, two assets, one shared caption ("Nudgee · 2020"), and
+    // `layers: 1` (the soak metric still counts PHOTOGRAPHS, not elements).
+    // Both halves are visibly sharper than the full-bleed frame beside them and
+    // the 16px seam reads as matting rather than a tear.
+    //
+    // ⚠ What the live pool says about the pairing rule, measured the same day:
+    // 22 of 118 assets are portraits → 10 pairs, and NINE of them fall within
+    // ~3 hours of each other (0, 1, 4, 43, 63, 113, 154, 166, 369 min). One
+    // outlier at 1339 min — same date, same year, different day entirely. So
+    // "same year, nearest in time" reads as one moment ~90% of the time, and
+    // the failure mode when it doesn't is a harmless collage, not a wrong claim:
+    // the shared caption names only place and year, which stays true of both.
+    //
     // Off: landscape-first ordering, one photograph per frame — the previous
     // behaviour to the element. One-line revert (-> false).
-    groundDiptych: false,
+    groundDiptych: true,
 
     // Living-window Phase 1 (plan: review-the-design-scheme) — rain on glass.
     // A shared episode runtime (services/atmoFx/) draws bounded droplet/streak
