@@ -162,7 +162,7 @@ replaced by *"never move for a reason the room can't see"* plus a measured ceili
 | State | Ceiling (gpu-process, % of one core) | Measured | Headroom |
 |---|---|---|---|
 | Quiescent ambient — no legal cause active | **≤ 8** | 3.1 | ~2.5× |
-| Live ambient — a continuous cause running (rain, wind, sun) | **≤ 25** sustained | *new state, unmeasured* | — |
+| Live ambient — a continuous cause running (rain, wind, sun) | **≤ 25** sustained | **5.9** (V3, 2026-08-14) | ~4.2× |
 | Peak episode — a moment, must decay | **≤ 35** | 22.5 | ~1.5× |
 
 Plus: never pin a core (`/proc/pressure/cpu` `avg10` ≈ 0), `scriptPct` under ~5% (0.2 quiescent /
@@ -173,6 +173,52 @@ had to be taken at `anims:0` because a Ken Burns settle inflated them 4× (corre
 Now that continuous motion can be *legitimate*, `anims:0` no longer means "resting" — it means
 "quiescent", which is only the first row. **Record `anims`, the view and the `atmo-*` token with
 every reading**, and match the row to the state, or the numbers are not comparable to anything.
+
+⚠⚠ **`anims` cannot see V3's substrate, so it no longer separates the first two rows.**
+`document.getAnimations().length` counts Web Animations; the substrate is a **rAF loop on a
+canvas** and is invisible to it. The 2026-08-14 reading below is `anims:0` with an empty
+`atmo-*` token and was still a *live ambient* sample, because `__substrate().animating` was
+`true` at 15 fps throughout. **On V3 the discriminator is `__substrate()` — `animating` and
+`paused` — not `anims`.** A reading recorded the old way will file a live-ambient sample
+under the quiescent row and appear to blow a ceiling it never touched.
+
+#### Live ambient, measured 2026-08-14 20:33 (V3, G11)
+
+The row above was closed on a genuinely windy night rather than a forced one — the substrate
+was animating on a real cause, which is the state the row was written for.
+
+| pid | role | % of one core |
+|---|---|---|
+| 31620 | gpu-process | **5.9** |
+| 108855 | renderer (the wall) | 5.3 |
+| 181903 | renderer (idle background page) | 0.0 |
+
+State, recorded per the rule above: `animating: true`, `paused: false`, **459 frames in
+30.6 s = 15.0 fps sustained**, `anims: 0`, `atmo` token empty, panel lit (`data-panel-dark:
+"0"`), `tempC` 49.25, `/proc/pressure/cpu` `avg10=0.00`. Both pids sampled over **one shared
+30 s window**. `v3EnergySaver` was on (CDP-injected, pre-deploy).
+
+⚠⚠ **The measurement apparatus is dark on V3 — read this before trusting any new sweep.**
+Probed live on 2026-08-14: `__wakeScreensaver`, `__engageScreensaver`, `__forceAtmoEpisode`,
+`__switchView`, `__archive` and `__atmosphere` are **all `undefined`** on the wall. They are
+incumbent hooks in `modules/screensaver.js` and friends, and `/` has served V3 since the
+cutover. Consequences, none of which announce themselves:
+
+- **`kiosk-sweep.sh` — the tool `/kiosk-metrics` says to prefer — cannot produce a worst
+  case or a view cycle here.** Its wake, its `rain-heavy` re-fire and its cycle are all
+  no-ops, so it would log **ambient three times** and label the second one a peak. This is
+  the *same disarmed-tripwire shape* as the 2026-07-30 `kiosk-drive.cjs cycle` bug recorded
+  in that script's own header — caused again, by the cutover.
+- **The peak-episode row (≤ 35) is not measurable on V3 at all**: there is no atmoFx module
+  under `src/v3/`, so `rain-heavy` does not exist on the current wall. The 22.5 in the table
+  is an *incumbent* number retained for history. V3's continuous motion is the substrate.
+- **The heap/DOM baselines below describe the incumbent page.** V3 on 2026-08-14 measured
+  `domNodes` **42**, `cdpNodes` **268**, `cdpJsEventListeners` **29**, `lottieWrappers` **0**
+  — against an incumbent "healthy" band of 926 / 2,315 / 67 / 5. A V3 leak would have to grow
+  roughly **20×** before it crossed the old numbers, so those rows are not a gate any more.
+- **`heap-metrics.cjs`'s `live` block is permanently not-assessable** (`"the archive probe is
+  absent"`), because it reads `window.__archive()`. It refuses to judge rather than passing
+  falsely, which is the right design — but nothing is watching Live Photo motion on the wall.
 
 ⚠ **The idle-freeze invariant is retired as a pass/fail.** Ambient `BeginMainFrame` n=7 in 3 s
 (~2.3 fps) was the tripwire; a legal continuous effect may now run ambient at 60 fps. The
