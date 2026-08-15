@@ -361,7 +361,35 @@ test("an action HA completed without speaking is not handed to the house voice",
   expect(pageErrors).toEqual([]);
 });
 
+/* ⚠ THIS TEST USED TO ASSERT AN EIGHT-SECOND MEMORY, AND WAS RIGHT TO — that
+   was the behaviour. Its premise ("the linger window IS the conversation") is
+   the thing 2026-08-15 deliberately falsified: the readout fading and the
+   conversation ending were the same timer, so the house forgot faster than a
+   person pauses before a follow-up.
+
+   Now they are two timers with two jobs, so this is two tests. Both drive
+   page.clock rather than sleeping — a five-minute wall-clock test is not a
+   test anybody will keep. */
+test("a pause is not the end of the conversation", async ({ page }) => {
+  await page.clock.install();
+  const assist = [];
+  const converse = [];
+  await bootLanes(page, { assist, converse });
+
+  await page.evaluate(() => window.__v3Transcript("zzz something"));
+  expect(await page.evaluate(() => window.__v3Voice().turns)).toBeGreaterThan(0);
+
+  // Comfortably past the old boundary, and past the readout fading. Someone
+  // has read the reply and walked to the fridge; the thread must survive it.
+  await page.clock.fastForward("00:30");
+  expect(
+    await page.evaluate(() => window.__v3Voice().turns),
+    "a 30-second pause erased the thread — the follow-up will be a cold start"
+  ).toBeGreaterThan(0);
+});
+
 test("the thread ends when the room goes quiet", async ({ page }) => {
+  await page.clock.install();
   const assist = [];
   const converse = [];
   assist.reply = { handled: false, speech: null, conversationId: "conv-expiring" };
@@ -370,12 +398,11 @@ test("the thread ends when the room goes quiet", async ({ page }) => {
   await page.evaluate(() => window.__v3Transcript("zzz something"));
   expect(await page.evaluate(() => window.__v3Voice().turns)).toBeGreaterThan(0);
 
-  // The linger window IS the conversation. Once it lapses the next person to
-  // speak is starting a new one, and inheriting the last one's context would
-  // answer them about somebody else's question.
-  await expect
-    .poll(() => page.evaluate(() => window.__v3Voice().turns), { timeout: 15_000 })
-    .toBe(0);
+  // Once the conversation really is over, the next person to speak is starting
+  // a new one, and inheriting the last one's context would answer them about
+  // somebody else's question.
+  await page.clock.fastForward("06:00");
+  expect(await page.evaluate(() => window.__v3Voice().turns)).toBe(0);
   expect(await page.evaluate(() => window.__v3Voice().conversationId)).toBeNull();
 });
 

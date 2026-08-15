@@ -1,174 +1,173 @@
 import { test, expect } from "@playwright/test";
 import {
-  pickMemory,
-  toSurface,
-  scoreFit,
-  moodOf,
-  MEMORY_SCORE
-} from "../src/js/services/memoryEngine.js";
-import { anticipationWarmth, afterglowFactor } from "../src/js/services/momentsEngine.js";
-import { seasonOf, dayCharacterOf, deriveIntent } from "../src/js/services/houseModel.js";
+  parseLog,
+  renderNote,
+  renderTranscript,
+  houseDay,
+  memoryEnabled,
+  MAX_ENTRY_CHARS,
+  MAX_ENTRIES_PER_DAY,
+  RAW_RETENTION_DAYS
+} from "../server/services/conversationLog.js";
 
-// Pure unit tests — memoryEngine / momentsEngine / houseModel carry no DOM and no
-// storage, so these run straight in the Playwright node process (routines.spec.js
-// style). Phase 9: docs/vision/phase-9-remember.md.
-//
-// The phase's whole value is rarity + restraint, so the tests are mostly about
-// what DOESN'T surface: the daily budget, the months-long cooldown, the context
-// floor, and — the invariant that matters most — that a tender memory can never
-// come back as a caption or an interrupt.
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONVERSATION MEMORY — the pure half.
 
-const WINTER_SUNDAY = new Date("2026-07-12T15:00:00"); // Brisbane winter, a grey Sunday afternoon
-const WINTER_MONDAY = new Date("2026-07-13T15:00:00");
-const SUMMER_DAY = new Date("2026-01-15T15:00:00");
+   Everything asserted here runs without touching the disk or the API. The
+   parts that do (consolidateOnce, the sweep, the review routes) are proved
+   live, because a fixture that cannot produce the defect cannot catch it.
 
-const GREY_WINTER_CTX = { season: "winter", dayCharacter: "weekend", condition: "Overcast" };
+   The properties that matter are all about NOT keeping things: the retention
+   promise, the frontmatter that must not exist, and the flag defaulting off.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-// A gentle non-tender place memory tagged for a grey winter weekend.
-const tasmania = {
-  id: "tas", kind: "trip", date: "2021-07-14",
-  title: "Tasmania", tags: ["winter", "grey", "weekend"], sensitivity: "normal", cooldownMonths: 6
-};
-// A tender pet memory — the case the gating exists for.
-const brodie = {
-  id: "brodie", kind: "pet",
-  title: "Brodie", tags: ["winter", "grey"], sensitivity: "tender", cooldownMonths: 12
-};
-// A summer memory that does NOT fit a winter afternoon.
-const summerSwim = {
-  id: "swim", kind: "first", recurring: { month: 11, day: 3 },
-  title: "First swim", tags: ["summer", "bright"], sensitivity: "normal"
-};
-
-test.describe("pickMemory — rarity is the feature", () => {
-  test("nothing to remember → null (silence is the default)", () => {
-    expect(pickMemory([], GREY_WINTER_CTX, {}, WINTER_SUNDAY)).toBeNull();
+test.describe("memoryEnabled — off unless asked, exactly", () => {
+  const KEY = "VOICE_MEMORY_ENABLED";
+  let saved;
+  test.beforeEach(() => { saved = process.env[KEY]; });
+  test.afterEach(() => {
+    if (saved === undefined) delete process.env[KEY];
+    else process.env[KEY] = saved;
   });
 
-  test("an ordinary day with no fitting memory stays silent (context floor)", () => {
-    // Only the summer memory exists; on a winter afternoon it doesn't clear the floor.
-    expect(pickMemory([summerSwim], GREY_WINTER_CTX, {}, WINTER_SUNDAY)).toBeNull();
+  test("unset is off", () => {
+    delete process.env[KEY];
+    expect(memoryEnabled()).toBe(false);
   });
 
-  test("a memory that fits the day surfaces as a Low-band, non-interrupt candidate", () => {
-    const s = pickMemory([tasmania], GREY_WINTER_CTX, {}, WINTER_SUNDAY);
-    expect(s).not.toBeNull();
-    expect(s.source).toBe("memory");
-    expect(s.score).toBe(MEMORY_SCORE);
-    expect(s.score).toBeGreaterThanOrEqual(40);
-    expect(s.score).toBeLessThanOrEqual(49);
-    expect(s.interrupt).toBe(false);
-  });
-
-  test("the daily budget caps at one — a memory already shown today blocks the next", () => {
-    const history = { lastSurfacedDay: `${WINTER_SUNDAY.getFullYear()}-${WINTER_SUNDAY.getMonth() + 1}-${WINTER_SUNDAY.getDate()}` };
-    expect(pickMemory([tasmania], GREY_WINTER_CTX, history, WINTER_SUNDAY)).toBeNull();
-  });
-
-  test("a per-entry cooldown skips one entry and lets a different one through", () => {
-    const other = { ...tasmania, id: "otago", title: "Otago" };
-    const cooldowns = { "memory:tas": WINTER_SUNDAY.getTime() + 60 * 86_400_000 }; // Tasmania cooling for ~2 months
-    const s = pickMemory([tasmania, other], GREY_WINTER_CTX, { cooldowns }, WINTER_SUNDAY);
-    expect(s.entryId).toBe("otago"); // chosen, not silence — it "chooses"
-  });
-
-  test("an anniversary clears the floor on its own, whatever the weather", () => {
-    // A birthday-style recurring entry anchored to today with NO fitting tags.
-    const bland = { id: "wedding", kind: "occasion", recurring: { month: 7, day: 12 }, title: "Anniversary", tags: [] };
-    const s = pickMemory([bland], { season: "winter", condition: "Clear" }, {}, WINTER_SUNDAY);
-    expect(s).not.toBeNull();
-    expect(s.entryId).toBe("wedding");
+  // A microphone that writes things down does not get to be switched on by a
+  // typo. "true" and "0" are both things a hand-edited .env acquires.
+  test("only the exact string \"1\" arms it", () => {
+    for (const value of ["0", "true", "yes", "", "on"]) {
+      process.env[KEY] = value;
+      expect(memoryEnabled()).toBe(false);
+    }
+    process.env[KEY] = "1";
+    expect(memoryEnabled()).toBe(true);
   });
 });
 
-test.describe("tender-gating — the invariant that matters most", () => {
-  test("a tender entry is ambient-only, holds longer, and never carries a caption", () => {
-    const s = toSurface(brodie, WINTER_SUNDAY);
-    expect(s.sensitivity).toBe("tender");
-    expect(s.caption).toBeNull();   // no words put to grief
-    expect(s.text).toBe("");        // nothing to render as a text line
-    expect(s.ambientOnly).toBe(true);
-    expect(s.interrupt).toBe(false);
-    expect(s.holdMs).toBeGreaterThan(toSurface(tasmania, WINTER_SUNDAY).holdMs);
+test.describe("houseDay — Brisbane, not the server's idea of a day", () => {
+  test("sorts lexically, which the 'is this today's file' check relies on", () => {
+    expect(houseDay(new Date("2026-08-15T02:00:00Z"))).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(houseDay(new Date("2026-08-14T00:00:00Z")) < houseDay(new Date("2026-08-15T00:00:00Z"))).toBe(true);
   });
 
-  test("a normal entry does carry a quiet caption and is not ambient-restricted", () => {
-    const s = toSurface(tasmania, WINTER_SUNDAY);
-    expect(typeof s.caption).toBe("string");
-    expect(s.caption.length).toBeGreaterThan(0);
-    expect(s.ambientOnly).toBe(false);
-    expect(s.interrupt).toBe(false); // no memory ever interrupts
+  // 15:00Z is already 01:00 the next day here. A UTC day boundary would file
+  // the evening's conversation under the wrong date and — worse — consolidate
+  // it as "finished" while it was still being had.
+  test("a UTC evening is already tomorrow in Brisbane", () => {
+    expect(houseDay(new Date("2026-08-14T15:00:00Z"))).toBe("2026-08-15");
+    expect(houseDay(new Date("2026-08-14T13:59:00Z"))).toBe("2026-08-14");
   });
 });
 
-test.describe("scoreFit / moodOf — the 'right kind of afternoon'", () => {
-  test("a grey condition reads as a wistful mood; clear reads bright", () => {
-    expect(moodOf("Overcast")).toBe("grey");
-    expect(moodOf("Light rain")).toBe("wistful");
-    expect(moodOf("Clear")).toBe("bright");
-    expect(moodOf("")).toBeNull();
+test.describe("parseLog — a corrupt line costs that line, never the day", () => {
+  test("reads well-formed entries", () => {
+    const raw = [
+      JSON.stringify({ at: "2026-08-15T01:00:00Z", said: "when's the rubbish", replied: "Tonight." }),
+      JSON.stringify({ at: "2026-08-15T01:01:00Z", said: "thanks", replied: "" })
+    ].join("\n");
+    expect(parseLog(raw)).toHaveLength(2);
+    expect(parseLog(raw)[0].said).toBe("when's the rubbish");
   });
 
-  test("a season + mood + day match scores higher than a bare entry", () => {
-    const fitted = scoreFit(tasmania, GREY_WINTER_CTX, WINTER_SUNDAY);
-    const bare = scoreFit({ id: "x", tags: [] }, GREY_WINTER_CTX, WINTER_SUNDAY);
-    expect(fitted).toBeGreaterThan(bare);
-    expect(bare).toBe(0);
+  // A hard kill mid-append leaves half a line. Losing the whole day's memory
+  // to it would be a poor trade.
+  test("a half-written trailing line is skipped, the rest survives", () => {
+    const raw = `${JSON.stringify({ said: "good one" })}\n{"said":"trunca`;
+    expect(parseLog(raw)).toHaveLength(1);
   });
 
-  test("afterglow: a just-passed dated occasion scores, and fades as days pass", () => {
-    const trip = { id: "wknd", kind: "trip", date: "2026-07-10", tags: [] }; // ended 2 days before Sunday
-    const fresh = scoreFit(trip, {}, new Date("2026-07-11T12:00:00")); // 1 day after
-    const older = scoreFit(trip, {}, new Date("2026-07-14T12:00:00")); // 4 days after
-    expect(fresh).toBeGreaterThan(older);
-    expect(older).toBeGreaterThanOrEqual(0);
-  });
-});
-
-test.describe("momentsEngine — anticipation & afterglow (the timeline)", () => {
-  test("anticipation warms as a tagged event nears", () => {
-    const now = new Date("2026-08-01T09:00:00");
-    const far = anticipationWarmth([{ start: "2026-08-25", category: { id: "travel" } }], now);
-    const near = anticipationWarmth([{ start: "2026-08-04", category: { id: "travel" } }], now);
-    expect(near.warmth).toBeGreaterThan(far.warmth);
-    expect(near.warmth).toBeLessThanOrEqual(1);
+  test("entries with no utterance are dropped", () => {
+    const raw = [
+      JSON.stringify({ said: "   ", replied: "hello" }),
+      JSON.stringify({ replied: "orphan" }),
+      JSON.stringify({ said: "real" })
+    ].join("\n");
+    expect(parseLog(raw)).toHaveLength(1);
   });
 
-  test("an untagged event is not anticipated (ordinary calendar noise is ignored)", () => {
-    const now = new Date("2026-08-01T09:00:00");
-    expect(anticipationWarmth([{ start: "2026-08-03" }], now).warmth).toBe(0);
-  });
-
-  test("afterglowFactor decays 1 → 0 across its window, then stays 0", () => {
-    expect(afterglowFactor(0, 5)).toBe(1);
-    expect(afterglowFactor(2.5, 5)).toBeCloseTo(0.5, 5);
-    expect(afterglowFactor(5, 5)).toBe(0);
-    expect(afterglowFactor(9, 5)).toBe(0); // past the window
-    expect(afterglowFactor(-1, 5)).toBe(0); // not yet passed
+  test("never throws on rubbish", () => {
+    for (const bad of [null, undefined, "", "not json", 42, "{}\n[]\n"]) {
+      expect(() => parseLog(bad)).not.toThrow();
+    }
   });
 });
 
-test.describe("houseModel — day-character & season feed distinct tone inputs", () => {
-  test("Southern-Hemisphere season mapping (July is winter, January summer)", () => {
-    expect(seasonOf(WINTER_SUNDAY)).toBe("winter");
-    expect(seasonOf(SUMMER_DAY)).toBe("summer");
-    expect(seasonOf(new Date("2026-04-10"))).toBe("autumn");
-    expect(seasonOf(new Date("2026-10-10"))).toBe("spring");
+test.describe("renderNote — a memory that must not caption a photograph", () => {
+  const note = { title: "Melbourne trip in October", tags: ["travel", "#Melbourne"], body: "Greg and Brett are going to Melbourne in October." };
+
+  /* ⚠⚠ THE ONE THAT WOULD BE FOUND ON THE WALL RATHER THAN IN A TEST.
+     `date`, `until` and `label` are not metadata in this vault — they open a
+     photo-caption span (docs/design/VAULT.md, "The date grain"). A memory note
+     dated today with a label would start captioning today's photographs with
+     whatever the kitchen happened to be talking about. */
+  test("carries no date, until or label — those caption photographs", () => {
+    const md = renderNote(note, "2026-08-15");
+    const frontmatter = md.split("---")[1];
+    expect(frontmatter).not.toMatch(/^\s*date:/m);
+    expect(frontmatter).not.toMatch(/^\s*until:/m);
+    expect(frontmatter).not.toMatch(/^\s*label:/m);
   });
 
-  test("dayCharacter tells a weekend from a weekday, and a holiday overrides", () => {
-    expect(dayCharacterOf(WINTER_SUNDAY)).toBe("weekend");
-    expect(dayCharacterOf(WINTER_MONDAY)).toBe("weekday");
-    expect(dayCharacterOf(WINTER_MONDAY, { holiday: true })).toBe("holiday");
+  test("the day is recorded as prose in the body, where it is inert", () => {
+    expect(renderNote(note, "2026-08-15")).toContain("2026-08-15");
+    expect(renderNote(note, "2026-08-15")).toMatch(/Remembered by the house/);
   });
 
-  test("deriveIntent emits dayCharacter + season — Sunday≠Monday, winter≠summer", () => {
-    const sun = deriveIntent({ presence: "glance", peopleHome: 1, now: WINTER_SUNDAY });
-    const mon = deriveIntent({ presence: "glance", peopleHome: 1, now: WINTER_MONDAY });
-    const summer = deriveIntent({ presence: "glance", peopleHome: 1, now: SUMMER_DAY });
-    expect(sun.dayCharacter).toBe("weekend");
-    expect(mon.dayCharacter).toBe("weekday");
-    expect(sun.season).toBe("winter");
-    expect(summer.season).toBe("summer");
+  // Provenance: a person reading their own vault has to be able to tell what
+  // they wrote from what the house wrote about them.
+  test("is marked as machine-written and tagged for retrieval", () => {
+    const md = renderNote(note, "2026-08-15");
+    expect(md).toContain("kind: memory");
+    expect(md).toMatch(/tags: \[memory, /);
+  });
+
+  test("tags are normalised the way the vault parser expects", () => {
+    // Obsidian writes inline tags as "#travel"; the index strips the hash and
+    // lowercases, so a note written with one would never match the spoken word.
+    expect(renderNote(note, "2026-08-15")).toContain("melbourne");
+    expect(renderNote(note, "2026-08-15")).not.toContain("#Melbourne");
+  });
+
+  test("indexable — private is false, or the note is invisible to retrieval", () => {
+    expect(renderNote(note, "2026-08-15")).toContain("private: false");
+  });
+
+  test("a title with a newline cannot break the frontmatter block", () => {
+    const md = renderNote({ ...note, title: "line one\nline two" }, "2026-08-15");
+    expect(md.split("\n")[1]).toBe("title: line one line two");
+    expect(md.split("---").length).toBeGreaterThanOrEqual(3);
+  });
+
+  test("tags are bounded", () => {
+    const md = renderNote({ ...note, tags: Array.from({ length: 30 }, (_, i) => `t${i}`) }, "2026-08-15");
+    expect(md.match(/tags: \[(.+)\]/)[1].split(", ")).toHaveLength(7); // "memory" + 6
+  });
+});
+
+test.describe("renderTranscript — what the distiller is shown", () => {
+  test("attributes both sides, so the house's own guesses are identifiable", () => {
+    const out = renderTranscript([{ said: "is it going to rain", replied: "Not today." }]);
+    expect(out).toContain("Person: is it going to rain");
+    expect(out).toContain("House: Not today.");
+  });
+
+  // The house's replies can be wrong. The prompt tells the model not to treat
+  // them as fact, which is only possible if they are labelled as its own.
+  test("a turn the house did not answer is still shown", () => {
+    expect(renderTranscript([{ said: "hmm", replied: "" }])).toBe("Person: hmm");
+  });
+});
+
+test.describe("the retention promise", () => {
+  // Not arbitrary numbers — each one is a ceiling on how much of a kitchen
+  // ends up on an SD card in a public-repo checkout.
+  test("raw text is bounded on every axis: length, count and age", () => {
+    expect(MAX_ENTRY_CHARS).toBeLessThanOrEqual(2000);
+    expect(MAX_ENTRIES_PER_DAY).toBeLessThanOrEqual(1000);
+    expect(RAW_RETENTION_DAYS).toBeLessThanOrEqual(7);
+    expect(RAW_RETENTION_DAYS).toBeGreaterThan(0);
   });
 });

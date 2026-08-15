@@ -43,6 +43,10 @@ data/photos/
 # (docs/design/VAULT.md). Ignored so the nested clone never shows up as a
 # stray gitlink in this repo's status.
 data/vault/
+# Raw spoken exchanges awaiting consolidation. Short-lived by design (see
+# RAW_RETENTION_DAYS in server/services/conversationLog.js) and never, ever
+# committed — this repo is public and these are kitchen transcripts.
+data/conversations/
 
 # Playwright MCP tool artifacts
 .playwright-mcp/

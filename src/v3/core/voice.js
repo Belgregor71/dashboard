@@ -31,6 +31,23 @@ import { vetoCurrent, restoreLastVeto } from "./ground.js";
 
 const LINGER_MS = 8_000;
 const DEIXIS_MS = 4_200;
+/* ⚠ THE THREAD IS NOT THE READOUT, AND CONFLATING THEM COST THE HOUSE ITS
+   MEMORY. LINGER_MS is a decision about the GLASS — how long "what I heard"
+   stays legible after a reply, which is a couple of breaths. It was also, until
+   now, the lifetime of the conversation itself: at eight seconds `history` was
+   set to [] and the Assist conversation id dropped.
+
+   Eight seconds of quiet is a pause, not the end of a conversation. Walking to
+   the fridge, reading the reply, or thinking before the follow-up all erased
+   the thread, so "and what about tomorrow?" arrived as a cold start against a
+   server built to receive context.
+
+   Five minutes is the boundary a person would recognise as the conversation
+   being over. The wire is bounded independently by MAX_TURNS and again by the
+   server's buildConverseMessages(), so a longer window costs no more tokens
+   per turn — only the chance that the next thing said still belongs to the
+   last thing said. */
+const THREAD_MS = 5 * 60_000;
 /* Matches voiceSession.js — 3 exchanges. The server bounds it again in
    buildConverseMessages(), so this is a courtesy to the wire, not the guard. */
 const MAX_TURNS = 6;
@@ -39,6 +56,7 @@ let enabled = false;
 let busy = false;
 let stream = null;
 let lingerTimer = null;
+let threadTimer = null;
 let deixisTimer = null;
 let consecutiveFailures = 0;
 let coords = { lat: null, lon: null };
@@ -50,8 +68,9 @@ let coords = { lat: null, lon: null };
    V3 sent neither until now, so every follow-up was a cold start against a
    server that was already built to receive one.
 
-   Both are cleared when the linger expires, which is the same boundary the
-   incumbent calls endSession(): the room went quiet, so the thread is over.
+   Both are cleared when the THREAD expires (THREAD_MS), not when the readout
+   fades. Those were the same eight-second timer until 2026-08-15, which made
+   the house's whole memory shorter than the pause before a follow-up.
 ─────────────────────────────────────────────────────────────────────────── */
 let history = [];
 let assistConversationId = null;
@@ -143,6 +162,13 @@ function clearLinger() {
   }
 }
 
+function clearThread() {
+  if (threadTimer) {
+    clearTimeout(threadTimer);
+    threadTimer = null;
+  }
+}
+
 function pushTurn(role, text) {
   if (typeof text !== "string" || !text.trim()) return;
   history.push({ role, text: text.trim() });
@@ -159,14 +185,24 @@ function pushTurn(role, text) {
 function endTurn(said, replied) {
   pushTurn("user", said);
   pushTurn("assistant", replied);
+
+  // The glass settles on its own short timer: the readout and the highlight
+  // are finished with once they have been read.
   clearLinger();
   lingerTimer = setTimeout(() => {
     lingerTimer = null;
     hideHeard();
     clearDeixis();
+  }, LINGER_MS);
+
+  // The conversation ends on its own, much later. Separate timer, separate
+  // question — see THREAD_MS.
+  clearThread();
+  threadTimer = setTimeout(() => {
+    threadTimer = null;
     history = [];
     assistConversationId = null;
-  }, LINGER_MS);
+  }, THREAD_MS);
 }
 
 async function postJson(url, body) {
@@ -227,6 +263,11 @@ export async function submit(text, { source = "unknown" } = {}) {
 
   busy = true;
   clearLinger();
+  // Both timers, or a thread reset armed by the PREVIOUS turn fires partway
+  // through this one and empties `history` while the follow-up is in flight —
+  // which is the exact failure this separation exists to fix, arriving by a
+  // different door. endTurn() re-arms both.
+  clearThread();
   silence();                       // barge-in: a new turn cancels the old reply
   showHeard(clean);
   sustain("voice");

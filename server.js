@@ -13,6 +13,7 @@ import { getHaWsManager } from "./server/ha/haWs.js";
 import { startHealthService } from "./server/services/healthService.js";
 import { startRecoveryService } from "./server/services/recoveryService.js";
 import { startTtsWarmer } from "./server/services/ttsWarmer.js";
+import { startMemoryConsolidator } from "./server/services/conversationLog.js";
 import { normalizeBaseUrl, resolveRootSurface, SURFACE_ENTRY } from "./server/config.js";
 import arrRoutes from "./server/routes/arr.js";
 import { createHaRouter } from "./server/ha/haRoutes.js";
@@ -318,4 +319,8 @@ app.listen(PORT, () => {
   if (VAULT_ENABLED) {
     startVaultIndex().catch((err) => console.error("[vault] initial index failed:", err.message));
   }
+  // Distil yesterday's conversations into vault notes, on a six-hour timer and
+  // never inside a turn. Self-gates on VOICE_MEMORY_ENABLED and defers its
+  // first pass five minutes — boot is the one moment the box is busy.
+  startMemoryConsolidator();
 });

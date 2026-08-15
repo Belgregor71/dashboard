@@ -17,6 +17,7 @@ import { searchVault, buildContext } from "../services/vaultIndex.js";
 import { createSoundDetector } from "../services/soundPresence.js";
 import { toolDefs, entityRoster, planCall } from "../services/voiceTools.js";
 import { houseCharacter, characterEnabled } from "../services/character.js";
+import { recordExchange } from "../services/conversationLog.js";
 import { VOICE_REGISTER } from "./ai.js";
 
 // Phase 4 "Give it a voice" — the server half of the Mode 3 conversation lanes
@@ -267,10 +268,25 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
   // at submit() time, so grounding the model costs tokens and not a millisecond.
   const system = converseSystem(text, tools, req.body?.house);
 
+  /* Episodic memory, recorded HERE rather than from the page.
+     Only this lane is worth remembering: local and Assist turns are the
+     weather, the time, the lights — precisely the transient chatter the
+     distillation prompt is told to throw away. Recording server-side costs
+     the client nothing and needs no new endpoint.
+
+     ⚠ FLOATED, NEVER AWAITED. The room already has its answer by the time
+     this runs, and a slow or failing disk write must not delay the next turn
+     or fail this one. recordExchange() never throws by contract; the .catch
+     is belt and braces on a promise nobody is holding. */
+  const remember = (reply) => {
+    recordExchange({ said: text, replied: reply }).catch(() => {});
+  };
+
   try {
     const reply = await converseWithClaude(messages, system, tools);
     if (reply) {
       reportSuccess("ai");
+      remember(reply);
       return res.json({ reply, source: "claude" });
     }
   } catch (err) {
@@ -280,6 +296,7 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
   try {
     const reply = await converseWithOllama(messages, system);
     reportSuccess("ai");
+    remember(reply);
     return res.json({ reply, source: "ollama" });
   } catch (err) {
     console.error("[Voice] converse error:", err.message);
