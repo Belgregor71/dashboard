@@ -26,6 +26,8 @@
    the family to stop trusting the first kind.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+import { MEAL_PREFIX } from "./mealEvent.js";
+
 const TZ = "Australia/Brisbane";
 
 const time = (d) =>
@@ -164,22 +166,14 @@ const ANSWERERS = {
      undefined — and answering "nothing on today" would be a confident lie on
      the exact day someone is relying on it. Returning null falls the turn
      through to Assist, which is slower and correct. Only an array that really
-     is empty earns "nothing on". */
-  "cal.today": (s) => {
-    if (!Array.isArray(s.calendar)) return null;
-    const ev = todays(s.calendar);
-    if (ev.length === 0) return { speech: "Nothing on today.", refs: ["calendar"] };
-    const names = speakList(ev.map((e) => e.title));
-    const more = ev.length > 3 ? ` And ${ev.length - 3} more on the screen.` : "";
-    return { speech: `Today: ${names}.${more}`, refs: ["calendar"] };
-  },
+     is empty earns "nothing on".
 
-  "cal.tomorrow": (s) => {
-    if (!Array.isArray(s.calendar)) return null;
-    const ev = onDay(s.calendar, 1);
-    if (ev.length === 0) return { speech: "Nothing on tomorrow.", refs: ["calendar"] };
-    return { speech: `Tomorrow: ${speakList(ev.map((e) => e.title))}.`, refs: ["calendar"] };
-  },
+     The DAY these read is `slots.day`, resolved by localIntents' resolveDay and
+     defaulting to today when the utterance named no day. With no day named the
+     sentences below are byte-identical to what they said before. */
+  "cal.today": (s, slots) => readout(s, slots, DAY_TODAY),
+
+  "cal.tomorrow": (s, slots) => readout(s, slots, DAY_TOMORROW),
 
   "cal.next": (s) => {
     if (!Array.isArray(s.calendar)) return null;
@@ -187,14 +181,16 @@ const ANSWERERS = {
       .filter((e) => new Date(e.start) > new Date())
       .sort((a, b) => new Date(a.start) - new Date(b.start))[0];
     if (!next) return { speech: "Nothing coming up.", refs: ["calendar"] };
-    return { speech: `Next is ${next.title}, at ${time(next.start)}.`, refs: ["calendar"] };
+    return { speech: `Next is ${spokenTitle(next)}, at ${time(next.start)}.`, refs: ["calendar"] };
   },
 
-  "cal.free": (s) => {
+  /* Free/busy is the one question a dinner plan must not answer — see isMeal. */
+  "cal.free": (s, slots) => {
     if (!Array.isArray(s.calendar)) return null;
-    const ev = todays(s.calendar);
-    if (ev.length === 0) return { speech: "You're free — nothing on today.", refs: ["calendar"] };
-    return { speech: `You've got ${ev.length} thing${ev.length === 1 ? "" : "s"} on today.`, refs: ["calendar"] };
+    const day = slots?.day ?? DAY_TODAY;
+    const ev = inWindow(s.calendar, day).filter((e) => !isMeal(e));
+    if (ev.length === 0) return { speech: `You're free — nothing ${day.when}.`, refs: ["calendar"] };
+    return { speech: `You've got ${ev.length} thing${ev.length === 1 ? "" : "s"} ${day.when}.`, refs: ["calendar"] };
   },
 
   "house.who": (s, slots) => {
@@ -353,6 +349,59 @@ const ANSWERERS = {
 
 function todays(events) {
   return onDay(events, 0);
+}
+
+/* The day an intent falls back to when the utterance named none. Same shape
+   resolveDay produces, so there is one code path rather than two. */
+const DAY_TODAY = Object.freeze({ offset: 0, part: null, label: "today", when: "on today" });
+const DAY_TOMORROW = Object.freeze({ offset: 1, part: null, label: "tomorrow", when: "on tomorrow" });
+
+/* A dinner plan is not a commitment. The household types tonight's meal into
+   the calendar as "Meal: <dish>" — 73 of the live feed's 383 events — so
+   counting it answered "am I free Tuesday arvo?" with "you've got 1 thing on",
+   which is true of the data and false of the question. Excluded from free/busy,
+   kept in "what's on": the dish is worth naming when someone asks what the day
+   holds, just not when they ask whether they are free. Owner's call 2026-08-15.
+
+   MEAL_PREFIX is imported rather than re-written — mealEvent.js exists exactly
+   because four modules had each grown their own copy of this regex. */
+const isMeal = (e) => MEAL_PREFIX.test(String(e?.title ?? ""));
+
+/* "Meal: " is authoring scaffolding, not part of the dish's name, and saying it
+   out loud ("Today: Meal: Steak with Peppercorn Sauce") is the calendar's
+   plumbing leaking into the room. Same strip dayModel.js already does before
+   anything reaches the spine. */
+const spokenTitle = (e) => String(e?.title ?? "").replace(MEAL_PREFIX, "").trim();
+
+const sentenceCase = (s) => `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
+
+/* Events on the day asked about, narrowed to the part of it that was asked for.
+
+   ⚠ AN ALL-DAY EVENT BELONGS TO EVERY WINDOW. It carries a start time and that
+   time means nothing — the live feed has "Bob's Birthday" at 10:00 with
+   allDay:true — so bucketing it by its hour would drop it out of every question
+   about an afternoon, which is the same wrong-window bug one level down. */
+function inWindow(events, day) {
+  const ev = onDay(events, day?.offset ?? 0);
+  const part = day?.part;
+  if (!part) return ev;
+  return ev.filter((e) => {
+    if (e?.allDay) return true;
+    const h = new Date(e.start).getHours();
+    return h >= part.from && h < part.to;
+  });
+}
+
+/** "What's on <day>" — shared by cal.today and cal.tomorrow, which differ only
+ *  in the day they assume when the utterance names none. */
+function readout(s, slots, fallback) {
+  if (!Array.isArray(s.calendar)) return null;
+  const day = slots?.day ?? fallback;
+  const ev = inWindow(s.calendar, day);
+  if (ev.length === 0) return { speech: `Nothing ${day.when}.`, refs: ["calendar"] };
+  const names = speakList(ev.map(spokenTitle));
+  const more = ev.length > 3 ? ` And ${ev.length - 3} more on the screen.` : "";
+  return { speech: `${sentenceCase(day.label)}: ${names}.${more}`, refs: ["calendar"] };
 }
 
 function onDay(events, offset) {

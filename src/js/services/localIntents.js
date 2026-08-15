@@ -197,6 +197,175 @@ export function normalise(raw) {
     .trim();
 }
 
+/* ── Which day is the question about? ───────────────────────────────────────
+   ⚠ Until 2026-08-15 the answer was always TODAY. `cal.free` matched the bare
+   phrase "am i free" and carried no day slot at all, so "am I free next Tuesday
+   afternoon?" was answered "You've got 1 thing on today." The microphone and
+   the STT were perfect — the agent logged the sentence verbatim — and every
+   word after "free" was simply discarded.
+
+   That failure is worse than not answering, which is the part that shapes this
+   whole block. A reply that is confident, fast and about a different day
+   teaches the room to stop trusting the lane, and the lane's only asset is
+   being trusted at 250ms. So this is the repo's own "absent is not empty" rule
+   applied to time: resolve the day when it can be resolved EXACTLY, and
+   DECLINE when it cannot. A decline costs one 2-4s trip to a lane that can
+   reason about Tuesday; a wrong day costs the whole lane.
+
+   ⚠⚠ THE RANGE IS BOUNDED BY THE FEED, NOT BY THE PARSER — this is the reason
+   the resolver stops where it does, and it is not obvious from here.
+   `/api/calendar/all` expands recurring events only inside
+   `getRecurrenceWindow()`, the first of this month minus 7 days to the last of
+   this month plus 7 (server/routes/calendar.js:20), while one-off events arrive
+   unfiltered. Past that window the feed is SILENTLY INCOMPLETE: a standing
+   weekly commitment is simply not in it, so "you're free" would be exactly the
+   confident lie this block exists to prevent. Measured on the live feed
+   2026-08-15: 383 events, only 8 future days carrying one, and nothing at all
+   between 27 Aug and 19 Nov.
+
+   A weekday name can never resolve more than 7 days out, and the window always
+   reaches at least 7 days ahead (its floor is the last day of the month, plus
+   7) — so every day this resolver CAN name is inside the complete part of the
+   feed, by construction. Everything that would reach past it — a month, a date,
+   "next week", "the weekend" — is refused rather than parsed.
+─────────────────────────────────────────────────────────────────────────── */
+
+/** A day was named that the lane must not answer for. Deliberately distinct
+ *  from `null`, which means no day was named at all and the intent's own
+ *  default (today) still stands — that difference is the whole feature. */
+export const DAY_BEYOND = Symbol("day-beyond-the-feed");
+
+/* Full names only. Whisper writes spoken weekdays out in full, so the short
+   forms buy nothing and cost collisions — a bare `sun` sits inside every
+   question about sunset, and `sat` inside half the sentences in English. */
+const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+/* Parts of a day as [from, to) in local hours. `arvo` is here because the house
+   is in Brisbane and that is the word people actually say to it. */
+const PARTS = [
+  { re: /\bmorning\b/, word: "morning", from: 0, to: 12 },
+  { re: /\b(afternoon|arvo)\b/, word: "afternoon", from: 12, to: 17 },
+  { re: /\b(evening|tonight|night)\b/, word: "evening", from: 17, to: 24 }
+];
+
+const MONTHS = "january|february|march|april|may|june|july|august|september|october|november|december";
+
+/* Everything that names a day the feed cannot be trusted about. Refusing here
+   is always the safe direction: a false refusal costs one slow answer, a false
+   parse costs a wrong one. That is why bare `may` is in the month list despite
+   also being an English verb — nobody asks a kiosk "when may I". */
+const BEYOND_RE = new RegExp(
+  [
+    `\\b(${MONTHS})\\b`,
+    "\\b\\d{1,2}(st|nd|rd|th)\\b",
+    "\\b(next|last|this) (week|fortnight|month|year)\\b",
+    "\\bweekend\\b",
+    "\\bin \\d+ (day|days|week|weeks|month|months)\\b",
+    "\\byesterday\\b",
+    `\\blast (night|${WEEKDAYS.join("|")})\\b`
+  ].join("|")
+);
+
+const ordinal = (n) => {
+  const teen = n % 100;
+  if (teen >= 11 && teen <= 13) return `${n}th`;
+  return `${n}${["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
+};
+
+/* How the day gets SAID. Today and tomorrow are named the way people name them;
+   a weekday also carries its date, which is what makes the "next Tuesday"
+   reading below safe to take.
+
+   TWO forms, because English needs both. `label` heads a sentence ("Tuesday,
+   the 18th: Physio"); `when` is the same day as a prepositional phrase and
+   carries its own "on", because the preposition is not uniform — "nothing on
+   today" and "nothing on tonight" are right, and "nothing on this morning" is
+   not. Getting that wrong is small and audible, which on a spoken surface is
+   the kind of wrong that gets noticed every time. */
+function nameDay(offset, part, now) {
+  const w = part?.word ?? null;
+  if (offset === 0) {
+    if (!w) return { label: "today", when: "on today" };
+    if (w === "evening") return { label: "tonight", when: "on tonight" };
+    return { label: `this ${w}`, when: `this ${w}` };
+  }
+  if (offset === 1) {
+    if (!w) return { label: "tomorrow", when: "on tomorrow" };
+    const night = w === "evening" ? "night" : w;
+    return { label: `tomorrow ${night}`, when: `tomorrow ${night}` };
+  }
+  /* Host-local, deliberately: `onDay()` in localAnswers.js buckets events with
+     toDateString(), which is also host-local. Two clocks here would put the
+     label and the events it counts on different days at the margins. */
+  const d = new Date(now);
+  d.setDate(d.getDate() + offset);
+  const name = WEEKDAYS[d.getDay()];
+  const label = `${name.charAt(0).toUpperCase()}${name.slice(1)}${w ? ` ${w}` : ""}, the ${ordinal(d.getDate())}`;
+  return { label, when: `on ${label}` };
+}
+
+/**
+ * Resolve the day an utterance is asking about.
+ * @returns {{offset:number, part:object|null, label:string, when:string}|null|symbol}
+ *          an object when a day resolves exactly, `null` when no day was named
+ *          (the intent's own default stands), `DAY_BEYOND` when a day was named
+ *          that the feed cannot be trusted about.
+ */
+export function resolveDay(raw, now = new Date()) {
+  const text = normalise(raw);
+  if (!text) return null;
+  if (BEYOND_RE.test(text)) return DAY_BEYOND;
+
+  const part = PARTS.find((p) => p.re.test(text)) ?? null;
+
+  let offset = null;
+  if (/\btomorrow\b/.test(text)) offset = 1;
+  else if (/\btoday\b/.test(text)) offset = 0;
+  else {
+    const idx = WEEKDAYS.findIndex((d) => new RegExp(`\\b${d}\\b`).test(text));
+    if (idx >= 0) {
+      /* "Next Tuesday" is genuinely ambiguous in English and speakers disagree
+         about it. Rather than pick a reading and hide it, the lane takes the
+         NEAREST future occurrence and NAMES THE DATE in the reply, so a
+         mismatched reading is audible and self-correcting instead of silent.
+         The one place "next" changes the answer is when it is said ON that
+         weekday, where it cannot mean today. (Owner's call, 2026-08-15.) */
+      const delta = (idx - now.getDay() + 7) % 7;
+      offset = delta === 0 && new RegExp(`\\bnext ${WEEKDAYS[idx]}\\b`).test(text) ? 7 : delta;
+    }
+  }
+
+  // A bare part of day with no day attached means the one we are in.
+  if (offset === null && !part) return null;
+  const resolved = offset ?? 0;
+  return { offset: resolved, part, ...nameDay(resolved, part, now) };
+}
+
+/* Which days each calendar intent is able to honour. An intent asked about a
+   day it cannot answer for DECLINES, and the turn falls through to a lane that
+   can — rather than answering confidently about a different day. */
+const CAL_DAYS = {
+  "cal.today": () => true,
+  "cal.free": () => true,
+  "cal.tomorrow": (d) => d.offset === 1,
+  "cal.next": () => false,            // "what's next" has no day to take
+  "show.day": (d) => d.offset === 0   // the subject draws today, and only today
+};
+
+/* Applied to BOTH match paths — the show-verb resolver returns before the
+   table is ever reached, so a guard in only one of them would leave the other
+   answering about the wrong day. */
+function gateDay(result, text) {
+  if (!result || !(result.id in CAL_DAYS)) return result;
+  const day = resolveDay(text);
+  if (day === DAY_BEYOND) return null;
+  if (!day) return result;
+  if (!CAL_DAYS[result.id](day)) return null;
+  // show.day can only be today, so it needs no slot to say so.
+  if (result.id !== "show.day") result.slots = { ...(result.slots ?? {}), day };
+  return result;
+}
+
 /** Pull a camera id out of an utterance, or null. Longest alias first so
  *  "side gate" is not shadowed by "side" or "gate". */
 export function matchCamera(text) {
@@ -270,7 +439,7 @@ export function matchIntent(raw) {
     const cam = matchCamera(text);
     if (cam) return { id: "show.camera", slots: { camera: cam } };
     const surface = matchSurface(text);
-    if (surface) return surface;
+    if (surface) return gateDay(surface, text);
   }
   // A bare "who was at the door" also names a camera worth surfacing.
   const bareCam = /\b(who was at|anyone at|any (motion|movement))\b/.test(text) ? matchCamera(text) : null;
@@ -283,7 +452,7 @@ export function matchIntent(raw) {
         const m = text.match(/\bis (\w+) home\b/);
         if (m && !["anyone", "anybody", "everyone"].includes(m[1])) slots.person = m[1];
       }
-      return { id, slots };
+      return gateDay({ id, slots }, text);
     }
   }
   return null;

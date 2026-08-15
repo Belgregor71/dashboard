@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { matchIntent, matchCamera, normalise, INTENT_IDS } from "../src/js/services/localIntents.js";
+import { matchIntent, matchCamera, normalise, resolveDay, DAY_BEYOND, INTENT_IDS } from "../src/js/services/localIntents.js";
 import { answer, capSentences, ANSWERABLE } from "../src/js/services/localAnswers.js";
 import { pickLastCameraEvent } from "../src/js/services/voiceSnapshot.js";
 import { vocabularyFor, railPhrase, ALL_CANDIDATES } from "../src/js/services/vocabulary.js";
@@ -582,5 +582,151 @@ test.describe("answers", () => {
     const a = answer(matchIntent("what can i say"), SNAP);
     expect(a.showVocabulary).toBe(true);
     expect(a.speech.length).toBeLessThan(60);
+  });
+});
+
+/* ── F7 · which day is the question about? ──────────────────────────────────
+   The defect these exist for, reported on the wall 2026-08-15: "am I free next
+   Tuesday afternoon?" answered "You've got 1 thing on today." The STT was
+   perfect; `cal.free` carried no day slot, so every word after "free" was
+   discarded and the reply was confident, fast, and about a different day.
+
+   Two halves are tested, and the second matters more than it looks. The
+   resolver is the feature. The DECLINES are the safety floor: the feed expands
+   recurring events only inside a window (server/routes/calendar.js:20), so any
+   day past it is one the house must refuse rather than guess about.
+─────────────────────────────────────────────────────────────────────────── */
+test.describe("the calendar's day slot", () => {
+  // Saturday. Pinned, because every offset below is relative to a weekday.
+  const SAT = new Date(2026, 7, 15, 10, 0, 0);
+
+  /* Events built relative to the real clock, because the answerers bucket by
+     toDateString() at answer time and cannot be handed a fake now. Only the
+     DATE matters to onDay(), so these are stable at any hour of the day. */
+  const at = (offset, hour, minute = 0, extra = {}) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    d.setHours(hour, minute, 0, 0);
+    return { start: d.toISOString(), ...extra };
+  };
+  const CAL = [
+    { title: "Meal: Steak with Peppercorn Sauce", ...at(0, 18) },
+    { title: "Dentist", ...at(0, 9) },
+    { title: "Bob's Birthday", allDay: true, ...at(3, 10) },
+    { title: "Physio", ...at(3, 14, 30) }
+  ];
+  const say = (utterance) => answer(matchIntent(utterance), { calendar: CAL })?.speech ?? null;
+
+  test("THE REPORTED DEFECT: a question about Tuesday is no longer answered about today", () => {
+    const day = resolveDay("am i free next tuesday afternoon", SAT);
+    expect(day.offset).toBe(3);                       // Sat 15th -> Tue 18th
+    expect(day.part.word).toBe("afternoon");
+    expect(day.label).toBe("Tuesday afternoon, the 18th");
+
+    // And end to end, the sentence the room actually hears.
+    const spoken = say("am i free next tuesday afternoon");
+    expect(spoken).not.toContain("today");
+    expect(spoken).toBe("You've got 2 things on Tuesday afternoon, the 18th.");
+  });
+
+  test("the day is NAMED WITH ITS DATE, which is what makes 'next Tuesday' safe to read", () => {
+    /* "Next Tuesday" is ambiguous in English and speakers genuinely disagree.
+       The lane takes the nearest future occurrence and says the date back, so a
+       mismatched reading is audible instead of silent. Remove the date from the
+       label and the ambiguity goes back to being invisible. */
+    expect(resolveDay("am i free next tuesday", SAT).label).toBe("Tuesday, the 18th");
+    // Said ON that weekday, "next" cannot mean today — that is the one case it moves.
+    expect(resolveDay("am i free saturday", SAT).offset).toBe(0);
+    expect(resolveDay("am i free next saturday", SAT).offset).toBe(7);
+    expect(resolveDay("am i free next saturday", SAT).label).toBe("Saturday, the 22nd");
+    // Ordinals: the 11th-13th exception is not reachable from the 15th.
+    expect(resolveDay("anything on wednesday", new Date(2026, 7, 8, 10, 0, 0)).label)
+      .toBe("Wednesday, the 12th");
+  });
+
+  test("a weekday inside the next two days is named the way people name it", () => {
+    // Asked on Saturday, "sunday" is tomorrow and should be said as tomorrow.
+    expect(resolveDay("what's on sunday", SAT).label).toBe("tomorrow");
+    expect(resolveDay("what's on monday", SAT).label).toBe("Monday, the 17th");
+  });
+
+  test("⚠ THE DECLINES — a day past the feed's window is refused, never guessed", () => {
+    /* /api/calendar/all expands recurring events only inside getRecurrenceWindow().
+       Past it the feed is silently INCOMPLETE — a standing weekly commitment is
+       simply absent — so "you're free" would be the exact confident lie the day
+       slot was built to stop. Measured on the live feed 2026-08-15: 383 events,
+       8 future days carrying one, nothing at all between 27 Aug and 19 Nov. */
+    const beyond = [
+      "am i free this weekend",
+      "am i free next week",
+      "anything on the 20th",
+      "am i free in september",
+      "what's on next month",
+      "anything on yesterday",
+      "was i busy last tuesday",
+      "am i free in 3 weeks"
+    ];
+    for (const utterance of beyond) {
+      expect(resolveDay(utterance, SAT), `"${utterance}" was parsed instead of refused`).toBe(DAY_BEYOND);
+      expect(matchIntent(utterance), `"${utterance}" reached the fast lane`).toBeNull();
+    }
+  });
+
+  test("each calendar intent declines the days it cannot honour", () => {
+    // cal.next has no day to take; show.day's subject draws today and only today.
+    expect(matchIntent("what's next tuesday")).toBeNull();
+    expect(matchIntent("show me my day on tuesday")).toBeNull();
+    // cal.tomorrow is reached only by its own word, so any other day declines.
+    expect(matchIntent("what's on tomorrow").id).toBe("cal.tomorrow");
+    // The unslotted forms still work exactly as before.
+    expect(matchIntent("what's next").id).toBe("cal.next");
+    expect(matchIntent("show me my day").id).toBe("show.day");
+  });
+
+  test("parts of the day narrow the window, and the preposition follows English", () => {
+    expect(say("am i free this morning")).toBe("You've got 1 thing this morning.");
+    expect(say("am i free this arvo")).toBe("You're free — nothing this afternoon.");
+    expect(say("am i free tomorrow night")).toBe("You're free — nothing tomorrow night.");
+    // "nothing on this morning" is the kind of small wrong that is audible every time.
+    expect(say("am i free this morning")).not.toContain("on this morning");
+  });
+
+  test("⚠ an all-day event belongs to EVERY part of its day", () => {
+    /* It carries a start time and that time means nothing — the live feed has
+       "Bob's Birthday" at 10:00 with allDay:true. Bucketing it by its hour drops
+       it out of every question about an afternoon. */
+    expect(say("am i free next tuesday afternoon")).toContain("2 things");
+    expect(say("what's on tuesday")).toContain("Bob's Birthday");
+  });
+
+  test("a dinner plan does not make you busy, but it is still what's on", () => {
+    // Today holds the Dentist plus a "Meal:" entry. Only one is a commitment.
+    expect(say("am i free")).toBe("You've got 1 thing on today.");
+    expect(say("what's on today")).toContain("Dentist");
+    // ...and the "Meal: " routing prefix never reaches the room.
+    expect(say("what's on today")).toContain("Steak with Peppercorn Sauce");
+    expect(say("what's on today")).not.toContain("Meal:");
+  });
+
+  test("with no day named, every existing sentence is unchanged", () => {
+    /* The flag-off equivalent: an utterance that names no day must reach the
+       same words it reached before the slot existed. */
+    expect(resolveDay("am i free", SAT)).toBeNull();
+    expect(resolveDay("what's on today", SAT).label).toBe("today");
+    expect(answer(matchIntent("am i free"), { calendar: [] }).speech)
+      .toBe("You're free — nothing on today.");
+    expect(answer(matchIntent("what's on today"), { calendar: [] }).speech)
+      .toBe("Nothing on today.");
+    expect(answer(matchIntent("what's on tomorrow"), { calendar: [] }).speech)
+      .toBe("Nothing on tomorrow.");
+    expect(answer(matchIntent("what's on today"), { calendar: [{ title: "Dentist", ...at(0, 9) }] }).speech)
+      .toBe("Today: Dentist.");
+  });
+
+  test("a cold calendar cache still refuses to claim the day is empty", () => {
+    // The absent-is-not-empty rule survives the day slot, on every day.
+    for (const utterance of ["am i free", "am i free next tuesday afternoon", "what's on tuesday"]) {
+      expect(answer(matchIntent(utterance), {}), `"${utterance}" invented a day`).toBeNull();
+    }
   });
 });

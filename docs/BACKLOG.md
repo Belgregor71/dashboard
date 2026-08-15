@@ -284,7 +284,45 @@ which is unstarted.
 
 ---
 
-### F7 · The fast lane answers EVERY calendar question about today
+### F7 · ✅ **DONE 2026-08-15 — the lane has a day slot, and refuses the days it cannot reach**
+
+**Built, suite green at 1246 (+10), both halves neuter-verified. ⏳ Not yet heard on the wall.**
+
+`resolveDay()` in `localIntents.js` resolves today/tomorrow/weekday × morning/afternoon/
+evening and attaches it as `slots.day`; `cal.today`/`cal.free`/`cal.tomorrow` read it. With no
+day named every sentence is **byte-identical** to before, which is the rollback.
+
+🔑 **The range is bounded by the FEED, not by the parser — and that is the whole reason the
+refusal half exists.** `/api/calendar/all` expands recurring events only inside
+`getRecurrenceWindow()` (first of month −7d → last of month +7d, `calendar.js:20`), while
+one-off events arrive unfiltered. Past that window the feed is **silently incomplete**, so
+"you're free" would be a lie of exactly the kind this item was about. Measured live:
+**383 events, only 8 future days carry one, and nothing at all between 27 Aug and 19 Nov.**
+A weekday can never resolve more than 7 days out and the window always reaches at least 7
+days ahead, so every day the resolver *can* name is inside the complete part of the feed **by
+construction**. Everything past it — a month, a date, "next week", "the weekend", anything in
+the past — is **refused**, and the turn falls through to a lane that can reason about it.
+
+Three findings that were not in the original diagnosis:
+
+- ⚠ **"Next Tuesday" is genuinely ambiguous and cannot be parsed correctly.** Resolved as the
+  nearest future occurrence, and the reply **says the date back** — *"nothing on Tuesday
+  afternoon, the 18th"* — so a mismatched reading is audible and self-correcting instead of
+  silent. Owner's call.
+- ⚠ **An all-day event has a start time and that time means nothing** — the live feed carries
+  "Bob's Birthday" at 10:00 with `allDay:true`. Bucketing by hour drops it out of every
+  question about an afternoon, which is the same wrong-window bug one level down.
+- ⚠ **The "1 thing on today" in the report was a `Meal:` entry** — the dinner plan. 73 of the
+  feed's 383 events are meals. A dinner plan is no longer counted as a commitment in
+  free/busy (owner's call), it is still listed by "what's on", and the `Meal: ` routing prefix
+  is now stripped before anything is spoken (it was reaching the room through `cal.next` too).
+
+⚠ The preposition is not uniform and is audible every time: *"nothing on today"* and *"nothing
+on tonight"* are right, *"nothing on this morning"* is not. The resolved day carries both a
+`label` (heads a sentence) and a `when` (carries its own "on").
+
+<details><summary>original report</summary>
+
 **Owner's report, 2026-08-15: asked "am I free next Tuesday afternoon?", answered "nothing on
 today."** Reproduced exactly, in one line. **The microphone and the STT were perfect** — the
 agent logged `heard: 'Am I free next Tuesday afternoon?'`. The whole failure is the intent
@@ -317,6 +355,28 @@ whole feed, so the data is there; the windowing and the copy are the work.
 ⚠ Whatever is built, the two answerers must move together: `cal.free` and `cal.today` both
 hard-code "today" in their sentences (`localAnswers.js`), so a matcher that gains a day slot
 and answerers that do not would keep saying "today" about Tuesday.
+
+</details>
+
+---
+
+### F8 · The WEATHER family has the same wrong-day defect — found while fixing F7
+
+**Measured, not suspected:** `"what's the weather on tuesday"` → `weather.now` →
+**"It's 18 degrees and clear."** Same shape as F7 and the same harm: confident, fast, and
+about a different day. `weather.tomorrow` is the only day-aware row, exactly as `cal.tomorrow`
+was.
+
+Deliberately **not** folded into F7, because the bound is different and has to be measured
+first: the calendar's horizon came from `getRecurrenceWindow()`, but the forecast's comes from
+however many days `/api/weather/forecast` actually returns (`forecast.days[]`). Establish that
+length before parsing a day, or this reintroduces the confident lie one surface across.
+
+`resolveDay()` is already exported and pure, so the matcher half is nearly free — the work is
+the horizon, and the copy in five answerers that each hard-code "today"/"now".
+
+Two sibling phrases already fall through and are safe today: `"will it rain on tuesday"` and
+`"how hot will it be on saturday"` match nothing.
 
 ---
 
