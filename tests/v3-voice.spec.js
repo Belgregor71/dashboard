@@ -434,3 +434,113 @@ test("half duplex off: V3 reports nothing and installs no observer", async ({ pa
   expect(speaking, "the flag-off build reported speaking state").toEqual([]);
   expect(pageErrors).toEqual([]);
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE STREAMED REPLY — speaking sentence one while sentence two is written.
+
+   The chunker itself is unit-tested in voice.spec.js. What can only be proved
+   here is the round trip: that SSE frames reach the page, that each sentence
+   becomes its own synthesis request in order, and that a stream dying halfway
+   does not leave the turn wedged with `busy` held — which would make the house
+   permanently deaf, the worst failure this file guards against.
+
+   PINNED ON, because the flag ships default-off pending a measured TTFA.
+─────────────────────────────────────────────────────────────────────────── */
+function sse(frames) {
+  return frames.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join("");
+}
+
+async function bootStreaming(page, { body, spoken }) {
+  await page.route("**/js/config.js", async (route) => {
+    const res = await route.fetch();
+    await route.fulfill({
+      response: res,
+      body: (await res.text()) + "\nwindow.CONFIG.features.voiceStreaming = true;\n"
+    });
+  });
+  await page.route("**/api/tts/speak", (route) => {
+    spoken.push(route.request().postDataJSON()?.text);
+    return route.fulfill({ contentType: "audio/wav", body: silentWav(0.05) });
+  });
+  await page.route("**/api/voice/assist", (route) =>
+    route.fulfill({ json: { handled: false, speech: null, conversationId: null } })
+  );
+  await page.route("**/api/voice/converse", (route) =>
+    route.fulfill({ contentType: "text/event-stream", body })
+  );
+  return boot(page);
+}
+
+test("streamed: each sentence is synthesised separately, in order", async ({ page }) => {
+  const spoken = [];
+  const pageErrors = await bootStreaming(page, {
+    spoken,
+    body: sse([
+      ["chunk", { text: "It's nineteen degrees and clear." }],
+      ["chunk", { text: "Rain's coming in about twenty minutes." }],
+      ["done", { reply: "It's nineteen degrees and clear. Rain's coming in about twenty minutes.", source: "claude" }]
+    ])
+  });
+
+  const result = await page.evaluate(() => window.__v3Transcript("zzz how's it looking out there"));
+  expect(result.handled).toBe(true);
+  expect(result.lane).toBe("converse");
+
+  // Two synthesis calls, not one — that IS the latency win. One call would
+  // mean the page waited for the whole reply before asking for any audio.
+  expect(spoken).toEqual([
+    "It's nineteen degrees and clear.",
+    "Rain's coming in about twenty minutes."
+  ]);
+
+  // The glass shows the authoritative full reply, not the last chunk.
+  await expect(page.locator("#glance-said")).toContainText("nineteen degrees");
+  await expect(page.locator("#glance-said")).toContainText("twenty minutes");
+  expect(pageErrors).toEqual([]);
+});
+
+test("streamed: the turn is remembered as one exchange, not per sentence", async ({ page }) => {
+  const spoken = [];
+  await bootStreaming(page, {
+    spoken,
+    body: sse([
+      ["chunk", { text: "Bins go out tonight, the yellow one." }],
+      ["done", { reply: "Bins go out tonight, the yellow one.", source: "claude" }]
+    ])
+  });
+
+  await page.evaluate(() => window.__v3Transcript("zzz what about the bins"));
+  // One user turn plus one assistant turn. Chunks are a transport detail and
+  // must not each become a turn in the thread the next request replays.
+  expect(await page.evaluate(() => window.__v3Voice().turns)).toBe(2);
+});
+
+/* ⚠ THE ONE THAT MATTERS MOST. V3 awaits the speech queue with its `busy`
+   latch held, so any stream path that fails to settle leaves the house unable
+   to accept another turn — deaf until the page reloads, which on this kiosk
+   is weeks. */
+test("streamed: a stream that dies mid-reply still releases the turn", async ({ page }) => {
+  const spoken = [];
+  const pageErrors = await bootStreaming(page, {
+    spoken,
+    // Chunks, then the failure event and no `done` — the shape of Kokoro or
+    // the model falling over partway through an answer.
+    body: sse([
+      ["chunk", { text: "It's nineteen degrees and clear." }],
+      ["failed", { spoken: 1 }]
+    ])
+  });
+
+  const result = await page.evaluate(() => window.__v3Transcript("zzz how's it looking"));
+  expect(result.handled).toBe(false);
+
+  // Half an answer was spoken; it must NOT be followed by a second, differently
+  // worded answer from the fallback route talking over the top of it.
+  expect(spoken).toEqual(["It's nineteen degrees and clear."]);
+
+  // And the house can still take the next turn.
+  expect(await page.evaluate(() => window.__v3Voice().busy)).toBe(false);
+  const next = await page.evaluate(() => window.__v3Transcript("what time is it"));
+  expect(next.handled).toBe(true);
+  expect(pageErrors).toEqual([]);
+});

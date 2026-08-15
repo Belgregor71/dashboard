@@ -505,6 +505,20 @@ export function matchIntent(raw) {
   return null;
 }
 
+/**
+ * Does this utterance open with a verb that asks the house to CHANGE
+ * something? The same test `matchIntent` uses to decline, exported so the
+ * caller can route on it without a second, drifting copy of the rule.
+ *
+ * Used by V3 to decide whether HA Assist is worth a round trip at all. Assist
+ * owns the things a command can change; a question that changes nothing and
+ * names nothing in the house is not its business, and asking it anyway costs
+ * the room a full round trip to be told so.
+ */
+export function looksLikeMutation(raw) {
+  return MUTATION_RE.test(normalise(raw));
+}
+
 /** Every intent id the lane can produce — used by the vocabulary card and by
  *  the tests, so a new intent cannot be added without both noticing. */
 export const INTENT_IDS = Object.freeze([

@@ -25,6 +25,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { getAllEntities } from "./homeAssistant/state.js";
+import { looksLikeMutation } from "./localIntents.js";
 import { getTodoEntityIds, openTodoSummaries, getShoppingEntityId } from "./homeAssistant/todoEntities.js";
 import { menuFrom } from "./mealEvent.js";
 import { isTvAudio } from "./mediaSource.js";
@@ -273,6 +274,67 @@ export function voiceSnapshot({ lat, lon } = {}) {
 
 export function voiceCacheAge() {
   return cache.fetchedAt ? Date.now() - cache.fetchedAt : null;
+}
+
+/* ── Is HA Assist worth a round trip? ───────────────────────────────────────
+   Every utterance the fast lane declined used to be posted to Assist and
+   waited on, purely to be told "not mine". For a conversational question —
+   which is most of what reaches lane 2 — that is a full round trip spent
+   learning nothing, and it is paid before the house voice is even asked.
+
+   The test is deliberately CONSERVATIVE, because a false negative here is
+   worse than the latency it saves: skipping Assist for something it could
+   have handled turns a working device command into a model's opinion about a
+   device command. So Assist is skipped only when BOTH are true:
+
+     - the utterance is not a mutation (localIntents' MUTATION_RE, which is
+       already the authority on "this is a command"), and
+     - it names nothing Home Assistant knows about.
+
+   The second half is what keeps HassGetState questions — "is the kitchen
+   light on" — routed correctly. They change nothing, so the first test alone
+   would hand them to a model that cannot see a light switch.
+
+   Names are matched on word boundaries. A substring test makes "is anyone
+   here" match an entity called "Here Comes The Sun" and quietly re-introduces
+   the round trip it was meant to remove.
+─────────────────────────────────────────────────────────────────────────── */
+function entityWords() {
+  let entities = [];
+  try {
+    entities = getAllEntities() ?? [];
+  } catch {
+    return null;                      // cannot tell — the caller must not skip
+  }
+  const list = Array.isArray(entities) ? entities : Object.values(entities);
+  if (!list.length) return null;      // HA silent; same conclusion
+
+  const words = new Set();
+  for (const e of list) {
+    const name = e?.attributes?.friendly_name;
+    if (typeof name !== "string") continue;
+    for (const word of name.toLowerCase().split(/[^a-z0-9]+/)) {
+      // Single letters and two-letter words ("TV" aside) match far too much
+      // to be evidence that a sentence is about a device.
+      if (word.length >= 3) words.add(word);
+    }
+  }
+  return words;
+}
+
+export function couldBeAssist(text) {
+  if (looksLikeMutation(text)) return true;
+
+  const words = entityWords();
+  // No roster means Home Assistant is not talking, and we cannot rule Assist
+  // out on the evidence. Fail toward the round trip: slow and correct beats
+  // fast and wrong, which is the same call voiceSnapshot makes everywhere.
+  if (!words) return true;
+
+  return String(text ?? "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .some((word) => word.length >= 3 && words.has(word));
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

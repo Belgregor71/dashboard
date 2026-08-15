@@ -161,6 +161,55 @@ export function houseContext(digest) {
   return out.join("\n");
 }
 
+/* ── Sentence chunking, for speaking before the model has finished ──────────
+   A reply cannot be synthesised until it exists, so the old turn was
+   strictly serial: the whole answer, then the whole WAV, then audio. Kokoro is
+   ~1 s on the PC, the model 1-2 s, and the room heard nothing for either.
+
+   Cut the stream at sentence boundaries and the first sentence can be
+   synthesised while the second is still being written. Time-to-first-audio,
+   not total completion, is what makes a reply feel immediate.
+
+   ⚠ A BOUNDARY IS PUNCTUATION FOLLOWED BY WHITESPACE — NEVER BY END-OF-BUFFER.
+   That is not a stylistic choice. Deltas arrive mid-token, so "19.5 degrees"
+   reaches this function as "19." and then "5 degrees"; a rule that treats a
+   full stop at the end of the buffer as a sentence end would cut there and
+   speak "nineteen point". The trailing fragment is flushed by the caller when
+   the stream closes, which is the only moment end-of-text is really the end.
+
+   MIN_CHUNK_CHARS keeps "Yes." from becoming its own synthesis round trip —
+   the per-request overhead would cost more than the sentence saves.
+─────────────────────────────────────────────────────────────────────────── */
+export const MIN_CHUNK_CHARS = 12;
+
+const BOUNDARY = /[.!?]["'’”)\]]?\s/g;
+
+/**
+ * Split a streaming buffer into complete sentences plus the remainder.
+ *
+ * @param {string} buffer
+ * @returns {{ chunks: string[], rest: string }}
+ */
+export function takeSentences(buffer) {
+  const text = String(buffer ?? "");
+  const chunks = [];
+  let start = 0;
+  BOUNDARY.lastIndex = 0;
+
+  let m;
+  while ((m = BOUNDARY.exec(text)) !== null) {
+    const end = m.index + m[0].length;
+    const candidate = text.slice(start, end).trim();
+    // Too short to be worth its own synthesis — let it accrete onto the next
+    // sentence rather than emitting a two-word request.
+    if (candidate.length < MIN_CHUNK_CHARS) continue;
+    chunks.push(candidate);
+    start = end;
+  }
+
+  return { chunks, rest: text.slice(start) };
+}
+
 export function buildConverseSystem(baseLines, context) {
   const base = (Array.isArray(baseLines) ? baseLines : []).join(" ");
   if (!context) return `${base} ${NO_KNOWLEDGE_LINE}`;

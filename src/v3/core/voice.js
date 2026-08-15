@@ -20,8 +20,8 @@
 
 import { matchIntent } from "../../js/services/localIntents.js";
 import { answer } from "../../js/services/localAnswers.js";
-import { voiceSnapshot, houseDigest, rememberReply } from "../../js/services/voiceSnapshot.js";
-import { speak, silence, setSpeakingObserver } from "../../js/core/tts.js";
+import { voiceSnapshot, houseDigest, couldBeAssist, rememberReply } from "../../js/services/voiceSnapshot.js";
+import { speak, silence, createSpeech, setSpeakingObserver } from "../../js/core/tts.js";
 import { setPhase, setFailure, trackSpeech } from "./presence-light.js";
 import { deepen, sustain, setDepth, getDepth, DEPTH } from "./depth.js";
 import { showSubject } from "../subjects/index.js";
@@ -203,6 +203,76 @@ function endTurn(said, replied) {
     history = [];
     assistConversationId = null;
   }, THREAD_MS);
+}
+
+/* ── The streamed reply ─────────────────────────────────────────────────────
+   POSTs the turn and reads back sentences as the model writes them, handing
+   each to the speech queue so the first is synthesised while the rest is
+   still being generated.
+
+   Not EventSource: that is GET-only and this turn carries a body. A POST plus
+   a manual SSE parse is the whole difference.
+
+   Returns the full reply, or null — and null means "fall back to the ordinary
+   JSON route", which still has the Ollama leg behind it. A stream that dies
+   halfway has already spoken part of an answer, so the caller must not simply
+   retry it; see the guard at the call site.
+─────────────────────────────────────────────────────────────────────────── */
+async function converseStreamed(body, speech) {
+  let res;
+  try {
+    res = await fetch("/api/voice/converse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, stream: true })
+    });
+  } catch {
+    return { reply: null, spoke: false };
+  }
+  if (!res.ok || !res.body) return { reply: null, spoke: false };
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let reply = null;
+  let spoke = false;
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // SSE frames are separated by a blank line. A partial frame stays in the
+      // buffer until the rest of it arrives.
+      let split;
+      while ((split = buffer.indexOf("\n\n")) !== -1) {
+        const frame = buffer.slice(0, split);
+        buffer = buffer.slice(split + 2);
+
+        const event = frame.match(/^event: (.+)$/m)?.[1];
+        const data = frame.match(/^data: (.+)$/m)?.[1];
+        if (!event || !data) continue;              // a heartbeat comment
+
+        let payload;
+        try { payload = JSON.parse(data); } catch { continue; }
+
+        if (event === "chunk" && payload.text) {
+          speech.push(payload.text);
+          spoke = true;
+        } else if (event === "done") {
+          reply = payload.reply ?? null;
+        } else if (event === "failed") {
+          return { reply: null, spoke };
+        }
+      }
+    }
+  } catch {
+    // The socket died mid-reply. Whatever was already spoken has been spoken.
+    return { reply: null, spoke };
+  }
+
+  return { reply, spoke };
 }
 
 async function postJson(url, body) {
@@ -391,10 +461,15 @@ export async function submit(text, { source = "unknown" } = {}) {
 
     // ── Lane 2: HA Assist ───────────────────────────────────────────────────
     setPhase("thinking");
-    const assist = await postJson("/api/voice/assist", {
-      text: clean,
-      conversationId: assistConversationId
-    });
+    /* Skipped when the utterance cannot be Assist's business — see
+       couldBeAssist(). Conversational turns used to pay a full round trip
+       here purely to be declined, and they paid it BEFORE the house voice was
+       asked, so the slowest lane was gated behind a hop that could never
+       answer it. The predicate fails toward the round trip whenever it cannot
+       tell, so this only ever removes a hop that was certain to decline. */
+    const assist = couldBeAssist(clean)
+      ? await postJson("/api/voice/assist", { text: clean, conversationId: assistConversationId })
+      : null;
     // Kept even when the lane declines, because HA mints the id on the FIRST
     // exchange of a clarification ("turn on the lamp" → "which one?") and that
     // first exchange is exactly the one it reports as unhandled.
@@ -430,11 +505,41 @@ export async function submit(text, { source = "unknown" } = {}) {
        built fresh rather than reusing the `snap` from lane 1, because lane 1
        only builds one when an intent matched — and the turns that reach here
        are mostly the ones where none did. */
-    const converse = await postJson("/api/voice/converse", {
-      text: clean,
-      history,
-      house: houseDigest(voiceSnapshot(coords))
-    });
+    const body = { text: clean, history, house: houseDigest(voiceSnapshot(coords)) };
+
+    /* The streamed path speaks each sentence as it is written, so the room
+       hears the first one while the model is still on the second. */
+    if (flag("voiceStreaming")) {
+      setPhase("speaking");
+      deepen(DEPTH.GLANCE, "voice-converse");
+      const speech = createSpeech({ onAudio: (audio) => trackSpeech(audio) });
+      const { reply, spoke } = await converseStreamed(body, speech);
+      speech.close();
+      await speech.done;             // let the queue finish what it is saying
+      setPhase("idle");
+
+      if (reply) {
+        setSaidText(el.glanceSaid, reply);
+        rememberReply(reply);
+        consecutiveFailures = 0;
+        endTurn(clean, reply);
+        return { handled: true, lane: "converse" };
+      }
+      /* ⚠ ONLY FALL BACK IF NOTHING WAS SAID. A stream that died after
+         speaking two sentences has already put half an answer in the room;
+         retrying the JSON route would speak a second, differently-worded
+         answer straight over the top of it. Half an answer is bad, two
+         overlapping answers is worse — so a partial failure ends the turn and
+         lets the repair path below handle it. */
+      if (spoke) {
+        endTurn(clean);
+        return { handled: false, reason: "stream-cut" };
+      }
+      // Nothing was spoken, so the JSON route (which still has the Ollama
+      // fallback behind it) is free to try the whole turn again.
+    }
+
+    const converse = await postJson("/api/voice/converse", body);
     if (converse?.reply) {
       setPhase("speaking");
       deepen(DEPTH.GLANCE, "voice-converse");

@@ -463,6 +463,27 @@ window.CONFIG = {
     // One-line revert (-> false) is the rollback path.
     voiceHalfDuplex: true,
 
+    // STREAMED REPLIES — speak sentence one while the model writes sentence two.
+    //
+    // The conversational turn is four blocking steps in series: wake+STT, a HA
+    // Assist round trip, the whole model reply, then the whole Kokoro WAV.
+    // Nothing streamed, so the room heard silence for the sum of all four —
+    // 2-4 s by this file's own measurement, against the 200-500 ms that natural
+    // turn-taking sits at.
+    //
+    // On: /api/voice/converse is POSTed with stream:true and answers over SSE,
+    // emitting whole sentences as they are written; tts.createSpeech() plays
+    // them in order, so time-to-first-audio is one sentence plus one synthesis
+    // instead of the whole reply plus the whole synthesis.
+    // Off: the JSON route, byte-identical to before — and the JSON route is
+    // still the fallback whenever a stream fails before speaking anything.
+    //
+    // ⚠ Default OFF pending a measured TTFA on the kiosk. Streaming changes the
+    // shape of every conversational reply and touches tts.js, which is the
+    // chokepoint for blob revocation and the half-duplex mic gate on BOTH
+    // surfaces — this one gets proved in the room before it gets flipped.
+    voiceStreaming: false,
+
     // SOUND PRESENCE — the room's own noise as a second presence source.
     //
     // V3 reads presence from binary_sensor.kitchen_motion_detected, and that

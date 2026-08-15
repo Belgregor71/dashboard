@@ -11,7 +11,8 @@ import {
   MAX_TURN_CHARS,
   houseContext,
   MAX_DIGEST_ENTRIES,
-  MAX_DIGEST_VALUE_CHARS
+  MAX_DIGEST_VALUE_CHARS,
+  takeSentences
 } from "../server/services/voiceShape.js";
 import { houseCharacter } from "../server/services/character.js";
 import { houseDigest } from "../src/js/services/voiceSnapshot.js";
@@ -522,5 +523,89 @@ test.describe("houseDigest — the shape that crosses the wire", () => {
     const d = houseDigest({ bins: { configured: false } });
     expect(d.known.bins).toBeUndefined();
     expect(d.blind.join(" ")).not.toMatch(/bin/i);
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   takeSentences — cutting a stream into things worth synthesising.
+
+   The property that matters is the one that is easy to get wrong and
+   embarrassing out loud: a full stop at the END OF THE BUFFER is not a
+   sentence boundary. Deltas arrive mid-token, so "19.5 degrees" reaches this
+   as "19." and then "5 degrees" — a rule that cut at end-of-buffer would
+   speak "nineteen point" and then, separately, "five degrees".
+   ═══════════════════════════════════════════════════════════════════════════ */
+test.describe("takeSentences — sentence chunking for streamed speech", () => {
+  test("emits a completed sentence and keeps the remainder", () => {
+    const { chunks, rest } = takeSentences("It's nineteen degrees and clear. Tomorrow looks");
+    expect(chunks).toEqual(["It's nineteen degrees and clear."]);
+    expect(rest.trim()).toBe("Tomorrow looks");
+  });
+
+  // ⚠ The one that would be heard on the wall rather than found in a test.
+  test("a decimal mid-stream is never mistaken for a sentence end", () => {
+    expect(takeSentences("Twelve millimetres and it's 19.").chunks).toEqual([]);
+    expect(takeSentences("Twelve millimetres and it's 19.").rest).toContain("19.");
+    // ...and once the rest arrives it still is not a boundary.
+    expect(takeSentences("Twelve millimetres and it's 19.5 degrees").chunks).toEqual([]);
+  });
+
+  test("nothing is emitted until punctuation is followed by whitespace", () => {
+    expect(takeSentences("Still writing").chunks).toEqual([]);
+    expect(takeSentences("Still writing.").chunks).toEqual([]);   // end of buffer
+    expect(takeSentences("Still writing. ").chunks).toEqual(["Still writing."]);
+  });
+
+  test("several sentences in one delta all come out, in order", () => {
+    const { chunks } = takeSentences("Bins go out tonight. It's the yellow one. Hat on if you're heading out. ");
+    expect(chunks).toHaveLength(3);
+    expect(chunks[0]).toBe("Bins go out tonight.");
+    expect(chunks[2]).toBe("Hat on if you're heading out.");
+  });
+
+  test("question and exclamation marks are boundaries too", () => {
+    expect(takeSentences("Are the bins out tonight? Yellow one, and it's raining. ").chunks)
+      .toHaveLength(2);
+    expect(takeSentences("Get the hat on! We're not doing sunstroke today. ").chunks)
+      .toHaveLength(2);
+  });
+
+  // A short sentence AFTER a long one is held back rather than emitted alone,
+  // and comes out in the caller's end-of-stream flush. Same MIN_CHUNK_CHARS
+  // rule as above, just reached from the other side — worth pinning because
+  // the obvious expectation ("two sentences, two chunks") is wrong here.
+  test("a short trailing sentence waits in rest for the end-of-stream flush", () => {
+    const { chunks, rest } = takeSentences("Are the bins out tonight? Probably. ");
+    expect(chunks).toEqual(["Are the bins out tonight?"]);
+    expect(rest.trim()).toBe("Probably.");
+  });
+
+  // A two-word sentence costs a whole synthesis round trip, which is more than
+  // the sentence saves. It accretes onto the next one instead.
+  test("a fragment shorter than MIN_CHUNK_CHARS waits for the next sentence", () => {
+    const { chunks } = takeSentences("Yes. The bins go out tonight. ");
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]).toBe("Yes. The bins go out tonight.");
+  });
+
+  test("a closing quote or bracket after the stop still closes the sentence", () => {
+    expect(takeSentences('She said "the bins are out." Then she left. ').chunks).toHaveLength(2);
+  });
+
+  test("never throws, and returns the input as rest when there is no boundary", () => {
+    for (const bad of [null, undefined, "", 42]) {
+      expect(() => takeSentences(bad)).not.toThrow();
+      expect(takeSentences(bad).chunks).toEqual([]);
+    }
+  });
+
+  // Reassembly must be lossless: the spoken reply and the recorded reply have
+  // to be the same words, or the transcript on the glass disagrees with the
+  // room and the memory records something nobody said.
+  test("chunks plus rest reconstruct the original text", () => {
+    const text = "It's nineteen and clear. Rain later, about 4 pm. Hat on. Trailing bit";
+    const { chunks, rest } = takeSentences(text);
+    expect(`${chunks.join(" ")} ${rest}`.replace(/\s+/g, " ").trim())
+      .toBe(text.replace(/\s+/g, " ").trim());
   });
 });

@@ -170,7 +170,151 @@ export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0, onAu
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   QUEUED SPEECH — speaking sentence one while sentence two is still arriving.
+
+   speak() above is one-shot: it needs the whole reply before it can ask Kokoro
+   for anything, so the room waits for the model AND the synthesis in series.
+   For a conversational turn that is two to four seconds of nothing.
+
+   A queue lets the streamed lane hand over each sentence as it lands. First
+   audio then costs one sentence plus one synthesis, and the rest arrives
+   underneath it.
+
+   Three things this must get right, all of them previously-paid-for lessons:
+
+     1. BLOB REVOCATION ON EVERY TERMINAL PATH. Object URLs pin the whole WAV
+        outside the JS heap, and this page runs for weeks. Loaded, errored,
+        cancelled mid-flight, or never played at all — every one revokes.
+     2. THE MIC GATE SPANS THE WHOLE UTTERANCE. announce(true) fires once at
+        the first chunk and announce(false) once at the drain. Announcing per
+        chunk would ungate the microphone in the gaps between sentences, which
+        is precisely when the house would transcribe its own voice — the
+        2026-08-08 failure, rebuilt with extra steps.
+     3. CANCELLATION ALWAYS SETTLES. V3 awaits this with its `busy` latch held,
+        so a queue that never resolves is a house that is permanently deaf.
+        Every exit resolves `done`.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+let activeQueue = null;
+
+/**
+ * Begin a queued utterance. Replaces any speech already in progress.
+ *
+ * @returns {{ push(text: string): void, close(): void, cancel(): void, done: Promise<void> }}
+ */
+export function createSpeech({ rate = 0.92, volume = 1.0, onAudio = null } = {}) {
+  silence();                       // a new utterance supersedes the old one
+
+  const pending = [];
+  let closed = false;
+  let cancelled = false;
+  let started = false;
+  let wake = null;                 // resolves the pump's wait when a chunk lands
+  let resolveDone;
+  const done = new Promise((resolve) => { resolveDone = resolve; });
+
+  const self = {
+    push(text) {
+      if (cancelled || closed || typeof text !== "string" || !text.trim()) return;
+      pending.push(text.trim());
+      if (wake) { wake(); wake = null; }
+    },
+    close() {
+      closed = true;
+      if (wake) { wake(); wake = null; }
+    },
+    cancel() {
+      cancelled = true;
+      pending.length = 0;
+      if (wake) { wake(); wake = null; }
+    },
+    done
+  };
+
+  /** Synthesise and play one chunk. Resolves when it finishes or is cut off. */
+  async function playChunk(text) {
+    let audioUrl = null;
+    try {
+      const res = await fetch("/api/tts/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, rate }),
+        signal: AbortSignal.timeout(30_000)
+      });
+      if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);
+      const blob = await res.blob();
+
+      // Cancelled while Kokoro was working. The URL is created and revoked in
+      // the same breath rather than skipped, because a blob that is never
+      // turned into a URL is collectable but one created and abandoned is not.
+      if (cancelled) return;
+
+      audioUrl = URL.createObjectURL(blob);
+      const audio = new Audio(audioUrl);
+      audio.volume = volume;
+      currentAudio = audio;
+      currentAudioUrl = audioUrl;
+      if (typeof onAudio === "function") {
+        try { onAudio(audio); } catch (err) { setTimeout(() => { throw err; }); }
+      }
+
+      await new Promise((resolve) => {
+        const finish = () => {
+          if (currentFinish === finish) currentFinish = null;
+          releaseAudioUrl(audioUrl);
+          audioUrl = null;
+          resolve();
+        };
+        currentFinish = finish;      // silence() settles this chunk
+        audio.onended = finish;
+        audio.onerror = finish;
+        // announce(true) on the play() promise, not the fetch: the round trip
+        // to Kokoro can take a second, and a mic muted for the wait is deaf
+        // through the pause where someone is most likely to speak again.
+        audio.play().then(() => { if (!started) { started = true; announce(true); } }, finish);
+      });
+    } catch (err) {
+      // One chunk failing must not silence the rest of the reply.
+      console.warn("[TTS] chunk failed:", err?.message);
+    } finally {
+      releaseAudioUrl(audioUrl);     // no-op when the handler already did it
+    }
+  }
+
+  (async () => {
+    try {
+      while (!cancelled) {
+        if (pending.length === 0) {
+          if (closed) break;
+          await new Promise((resolve) => { wake = resolve; });
+          continue;
+        }
+        await playChunk(pending.shift());
+      }
+    } finally {
+      if (activeQueue === self) activeQueue = null;
+      announce(false);
+      resolveDone();
+    }
+  })();
+
+  activeQueue = self;
+  return self;
+}
+
 export function silence() {
+  /* Cancel the queue FIRST. Its pump loops until told to stop, so pausing the
+     audio without cancelling would settle the current chunk and then serenely
+     start the next one — a barge-in that interrupts a sentence and continues
+     with the following one is worse than no barge-in at all.
+
+     Read and cleared before cancelling, because cancel() can synchronously
+     drain the pump and re-enter here. */
+  const queue = activeQueue;
+  activeQueue = null;
+  if (queue) queue.cancel();
+
   // Taken before the teardown below, because finish() clears it.
   const finish = currentFinish;
   currentFinish = null;

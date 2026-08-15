@@ -9,6 +9,7 @@ import {
   buildConverseMessages,
   buildConverseSystem,
   houseContext,
+  takeSentences,
   todayLine,
   GRIEF_LINE,
   SPEAKER_UNKNOWN_LINE
@@ -112,7 +113,24 @@ function armedTools() {
   return process.env.VOICE_TOOLS_ENABLED === "1" ? toolDefs() : [];
 }
 
-/* Exported for tests/voice.spec.js only. The property that matters — flag-off
+/* ⚠ PROMPT CACHING WAS CONSIDERED HERE AND DELIBERATELY NOT ADDED. Measured
+   2026-08-15: the stable prefix (character + grief + speaker lines) is 5,102
+   characters, roughly 1,340 tokens. Claude Haiku 4.5's minimum cacheable
+   prefix is 4,096 tokens — below it, a `cache_control` marker caches nothing,
+   reports nothing, and errors on nothing. It would be a dead lever, and a
+   flag-shaped comment claiming a saving that never happens is worse than no
+   caching at all.
+
+   The ordering below is kept anyway — stable block, then todayLine()'s clock,
+   then the roster, then the volatile house digest — because it costs nothing
+   and it is the precondition for caching ever working. If the prefix grows
+   past 4,096 tokens, or the model moves to one with a lower floor (Sonnet 5 is
+   1,024, Opus 5 is 512), a breakpoint on the last stable block is then the
+   whole change. Prove it with `usage.cache_read_input_tokens`, never by
+   reasoning: zero across two identical-prefix turns means an invalidator
+   survived.
+
+   Exported for tests/voice.spec.js only. The property that matters — flag-off
    is byte-identical to the pre-character prompt — is not observable from
    outside the route, and a rollback path nothing can assert is a rollback path
    nobody should trust. */
@@ -192,20 +210,73 @@ async function runToolCall(block) {
   }
 }
 
-async function converseWithClaude(messages, system, tools = []) {
+/* One round of the model, streamed, emitting whole sentences as they land.
+ *
+ * ⚠ TOOL ROUNDS MUST NOT SPEAK THEIR BUFFER. A round that ends in tool_use is
+ * not the answer — the loop below runs the tool and asks again — so anything
+ * it wrote is a preamble, and today's non-streaming path never speaks it. The
+ * moment a tool_use block opens, emission stops for the rest of the round.
+ *
+ * Anything already emitted before that point HAS been spoken, and that is a
+ * deliberate trade rather than a leak: it can only be a leading sentence like
+ * "Righto, let me get that", which is exactly what a person says before doing
+ * something. Silence, then a click, is the worse of the two.
+ */
+async function streamRound(client, { system, turns, tools, onChunk }) {
+  const stream = client.messages.stream({
+    model:      process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5",
+    max_tokens: CONVERSE_MAX_TOKENS,
+    system,
+    messages:   turns,
+    ...(tools.length ? { tools } : {})
+  });
+
+  let buffer = "";
+  let toolSeen = false;
+
+  stream.on("streamEvent", (event) => {
+    if (event.type === "content_block_start" && event.content_block?.type === "tool_use") {
+      toolSeen = true;
+    }
+  });
+
+  stream.on("text", (delta) => {
+    if (toolSeen) return;
+    buffer += delta;
+    const { chunks, rest } = takeSentences(buffer);
+    buffer = rest;
+    for (const chunk of chunks) onChunk(chunk);
+  });
+
+  const msg = await stream.finalMessage();
+
+  // The trailing fragment: the only moment end-of-text really is the end of a
+  // sentence, which is why takeSentences() refuses to guess at it.
+  const tail = buffer.trim();
+  if (!toolSeen && tail) onChunk(tail);
+
+  return msg;
+}
+
+async function converseWithClaude(messages, system, tools = [], onChunk = null) {
   const client = getAnthropic();
   if (!client) return null;
 
   const turns = [...messages];
   for (let round = 0; ; round += 1) {
-    const msg = await client.messages.create({
-      model:      process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5",
-      max_tokens: CONVERSE_MAX_TOKENS,
-      system,
-      messages:   turns,
-      // Omitted entirely when disarmed, so the flag-off request is unchanged.
-      ...(tools.length ? { tools } : {})
-    });
+    // Streaming is opt-in per request. With no onChunk this is the original
+    // call, unchanged — the non-streaming path stays the contract every
+    // existing caller and test relies on.
+    const msg = onChunk
+      ? await streamRound(client, { system, turns, tools, onChunk })
+      : await client.messages.create({
+          model:      process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5",
+          max_tokens: CONVERSE_MAX_TOKENS,
+          system,
+          messages:   turns,
+          // Omitted entirely when disarmed, so the flag-off request is unchanged.
+          ...(tools.length ? { tools } : {})
+        });
 
     const text = (msg.content.find(b => b.type === "text")?.text ?? "").trim();
     if (msg.stop_reason !== "tool_use") return text || null;
@@ -281,6 +352,55 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
   const remember = (reply) => {
     recordExchange({ said: text, replied: reply }).catch(() => {});
   };
+
+  /* ── The streamed turn ──────────────────────────────────────────────────
+     Opt-in per request. The room's wait used to be strictly serial — the whole
+     answer, then the whole WAV — so nothing was heard for the sum of both.
+     Sentences go out as they are written and the page synthesises the first
+     while the model is still on the second.
+
+     SSE rather than chunked JSON so the client uses the same EventSource-shaped
+     handling it already has for the transcript stream, and so a mid-reply
+     failure can be reported as an event rather than a truncated body.
+
+     ⚠ There is no Ollama fallback on this path, deliberately. Falling back
+     mid-stream would mean speaking the first half of one model's answer and
+     the second half of another's. If Claude fails here the client is told, and
+     it retries the ordinary JSON route — which does have the fallback. */
+  if (req.body?.stream === true) {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders?.();
+
+    const spoken = [];
+    // The socket can close mid-reply — someone walks off, the page reloads.
+    // Writing to a dead response throws; stop generating instead.
+    let open = true;
+    res.on("close", () => { open = false; });
+
+    try {
+      const reply = await converseWithClaude(messages, system, tools, (chunk) => {
+        spoken.push(chunk);
+        if (open) res.write(toSse("chunk", { text: chunk }));
+      });
+      if (!open) return res.end();
+
+      // `reply` is the model's full text; `spoken` is what actually went out.
+      // They agree except when a tool round suppressed emission, and the
+      // client needs the authoritative version for its transcript.
+      const full = reply ?? spoken.join(" ");
+      reportSuccess("ai");
+      remember(full);
+      res.write(toSse("done", { reply: full, source: "claude" }));
+      return res.end();
+    } catch (err) {
+      console.error("[Voice] streamed converse failed:", err.message);
+      reportFailure("ai", err.message);
+      if (open) res.write(toSse("failed", { spoken: spoken.length }));
+      return res.end();
+    }
+  }
 
   try {
     const reply = await converseWithClaude(messages, system, tools);
