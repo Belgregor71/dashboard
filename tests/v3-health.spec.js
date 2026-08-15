@@ -1,5 +1,6 @@
 import { test, expect } from "./fixtures/coverage.js";
 import { worstFault } from "../src/v3/core/health.js";
+import { __resetBoot } from "../src/v3/core/boot.js";
 
 /* Phase 6 — the invisible layer.
 
@@ -37,6 +38,16 @@ const LABELS = {
 const feed = (id, level, detail = null) => ({ id, label: LABELS[id] ?? id, level, detail });
 
 test.describe("the fault worth naming", () => {
+  /* ⚠ worstFault's FIRST act is `bootFault()` — the surface's own boot outranks
+     every feed (cutover §4) — so a test about feeds has an unstated precondition
+     that boot is clean. It is not clean by default: `boot.js` keeps its stages
+     and ticks at module level and every node-side spec in a worker shares one
+     instance, so v3-boot.spec.js's deliberately-broken "rail" tick reached here
+     and made "a healthy house" name a fault. That file now cleans up after
+     itself; this makes the precondition this file depends on explicit rather
+     than inherited. */
+  test.beforeEach(() => __resetBoot());
+
   test("a healthy house names nothing", () => {
     expect(worstFault({ feeds: [feed("ha", "ok"), feed("wan", "ok")] })).toBeNull();
   });

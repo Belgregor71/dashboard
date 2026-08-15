@@ -1161,18 +1161,27 @@ window.CONFIG = {
     // it. (The runtime still loads the same file at boot for the attention
     // queue; this flag governs the SUBJECT, not the store.)
     //
-    // ⚠ OFF PENDING A LIVE SIGHTING, and the reason is the calendar rather than
-    // any doubt about the code: measured on the G11 2026-08-15, the 73 authored
-    // memories land on 47 DISTINCT DAYS of the year, and today is not one of
-    // them. On the other 318 days this flag changes nothing at all. The first
-    // day it can be seen is 2026-08-20 ("Boof loved his bear").
+    // ⚠⚠ FLIPPED ON 2026-08-15 ON THE OWNER'S CALL, and the honest caveat is
+    // that it was NOT flipped after a sighting of the feature working — it
+    // could not be. Measured on the G11 the same day: the 73 authored memories
+    // land on 47 DISTINCT DAYS of the year, and 15 August is not one of them.
+    // On the other 318 days a year this flag changes nothing at all, so what
+    // was verified live is the flag-on build being INERT on a non-curated day
+    // (the year still opened, nine raw plates, no extra behaviour), plus 11
+    // specs covering the curated day itself.
     //
-    // ⚠ That first day is also a TENDER entry, which is worth knowing before
-    // flipping: 12 of the 73 are. A tender photograph appears in the year and
-    // is captioned "20 years ago" and nothing else — memoryEngine.toSurface's
-    // one rule about grief (`caption: null`) is honoured rather than excepted
-    // for a screen that was asked for.
-    v3CuratedYear: false,
+    // ⏳ THE SIGHTING IS STILL OWED, and it is dated: 2026-08-20, one memory,
+    // "Boof loved his bear". August's curated days are 1,2,3,5,7,9,10,11,12,
+    // 20,26 — and 38 of the 73 are anchored in JULY, so the feature is close to
+    // invisible until then.
+    //
+    // ⚠ That first day is also a TENDER entry — 12 of the 73 are. A tender
+    // photograph appears in the year and is captioned "20 years ago" and
+    // nothing else: memoryEngine.toSurface's one rule about grief
+    // (`caption: null`) is honoured rather than excepted for a screen that was
+    // asked for. If the year should read those sentences back, that is a
+    // deliberate change to make, not a default to drift into.
+    v3CuratedYear: true,
   },
 
   /* --------------------------------------------------------------

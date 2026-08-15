@@ -29,6 +29,21 @@ import { worstFault } from "../src/v3/core/health.js";
 test.describe("the isolator", () => {
   test.beforeEach(() => __resetBoot());
 
+  /* ⚠ AND AFTER, WHICH IS NOT SYMMETRY FOR ITS OWN SAKE. `boot.js` holds its
+     stages and ticks at MODULE level, and every node-side spec in a worker
+     shares one instance of it — so the last test in this describe was handing
+     its deliberately-broken "rail" tick to whatever file ran next.
+
+     What it broke: `v3-health.spec.js` "a healthy house names nothing", whose
+     `worstFault({ feeds: [ok, ok] })` returned `cause: "rail", detail: "rail
+     keeps failing"`. Correct behaviour — boot outranks every feed — reading
+     state this file left behind.
+
+     It presented as a flake because `fullyParallel: false` does not pin the
+     WORKER COUNT: which spec files share a process changes between runs, so
+     the leak only lands when these two happen to be neighbours. */
+  test.afterEach(() => __resetBoot());
+
   test("a stage that throws does not take the next one with it", () => {
     const ran = [];
     stage("first", () => { ran.push("first"); throw new Error("boom"); });
