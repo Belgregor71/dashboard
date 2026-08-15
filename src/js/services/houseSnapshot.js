@@ -49,6 +49,16 @@ import { getBomWarnings } from "./weather/bom.js";
 import { robotAttentionFrom, cameraSnapshotUrl } from "./candidateSources.js";
 import { CONFIG } from "../core/config.js";
 
+/* Read per-call off `window.CONFIG`, never off the imported `CONFIG` and never
+   at module load. Two separate traps, both already paid for in this repo:
+   `core/config.js` has no `features` key at all, so `CONFIG.features?.x` is
+   silently always undefined; and ES imports hoist above the point where
+   /js/config.js assigns `window.CONFIG`, so a module-level read freezes to
+   `undefined`. Same helper as v3/core/display.js, for the same reasons. */
+function flag(name) {
+  return Boolean(globalThis.window?.CONFIG?.features?.[name]);
+}
+
 /* The HTTP-backed half. Refreshed on an init-once timer by the host surface,
    never fetched while a tick is waiting. A null field means "not loaded" and is
    never confused with "loaded and empty" — see the header. */
@@ -376,8 +386,31 @@ export function houseSnapshot({ now = new Date(), insight = null, entities: inje
   // one independently conclude "nothing here".
   const haLive = list.length > 0;
 
-  const bom = haLive ? getBomWarnings(list) : null;
-  const robot = haLive ? robotAttentionFrom(list) : null;
+  /* ⚠ `byId`, NOT `list` — and this was wrong from the day the module was
+     written. These two readers are MAP-shaped: `getBomWarnings` does
+     `haStates[entityId]` and `robotAttentionFrom` does `Object.entries()` and
+     regex-tests the KEY. Handed an array, the first looks up a numeric index
+     that cannot exist and the second tests "0", "1", "2"… against /roborock/i.
+     Neither throws. Both return a cheerful empty answer, which is the exact
+     failure mode this file's own header warns about — absent read as empty.
+
+     Cost, measured on the live house before the fix: `bomWarning` was
+     permanently "" and `robotProblems`/`robotConsumables` permanently [], so
+     **the only interrupt-band candidate that survives an empty room (bom, 95)
+     could never fire on V3 at all.** The incumbent was never affected —
+     focusHero passes `getAllEntities()` straight through, which is the map.
+
+     `cameraTriggerFrom` below genuinely wants the array (it iterates and reads
+     `e.entity_id`), which is why both shapes are built at the top and why
+     getting this wrong was easy. */
+  const bom = haLive ? getBomWarnings(byId) : null;
+  /* Gated to match focusHero.js:120, and the gate is part of the fix rather
+     than a separate change: `features.robotCandidate` is default-off, so
+     repairing the shape without it would flip a feature on by side effect —
+     the live robot has three overdue consumables today and would have started
+     saying so with nothing in config.js changed. Flag off reads nothing, so the
+     queue carries no robot candidate, exactly as on the incumbent. */
+  const robot = haLive && flag("robotCandidate") ? robotAttentionFrom(byId) : null;
   const weather = weatherFrom(cache.weather);
   const nextEvent = nextEventFrom(cache.calendar, now);
   const nowPlaying = haLive ? nowPlayingFrom(byId) : null;

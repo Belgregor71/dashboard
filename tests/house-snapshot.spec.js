@@ -343,6 +343,76 @@ const sensor = (entity_id, state, agoMin) => ({
   attributes: {}
 });
 
+/* ── The two MAP-shaped readers ───────────────────────────────────────────────
+   Every case above this line asserts what a COLD path produces, and that is
+   exactly why the suite could sit at 1246 green over a module where two of the
+   readers were dead. `getBomWarnings` and `robotAttentionFrom` are keyed by
+   entity id, not iterated; handed the array this module builds for
+   `cameraTriggerFrom`, they returned a cheerful empty answer forever and the
+   only test that ever looked was the disconnected one, where empty is correct.
+
+   So these are the fixtures that CAN produce the defect: HA connected, the
+   entity genuinely present and genuinely saying something. Both entity sets are
+   copied from the live house on 2026-08-15. */
+
+const withWindow = (features, fn) => {
+  const had = Object.prototype.hasOwnProperty.call(globalThis, "window");
+  const prev = globalThis.window;
+  globalThis.window = { CONFIG: { features } };
+  try {
+    return fn();
+  } finally {
+    // Restore, never delete-and-hope: workers are reused across spec files and a
+    // stray `window` would follow this one into the next pure-node spec.
+    if (had) globalThis.window = prev;
+    else delete globalThis.window;
+  }
+};
+
+test("a live BOM warning reaches the queue — the array/map shape bug", () => {
+  // sensor.nudgee_warnings is CONFIG.weather.bom.warningsEntityId. Read by id,
+  // so an array-shaped lookup can only ever miss.
+  const entities = [sensor("sensor.nudgee_warnings", "Severe Thunderstorm Warning for Brisbane", 2)];
+  const snap = houseSnapshot({ now: NOW, entities });
+
+  expect(snap.bomWarning).toBe("Severe Thunderstorm Warning for Brisbane");
+
+  // The point of the fix, not a restatement of it: bom is the ONLY interrupt-band
+  // candidate that survives an empty room, so losing it lost the whole ability to
+  // break through to a wall nobody is standing at.
+  const bom = collectSources({ ...snap, now: NOW }).find((c) => c.source === "bom");
+  expect(bom?.interrupt).toBe(true);
+  expect(bom?.score).toBe(95);
+});
+
+test("a quiet warnings sensor is still no warning", () => {
+  // The live value on a calm day is the string "0", which bom.js treats as none.
+  const entities = [sensor("sensor.nudgee_warnings", "0", 2)];
+  expect(collectSources({ ...houseSnapshot({ now: NOW, entities }), now: NOW })
+    .find((c) => c.source === "bom")).toBeUndefined();
+});
+
+test("the robot's overdue consumables reach the queue when the flag is on", () => {
+  const entities = [
+    sensor("sensor.roborock_s7_maxv_filter_time_left", "-2.86", 5),
+    sensor("sensor.roborock_s7_maxv_main_brush_time_left", "-6.00", 5)
+  ];
+  const snap = withWindow({ robotCandidate: true }, () => houseSnapshot({ now: NOW, entities }));
+
+  expect(snap.robotConsumables).toEqual(["filter", "main brush"]);
+  expect(collectSources({ ...snap, now: NOW }).find((c) => c.source === "robot")).toBeTruthy();
+});
+
+test("the same house says nothing about the robot with the flag off", () => {
+  // The gate is what keeps the shape fix from flipping a default-off feature on
+  // by side effect — this house has real overdue consumables right now.
+  const entities = [sensor("sensor.roborock_s7_maxv_filter_time_left", "-2.86", 5)];
+  const snap = withWindow({ robotCandidate: false }, () => houseSnapshot({ now: NOW, entities }));
+
+  expect(snap.robotConsumables).toBeNull();
+  expect(collectSources({ ...snap, now: NOW }).find((c) => c.source === "robot")).toBeUndefined();
+});
+
 test("the last camera trigger is derived from last_changed, with no subscription", () => {
   const entities = [sensor("binary_sensor.driveway_motion_detected", "off", 4)];
 
