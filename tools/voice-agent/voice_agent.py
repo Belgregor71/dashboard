@@ -533,6 +533,8 @@ def main():
     proc = arecord_stream()
     run = []
     held = 0          # consecutive above-barge-threshold frames while speaking
+    barge_peak = 0.0  # best wake score heard during the reply now playing
+    was_speaking = False
     try:
         while True:
             frame = read_frame(proc)
@@ -556,11 +558,43 @@ def main():
                     run = []
                 continue
 
-            if _speaking.is_set():
+            # The falling edge of a reply. One line per reply, and only when
+            # something wake-shaped was actually heard during it (PROBE_FLOOR,
+            # the same floor the probe mode uses), so a quiet room through a
+            # long briefing costs nothing at all. This is the whole diagnostic:
+            # "it kept talking when I said the wake word" becomes a number.
+            speaking_now = _speaking.is_set()
+            if was_speaking and not speaking_now:
+                if barge_peak >= PROBE_FLOOR:
+                    log(f"reply ended — wake peaked {barge_peak:.2f} while speaking, "
+                        f"needed {BARGE_THRESHOLD:.2f} x {BARGE_FRAMES} frames")
+                barge_peak = 0.0
+            was_speaking = speaking_now
+
+            if speaking_now:
                 # HALF DUPLEX. The mic can hear the HDMI speakers, so anything
                 # captured here would be the house's own reply — which is
                 # exactly what it spent 2026-08-08 answering. A wake word during
                 # playback therefore does ONE thing: take the floor back.
+                #
+                # ⚠⚠ THIS BRANCH WAS SILENT ABOUT ITS OWN FAILURES until
+                # 2026-08-15, and that is why the owner's report — "it kept
+                # talking even when I said the wake word" — could not be
+                # confirmed OR denied from this journal. It logs when it acts
+                # and says nothing when it does not, so a wake word that peaked
+                # at 0.65 through the speakers left no trace whatsoever. One
+                # barge-in has fired in this agent's whole life (0.99, Aug 09)
+                # against 43 ordinary wakes.
+                #
+                # The bar here is also HIGHER than the ordinary one — 0.70 for
+                # two consecutive frames versus 0.60 for one — in the acoustic
+                # condition that makes the score WORSE, because the model is
+                # listening through our own voice. That asymmetry is backwards:
+                # the moment a person most needs to be heard is the moment the
+                # house is talking over them. Do not re-tune it from a guess.
+                # The line below is what turns the next spoken attempt into a
+                # number, and the number is what the threshold should come from.
+                barge_peak = max(barge_peak, score)
                 held = held + 1 if score >= BARGE_THRESHOLD else 0
                 if held < BARGE_FRAMES:
                     continue
