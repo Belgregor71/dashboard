@@ -14,13 +14,28 @@ import { vocabularyFor, railPhrase, ALL_CANDIDATES } from "../src/js/services/vo
    specific one silently eats it and everything still "passes" if you only
    assert that something matched. Every test below names the intent it expects. */
 
+/* The forecast feed keys every day by a bare local YYYY-MM-DD — the answerers
+   look days up by that date rather than by index, so a fixture without one is a
+   fixture that cannot produce the defect. Built relative to the real clock
+   because matchIntent resolves days against it and cannot be handed a fake now. */
+const isoDay = (offset) => {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 const SNAP = {
   sun: { sunrise: "2026-08-07T06:22:00+10:00", sunset: "2026-08-07T17:20:00+10:00" },
   weather: {
     now: { temp_c: 17.9, feels_like_c: 18.3, uv: 0.45, wind_kph: 6.4, rain_chance_pct: 10, condition: { label: "Clear" } },
     day: { high_c: 22.4, low_c: 9.1 }
   },
-  forecast: { days: [{ high_c: 22, low_c: 9 }, { high_c: 24, low_c: 11, condition: { label: "Partly cloudy" } }] },
+  forecast: {
+    days: [
+      { date: isoDay(0), high_c: 22, low_c: 9 },
+      { date: isoDay(1), high_c: 24, low_c: 11, condition: { label: "Partly cloudy" } }
+    ]
+  },
   nowcast: { startsInMin: 20 },
   calendar: [
     { title: "Dentist", start: new Date(Date.now() + 3 * 3600e3).toISOString() },
@@ -728,5 +743,212 @@ test.describe("the calendar's day slot", () => {
     for (const utterance of ["am i free", "am i free next tuesday afternoon", "what's on tuesday"]) {
       expect(answer(matchIntent(utterance), {}), `"${utterance}" invented a day`).toBeNull();
     }
+  });
+});
+
+/* ── F8 · the weather family answers about the day it was asked about ────────
+   Found while fixing F7 and deliberately left out of it, because the BOUND is
+   different. Measured then: "what's the weather on tuesday" reached weather.now
+   and said "It's 18 degrees and clear" — the same shape of harm as the calendar
+   defect, confident and fast and about a different day.
+
+   The calendar's limit was knowable in the parser (getRecurrenceWindow). The
+   forecast's is not: it is however many days the last refresh returned — SEVEN
+   from Open-Meteo on the live G11, TWO from the BOM-via-HA fallback (see
+   bom-weather.spec.js), NONE when there are no coordinates. So these tests are
+   mostly about the horizon, and every one of them asserts the DECLINE as
+   carefully as the answer.
+─────────────────────────────────────────────────────────────────────────── */
+test.describe("the weather's day slot", () => {
+  const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+  /* A weekday that is always exactly `n` days from now, whenever the suite runs.
+     The end-to-end path resolves days against the real clock — matchIntent takes
+     no `now` — so the utterance has to be built from it rather than pinned. */
+  const weekdayIn = (n) => WEEKDAYS[(new Date().getDay() + n) % 7];
+
+  /* The spoken form of that day, with its date — the same string the resolver
+     builds, derived independently here so a test cannot pass by sharing a
+     mistake with the code under test. */
+  const dayName = (n) => {
+    const d = new Date();
+    d.setDate(d.getDate() + n);
+    const day = d.getDate();
+    const teen = day % 100;
+    const suffix = teen >= 11 && teen <= 13 ? "th" : ["th", "st", "nd", "rd"][day % 10] ?? "th";
+    const name = WEEKDAYS[d.getDay()];
+    return `${name.charAt(0).toUpperCase()}${name.slice(1)}, the ${day}${suffix}`;
+  };
+
+  /* Shaped exactly like the live feed: seven days, days[0] today, bare dates. */
+  const FEED = {
+    forecast: {
+      days: [0, 1, 2, 3, 4, 5, 6].map((i) => ({
+        date: isoDay(i),
+        high_c: 20 + i,
+        low_c: 8 + i,
+        condition: { label: i === 3 ? "Cloudy" : "Light drizzle" },
+        rain_chance_pct: [68, 29, 49, 72, 60, 12, 5][i]
+      }))
+    },
+    weather: {
+      now: { temp_c: 17.9, feels_like_c: 18.3, uv: 0.45, wind_kph: 6.4, rain_chance_pct: 10, condition: { label: "Clear" } },
+      day: { high_c: 22.4, low_c: 9.1 }
+    },
+    nowcast: { startsInMin: 20 }
+  };
+  const say = (utterance, snap = FEED) => answer(matchIntent(utterance), snap)?.speech ?? null;
+
+  test("THE REPORTED DEFECT: a question about Tuesday is no longer answered about now", () => {
+    const day = weekdayIn(3);
+    expect(matchIntent(`what's the weather on ${day}`).id).toBe("weather.now");
+    const spoken = say(`what's the weather on ${day}`);
+    // The measured wrong answer was the live reading — "It's 18 degrees and clear."
+    expect(spoken).not.toContain("degrees");
+    expect(spoken).toBe(`${dayName(3)}: 23 and 11, cloudy.`);
+  });
+
+  test("the day is NAMED BACK, so a mis-parse is audible rather than silent", () => {
+    // The same rule the calendar's reply follows, and the reason reading "next
+    // Tuesday" as the nearest Tuesday is safe to do at all.
+    expect(say(`what's the weather on ${weekdayIn(4)}`)).toContain(dayName(4));
+  });
+
+  test("⚠⚠ THE HORIZON — a day past what the feed returned is refused, never guessed", () => {
+    /* This is the bound F8 exists for. resolveDay will happily name a day seven
+       out; a seven-day feed reaches six. The parser is not the limit — the data
+       is, and only the answerer can see it. */
+    const seventh = `next ${WEEKDAYS[new Date().getDay()]}`;                      // offset 7
+    expect(resolveDay(`what's the weather ${seventh}`).offset).toBe(7);
+    expect(matchIntent(`what's the weather ${seventh}`).id).toBe("weather.now");  // matched...
+    expect(say(`what's the weather ${seventh}`)).toBeNull();                      // ...and declined
+
+    // A SHORTER feed is refused sooner. The BOM-via-HA fallback returns two days.
+    const bom = { ...FEED, forecast: { days: FEED.forecast.days.slice(0, 2) } };
+    expect(say(`what's the weather on ${weekdayIn(3)}`, bom)).toBeNull();
+    expect(say("what's the weather tomorrow", bom)).toBe("Tomorrow: 21 and 9, light drizzle.");
+
+    // With no coordinates at all the fallback returns no days whatsoever.
+    expect(say("what's the weather tomorrow", { ...FEED, forecast: { days: [] } })).toBeNull();
+    expect(say("what's the weather tomorrow", {})).toBeNull();
+  });
+
+  test("⚠ days are found BY DATE, not by index — days[1] is not a promise", () => {
+    /* Two upstream shapes that an index read gets confidently wrong, and note
+       that BOTH still return a record at the index asked for — so this is the
+       case a "did it answer at all?" assertion cannot see. It has to compare the
+       NUMBERS. */
+
+    // 1. A GAP. The +2 day is missing; days[2] now holds the +3 day's numbers.
+    const gap = { ...FEED, forecast: { days: FEED.forecast.days.filter((_, i) => i !== 2) } };
+    expect(gap.forecast.days[2].date).toBe(isoDay(3));      // the index really is misleading
+    expect(say(`what's the weather on ${weekdayIn(2)}`, gap)).toBeNull();
+    // ...while the days on the far side of the gap are still answered exactly.
+    expect(say(`what's the weather on ${weekdayIn(3)}`, gap)).toBe(`${dayName(3)}: 23 and 11, cloudy.`);
+
+    // 2. A SHIFT. An upstream that drops the current day late in the evening
+    // moves every index by one, and days[1] becomes the day after tomorrow.
+    const shifted = { ...FEED, forecast: { days: FEED.forecast.days.slice(1) } };
+    expect(shifted.forecast.days[1].date).toBe(isoDay(2));
+    expect(say("what's the weather tomorrow", shifted)).toBe("Tomorrow: 21 and 9, light drizzle.");
+  });
+
+  test("⛔ UV and WIND decline every day but today — the feed does not carry them", () => {
+    /* A permanent refusal rather than a horizon one: the per-day record holds a
+       high, a low, a condition and a rain chance, and nothing else. Answering
+       from the CURRENT uv is the exact defect this change is about. */
+    for (const utterance of [
+      `do i need sunscreen on ${weekdayIn(2)}`,
+      `will it be windy on ${weekdayIn(2)}`,
+      `what's the uv on ${weekdayIn(4)}`,
+      "is it windy tomorrow"
+    ]) {
+      expect(matchIntent(utterance), `"${utterance}" reached the lane with a day it cannot honour`).toBeNull();
+    }
+    // The answerers hold the same line from the other side, so neither of them
+    // alone is the only thing between the room and a wrong reading.
+    const day = { offset: 3, label: dayName(3), dayLabel: dayName(3) };
+    expect(answer({ id: "weather.sunscreen", slots: { day } }, FEED)).toBeNull();
+    expect(answer({ id: "weather.wind", slots: { day } }, FEED)).toBeNull();
+    // Today still answers exactly as it did.
+    expect(say("do i need sunscreen")).toBe("Not really, UV is only 0.");
+    expect(say("is it windy")).toBe("It's fairly calm, 6 k p h.");
+  });
+
+  test("⚠ the NOWCAST never reaches a future day", () => {
+    /* It is a radar extrapolation of the next ~90 minutes. "Rain in about 20
+       minutes" is true about now and nonsense about Thursday — and the snapshot
+       is carrying one the whole time. */
+    const spoken = say(`will it rain on ${weekdayIn(3)}`);
+    expect(spoken).not.toContain("minutes");
+    expect(spoken).toBe(`Probably — 72 percent chance on ${dayName(3)}.`);
+    // Today's answer still prefers it, because a time is actionable.
+    expect(say("do i need an umbrella")).toBe("Yes — rain in about 20 minutes.");
+  });
+
+  test("the two sibling phrases that used to fall through now match and answer", () => {
+    // Both were logged as "safe today because they match nothing" — safe only
+    // while the lane had no way of being right about Saturday.
+    expect(matchIntent(`will it rain on ${weekdayIn(2)}`).id).toBe("weather.umbrella");
+    expect(matchIntent(`how hot will it be on ${weekdayIn(5)}`).id).toBe("weather.today");
+    expect(say(`how hot will it be on ${weekdayIn(5)}`)).toBe(`${dayName(5)}: 25 and 13, light drizzle.`);
+    // Unslotted they answer about today — and "how hot IS it" is still weather.now,
+    // because a question about right now must not be given a daily high.
+    expect(matchIntent("will it rain").id).toBe("weather.umbrella");
+    expect(matchIntent("how hot will it be").id).toBe("weather.today");
+    expect(matchIntent("how hot is it").id).toBe("weather.now");
+    expect(say("how hot will it be")).toBe("Today's top is 22, low of 9.");
+  });
+
+  test("a jacket question about a future day is answered from the LOW, and says so", () => {
+    // The forecast carries no apparent temperature, so the verdict names the
+    // number and which part of the day it means.
+    expect(say(`do i need a jacket on ${weekdayIn(1)}`)).toBe("Yes, first thing — down to 9 tomorrow.");
+    expect(say(`will i need a jumper on ${weekdayIn(6)}`)).toBe(`Maybe early — down to 14 on ${dayName(6)}.`);
+    // A day that is cold all day is not a "first thing" answer.
+    const cold = {
+      ...FEED,
+      forecast: { days: FEED.forecast.days.map((d, i) => (i === 2 ? { ...d, high_c: 15, low_c: 11 } : d)) }
+    };
+    expect(say(`do i need a jacket on ${weekdayIn(2)}`, cold)).toBe(`Yes — 11 to 15 on ${dayName(2)}.`);
+  });
+
+  test("⚠ a part of the day is NOT echoed back by a source that only knows the day", () => {
+    /* The calendar can honour "Tuesday afternoon" because its events carry a
+       time. The forecast is daily, so repeating "afternoon" would claim a
+       precision it does not have. It answers the day, and says the day. */
+    const day = resolveDay(`what's the weather on ${weekdayIn(3)} morning`);
+    expect(day.label).toContain("morning");
+    expect(day.dayLabel).not.toContain("morning");
+    expect(say(`what's the weather on ${weekdayIn(3)} morning`)).toBe(`${dayName(3)}: 23 and 11, cloudy.`);
+  });
+
+  test("a day the parser refuses outright never reaches the weather either", () => {
+    // The same refusals as the calendar: the resolver is shared, and it stays
+    // the WIDEST range any caller may ask about.
+    for (const utterance of [
+      "what's the weather next week",
+      "what's the weather this weekend",
+      "what's the weather in september",
+      "what's the weather on the 20th",
+      "what was the weather yesterday"
+    ]) {
+      expect(matchIntent(utterance), `"${utterance}" reached the fast lane`).toBeNull();
+    }
+  });
+
+  test("with no day named, every existing weather sentence is unchanged", () => {
+    /* The rollback. Nothing in the family may have moved for the utterances the
+       house has been answering all along. */
+    expect(say("what's the weather")).toBe("It's 18 degrees and clear.");
+    expect(say("how's it outside")).toBe("It's 18 degrees and clear.");
+    expect(say("what's the weather today")).toBe("It's 18 degrees and clear.");
+    expect(say("what's today's top")).toBe("Today's top is 22, low of 9.");
+    expect(say("what's the weather tomorrow")).toBe("Tomorrow: 21 and 9, light drizzle.");
+    expect(say("do i need a jacket")).toBe("Maybe a light one, it feels like 18.");
+    expect(say("do i need sunscreen")).toBe("Not really, UV is only 0.");
+    expect(say("is it windy")).toBe("It's fairly calm, 6 k p h.");
+    expect(say("do i need an umbrella")).toBe("Yes — rain in about 20 minutes.");
+    expect(say("is it going to rain", { ...FEED, nowcast: null })).toBe("No, only 10 percent chance of rain.");
   });
 });

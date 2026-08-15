@@ -105,27 +105,48 @@ const ANSWERERS = {
     return t ? { speech: `Sunrise is at ${t}.`, refs: ["sky"] } : null;
   },
 
-  "weather.now": (s) => {
+  /* ── The weather family ──────────────────────────────────────────────────
+     Every answerer below reads `slots.day` the same way the calendar ones do,
+     and every one of them is UNCHANGED when the utterance named no day or named
+     today — those sentences are byte-identical to what they said before the
+     slot reached this family, which is the rollback.
+
+     A future day is a different question with a different source: `s.weather`
+     is a reading of RIGHT NOW and has nothing to say about Saturday, so the
+     answer comes from `s.forecast` via forecastDay() or it does not come. */
+
+  "weather.now": (s, slots) => {
+    // "What's the weather on Tuesday" is not a question about now — this line
+    // is the reported defect (F8), which answered it "It's 18 degrees and clear."
+    if (future(slots)) return forecastSpeech(s, slots.day);
     const n = s.weather?.now;
     if (!n || n.temp_c == null) return null;
     const label = n.condition?.label ? n.condition.label.toLowerCase() : null;
     return { speech: `It's ${round(n.temp_c)} degrees${label ? ` and ${label}` : ""}.`, refs: ["weather"] };
   },
 
-  "weather.today": (s) => {
+  "weather.today": (s, slots) => {
+    if (future(slots)) return forecastSpeech(s, slots.day);
     const d = s.weather?.day;
     if (!d || d.high_c == null) return null;
     return { speech: `Today's top is ${round(d.high_c)}, low of ${round(d.low_c)}.`, refs: ["weather"] };
   },
 
-  "weather.tomorrow": (s) => {
-    const t = s.forecast?.days?.[1];
-    if (!t) return null;
-    const label = t.condition?.label ? t.condition.label.toLowerCase() : null;
-    return { speech: `Tomorrow: ${round(t.high_c)} and ${round(t.low_c)}${label ? `, ${label}` : ""}.`, refs: ["weather"] };
-  },
+  "weather.tomorrow": (s, slots) => forecastSpeech(s, slots?.day ?? DAY_TOMORROW),
 
-  "weather.umbrella": (s) => {
+  "weather.umbrella": (s, slots) => {
+    if (future(slots)) {
+      /* ⚠ THE NOWCAST MUST NOT REACH HERE. It is a radar extrapolation of the
+         next ~90 minutes, so "rain in about 20 minutes" is a true sentence
+         about now and a nonsense one about Thursday. Returning before the
+         branch below is what keeps it out. */
+      const p = forecastDay(s, slots.day)?.rain_chance_pct;
+      if (p == null) return null;
+      const when = dayPhrase(slots.day);
+      if (p >= 50) return { speech: `Probably — ${p} percent chance ${when}.`, refs: ["weather"] };
+      if (p >= 20) return { speech: `Maybe. ${p} percent ${when}.`, refs: ["weather"] };
+      return { speech: `No, only ${p} percent ${when}.`, refs: ["weather"] };
+    }
     // The nowcast is the good answer when it has one — "in 20 minutes" is
     // actionable in a way that "40% chance" never is.
     const nc = s.nowcast;
@@ -139,7 +160,22 @@ const ANSWERERS = {
     return { speech: `No, only ${p} percent chance of rain.`, refs: ["weather"] };
   },
 
-  "weather.jacket": (s) => {
+  "weather.jacket": (s, slots) => {
+    if (future(slots)) {
+      /* Answered from the LOW, not from feels-like — the forecast carries no
+         apparent temperature. A day can be cold at seven and mild by noon, so
+         the verdict says which part of it it means and names the number, the
+         way the calendar's reply names the date. */
+      const f = forecastDay(s, slots.day);
+      const low = round(f?.low_c);
+      if (low == null) return null;
+      const high = round(f.high_c);
+      const when = dayPhrase(slots.day);
+      if (high != null && high < 19) return { speech: `Yes — ${low} to ${high} ${when}.`, refs: ["weather"] };
+      if (low < 14) return { speech: `Yes, first thing — down to ${low} ${when}.`, refs: ["weather"] };
+      if (low < 19) return { speech: `Maybe early — down to ${low} ${when}.`, refs: ["weather"] };
+      return { speech: `No need — ${low} to ${high} ${when}.`, refs: ["weather"] };
+    }
     const t = s.weather?.now?.feels_like_c ?? s.weather?.now?.temp_c;
     if (t == null) return null;
     if (t < 14) return { speech: `Yes — it feels like ${round(t)}.`, refs: ["weather"] };
@@ -147,7 +183,13 @@ const ANSWERERS = {
     return { speech: `No need, it feels like ${round(t)}.`, refs: ["weather"] };
   },
 
-  "weather.sunscreen": (s) => {
+  /* ⚠ UV AND WIND ARE NOT IN THE FORECAST FEED — see DAY_INTENTS in
+     localIntents.js, which declines a future day before these are ever reached.
+     The guard is repeated here because an answerer that would silently report
+     the CURRENT uv for a question about Saturday is exactly the defect this
+     whole change is about, and it should be impossible from either direction. */
+  "weather.sunscreen": (s, slots) => {
+    if (future(slots)) return null;
     const uv = s.weather?.now?.uv;
     if (uv == null) return null;
     if (uv >= 8) return { speech: `Definitely — UV is ${round(uv)}, that's very high.`, refs: ["weather"] };
@@ -155,7 +197,8 @@ const ANSWERERS = {
     return { speech: `Not really, UV is only ${round(uv)}.`, refs: ["weather"] };
   },
 
-  "weather.wind": (s) => {
+  "weather.wind": (s, slots) => {
+    if (future(slots)) return null;
     const w = s.weather?.now?.wind_kph;
     if (w == null) return null;
     const calm = w < 12 ? "fairly calm" : w < 30 ? "breezy" : "quite windy";
@@ -355,6 +398,59 @@ function todays(events) {
    resolveDay produces, so there is one code path rather than two. */
 const DAY_TODAY = Object.freeze({ offset: 0, part: null, label: "today", when: "on today" });
 const DAY_TOMORROW = Object.freeze({ offset: 1, part: null, label: "tomorrow", when: "on tomorrow" });
+
+/* ── The weather family's day handling ──────────────────────────────────────
+   Only a day AFTER today changes any weather answer. Today and "no day named"
+   both keep the live reading and the sentence that was there before, which is
+   what makes this change invisible until someone asks about Saturday. */
+const future = (slots) => (slots?.day?.offset ?? 0) > 0;
+
+/* How the weather says a future day. NOT the calendar's `when`, and the
+   difference is audible: "nothing on tomorrow" is idiomatic and "72 percent
+   chance on tomorrow" is not. `dayLabel` rather than `label` because the
+   forecast is daily — see resolveDay's note on why "Tuesday afternoon" must
+   not be echoed back by a source that only knows Tuesday. */
+const dayPhrase = (day) => (day.offset === 1 ? "tomorrow" : `on ${day.dayLabel ?? day.label}`);
+
+/* ⚠⚠ THE FORECAST'S HORIZON IS READ, NEVER ASSUMED — this is F8's whole
+   finding, and it is a DIFFERENT bound from the calendar's. The calendar was
+   limited by getRecurrenceWindow(); the weather is limited by however many days
+   the last /api/weather/forecast refresh actually returned. Measured on the
+   live G11 2026-08-15: SEVEN days, days[0] = today, each keyed by a bare
+   YYYY-MM-DD date.
+
+   Seven is not a promise. The Open-Meteo path and the BOM-via-HA fallback build
+   that array differently, and weatherFallbackForecast() returns `{ days: [] }`
+   when there are no coordinates at all. So the day is looked up BY DATE and a
+   miss returns null: the turn falls through to a lane that can reason about
+   Saturday, which costs a beat. Guessing costs the lane.
+
+   By date rather than by index for the same reason — `days[1]` is only tomorrow
+   while `days[0]` is today, which is an assumption about an upstream, not a
+   fact about the data.
+
+   ⚠ Host-local, like onDay() above, and for the same reason: two clocks would
+   put the day's LABEL and the day's NUMBERS on different dates at the margins.
+   The kiosk's clock is the location's clock, which is what makes them agree. */
+function forecastDay(s, day) {
+  const days = s.forecast?.days;
+  if (!Array.isArray(days) || days.length === 0) return null;
+  const d = new Date();
+  d.setDate(d.getDate() + (day?.offset ?? 0));
+  const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return days.find((x) => x?.date === key) ?? null;
+}
+
+/** The general readout for a day the live reading cannot speak for. */
+function forecastSpeech(s, day) {
+  const f = forecastDay(s, day);
+  if (!f || f.high_c == null) return null;
+  const label = f.condition?.label ? f.condition.label.toLowerCase() : null;
+  return {
+    speech: `${sentenceCase(day.dayLabel ?? day.label)}: ${round(f.high_c)} and ${round(f.low_c)}${label ? `, ${label}` : ""}.`,
+    refs: ["weather"]
+  };
+}
 
 /* A dinner plan is not a commitment. The household types tonight's meal into
    the calendar as "Meal: <dish>" — 73 of the live feed's 383 events — so

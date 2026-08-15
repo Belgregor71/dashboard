@@ -60,12 +60,18 @@ const INTENTS = [
   // ── Weather ─────────────────────────────────────────────────────────────
   // Actionable questions come before the general readout: someone asking
   // "do I need a jacket" wants a yes, not a barometric report.
-  { id: "weather.umbrella", re: /\b(umbrella|rain\s*coat|need.*(rain|wet)|is it.*(rain|wet)|going to rain|rain.*(today|soon|later))\b/ },
+  // ⚠ "will it rain" and "how hot will it be" were added with the day slot
+  // (F8). Both phrases previously matched NOTHING and fell through, which was
+  // safe only because the lane had no way to be right about Saturday. Now that
+  // it has one, the future tense is worth catching — but note "how hot IS it"
+  // is deliberately NOT in weather.today: it belongs to weather.now and moving
+  // it would answer a question about right now with a daily high.
+  { id: "weather.umbrella", re: /\b(umbrella|rain\s*coat|need.*(rain|wet)|is it.*(rain|wet)|going to rain|will it rain|chance of rain|rain.*(today|soon|later))\b/ },
   { id: "weather.jacket", re: /\b(jacket|jumper|coat|cold out|warm out|need.*(warm|layer))\b/ },
   { id: "weather.sunscreen", re: /\b(sunscreen|sun\s*block|uv|burn)\b/ },
   { id: "weather.wind", re: /\b(wind(y|s)?|breeze|gust)\b/ },
   { id: "weather.tomorrow", re: /\b(weather|forecast|hot|cold|rain|temp).*(tomorrow)|tomorrow.*(weather|forecast|like)\b/ },
-  { id: "weather.today", re: /\b((high|top|max|low|min).*(today)|how (hot|cold|warm).*(today|get)|today.s (high|top|max))\b/ },
+  { id: "weather.today", re: /\b((high|top|max|low|min).*(today)|how (hot|cold|warm).*(today|get)|how (hot|cold|warm) will it|today.s (high|top|max))\b/ },
   { id: "weather.now", re: /\b(weather|temperature|how.s (it )?outside|outside like|how (hot|cold|warm) is it|what.s it like)\b/ },
 
   // ── Lists ───────────────────────────────────────────────────────────────
@@ -228,6 +234,12 @@ export function normalise(raw) {
    7) — so every day this resolver CAN name is inside the complete part of the
    feed, by construction. Everything that would reach past it — a month, a date,
    "next week", "the weekend" — is refused rather than parsed.
+
+   ⚠ THE WEATHER FAMILY READS THE SAME SLOT AND IS BOUNDED DIFFERENTLY. This
+   resolver stays calendar-shaped: it is the widest range ANY caller may ask
+   about, and each family narrows from there. See DAY_INTENTS below — the
+   forecast's horizon is a property of the last refresh, not of this parser, so
+   it is enforced where the data is, in localAnswers' forecastDay().
 ─────────────────────────────────────────────────────────────────────────── */
 
 /** A day was named that the lane must not answer for. Deliberately distinct
@@ -306,10 +318,19 @@ function nameDay(offset, part, now) {
 
 /**
  * Resolve the day an utterance is asking about.
- * @returns {{offset:number, part:object|null, label:string, when:string}|null|symbol}
+ * @returns {{offset:number, part:object|null, label:string, when:string,
+ *            dayLabel:string}|null|symbol}
  *          an object when a day resolves exactly, `null` when no day was named
  *          (the intent's own default stands), `DAY_BEYOND` when a day was named
  *          that the feed cannot be trusted about.
+ *
+ * `dayLabel` is `label` WITHOUT the part of day, and it exists because the two
+ * data sources have different resolutions. The calendar knows what time an
+ * event starts, so it can honour "Tuesday afternoon" and say it back. The
+ * forecast is DAILY — one high, one low, one rain chance per day — so a weather
+ * answer that echoed "Tuesday afternoon" would be claiming a precision the feed
+ * does not have. It says "Tuesday, the 18th" instead, and the listener hears
+ * that they were given the day.
  */
 export function resolveDay(raw, now = new Date()) {
   const text = normalise(raw);
@@ -338,29 +359,55 @@ export function resolveDay(raw, now = new Date()) {
   // A bare part of day with no day attached means the one we are in.
   if (offset === null && !part) return null;
   const resolved = offset ?? 0;
-  return { offset: resolved, part, ...nameDay(resolved, part, now) };
+  const named = nameDay(resolved, part, now);
+  const bare = part ? nameDay(resolved, null, now) : named;
+  return { offset: resolved, part, ...named, dayLabel: bare.label };
 }
 
-/* Which days each calendar intent is able to honour. An intent asked about a
-   day it cannot answer for DECLINES, and the turn falls through to a lane that
-   can — rather than answering confidently about a different day. */
-const CAL_DAYS = {
+/* Which days each intent is able to honour. An intent asked about a day it
+   cannot answer for DECLINES, and the turn falls through to a lane that can —
+   rather than answering confidently about a different day.
+
+   ⚠⚠ TWO FAMILIES, TWO DIFFERENT BOUNDS, and that is the whole reason F8 was
+   not folded into F7. The calendar's limit is the RECURRENCE WINDOW described
+   above, which is knowable here and enforced here. The weather's limit is
+   however many days /api/weather/forecast actually returned this refresh —
+   seven on the live box, none at all when the upstream is down and the fallback
+   answers with `{ days: [] }`. That is not knowable from a pure matcher, so a
+   weather row saying `true` below means "the day may be PASSED ON", not "the
+   day can be answered": localAnswers' forecastDay() looks it up BY DATE and
+   returns null when the feed does not reach it.
+
+   The two rows that say `offset === 0` are a different refusal, and a permanent
+   one: the forecast's per-day record carries a high, a low, a condition and a
+   rain chance — and NO uv and NO wind. There is nothing to be right with, so
+   those questions decline any day but today rather than quietly answering with
+   the current reading. */
+const DAY_INTENTS = {
   "cal.today": () => true,
   "cal.free": () => true,
   "cal.tomorrow": (d) => d.offset === 1,
   "cal.next": () => false,            // "what's next" has no day to take
-  "show.day": (d) => d.offset === 0   // the subject draws today, and only today
+  "show.day": (d) => d.offset === 0,  // the subject draws today, and only today
+
+  "weather.now": () => true,
+  "weather.today": () => true,
+  "weather.tomorrow": (d) => d.offset === 1,
+  "weather.umbrella": () => true,
+  "weather.jacket": () => true,
+  "weather.sunscreen": (d) => d.offset === 0,   // no uv in the forecast feed
+  "weather.wind": (d) => d.offset === 0         // no wind in the forecast feed
 };
 
 /* Applied to BOTH match paths — the show-verb resolver returns before the
    table is ever reached, so a guard in only one of them would leave the other
    answering about the wrong day. */
 function gateDay(result, text) {
-  if (!result || !(result.id in CAL_DAYS)) return result;
+  if (!result || !(result.id in DAY_INTENTS)) return result;
   const day = resolveDay(text);
   if (day === DAY_BEYOND) return null;
   if (!day) return result;
-  if (!CAL_DAYS[result.id](day)) return null;
+  if (!DAY_INTENTS[result.id](day)) return null;
   // show.day can only be today, so it needs no slot to say so.
   if (result.id !== "show.day") result.slots = { ...(result.slots ?? {}), day };
   return result;
