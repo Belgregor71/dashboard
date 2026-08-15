@@ -50,7 +50,7 @@ const SKIP_DIRS = new Set([".obsidian", ".trash", ".git"]);
 
 // A restricted YAML subset, hand-rolled rather than pulled in as a dependency:
 // the note conventions are ours to define (docs/design/VAULT.md), and the whole
-// surface is four keys. Supported forms, which is everything Obsidian's property
+// surface is seven keys. Supported forms, which is everything Obsidian's property
 // editor emits for them:
 //   key: value          key: true          key: [a, b]
 //   key:
@@ -159,14 +159,114 @@ export function parseNote(raw, relPath) {
     ? meta.title.trim()
     : id.split("/").pop() || id;
 
+  const label = typeof meta.label === "string" && meta.label.trim() ? meta.label.trim() : null;
+
   return {
     id,
     title,
     tags: toTags(meta.tags),
     kind: typeof meta.kind === "string" && meta.kind.trim() ? meta.kind.trim().toLowerCase() : null,
     private: meta.private === true,
+    // The date grain. Absent on almost every note, and that is the point: a note
+    // without `date` has no span, so it can never claim a photograph.
+    date: isoDay(meta.date),
+    until: isoDay(meta.until),
+    label,
     body: body.trim()
   };
+}
+
+// ── the date grain (pure) ──────────────────────────────────────
+//
+// Until this existed, every date in the vault was PROSE — trips/thailand-2026.md
+// says "29 March to 12 April 2026" and nothing could read it. 22 notes carry
+// `kind: trip` and the structure was there and unused.
+//
+// A span is what turns a note into memory: it lets a photograph taken inside it
+// be captioned by the thing it was part of ("Playa del Carmen · Mexico 2017")
+// instead of by a bare number ("Playa del Carmen · 2017").
+
+/**
+ * A calendar day, or null. Deliberately strict about the SHAPE rather than
+ * lenient about the value: Obsidian's date property writes `YYYY-MM-DD`, and
+ * anything else in that key is a typo, not a dialect.
+ *
+ * ⚠ `new Date("2026-13-01")` is Invalid, but `new Date("2026-02-31")` is
+ * 3 March — JS rolls over silently. So the regex alone is not enough and the
+ * parse alone is not enough; both are required.
+ */
+export function isoDay(value) {
+  if (typeof value !== "string") return null;
+  const day = value.trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  const d = new Date(`${day}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  // Round-trip: rejects 2026-02-31 and friends, which parse fine and mean
+  // something other than what the author wrote.
+  return d.toISOString().slice(0, 10) === day ? day : null;
+}
+
+/**
+ * One note's span, or null when it has no date.
+ *
+ * `until` is INCLUSIVE — a trip note says "29 March to 12 April" and the 12th is
+ * a day of the trip. An `until` before the `date` is an authoring error and
+ * collapses to a single day rather than an empty span that silently matches
+ * nothing. A note with `date` and no `until` spans exactly that day, which is
+ * what a birthday or a wedding wants.
+ */
+export function spanOf(note) {
+  const from = isoDay(note?.date);
+  if (!from) return null;
+  const to = isoDay(note?.until);
+  return {
+    id: note.id,
+    // The label is what the glass SAYS. Falling back to the title would put
+    // "Thailand trip, March and April 2026" under a photograph, so a note
+    // without an explicit short label has no caption to offer and is skipped by
+    // the caption path (but still returned here, because "which notes cover
+    // this day" is a useful question on its own).
+    label: note.label ?? null,
+    from,
+    to: to && to >= from ? to : from
+  };
+}
+
+/** Every dated note in a set, as spans, earliest first. Notes without a date are dropped. */
+export function spansFor(notes) {
+  return (notes || [])
+    .map(spanOf)
+    .filter(Boolean)
+    .sort((a, b) => a.from.localeCompare(b.from) || a.id.localeCompare(b.id));
+}
+
+/**
+ * The one note covering a given day, or null.
+ *
+ * ⚠ SPANS OVERLAP BY NATURE and the tie-break is the whole design decision here.
+ * `trips/thailand-2026.md` (29 Mar – 12 Apr) contains `thailand-2026-chiang-mai`
+ * (5 – 8 Apr), so a photo from the 6th is covered twice. The SHORTEST span wins:
+ * the more specific note is the one that says something the photograph does not
+ * already say. Ties break on id so the answer is stable across a reindex —
+ * a caption that changes every ten minutes reads as a fault.
+ *
+ * `day` is a calendar day string; callers hand it whatever `localDateTime`'s
+ * first ten characters are, because a photograph's LOCAL date is the one the
+ * trip was lived in. Converting to UTC would put a 9am Bangkok photo on the
+ * previous day and drop it out of the span at both ends.
+ */
+export function coveringSpan(spans, day) {
+  const d = isoDay(day);
+  if (!d || !Array.isArray(spans)) return null;
+  const hits = spans.filter((s) => s && s.from <= d && d <= s.to);
+  if (hits.length === 0) return null;
+  const lengthOf = (s) => Date.parse(`${s.to}T00:00:00Z`) - Date.parse(`${s.from}T00:00:00Z`);
+  return hits.sort((a, b) => lengthOf(a) - lengthOf(b) || a.id.localeCompare(b.id))[0];
+}
+
+/** The live index's spans — labelled ones only, which is what a caption can use. */
+export function getLabelledSpans() {
+  return spansFor(index.notes).filter((s) => s.label);
 }
 
 // ── retrieval (pure) ───────────────────────────────────────────

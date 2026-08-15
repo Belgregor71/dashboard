@@ -64,6 +64,60 @@ test("blank names from the library are dropped, not printed", () => {
     .toBe("Nudgee · 2020");
 });
 
+/* ── The trip, joined from the vault's dated notes ─────────────────────────
+   Stage 2 of the severed-memory work. `trip` arrives on the asset already
+   rendered by server/services/photoTrips.js — "Mexico 2017", year included —
+   because note content is loopback-only and the browser gets a phrase, never
+   the span table. */
+
+test("a trip REPLACES the bare year — it already carries one", () => {
+  // The line that made this worth building. Seen on the wall 2026-08-15 as
+  // "our nephew Jeff · Playa del Carmen · 2017".
+  expect(captionFor({
+    people: ["our nephew Jeff"],
+    city: "Playa del Carmen",
+    localDateTime: "2017-08-15T17:07:08.067Z",
+    trip: "Mexico 2017"
+  })).toBe("our nephew Jeff · Playa del Carmen · Mexico 2017");
+
+  // Never "· Mexico 2017 · 2017", which would be the feature announcing itself
+  // rather than saying something.
+  expect(captionFor({ people: [], city: "Nudgee", localDateTime: "2011-08-12T00:00:00Z", trip: "Tasmania 2011" }))
+    .toBe("Nudgee · Tasmania 2011");
+});
+
+test("a trip is worth saying even when nothing else is known", () => {
+  expect(captionFor({ people: [], city: null, localDateTime: "2017-08-15T00:00:00Z", trip: "Mexico 2017" }))
+    .toBe("Mexico 2017");
+});
+
+test("no trip is the common case and the caption is exactly what it was", () => {
+  // Most days are not a trip, and 62 of 100 live assets carry only a city. The
+  // absent key, an empty string and whitespace must all fall back to the year.
+  for (const trip of [undefined, null, "", "   "]) {
+    expect(captionFor({ people: [], city: "Nudgee", localDateTime: "2011-08-12T00:00:00Z", trip }))
+      .toBe("Nudgee · 2011");
+  }
+});
+
+test("the diptych merges trips the same way it merges years", async () => {
+  const { captionForFrame } = await import("../src/v3/core/ground.js");
+  const pair = [
+    { people: [], city: "Playa del Carmen", localDateTime: "2017-08-15T17:07:00.090Z", trip: "Mexico 2017" },
+    { people: [], city: "Playa del Carmen", localDateTime: "2017-08-15T17:07:08.067Z", trip: "Mexico 2017" }
+  ];
+  // Same moment, same trip — ONE line, not the same thing said twice.
+  expect(captionForFrame(pair)).toBe("Playa del Carmen · Mexico 2017");
+
+  /* A half on the trip and a half not can only reach here through the
+     unknown-date bucket (the halves are chosen within minutes of each other).
+     The line stays TRUE rather than lending one photograph the other's trip. */
+  expect(captionForFrame([
+    { people: [], city: "Nudgee", localDateTime: "2017-08-15T00:00:00Z", trip: "Mexico 2017" },
+    { people: [], city: "Nudgee", localDateTime: "2017-08-15T00:00:00Z" }
+  ])).toBe("Nudgee · 2017 & Mexico 2017");
+});
+
 /* ── The low-resolution guard ─────────────────────────────────────────────── */
 
 test("low-resolution guard: small originals out, unknown dimensions IN", async () => {

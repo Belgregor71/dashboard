@@ -53,7 +53,7 @@ The tank is a Rheem 315L in the garage, installed March 2021. The isolation
 valve is behind the laundry door. Plumber is Dave at Southside Plumbing.
 ```
 
-Only four keys are read. Everything else is ignored, so Obsidian Bases and
+Only seven keys are read. Everything else is ignored, so Obsidian Bases and
 Dataview properties can live in the same frontmatter freely.
 
 | Key | Type | Meaning |
@@ -62,6 +62,61 @@ Dataview properties can live in the same frontmatter freely.
 | `tags` | list | Retrieval keywords. `#trip` and `Trip` both normalise to `trip`. Syntax rules below. |
 | `kind` | string | Free-form label. Carried through, not currently scored. |
 | `private` | boolean | **`true` excludes the note from the index entirely.** |
+| `date` | `YYYY-MM-DD` | The day this note is *about*. Opens a span — see below. |
+| `until` | `YYYY-MM-DD` | The last day of that span, **inclusive**. Omit for a single day. |
+| `label` | string | The short name the glass says. **Write it without a year.** |
+
+## The date grain — what puts a note under a photograph
+
+Before this, every date in the vault was prose: `trips/thailand-2026.md` says
+*"29 March to 12 April 2026"* and nothing could read it. `date` + `until` make
+that span machine-readable, and `label` gives it something short enough to
+print.
+
+A photograph whose local date falls inside a labelled span is captioned by the
+occasion instead of by a bare number:
+
+```
+Playa del Carmen · 2017          →   Playa del Carmen · Mexico 2017
+```
+
+```markdown
+---
+title: Mexico 2017 - Jeffrey Sweet's wedding at Playa del Carmen
+tags: [trip, travel, mexico, playa-del-carmen, wedding]
+kind: trip
+date: 2017-08-12
+until: 2017-08-21
+label: Mexico
+---
+```
+
+Four rules, each of which someone will otherwise get wrong once:
+
+- **`label` carries no year.** The year is appended from the *photograph*, not
+  from the note, so the two can never disagree and a trip across New Year
+  captions each photo with its own year. Writing `label: Mexico 2017` puts the
+  year in twice.
+- **`until` is inclusive.** "29 March to 12 April" means the 12th is a day of
+  the trip. An `until` earlier than `date` collapses to a single day rather
+  than silently matching nothing.
+- **The shortest span wins** where two overlap. `thailand-2026` (29 Mar – 12
+  Apr) contains `thailand-2026-chiang-mai` (5 – 8 Apr), so a photo from the 6th
+  is captioned by Chiang Mai — the more specific note is the one saying
+  something the photograph does not already say. Ties break on the note id, so
+  the answer is stable across a reindex; a caption that changed every ten
+  minutes would read as a fault.
+- **A note with `date` but no `label` claims nothing.** It has a span (useful on
+  its own) but nothing to print, so the caption is left as it was.
+
+Dates are matched as **local calendar days**, never UTC. Thailand is UTC+7 and a
+9am Bangkok photograph converted to UTC lands on the previous day — which would
+drop every morning of a trip out of its own span, at both ends.
+
+The reach is not uniform and is worth knowing before authoring: of 100 live
+on-this-day assets sampled 2026-08-15, **62 carried a city and only 4 carried a
+named face** — but **24 fell inside a single trip span**. Dates are the widest
+net the vault has.
 
 Both YAML list forms work — `tags: [a, b]` and the indented `- a` block that
 Obsidian's property editor writes.

@@ -7,6 +7,7 @@ import { getDailySet, getMapTile, hasMapKey, initDailyMemories } from "../servic
 import { clipPathFor, hasClip, hasSkip } from "../services/liveMotion.js";
 import { hiddenIds, hide, undo } from "../services/photoVeto.js";
 import { labelPeople, warmRoster } from "../services/photoNames.js";
+import { labelTrips } from "../services/photoTrips.js";
 
 // Dashboard-facing Immich proxy — Phase 9.5 (docs/vision/photo-source-immich.md).
 // The browser only ever talks to these three endpoints; the API key stays in the
@@ -57,20 +58,27 @@ async function pruneCache() {
   } catch { /* best-effort */ }
 }
 
-/* ⚠ labelPeople() is applied OUTSIDE the memo, on the way out, and the memo
-   holds the raw upstream assets. Naming is cheap (a map over ≤100 assets) and
-   the vault reindexes every ten minutes — labelling before the cache would pin
-   a caption to whatever the vault said up to an hour ago, so an edited
-   relationship note would look like it had not synced. labelPeople never
-   mutates its input, which is what makes this safe against a shared cache. */
+/* What the vault knows, joined onto what Immich knows — the people in a
+   photograph (photoNames) and the occasion it belonged to (photoTrips). Two
+   files because they are two questions with two rollbacks; one seam because
+   they answer to the same caption and must not drift apart.
+
+   ⚠ APPLIED OUTSIDE THE MEMO, on the way out, and the memo holds the RAW
+   upstream assets. Enrichment is cheap (two maps over ≤100 assets) and the
+   vault reindexes every ten minutes — enriching before the cache would pin a
+   caption to whatever the vault said up to an hour ago, so an edited note would
+   look like it had not synced. Neither labeller mutates its input, which is
+   what makes this safe against a cache shared between requests. */
+const enrich = (assets) => labelTrips(labelPeople(assets));
+
 router.get("/api/immich/on-this-day", async (_req, res) => {
   if (!isConfigured()) return res.json({ assets: [] });
   warmRoster(); // background, never awaited — see photoNames.js
   const key = `otd:${new Date().toDateString()}`;
   const cached = memGet(key, ON_THIS_DAY_TTL_MS);
-  if (cached) return res.json({ assets: labelPeople(cached) });
+  if (cached) return res.json({ assets: enrich(cached) });
   const assets = await onThisDay(new Date());
-  res.json({ assets: labelPeople(memSet(key, assets)) });
+  res.json({ assets: enrich(memSet(key, assets)) });
 });
 
 /* ── The veto ───────────────────────────────────────────────────────────────
@@ -123,9 +131,9 @@ router.get("/api/immich/random", async (req, res) => {
   const count = Math.min(Math.max(parseInt(req.query.count, 10) || 12, 1), 60);
   const key = `rnd:${count}`;
   const cached = memGet(key, RANDOM_TTL_MS);
-  if (cached) return res.json({ assets: labelPeople(cached) });
+  if (cached) return res.json({ assets: enrich(cached) });
   const assets = await searchRandom(count);
-  res.json({ assets: labelPeople(memSet(key, assets)) });
+  res.json({ assets: enrich(memSet(key, assets)) });
 });
 
 // Browse assets by taken-date window — the authoring portal's month view. Params

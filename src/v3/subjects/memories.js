@@ -75,13 +75,21 @@ export function assetDate(asset) {
   return null;
 }
 
-/** "last year · Nudgee". The place is why an old photo is worth a second look,
- *  and `slim()` carries city/state alongside the date at no extra cost. */
+/** "9 years ago · Playa del Carmen · Mexico 2017". The place is why an old photo
+ *  is worth a second look, `slim()` carries city/state alongside the date at no
+ *  extra cost, and `trip` is the vault's answer to what the day WAS
+ *  (server/services/photoTrips.js — absent on almost every photograph).
+ *
+ *  Unlike the ground's caption, the trip is ADDED here rather than replacing
+ *  anything: this line's first segment is "how long ago", not a year, so the
+ *  two never say the same thing twice. */
 export function captionFor(asset, now = new Date()) {
-  const when = yearsAgo(assetDate(asset), now);
-  const where = String(asset?.city || "").trim();
-  if (when && where) return `${when} · ${where}`;
-  return when || where || null;
+  const parts = [
+    yearsAgo(assetDate(asset), now),
+    String(asset?.city || "").trim(),
+    String(asset?.trip || "").trim()
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
 }
 
 export async function showYear({ now = new Date() } = {}) {

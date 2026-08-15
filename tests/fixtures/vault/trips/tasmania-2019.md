@@ -2,6 +2,9 @@
 title: Tasmania 2019
 tags: [trip, family]
 kind: place
+date: 2019-10-04
+until: 2019-10-14
+label: Tasmania
 ---
 We flew into Hobart in October 2019 and drove the Great Eastern Drive. Stayed
 four nights in Bicheno, walked the Wineglass Bay lookout, and the kids fed the

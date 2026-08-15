@@ -12,6 +12,11 @@ import {
   tokenize,
   parseRelationships,
   buildRelationshipMap,
+  isoDay,
+  spanOf,
+  spansFor,
+  coveringSpan,
+  getLabelledSpans,
   SCORE_FLOOR,
   MAX_CONTEXT_CHARS
 } from "../server/services/vaultIndex.js";
@@ -39,6 +44,9 @@ test.describe("parseNote — the restricted frontmatter subset", () => {
       tags: ["trip", "family"],
       kind: "place",
       private: false,
+      date: null,
+      until: null,
+      label: null,
       body: "We drove the Great Eastern Drive."
     });
   });
@@ -134,6 +142,25 @@ test.describe("parseNote — the restricted frontmatter subset", () => {
 
   test("id is vault-relative, slash-normalised and extension-free", () => {
     expect(parseNote("x", "places\\qld\\noosa.md").id).toBe("places/qld/noosa");
+  });
+
+  test("the date grain is read off the frontmatter", () => {
+    const note = parseNote(
+      ["---", "title: Mexico", "date: 2017-08-12", "until: 2017-08-21", "label: Mexico", "---", "Playa."].join("\n"),
+      "trips/mexico-2017.md"
+    );
+    expect(note).toMatchObject({ date: "2017-08-12", until: "2017-08-21", label: "Mexico" });
+  });
+
+  /* An unparseable property costs that property, never the note — the same rule
+     the rest of the frontmatter follows. A typo'd date must not make a trip note
+     disappear from the concierge's index. */
+  test("a malformed date costs the date, not the note", () => {
+    const note = parseNote(
+      ["---", "title: Mexico", "date: August 2017", "until: 2017-02-31", "---", "Playa."].join("\n"),
+      "trips/mexico-2017.md"
+    );
+    expect(note).toMatchObject({ title: "Mexico", date: null, until: null, body: "Playa." });
   });
 
   test("non-string input never throws", () => {
@@ -250,6 +277,121 @@ test.describe("retrieve — the score floor is what keeps prompts clean", () => 
   });
 });
 
+/* The date grain (docs/design/VAULT.md "The date grain"). Until this existed
+   every date in the vault was prose — "29 March to 12 April 2026" — and nothing
+   could read it, so a photograph from inside a fifteen-day trip was captioned
+   with the same bare year as a Tuesday at home. Pure, so all of it runs here. */
+test.describe("isoDay — strict about the shape, not lenient about the value", () => {
+  test("a plain calendar day passes through", () => {
+    expect(isoDay("2017-08-12")).toBe("2017-08-12");
+  });
+
+  test("a full ISO timestamp is trimmed to its day", () => {
+    expect(isoDay("2017-08-12T19:13:52.378Z")).toBe("2017-08-12");
+  });
+
+  /* ⚠ THE ONE THAT NEEDS BOTH CHECKS. new Date("2026-13-01") is Invalid and the
+     parse catches it — but new Date("2026-02-31") is 3 March, so it parses
+     perfectly and means something other than what the author wrote. Only the
+     round-trip catches that, which is why the regex alone was not enough. */
+  test("a date that rolls over is rejected, not silently moved", () => {
+    expect(isoDay("2026-02-31")).toBeNull();
+    expect(isoDay("2026-13-01")).toBeNull();
+    expect(isoDay("2026-00-10")).toBeNull();
+  });
+
+  test("anything that is not a calendar day is null rather than a throw", () => {
+    for (const raw of [null, undefined, 20170812, "", "  ", "12/08/2017", "August 2017", {}, []]) {
+      expect(isoDay(raw)).toBeNull();
+    }
+  });
+});
+
+test.describe("spanOf / spansFor — a note's dates", () => {
+  const note = (extra) => ({ id: "trips/x", title: "X", ...extra });
+
+  test("a note with no date has no span — which is almost every note", () => {
+    expect(spanOf(note({}))).toBeNull();
+    expect(spanOf(note({ until: "2019-10-14", label: "Tasmania" }))).toBeNull();
+    expect(spanOf(null)).toBeNull();
+  });
+
+  test("date without until spans exactly that day — a birthday, a wedding", () => {
+    expect(spanOf(note({ date: "2017-08-12" }))).toMatchObject({ from: "2017-08-12", to: "2017-08-12" });
+  });
+
+  /* "29 March to 12 April" means the 12th is a day of the trip. Off-by-one here
+     would silently drop the last day of every trip in the vault. */
+  test("until is INCLUSIVE", () => {
+    const span = spanOf(note({ date: "2017-08-12", until: "2017-08-21", label: "Mexico" }));
+    expect(span).toMatchObject({ from: "2017-08-12", to: "2017-08-21", label: "Mexico" });
+  });
+
+  test("an until before the date collapses to one day rather than matching nothing", () => {
+    expect(spanOf(note({ date: "2017-08-21", until: "2017-08-12" }))).toMatchObject({
+      from: "2017-08-21",
+      to: "2017-08-21"
+    });
+  });
+
+  test("a dated note with no label still has a span — it just has nothing to say", () => {
+    expect(spanOf(note({ date: "2017-08-12" })).label).toBeNull();
+  });
+
+  test("spansFor drops the undated and orders the rest, earliest first", () => {
+    const spans = spansFor([
+      { id: "b", date: "2023-05-21", until: "2023-06-01", label: "Singapore" },
+      { id: "a", title: "no dates here" },
+      { id: "c", date: "2017-03-07", until: "2017-03-26", label: "Europe" }
+    ]);
+    expect(spans.map((s) => s.id)).toEqual(["c", "b"]);
+  });
+});
+
+test.describe("coveringSpan — which note owns a day", () => {
+  const THAILAND = { id: "trips/thailand-2026", label: "Thailand", from: "2026-03-29", to: "2026-04-12" };
+  const CHIANG_MAI = { id: "trips/thailand-2026-chiang-mai", label: "Chiang Mai", from: "2026-04-05", to: "2026-04-08" };
+  const MEXICO = { id: "trips/mexico-2017", label: "Mexico", from: "2017-08-12", to: "2017-08-21" };
+
+  test("a day inside the span is covered, at both edges", () => {
+    expect(coveringSpan([MEXICO], "2017-08-12").label).toBe("Mexico");
+    expect(coveringSpan([MEXICO], "2017-08-15").label).toBe("Mexico");
+    expect(coveringSpan([MEXICO], "2017-08-21").label).toBe("Mexico");
+  });
+
+  test("a day outside it is not", () => {
+    expect(coveringSpan([MEXICO], "2017-08-11")).toBeNull();
+    expect(coveringSpan([MEXICO], "2017-08-22")).toBeNull();
+    expect(coveringSpan([MEXICO], "2018-08-15")).toBeNull();
+  });
+
+  /* THE DESIGN DECISION. The Thailand note contains the Chiang Mai note, so a
+     photo from the 6th is covered twice. The more specific note is the one
+     saying something the photograph does not already say. */
+  test("the SHORTEST span wins where two overlap", () => {
+    expect(coveringSpan([THAILAND, CHIANG_MAI], "2026-04-06").label).toBe("Chiang Mai");
+    expect(coveringSpan([CHIANG_MAI, THAILAND], "2026-04-06").label).toBe("Chiang Mai");
+    // outside the inner span, the outer one still answers
+    expect(coveringSpan([THAILAND, CHIANG_MAI], "2026-04-02").label).toBe("Thailand");
+  });
+
+  /* A caption that changed every ten minutes — each reindex — would read as a
+     fault rather than a feature. Equal-length overlaps must not coin-flip. */
+  test("equal-length overlaps break on id, so a reindex cannot change the caption", () => {
+    const a = { id: "trips/aaa", label: "A", from: "2020-01-01", to: "2020-01-05" };
+    const b = { id: "trips/bbb", label: "B", from: "2020-01-01", to: "2020-01-05" };
+    expect(coveringSpan([a, b], "2020-01-03").label).toBe("A");
+    expect(coveringSpan([b, a], "2020-01-03").label).toBe("A");
+  });
+
+  test("a malformed or absent day is not covered by anything", () => {
+    for (const day of [null, undefined, "", "not-a-date", "2026-02-31"]) {
+      expect(coveringSpan([MEXICO, THAILAND], day)).toBeNull();
+    }
+    expect(coveringSpan(null, "2017-08-15")).toBeNull();
+  });
+});
+
 test.describe("buildContext — the prompt budget", () => {
   test("no notes → empty string, which is what keeps the no-hit path byte-identical", () => {
     expect(buildContext([])).toBe("");
@@ -311,10 +453,26 @@ test.describe("buildIndex — walking a real vault", () => {
     expect(hits.map((n) => n.id).join(",")).not.toContain(".obsidian");
   });
 
+  test("getLabelledSpans reads the dated notes off the live index", async () => {
+    await buildIndex(FIXTURE_VAULT);
+    const spans = getLabelledSpans();
+    expect(spans).toContainEqual({
+      id: "trips/tasmania-2019",
+      label: "Tasmania",
+      from: "2019-10-04",
+      to: "2019-10-14"
+    });
+    // Every other fixture note is undated (Queenstown is the second dated one),
+    // and an undated note must never claim a photograph — a span with no dates
+    // would cover every day there is.
+    expect(spans.map((s) => s.id)).toEqual(["trips/tasmania-2019", "trips/queenstown-2019"]);
+  });
+
   test("an absent vault directory is a cold start, not a throw", async () => {
     const index = await buildIndex(path.join(FIXTURE_VAULT, "does-not-exist"));
     expect(index.notes).toEqual([]);
     expect(typeof index.indexedAt).toBe("string");
+    expect(getLabelledSpans()).toEqual([]);
   });
 });
 

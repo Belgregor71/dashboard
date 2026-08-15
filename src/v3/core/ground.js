@@ -315,6 +315,23 @@ function yearOf(asset) {
   return /^\d{4}$/.test(year) ? year : "";
 }
 
+/* The occasion the photograph belonged to — "Mexico 2017" — joined onto the
+   asset server-side from the vault's dated notes (server/services/photoTrips.js).
+   Absent on almost every photograph, which is correct: most days are not a trip.
+
+   It REPLACES the bare year rather than joining it, because it already carries
+   one (photoTrips appends the photo's own year for exactly this reason). A line
+   reading "Playa del Carmen · Mexico 2017 · 2017" would be the feature
+   announcing itself instead of saying something. */
+const tripOf = (asset) => String(asset?.trip ?? "").trim();
+
+/* One photograph's "when", which is its trip if it had one and its year
+   otherwise. Having a single function for it is what keeps the diptych honest:
+   a pair where one half is on the trip and the other is not merges to
+   "Mexico 2017 & 2017", which is odd-looking and TRUE, where picking one for
+   both halves would caption a photograph with somewhere it never was. */
+const whenOf = (asset) => tripOf(asset) || yearOf(asset);
+
 /* Two names read as a couple; beyond that the line becomes a list and stops
    being glanceable, so it degrades to a count. */
 function joinPeople(people) {
@@ -336,8 +353,8 @@ export function captionFor(asset) {
   const place = placeOf(asset);
   if (place) parts.push(place);
 
-  const year = yearOf(asset);
-  if (year) parts.push(year);
+  const when = whenOf(asset);
+  if (when) parts.push(when);
 
   return parts.join(" · ");
 }
@@ -350,8 +367,9 @@ export function captionFor(asset) {
  * merged and de-duplicated — "&" joins within a category, "·" between them —
  * which means the common pair (same place, same year, no named faces) reads
  * exactly like a single photograph's caption, because it is describing exactly
- * the same thing. Differing years can only appear via the unknown-date bucket;
- * the line stays true rather than pretending.
+ * the same thing. Differing "whens" can only appear via the unknown-date bucket
+ * — the halves are chosen within minutes of each other, so they share a trip
+ * whenever either has one — and the line stays true rather than pretending.
  */
 export function captionForFrame(assets) {
   const list = (assets ?? []).filter(Boolean);
@@ -364,8 +382,8 @@ export function captionForFrame(assets) {
   const places = uniq(list.map(placeOf).filter(Boolean));
   if (places.length) parts.push(places.join(" & "));
 
-  const years = uniq(list.map(yearOf).filter(Boolean)).sort();
-  if (years.length) parts.push(years.join(" & "));
+  const whens = uniq(list.map(whenOf).filter(Boolean)).sort();
+  if (whens.length) parts.push(whens.join(" & "));
 
   return parts.join(" · ");
 }
