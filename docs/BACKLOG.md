@@ -284,6 +284,42 @@ which is unstarted.
 
 ---
 
+### F7 · The fast lane answers EVERY calendar question about today
+**Owner's report, 2026-08-15: asked "am I free next Tuesday afternoon?", answered "nothing on
+today."** Reproduced exactly, in one line. **The microphone and the STT were perfect** — the
+agent logged `heard: 'Am I free next Tuesday afternoon?'`. The whole failure is the intent
+table.
+
+```
+"am i free on tuesday afternoon" -> cal.free  => "You've got 1 thing on today."
+"are we free on saturday"        -> cal.free  => "You've got 1 thing on today."
+"anything on wednesday"          -> cal.free  => "You've got 1 thing on today."
+"what's on tuesday"              -> cal.today => "Today: Dentist."
+```
+
+`cal.free`'s regex matches the bare phrase `am i free` and **carries no day slot at all**
+(`localIntents.js:106`), so every word after it is discarded. `cal.tomorrow` is the only
+day-aware row in the family, and only because it is a separate intent — no weekday is
+reachable.
+
+⚠⚠ **The failure mode is worse than not answering, and that is the part to fix first.** The
+reply is confident, fast, and about a different day: someone who asks about Tuesday and hears
+a sentence containing the word "today" has been told something false in the house's own
+voice. This repo already has the principle — *absent is not empty* — and this is it applied
+to time.
+
+**So the cheap half is a REFUSAL, not a parser.** If an utterance names a day the lane cannot
+resolve, `matchIntent` should decline and let the turn fall through to Assist and the house
+voice, which can at least reason about Tuesday. A day-slot parser (`next tuesday`, `saturday`,
+`this arvo`) is the full fix and much larger — `voiceSnapshot.calendar` already holds the
+whole feed, so the data is there; the windowing and the copy are the work.
+
+⚠ Whatever is built, the two answerers must move together: `cal.free` and `cal.today` both
+hard-code "today" in their sentences (`localAnswers.js`), so a matcher that gains a day slot
+and answerers that do not would keep saying "today" about Tuesday.
+
+---
+
 ### F6 · The ambient ground crops the subject out of the photograph
 **Owner's report, 2026-08-15: "heads are being cropped, tops of cocktails being left off."**
 Not yet investigated beyond confirming the arithmetic. **Do not treat this as a rendition
