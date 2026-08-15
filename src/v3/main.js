@@ -32,6 +32,7 @@ import { initHealth, lastHealth } from "./core/health.js";
 import { initDisplay, onPanelDark, displayState } from "./core/display.js";
 import { initNowPlaying, nowPlayingState } from "./core/now-playing.js";
 import { initMemoryRuntime } from "../js/core/memoryRuntime.js";
+import { initRoutineRuntime } from "../js/core/routineRuntime.js";
 
 /* ⚠ `/js/config.js` is a separate <script> in index.html, so window.CONFIG is
    populated before this module runs — but read it LATE anyway (per call, not at
@@ -271,6 +272,30 @@ function boot() {
      That is the right failure, not the right feature; the ambient tender frame
      is a design pass this file does not get to make. */
   stage("memory", () => initMemoryRuntime({ enabled: flag("memoryEngine") }));
+
+  /* ── Phase 8, and the SAME DEFECT the memory stage above records ───────────
+     `initRoutineRuntime()` also had exactly one caller — `js/core/app.js`,
+     which V3 does not import — so since the cutover the house has learned
+     nothing. `routineLearning` reads true, `data/routines/aggregates.json` is
+     frozen at whatever the incumbent last wrote, and every read of a learned
+     time has quietly returned null on the surface that actually ships.
+
+     Found 2026-08-16 while wiring learned times into the voice: the feature
+     depended on a module that was never armed, which is the second time this
+     file has caught that shape. Arming it restores intended behaviour rather
+     than adding any.
+
+     ⚠ Two things switch on together here, by design. The obvious one is the
+     wake/departure/return distributions. The quieter one is
+     `attentionWeights()` — a per-source ranking nudge, clamped to −15…+10,
+     which tilts sort ORDER only and never the displayed score. It needs four
+     appearances of a source before it moves at all, so nothing changes on the
+     wall today; it drifts in over a week.
+
+     AFTER initMemoryRuntime and BEFORE initAttention, for the same reason the
+     memory stage is: the engine reads the weights on its first tick, and armed
+     late it would run that tick without them. */
+  stage("routines", () => initRoutineRuntime({ enabled: flag("routineLearning") }));
 
   /* The house's opinion, and its permission to act on it. See core/attention.js:
      an interrupt reaches the glance whether or not anyone is there, the High

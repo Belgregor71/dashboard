@@ -64,6 +64,11 @@ const SHARED_BOTH = [
   "js/core/memoryRuntime.js",
   "js/core/personality.js",
   "js/core/personalityRuntime.js",
+  /* Phase 8, armed on V3 2026-08-16. It had exactly one caller — js/core/app.js,
+     which V3 does not import — so the house had learned nothing since the
+     cutover. Same defect the memory stage in v3/main.js records; see the
+     "routines" stage there. */
+  "js/core/routineRuntime.js",
   "js/core/tts.js",
   "js/modules/aiBriefing.js",
   "js/modules/briefingData.js",
@@ -90,6 +95,7 @@ const SHARED_BOTH = [
   "js/services/photoMemory.js",
   "js/services/predictiveRules.js",
   "js/services/quietMode.js",
+  "js/services/routineStore.js",
   "js/services/sleepSummary.js",
   "js/services/vocabulary.js",
   "js/services/voiceSnapshot.js",

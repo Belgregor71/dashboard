@@ -1,5 +1,6 @@
 import { haPost } from "../ha/haRest.js";
 import { createCoverageTracker } from "./motionCoverage.js";
+import { noteCoverage } from "./unresolved.js";
 
 // Watchdog: tracks per-feed freshness/failures, evaluates every minute, and
 // pushes a phone notification (via HA notify) when a feed degrades or recovers.
@@ -156,7 +157,17 @@ function evaluateFeed(id) {
 
   if (config.kind === "coverage") {
     if (!haManager) return { level: "ok", detail: "HA disabled" };
-    const { level, detail } = coverage.evaluate({ now, occupancy: currentOccupancy() });
+    const { level, detail, cameras } = coverage.evaluate({ now, occupancy: currentOccupancy() });
+    /* The house remembers what it could not account for.
+       Reconciled here rather than in motionCoverage.js because this is the one
+       place evaluate() runs on a timer — the detector stays pure and the
+       lifecycle stays in one place. Never throws into a health evaluation:
+       a mystery that cannot be written down must not cost the health sweep. */
+    try {
+      noteCoverage(cameras, now);
+    } catch (err) {
+      console.warn("[health] recording unresolved coverage failed:", err.message);
+    }
     return { level, detail };
   }
 

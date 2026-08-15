@@ -47,6 +47,11 @@ data/vault/
 # RAW_RETENTION_DAYS in server/services/conversationLog.js) and never, ever
 # committed — this repo is public and these are kitchen transcripts.
 data/conversations/
+# What the house has seen and cannot account for, and its own weather record.
+# Camera ids, times, and a daily reading — the house's observations of itself,
+# and this repo is public.
+data/unresolved.json
+data/weather-history.jsonl
 
 # Playwright MCP tool artifacts
 .playwright-mcp/

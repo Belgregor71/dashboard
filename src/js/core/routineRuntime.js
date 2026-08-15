@@ -1,3 +1,10 @@
+/* ═══ V3-SHARED-RUNTIME ═════════════════════════════════════════════════════
+   Loaded by BOTH surfaces: the incumbent (/) and V3 (/v3/).
+   `src/js/` is not the old dashboard — it is V3's runtime library. A cleanup
+   that retires "the legacy tree" takes this file out from under V3 with it.
+   docs/design/V3-CUTOVER.md §1 · guarded by tests/v3-closure.spec.js
+   ════════════════════════════════════════════════════════════════════════ */
+
 import { on } from "./eventBus.js";
 import { get as getContext } from "./contextStore.js";
 import {
@@ -130,6 +137,33 @@ function onHaState(event) {
 export function learnedDeparture(now = new Date()) {
   if (!enabled) return null;
   return learnedTime(routines, "departure", isWeekend(now));
+}
+
+/**
+ * The learned times the house is confident enough to state, for today's
+ * bucket — `{ wake, departure, return }` in minutes-of-day, each null until
+ * `predict()` clears CONF_THRESHOLD.
+ *
+ * ⚠⚠ THIS IS PULL-ONLY DATA AND MUST STAY THAT WAY. `docs/vision/phase-8-learn.md:81`
+ * makes it an absolute rule that learning is NEVER announced — "a half-learned
+ * routine that announces itself would be worse than silence" — and
+ * `personality.js:39-48` enforces it by stripping "I noticed…" from every
+ * candidate. This exists so the house can ANSWER "what time do we usually
+ * leave?", which is a question someone chose to ask. It must never become an
+ * attention candidate, a glance line, or anything the house volunteers.
+ *
+ * No threshold is applied here: learnedTime() already returns null below
+ * CONF_THRESHOLD, and re-implementing that bar would give the house two
+ * different opinions about what it is sure of.
+ */
+export function learnedTimes(now = new Date()) {
+  if (!enabled) return { wake: null, departure: null, return: null };
+  const weekend = isWeekend(now);
+  return {
+    wake:      learnedTime(routines, "wake", weekend),
+    departure: learnedTime(routines, "departure", weekend),
+    return:    learnedTime(routines, "return", weekend)
+  };
 }
 
 /** The clamped per-source attention nudges the ranking may tilt by (empty when off). */

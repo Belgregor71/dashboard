@@ -609,3 +609,49 @@ test.describe("takeSentences — sentence chunking for streamed speech", () => {
       .toBe(text.replace(/\s+/g, " ").trim());
   });
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   WHAT THE HOUSE HAS LEARNED — surfaced, hedged, and PULL ONLY.
+
+   routineStore has computed a real 0-1 confidence since Phase 8 and nothing
+   ever consumed it. These assert the two properties that let it reach the
+   voice at all: it is gated on that existing confidence, and it is worded as
+   a tendency rather than a fact about a person.
+
+   ⚠ The third property — that it is never VOLUNTEERED — is asserted in
+   tests/unresolved.spec.js against the character prompt, because that is
+   where the instruction lives. phase-8-learn.md:81 makes it an absolute rule.
+   ═══════════════════════════════════════════════════════════════════════════ */
+test.describe("houseDigest — learned routines, hedged", () => {
+  test("a learned time is phrased as usual, never as a fact", () => {
+    const d = houseDigest({ learned: { wake: 421, departure: 455, return: 1020 } });
+    expect(d.known.usualDay).toMatch(/usually/);
+    // 421 minutes = 7:01 am. The clock, not the raw minutes.
+    expect(d.known.usualDay).toMatch(/7:01 am/);
+    expect(d.known.usualDay).toMatch(/5:00 pm/);
+  });
+
+  // learnedTimes() already returns null below CONF_THRESHOLD. The digest must
+  // not re-implement that bar, or the house ends up with two different
+  // opinions about what it is sure of.
+  test("nulls are absent, not rendered", () => {
+    const d = houseDigest({ learned: { wake: 421, departure: null, return: null } });
+    expect(d.known.usualDay).toMatch(/up around/);
+    expect(d.known.usualDay).not.toMatch(/out by/);
+  });
+
+  /* ⚠ Not having learned a routine yet is NOT a blind spot. `blind` means "a
+     sensor I cannot read", and the house answering "I can't see when you
+     usually leave" would claim something is broken when the truth is simply
+     that it has not worked it out yet. */
+  test("no learned routine adds nothing to known AND nothing to blind", () => {
+    const d = houseDigest({ learned: { wake: null, departure: null, return: null } });
+    expect(d.known.usualDay).toBeUndefined();
+    expect(d.blind.join(" ")).not.toMatch(/usual|routine|leave|wake/i);
+  });
+
+  test("a missing learned block is not an error", () => {
+    expect(() => houseDigest({})).not.toThrow();
+    expect(houseDigest({}).known.usualDay).toBeUndefined();
+  });
+});

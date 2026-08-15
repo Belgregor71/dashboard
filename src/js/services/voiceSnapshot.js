@@ -379,6 +379,14 @@ const clock = (d) => {
 };
 const num = (n) => (typeof n === "number" && Number.isFinite(n) ? Math.round(n) : null);
 
+/** Minutes-of-day (routineStore's unit) → the clock the house speaks in. */
+function minutesToClock(minutes) {
+  const m = Math.max(0, Math.min(24 * 60 - 1, Math.round(minutes)));
+  const d = new Date();
+  d.setHours(Math.floor(m / 60), m % 60, 0, 0);
+  return d.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", hour12: true });
+}
+
 /** Today's events, in the house's own window. Kept to three — past that it is
  *  a screen's job, and the digest rides every single turn. */
 function eventsToday(calendar) {
@@ -483,6 +491,30 @@ export function houseDigest(snap) {
   } else {
     blind.push("what's playing");
   }
+
+  /* ── What the house has learned, hedged ───────────────────────────────────
+     routineStore has computed a real 0-1 confidence since Phase 8 and nothing
+     has ever consumed it. learnedTimes() returns null below CONF_THRESHOLD, so
+     anything arriving here has cleared the same bar the house already uses
+     internally — no second opinion about what it is sure of.
+
+     ⚠⚠ PULL ONLY. phase-8-learn.md:81 bans announcing learning; this is here
+     so "what time do we usually leave?" is answerable, not so the house can
+     bring it up. The wording says "usually" rather than stating a fact,
+     because that is exactly what a distribution over four-plus observations
+     supports and no more.
+  ─────────────────────────────────────────────────────────────────────────── */
+  const learned = s.learned ?? {};
+  const usual = [
+    learned.wake != null && `usually up around ${minutesToClock(learned.wake)}`,
+    learned.departure != null && `usually out by ${minutesToClock(learned.departure)}`,
+    learned.return != null && `usually back around ${minutesToClock(learned.return)}`
+  ].filter(Boolean);
+  // No `blind` entry when this is empty: not having learned a routine yet is
+  // not a blind spot to confess to, it is simply not knowing something. The
+  // house says "I haven't worked that out yet" from the absence, not from a
+  // claim that a sensor is down.
+  if (usual.length) known.usualDay = usual.join(", ");
 
   if (s.sleep?.score != null) known.sleep = `last night's sleep score ${s.sleep.score}, ${s.sleep.label}`;
   if (s.vacuum?.problem) known.vacuum = `the vacuum has a problem: ${s.vacuum.problem}`;

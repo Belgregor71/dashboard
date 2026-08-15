@@ -21,6 +21,7 @@
 import { matchIntent } from "../../js/services/localIntents.js";
 import { answer } from "../../js/services/localAnswers.js";
 import { voiceSnapshot, houseDigest, couldBeAssist, rememberReply } from "../../js/services/voiceSnapshot.js";
+import { learnedTimes } from "../../js/core/routineRuntime.js";
 import { speak, silence, createSpeech, setSpeakingObserver } from "../../js/core/tts.js";
 import { setPhase, setFailure, trackSpeech } from "./presence-light.js";
 import { deepen, sustain, setDepth, getDepth, DEPTH } from "./depth.js";
@@ -505,7 +506,15 @@ export async function submit(text, { source = "unknown" } = {}) {
        built fresh rather than reusing the `snap` from lane 1, because lane 1
        only builds one when an intent matched — and the turns that reach here
        are mostly the ones where none did. */
-    const body = { text: clean, history, house: houseDigest(voiceSnapshot(coords)) };
+    /* `learned` is passed IN rather than read inside voiceSnapshot, so that
+       module keeps importing nothing from core/ — it is imported directly by
+       node-side specs, and pulling routineRuntime's dependency chain in behind
+       it would make those specs depend on a browser environment. */
+    const body = {
+      text: clean,
+      history,
+      house: houseDigest({ ...voiceSnapshot(coords), learned: learnedTimes() })
+    };
 
     /* The streamed path speaks each sentence as it is written, so the room
        hears the first one while the model is still on the second. */

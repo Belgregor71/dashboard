@@ -9,6 +9,7 @@ import {
   buildConverseMessages,
   buildConverseSystem,
   houseContext,
+  unresolvedContext,
   takeSentences,
   todayLine,
   GRIEF_LINE,
@@ -19,6 +20,7 @@ import { createSoundDetector } from "../services/soundPresence.js";
 import { toolDefs, entityRoster, planCall } from "../services/voiceTools.js";
 import { houseCharacter, characterEnabled } from "../services/character.js";
 import { recordExchange } from "../services/conversationLog.js";
+import { openItems, resolvedItems } from "../services/unresolved.js";
 import { VOICE_REGISTER } from "./ai.js";
 
 // Phase 4 "Give it a voice" — the server half of the Mode 3 conversation lanes
@@ -157,6 +159,13 @@ export function converseSystem(text, tools, digest = null) {
   if (process.env.VOICE_HOUSE_CONTEXT === "1") {
     const house = houseContext(digest);
     if (house) lines.push(house);
+
+    /* What the house cannot account for. Rides the same flag as the rest of
+       the live state — it is house state, just the part with a question mark
+       over it — and is read here rather than passed in because it is the
+       server's own observation, not the page's. */
+    const wondering = unresolvedContext(openItems(), resolvedItems());
+    if (wondering) lines.push(wondering);
   }
 
   return buildConverseSystem(lines, context);

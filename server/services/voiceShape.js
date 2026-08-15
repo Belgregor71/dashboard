@@ -161,6 +161,54 @@ export function houseContext(digest) {
   return out.join("\n");
 }
 
+/* ── What the house is wondering about ──────────────────────────────────────
+   Open observations from services/unresolved.js becoming prompt lines.
+
+   ⚠ ANSWERED, NEVER ANNOUNCED. This reaches the model only so that a question
+   — "anything odd lately?", "is everything alright?" — has a truthful answer.
+   Nothing here becomes an attention candidate or a glance line, and the
+   instruction below says so explicitly, because a model handed a list of
+   unexplained events will otherwise volunteer them at the first opportunity.
+
+   ⚠ TONE IS LOAD-BEARING HERE and it is the one thing that could make this
+   feature unpleasant to live with. "The kitchen camera has gone quiet" said
+   ominously, unprompted, at 11pm, is a horror film. The instruction pins it
+   to curious-and-unbothered — which is also simply accurate, since every one
+   of these is a flat sensor observation, not a prowler.
+
+   Volatile: goes AFTER the cache breakpoint with the rest of the live state.
+─────────────────────────────────────────────────────────────────────────── */
+export function unresolvedContext(open, recentlyResolved = []) {
+  const lines = [];
+  for (const item of (Array.isArray(open) ? open : []).slice(0, 3)) {
+    if (!item || typeof item.what !== "string" || !item.what.trim()) continue;
+    lines.push(`- ${item.what.trim()}${item.evidence ? ` (${item.evidence})` : ""}`);
+  }
+
+  const cleared = (Array.isArray(recentlyResolved) ? recentlyResolved : [])
+    .slice(0, 2)
+    .filter((i) => i && typeof i.what === "string" && i.what.trim())
+    .map((i) => `- ${i.what.trim()} — ${i.resolution ?? "resolved"}`);
+
+  if (!lines.length && !cleared.length) return "";
+
+  const out = [];
+  if (lines.length) {
+    out.push("Things you have noticed and cannot account for:");
+    out.push(...lines);
+  }
+  if (cleared.length) {
+    out.push("Recently explained:");
+    out.push(...cleared);
+  }
+  out.push(
+    "Mention these only if asked something they answer. Do not volunteer them, " +
+    "and do not treat them as alarming — they are sensor observations, not intruders. " +
+    "You are curious about them, not worried, and you say plainly that you cannot explain them."
+  );
+  return out.join("\n");
+}
+
 /* ── Sentence chunking, for speaking before the model has finished ──────────
    A reply cannot be synthesised until it exists, so the old turn was
    strictly serial: the whole answer, then the whole WAV, then audio. Kokoro is

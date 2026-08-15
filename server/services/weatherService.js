@@ -1,6 +1,7 @@
 import fetch from "node-fetch";
 import { validateData } from "../middleware/validate.js";
 import { reportFailure, reportSuccess } from "./healthService.js";
+import { recordDay } from "./weatherHistory.js";
 import { readHaConfig } from "../ha/haConfig.js";
 import { fetchBomWeather, haConditionToWmoCode } from "./bomWeatherService.js";
 
@@ -327,6 +328,19 @@ export async function getWeatherNormalized({ lat, lon, validateNow, validateFore
       console.error("Weather forecast validation failed:", forecastResult.errors);
       return { now, forecast: weatherFallbackForecast() };
     }
+
+    /* One line a day, so the house eventually has a past to compare against
+       (weatherHistory.js — it retains nothing today, which is why every
+       "coldest morning in weeks" would currently be invented).
+
+       `now` here is normalizeWeatherNow's whole object — `{now, day}` — which
+       is already the shape recordDay reads (the day's high/low, and the
+       current condition label).
+
+       ⚠ Floated, never awaited: the caller is serving a forecast to the wall
+       and must not wait on a disk write. recordDay() never throws and is
+       idempotent per day, so calling it on every refresh is correct. */
+    recordDay(now).catch(() => {});
 
     return { now, forecast };
   } catch (error) {

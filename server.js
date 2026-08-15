@@ -19,6 +19,7 @@ import arrRoutes from "./server/routes/arr.js";
 import { createHaRouter } from "./server/ha/haRoutes.js";
 import haSnapshotRoutes from "./server/routes/haSnapshot.js";
 import systemRoutes from "./server/routes/system.js";
+import houseRoutes from "./server/routes/house.js";
 import weatherRoutes from "./server/routes/weather.js";
 import calendarRoutes from "./server/routes/calendar.js";
 import commuteRoutes from "./server/routes/commute.js";
@@ -115,6 +116,9 @@ startRecoveryService({ manager: haEnabledForHealth ? getHaWsManager() : null });
 
 // Feature routes
 app.use(systemRoutes);
+// Unconditional: the house observes its own devices whether or not the
+// knowledge base is on, and an empty list reads exactly as it does today.
+app.use(houseRoutes);
 app.use(weatherRoutes);
 app.use(calendarRoutes);
 app.use(commuteRoutes);

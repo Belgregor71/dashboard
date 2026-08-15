@@ -9,6 +9,7 @@ import {
   MAX_ENTRIES_PER_DAY,
   RAW_RETENTION_DAYS
 } from "../server/services/conversationLog.js";
+import { parseHistory, recordDay, MAX_DAYS } from "../server/services/weatherHistory.js";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CONVERSATION MEMORY — the pure half.
@@ -169,5 +170,58 @@ test.describe("the retention promise", () => {
     expect(MAX_ENTRIES_PER_DAY).toBeLessThanOrEqual(1000);
     expect(RAW_RETENTION_DAYS).toBeLessThanOrEqual(7);
     expect(RAW_RETENTION_DAYS).toBeGreaterThan(0);
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   WEATHER HISTORY — one line a day, so the house eventually has a past.
+
+   ⚠ This feature does nothing today, on purpose. Audited 2026-08-16: the
+   dashboard retains no weather reading of any age, so every "coldest morning
+   in weeks" the house could say would be invented. These tests pin the
+   properties that make the file trustworthy once it has some depth.
+   ═══════════════════════════════════════════════════════════════════════════ */
+test.describe("weatherHistory — the record the house keeps of its own sky", () => {
+  const day = (d, high, low) => JSON.stringify({ day: d, high, low, condition: "Clear" });
+
+  test("parses days, newest first", () => {
+    const out = parseHistory([day("2026-08-14", 22, 9), day("2026-08-15", 24, 11)].join("\n"));
+    expect(out.map((e) => e.day)).toEqual(["2026-08-15", "2026-08-14"]);
+  });
+
+  // A restart can append a second row for the same day; the later one is the
+  // more complete reading of it.
+  test("a duplicated day collapses to the last line written", () => {
+    const out = parseHistory([day("2026-08-15", 20, 9), day("2026-08-15", 24, 11)].join("\n"));
+    expect(out).toHaveLength(1);
+    expect(out[0].high).toBe(24);
+  });
+
+  test("a half-written trailing line costs that line, not the history", () => {
+    const out = parseHistory(`${day("2026-08-15", 24, 11)}\n{"day":"2026-08-16","hi`);
+    expect(out).toHaveLength(1);
+  });
+
+  test("never throws on rubbish", () => {
+    for (const bad of [null, undefined, "", "not json", 42]) {
+      expect(() => parseHistory(bad)).not.toThrow();
+      expect(parseHistory(bad)).toEqual([]);
+    }
+  });
+
+  test("bounded to roughly three years", () => {
+    const lines = Array.from({ length: MAX_DAYS + 200 }, (_, i) => {
+      const d = new Date(Date.UTC(2020, 0, 1 + i)).toISOString().slice(0, 10);
+      return day(d, 20, 10);
+    });
+    expect(parseHistory(lines.join("\n")).length).toBeLessThanOrEqual(MAX_DAYS);
+  });
+
+  // A day with neither a high nor a low is not worth a row: every later
+  // "coldest since" query would filter it out anyway, and a sparse file of
+  // real days beats a dense one of half-days.
+  test("a reading with no high and no low is not recorded", async () => {
+    expect(await recordDay({ now: { condition: { label: "Clear" } }, day: {} })).toBe(false);
+    expect(await recordDay(null)).toBe(false);
   });
 });
