@@ -542,8 +542,20 @@ test("⚠ one subject replaces another rather than layering over it", async ({ p
 });
 
 test("⚠ fifteen show/leave cycles leave the DOM exactly where they found it", async ({ page }) => {
-  // The same teardown proof Phase 1 used for the camera subject, widened to the
-  // Phase 4 six. A single cycle proves nothing about a wall that runs for weeks.
+  /* The same teardown proof Phase 1 used for the camera subject, widened to the
+     Phase 4 six. A single cycle proves nothing about a wall that runs for weeks.
+
+     ⚠ MOUNTED DIRECTLY RATHER THAN SPOKEN — measured 2026-08-15, this test was
+     a coin flip on every run: thirty voice turns took **30.5 s** against the
+     config's 30 s default, so it passed or failed on how busy the machine was.
+     That is a real candidate for the "different single failure each run" flakes
+     this suite has been carrying since 2026-08-08, and it is the same defect
+     the F2 churn test below shipped with and had to fix.
+
+     The subject here is TEARDOWN. The voice turn is proven by the tests above,
+     and `__v3Subject` mounts without a TTS round trip — the browser's speech
+     fallback is a serialised resource, which is what made the cost superlinear
+     under load. Same fifteen cycles, ~1 s. */
   const { pageErrors } = await bootV3(page, {
     "/api/immich/on-this-day": { assets: [{ id: "aaa", takenAt: "2019-08-10T08:00:00Z" }] },
     "/api/calendar/all": []
@@ -552,13 +564,16 @@ test("⚠ fifteen show/leave cycles leave the DOM exactly where they found it", 
 
   const got = await page.evaluate(async () => {
     const count = () => document.querySelectorAll("*").length;
+    // An unknown id is the documented way to clear, and __setDepth(0) is NOT:
+    // __v3Subject does not touch depth, so there is no transition to fire the
+    // handler that tears a subject down on the way out of SUBJECT.
+    await window.__v3Subject("__spec.none__");
     const settle = count();
     for (let i = 0; i < 15; i++) {
-      await window.__v3Transcript("show me the year");
-      window.__setDepth(0, "spec");
-      await window.__v3Transcript("show me my day");
-      window.__setDepth(0, "spec");
+      await window.__v3Subject("show.year");
+      await window.__v3Subject("show.day");
     }
+    await window.__v3Subject("__spec.none__");
     return { settle, after: count(), mount: document.getElementById("subject-mount").childElementCount };
   });
 
@@ -1051,7 +1066,22 @@ test("⚠ a house that cannot see its players still says nothing at all", async 
 test("⚠ the three leave nothing behind either — ten cycles, same DOM", async ({ page }) => {
   /* The teardown proof, widened to the rows it had never covered. The radar is
      the worst case in the whole registry: eighteen <img> elements, every one of
-     them a live connection to our own tile cache. */
+     them a live connection to our own tile cache.
+
+     ⚠ MOUNTED DIRECTLY, NOT SPOKEN, and that is the fix for a flake I wrote
+     myself. The first draft drove all thirty cycles through __v3Transcript: it
+     landed at ~29 s against the config's 30 s default, passed on the machine it
+     was written on, and failed the pre-push gate the moment anything else
+     shared the CPU. Raising the budget did not hold either — three copies in
+     parallel blew 90 s, because ten of those turns SPEAK and the TTS fallback
+     is a serialised browser resource.
+
+     The subject of this test is TEARDOWN. The voice turn is proven by the six
+     tests above it, and __v3Subject exists precisely to mount a subject without
+     saying anything out loud — it is what kiosk-drive.cjs uses to cycle the
+     wall. So the churn keeps all ten cycles (a per-event leak is exactly what
+     only shows on the tenth pass) and drops the speech that was never the
+     point. Fewer cycles would have fit the budget and proved less. */
   const { pageErrors } = await bootV3(page, {
     "/api/weather/radar/meta": RADAR_META,
     "/api/calendar/all": calToday()
@@ -1061,15 +1091,24 @@ test("⚠ the three leave nothing behind either — ten cycles, same DOM", async
 
   const got = await page.evaluate(async () => {
     const count = () => document.querySelectorAll("*").length;
+    /* ⚠ `__setDepth(0)` DOES NOT CLEAR A SUBJECT MOUNTED THIS WAY, which is the
+       second thing this test taught me about itself. __v3Subject deliberately
+       does not touch depth, so with nothing to leave, no depth transition
+       fires, and the handler that tears a subject down on the way out of
+       SUBJECT never runs — the last mount was still on the surface and
+       `children` read 1. An unknown id is the documented way to clear: it tears
+       the previous subject down before it looks the new one up. Same bracket
+       kiosk-drive.cjs puts around the wall's own cycle. */
+    await window.__v3Subject("__spec.none__");
     const settle = count();
     const seen = new Set();
     for (let i = 0; i < 10; i++) {
-      for (const utterance of ["show me the radar", "what about tonight", "show me what's playing"]) {
-        await window.__v3Transcript(utterance);
+      for (const id of ["show.sky", "show.tonight", "show.media"]) {
+        await window.__v3Subject(id);
         seen.add(window.__v3().subject);
-        window.__setDepth(0, "spec");
       }
     }
+    await window.__v3Subject("__spec.none__");
     const mount = document.getElementById("subject-mount");
     return {
       settle,
