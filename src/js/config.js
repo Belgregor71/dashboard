@@ -1155,9 +1155,23 @@ window.CONFIG = {
     // a day behind a budget and months-long cooldowns. That rationing is right
     // for an unasked-for line and wrong for a screen somebody just asked to see.
     //
-    // Flag-off ⇒ /api/memories is never fetched and the grid is the raw
-    // on-this-day pool in its original order, which is what shipped before —
-    // that is the rollback, and tests/v3-curated-year.spec.js asserts it.
+    // Flag-off ⇒ /api/memories is never fetched by the subject and the grid is
+    // the raw on-this-day pool in its original order, which is what shipped
+    // before — that is the rollback, and tests/v3-curated-year.spec.js asserts
+    // it. (The runtime still loads the same file at boot for the attention
+    // queue; this flag governs the SUBJECT, not the store.)
+    //
+    // ⚠ OFF PENDING A LIVE SIGHTING, and the reason is the calendar rather than
+    // any doubt about the code: measured on the G11 2026-08-15, the 73 authored
+    // memories land on 47 DISTINCT DAYS of the year, and today is not one of
+    // them. On the other 318 days this flag changes nothing at all. The first
+    // day it can be seen is 2026-08-20 ("Boof loved his bear").
+    //
+    // ⚠ That first day is also a TENDER entry, which is worth knowing before
+    // flipping: 12 of the 73 are. A tender photograph appears in the year and
+    // is captioned "20 years ago" and nothing else — memoryEngine.toSurface's
+    // one rule about grief (`caption: null`) is honoured rather than excepted
+    // for a screen that was asked for.
     v3CuratedYear: false,
   },
 

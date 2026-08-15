@@ -117,17 +117,25 @@ const curatedEnabled = () => Boolean(globalThis.window?.CONFIG?.features?.v3Cura
  * wall, all wrong for a screen somebody just asked to see. "Show me the year" is
  * a request, and a request is not rationed.
  *
- * ⚠ Tender entries are included here, and that is not the runtime's
- * ambientOnly rule being broken. That rule keeps grief out of a passing TEXT
- * line nobody asked for; this is nine photographs somebody asked for, with no
- * narration but the title they wrote themselves.
+ * ⚠ A TENDER ENTRY IS SHOWN BUT NEVER NARRATED. `memoryEngine.toSurface` makes
+ * exactly one rule about `sensitivity: "tender"` — `caption: null`, because the
+ * house does not put grief into words — and this honours it rather than
+ * inventing an exception for a screen that was asked for. 12 of the 73 authored
+ * memories are tender, and the very next curated day (20 August, "Boof loved
+ * his bear", 2006) is one of them, so this is not a hypothetical.
+ *
+ * The photograph still appears and still says how long ago it was. What it does
+ * not do is read the sentence somebody wrote about a dog that died.
  */
 function curatedPlates(memories, now) {
   const out = [];
   for (const entry of memories) {
     if (!entry?.id || !anniversaryToday(entry, now)) continue;
     const when = yearsAgo(entry.date, now);
-    const caption = [when, String(entry.title ?? "").trim()].filter(Boolean).join(" · ");
+    const tender = entry.sensitivity === "tender";
+    const caption = tender
+      ? when
+      : [when, String(entry.title ?? "").trim()].filter(Boolean).join(" · ");
     for (const ref of Array.isArray(entry.photos) ? entry.photos : []) {
       const src = memoryPhotoSrc(ref);
       // The Immich id, so the raw fill below cannot show the same photograph

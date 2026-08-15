@@ -296,6 +296,40 @@ test("nothing curated and nothing photographed is still a refusal, not a black s
   expect(pageErrors).toEqual([]);
 });
 
+/* ⚠ THE HOUSE DOES NOT PUT GRIEF INTO WORDS. memoryEngine.toSurface makes
+   exactly one rule about a tender entry — `caption: null` — and a screen that
+   was asked for does not get to invent an exception to it. 12 of the 73 live
+   authored memories are tender and the next curated day after this shipped
+   (20 August, a dog, 2006) is one of them, so this is the real case. */
+test("a tender memory is SHOWN but never narrated", async ({ page }) => {
+  const { year, month, day } = todayParts();
+  const iso = `${year - 20}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  await bootV3(page, {
+    routes: {
+      "/api/immich/on-this-day": { assets: [] },
+      "/api/memories": {
+        memories: [
+          authoredToday({
+            id: "boof",
+            title: "Boof loved his bear",
+            kind: "pet",
+            sensitivity: "tender",
+            date: iso,
+            recurring: undefined,
+            photos: [{ immich: "boof-1" }]
+          })
+        ]
+      }
+    },
+    flags: { v3CuratedYear: true }
+  });
+
+  const got = await showYear(page);
+  expect(got.images).toBe(1); // the photograph is there
+  expect(got.captions).toEqual(["20 years ago"]); // the sentence is not
+  expect(got.captions.join(" ")).not.toContain("Boof");
+});
+
 /* A dated entry earns "N years ago" in front of its own words; a recurring one
    has no year to count from and must not invent one. `new Date(null)` is the
    epoch rather than an invalid date, which is how an undated memory once got
