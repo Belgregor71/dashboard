@@ -208,6 +208,32 @@ violation. "show me tonight" / "what about tonight" / "what's tonight" all reach
 ⚠ `tests/local-voice.spec.js`'s "handled by the incumbent" list is **corrected, not deleted**:
 it describes the rollback surface (`V3_DEFAULT=0`), not the wall.
 
+#### ✅ And then it was driven on the actual glass — which found three more
+
+All three mounted, spoken, on the G11, 2026-08-15 (`scrot` for each). `show.sky` at depth 3
+with 18 tiles, `show.tonight` reading "SATURDAY 15 AUGUST · 6pm Steak with Peppercorn Sauce"
+(the `Meal:` prefix correctly stripped), `show.media` declining and **speaking** for the first
+time. Looking at them cost about ten minutes and found three defects, which is the same rate
+as the Phase 5 viewing:
+
+- ⛔ **The radar threw away 44% of the map.** Tiles are 256×256 and a 3×3 mosaic is a SQUARE
+  map; it was stretched over the whole 1920×1080 panel, so each cell was 640×360 and
+  `object-fit: cover` cropped 140px off the top and bottom of every tile — nine strips butted
+  together and passed off as a continuous coastline, with the house nowhere near the centre.
+  Now 1080×1080 centred; Brisbane sits in the middle where `buildTileGrid` always put it.
+  🔑 **Only a geometry assertion could have caught this** — every tile loaded, the grid had its
+  nine children, and a map has no text to read.
+- ⛔ **The house said "TV."** `mediaSource.js` names THREE readers that must share the
+  TV-audio rule and its spec asserted TWO; `voiceSnapshot` never had it. Live:
+  `media_player.living_room` playing with `source: "TV"`, the screen correctly showing nothing
+  playing, the voice answering "TV." 🔑 **A test that enumerates N things and asserts N−1 is
+  worse than one that asserts nothing, because it reads as coverage.**
+- ⛔⛔ **A declined subject left the wall HELD at depth 3 with nothing in it** —
+  `{depth: 3, held: true, subject: null, mount: 0}`, a blank stage owning the whole screen for
+  30 s and re-armed by every repeat. `showSubject()` empties the stage before it looks the new
+  id up, and **`deepen()` falls through to `sustain()` for a shallower target** — the trap
+  Phase 1 wrote down and did not close. Reachable from every lane, not just the new one.
+
 ---
 
 ### F3 · The three remaining built-but-unflipped flags
