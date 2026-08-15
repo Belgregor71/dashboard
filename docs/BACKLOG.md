@@ -284,6 +284,34 @@ which is unstarted.
 
 ---
 
+### F6 · The ambient ground crops the subject out of the photograph
+**Owner's report, 2026-08-15: "heads are being cropped, tops of cocktails being left off."**
+Not yet investigated beyond confirming the arithmetic. **Do not treat this as a rendition
+problem — that question is closed** (`ground.js:150`, measured on the live library: Immich
+caps previews at a 1920 long edge, `?size=fullsize` 302s to the same file, `/original` is
+HEIC and Chromium cannot render it).
+
+It is a FRAMING problem, and the numbers are already written down:
+
+| photo | aspect | what `object-fit: cover` keeps on a 1.78 panel |
+|---|---|---|
+| 16:9 | 1.78 | everything |
+| 4:3 landscape — most phone photos | 1.33 | **75% of the height**, 12.5% off the top and bottom |
+| 3:4 portrait | 0.75 | **~42% of the picture** (`ground.js:156`) |
+
+So the crop is centred and blind, and a face near the top of the frame is exactly what it
+takes. ⚠ `LANDSCAPE_MIN_ASPECT = 1.2` sorts landscape photos first, which addresses UPSCALE
+and says nothing about how much is cut — a 4:3 photo passes that gate and still loses a
+quarter of its height.
+
+Worth knowing before designing: **Immich already holds face bounding boxes**, so an
+`object-position` driven by where the people actually are is reachable without new
+inference — and `groundDiptych` already exists for the portrait half of the problem
+(a portrait in a 952-wide half keeps ~84%). Same family as the radar defect closed in F2:
+a centred blind crop that looks plausible until someone looks at it.
+
+---
+
 ### F5 · Owed live sightings — features shipped that no human has watched work
 **Time-gated; fold into other sessions rather than scheduling.**
 
