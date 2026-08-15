@@ -1,7 +1,9 @@
 import { CONFIG } from "../core/config.js";
 import { on } from "../core/eventBus.js";
 import { switchView, getCurrentView } from "../core/viewManager.js";
-import { wakeScreensaver, resetIdleTimer, isScreensaverActive } from "./screensaver.js";
+// `isScreensaverActive` left with the motionWakeGate retirement — it was the
+// gate's only reader in this module.
+import { wakeScreensaver, resetIdleTimer } from "./screensaver.js";
 
 
 const DEFAULT_DURATION_SECONDS = 30;
@@ -543,23 +545,15 @@ export function initCameraPopupOverlay() {
 
     if (!isTriggerActive(popupConfig, event.detail?.state)) return;
 
-    // features.motionWakeGate (audit M5): while Mode 0 is up, plain motion no
-    // longer lights the panel. Measured 61 camera-driven wakes in 24h, 49 of
-    // them plain motion (driveway alone 33) — a 32" display waking for a car at
-    // 3am is not a more useful glance. Same isLiveWorthy rule the battery gate
-    // already applies to P2P: person/ring come through, motion waits for the
-    // next real glance. Skipped ENTIRELY rather than shown-without-waking —
-    // a popup drawn behind an active screensaver is invisible, so its snapshot
-    // fetch and 1s ticker would be pure work for nobody. Flag off → unchanged.
-    // Read off window.CONFIG, NOT the imported CONFIG — core/config.js has no
-    // `features` key at all, so `CONFIG.features?.x` is silently always
-    // undefined and any flag written that way is permanently off.
-    if (window.CONFIG?.features?.motionWakeGate
-        && isScreensaverActive()
-        && !isLiveWorthy(trigger.detection)) {
-      logDebug("plain motion suppressed while asleep", { entityId, camera: trigger.camera });
-      return;
-    }
+    // `features.motionWakeGate` (audit M5) used to stand here and suppress a
+    // plain-motion trigger while Mode 0 was up. Retired 2026-08-15 unflipped:
+    // this module is incumbent-only and the incumbent is not what / serves, so
+    // the flag could not change anything on the wall. V3 enforces the same rule
+    // structurally and harder — core/alerts.js is its only unasked wake path and
+    // it knows exactly three entities, all of them a ring or a person. The
+    // measurement that justified the gate is still true of THIS module (61
+    // camera-driven wakes in 24h, 49 plain motion, driveway alone 33), so if the
+    // incumbent is ever put back on the wall, put the gate back with it.
 
     // features.displayWake (audit M11): between 21:00 and 05:00 the Pi's crontab
     // has the panel powered down via `xset dpms force off`, so a ring at 3am

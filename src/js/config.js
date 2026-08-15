@@ -758,16 +758,16 @@ window.CONFIG = {
     // listener entirely.
     voiceRail: true,
 
-    // Audit M5. Camera motion wakes the kiosk through the popup overlay
-    // (cameraPopupOverlay wakeScreensaver()), which fires for all six outdoor
-    // cameras on motion AND person — measured 61 wakes in 24h, 49 of them
-    // plain motion (driveway 33, doorbell 13). This gate suppresses a plain
-    // motion trigger outright while the screensaver is up; person and doorbell
-    // still wake and pop. Awake behaviour is untouched — the popup shows for
-    // everything, exactly as now. Default OFF = today's behaviour, byte-for-
-    // byte. Flip ON only after the Pi shows a real person event still waking.
-    // One-line revert (-> false).
-    motionWakeGate: false,
+    // RETIRED 2026-08-15 — `motionWakeGate` was here, and the wall outgrew it.
+    // Audit M5 built it to stop plain camera motion waking the kiosk (61 wakes
+    // measured in 24h, 49 of them plain motion). It lived in
+    // cameraPopupOverlay.js, which V3 does not import: 0 occurrences in
+    // dist/assets/v3-*.js. V3's only unasked wake path is core/alerts.js ->
+    // services/alertRouter.js, whose entire trigger set is doorbell-ring,
+    // doorbell-person and side-gate-person — so plain motion cannot reach the
+    // panel at all, and the gate's own rule is now structural and stricter.
+    // A flag that cannot change what is on the wall is not a lever, it is a
+    // reader's trap; the restraint is kept, the switch is gone.
 
     // "The Day, Rendered" v2 (docs/design/TEMPORAL-SPINE.md) — the
     // temporal spine. Replaces the centred hero + lean-in glass stack with ONE

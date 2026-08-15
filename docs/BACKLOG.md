@@ -6,7 +6,17 @@ Where a doc and the code disagreed, the code won and the doc is flagged for corr
 
 Ordering: **security → new features → the measurement debt that gates them → cleanup.**
 
-> ## ✅ P0, **F1**, **F2**, **F5**, **F7**, **F8**, **P4** and **M1** ARE CLOSED. **F6 is half done.** Start at **F3**.
+> ## ✅ P0, **F1**, **F2**, **F3**, **F5**, **F7**, **F8**, **P4** and **M1** ARE CLOSED. **F6 is half done.** Start at **F4** (read it first — it is a decision, not a task).
+>
+> **2026-08-15 — F3 is closed, and it was not a flag chore.** Two of its three flags were
+> **dead levers**: `motionWakeGate` has 0 occurrences in the V3 bundle and is now retired
+> unflipped, and `robotCandidate` had 0 because `houseSnapshot()` never read it. Chasing the
+> second found the defect worth the session: **two readers were handed an ARRAY when they are
+> keyed by entity id**, so `bomWarning` has been permanently empty since the cutover — and
+> `bom` (95, interrupt) is the only candidate that survives an empty room. **The wall could
+> not tell you a storm was coming.** Fixed, gated, four new specs. `gamingQuiet` skipped on the
+> owner's call. 🔑🔑 **`grep -c <flag> dist/assets/v3-*.js` before touching any flag in this
+> file** — byte-identical-when-off is trivially true when neither state is reachable.
 >
 > **2026-08-15 — F5 is closed: all four owed sightings have now been watched.** Two were the
 > owner's (the spoken veto, a real doorbell); two were driven this session. The tool lane
@@ -258,20 +268,59 @@ as the Phase 5 viewing:
 
 ---
 
-### F3 · The three remaining built-but-unflipped flags
-**~1 h each, all gated on M1 below.**
+### F3 · ⚠ **NOT a flag chore — two of the three were DEAD LEVERS, and a real defect sat under one**
 
-| Flag | `config.js` | Waiting on |
+**`gamingQuiet` skipped on the owner's call (2026-08-15) — no value seen in it.** The other
+two were both picked up, and neither could change what is on the wall. Same class as F4, and
+that now makes **three** flags in this file whose premise the cutover quietly invalidated.
+
+| Flag | Occurrences in `dist/assets/v3-*.js` | Outcome |
 |---|---|---|
-| `motionWakeGate` | :770 | a real person event still waking the panel |
-| `robotCandidate` | :412 | the flag-off no-op proven on the panel |
-| `gamingQuiet` | :423 | a live judgement call |
+| `motionWakeGate` | **0** | **RETIRED unflipped** |
+| `robotCandidate` | **0** (before the fix) | left **off**, but it is a real lever now |
+| `gamingQuiet` | — | skipped, owner's call |
 
-Each is byte-identical when off and carries a one-line revert. ✅ **Unblocked 2026-08-15** —
-the instrument can take an honest V3 reading again. Take the ambient and peak rows on the G11
-first and write them into `HOST-BASELINES.md`: you still cannot judge a new flag's cost
-against a baseline that predates the engine and the SSE, and the peak row does **not**
-continue across the cutover, so there is nothing to diff until a V3 peak is on record.
+🔑🔑 **A flag whose code is not in the bundle the wall loads is not "unflipped", it is
+decorative** — and the flag-off-is-byte-identical property that made both look cheap is what
+hid it: byte-identical is trivially true when neither state is reachable. `grep -c <flag>
+dist/assets/v3-*.js` is one command and answers this before any of the rest is worth doing.
+
+**`motionWakeGate` — retired.** It lived in `cameraPopupOverlay.js`, which V3 does not import.
+V3's only unasked wake path is `core/alerts.js` → `services/alertRouter.js`, whose entire
+trigger set is three entities: `doorbell_ringing`, `doorbell_person_detected`,
+`side_gate_person_detected`. **Plain motion cannot reach the panel on V3 at all**, so the
+gate's own rule is already structural and stricter than the gate. The flag and its branch are
+gone; the *measurement* that justified it (61 camera wakes/24h, 49 plain motion, driveway 33)
+is preserved in a note in the module, because it is still true of the incumbent. Its spec
+became `tests/camera-popup-trigger.spec.js` — the three ungated cases are kept deliberately,
+since `V3_DEFAULT=0` is a one-line rollback and that chain should not come back untested.
+
+**`robotCandidate` — the flag was dead for a different reason, and finding out why found a
+real bug.** `houseSnapshot()` builds both an array and a map of the entity cache and handed
+the **ARRAY** to the two readers that are keyed by entity id. Nothing throws: `getBomWarnings`
+looks up a numeric index that cannot exist, `robotAttentionFrom` regex-tests `"0"`, `"1"`,
+`"2"`… against `/roborock/i`. Both return a cheerful empty answer — the exact "absent read as
+empty" failure this module's own header warns about.
+
+⚠⚠ **The robot was the cheap half. `bom` is the ONLY interrupt-band candidate (95) that
+survives an empty room** — `selectForMode` filters AMBIENT down to `c.interrupt` alone — so
+since the cutover **V3 has had no way to break through to an empty room to say a storm was
+coming.** Fixed in `c6ddb87`; the incumbent was never affected (`focusHero.js:120` passes
+`getAllEntities()`, which is the map). The robot read is gated on the flag **in the same
+commit**, because the live house has three overdue consumables today and repairing the shape
+alone would have flipped a default-off feature on by side effect.
+
+🔑 **Why 1309 green tests sat on top of two dead readers:** every case in
+`house-snapshot.spec.js` asserted what a COLD path produces, and empty is the *correct* answer
+when HA is disconnected. Disconnected was the only state anyone ever tested. Four specs added
+that can produce the defect; all four fail without the fix.
+
+⏳ **Still owed:** the ambient/peak rows on the G11 for `HOST-BASELINES.md`. Not a blocker for
+anything above — F3 needed no new baseline in the end, because it shipped no new cost.
+
+**New item spun out:** `sensor.roborock_s7_maxv_dock_dock_error = "duct_blockage"` on the live
+house — a real fault the house knows and nobody is told. `ROBOT_PROBLEM_LABELS` covers only
+the three water binary sensors, so the dock's own error enum is invisible to every surface.
 
 ---
 
@@ -633,8 +682,12 @@ and `/` has served V3 since the cutover. So:
   table's own "record `anims`" rule would file a live-ambient sample under the quiescent row.
   On V3 the discriminator is `__substrate().animating`/`paused`.
 
-**Next:** give V3 the seams the sweep needs, then re-run it. **F3/F4 stay gated behind that** —
-they cannot be judged against a baseline the instrument cannot take.
+**Next:** give V3 the seams the sweep needs, then re-run it. **F4 stays gated behind that** —
+it cannot be judged against a baseline the instrument cannot take.
+
+⚠ **F3 was never actually gated on this, and the gating was the wrong question.** Closed
+2026-08-15 without a new baseline, because it shipped no new cost: two of its three flags had
+no code in the V3 bundle at all. The reading is still owed for its own sake — see M1.
 
 ### M2 · The 72 h soak
 Never run. A 23.6 h soak ran clean at the cutover (`V3-CUTOVER.md:576`) — the 72 h one is still
