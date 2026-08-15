@@ -8,9 +8,13 @@ import {
   GRIEF_LINE,
   SPEAKER_UNKNOWN_LINE,
   MAX_TURNS,
-  MAX_TURN_CHARS
+  MAX_TURN_CHARS,
+  houseContext,
+  MAX_DIGEST_ENTRIES,
+  MAX_DIGEST_VALUE_CHARS
 } from "../server/services/voiceShape.js";
 import { houseCharacter } from "../server/services/character.js";
+import { houseDigest } from "../src/js/services/voiceSnapshot.js";
 import { converseSystem } from "../server/routes/voice.js";
 import { VOICE_REGISTER } from "../server/routes/ai.js";
 
@@ -311,5 +315,212 @@ test.describe("converseSystem — the flag-off prompt is unchanged", () => {
     process.env[KEY] = "1";
     const out = converseSystem("hello", []);
     expect(out.indexOf("only permanent resident")).toBeLessThan(out.indexOf("It is "));
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   houseContext — the digest becoming prompt lines.
+
+   The property under test is not "it renders nicely". It is that a house which
+   cannot SEE something never sounds like a house reporting that there is
+   nothing there. That distinction is carried carefully through every reader in
+   voiceSnapshot.js because losing it once already produced "the shopping list
+   is empty" on a morning when Home Assistant was simply disconnected.
+   ═══════════════════════════════════════════════════════════════════════════ */
+test.describe("houseContext — absent is not empty", () => {
+  test("known state is rendered as what the house can see", () => {
+    const out = houseContext({ known: { weather: "19°, clear", playing: "nothing playing" }, blind: [] });
+    expect(out).toContain("19°, clear");
+    expect(out).toContain("nothing playing");
+    expect(out).not.toMatch(/CANNOT see/);
+  });
+
+  // The load-bearing one.
+  test("a blind spot is named, and instructs the house not to fill it in", () => {
+    const out = houseContext({ known: {}, blind: ["the shopping list", "the cameras"] });
+    expect(out).toContain("the shopping list");
+    expect(out).toMatch(/CANNOT see/);
+    expect(out).toMatch(/do not guess/i);
+  });
+
+  test("empty and blind produce visibly different prompts for the same field", () => {
+    const empty = houseContext({ known: { shopping: "the shopping list is empty" }, blind: [] });
+    const unseen = houseContext({ known: {}, blind: ["the shopping list"] });
+    expect(empty).not.toBe(unseen);
+    expect(empty).not.toMatch(/CANNOT see/);
+    expect(unseen).toMatch(/CANNOT see/);
+  });
+
+  // ⚠ An array reaching a reader keyed by name is what left bomWarning
+  // permanently empty. This one arrives over HTTP, so it must degrade rather
+  // than throw or silently render garbage.
+  test("a malformed digest degrades to nothing instead of throwing", () => {
+    for (const bad of [null, undefined, "weather", 42, [], { known: ["19°"] }, { known: null }]) {
+      expect(() => houseContext(bad)).not.toThrow();
+      expect(houseContext(bad)).toBe("");
+    }
+  });
+
+  test("non-string values are dropped, not stringified into [object Object]", () => {
+    const out = houseContext({ known: { weather: "19°", junk: { a: 1 }, n: 5 }, blind: [] });
+    expect(out).toContain("19°");
+    expect(out).not.toContain("[object Object]");
+    expect(out).not.toContain("5");
+  });
+
+  // It rides every conversational turn, so it is bounded on both axes.
+  test("bounded — entries and value length are both capped", () => {
+    const known = Object.fromEntries(
+      Array.from({ length: 40 }, (_, i) => [`k${i}`, "x".repeat(500)])
+    );
+    const out = houseContext({ known, blind: [] });
+    expect(out.split("\n").filter((l) => l.startsWith("- "))).toHaveLength(MAX_DIGEST_ENTRIES);
+    for (const line of out.split("\n").filter((l) => l.startsWith("- "))) {
+      expect(line.length).toBeLessThanOrEqual(MAX_DIGEST_VALUE_CHARS + 2);
+    }
+  });
+
+  test("nothing known and nothing blind is the empty string, not a stray header", () => {
+    expect(houseContext({ known: {}, blind: [] })).toBe("");
+  });
+});
+
+test.describe("converseSystem — the house digest is gated and ordered", () => {
+  const KEYS = ["HOUSE_CHARACTER_ENABLED", "VOICE_HOUSE_CONTEXT"];
+  let saved;
+  test.beforeEach(() => { saved = KEYS.map((k) => process.env[k]); });
+  test.afterEach(() => {
+    KEYS.forEach((k, i) => {
+      if (saved[i] === undefined) delete process.env[k];
+      else process.env[k] = saved[i];
+    });
+  });
+
+  const DIGEST = { known: { weather: "19°, clear" }, blind: ["the cameras"] };
+
+  // Sending the family's calendar titles and shopping list upstream is a
+  // separate consent from giving the house a character, so it is a separate
+  // flag and it defaults off.
+  test("off by default — no house state reaches the prompt", () => {
+    delete process.env.VOICE_HOUSE_CONTEXT;
+    expect(converseSystem("what's it doing out there", [], DIGEST)).not.toContain("19°, clear");
+  });
+
+  test("on → the state is in the prompt", () => {
+    process.env.VOICE_HOUSE_CONTEXT = "1";
+    const out = converseSystem("what's it doing out there", [], DIGEST);
+    expect(out).toContain("19°, clear");
+    expect(out).toContain("the cameras");
+  });
+
+  // The digest changes nearly every turn. Above the breakpoint it would
+  // invalidate the cached prefix on every single request.
+  test("sits after the stable character block", () => {
+    process.env.HOUSE_CHARACTER_ENABLED = "1";
+    process.env.VOICE_HOUSE_CONTEXT = "1";
+    const out = converseSystem("hello", [], DIGEST);
+    expect(out.indexOf("only permanent resident")).toBeLessThan(out.indexOf("19°, clear"));
+  });
+
+  test("a missing digest is not an error — the turn is unchanged", () => {
+    process.env.VOICE_HOUSE_CONTEXT = "1";
+    expect(() => converseSystem("hello", [])).not.toThrow();
+    expect(converseSystem("hello", [])).toContain(GRIEF_LINE);
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   houseDigest — the same absent/empty discipline, at the source.
+
+   houseContext (above) proves the PROMPT keeps the two apart. These prove the
+   DIGEST does, which is where the distinction is actually made or lost: every
+   reader in voiceSnapshot.js is careful about it individually, and a digest
+   that flattens them undoes all of that work in one function.
+
+   voiceSnapshot.js is browser runtime but imports clean in node — houseDigest
+   itself is pure and touches neither the DOM nor the entity cache.
+   ═══════════════════════════════════════════════════════════════════════════ */
+test.describe("houseDigest — the shape that crosses the wire", () => {
+  // Not an array. Handing an array to a reader keyed by name is exactly what
+  // left bomWarning permanently empty and cost the wall its storm warning.
+  test("known is a keyed object, blind is an array", () => {
+    const d = houseDigest({});
+    expect(Array.isArray(d.known)).toBe(false);
+    expect(typeof d.known).toBe("object");
+    expect(Array.isArray(d.blind)).toBe(true);
+  });
+
+  test("never throws, whatever it is handed", () => {
+    for (const bad of [null, undefined, {}, "nope", 42, []]) {
+      expect(() => houseDigest(bad)).not.toThrow();
+    }
+  });
+
+  // The regression this whole discipline exists for. With HA disconnected the
+  // house once said "the shopping list is empty" with total confidence.
+  test("an unreadable shopping list is blind; a genuinely empty one is known", () => {
+    const unseen = houseDigest({ todos: { shopping: null, tasks: null } });
+    expect(unseen.blind).toContain("the shopping list");
+    expect(unseen.known.shopping).toBeUndefined();
+
+    const empty = houseDigest({ todos: { shopping: [], tasks: [] } });
+    expect(empty.blind).not.toContain("the shopping list");
+    expect(empty.known.shopping).toMatch(/empty/i);
+  });
+
+  // null = no media players known at all, i.e. Home Assistant is not talking.
+  // [] = the players exist and none of them is playing. Different sentences.
+  test("no players known is blind; players known and idle is 'nothing playing'", () => {
+    expect(houseDigest({ media: null }).blind).toContain("what's playing");
+    expect(houseDigest({ media: [] }).known.playing).toBe("nothing playing");
+    expect(houseDigest({ media: [{ title: "Grace", artist: "Jeff Buckley" }] }).known.playing)
+      .toBe("Grace by Jeff Buckley");
+  });
+
+  // Same rule, and the answerers already enforce it: an undefined calendar
+  // must never become "nothing on today" on the day someone relies on it.
+  test("an unreadable calendar is blind, never 'nothing on'", () => {
+    expect(houseDigest({}).blind).toContain("the calendar");
+    expect(houseDigest({}).known.today).toBeUndefined();
+    expect(houseDigest({ calendar: [] }).known.today).toMatch(/nothing on the calendar/i);
+  });
+
+  test("an empty people roster means HA is quiet, not that the house is empty", () => {
+    const d = houseDigest({ people: [] });
+    expect(d.blind).toContain("who is home");
+    expect(JSON.stringify(d.known)).not.toMatch(/nobody home/i);
+  });
+
+  test("known:false cameras are blind; known with no event is a real answer", () => {
+    expect(houseDigest({ camera: { known: false, lastEvent: null } }).blind).toContain("the cameras");
+    expect(houseDigest({ camera: { known: true, lastEvent: null } }).known.cameras)
+      .toMatch(/nothing on the cameras/i);
+  });
+
+  test("weather is worded, rounded and en-AU", () => {
+    const d = houseDigest({
+      weather: { now: { temp_c: 19.4, condition: { label: "Clear" }, uv: 3.2 }, day: { high_c: 24.6, low_c: 12.1 } }
+    });
+    expect(d.known.weather).toContain("19°");
+    expect(d.known.weather).toContain("clear");
+    expect(d.known.weather).toContain("12–25°");
+    expect(d.known.weather).toContain("UV 3");
+  });
+
+  // The nowcast is a ~90 minute radar extrapolation. Its absence means "no
+  // rain coming", which is information — not a blind spot to confess to.
+  test("no nowcast is silence, not a blind spot", () => {
+    const d = houseDigest({ nowcast: null });
+    expect(d.known.rainIncoming).toBeUndefined();
+    expect(d.blind).not.toContain("rain");
+    expect(houseDigest({ nowcast: { startsInMin: 20 } }).known.rainIncoming).toMatch(/20 minutes/);
+  });
+
+  // Bins that were never configured are a settled fact about this house, not
+  // something it is failing to see.
+  test("unconfigured bins earn neither a known line nor a confession", () => {
+    const d = houseDigest({ bins: { configured: false } });
+    expect(d.known.bins).toBeUndefined();
+    expect(d.blind.join(" ")).not.toMatch(/bin/i);
   });
 });

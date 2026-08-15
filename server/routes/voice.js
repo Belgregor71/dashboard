@@ -8,6 +8,7 @@ import {
   shapeAssistResponse,
   buildConverseMessages,
   buildConverseSystem,
+  houseContext,
   todayLine,
   GRIEF_LINE,
   SPEAKER_UNKNOWN_LINE
@@ -114,7 +115,7 @@ function armedTools() {
    is byte-identical to the pre-character prompt — is not observable from
    outside the route, and a rollback path nothing can assert is a rollback path
    nobody should trust. */
-export function converseSystem(text, tools) {
+export function converseSystem(text, tools, digest = null) {
   const context =
     process.env.VAULT_ENABLED === "1" ? buildContext(searchVault(text)) : "";
   // todayLine() is appended per request, not baked into the base — the
@@ -127,6 +128,18 @@ export function converseSystem(text, tools) {
   const base = characterEnabled() ? CHARACTER_BASE : CONVERSE_BASE;
   const lines = [...base, todayLine()];
   if (tools.length) lines.push(entityRoster());
+
+  /* What the house can see, appended AFTER the stable block and the clock.
+     Read per call, not at module load — server.js's static imports all
+     evaluate before its dotenv.config(), so a module-scope read sees undefined
+     on the G11 every time. Off by default: this is the first thing that sends
+     the family's calendar titles and shopping list upstream, which is a
+     separate consent from giving the house a character. */
+  if (process.env.VOICE_HOUSE_CONTEXT === "1") {
+    const house = houseContext(digest);
+    if (house) lines.push(house);
+  }
+
   return buildConverseSystem(lines, context);
 }
 
@@ -250,7 +263,9 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
   const tools = armedTools();
   // Retrieved once and shared by both legs, so the Ollama fallback answers from
   // the same notes rather than reverting to "I don't know".
-  const system = converseSystem(text, tools);
+  // `house` is the client's houseDigest() — the page already holds the snapshot
+  // at submit() time, so grounding the model costs tokens and not a millisecond.
+  const system = converseSystem(text, tools, req.body?.house);
 
   try {
     const reply = await converseWithClaude(messages, system, tools);

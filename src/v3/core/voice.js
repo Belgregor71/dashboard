@@ -20,7 +20,7 @@
 
 import { matchIntent } from "../../js/services/localIntents.js";
 import { answer } from "../../js/services/localAnswers.js";
-import { voiceSnapshot, rememberReply } from "../../js/services/voiceSnapshot.js";
+import { voiceSnapshot, houseDigest, rememberReply } from "../../js/services/voiceSnapshot.js";
 import { speak, silence, setSpeakingObserver } from "../../js/core/tts.js";
 import { setPhase, setFailure, trackSpeech } from "./presence-light.js";
 import { deepen, sustain, setDepth, getDepth, DEPTH } from "./depth.js";
@@ -379,8 +379,21 @@ export async function submit(text, { source = "unknown" } = {}) {
       return { handled: true, lane: "assist" };
     }
 
-    // ── Lane 3: the house voice ─────────────────────────────────────────────
-    const converse = await postJson("/api/voice/converse", { text: clean, history });
+    /* ── Lane 3: the house voice ────────────────────────────────────────────
+       The digest rides along. Until now this lane knew the date and nothing
+       else — it was the voice of a house with no knowledge of the house, so
+       every question the regexes above did not catch was answered blind.
+
+       voiceSnapshot() is synchronous and reads caches already in memory
+       (~0.015 ms), so building it here costs no network and no wait. It is
+       built fresh rather than reusing the `snap` from lane 1, because lane 1
+       only builds one when an intent matched — and the turns that reach here
+       are mostly the ones where none did. */
+    const converse = await postJson("/api/voice/converse", {
+      text: clean,
+      history,
+      house: houseDigest(voiceSnapshot(coords))
+    });
     if (converse?.reply) {
       setPhase("speaking");
       deepen(DEPTH.GLANCE, "voice-converse");

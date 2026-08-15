@@ -112,6 +112,55 @@ export function todayLine(now = new Date()) {
   return `Today is ${today}. It is ${time} right now. Work out any age, duration or "how long ago" from that date rather than estimating.`;
 }
 
+/* ── What the house can see right now ───────────────────────────────────────
+   The client's houseDigest() (services/voiceSnapshot.js) crossing the wire and
+   becoming prompt lines.
+
+   ⚠ VOLATILE BY DEFINITION. This changes on nearly every turn, so it must be
+   appended AFTER the cache breakpoint, never folded into the character block.
+
+   ⚠ SHAPE-CHECKED, NOT TRUSTED. `known` must be a keyed OBJECT: handing an
+   array to a reader keyed by name is exactly what left bomWarning permanently
+   empty, and it arrives here over HTTP where anything is possible. An array,
+   a string, or null all degrade to "no house context" rather than throwing —
+   a malformed digest costs the model some grounding, never the turn.
+
+   `blind` is rendered as prominently as `known`, and that asymmetry is
+   deliberate. Being told what it cannot see is what stops the house filling
+   the gap with a fluent invention; it is the difference between "the shopping
+   list is empty" and "I can't see the shopping list from here". */
+export const MAX_DIGEST_ENTRIES = 16;
+export const MAX_DIGEST_VALUE_CHARS = 240;
+
+export function houseContext(digest) {
+  const known = digest?.known;
+  const isPlainObject = known !== null && typeof known === "object" && !Array.isArray(known);
+
+  const lines = [];
+  if (isPlainObject) {
+    for (const [key, value] of Object.entries(known).slice(0, MAX_DIGEST_ENTRIES)) {
+      if (typeof value !== "string") continue;
+      const text = value.trim().slice(0, MAX_DIGEST_VALUE_CHARS);
+      if (text) lines.push(`- ${text}`);
+    }
+  }
+
+  const blind = Array.isArray(digest?.blind)
+    ? digest.blind.filter((b) => typeof b === "string" && b.trim()).slice(0, MAX_DIGEST_ENTRIES)
+    : [];
+
+  if (lines.length === 0 && blind.length === 0) return "";
+
+  const out = [];
+  if (lines.length) out.push("What you can see in the house right now:", ...lines);
+  if (blind.length) {
+    out.push(
+      `You currently CANNOT see ${blind.join(", ")}. If asked about any of those, say so plainly — do not guess or infer it from anything else.`
+    );
+  }
+  return out.join("\n");
+}
+
 export function buildConverseSystem(baseLines, context) {
   const base = (Array.isArray(baseLines) ? baseLines : []).join(" ");
   if (!context) return `${base} ${NO_KNOWLEDGE_LINE}`;

@@ -274,3 +274,182 @@ export function voiceSnapshot({ lat, lon } = {}) {
 export function voiceCacheAge() {
   return cache.fetchedAt ? Date.now() - cache.fetchedAt : null;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE DIGEST — the same snapshot, shaped for the house voice.
+
+   The fast lane above answers a question the regex caught. Everything else
+   went to a model that knew the date and nothing else: it could not say what
+   the weather was doing, who was home, or what was on tonight, because none of
+   that was ever in its prompt. It was a voice for this house with no knowledge
+   of this house.
+
+   ⚠⚠ ABSENT IS NOT EMPTY, AND FLATTENING IT IS THE WHOLE DANGER HERE.
+
+   Every reader above is careful about this — mediaFrom() returns null for "no
+   players exist" and [] for "players exist, none playing"; todosFrom() returns
+   null for an entity missing from the cache; pickLastCameraEvent() reports
+   `known: false` separately from `lastEvent: null`. That care exists because
+   with Home Assistant disconnected the house once said "the shopping list is
+   empty" with total confidence, on the morning somebody was relying on it.
+
+   A digest that renders both states as a missing key hands the model exactly
+   that failure, dressed as fluent prose. So the shape is two-part:
+
+     known — what the house can see, already worded
+     blind — what it CANNOT see right now, named
+
+   `blind` is not defensive plumbing; it is the character (CHARACTER.md, "it
+   admits the edge of what it knows"). It is what lets the house answer "I
+   can't see the shopping list from here" instead of inventing one.
+
+   Pure and synchronous by design: this runs inside the answer path and must
+   never await. It is also the only place the house's private data is shaped
+   for an upstream request — see VOICE_HOUSE_CONTEXT in .env.example.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const TZ = "Australia/Brisbane";
+const clock = (d) => {
+  const t = d ? new Date(d) : null;
+  return t && Number.isFinite(t.getTime())
+    ? t.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: TZ })
+    : null;
+};
+const num = (n) => (typeof n === "number" && Number.isFinite(n) ? Math.round(n) : null);
+
+/** Today's events, in the house's own window. Kept to three — past that it is
+ *  a screen's job, and the digest rides every single turn. */
+function eventsToday(calendar) {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return calendar
+    .filter((e) => {
+      const at = new Date(e?.start);
+      return Number.isFinite(at.getTime()) && at >= start && at < end;
+    })
+    .sort((a, b) => new Date(a.start) - new Date(b.start))
+    .slice(0, 3)
+    .map((e) => `${String(e.title ?? "").trim()}${clock(e.start) ? ` at ${clock(e.start)}` : ""}`)
+    .filter((s) => s.trim());
+}
+
+/**
+ * Shape a voiceSnapshot() into { known, blind } for the house voice.
+ *
+ * `known` is a keyed object of short worded strings — deliberately NOT an
+ * array. Handing an array to a reader that expects keys is precisely what left
+ * bomWarning permanently empty and cost the wall its storm warning; the shape
+ * is asserted in tests/voice.spec.js so it cannot drift back.
+ *
+ * @param {object} snap  the output of voiceSnapshot()
+ * @returns {{ known: Record<string,string>, blind: string[] }}
+ */
+export function houseDigest(snap) {
+  const known = {};
+  const blind = [];
+  const s = snap ?? {};
+
+  // ── Weather. The house's favourite subject (CHARACTER.md), so it gets the
+  //    most detail — but only the fields that actually resolved.
+  const now = s.weather?.now;
+  if (now && now.temp_c != null) {
+    const bits = [`${num(now.temp_c)}°`];
+    if (now.condition?.label) bits.push(String(now.condition.label).toLowerCase());
+    if (now.feels_like_c != null && num(now.feels_like_c) !== num(now.temp_c)) {
+      bits.push(`feels ${num(now.feels_like_c)}°`);
+    }
+    if (s.weather?.day?.high_c != null) bits.push(`today ${num(s.weather.day.low_c)}–${num(s.weather.day.high_c)}°`);
+    if (now.uv != null) bits.push(`UV ${num(now.uv)}`);
+    if (now.wind_kph != null) bits.push(`wind ${num(now.wind_kph)} km/h`);
+    if (now.rain_chance_pct != null) bits.push(`rain ${num(now.rain_chance_pct)}%`);
+    known.weather = bits.join(", ");
+  } else {
+    blind.push("the weather");
+  }
+
+  // The nowcast is a ~90 minute radar extrapolation. Present only when it has
+  // something to say — its absence is not blindness, it is "no rain coming".
+  if (typeof s.nowcast?.startsInMin === "number") {
+    known.rainIncoming = `rain starting in about ${s.nowcast.startsInMin} minutes`;
+  }
+
+  if (s.sun?.sunrise || s.sun?.sunset) {
+    known.sun = [
+      clock(s.sun.sunrise) && `sunrise ${clock(s.sun.sunrise)}`,
+      clock(s.sun.sunset) && `sunset ${clock(s.sun.sunset)}`
+    ].filter(Boolean).join(", ");
+  }
+
+  // ── Calendar. Array-or-nothing, exactly as the answerers treat it: an
+  //    undefined calendar must never become "nothing on today".
+  if (Array.isArray(s.calendar)) {
+    const today = eventsToday(s.calendar);
+    known.today = today.length ? today.join("; ") : "nothing on the calendar today";
+  } else {
+    blind.push("the calendar");
+  }
+
+  // menu is derived from the calendar, so it is only meaningful alongside one.
+  if (Array.isArray(s.calendar)) known.dinner = s.menu ? String(s.menu) : "nothing planned for dinner";
+
+  // ── Bins. `configured: false` means this house never set them up — that is
+  //    a settled fact, not a blind spot, so it earns neither key.
+  if (s.bins?.configured) {
+    known.bins = s.bins.due ? `${s.bins.label}: ${(s.bins.bins ?? []).join(", ")}` : "no bins due tonight";
+  }
+
+  // ── People. An empty roster means Home Assistant is not talking; it does
+  //    NOT mean the house is empty, and saying so would be the worst version
+  //    of this whole feature.
+  if (Array.isArray(s.people) && s.people.length) {
+    const home = s.people.filter((p) => p.home).map((p) => p.name);
+    const out = s.people.filter((p) => !p.home).map((p) => p.name);
+    known.people = [
+      home.length ? `${home.join(" and ")} home` : "nobody home",
+      out.length ? `${out.join(" and ")} out` : null
+    ].filter(Boolean).join(", ");
+  } else {
+    blind.push("who is home");
+  }
+
+  // ── Media. null = no players known at all (HA down). [] = nothing playing.
+  if (Array.isArray(s.media)) {
+    const m = s.media[0];
+    known.playing = m ? `${m.title}${m.artist ? ` by ${m.artist}` : ""}` : "nothing playing";
+  } else {
+    blind.push("what's playing");
+  }
+
+  if (s.sleep?.score != null) known.sleep = `last night's sleep score ${s.sleep.score}, ${s.sleep.label}`;
+  if (s.vacuum?.problem) known.vacuum = `the vacuum has a problem: ${s.vacuum.problem}`;
+  if (s.downloads?.active != null && s.downloads.active > 0) known.downloads = `${s.downloads.active} downloading`;
+
+  // ── Lists. Same null-vs-empty rule, and the one this rule was written for.
+  if (Array.isArray(s.todos?.shopping)) {
+    known.shopping = s.todos.shopping.length
+      ? `${s.todos.shopping.length} on the shopping list: ${s.todos.shopping.slice(0, 5).join(", ")}`
+      : "the shopping list is empty";
+  } else {
+    blind.push("the shopping list");
+  }
+  if (Array.isArray(s.todos?.tasks)) {
+    known.tasks = s.todos.tasks.length
+      ? `${s.todos.tasks.length} to do: ${s.todos.tasks.slice(0, 5).join(", ")}`
+      : "nothing on the to-do list";
+  }
+
+  // ── Cameras. `known: false` is "there are no cameras here", which from this
+  //    vantage point is indistinguishable from a disconnected Home Assistant.
+  if (s.camera?.known) {
+    const e = s.camera.lastEvent;
+    known.cameras = e
+      ? `last movement: ${e.name}${e.person ? ` (${e.person})` : ""} at ${clock(e.at)}`
+      : "nothing on the cameras in the last few hours";
+  } else {
+    blind.push("the cameras");
+  }
+
+  return { known, blind };
+}
