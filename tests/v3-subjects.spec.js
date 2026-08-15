@@ -992,6 +992,47 @@ test("⚠ TV audio is not what's playing — on the screen OR out loud", async (
   expect(pageErrors).toEqual([]);
 });
 
+test("⚠ a declined subject never leaves the surface HELD at depth 3 with nothing in it", async ({ page }) => {
+  /* SEEN ON THE WALL, 2026-08-15, and it is the worst of the three because the
+     room can see it: the radar was up, "show me what's playing" declined, and
+     the surface sat at `{depth: 3, held: true, subject: null, mount: 0}` — a
+     blank stage holding the whole screen for thirty seconds, re-armed by every
+     repeat of the phrase.
+
+     Two causes meeting. `showSubject()` tears the old subject down before it
+     looks the new id up, so a decline empties the stage; and `deepen()` falls
+     through to `sustain()` for a shallower target, so every lane below re-armed
+     SUBJECT rather than stepping out of it. Phase 1 recorded that fall-through
+     as a trap and this is the second thing it has cost.
+
+     ⚠ Both halves are asserted — the depth AND the empty mount. A test that
+     checked only the mount passes on the exact state that was on the wall. */
+  const { pageErrors } = await bootV3(page, { "/api/weather/radar/meta": RADAR_META });
+
+  const got = await page.evaluate(async () => {
+    await window.__v3Transcript("show me the radar");
+    const atSubject = { depth: window.__depth().depth, subject: window.__v3().subject };
+
+    // Nothing is playing and no player is even known, so this declines AND has
+    // no sentence — the case that falls all the way through every lane.
+    await window.__v3Transcript("show me what's playing");
+    const after = window.__depth();
+    return {
+      atSubject,
+      depth: after.depth,
+      held: after.held,
+      subject: window.__v3().subject,
+      mount: document.getElementById("subject-mount").childElementCount
+    };
+  });
+
+  expect(got.atSubject).toEqual({ depth: 3, subject: "show.sky" });   // it really was deep
+  expect(got.subject).toBeNull();
+  expect(got.mount).toBe(0);
+  expect(got.depth, "depth 3 with an empty mount is a blank wall").toBeLessThanOrEqual(1);
+  expect(pageErrors).toEqual([]);
+});
+
 test("⚠ a house that cannot see its players still says nothing at all", async ({ page }) => {
   // The other half of the line above, and the one that must NOT speak. With no
   // media_player entities known, `voiceSnapshot.media` is null — the answerer

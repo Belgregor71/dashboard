@@ -23,7 +23,7 @@ import { answer } from "../../js/services/localAnswers.js";
 import { voiceSnapshot, rememberReply } from "../../js/services/voiceSnapshot.js";
 import { speak, silence, setSpeakingObserver } from "../../js/core/tts.js";
 import { setPhase, setFailure, trackSpeech } from "./presence-light.js";
-import { deepen, sustain, DEPTH } from "./depth.js";
+import { deepen, sustain, setDepth, getDepth, DEPTH } from "./depth.js";
 import { showSubject } from "../subjects/index.js";
 import { renderVocabularyCard } from "./vocabulary-card.js";
 import { setSaidText } from "./spread.js";
@@ -285,6 +285,22 @@ export async function submit(text, { source = "unknown" } = {}) {
           endTurn(clean, reply?.speech);
           return { handled: true, lane: "local" };
         }
+
+        /* ⚠⚠ SEEN ON THE WALL, 2026-08-15: DEPTH 3, HELD, WITH NOTHING IN IT.
+           `showSubject()` tears the previous subject down BEFORE it looks the
+           new one up, so a decline while the surface was already at SUBJECT
+           leaves the stage empty — and `deepen()` falls through to `sustain()`
+           for a shallower target, which is the trap Phase 1 recorded and did
+           not close. So every lane below this point, local or Assist or the
+           model, would re-arm a 30-second hold on a blank screen; asking again
+           re-arms it again. Measured: `{depth: 3, held: true, subject: null,
+           mount: 0}` after "show me the radar" then "show me what's playing"
+           with nothing playing.
+
+           Stepped DOWN explicitly, and only from deeper than a glance. The
+           reason is left to whichever lane answers — `sustain()` rewrites it —
+           so this changes where the surface is, never what it says it is. */
+        if (getDepth() > DEPTH.GLANCE) setDepth(DEPTH.GLANCE, `voice-${intent.id}`);
 
         /* ── The subject declined ────────────────────────────────────────────
            Nothing to SHOW is not nothing to SAY, and until 2026-08-15 this
