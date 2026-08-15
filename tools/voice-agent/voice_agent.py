@@ -131,6 +131,7 @@ def read_frame(proc):
     arecord — so this loop is not just bufsize bookkeeping, it removes a
     spurious restart. Only a genuine EOF (empty read) ends the stream.
     """
+    global _last_frame_at
     want = FRAME * 2  # int16 -> 2 bytes/sample
     buf = b""
     while len(buf) < want:
@@ -138,7 +139,83 @@ def read_frame(proc):
         if not chunk:
             return None
         buf += chunk
+        # Liveness is stamped per CHUNK, not per frame: a stream dribbling
+        # half-frames is still a stream, and the watchdog below must not shoot
+        # it. Both callers of read_frame go through here, so the wake loop and
+        # capture_utterance keep one clock between them.
+        _last_frame_at = time.monotonic()
     return np.frombuffer(buf, dtype=np.int16)
+
+
+# ── The capture watchdog ─────────────────────────────────────────────────────
+# ⚠⚠ THE HOUSE WENT DEAF ON 2026-08-15 AND NOTHING NOTICED BUT THE OWNER.
+# arecord stopped delivering while the service stayed `active`, NRestarts=0, the
+# device still held (`Subdevices: 0/1`), the mixer still 77% unmuted, and the
+# journal completely silent. `/api/voice/ambient` was the only thing that knew:
+# `lastDb` pinned at -4.6 across reads three seconds apart, where a healthy
+# kitchen floor is about -31. openWakeWord cannot score a wake on that, so every
+# "hey mycroft" simply vanished. A restart fixed it in seconds — the cost was
+# entirely in the fifteen minutes before a person thought to ask.
+#
+# The gap: the ONLY recovery path was EOF. `read_frame` returns None, the loop
+# logs "mic stream ended" and rebuilds the stream. A pipe that stops WITHOUT
+# closing never reaches that line — `proc.stdout.read()` simply blocks forever
+# and the whole loop freezes, ambient relay included.
+#
+# So this thread does not invent a second recovery. It kills arecord, which
+# turns a silent stall into the EOF the existing path already handles well.
+#
+# ⚠ THE THRESHOLD IS NOT "how long is too long to wait for audio". It is "how
+# long may the main loop legitimately go WITHOUT CALLING read_frame", and that
+# is bounded by the STT round trip — `transcribe()` allows 30 s. Anything at or
+# under that shoots the microphone in the middle of a slow but working turn.
+# 45 s leaves headroom above it and still recovers ~20x faster than a person.
+FRAME_STALL_S = float(os.environ.get("FRAME_STALL_S", "45"))
+
+_last_frame_at = time.monotonic()
+_capture = {"proc": None}
+
+
+def start_capture():
+    """Open the mic and hand the watchdog the process to shoot if it stalls."""
+    global _last_frame_at
+    proc = arecord_stream()
+    _capture["proc"] = proc
+    _last_frame_at = time.monotonic()   # a fresh stream starts with a clean clock
+    return proc
+
+
+def _capture_watchdog():
+    # ⚠ `global` is load-bearing, not tidiness: this function both READS and
+    # ASSIGNS _last_frame_at, and without it Python makes the name local for
+    # the whole body — so the read below would raise UnboundLocalError on the
+    # very first pass and the watchdog would die silently in its own thread,
+    # leaving exactly the unsupervised capture it exists to supervise.
+    global _last_frame_at
+    while True:
+        time.sleep(3)
+        idle = time.monotonic() - _last_frame_at
+        if idle < FRAME_STALL_S:
+            continue
+        proc = _capture.get("proc")
+        log(f"⚠ mic delivered nothing for {idle:.0f}s — killing arecord so the "
+            f"reader sees EOF and restarts it")
+        # Stamped BEFORE the kill: read_frame is blocked and cannot stamp it
+        # itself, and without this the next pass would fire again while the
+        # main loop is still rebuilding the stream.
+        _last_frame_at = time.monotonic()
+        try:
+            if proc:
+                proc.kill()
+                # ⚠ REAPED, not merely killed. Measured on the first live test:
+                # without this the dead arecord sat as a `Z` for over a minute.
+                # CPython does eventually reap through Popen housekeeping, but
+                # "eventually" is not a property to rely on in a process that
+                # runs for weeks and restarts its child every time the mic
+                # hiccups. wait() makes the reap part of the restart.
+                proc.wait(timeout=2)
+        except Exception as e:                      # never take the agent down
+            log("watchdog could not kill arecord:", e)
 
 
 def drain(proc):
@@ -530,7 +607,9 @@ def main():
         threading.Thread(target=_speaking_watcher, daemon=True).start()
         log(f"half duplex on → {SPEAKING_URL} (barge-in ≥{BARGE_THRESHOLD} × {BARGE_FRAMES} frames)")
 
-    proc = arecord_stream()
+    proc = start_capture()
+    threading.Thread(target=_capture_watchdog, daemon=True).start()
+    log(f"capture watchdog on → restart the mic after {FRAME_STALL_S:.0f}s of silence on the pipe")
     run = []
     held = 0          # consecutive above-barge-threshold frames while speaking
     barge_peak = 0.0  # best wake score heard during the reply now playing
@@ -541,7 +620,7 @@ def main():
             if frame is None:
                 log("mic stream ended; restarting arecord")
                 time.sleep(1)
-                proc = arecord_stream()
+                proc = start_capture()
                 reset(oww)
                 continue
             # Before the wake check, and unconditionally: presence is a fact
