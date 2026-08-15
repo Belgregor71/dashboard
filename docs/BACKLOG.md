@@ -6,7 +6,15 @@ Where a doc and the code disagreed, the code won and the doc is flagged for corr
 
 Ordering: **security → new features → the measurement debt that gates them → cleanup.**
 
-> ## ✅ P0, **F1**, **F2**, **P4** and **M1** ARE CLOSED. Start at **F3**.
+> ## ✅ P0, **F1**, **F2**, **F7**, **F8**, **P4** and **M1** ARE CLOSED. **F6 is half done.** Start at **F3**.
+>
+> **2026-08-15 — F6's dominant cause was not the one this file assumed.** The crop arithmetic
+> was right and was not the main event: `slim()` was deriving `aspect` from the **pre-rotation
+> sensor dimensions**, so **32% of the day's pool was telling the ground a portrait was a
+> landscape** — which meant the diptych, the feature built to protect portraits, never saw
+> them. Fixed off a field that was already in the payload (`d710e99`), seen on the glass. The
+> framing half remains and is now the smaller one. 🔑 **`archiveModel.js:110` had this written
+> down in its own JSDoc the whole time** — the knowledge was in the repo, one module across.
 >
 > **2026-08-15 — F2 is closed** and it was not the three-hour dispatch-table chore it read
 > as. The matcher was fine; what the driving found was a turn that threw away the fast lane's
@@ -360,7 +368,23 @@ and answerers that do not would keep saying "today" about Tuesday.
 
 ---
 
-### F8 · The WEATHER family has the same wrong-day defect — found while fixing F7
+### F8 · ✅ **DONE 2026-08-15 — the weather lane has a day slot too** (`d733f76`)
+
+`resolveDay()` was already exported and pure, so the matcher half was nearly free. The work
+was the horizon: unlike the calendar's, the forecast's is **not knowable in the parser** — it
+is however many days the last refresh returned (seven on the live G11 today, but the
+BOM-via-HA fallback returns two and `weatherFallbackForecast()` returns none). So
+`forecastDay()` reads the horizon **by date**, not by index, and returns null when the feed
+does not reach the day asked about.
+
+⚠ **UV and wind decline every day but today, on purpose.** The per-day record carries a high,
+a low, a condition and a rain chance and nothing else, so those two questions refuse a future
+day at the matcher *and* again at the answerer rather than quietly reporting the current
+reading for Saturday. The nowcast is held to today for the same reason.
+
+<details><summary>original item</summary>
+
+**Measured, not suspected:** `"what's the weather on tuesday"` → `weather.now` →
 
 **Measured, not suspected:** `"what's the weather on tuesday"` → `weather.now` →
 **"It's 18 degrees and clear."** Same shape as F7 and the same harm: confident, fast, and
@@ -378,16 +402,68 @@ the horizon, and the copy in five answerers that each hard-code "today"/"now".
 Two sibling phrases already fall through and are safe today: `"will it rain on tuesday"` and
 `"how hot will it be on saturday"` match nothing.
 
+</details>
+
 ---
 
-### F6 · The ambient ground crops the subject out of the photograph
-**Owner's report, 2026-08-15: "heads are being cropped, tops of cocktails being left off."**
-Not yet investigated beyond confirming the arithmetic. **Do not treat this as a rendition
-problem — that question is closed** (`ground.js:150`, measured on the live library: Immich
-caps previews at a 1920 long edge, `?size=fullsize` 302s to the same file, `/original` is
-HEIC and Chromium cannot render it).
+### F6 · ⚠ **HALF DONE 2026-08-15 — the dominant cause was a wrong `aspect`, not a blind crop** (`d710e99`)
 
-It is a FRAMING problem, and the numbers are already written down:
+**The framing arithmetic below is correct and was not the main event.** Measured on the live
+library before any code was changed, by fetching every preview in the day's on-this-day pool
+and reading its SOF marker:
+
+| | |
+|---|---|
+| assets in the pool | 202 |
+| **portrait as delivered** | **111 (55%)** |
+| exif-derived `aspect` said portrait | 47 |
+| **misclassified portrait → landscape** | **64 (31.7%)** |
+
+🔑 **`slim()` derived `aspect` from `exifInfo.exifImageWidth/Height` — the SENSOR pair, which
+is pre-rotation.** An iPhone stores a portrait shot as a landscape 4032x3024 buffer plus
+`orientation: 6`; Immich applies the rotation when it builds the preview, so the jpeg the wall
+loads is 1440x1920 while the exif numbers still describe the sensor.
+
+**And a misclassified portrait draws the worst frame the ground has**: `isKnownPortrait`
+rejects it, so **the diptych — built precisely to protect portraits — never pairs it**. It goes
+full-bleed instead, where 0.75 into 1.78 keeps 42% and cuts the rest away from the centre
+outwards. Faces sit near the top of a portrait frame. That is the report, exactly.
+
+**The fix is a field that was always in the payload**: `width`/`height` sit at the **top level**
+of the asset, beside `exifInfo` rather than inside it, and Immich writes them post-rotation.
+Across the same 202 they agree with the delivered jpeg for **194**; the exif pair for 138.
+Present on `search/random` too, with and without `withExif` (both checked).
+
+🔑 **The repo already knew.** `archiveModel.js:110` documents this trap in its own JSDoc —
+*"NOT the EXIF dimensions, which are pre-rotation and would put every portrait iPhone photo in
+a landscape card."* The ambient archive reads `naturalWidth` off the loaded `<img>` and got it
+right; the V3 ground reads `slim()` and did not.
+
+⚠ **8 assets are unfixable server-side and the code says so**: HEICs whose `orientation` Immich
+never recorded — it reports 4032x3024 in every field it has and still delivers 1440x1920. 4% of
+the pool. The browser can tell; the server cannot, and must not pretend. Unknown still returns
+null, and **null is still not portrait** — guessing would send real landscapes into a 952-wide
+diptych half and crop them harder than doing nothing.
+
+✅ **Seen on the glass 2026-08-15**: a real diptych, both halves whole, and both proven to be
+orientation-6 assets the old expression called landscape. Live route now serves 62/100 portrait.
+
+#### ▸ What is LEFT of F6 — the framing half, now the smaller one
+
+The centred blind crop is still real for what stays full-bleed, and the numbers below still
+stand. ⚠ **But size it before building it: only 34 of 202 assets (16.8%) have any detected
+face at all**, and *"the tops of cocktails"* is not a face. Boxes are reachable at
+`GET /api/faces?id=<assetId>` — `boundingBoxX1..Y2` plus `imageWidth`/`imageHeight` already in
+**display** orientation — but it is **one request per asset**, unlike `withPeople` which rides
+the search that already runs. `people[]` in the search response carries **no geometry at all**
+(checked: `id, name, birthDate, thumbnailPath, isHidden, isFavorite, updatedAt`), and neither
+does `/api/assets/:id`.
+
+**Do not treat any of it as a rendition problem — that question is closed** (`ground.js:150`:
+Immich caps previews at a 1920 long edge, `?size=fullsize` 302s to the same file, `/original`
+is HEIC and Chromium cannot render it).
+
+The framing numbers:
 
 | photo | aspect | what `object-fit: cover` keeps on a 1.78 panel |
 |---|---|---|
@@ -400,11 +476,10 @@ takes. ⚠ `LANDSCAPE_MIN_ASPECT = 1.2` sorts landscape photos first, which addr
 and says nothing about how much is cut — a 4:3 photo passes that gate and still loses a
 quarter of its height.
 
-Worth knowing before designing: **Immich already holds face bounding boxes**, so an
-`object-position` driven by where the people actually are is reachable without new
-inference — and `groundDiptych` already exists for the portrait half of the problem
-(a portrait in a 952-wide half keeps ~84%). Same family as the radar defect closed in F2:
-a centred blind crop that looks plausible until someone looks at it.
+⚠ **The 3:4 row is now mostly handled** — that is what `d710e99` bought: a portrait the library
+knows about goes into a diptych half and keeps ~84% instead of 42%. **The 4:3 row is what is
+left**, and it is the common one. Same family as the radar defect closed in F2: a centred blind
+crop that looks plausible until someone looks at it.
 
 ---
 
