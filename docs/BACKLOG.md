@@ -6,7 +6,21 @@ Where a doc and the code disagreed, the code won and the doc is flagged for corr
 
 Ordering: **security → new features → the measurement debt that gates them → cleanup.**
 
-> ## ✅ P0, **F1**, **F2**, **F7**, **F8**, **P4** and **M1** ARE CLOSED. **F6 is half done.** Start at **F3**.
+> ## ✅ P0, **F1**, **F2**, **F5**, **F7**, **F8**, **P4** and **M1** ARE CLOSED. **F6 is half done.** Start at **F3**.
+>
+> **2026-08-15 — F5 is closed: all four owed sightings have now been watched.** Two were the
+> owner's (the spoken veto, a real doorbell); two were driven this session. The tool lane
+> moved a physical floodlight for the first time, and inducing a genuine TTS outage put a real
+> fault on the glass. Both found things no test could have: **`[]` from HA is not a failure**
+> (Eufy reports state asynchronously), **"turn on the X" can never reach the tool lane**
+> (`MUTATION_RE` sends it to Assist), the **NAS is only the TTS fallback** so stopping it
+> proves nothing, and **on-demand health feeds are reported from a stored level** that lags a
+> minute behind the truth. Read the item.
+>
+> ⚠ **Left open on purpose:** the house voice says "backyard light's on now" when the device
+> never responded, and it cannot currently know better. Four of five floodlights ignore
+> `switch.turn_on` entirely — a **new and separate** fault from the dead cameras (the two sets
+> barely overlap), so it needs its own item rather than being filed under motion divergence.
 >
 > **2026-08-15 — F6's dominant cause was not the one this file assumed.** The crop arithmetic
 > was right and was not the main event: `slim()` was deriving `aspect` from the **pre-rotation
@@ -483,13 +497,91 @@ crop that looks plausible until someone looks at it.
 
 ---
 
-### F5 · Owed live sightings — features shipped that no human has watched work
-**Time-gated; fold into other sessions rather than scheduling.**
+### F5 · ✅ **DONE 2026-08-15 — all four sightings closed, and two of them found defects**
 
-- **The voice tool lane (Lane 3 + HA tools)** — shipped, **never executed live**.
-- **`photoVeto`'s spoken path** on the real wall (the visual path is proven).
-- **A real degradation on the glass** — every health/status reading so far is a stubbed feed.
-- **A real doorbell** reaching the V3 screen unasked.
+- ✅ **The voice tool lane** — driven live for the first time. Detail below.
+- ✅ **`photoVeto`'s spoken path** — the owner reports having said it to the wall several
+  times on 2026-08-15. Closed on the owner's sighting, not a driven probe.
+- ✅ **A real degradation on the glass** — induced genuinely (not stubbed) and photographed.
+- ✅ **A real doorbell** on V3 — the owner reports having already seen one land unasked.
+
+#### ▸ The tool lane — armed, and it moved a real light
+
+⚠ **It was not merely default-off: `VOICE_TOOLS_ENABLED` was ABSENT from the G11's `.env`
+entirely.** The code has been on the wall since the cutover (`6037502`/`65fe0f0` are both
+ancestors of `origin/main` — the memory calling them "unpushed" was stale), the roster was
+already seeded with real entity ids, and `ANTHROPIC_API_KEY`/`claude-haiku-4-5` were set. One
+env line + a restart was the whole arming step. **It is now `=1` and live** (owner's call);
+rollback is that line + a restart, no redeploy.
+
+**Before** (disarmed), asked *"it is pretty dark out the back, can you do something about
+that?"* — in a house with five smart floodlights on its roster:
+
+> *"I'm not able to control your outdoor lights from here — you'd need to check if they're on
+> a smart switch or if there's a manual switch inside that needs flipping."*
+
+**After** (armed), *"it is pitch black on the driveway"*: `/api/voice/assist` returned
+`handled:false` ("Sorry, I couldn't understand that") — so the utterance genuinely fell
+through to Lane 3 — and the reply was *"Driveway light's on now, so you won't be doing a full
+stumble in the dark."* `switch.driveway_light` went `off` → **`on` at 07:14:20Z**. Model →
+`tool_use` → `planCall` → `SAFE_SERVICES` → `haPost` → a physical floodlight. Restored after.
+
+🔑🔑 **"Turn on the backyard light" CAN NEVER REACH THIS LANE, so do not test it that way.**
+`MUTATION_RE` (`localIntents.js:447`) routes anything opening with `turn` to HA Assist, and
+Lane 3 only ever sees what Assist *declines*. Exercising the tools needs a phrasing with no
+leading imperative verb — a symptom, not a command. This is by design and it is also the
+reason the lane looked untestable.
+
+🔑🔑 **AN EMPTY `[]` FROM HA IS NOT A FAILURE.** HA returns the entities that changed
+*synchronously*; Eufy switches report their new state seconds later, so the working light
+returned `[]` and came on anyway. **This cost a wrong conclusion mid-session** — `[]` plus a
+still-`off` state read five seconds later looks exactly like a dead call. Poll for ~20 s
+before judging any Eufy switch.
+
+⚠⚠ **Four of the five floodlights accept the call and never change** — backyard, patio, front
+yard and side gate still sit at `last_changed 2026-08-13` twenty minutes after a `turn_on`;
+only driveway responds. **This is a SEPARATE fault from the dead cameras, and the sets are the
+evidence:** the dead-camera set is kitchen / side_gate / piano_room / tilt_pan, but three of
+the four dead *lights* (backyard, patio, front yard) sit on cameras that were **alive**. Only
+side_gate overlaps. So it is the control path out, not the event path in, and it wants its own
+investigation — **do not fold it into the motion-divergence item.** Untested hypothesis worth
+starting from: driveway is the **wired** camera and live view is known wired-only, so this may
+be battery cameras refusing commands while asleep. Recorded, not chased.
+
+⚠ **The house said "backyard light's on now" when nothing happened**, and the honesty guard
+cannot catch it: `runToolCall` asserts `"done"` from a non-throwing `haPost`, and `[]` is
+ambiguous (see above), so there is nothing to test at call time. The design's
+"never pretend you did it" rule was built for *refusals*; a **no-op success** goes straight
+past it. Fixing this means observing the entity's state after a delay, which is a real change
+in shape — deliberately left open rather than patched blind.
+
+#### ▸ The degradation — real, seen, and it exposed two things
+
+Induced by pointing **both** Kokoro legs at a dead port and restarting: three
+`/api/tts/speak` calls → `502` → `ECONNREFUSED` in the journal → `tts` at
+`3 consecutive failures` → `overall: error`.
+
+⚠ **Stopping the NAS container — the obvious way — would have produced NO fault at all.**
+`KOKORO_URL` is **Mandragon.local** (the PC); the NAS is only `KOKORO_FALLBACK_URL`. Both
+legs have to fail before `reportFailure("tts")` ever fires.
+
+🔑 **`/api/system/health` reports on-demand feeds from their STORED level, not live.**
+`healthService.js:258–265` reads live only for `state` and `coverage` kinds — so `tts`, `ai`
+and `cameras` lag by up to the 60 s eval tick. A real fault reads `ok` for a minute, which is
+exactly the minute someone is asking why nothing works. The comment above that line gives the
+right reasoning and then applies it to two kinds out of four.
+
+✅ **It reached the glass, in the house's own voice:** *"I can't say anything out loud right
+now."* Screenshot taken with `DISPLAY=:0 scrot` at 17:21. Recovery is sound too — with Kokoro
+restored the fault cleared and the candidate **decayed out of the queue within its 90 s
+`LIFE_MS`**, which is the whole retraction mechanism working as documented.
+
+⚠ **`HEALTH_SCORE` 72 collides EXACTLY with `IN_WINDOW_SCORE` 72** (`health.js:72` vs
+`candidateSources.js:79`), and `attentionRank.js:38` sorts with a stable `sort`, so on a tie
+the collected sources beat the announced ones. Inside `MENU_WINDOW` (17:00–18:30 daily) and
+`COMMUTE_WINDOW` (06:30–08:30 weekdays) — ~3.5 h a day — a fault loses the hero slot to
+dinner. **This is a demotion, not a suppression**: the health line still rendered in the
+secondary slot beside the menu hero, which the screenshot shows. Worth a decision, not a bug.
 
 ---
 
