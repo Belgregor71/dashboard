@@ -624,13 +624,48 @@ test.describe("the calendar's day slot", () => {
     d.setHours(hour, minute, 0, 0);
     return { start: d.toISOString(), ...extra };
   };
+
+  /* ⚠⚠ THIS SPEC RAN ON TWO DIFFERENT CLOCKS AND ONLY AGREED ON SATURDAYS.
+     Fixed 2026-08-16, having failed the moment the date rolled over.
+
+     The resolveDay() assertions below are pinned to SAT, which is right — label
+     formatting and offsets must be deterministic. But the FIXTURE is built from
+     the real clock, and the end-to-end say() calls resolve their day from the
+     real clock too. Hard-coding the events at +3 and asking about "Tuesday"
+     lined those up only on the Saturday this was written; from a Sunday, "next
+     Tuesday" is two days away while the events sat three, so the lane correctly
+     answered "You're free" about an empty day and the spec reported the very
+     defect it exists to catch. A false alarm that looks exactly like the real
+     one is worse than no test.
+
+     So the WEEKDAY IS DERIVED FROM THE FIXTURE, not hard-coded against it.
+     +3 is chosen because it can never be today — which matters, since "next
+     Tuesday" said ON a Tuesday means a week away (asserted below), and that is
+     the one case where the plain and "next" forms diverge. */
+  const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+  const TARGET_OFFSET = 3;
+  const targetDate = new Date();
+  targetDate.setDate(targetDate.getDate() + TARGET_OFFSET);
+  const DAY = WEEKDAYS[targetDate.getDay()];
+
   const CAL = [
     { title: "Meal: Steak with Peppercorn Sauce", ...at(0, 18) },
     { title: "Dentist", ...at(0, 9) },
-    { title: "Bob's Birthday", allDay: true, ...at(3, 10) },
-    { title: "Physio", ...at(3, 14, 30) }
+    { title: "Bob's Birthday", allDay: true, ...at(TARGET_OFFSET, 10) },
+    { title: "Physio", ...at(TARGET_OFFSET, 14, 30) }
   ];
   const say = (utterance) => answer(matchIntent(utterance), { calendar: CAL })?.speech ?? null;
+
+  /* The label the resolver produces for that day, so the end-to-end sentences
+     assert the COUNT and the SHAPE without restating the date formatting the
+     pinned assertions below already cover exactly. */
+  const labelFor = (utterance) => {
+    const day = resolveDay(utterance);
+    if (!day || typeof day.label !== "string") {
+      throw new Error(`the resolver refused "${utterance}" — the fixture day is outside its horizon`);
+    }
+    return day.label;
+  };
 
   test("THE REPORTED DEFECT: a question about Tuesday is no longer answered about today", () => {
     const day = resolveDay("am i free next tuesday afternoon", SAT);
@@ -638,10 +673,12 @@ test.describe("the calendar's day slot", () => {
     expect(day.part.word).toBe("afternoon");
     expect(day.label).toBe("Tuesday afternoon, the 18th");
 
-    // And end to end, the sentence the room actually hears.
-    const spoken = say("am i free next tuesday afternoon");
+    // And end to end, the sentence the room actually hears — asked about the
+    // day the fixture is actually on, whatever weekday today happens to be.
+    const utterance = `am i free next ${DAY} afternoon`;
+    const spoken = say(utterance);
     expect(spoken).not.toContain("today");
-    expect(spoken).toBe("You've got 2 things on Tuesday afternoon, the 18th.");
+    expect(spoken).toBe(`You've got 2 things on ${labelFor(utterance)}.`);
   });
 
   test("the day is NAMED WITH ITS DATE, which is what makes 'next Tuesday' safe to read", () => {
@@ -710,8 +747,8 @@ test.describe("the calendar's day slot", () => {
     /* It carries a start time and that time means nothing — the live feed has
        "Bob's Birthday" at 10:00 with allDay:true. Bucketing it by its hour drops
        it out of every question about an afternoon. */
-    expect(say("am i free next tuesday afternoon")).toContain("2 things");
-    expect(say("what's on tuesday")).toContain("Bob's Birthday");
+    expect(say(`am i free next ${DAY} afternoon`)).toContain("2 things");
+    expect(say(`what's on ${DAY}`)).toContain("Bob's Birthday");
   });
 
   test("a dinner plan does not make you busy, but it is still what's on", () => {

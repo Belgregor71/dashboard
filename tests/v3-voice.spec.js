@@ -45,9 +45,17 @@ test("the highlight releases itself rather than staying lit forever", async ({ p
   // Started, not awaited — see the note above; the 4.2 s clock is already running.
   const turn = page.evaluate(() => window.__v3Transcript("what time is it"));
   await expect(page.locator('[data-cell="hour"]')).toHaveAttribute("data-ref", "lit");
-  // Cleared on a timeout, never on transitionend — those never fire while an
-  // ancestor is display:none, which most of this surface is most of the time.
-  await expect(page.locator('[data-cell="hour"]')).not.toHaveAttribute("data-ref", "lit", { timeout: 8000 });
+  /* Cleared on a timeout, never on transitionend — those never fire while an
+     ancestor is display:none, which most of this surface is most of the time.
+
+     ⚠ The budget is a LOAD MARGIN, not the property. DEIXIS_MS is 4.2 s and
+     this test takes 6.8-8.2 s on its own, so an 8 s budget was a 1.9× margin
+     that a loaded suite run tipped over (seen 2026-08-16, green in isolation
+     3/3 immediately after). The property under test is "releases itself rather
+     than staying lit FOREVER" — 15 s proves that exactly as well as 8 s did,
+     and stops a busy machine reporting a regression that is not there.
+     Well inside the 30 s test timeout. */
+  await expect(page.locator('[data-cell="hour"]')).not.toHaveAttribute("data-ref", "lit", { timeout: 15_000 });
   await turn;   // never leave a turn in flight when the page is about to close
 });
 
