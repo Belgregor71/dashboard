@@ -239,7 +239,10 @@ test.describe("houseCharacter — who is speaking", () => {
     const text = houseCharacter();
     expect(text).toMatch(/fact comes first/i);      // never a joke before the number
     expect(text).toMatch(/8:41/);                    // the counting habit, by example
-    expect(text).toMatch(/specific or be silent/i);  // the anti-vagueness rule
+    // The anti-vagueness rule. Reworded 2026-08-16 from "be specific or be
+    // silent", which the model read as licence to invent specifics when it had
+    // none — see the invented-reading guard in tests/unresolved.spec.js.
+    expect(text).toMatch(/specific about what you have/i);
     expect(text).toMatch(/never scold/i);            // VOICE.md rule 10, carried over
     expect(text).toMatch(/side gate/i);              // VOICE.md rule 7, carried over
   });

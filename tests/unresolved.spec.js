@@ -245,3 +245,43 @@ test.describe("the house never announces what it has worked out", () => {
     expect(text).toMatch(/flat battery/i);   // the deflating, correct prior
   });
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ⚠⚠ THE INVENTED-READING GUARD.
+
+   Found on the live wall 2026-08-16, minutes after the character was first
+   armed. Asked "what's it like out there" with NO weather in its prompt, the
+   house answered "mid-twenties, mostly clear, light northeasterly" — and then,
+   seconds later, "flat grey, thirty degrees". Two confident inventions that
+   contradicted each other and the real 21°. The OLD register never did this,
+   because it never asked for numbers; the character does, and that is exactly
+   what made the guess tempting.
+
+   Root cause was placement, not wording: the specificity demand lived in
+   REGISTER and the honesty rule three paragraphs away in FALLIBILITY, so the
+   model weighed two instructions and picked the louder one. The fix welds the
+   exception to the rule. These assert that the weld holds.
+   ═══════════════════════════════════════════════════════════════════════════ */
+test.describe("the house never invents a reading it was not given", () => {
+  test("the ban sits INSIDE the specificity sentence, not in a later paragraph", () => {
+    const text = houseCharacter();
+    const specificity = text.indexOf("Be specific about what you have");
+    const ban = text.indexOf("NEVER manufacture the specific");
+    expect(specificity).toBeGreaterThan(-1);
+    expect(ban).toBeGreaterThan(-1);
+    // Same sentence-run: the exception must not drift back out into its own
+    // paragraph, which is the arrangement that produced the invented weather.
+    expect(ban - specificity).toBeLessThan(400);
+  });
+
+  test("it says where its senses end, so an absent number reads as absent", () => {
+    const text = houseCharacter();
+    expect(text).toMatch(/every reading you have is one you were handed/i);
+    expect(text).toMatch(/cannot look out of a window/i);
+    expect(text).toMatch(/not a gap to fill/i);
+  });
+
+  test("the temptation is named, because the weather interest is what causes it", () => {
+    expect(houseCharacter()).toMatch(/interest in the weather is exactly what makes it tempting/i);
+  });
+});
