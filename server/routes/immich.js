@@ -6,6 +6,7 @@ import { isConfigured, searchRandom, onThisDay, searchTaken, fetchRendition } fr
 import { getDailySet, getMapTile, hasMapKey, initDailyMemories } from "../services/dailyMemories.js";
 import { clipPathFor, hasClip, hasSkip } from "../services/liveMotion.js";
 import { hiddenIds, hide, undo } from "../services/photoVeto.js";
+import { labelPeople, warmRoster } from "../services/photoNames.js";
 
 // Dashboard-facing Immich proxy — Phase 9.5 (docs/vision/photo-source-immich.md).
 // The browser only ever talks to these three endpoints; the API key stays in the
@@ -56,13 +57,20 @@ async function pruneCache() {
   } catch { /* best-effort */ }
 }
 
+/* ⚠ labelPeople() is applied OUTSIDE the memo, on the way out, and the memo
+   holds the raw upstream assets. Naming is cheap (a map over ≤100 assets) and
+   the vault reindexes every ten minutes — labelling before the cache would pin
+   a caption to whatever the vault said up to an hour ago, so an edited
+   relationship note would look like it had not synced. labelPeople never
+   mutates its input, which is what makes this safe against a shared cache. */
 router.get("/api/immich/on-this-day", async (_req, res) => {
   if (!isConfigured()) return res.json({ assets: [] });
+  warmRoster(); // background, never awaited — see photoNames.js
   const key = `otd:${new Date().toDateString()}`;
   const cached = memGet(key, ON_THIS_DAY_TTL_MS);
-  if (cached) return res.json({ assets: cached });
+  if (cached) return res.json({ assets: labelPeople(cached) });
   const assets = await onThisDay(new Date());
-  res.json({ assets: memSet(key, assets) });
+  res.json({ assets: labelPeople(memSet(key, assets)) });
 });
 
 /* ── The veto ───────────────────────────────────────────────────────────────
@@ -111,12 +119,13 @@ router.post("/api/immich/hidden/undo", express.json(), (_req, res) => {
 
 router.get("/api/immich/random", async (req, res) => {
   if (!isConfigured()) return res.json({ assets: [] });
+  warmRoster();
   const count = Math.min(Math.max(parseInt(req.query.count, 10) || 12, 1), 60);
   const key = `rnd:${count}`;
   const cached = memGet(key, RANDOM_TTL_MS);
-  if (cached) return res.json({ assets: cached });
+  if (cached) return res.json({ assets: labelPeople(cached) });
   const assets = await searchRandom(count);
-  res.json({ assets: memSet(key, assets) });
+  res.json({ assets: labelPeople(memSet(key, assets)) });
 });
 
 // Browse assets by taken-date window — the authoring portal's month view. Params
