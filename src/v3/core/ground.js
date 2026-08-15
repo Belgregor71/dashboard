@@ -332,6 +332,24 @@ const tripOf = (asset) => String(asset?.trip ?? "").trim();
    both halves would caption a photograph with somewhere it never was. */
 const whenOf = (asset) => tripOf(asset) || yearOf(asset);
 
+/**
+ * The place, unless the trip already said it.
+ *
+ * ⚠ Not a nicety — it is the difference between a caption and a stutter. The
+ * vault's Singapore note spans a trip whose every photograph has `city:
+ * "Singapore"`, so the honest composition is "Singapore · Singapore 2023". The
+ * same collision waits for any trip named after the one city it visited, and
+ * for every sub-note the vault might grow later (a "Chiang Mai" span over
+ * photographs already tagged Chiang Mai).
+ *
+ * Fixing it HERE rather than by authoring around it means the vault stays
+ * readable prose — a note about Singapore is allowed to be called Singapore.
+ */
+export function placeUnlessEchoed(place, trip) {
+  if (!place || !trip) return place;
+  return trip.toLowerCase().includes(place.toLowerCase()) ? "" : place;
+}
+
 /* Two names read as a couple; beyond that the line becomes a list and stops
    being glanceable, so it degrades to a count. */
 function joinPeople(people) {
@@ -350,7 +368,7 @@ export function captionFor(asset) {
   const people = joinPeople(namesOf(asset));
   if (people) parts.push(people);
 
-  const place = placeOf(asset);
+  const place = placeUnlessEchoed(placeOf(asset), tripOf(asset));
   if (place) parts.push(place);
 
   const when = whenOf(asset);
@@ -379,7 +397,7 @@ export function captionForFrame(assets) {
   const people = joinPeople(uniq(list.flatMap(namesOf)));
   if (people) parts.push(people);
 
-  const places = uniq(list.map(placeOf).filter(Boolean));
+  const places = uniq(list.map((a) => placeUnlessEchoed(placeOf(a), tripOf(a))).filter(Boolean));
   if (places.length) parts.push(places.join(" & "));
 
   const whens = uniq(list.map(whenOf).filter(Boolean)).sort();

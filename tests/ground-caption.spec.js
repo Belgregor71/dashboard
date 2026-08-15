@@ -86,6 +86,17 @@ test("a trip REPLACES the bare year — it already carries one", () => {
     .toBe("Nudgee · Tasmania 2011");
 });
 
+test("the place is dropped when the trip already said it", () => {
+  // The vault's Singapore note spans a trip where every photograph's city IS
+  // Singapore. The honest composition would stutter.
+  expect(captionFor({ people: [], city: "Singapore", localDateTime: "2023-05-24T00:00:00Z", trip: "Singapore 2023" }))
+    .toBe("Singapore 2023");
+  // A city the trip does NOT name still earns its place — this is the common
+  // shape and the rule must not eat it.
+  expect(captionFor({ people: [], city: "Rome", localDateTime: "2017-03-08T00:00:00Z", trip: "Europe 2017" }))
+    .toBe("Rome · Europe 2017");
+});
+
 test("a trip is worth saying even when nothing else is known", () => {
   expect(captionFor({ people: [], city: null, localDateTime: "2017-08-15T00:00:00Z", trip: "Mexico 2017" }))
     .toBe("Mexico 2017");

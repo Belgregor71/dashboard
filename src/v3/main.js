@@ -31,6 +31,13 @@ import { initBriefingWindow, lastBriefing } from "./core/briefing-window.js";
 import { initHealth, lastHealth } from "./core/health.js";
 import { initDisplay, onPanelDark, displayState } from "./core/display.js";
 import { initNowPlaying, nowPlayingState } from "./core/now-playing.js";
+import { initMemoryRuntime } from "../js/core/memoryRuntime.js";
+
+/* ⚠ `/js/config.js` is a separate <script> in index.html, so window.CONFIG is
+   populated before this module runs — but read it LATE anyway (per call, not at
+   module load). The incumbent's isEnabled() default is `false`, and matching it
+   matters: an unreadable config must mean "off", never "on by accident". */
+const flag = (name) => Boolean(globalThis.window?.CONFIG?.features?.[name]);
 
 /* Sun position only. City-level Brisbane, deliberately coarse: this repo is
    PUBLIC and its bundle is tracked, so no house-precise coordinate may appear
@@ -242,6 +249,28 @@ function boot() {
      late learns nothing until the next track. Flag-off returns false having
      registered nothing. */
   stage("now-playing", () => initNowPlaying());
+
+  /* ── Stage 3 · the house's own writing ────────────────────────────────────
+     73 authored memories, every one photo-anchored through Memory Studio, and
+     `window.__memoryState` was **undefined** on the live wall. Not broken —
+     never armed: `initMemoryRuntime()` had exactly one caller, `js/core/app.js`,
+     which V3 does not import. `collectMemory()` therefore returned [] forever
+     while `attentionEngine.js:19` imported it, so the candidate path existed,
+     passed the closure test, and could not fire.
+
+     BEFORE initAttention(), which is the only ordering constraint: the engine
+     concats collectMemory() into its queue on the first pass, and initAttention
+     ticks immediately. Armed late, the first tick would silently run without it.
+
+     ⚠ A TENDER MEMORY HAS NOWHERE TO LAND HERE, and it is worth knowing which
+     silence that is. pickMemory chooses at most one memory per day; if the day's
+     best fit is `sensitivity: "tender"`, collectMemory correctly refuses to put
+     grief in a passing text line and hands it to collectAmbientMemory instead —
+     whose only consumer is modules/screensaver.js, which V3 has no equivalent
+     of. So on a tender day V3 shows no memory at all rather than a clumsy one.
+     That is the right failure, not the right feature; the ambient tender frame
+     is a design pass this file does not get to make. */
+  stage("memory", () => initMemoryRuntime({ enabled: flag("memoryEngine") }));
 
   /* The house's opinion, and its permission to act on it. See core/attention.js:
      an interrupt reaches the glance whether or not anyone is there, the High

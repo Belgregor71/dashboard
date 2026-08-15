@@ -71,7 +71,11 @@ export function moodOf(condition) {
 
 // Does the entry's anchor (a one-off `date` or a `recurring` {month,day}) land
 // on today? month is 1-based in the data for human authoring.
-function anniversaryToday(entry, now) {
+//
+// Exported since Stage 3: v3/subjects/memories.js asks the same question to
+// choose which curated photographs the year shows, and a second implementation
+// of "is this today" is a second thing to get wrong. It is one rule.
+export function anniversaryToday(entry, now = new Date()) {
   const rec = entry.recurring;
   if (rec && Number.isFinite(rec.month) && Number.isFinite(rec.day)) {
     return rec.month === now.getMonth() + 1 && rec.day === now.getDate();

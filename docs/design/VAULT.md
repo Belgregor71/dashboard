@@ -109,6 +109,19 @@ Four rules, each of which someone will otherwise get wrong once:
 - **A note with `date` but no `label` claims nothing.** It has a span (useful on
   its own) but nothing to print, so the caption is left as it was.
 
+⚠ **A labelled span claims EVERY photograph inside it**, so only label a span
+where that is true. A trip is: everything photographed those ten days was the
+trip. A birthday is not — a photo taken on 20 May is not a photo *of* Teddy's
+birthday, and labelling it would put a small lie under a third of the wall's
+photographs each year. Sub-trip notes are the same trap from the other side:
+`thailand-2026-chiang-mai` would win the shortest-span rule and caption a photo
+whose city is already Chiang Mai, so it is left unlabelled on purpose.
+
+A caption never says the same word twice — a place the trip's label already
+contains is dropped, so the Singapore trip reads *"Singapore 2023"*, not
+*"Singapore · Singapore 2023"*. That is handled in `ground.js`, so a note about
+Singapore is still allowed to be called Singapore.
+
 Dates are matched as **local calendar days**, never UTC. Thailand is UTC+7 and a
 9am Bangkok photograph converted to UTC lands on the previous day — which would
 drop every morning of a trip out of its own span, at both ends.

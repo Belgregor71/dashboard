@@ -18,6 +18,27 @@ import { test, expect } from "./fixtures/coverage.js";
 async function bootV3(page) {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
+
+  /* ⚠ THE MEMORY LANE IS PINNED OFF, and it is not incidental. Arming
+     initMemoryRuntime on V3 put authored memories into the attention queue at
+     MEMORY_SCORE 44 — which outranks the 42 the "day's readouts" test forces,
+     so the hero became `memory:tas-2021` and the assertion below failed for a
+     correct reason.
+
+     Turning it off here rather than loosening the assertion, because the deeper
+     problem is that `data/memories/` is GITIGNORED: what the queue holds is a
+     function of which JSON files happen to sit on the machine running the
+     suite. That is the same hidden coupling tests/v3-spread.spec.js paid for
+     with a real Plex session on the developer's NAS. This file is about
+     presence and depth; the memory lane has its own spec. */
+  await page.route("**/js/config.js", async (route) => {
+    const res = await route.fetch();
+    await route.fulfill({
+      response: res,
+      body: (await res.text()) + "\nwindow.CONFIG.features.memoryEngine = false;\n"
+    });
+  });
+
   await page.goto("/v3/");
   await page.waitForFunction(() => typeof window.__v3 === "function");
   // Start from a known floor: the boot tick may have acted on real state.

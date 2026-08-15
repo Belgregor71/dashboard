@@ -1135,6 +1135,30 @@ window.CONFIG = {
     // tests/v3-cell-context.spec.js at both depths, so the rollback is a tested
     // state and not an assumption.
     v3CellContext: true,
+
+    // ── V3 CURATED YEAR ────────────────────────────────────────────────────
+    // Depth 3, "show me the year": lead the 3×3 with the memories the household
+    // AUTHORED (data/memories/authored.json, 73 of them, every one photo-anchored
+    // and titled in a person's own words through Memory Studio) and fill the rest
+    // from raw on-this-day.
+    //
+    // This is the design decision src/v3/subjects/memories.js asked for by name
+    // and refused to answer with a heuristic. What the wall showed on 2026-08-08
+    // was seven lovely border collie photographs, a product shot of two
+    // supplement bottles, and a close-up of a sandwich — real photographs of
+    // unremarkable things, which no pixel rule can catch and which two previously
+    // built, previously rejected filters prove is the wrong lane to fix it in.
+    // Nothing is excluded here; something is PREFERRED.
+    //
+    // Depends on nothing else being on: the plates are read straight off
+    // /api/memories, NOT through the memory runtime, which rations to one memory
+    // a day behind a budget and months-long cooldowns. That rationing is right
+    // for an unasked-for line and wrong for a screen somebody just asked to see.
+    //
+    // Flag-off ⇒ /api/memories is never fetched and the grid is the raw
+    // on-this-day pool in its original order, which is what shipped before —
+    // that is the rollback, and tests/v3-curated-year.spec.js asserts it.
+    v3CuratedYear: false,
   },
 
   /* --------------------------------------------------------------
