@@ -177,6 +177,62 @@ function usableImage(a) {
   return true;
 }
 
+/* ⚠⚠ THE EXIF DIMENSIONS ARE PRE-ROTATION AND THE RENDITION IS NOT. This is the
+   whole of F6 — "heads are being cropped, tops of cocktails being left off."
+
+   An iPhone stores a portrait photograph as a LANDSCAPE 4032x3024 buffer plus
+   `orientation: 6` ("rotate 90° CW to display"). Immich applies that when it
+   generates the preview, so the jpeg the wall actually loads is 1440x1920 —
+   while `exifImageWidth/Height` still describe the sensor. Deriving the aspect
+   from them therefore reports 1.333 for a picture that is 0.750 on the glass.
+
+   🔑 MEASURED ON THE LIVE LIBRARY, 2026-08-15, by fetching every preview in the
+   day's on-this-day pool and reading its SOF marker — not reasoned about:
+
+     202 assets · 111 are portrait as delivered · the exif pair said so for 47
+     ⇒ 64 misclassified, THIRTY-TWO PERCENT of the pool
+
+   And a misclassified portrait is not a cosmetic error, it is the worst frame
+   the ground can draw: `isKnownPortrait` rejects it, so the diptych — the
+   feature that exists precisely to protect portraits — never pairs it, and it
+   goes full-bleed instead, where 0.75 into 1.78 keeps 42% of the picture and
+   throws away the rest from the centre outwards. Faces live near the top of a
+   portrait frame. That is the report, exactly.
+
+   THE FIX IS A FIELD THAT WAS ALWAYS IN THE PAYLOAD. `width`/`height` sit at the
+   TOP LEVEL of the asset, beside `exifInfo` rather than inside it, and Immich
+   writes them POST-rotation. Measured against the delivered jpeg across the same
+   202: the top-level pair agrees for 194, the exif pair for 138. Present on
+   `search/random` too, with and without `withExif` (checked both).
+
+   ⚠ THE RESIDUAL 8 ARE NOT A BUG HERE AND CANNOT BE FIXED ON THIS SIDE. They are
+   HEICs whose `orientation` is null, where Immich reports 4032x3024 in EVERY
+   field it has and still delivers 1440x1920. The server has no way to know
+   without decoding the rendition; the browser does, via naturalWidth on the
+   loaded <img>, which is exactly where `archiveModel.js:110` says to read it.
+   4% of the pool, and they fail the way they always did.
+
+   ⚠ Fails to null rather than to a guess, and unknown is NOT portrait — the
+   callers all treat null as "leave it full-bleed", which is the conservative
+   end (see ground.js's isKnownPortrait). */
+export function displayAspect(a) {
+  const round = (v) => Math.round(v * 1000) / 1000;
+
+  const w = Number(a?.width) || 0;
+  const h = Number(a?.height) || 0;
+  if (w && h) return round(w / h);
+
+  // Older Immich, or any payload without the top-level pair: fall back to the
+  // exif dimensions AND apply the orientation they are missing. 5-8 are the four
+  // transposed values; 1-4 leave the axes alone.
+  const ew = Number(a?.exifInfo?.exifImageWidth) || 0;
+  const eh = Number(a?.exifInfo?.exifImageHeight) || 0;
+  if (!ew || !eh) return null;
+  const o = Number(a?.exifInfo?.orientation);
+  const transposed = o >= 5 && o <= 8;
+  return round(transposed ? eh / ew : ew / eh);
+}
+
 export function slim(a) {
   // Location rides along from exifInfo when present (the Daily Memories caption +
   // travel-map need it); absent/GPS-less photos just come back null → year-only
@@ -200,13 +256,9 @@ export function slim(a) {
        landscape wall is the worst case twice over: object-fit cover must scale
        a 1440x1920 preview by 1.33 to fill 1920 wide (the only upscale in the
        whole path — a landscape preview lands at exactly 1.0), and it crops away
-       ~58% of the picture doing it. Null when the caller did not ask for
-       withExif, which callers must treat as unknown, never as portrait. */
-    aspect: (() => {
-      const w = Number(a?.exifInfo?.exifImageWidth) || 0;
-      const h = Number(a?.exifInfo?.exifImageHeight) || 0;
-      return w && h ? Math.round((w / h) * 1000) / 1000 : null;
-    })(),
+       ~58% of the picture doing it. Null when nothing here knows the shape,
+       which callers must treat as unknown, never as portrait. */
+    aspect: displayAspect(a),
     // The id of this photo's motion half, when it has one and the knob is on.
     // Spread conditionally so the knob-off object keeps exactly the eight keys
     // it has always had (asserted in the contract test).

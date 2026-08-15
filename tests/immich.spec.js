@@ -11,7 +11,7 @@ import {
   ambiguousGivenNames,
   displayName
 } from "../src/js/services/photoMemory.js";
-import { slim, liveMotionEnabled } from "../server/services/immichClient.js";
+import { slim, liveMotionEnabled, displayAspect } from "../server/services/immichClient.js";
 
 // Pure unit tests for the Immich on-this-day mapping — Phase 9.5
 // (docs/vision/photo-source-immich.md). photoMemory.js has no DOM/IO, so these
@@ -377,6 +377,87 @@ test.describe("isTravel — country present and not Australia", () => {
     expect(isTravel({ country: "australia" })).toBe(false);
     expect(isTravel({ country: null })).toBe(false);
     expect(isTravel({})).toBe(false);
+  });
+});
+
+/**
+ * The aspect the WALL sees, not the one the sensor recorded — F6.
+ *
+ * The fixtures below are real shapes lifted off the live library on 2026-08-15,
+ * because the defect is not arithmetic: it is that two fields in the same
+ * payload disagree about which way up the photograph is, and only one of them
+ * matches the jpeg Immich actually serves.
+ */
+test.describe("displayAspect — the rendition's shape, not the sensor's", () => {
+  /* THE CASE THAT WAS BROKEN, and 32% of the day's pool: a portrait iPhone
+     photograph, stored landscape with orientation 6. Immich delivers it rotated
+     at 1440x1920. Anything that reports 1.333 here sends it full-bleed onto a
+     1.78 panel, which keeps 42% of the picture and cuts the heads out. */
+  test("orientation 6 — a portrait stored as a landscape buffer", () => {
+    expect(displayAspect({
+      width: 3024, height: 4032,
+      exifInfo: { exifImageWidth: 4032, exifImageHeight: 3024, orientation: "6" }
+    })).toBe(0.75);
+  });
+
+  test("an upright landscape is untouched", () => {
+    expect(displayAspect({
+      width: 4032, height: 3024,
+      exifInfo: { exifImageWidth: 4032, exifImageHeight: 3024, orientation: "1" }
+    })).toBe(1.333);
+  });
+
+  /* The top-level pair is Immich's own post-rotation answer, so it WINS over the
+     exif pair whenever both are present. Written as a disagreement on purpose:
+     if the precedence is ever reversed this is the assertion that goes red, and
+     nothing else would. */
+  test("top-level width/height beat exifImageWidth/Height when they disagree", () => {
+    expect(displayAspect({
+      width: 1080, height: 1920,
+      exifInfo: { exifImageWidth: 1920, exifImageHeight: 1080, orientation: null }
+    })).toBe(0.563);
+  });
+
+  /* Older Immich, or any payload without the top-level pair. The fallback has to
+     apply the orientation itself or it reintroduces the whole defect. */
+  test("no top-level pair → the exif pair, with the rotation applied", () => {
+    const exifOnly = (orientation) =>
+      displayAspect({ exifInfo: { exifImageWidth: 4032, exifImageHeight: 3024, orientation } });
+    // 5-8 are the four transposed orientations.
+    for (const o of [5, 6, 7, 8]) expect(exifOnly(o)).toBe(0.75);
+    // 1-4 leave the axes alone, and so does an absent value.
+    for (const o of [1, 2, 3, 4, null, undefined]) expect(exifOnly(o)).toBe(1.333);
+  });
+
+  /* ⚠ UNKNOWN IS NOT PORTRAIT. Every caller reads null as "leave it full-bleed",
+     which is the conservative end — guessing portrait would send real landscapes
+     into a 952-wide diptych half and crop them harder than doing nothing. */
+  test("nothing to go on → null, never a guess", () => {
+    expect(displayAspect({})).toBe(null);
+    expect(displayAspect({ exifInfo: {} })).toBe(null);
+    expect(displayAspect({ width: 0, height: 0, exifInfo: { exifImageWidth: 0, exifImageHeight: 0 } })).toBe(null);
+    expect(displayAspect(null)).toBe(null);
+  });
+
+  /* The residual, and it is honest about being unfixable here: a HEIC whose
+     orientation Immich never recorded, reported 4032x3024 in every field it has
+     and still delivered at 1440x1920. 8 of 202 on the day this was measured. The
+     browser can tell (naturalWidth); the server cannot, and must not pretend. */
+  test("the unknowable HEIC still reports what the payload says", () => {
+    expect(displayAspect({
+      width: 4032, height: 3024,
+      exifInfo: { exifImageWidth: 4032, exifImageHeight: 3024, orientation: null }
+    })).toBe(1.333);
+  });
+
+  /* The path that actually reaches the wall. slim() is what the ground reads, so
+     a correct helper wired to nothing would still leave the picture cropped. */
+  test("slim() carries the corrected aspect through to the client", () => {
+    expect(slim({
+      id: "a1",
+      width: 3024, height: 4032,
+      exifInfo: { exifImageWidth: 4032, exifImageHeight: 3024, orientation: "6" }
+    }).aspect).toBe(0.75);
   });
 });
 
