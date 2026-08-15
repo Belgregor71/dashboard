@@ -1,11 +1,26 @@
 # VOICE.md — how the house speaks
 
 One voice, everywhere: on the glass, out of the speaker, and inside the AI
-prompts. This document is the authority; `src/js/core/personality.js` is its
-runtime enforcement. When a new line is written anywhere in the house, it is
-written against this page.
+prompts. `src/js/core/personality.js` is this page's runtime enforcement. When a
+new line is written anywhere in the house, it is written against this page.
 
-## The voice in one paragraph
+> ⚠ **Identity moved to `docs/design/CHARACTER.md` on 2026-08-15.** That page is
+> now the authority on *who is speaking*; this page is the authority on *how
+> they punctuate*. Where the two disagree, CHARACTER.md wins and this page gets
+> edited.
+>
+> **This page is mid-migration and is deliberately describing two voices.** The
+> conversational voice turn already speaks as CHARACTER.md (flag
+> `v3HouseCharacter`, via `server/services/character.js`). Every other surface —
+> alerts, delight, occasions, arrival, goodnight, memory captions, briefings —
+> still speaks the register below, and will until the propagation lands. The
+> paragraph and rules that follow describe **that** register: they are live copy
+> for those surfaces, not aspiration, and they must not be edited to match
+> CHARACTER.md until the surfaces themselves are rewritten. The **Mechanics**
+> and **Vocabulary** sections below are the exception — those are voice-neutral
+> and bind both.
+
+## The voice in one paragraph (surfaces not yet propagated)
 
 The house has decided it's the star of this street, and it's not going to
 whisper about it. It's Brisbane suburbia at full volume — gossipy, dramatic,
@@ -99,6 +114,7 @@ goes quiet and plain, because some things aren't a bit.
 
 | Surface | File | Notes |
 |---|---|---|
+| **Conversational voice turn** | `server/services/character.js` | ⚠ **not this page** — see `CHARACTER.md` |
 | Spoken door/gate alerts | `src/js/config/alertLines.js` | pre-warmed TTS; pools of ~6; graduated per rule 7 |
 | Delight/celebration lines | `src/js/services/delight.js` | the rarest surface — highest bar |
 | Calendar occasions | `src/js/services/occasions.js` | full moment each; ANZAC stays plain |
@@ -110,6 +126,10 @@ goes quiet and plain, because some things aren't a bit.
 | AI briefing/concierge prompts | `server/routes/ai.js` | must quote this register |
 
 ## Binding the AI layer
+
+⚠ **The conversational voice turn no longer reads from here.** `/api/voice/converse`
+builds its prompt from `server/services/character.js` when `v3HouseCharacter` is
+on. The rest of this section describes the surfaces still on the old register.
 
 The Haiku/Ollama system prompts in `server/routes/ai.js` carry this page's
 register in miniature via `VOICE_REGISTER`: *"warm, big, gossipy Australian

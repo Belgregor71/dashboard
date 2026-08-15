@@ -15,6 +15,7 @@ import {
 import { searchVault, buildContext } from "../services/vaultIndex.js";
 import { createSoundDetector } from "../services/soundPresence.js";
 import { toolDefs, entityRoster, planCall } from "../services/voiceTools.js";
+import { houseCharacter, characterEnabled } from "../services/character.js";
 import { VOICE_REGISTER } from "./ai.js";
 
 // Phase 4 "Give it a voice" — the server half of the Mode 3 conversation lanes
@@ -63,6 +64,27 @@ const CONVERSE_BASE = [
   "Answer in 1-2 short sentences of plain prose — no markdown, no lists, no follow-up questions unless one is genuinely needed.",
 ];
 
+/* The character build of the same block (docs/design/CHARACTER.md).
+ *
+ * ⚠ ORDERING IS LOAD-BEARING, not cosmetic. Everything in this array is
+ * IDENTICAL on every turn, which is what makes it a cacheable prefix. The
+ * volatile lines — todayLine()'s clock, the entity roster, the house digest,
+ * the retrieved memories — are appended by converseSystem() AFTER this, and
+ * they must stay after it. Promote any one of them into this array and the
+ * prefix changes every turn, the cache read silently drops to zero, and
+ * nothing anywhere reports that it happened.
+ *
+ * GRIEF_LINE and SPEAKER_UNKNOWN_LINE are reused verbatim rather than folded
+ * into character.js: both are stable, both are already unit-tested, and both
+ * are about correctness rather than personality. The character page restates
+ * their substance for the model's benefit; these two are the enforcement. */
+const CHARACTER_BASE = [
+  houseCharacter(),
+  GRIEF_LINE,
+  SPEAKER_UNKNOWN_LINE,
+  "Your reply is spoken aloud, so keep it to 1-2 short sentences of plain prose — no markdown, no lists, no follow-up question unless you genuinely need one to answer.",
+];
+
 // The house knowledge base (docs/design/VAULT.md) is what makes the concierge's
 // "I don't know anything about this house" line answerable instead of a dead
 // end: notes the household wrote in Obsidian are retrieved against the question
@@ -88,14 +110,22 @@ function armedTools() {
   return process.env.VOICE_TOOLS_ENABLED === "1" ? toolDefs() : [];
 }
 
-function converseSystem(text, tools) {
+/* Exported for tests/voice.spec.js only. The property that matters — flag-off
+   is byte-identical to the pre-character prompt — is not observable from
+   outside the route, and a rollback path nothing can assert is a rollback path
+   nobody should trust. */
+export function converseSystem(text, tools) {
   const context =
     process.env.VAULT_ENABLED === "1" ? buildContext(searchVault(text)) : "";
-  // todayLine() is appended per request, not baked into CONVERSE_BASE — the
+  // todayLine() is appended per request, not baked into the base — the
   // date has to be current at answer time, and this route outlives midnight.
   // The roster rides along only when tools actually shipped: naming things the
   // model has no tool for is how you get a confident claim that the light is off.
-  const lines = [...CONVERSE_BASE, todayLine()];
+  //
+  // With the character off this is the pre-2026-08-15 prompt byte for byte,
+  // which is the rollback path and the property tests/voice.spec.js asserts.
+  const base = characterEnabled() ? CHARACTER_BASE : CONVERSE_BASE;
+  const lines = [...base, todayLine()];
   if (tools.length) lines.push(entityRoster());
   return buildConverseSystem(lines, context);
 }

@@ -4,11 +4,15 @@ import {
   buildConverseMessages,
   buildConverseSystem,
   todayLine,
+  HOUSE_TIME_ZONE,
   GRIEF_LINE,
   SPEAKER_UNKNOWN_LINE,
   MAX_TURNS,
   MAX_TURN_CHARS
 } from "../server/services/voiceShape.js";
+import { houseCharacter } from "../server/services/character.js";
+import { converseSystem } from "../server/routes/voice.js";
+import { VOICE_REGISTER } from "../server/routes/ai.js";
 
 // Pure unit tests — voiceShape.js has no imports, no I/O, so these run
 // straight in the Playwright node process (insights.spec.js style).
@@ -193,5 +197,119 @@ test.describe("SPEAKER_UNKNOWN_LINE — never guess who is talking", () => {
   test("restricts the rule to relationships, not to the word 'you'", () => {
     expect(SPEAKER_UNKNOWN_LINE).toMatch(/related/i);
     expect(SPEAKER_UNKNOWN_LINE).toMatch(/still fine/i);
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE HOUSE'S CHARACTER — docs/design/CHARACTER.md
+
+   Two properties matter here and neither is "the prose is good":
+
+     1. Flag OFF is byte-identical to the pre-character prompt. That is the
+        rollback path, and a rollback nothing asserts is one nobody should
+        trust.
+     2. The block is CONSTANT across calls. It heads the cacheable prefix, so
+        one varying byte anywhere in it drops the cache read to zero on every
+        turn — silently, with no error and nothing in the response to notice.
+
+   ⚠ These mutate process.env, and node-side module state leaks between specs
+   in a worker (reference-boot-module-state-leak). Every test restores it.
+   ═══════════════════════════════════════════════════════════════════════════ */
+test.describe("houseCharacter — who is speaking", () => {
+  test("is the same string on every call (it heads a cacheable prefix)", () => {
+    expect(houseCharacter()).toBe(houseCharacter());
+  });
+
+  // The whole point of the rewrite. A character defined as a pointer to
+  // somebody else's character cannot be made consistent, and the show name
+  // reaching a prompt is the regression that says the pointer came back.
+  test("names no external property — it is originated, not referenced", () => {
+    const text = houseCharacter().toLowerCase();
+    for (const ghost of ["kath", "kim", "sharon", "brett and kath"]) {
+      expect(text).not.toContain(ghost);
+    }
+  });
+
+  test("carries the traits the page says are load-bearing", () => {
+    const text = houseCharacter();
+    expect(text).toMatch(/fact comes first/i);      // never a joke before the number
+    expect(text).toMatch(/8:41/);                    // the counting habit, by example
+    expect(text).toMatch(/specific or be silent/i);  // the anti-vagueness rule
+    expect(text).toMatch(/never scold/i);            // VOICE.md rule 10, carried over
+    expect(text).toMatch(/side gate/i);              // VOICE.md rule 7, carried over
+  });
+
+  // The counting habit is the sharpest trait in the file and "you've forgotten
+  // the bins three times" is exactly what it degrades into unsupervised.
+  test("blunts its own sharpest trait — a count is never evidence against a person", () => {
+    expect(houseCharacter()).toMatch(/never as a correction/i);
+    expect(houseCharacter()).toMatch(/evidence against/i);
+  });
+
+  // ⚠ Not "contains no time-shaped text" — the mechanics line quotes "8:20 am"
+  // as the en-AU formatting example, which is static copy and belongs here.
+  // "1 August 2026" and "2011" are biography and belong here too. The actual
+  // invalidator is a LIVE clock, so compare against the live clock: anything
+  // todayLine() would render today must be absent from a block that claims to
+  // be constant.
+  test("carries no live clock or date — only static copy and biography", () => {
+    const text = houseCharacter();
+    const now = new Date();
+    const today = now.toLocaleDateString("en-AU", {
+      timeZone: HOUSE_TIME_ZONE, weekday: "long", day: "numeric", month: "long", year: "numeric"
+    });
+    const time = now.toLocaleTimeString("en-AU", {
+      timeZone: HOUSE_TIME_ZONE, hour: "numeric", minute: "2-digit"
+    });
+    expect(text).not.toContain(today);
+    expect(text).not.toContain(time);
+    expect(todayLine()).toContain(time);   // the clock lives there, and only there
+  });
+});
+
+test.describe("converseSystem — the flag-off prompt is unchanged", () => {
+  const KEY = "HOUSE_CHARACTER_ENABLED";
+  let saved;
+  test.beforeEach(() => { saved = process.env[KEY]; });
+  test.afterEach(() => {
+    if (saved === undefined) delete process.env[KEY];
+    else process.env[KEY] = saved;
+  });
+
+  test("flag off → the old register, and no character text at all", () => {
+    delete process.env[KEY];
+    const out = converseSystem("what's the weather", []);
+    expect(out).toContain(VOICE_REGISTER);
+    expect(out).not.toContain("only permanent resident");
+  });
+
+  // Anything truthy-but-not-"1" must read as off. "true" and "0" are both
+  // things a .env acquires by hand, and either silently inverting the gate is
+  // how a flag stops being a rollback path.
+  test("only the exact string \"1\" arms it", () => {
+    for (const value of ["0", "true", "yes", ""]) {
+      process.env[KEY] = value;
+      expect(converseSystem("hello", [])).toContain(VOICE_REGISTER);
+    }
+  });
+
+  test("flag on → the character replaces the register, and nothing else moves", () => {
+    process.env[KEY] = "1";
+    const out = converseSystem("what's the weather", []);
+    expect(out).toContain("only permanent resident");
+    expect(out).not.toContain(VOICE_REGISTER);
+    // The two correctness lines are personality-independent and must survive
+    // the swap — they are about who died and who is speaking, not about tone.
+    expect(out).toContain(GRIEF_LINE);
+    expect(out).toContain(SPEAKER_UNKNOWN_LINE);
+  });
+
+  // The ordering IS the cache. todayLine() carries a minute-resolution clock;
+  // if it ever migrates above the character block the prefix changes every
+  // turn and the cache read silently goes to zero.
+  test("the volatile clock sits after the stable character block", () => {
+    process.env[KEY] = "1";
+    const out = converseSystem("hello", []);
+    expect(out.indexOf("only permanent resident")).toBeLessThan(out.indexOf("It is "));
   });
 });
