@@ -19,6 +19,24 @@ const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
  * of regression that would brick the kiosk after a push.
  */
 
+/* ⚠⚠ NEVER LEAVE A REQUEST IN FLIGHT WHEN A TEST IS ABOUT TO END.
+   Blocked a push 2026-08-16: "Target page, context or browser has been closed".
+
+   The SSE tests below fire a POST on a timer to provoke the frame they are
+   waiting for, then resolve the instant that frame arrives — which is caused
+   BY that POST, so the POST is by definition still in flight. Playwright then
+   tears the request context down underneath it, and the rejection surfaces
+   with no owning test, intermittently, in whichever run happens to be fast
+   enough. It passed three full suites before it failed one.
+
+   The fix is ownership: capture the promise the timer creates and settle it
+   before the test returns. `.catch()` because a POST cut short by a stream
+   that already closed is an expected outcome here, not a failure — the frame
+   arriving is the assertion. */
+async function settle(promise) {
+  if (promise) await Promise.resolve(promise).catch(() => {});
+}
+
 async function expectJson(request, path, { statuses = [200], method = "get", data } = {}) {
   const res = await request[method](path, data ? { data } : undefined);
   expect(statuses, `${method.toUpperCase()} ${path} returned ${res.status()}`).toContain(res.status());
@@ -1164,6 +1182,7 @@ test.describe("ai + tts", () => {
     // Raw node http rather than the request fixture: an SSE response never
     // ends, so awaiting its body simply times out.
     const http = await import("node:http");
+    let posted;
     const received = await new Promise((resolve, reject) => {
       const req = http.get("http://127.0.0.1:3210/api/voice/stream", (res) => {
         let buf = "";
@@ -1180,8 +1199,10 @@ test.describe("ai + tts", () => {
       setTimeout(() => { req.destroy(); resolve(buf_fallback()); }, 6000);
       function buf_fallback() { return "TIMEOUT"; }
       // Post once the subscriber is definitely attached.
-      setTimeout(() => request.post("/api/voice/level", { data: { rms: 2222 } }), 500);
+      setTimeout(() => { posted = request.post("/api/voice/level", { data: { rms: 2222 } }); }, 500);
     });
+
+    await settle(posted);
 
     expect(received, "no voice_level frame reached the SSE subscriber").not.toBe("TIMEOUT");
     expect(received).toContain("event: voice_level");
@@ -1249,6 +1270,7 @@ test.describe("ai + tts", () => {
     // ~12.5 level frames a second, pushed at the process that generated them.
     // Harmless-looking, and the reason this route takes a flavour at all.
     const http = await import("node:http");
+    let posted;
     const received = await new Promise((resolve) => {
       const req = http.get("http://127.0.0.1:3210/api/voice/stream?agent=1", (res) => {
         let buf = "";
@@ -1260,12 +1282,15 @@ test.describe("ai + tts", () => {
       });
       req.on("error", () => resolve("TIMEOUT"));
       setTimeout(() => { req.destroy(); resolve("TIMEOUT"); }, 6000);
-      setTimeout(async () => {
-        await request.post("/api/voice/level", { data: { rms: 3333 } });
-        await request.post("/api/voice/transcript", { data: { text: "agent stream isolation" } });
-        await request.post("/api/voice/speaking", { data: { speaking: true } });
+      setTimeout(() => {
+        posted = (async () => {
+          await request.post("/api/voice/level", { data: { rms: 3333 } });
+          await request.post("/api/voice/transcript", { data: { text: "agent stream isolation" } });
+          await request.post("/api/voice/speaking", { data: { speaking: true } });
+        })();
       }, 500);
     });
+    await settle(posted);
     await request.post("/api/voice/speaking", { data: { speaking: false } });
 
     expect(received, "the agent never saw the speaking change").not.toBe("TIMEOUT");
@@ -1276,6 +1301,7 @@ test.describe("ai + tts", () => {
 
   test("a barge-in reaches the KIOSK stream, which is what silences the page", async ({ request }) => {
     const http = await import("node:http");
+    let posted;
     const received = await new Promise((resolve) => {
       const req = http.get("http://127.0.0.1:3210/api/voice/stream", (res) => {
         let buf = "";
@@ -1287,8 +1313,9 @@ test.describe("ai + tts", () => {
       });
       req.on("error", () => resolve("TIMEOUT"));
       setTimeout(() => { req.destroy(); resolve("TIMEOUT"); }, 6000);
-      setTimeout(() => request.post("/api/voice/barge-in", { data: {} }), 500);
+      setTimeout(() => { posted = request.post("/api/voice/barge-in", { data: {} }); }, 500);
     });
+    await settle(posted);
 
     expect(received, "no voice_barge_in frame reached the kiosk").not.toBe("TIMEOUT");
     expect(received).toContain("event: voice_barge_in");
