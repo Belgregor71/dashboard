@@ -1245,7 +1245,13 @@ window.CONFIG = {
     //
     // Flag-off ⇒ initDinner registers no tick and no handle, and the recipe
     // subject is reachable only by voice, exactly as it is today.
-    v3DinnerPanel: false,
+    //
+    // FLIPPED ON 2026-08-16 after live verification on the G11: the strip, the
+    // month and the recipe were each mounted over CDP and photographed on the
+    // wall before this line moved. The panel itself could only be verified
+    // armed — flag-off it registers no tick and no handle — which is the same
+    // deadlock the recipePanel flag above records. One-line revert (-> false).
+    v3DinnerPanel: true,
 
     // ── The week of weather ─────────────────────────────────────────────────
     // /api/weather/forecast has served 7 days of high/low/code/rain-chance all
@@ -1264,7 +1270,10 @@ window.CONFIG = {
     // ⚠⚠ The digest half is the risky half. The character has invented weather
     // it was never given twice (039dfa2, cc30c89), so the line carries ONLY
     // days present in forecast.days and is absent entirely when the array is.
-    v3ForecastWeek: false,
+    //
+    // FLIPPED ON 2026-08-16. Photographed on the wall: seven cells, seven
+    // lottie icons actually rasterised, live Open-Meteo data. One-line revert.
+    v3ForecastWeek: true,
 
     // ── The month ahead ─────────────────────────────────────────────────────
     // show.day is deliberately today-only (localIntents DAY_INTENTS) and the
@@ -1278,7 +1287,13 @@ window.CONFIG = {
     // feed carried nothing between 27 Aug and 19 Nov. CALENDAR_LOOKAHEAD_DAYS
     // (server-side, default 0 = unchanged) widens it. This flag governs the
     // SUBJECT; without the env var the subject renders an honestly short month.
-    v3CalendarAhead: false,
+    //
+    // FLIPPED ON 2026-08-16, and CALENDAR_LOOKAHEAD_DAYS=45 was set in the G11's
+    // .env FIRST — verified by measurement, not assumption: before it the feed
+    // carried nothing between 27 Aug and 19 Nov; after it, four September dates
+    // appear. Flipping this without that env var draws a truthful picture of a
+    // truncated feed, which is honest but not what was asked for.
+    v3CalendarAhead: true,
   },
 
   /* --------------------------------------------------------------
