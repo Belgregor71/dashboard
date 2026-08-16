@@ -736,6 +736,132 @@ html, body {
    that still does not fit is fewer steps on screen, never smaller ones. */
 .subject__recipe .subject__row .subject__text { font-size: var(--t-measured-1); }
 
+/* ⚠ The method SCROLLS; it is not clipped. `.subject__recipe > div` above sets
+   `overflow: hidden` on both columns, which is right for the ingredients and was
+   the silent half of the truncation bug: with nowhere to go, the subject capped
+   itself at six steps and half this household's recipes are longer than that.
+
+   The scroller is a child of the right column rather than the column itself so
+   the "Method" heading stays put while the steps move under it. `overscroll-
+   behavior: contain` because this is a 24/7 kiosk and a scroll that chains to
+   the document is a scroll that can leave the wall somewhere nobody put it.
+
+   No scrollbar: subjects/recipe.js ping-pongs this automatically, so the bar
+   would be furniture advertising an interaction the wall does not offer. */
+.subject__method {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.subject__method::-webkit-scrollbar { display: none; }
+
+/* ── The week ahead ─────────────────────────────────────────────────────────
+   Seven equal columns, each a small vertical stack: day, icon, temperatures,
+   rain. `1fr` tracks rather than auto so the cells stay equal when one weekday
+   abbreviation is wider than the others — the same staircase lesson the status
+   readout below records, arrived at before it could happen here.
+
+   The strip takes the remaining height and the cells distribute inside it, so
+   the icons land on one line across all seven regardless of whether a rain
+   figure is present. That is why forecast.js emits an empty rain paragraph on
+   dry days rather than omitting the element. */
+.subject__week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--gutter);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ⚠ Seven cells across 1920px is ~245px each after gutters. Every size below is
+   chosen against that width and the 32px floor — --t-measured-1 (72px) for the
+   high, --t-measured-2 (48px) for everything else. A smaller strip is not the
+   fix for an eighth day; forecast.js caps at seven for this reason. */
+.subject__day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  text-align: center;
+}
+
+.subject__dayname {
+  color: var(--ink-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* The lottie mounts INTO this box and sizes to it, so the box is what holds the
+   row together. Fixed rather than fluid: a square that tracked the column width
+   would resize every icon on a window change, and lottie re-rasterises on
+   resize — on a wall that runs for weeks that is a cost with no benefit. */
+.subject__dayicon {
+  width: 120px;
+  height: 120px;
+  flex: 0 0 auto;
+}
+.subject__dayicon svg { display: block; width: 100%; height: 100%; }
+
+.subject__daytemps {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+}
+.subject__high { color: var(--ink); }
+.subject__low { color: var(--ink-dim); }
+
+/* Dim, and empty on dry days. The rain figure is the one number on this strip
+   that is only sometimes the answer — printing it in full ink on all seven
+   cells buries the 71% somebody actually asked about. */
+.subject__dayrain {
+  color: var(--ink-dim);
+  min-height: 1em;
+}
+
+/* ── The month ahead ────────────────────────────────────────────────────────
+   Groups stacked, each a heading over its rows. Scrolls for the same reason the
+   recipe method does — the alternative is silently cutting the end off, and
+   showAhead already counts and says whatever it could not fit. */
+.subject__ahead {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.subject__ahead::-webkit-scrollbar { display: none; }
+
+.subject__aheadgroup { display: flex; flex-direction: column; gap: 14px; }
+
+/* The group heading is a label on a set of rows, not a value — dimmer than the
+   events under it so the eye reads the events and uses the headings to navigate.
+   Same relationship as the status readout's label/value pair, inverted, because
+   here the rows are the information. */
+.subject__aheadgroup > .subject__title { color: var(--ink-dim); }
+
+/* Dates are wider than clock times — "Wed 26 · 2:30pm" against showDay's
+   "2:30pm" — so this subject needs a wider lead track than the shared 4.5ch or
+   every title starts at a ragged x. */
+.subject--ahead .subject__lead { min-width: 11ch; }
+
+/* Rows are sentences here, not three-word calendar entries: a title like
+   "Spanish Chicken & Chorizo Traybake" at --t-said-2 wraps twice in a column
+   this wide. One size down, landing at 72px — still more than twice the floor,
+   and the same override the recipe makes for the same reason. */
+.subject--ahead .subject__row .subject__text { font-size: var(--t-measured-1); }
+
 /* ── The status readout ─────────────────────────────────────────────────────
    ⚠ SEEN ON THE GLASS 2026-08-09. A two-column GRID, not a flex row: the feed
    names vary from "Box" to "Camera snapshots", and a lead that sizes to its

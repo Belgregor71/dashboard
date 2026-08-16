@@ -17,12 +17,54 @@ const router = express.Router();
 
 // --- iCal parsing ---
 
-function getRecurrenceWindow(referenceDate = new Date()) {
+/* How far past the month's own edge to keep expanding recurring events.
+   Default 0 = the exact window this has always used, so an unset environment
+   changes nothing.
+
+   ⚠ THIS IS THE HORIZON OF EVERY CALENDAR ANSWER IN THE HOUSE, and it was
+   shorter than anything downstream assumed. The window below is anchored to the
+   CALENDAR MONTH, not to now: asked on the 16th it reaches 7 Sep, and asked on
+   the 30th it reaches the same date — so "the next month" shrinks as the month
+   runs out. One-off events pass through unfiltered at any distance, so this only
+   ever bounds RECURRING ones, which is why the gap is invisible until someone
+   asks about a birthday. Measured on the live G11 2026-08-16: the feed carried
+   nothing at all between 27 Aug and 19 Nov.
+
+   Read per call, not at module load — server/config.js's own note about a
+   module-load process.env read frozen above dotenv is the M2 audit finding, and
+   this file is imported early enough to hit it. */
+function lookaheadDays() {
+  const raw = Number(process.env.CALENDAR_LOOKAHEAD_DAYS ?? 0);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  /* Bounded. Recurrence expansion is O(occurrences), and a daily event over a
+     year is 365 objects per feed built on every uncached request — a typo of
+     3650 would turn a calendar fetch into a stall. */
+  return Math.min(raw, 400);
+}
+
+/* Exported for tests/calendar-window.spec.js. The env var cannot be varied
+   per-request against the running test server, so the only honest place to pin
+   this decision is here, where the reference date and the variable are both
+   injectable. */
+export function getRecurrenceWindow(referenceDate = new Date()) {
   const rangeStart = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 1);
   rangeStart.setDate(rangeStart.getDate() - 7);
   const rangeEnd = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 0);
   rangeEnd.setDate(rangeEnd.getDate() + 7);
   rangeEnd.setHours(23, 59, 59, 999);
+
+  /* Extend, never shorten: whichever edge is further out wins, so setting this
+     can only ever ADD events. That one-directional rule is what makes the
+     change safe to ship on — a route that returned FEWER events than before
+     would silently empty every consumer that filters by day. */
+  const ahead = lookaheadDays();
+  if (ahead > 0) {
+    const floor = new Date(referenceDate);
+    floor.setDate(floor.getDate() + ahead);
+    floor.setHours(23, 59, 59, 999);
+    if (floor > rangeEnd) return { rangeStart, rangeEnd: floor };
+  }
+
   return { rangeStart, rangeEnd };
 }
 

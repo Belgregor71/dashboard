@@ -439,6 +439,58 @@ export function houseDigest(snap) {
     blind.push("the weather");
   }
 
+  /* ── The rest of the week ──────────────────────────────────────────────────
+     The forecast has been in this snapshot since it was written and has never
+     reached the model: only `now` and today's high/low went into `known`, so
+     "what's the weather for the next seven days" got a correct, unhelpful "I
+     only have today". The data was one key away the whole time.
+
+     ⚠⚠ THE HOUSE HAS INVENTED WEATHER IT WAS NEVER GIVEN, TWICE (039dfa2,
+     cc30c89), and this key is the widest opening for a third time. Three rules,
+     all of them structural rather than promises made in a prompt:
+
+     1. ONLY DAYS PRESENT IN THE ARRAY. Built by mapping `days` — there is no
+        index arithmetic, no "tomorrow is days[1]", and no padding to seven.
+        A four-day feed produces four labels.
+     2. NO KEY AT ALL when there is nothing to say. An absent forecast must not
+        become an empty string that reads as "no weather coming" — `known` is
+        stated as fact to the model, and a fact that is a blank is worse than a
+        silence. It is NOT pushed to `blind` either: `known.weather` above
+        already speaks for whether the house can see the weather, and two keys
+        disagreeing about one upstream is how bomWarning went permanently empty.
+     3. NUMBERS AND A DATE, NOTHING ELSE. No prose, no "looks like a wet one" —
+        the character supplies the voice and must never be handed a phrasing to
+        imitate. A concrete example in the context IS imitated.
+
+     Labelled by weekday rather than by offset because the model is told today's
+     date and clock by todayLine(), so "Tue 18" is checkable against something it
+     already has, where "day 2" is a thing it would have to compute and could get
+     wrong at a midnight boundary. */
+  /* Gated with the strip it belongs to. Read off globalThis rather than an
+     imported config because this file is deliberately config-free and node-
+     testable — with no window the expression is undefined and the key is simply
+     absent, which is the correct flag-off behaviour and the correct node
+     behaviour by the same line. A spec that wants the key stubs window.CONFIG. */
+  const weekEnabled = Boolean(globalThis.window?.CONFIG?.features?.v3ForecastWeek);
+  const fdays = weekEnabled && Array.isArray(s.forecast?.days) ? s.forecast.days : [];
+  const week = fdays
+    .map((d) => {
+      const hi = num(d?.high_c);
+      const lo = num(d?.low_c);
+      if (hi == null || lo == null || !d?.date) return null;
+      const [y, m, day] = String(d.date).split("-").map(Number);
+      if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(day)) return null;
+      // Local-parsed, like every other date in this file: "2026-08-17" through
+      // the string constructor is midnight UTC and lands on the wrong day west
+      // of Greenwich.
+      const label = new Date(y, m - 1, day).toLocaleDateString("en-AU", { weekday: "short", day: "numeric" });
+      const rain = num(d?.rain_chance_pct);
+      const cond = d?.condition?.label ? String(d.condition.label).toLowerCase() : null;
+      return `${label} ${lo}-${hi}°${cond ? ` ${cond}` : ""}${rain != null ? ` rain ${rain}%` : ""}`;
+    })
+    .filter(Boolean);
+  if (week.length) known.forecast = week.join("; ");
+
   // The nowcast is a ~90 minute radar extrapolation. Present only when it has
   // something to say — its absence is not blindness, it is "no rain coming".
   if (typeof s.nowcast?.startsInMin === "number") {

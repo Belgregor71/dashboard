@@ -29,7 +29,10 @@
 // No escaping helper is imported because no string here reaches the DOM as
 // markup — every text path below uses textContent.
 
+
 import { showDay } from "./calendar.js";
+import { showAhead } from "./ahead.js";
+import { showForecast } from "./forecast.js";
 import { showList } from "./lists.js";
 import { showRecipe } from "./recipe.js";
 import { showYear } from "./memories.js";
@@ -181,6 +184,21 @@ const REGISTRY = {
   "show.sky": () => showSky(),
   "show.day": (_intent, snapshot) => showDay(snapshot),
   "show.tonight": (_intent, snapshot) => showDay(snapshot),
+  /* ⚠ DELIBERATELY NOT FLAG-GATED, though both are flag-gated features. The gate
+     lives in localIntents' matcher, which is the single place that decides
+     whether the lane recognises these sentences at all — and it has to be there
+     rather than here, because the SPOKEN answer is the half that can be wrong:
+     with the calendar's server-side horizon unwidened, the month's answerer
+     would count a truncated feed and say "3 things coming up" with authority.
+     Declining the sentence declines both halves at once.
+
+     Leaving the registry open is what makes `window.__v3Subject("show.forecast")`
+     work while the flag is still off, which is how these get looked at on the
+     wall BEFORE the flip rather than after it. The recipePanel flag's own note
+     records the opposite trap: a flag with no verify hook can only be eyeballed
+     by shipping it on, which is not a verification, it is a deployment. */
+  "show.forecast": () => showForecast(),
+  "show.ahead": (_intent, snapshot) => showAhead(snapshot),
   "show.list": (intent, snapshot) => showList(snapshot, intent.slots?.list ?? "shopping"),
   "show.recipe": (_intent, snapshot) => showRecipe(snapshot),
   "show.year": () => showYear(),

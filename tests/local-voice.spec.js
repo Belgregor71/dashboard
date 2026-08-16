@@ -724,6 +724,57 @@ test.describe("the calendar's day slot", () => {
     }
   });
 
+  /* ⚠ "what's on next month" is in the list above and MUST STAY THERE. The
+     refusal is the default build's behaviour and it is still correct there:
+     v3CalendarAhead is off, so nothing recognises the sentence and it falls
+     through exactly as it always has.
+
+     What changed is that the refusal is now a FLAG STATE rather than a
+     permanent property of the lane. The month became answerable in two halves:
+     a subject that draws it, and CALENDAR_LOOKAHEAD_DAYS widening the server's
+     recurrence window so the span behind it is actually populated. The gate is
+     in matchIntent rather than in the subject registry precisely because of the
+     sentence above it — the answerer would otherwise count a truncated feed and
+     say "3 things coming up" with authority, which is the confident lie this
+     whole block exists to prevent.
+
+     This test pins the OTHER direction, so the two states cannot drift apart
+     silently: with the flag on, the phrase must reach show.ahead and not be
+     swallowed by cal.today's much greedier `what's on` pattern. */
+  test("the month is refused by default and claimed by show.ahead when armed", () => {
+    const prior = globalThis.window;
+    try {
+      globalThis.window = { CONFIG: { features: { v3CalendarAhead: true } } };
+      expect(matchIntent("what's on next month")?.id).toBe("show.ahead");
+      expect(matchIntent("what have i got on for the next month")?.id).toBe("show.ahead");
+      // Unqualified calendar questions must be untouched by the new row.
+      expect(matchIntent("what's on today")?.id).toBe("cal.today");
+      expect(matchIntent("what's on tomorrow")?.id).toBe("cal.tomorrow");
+    } finally {
+      if (prior === undefined) delete globalThis.window;
+      else globalThis.window = prior;
+    }
+  });
+
+  test("the week is refused by default and claimed by show.forecast when armed", () => {
+    // Off: "the weather" alone still belongs to weather.now, which is the
+    // behaviour that made the wall say it only had today.
+    expect(matchIntent("what's the weather for the next 7 days")?.id).toBe("weather.now");
+
+    const prior = globalThis.window;
+    try {
+      globalThis.window = { CONFIG: { features: { v3ForecastWeek: true } } };
+      expect(matchIntent("what's the weather for the next 7 days")?.id).toBe("show.forecast");
+      expect(matchIntent("show me the forecast")?.id).toBe("show.forecast");
+      // ⚠ The bare question is NOT a week question and must not be stolen.
+      expect(matchIntent("what's the weather")?.id).toBe("weather.now");
+      expect(matchIntent("what's the weather tomorrow")?.id).toBe("weather.tomorrow");
+    } finally {
+      if (prior === undefined) delete globalThis.window;
+      else globalThis.window = prior;
+    }
+  });
+
   test("each calendar intent declines the days it cannot honour", () => {
     // cal.next has no day to take; show.day's subject draws today and only today.
     expect(matchIntent("what's next tuesday")).toBeNull();

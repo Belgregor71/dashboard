@@ -47,6 +47,16 @@ const MARKER = "V3-SHARED-RUNTIME";
 // Loaded by BOTH surfaces — the incumbent at / and V3 at /v3/.
 const SHARED_BOTH = [
   "js/config/alertLines.js",
+  /* ⚠ BOTH ENTERED V3'S CLOSURE 2026-08-16 with the week-ahead strip, and both
+     are the same fact: V3 had never drawn an animated weather icon, so the
+     WMO-code → filename map and the lottie loader were incumbent-only. Neither
+     imports anything itself, so this pair is the whole of the addition — the
+     lottie-web PLAYER is a node_modules specifier and is not walked here.
+
+     The loader is safe on any surface with or without the flag: it returns
+     immediately when `window.lottie` is unset, which is what it did on V3 from
+     the cutover until v3/main.js's "lottie" stage started setting it. */
+  "js/config/weather-animations.js",
   /* ⚠ `js/config/config.js` LEFT V3'S CLOSURE on 2026-08-13, and the drift is
      the point rather than an accident. It was reachable only because
      houseSnapshot.js and briefingData.js imported COMMUTE_ORIGIN and the two
@@ -70,6 +80,7 @@ const SHARED_BOTH = [
      "routines" stage there. */
   "js/core/routineRuntime.js",
   "js/core/tts.js",
+  "js/helpers/lottie.js",
   "js/modules/aiBriefing.js",
   "js/modules/briefingData.js",
   "js/services/alertRouter.js",

@@ -340,6 +340,54 @@ const ANSWERERS = {
     return { speech: `${ev.length} thing${ev.length === 1 ? "" : "s"} on today.`, refs: ["calendar"] };
   },
 
+  /* ── The week and the month ────────────────────────────────────────────────
+     Both say a SHAPE and leave the detail to the screen, because the screen is
+     what was asked for. Reading seven days of highs and lows aloud takes about
+     forty seconds and nobody listens past Wednesday; the strip answers that in
+     one glance, and the sentence is what tells you to look at it.
+
+     ⚠ Both must exist. The incumbent has no depth 3 at all — it reaches these
+     ids and falls straight through to answer() — and INTENT_IDS is derived from
+     the tables, so an id with no answerer here turns a working spoken reply into
+     a trip to Assist. That is the rule the SURFACES header states, and it is
+     load-bearing for the two ids added alongside it. */
+  "show.forecast": (s) => {
+    const days = s.forecast?.days;
+    if (!Array.isArray(days) || days.length === 0) return null;   // cold != empty
+
+    /* Warmest and wettest, which is what a week is actually asked about, and
+       both read off the SAME array that is on the glass — a spoken figure the
+       strip does not show would be the house inventing weather, which it has
+       done twice. Nothing here is computed from anything but these days. */
+    const withHighs = days.filter((d) => Number.isFinite(Number(d?.high_c)));
+    const wettest = days
+      .filter((d) => Number.isFinite(Number(d?.rain_chance_pct)))
+      .sort((a, b) => Number(b.rain_chance_pct) - Number(a.rain_chance_pct))[0];
+
+    const bits = [`${days.length} days`];
+    if (withHighs.length) {
+      const highs = withHighs.map((d) => Math.round(Number(d.high_c)));
+      bits.push(`tops from ${Math.min(...highs)} to ${Math.max(...highs)}`);
+    }
+    if (wettest && Number(wettest.rain_chance_pct) >= 50) {
+      bits.push(`wettest ${Math.round(Number(wettest.rain_chance_pct))} percent`);
+    }
+    return { speech: endStop(bits.join(", ")), refs: ["weather"] };
+  },
+
+  "show.ahead": (s) => {
+    if (!Array.isArray(s.calendar)) return null;                  // cold != empty
+    const now = new Date();
+    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+    const to = from + 31 * 86_400_000;
+    const n = s.calendar.filter((e) => {
+      const t = new Date(e?.start).getTime();
+      return Number.isFinite(t) && t >= from && t < to;
+    }).length;
+    if (n === 0) return { speech: "Nothing on for the next month.", refs: ["calendar"] };
+    return { speech: `${n} thing${n === 1 ? "" : "s"} coming up.`, refs: ["calendar"] };
+  },
+
   // Deliberately does NOT reach for the calendar when the menu is absent. A
   // cold cache and a night with no dinner planned are different, and only the
   // second earns a sentence about it.

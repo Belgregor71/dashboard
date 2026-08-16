@@ -6,6 +6,7 @@
    later phases — the mounts for them exist in index.html and are empty.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+import lottie from "lottie-web/build/player/lottie_light.js";
 import { getPosition } from "../js/vendor/suncalc.js";
 import { stage, guard, bootReport } from "./core/boot.js";
 import { initSubstrate, toCauses } from "./substrate/index.js";
@@ -31,6 +32,7 @@ import { initBriefingWindow, lastBriefing } from "./core/briefing-window.js";
 import { initHealth, lastHealth } from "./core/health.js";
 import { initDisplay, onPanelDark, displayState } from "./core/display.js";
 import { initNowPlaying, nowPlayingState } from "./core/now-playing.js";
+import { initDinner, lastDinner } from "./core/dinner.js";
 import { initMemoryRuntime } from "../js/core/memoryRuntime.js";
 import { initRoutineRuntime } from "../js/core/routineRuntime.js";
 
@@ -212,6 +214,25 @@ function boot() {
      observe the page between this line and the end of the function. */
   stage("handles", registerHandles);
 
+  /* ── The lottie player ────────────────────────────────────────────────────
+     `window.lottie` was set in exactly one place in this repo — js/core/app.js,
+     line 3 — which V3 does not import. So helpers/lottie.js has been present in
+     V3's dependency graph and inert on this surface since the cutover: it
+     returns immediately when the global is missing. The week strip is the first
+     thing here that wants an animated icon, and this is the whole of what it
+     needed.
+
+     A global rather than an import into the subject because helpers/lottie.js
+     reads `window.lottie` itself, and 236 icon JSONs and two surfaces are not
+     worth a second convention.
+
+     ⚠ Costs ~50 kB gzipped on a surface that had none, and the payment is at
+     BOOT, not per-animation. Nothing here creates a player: with v3ForecastWeek
+     off, `loadAnimation` is never called on this wall and the runtime cost is a
+     parsed script and one property. The strip's teardown destroys every instance
+     it made — see subjects/forecast.js. */
+  stage("lottie", () => { window.lottie = lottie; });
+
   stage("depth", () => initDepth({ inhabited: depthInhabited }));
   stage("presence-light", () => initPresenceLight());
   stage("voice", () => initVoice({ enabled: true, lat: CITY.lat, lon: CITY.lon }));
@@ -313,6 +334,23 @@ function boot() {
      the door is the one that must not be lost to the other's bad day. */
   stage("alerts", () => initAlerts());
   stage("arrival", () => initArrival());
+
+  /* The second unasked-for subject, and the one that also fills the recipe book.
+     See core/dinner.js: the incumbent's dinner panel had exactly one caller in
+     js/core/app.js, so the cutover took it off the wall AND stopped anything
+     writing data/recipe-cache — one cause, both halves of the complaint.
+
+     ⚠ THIS IS THE THIRD TIME AN init* HAS BEEN FOUND MISSING FROM V3's BOOT
+     (memoryRuntime and routineRuntime were the first two, both above). The
+     pattern is always the same: a module wired only into js/core/app.js, which
+     V3 does not import, so the feature is not broken — it is never armed. When
+     adding anything to this file, the question worth asking is which OTHER
+     app.js line has no counterpart here.
+
+     After initAttention() like alerts and arrival, though for a weaker reason:
+     dinner announces nothing to the queue. It is here because it deepens, and
+     deepening is only meaningful once presence is up. */
+  stage("dinner", () => initDinner({ enabled: flag("v3DinnerPanel") }));
 
   /* Phase 4's one unasked-for subject. The window is a PERMISSION, not a
      trigger — a clock is not an external cause, so the briefing opens only
@@ -440,6 +478,7 @@ function registerHandles() {
     announced: announcements(),
     alert: lastAlert(),
     arrival: lastArrival(),
+    dinner: lastDinner(),
     briefing: lastBriefing(),
     health: lastHealth(),
     display: displayState(),

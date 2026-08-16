@@ -66,6 +66,20 @@ const INTENTS = [
   // it has one, the future tense is worth catching — but note "how hot IS it"
   // is deliberately NOT in weather.today: it belongs to weather.now and moving
   // it would answer a question about right now with a daily high.
+  /* ⚠ ABOVE THE WHOLE WEATHER BLOCK, because every row below it is greedier
+     than it looks: weather.now matches a bare `weather`, so "what's the weather
+     for the next seven days" was being answered with the CURRENT temperature —
+     which is what the wall did until now, and what made it look like it only
+     had today. The regex demands a multi-day phrase, so an unqualified "what's
+     the weather" still belongs to weather.now.
+
+     ⚠⚠ NOT IN DAY_INTENTS, and it must not be added there. BEYOND_RE matches
+     "next week", so gateDay would resolve DAY_BEYOND and return null — the
+     intent would match here and then be thrown away one function later. The
+     day gate exists to stop a SINGLE-day answerer speaking about the wrong day;
+     this intent is about a span and has no day to be wrong about. */
+  { id: "show.forecast", flag: "v3ForecastWeek", re: /\b(next (7|seven|few) days|the (next|coming) week|rest of the week|week.?s (weather|forecast)|weekly forecast|forecast for the (week|next))\b/ },
+
   { id: "weather.umbrella", re: /\b(umbrella|rain\s*coat|need.*(rain|wet)|is it.*(rain|wet)|going to rain|will it rain|chance of rain|rain.*(today|soon|later))\b/ },
   { id: "weather.jacket", re: /\b(jacket|jumper|coat|cold out|warm out|need.*(warm|layer))\b/ },
   { id: "weather.sunscreen", re: /\b(sunscreen|sun\s*block|uv|burn)\b/ },
@@ -107,6 +121,14 @@ const INTENTS = [
   // LAST of the content intents, because "what's on" is the greediest pattern
   // in the whole table and anything it can swallow must be given its chance
   // first.
+  /* ⚠ ABOVE the calendar block for the same reason show.forecast sits above the
+     weather one: cal.today matches a bare `what's on`, so "what have I got on
+     for the next month" was answered with today's four events. A month phrase
+     is required, so every unqualified calendar question still reaches cal.today.
+
+     ⚠⚠ NOT IN DAY_INTENTS — BEYOND_RE matches "next month". See show.forecast. */
+  { id: "show.ahead", flag: "v3CalendarAhead", re: /\b(next month|the month ahead|rest of the month|the (next|coming) few weeks|the weeks ahead|next couple of weeks)\b/ },
+
   { id: "cal.tomorrow", re: /\b(tomorrow).*(on|happening|calendar|diary|schedule)|what.*(on|doing).*tomorrow\b/ },
   { id: "cal.next", re: /\b(next (event|thing|up)|what.s next|coming up|after this)\b/ },
   { id: "cal.free", re: /\b(am i free|are we free|anything on|much on|busy (today|tomorrow))\b/ },
@@ -160,6 +182,13 @@ const SURFACES = [
   { id: "show.briefing", re: /\b(the brief(ing)?|the rundown)\b/ },
   { id: "show.media",    re: /\b(what.s playing|now playing|the album|album art|what we.re watching)\b/ },
   { id: "show.year",     re: /\b(the year|this year|our year|memories|(the )?photos)\b/ },
+  /* ⚠ BOTH BEFORE show.day, and that ordering is the whole point. show.day
+     claims "the calendar", "the diary", "my schedule" — so "show me my calendar
+     for next month" would be answered with TODAY if these sat below it. The
+     week and the month are qualified readings of the same nouns and have to win
+     the match before the unqualified one gets a look. */
+  { id: "show.forecast", flag: "v3ForecastWeek", re: /\b(the forecast|the (weather )?week|next (7|seven) days|rest of the week|weekly forecast)\b/ },
+  { id: "show.ahead",    flag: "v3CalendarAhead", re: /\b(the month|next month|the month ahead|the weeks ahead|what.s coming up)\b/ },
   { id: "show.day",      re: /\b(the day|my day|the calendar|the diary|my schedule|the agenda)\b/ },
   /* Phase 6. ⚠ Last on purpose, and note that the noun here was ALREADY spoken
      for — not by this table, which has no status intent, but by voiceCommands'
@@ -171,8 +200,30 @@ const SURFACES = [
   { id: "show.status",   re: /\b(the status|system status|the system|diagnostics)\b/ }
 ];
 
+/* ── Flag-gated rows ────────────────────────────────────────────────────────
+   A row carrying `flag` is skipped entirely while that feature is off, in BOTH
+   match paths — so a flag-off build does not merely fail to draw the thing, it
+   does not claim the sentence at all, and the utterance falls through to the
+   lane it reached before. That is the strongest reading of this project's rule
+   that a flag-off build behaves exactly as it did.
+
+   ⚠ THE SPOKEN HALF IS WHY THIS IS AT THE MATCHER AND NOT IN THE SUBJECT
+   REGISTRY. `show.ahead` has an answerer that counts events in a 31-day span,
+   and until CALENDAR_LOOKAHEAD_DAYS is set server-side that span is truncated —
+   recurring events simply are not in the feed past the month's edge. A subject
+   that declines to draw would still leave the answerer saying "3 things coming
+   up" about a feed that does not reach that far, which is the confident lie the
+   whole day-slot machinery exists to prevent. Declining the sentence declines
+   both halves together.
+
+   Read off globalThis late, per call, never at module load: this module is pure
+   and node-tested, so with no window the expression is undefined, the feature
+   reads as off, and the historical behaviour is what the specs see. */
+const featureOn = (name) => Boolean(globalThis.window?.CONFIG?.features?.[name]);
+
 function matchSurface(text) {
-  for (const { id, re, slots } of SURFACES) {
+  for (const { id, re, slots, flag } of SURFACES) {
+    if (flag && !featureOn(flag)) continue;
     if (re.test(text)) return { id, slots: { ...(slots ?? {}) } };
   }
   return null;
@@ -491,7 +542,8 @@ export function matchIntent(raw) {
   // A bare "who was at the door" also names a camera worth surfacing.
   const bareCam = /\b(who was at|anyone at|any (motion|movement))\b/.test(text) ? matchCamera(text) : null;
 
-  for (const { id, re } of INTENTS) {
+  for (const { id, re, flag } of INTENTS) {
+    if (flag && !featureOn(flag)) continue;
     if (re.test(text)) {
       const slots = {};
       if (id === "camera.last" && bareCam) slots.camera = bareCam;

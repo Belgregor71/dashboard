@@ -1225,6 +1225,60 @@ window.CONFIG = {
     // asked for. If the year should read those sentences back, that is a
     // deliberate change to make, not a default to drift into.
     v3CuratedYear: true,
+
+    // ── The dinner panel, returned to V3 ────────────────────────────────────
+    // The incumbent's recipePanel (flag `recipePanel`, above) has exactly one
+    // caller — js/core/app.js — and V3 does not import it. Since the cutover
+    // (77f5fb1, 2026-08-11) `/` serves V3, so that panel has not run on the
+    // wall since, and it was the ONLY thing that auto-fetched each night's
+    // Meal: dish into data/recipe-cache. Measured on the G11: a cache write at
+    // 17:00 on every meal-day from 23 Jul to 6 Aug, then nothing at 17:00 ever
+    // again; 11 Aug and 14 Aug have no cache entry at all. So the recipe book
+    // stopped filling and the method stopped showing, from one cause.
+    //
+    // This is the same subsystem for V3: a 30 s tick over the calendar cache,
+    // the same 1 h-before / 20 min-after window, forcing depth 3 with the
+    // recipe subject the way alerts.js forces it with a camera. Warming the
+    // cache is a side effect of showing the panel, which is what refills the
+    // book — and it warms TOMORROW's dish too, so a dish gets two chances at
+    // the same single billable web search.
+    //
+    // Flag-off ⇒ initDinner registers no tick and no handle, and the recipe
+    // subject is reachable only by voice, exactly as it is today.
+    v3DinnerPanel: false,
+
+    // ── The week of weather ─────────────────────────────────────────────────
+    // /api/weather/forecast has served 7 days of high/low/code/rain-chance all
+    // along; nothing rendered it and the voice never saw it. houseDigest()
+    // wrote only today's numbers into the model's context, so "the next seven
+    // days" got an honest refusal. This adds the show.forecast subject (a
+    // lottie week strip) and the digest line behind one flag, because a strip
+    // nobody can ask for and an answer with nothing to look at are each half a
+    // feature.
+    //
+    // ⚠ This flag is why V3 loads a lottie player at all — window.lottie was
+    // set only in the incumbent's app.js. The player is imported unconditionally
+    // (a bundle cannot be conditional), but with the flag off nothing ever
+    // calls loadLottieAnimation on this surface and no animation is created.
+    //
+    // ⚠⚠ The digest half is the risky half. The character has invented weather
+    // it was never given twice (039dfa2, cc30c89), so the line carries ONLY
+    // days present in forecast.days and is absent entirely when the array is.
+    v3ForecastWeek: false,
+
+    // ── The month ahead ─────────────────────────────────────────────────────
+    // show.day is deliberately today-only (localIntents DAY_INTENTS) and the
+    // incumbent's widest window was 9 days on a surface nobody sees. Nothing
+    // on the wall could answer "what have I got on next month". This adds
+    // show.ahead: an agenda grouped THIS WEEK / NEXT WEEK / LATER, listing only
+    // days that carry something.
+    //
+    // ⚠ The horizon is a SERVER fact, not a rendering one. getRecurrenceWindow
+    // expands recurring events only to last-of-month + 7 days, so on 16 Aug the
+    // feed carried nothing between 27 Aug and 19 Nov. CALENDAR_LOOKAHEAD_DAYS
+    // (server-side, default 0 = unchanged) widens it. This flag governs the
+    // SUBJECT; without the env var the subject renders an honestly short month.
+    v3CalendarAhead: false,
   },
 
   /* --------------------------------------------------------------

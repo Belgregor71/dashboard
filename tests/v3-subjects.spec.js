@@ -1,4 +1,5 @@
 import { test, expect } from "./fixtures/coverage.js";
+import { bootV3 } from "./fixtures/v3boot.js";
 import { eventsForDay, displayTitleOf } from "../src/v3/subjects/calendar.js";
 import { yearsAgo, assetDate, captionFor } from "../src/v3/subjects/memories.js";
 
@@ -30,43 +31,9 @@ function calToday() {
   ];
 }
 
-/**
- * Every upstream answered, deliberately and identically on every machine.
- * `routes` maps a pathname PREFIX to its JSON body; null means 503.
- */
-async function bootV3(page, routes = {}) {
-  const pageErrors = [];
-  page.on("pageerror", (err) => pageErrors.push(err.message));
-
-  await page.route("**/api/**", async (route) => {
-    const url = new URL(route.request().url());
-    const key = Object.keys(routes).find((k) => url.pathname.startsWith(k));
-    if (key) {
-      const body = routes[key];
-      if (body === null) return route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(typeof body === "function" ? body(url) : body)
-      });
-    }
-    // Images are answered as images so a subject's <img> resolves rather than
-    // hanging: a pending request is not the same as a failed one and the
-    // teardown assertions below want a settled DOM.
-    if (/\/(thumb|snapshot|live|image|basemap|overlay)/.test(url.pathname)) {
-      return route.fulfill({
-        status: 200,
-        contentType: "image/gif",
-        body: Buffer.from("R0lGODlhAQABAAAAACw=", "base64")
-      });
-    }
-    return route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
-  });
-
-  await page.goto("/v3/");
-  await page.waitForFunction(() => typeof window.__v3 === "function");
-  return { pageErrors };
-}
+/* bootV3 moved to fixtures/v3boot.js on 2026-08-16 — a second spec file (the
+   week and the month) needed the same stubbed house, and two copies of "every
+   upstream answered" would drift the moment one of them learned a new route. */
 
 /** Drive one subject the way the voice would, and read back what mounted. */
 async function show(page, utterance) {

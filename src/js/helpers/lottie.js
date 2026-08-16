@@ -1,3 +1,17 @@
+/* ═══ V3-SHARED-RUNTIME ═════════════════════════════════════════════════════
+   Loaded by BOTH surfaces: the incumbent (/) and V3 (/v3/).
+   `src/js/` is not the old dashboard — it is V3's runtime library. A cleanup
+   that retires "the legacy tree" takes this file out from under V3 with it.
+   docs/design/V3-CUTOVER.md §1 · guarded by tests/v3-closure.spec.js
+
+   ⚠ V3 joined 2026-08-16 with the week-ahead strip (v3/subjects/forecast.js).
+   Until then `window.lottie` was set in exactly one place — js/core/app.js —
+   which V3 does not import, so every function here returned immediately on that
+   surface. V3 now sets the global in main.js's "lottie" stage. The guard on
+   line 1 of loadLottieAnimation is what made that four-month gap harmless, and
+   it is what keeps this safe to call from anywhere.
+   ════════════════════════════════════════════════════════════════════════ */
+
 export function loadLottieAnimation(containerId, fileName) {
   const container = document.getElementById(containerId);
   if (!container || !window.lottie) return;

@@ -1,3 +1,16 @@
+/* ═══ V3-SHARED-RUNTIME ═════════════════════════════════════════════════════
+   Loaded by BOTH surfaces: the incumbent (/) and V3 (/v3/).
+   `src/js/` is not the old dashboard — it is V3's runtime library. A cleanup
+   that retires "the legacy tree" takes this file out from under V3 with it.
+   docs/design/V3-CUTOVER.md §1 · guarded by tests/v3-closure.spec.js
+
+   ⚠ V3 joined 2026-08-16 with the week-ahead strip (v3/subjects/forecast.js),
+   which maps each forecast day's WMO code to an icon through
+   getWeatherAnimationFilename() below. Note that the strip passes
+   `condition.code` — the raw number — and NOT `condition.icon`, which is the
+   normalizer's category string ("clear", "rain") and is not a filename.
+   ════════════════════════════════════════════════════════════════════════ */
+
 // static/js/config/weather-animations.js
 
 // Map Open-Meteo weather codes to Lottie filenames (day/night).
