@@ -222,11 +222,17 @@ async function synthViaKokoro(url, text, speed, timeoutMs) {
 // synthesized via Kokoro and cached. Throws if Kokoro is unreachable/errors.
 // Shared by the /speak route and the boot-time cache warmer (ttsWarmer.js).
 //
-// Primary = the fast PC Kokoro (project-voice-mic-bridge, ~1s vs the NAS's
-// ~18s for dynamic text); optional KOKORO_FALLBACK_URL = the always-on NAS
-// Kokoro for when the PC is off. When a fallback is configured the primary gets
-// a short timeout so failover is quick — a sleeping PC must not stall every
-// reply; with no fallback set, behaviour is exactly as before (single upstream).
+// Primary = the fast PC Kokoro (project-voice-mic-bridge, ~1-1.75s for dynamic
+// text); optional KOKORO_FALLBACK_URL = a Kokoro that is up when the PC is off.
+// When a fallback is configured the primary gets a short timeout so failover is
+// quick — a sleeping PC must not stall every reply; with no fallback set,
+// behaviour is exactly as before (single upstream).
+//
+// ⚠ On the G11 the fallback is now a LOOPBACK Kokoro on the kiosk host itself
+// (deploy/voice-tts.service), NOT the NAS — measured 2026-08-16 at ~3.2s for a
+// short first sentence against the NAS's ~18-35s. That also means the 6s
+// primary timeout below is the whole cost of a sleeping PC, because a dead
+// loopback refuses instantly rather than timing out.
 export async function getOrSynthesizeTts(text, speed) {
   const cachePath = cachePathFor(text, speed);
   const hit = await readCached(cachePath);

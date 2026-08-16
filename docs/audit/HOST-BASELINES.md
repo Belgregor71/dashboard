@@ -754,3 +754,71 @@ margin* for a state that runs for hours, which is why the third one shipped too.
 **The lesson generalises past this surface:** a blend mode is free on a still surface and
 expensive on a moving one, and the archive is the first resting surface this dashboard has
 that moves. Any future `mix-blend-mode` on the ambient view should be measured, not assumed.
+
+## Voice compute moved onto the kiosk host — measured 2026-08-16
+
+Kokoro TTS and faster-whisper STT were installed on the G11 to survive the PC sleeping
+overnight. **The two legs gave opposite answers**, which is the finding worth keeping:
+the CPU verdict for one inference library does not transfer to the other.
+
+### Latency — the deciding numbers
+
+| leg | this box | the PC | the NAS |
+|---|---|---|---|
+| TTS, short first sentence (~3 s audio) | **3.2 s** | ~1.0-1.75 s | ~18 s |
+| TTS, full reply chunk (~6 s audio) | **5.9 s** | — | — |
+| STT, 2.67 s utterance | **1.19-1.30 s** | 1.27 s (2.2 s clip) | no AVX, rejected |
+
+**TTS runs at RTF ≈ 1.0 here at every chunk size** — memory-bandwidth bound, not thread
+bound. That is why it is the *fallback* and not the primary: with streaming, a reply is
+synthesised no faster than it is spoken, so the queue never builds a lead and any hiccup
+is an audible gap. The PC runs ≈ 0.3 and always stays ahead.
+
+**STT is a wash with the PC** (CTranslate2 int8 is CPU-optimised in a way kokoro-onnx is
+not), so it is a straight switch, not a chain.
+
+⚠ **Thread count is measured, not guessed** — TTS: 2 threads 8.7 s · 4 threads 5.9 s ·
+8 threads 6.0 s. Four buys the full speed for half the footprint. **Confining inference
+to one core's SMT pair (`AllowedCPUs=6-7`) is what made the 2-thread run slow, and it
+bought no render headroom because there was none to buy.**
+
+⚠ **Two measurements were contaminated by the probe text before this table was right.**
+`date +%s%N` inside a test phrase puts 19 digits in the sentence and Kokoro *speaks every
+one* — it read as a 23 s synthesis and a 20 s end-to-end failover. Always check
+`size_download` against the wall time: 24 kHz/16-bit mono is 48,000 bytes per second of
+audio, so the WAV tells you how much speech you actually asked for.
+
+### Render budget — both legs, under sustained load
+
+Baseline first, then a pathological back-to-back loop (far worse than any real burst):
+
+| state | gpu-process | renderer | substrateFps | pressure avg10 | tempC |
+|---|---|---|---|---|---|
+| ambient baseline | 5.9 | 6.7 | 15 | 0.00 | 38.6 |
+| sustained TTS synthesis | 6.0 | 7.0 | 15 | 4.24 | 46.5 |
+| sustained STT transcription | 5.1 | 5.3 | 15 | 0.01 | 46.4 |
+
+**The wall did not notice either one.** `substrateFrames` was identical (451) across the
+TTS burst window. Ceilings are ≤ 8 quiescent / ≤ 25 live / ≤ 35 peak, so this sits inside
+even the *quiescent* row while inferring. Bounded by `Nice=10` + `CPUWeight=20` +
+`OMP_NUM_THREADS=4` (`deploy/voice-tts.service`, `deploy/voice-stt.service`).
+
+The `some avg10` of 4.24 under continuous synthesis is the one non-zero reading and is
+recorded rather than rounded away — it is stall pressure on the *box*, not on the
+renderer, whose own CPU held flat. Real bursts are a single 3-6 s chunk.
+
+### End to end
+
+| scenario | before | after |
+|---|---|---|
+| PC awake (unchanged) | ~1.0 s | 1.03 s measured |
+| PC asleep, uncached line | ~24-41 s (6 s dead timeout + NAS) | **8.6 s** (6 s timeout + local) |
+
+⚠ **The 6 s primary timeout is now ~70 % of the sleeping-PC wait** (`tts.js:240`). It was
+sized when the alternative was an 18 s NAS and that ratio no longer holds. Not changed
+here — a real PC request measured 3.0 s once under load, so 3 s would be too tight — but
+it is now the largest remaining term and worth revisiting deliberately.
+
+⚠ A sleeping PC **black-holes the SYN**, it does not refuse it, so the full timeout is
+paid. Simulate with a TEST-NET address (`192.0.2.1`), never a dead local port — a refused
+connection returns instantly and makes the failover look free.

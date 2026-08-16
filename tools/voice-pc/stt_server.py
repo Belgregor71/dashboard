@@ -8,9 +8,13 @@ The model is loaded once at startup and kept warm.
 Guardrail (project-voice-mic-bridge): audio only ever reaches here AFTER an
 explicit on-device wake; it stays on the home LAN and never touches the cloud.
 
-Run:  .venv\Scripts\python.exe stt_server.py
+Run (Windows):  .venv/Scripts/python.exe stt_server.py
+Run (Linux):    .venv/bin/python stt_server.py
 Config via env: STT_MODEL (base.en), STT_DEVICE (cpu), STT_COMPUTE (int8),
                 STT_HOST (0.0.0.0), STT_PORT (8123), STT_BEAM (5).
+
+Also runs on the kiosk host itself (deploy/voice-stt.service), where it is the
+only transcriber rather than a remote one — same speed, always up.
 """
 
 import io

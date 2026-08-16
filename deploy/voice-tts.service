@@ -1,0 +1,54 @@
+[Unit]
+# Kokoro TTS on the kiosk host itself, as the always-up FALLBACK leg.
+#
+# WHY THIS EXISTS: the primary (KOKORO_URL) is the PC, which sleeps overnight.
+# The old fallback was the NAS at ~18-35 s a phrase — slow enough that a doorbell
+# line read as nothing happening at all. Measured on this box 2026-08-16: ~3.2 s
+# for a short first sentence, ~5.9 s for a full reply chunk. Not fast enough to
+# be the primary (the PC is ~1-1.75 s), comfortably better than the NAS.
+#
+# ⚠ NOT PROMOTED TO PRIMARY, and the number that decided it is the RTF, not the
+# wall time: synthesis on this box runs at roughly 1.0x real time at every chunk
+# size, so a streamed reply is synthesised no faster than it is spoken and the
+# queue never builds a lead. The PC runs ~0.3x and therefore always stays ahead.
+# Re-measure before revisiting; see docs/audit/HOST-BASELINES.md.
+Description=Kokoro TTS fallback for the dashboard (always-up, local)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dashboard
+WorkingDirectory=/home/dashboard/voice-tts
+ExecStart=/home/dashboard/voice-tts/.venv/bin/python /home/dashboard/voice-tts/tts_server.py
+
+# Loopback only. The dashboard is on this same box, so nothing needs to reach
+# this over the LAN, and /v1/audio/speech has no auth of its own.
+Environment=TTS_HOST=127.0.0.1
+Environment=TTS_PORT=8880
+# Must match KOKORO_VOICE in .env, or /health reports a voice the house never
+# uses. (Per-request the dashboard always sends `voice` explicitly, so this is
+# the default rather than the authority.)
+Environment=TTS_VOICE=bm_george+bm_lewis
+
+# ⚠ MEASURED, NOT GUESSED — onnxruntime defaults to all 8 threads.
+#   2 threads -> 8.7 s   4 threads -> 5.9 s   8 threads -> 6.0 s
+# It is memory-bandwidth bound, not thread bound, so 4 buys the full speed for
+# half the footprint and 8 buys nothing. Do not "optimise" this upward.
+Environment=OMP_NUM_THREADS=4
+
+# The wall wins every scheduling contest. With these in place a pathologically
+# sustained synthesis loop moved the render budget by noise only — gpu-process
+# 5.9 -> 6.0, renderer 6.7 -> 7.0, substrateFps 15 -> 15 (2026-08-16).
+# ⚠ Do NOT add AllowedCPUs: confining inference to one core's SMT pair is
+# exactly what made the 2-thread run 8.7 s, and it bought no render headroom
+# because there was none to buy.
+Nice=10
+CPUWeight=20
+MemoryMax=2G
+
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

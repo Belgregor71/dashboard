@@ -1,0 +1,49 @@
+[Unit]
+# faster-whisper STT on the kiosk host itself, REPLACING the PC as the only
+# transcriber (not a fallback — see below).
+#
+# WHY THIS EXISTS: the mic agent posted captured audio to whisper on the PC, and
+# voice_agent.py's transcribe() has no fallback at all — it logs "STT unreachable"
+# and DROPS THE TURN. So an overnight PC meant the house was deaf, which is a
+# louder failure than a slow reply: nothing happens and nothing explains why.
+#
+# ⚠ MEASURED 2026-08-16, and it is the opposite result to the TTS leg: this box
+# transcribes a 2.67 s utterance in 1.19-1.30 s (RTF ~0.46), against the PC's
+# recorded 1.27 s for a 2.2 s clip. It is not a compromise, it is a wash — so
+# this is a STRAIGHT SWITCH, not a chain. CTranslate2 int8 is CPU-optimised in a
+# way kokoro-onnx is not; do not assume the TTS verdict transfers here.
+#
+# Adding a PC fallback would only reintroduce a timeout on the path that is
+# already the deaf one. Don't, without a reason.
+Description=Whisper STT for the dashboard voice agent (always-up, local)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dashboard
+WorkingDirectory=/home/dashboard/voice-stt
+ExecStart=/home/dashboard/voice-stt/.venv/bin/python /home/dashboard/voice-stt/stt_server.py
+
+# Loopback only — the mic agent runs on this same box. Audio reaching this port
+# has already passed the on-device wake gate, and it now never leaves the host
+# at all, which is strictly stronger than the original LAN guarantee.
+Environment=STT_HOST=127.0.0.1
+Environment=STT_PORT=8123
+Environment=STT_MODEL=base.en
+Environment=STT_DEVICE=cpu
+Environment=STT_COMPUTE=int8
+Environment=OMP_NUM_THREADS=4
+
+# Same bounding as voice-tts.service. Measured under a pathologically sustained
+# transcription loop: gpu-process 5.1, renderer 5.3, substrateFps 15, pressure
+# avg10 0.01, 46 °C — i.e. the wall did not notice.
+Nice=10
+CPUWeight=20
+MemoryMax=2G
+
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

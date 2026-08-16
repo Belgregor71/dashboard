@@ -326,8 +326,22 @@ requestAnimationFrame(() => {
 
 ## Performance notes (kiosk host / NAS split)
 
-- Heavy compute (AI text generation, TTS synthesis) runs on a NAS or the PC
-  over the LAN, never on the kiosk host itself — the kiosk only renders.
+- **Sustained** heavy compute (AI text generation) runs on a NAS or the PC over
+  the LAN, never on the kiosk host itself. **Amended 2026-08-16: the rule is now
+  about duration, not about the work.** A *bounded, bursty* inference service may
+  live on the kiosk host if it is measured against the render budget first and
+  constrained by systemd (`Nice`, `CPUWeight`, `OMP_NUM_THREADS`, `MemoryMax`) —
+  see `deploy/voice-tts.service` and `deploy/voice-stt.service`.
+  - What earned the amendment: under a *pathologically sustained* synthesis loop
+    the wall moved by noise only — gpu-process 5.9 → 6.0, renderer 6.7 → 7.0,
+    `substrateFps` 15 → 15, identical frame counts. Numbers and method in
+    `docs/audit/HOST-BASELINES.md`.
+  - ⚠ The constraint that actually matters is `OMP_NUM_THREADS`. onnxruntime and
+    CTranslate2 both default to **all** cores; unbounded, a burst is the single
+    most plausible way to hitch the substrate. Pinning to specific CPUs is the
+    wrong lever — it halved throughput and bought nothing.
+  - This is not a general licence. "Measured first" is the whole rule; an
+    unmeasured service on this box is still a violation.
 - The kiosk host moved from a Raspberry Pi 4 to a GMKtec G11 on 2026-08-01.
   **The rendering budgets in this guide are still the Pi-era ones and stay
   that way** — relaxing them (atmoFx planner caps, the 18px blur limit, Ken

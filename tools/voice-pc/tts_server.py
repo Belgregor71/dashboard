@@ -9,9 +9,12 @@ off. Same voice (bf_emma) as the NAS so the house sounds identical everywhere.
 Runs kokoro-onnx on CPU (onnxruntime). Model files (kokoro-v1.0.onnx +
 voices-v1.0.bin) live in ./models. Loaded once, kept warm.
 
-Run:  .venv\Scripts\python.exe tts_server.py
+Run (Windows):  .venv/Scripts/python.exe tts_server.py
+Run (Linux):    .venv/bin/python tts_server.py
 Config via env: TTS_VOICE (bf_emma), TTS_HOST (0.0.0.0), TTS_PORT (8880),
-                KOKORO_MODEL / KOKORO_VOICES (paths under ./models).
+                KOKORO_MODEL / KOKORO_VOICES (paths under ./models),
+                OMP_NUM_THREADS (onnxruntime defaults to ALL cores — on the
+                kiosk host this is pinned to 4; see deploy/voice-tts.service).
 """
 
 import io
