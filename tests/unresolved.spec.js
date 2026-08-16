@@ -266,7 +266,7 @@ test.describe("the house never invents a reading it was not given", () => {
   test("the ban sits INSIDE the specificity sentence, not in a later paragraph", () => {
     const text = houseCharacter();
     const specificity = text.indexOf("Be specific about what you have");
-    const ban = text.indexOf("NEVER manufacture the specific");
+    const ban = text.indexOf("NEVER MANUFACTURE A PARTICULAR");
     expect(specificity).toBeGreaterThan(-1);
     expect(ban).toBeGreaterThan(-1);
     // Same sentence-run: the exception must not drift back out into its own
@@ -274,14 +274,44 @@ test.describe("the house never invents a reading it was not given", () => {
     expect(ban - specificity).toBeLessThan(400);
   });
 
+  /* ⚠⚠ THE SECOND FAILURE, AND WHY THE RULE IS ABOUT PARTICULARS NOT NUMBERS.
+     The first fix banned inventing "a temperature, a time or a measurement".
+     An hour later, asked its favourite photograph with no photograph in the
+     prompt, the house described one in full — a named family member, a year, a
+     backyard, the light, the overexposure at the edges. None of it existed. It
+     walked straight through a ban written about numbers, because a photograph
+     is not a number. */
+  test("the ban covers every kind of particular, not just readings", () => {
+    const text = houseCharacter();
+    for (const kind of ["temperature", "time", "photograph", "event"]) {
+      expect(text, `"${kind}" is not named in the no-invention rule`).toContain(kind);
+    }
+    expect(text).toMatch(/not a thing somebody did/i);
+  });
+
+  // The trait that caused it. Taste is worth keeping; taste in a specific
+  // image it was never shown puts a real person in a scene that never happened.
+  test("photo taste is expressed in KINDS, never in a particular it cannot see", () => {
+    const text = houseCharacter();
+    expect(text).toMatch(/not looking at the library right now/i);
+    expect(text).toMatch(/never name or describe a particular photograph/i);
+    // The concrete example that taught the model to invent one is gone.
+    expect(text).not.toMatch(/mexico/i);
+  });
+
+  test("it may still say what KIND of thing it likes — the trait survives", () => {
+    expect(houseCharacter()).toMatch(/what KIND of thing you like/i);
+    expect(houseCharacter()).toMatch(/nobody is posing/i);
+  });
+
   test("it says where its senses end, so an absent number reads as absent", () => {
     const text = houseCharacter();
-    expect(text).toMatch(/every reading you have is one you were handed/i);
+    expect(text).toMatch(/everything you know is in this prompt/i);
     expect(text).toMatch(/cannot look out of a window/i);
     expect(text).toMatch(/not a gap to fill/i);
   });
 
   test("the temptation is named, because the weather interest is what causes it", () => {
-    expect(houseCharacter()).toMatch(/interest in the weather is exactly what makes it tempting/i);
+    expect(houseCharacter()).toMatch(/being interested in these things is exactly what makes it tempting/i);
   });
 });
