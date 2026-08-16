@@ -302,9 +302,24 @@ async function bootLanes(page, { assist, converse = [] }) {
     assist.push(route.request().postDataJSON());
     return route.fulfill({ json: assist.reply ?? { handled: false, speech: null, conversationId: null } });
   });
+  /* ⚠ ANSWERS SSE WHEN THE CLIENT ASKS FOR IT, because the real route does.
+     `voiceStreaming` defaulted on 2026-08-16, and a stub that always replies
+     JSON would leave the client's stream parser finding no frames, giving up,
+     and re-POSTing the ordinary route. Every converse test would then be
+     silently exercising the FALLBACK path — two requests per turn, and index
+     assumptions like converse[1] quietly meaning something else.
+
+     The stub mirrors the contract instead: ask for a stream, get a stream. */
   await page.route("**/api/voice/converse", (route) => {
-    converse.push(route.request().postDataJSON());
-    return route.fulfill({ json: { reply: `reply ${converse.length}` } });
+    const body = route.request().postDataJSON();
+    converse.push(body);
+    const reply = `reply ${converse.length}`;
+    if (!body?.stream) return route.fulfill({ json: { reply } });
+    return route.fulfill({
+      contentType: "text/event-stream",
+      body: `event: chunk\ndata: ${JSON.stringify({ text: reply })}\n\n`
+          + `event: done\ndata: ${JSON.stringify({ reply, source: "claude" })}\n\n`
+    });
   });
   return boot(page);
 }

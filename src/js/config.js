@@ -478,11 +478,33 @@ window.CONFIG = {
     // Off: the JSON route, byte-identical to before — and the JSON route is
     // still the fallback whenever a stream fails before speaking anything.
     //
-    // ⚠ Default OFF pending a measured TTFA on the kiosk. Streaming changes the
-    // shape of every conversational reply and touches tts.js, which is the
-    // chokepoint for blob revocation and the half-duplex mic gate on BOTH
-    // surfaces — this one gets proved in the room before it gets flipped.
-    voiceStreaming: false,
+    // MEASURED ON THE KIOSK 2026-08-16 and flipped on the numbers. Paired runs,
+    // same three questions in both states, time from __v3Transcript() to the
+    // first play() call (muted, so the metric is unaffected):
+    //
+    //   question            off      on     saved
+    //   washing in         1998ms  1731ms   0.27s
+    //   eat outside        4514ms  1437ms   3.08s
+    //   blinds             2043ms   958ms   1.09s
+    //
+    // The pattern is the point and it matches the mechanism: the saving scales
+    // with reply LENGTH, because non-streaming waits for the whole answer while
+    // streaming waits for one sentence. Short replies gain a little, long ones
+    // gain seconds. Never slower in any sample, and one turn cleared the
+    // sub-second target.
+    //
+    // ⚠ Kokoro synthesis is ~1.75s for a short uncached line, so that is the
+    // floor TTFA cannot go below however good the streaming is. Chasing lower
+    // means a faster TTS, not more work here.
+    //
+    // ⚠ An earlier 2-sample read showed a 2.1s saving and was WRONG — the two
+    // baselines were ~5.9s outliers from the known ~6s first-fetch stall. Take
+    // paired samples on the same questions; the variance here is large.
+    //
+    // Revert = false. It touches tts.js, the chokepoint for blob revocation and
+    // the half-duplex mic gate on BOTH surfaces, so if audio ever misbehaves
+    // this is the first thing to put back.
+    voiceStreaming: true,
 
     // SOUND PRESENCE — the room's own noise as a second presence source.
     //
