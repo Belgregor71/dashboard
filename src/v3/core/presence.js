@@ -25,7 +25,7 @@
    than the wall did would make every side-by-side comparison meaningless.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { on } from "../../js/core/eventBus.js";
+import { on, emit } from "../../js/core/eventBus.js";
 
 const KITCHEN = new Set([
   "binary_sensor.kitchen_motion_detected",
@@ -48,6 +48,7 @@ let lingerTimer = null;
 let dwellTimer = null;
 let unsubscribe = null;
 let unsubscribeSound = null;
+let lastMode = "ambient";
 
 /* Sound is a SECOND source of the same signal, not a replacement, and the two
    are deliberately additive: whichever notices first wins, and neither can veto
@@ -72,6 +73,27 @@ function lingerMs() {
   return document.documentElement.dataset.night === "1" ? LINGER_NIGHT_MS : LINGER_DAY_MS;
 }
 
+/* ── The incumbent's vocabulary ──────────────────────────────────────────────
+   V3 models presence as two booleans. `js/core/presence.js` models it as a
+   four-mode FSM and emits `presence:changed` — and that event is NOT incumbent
+   trivia, because `js/core/routineRuntime.js` is shared runtime that V3 arms
+   (main.js, stage "routines") and subscribes to it for two things: the morning
+   wake sample, and closing an attention presentation when the room empties.
+
+   Its only emitter was `setMode()` in the module V3 replaced, so Phase 8 was
+   armed on this surface with its wake channel already severed — it could learn
+   which candidates get leaned into and nothing at all about the day's shape.
+   Found by the app.js→V3 orphan sweep, 2026-08-16.
+
+   TRANSLATED, NOT ADOPTED. The two booleans stay the model here; this is a shim
+   at the boundary and nothing in V3 reads it. AMBIENT/GLANCE/DWELL only — VOICE
+   is the incumbent's dormant fourth mode and V3 has no equivalent state.
+─────────────────────────────────────────────────────────────────────────── */
+function modeOf() {
+  if (!present) return "ambient";
+  return dwelling ? "dwell" : "glance";
+}
+
 function announce(reason) {
   for (const fn of listeners) {
     // Isolated, and re-thrown on a fresh task: one bad subscriber must not stop
@@ -80,6 +102,17 @@ function announce(reason) {
     try { fn({ present, dwelling, reason }); }
     catch (err) { setTimeout(() => { throw err; }); }
   }
+
+  /* Last, and edge-triggered like the FSM's own `next === mode` guard. Every
+     announce() above is already a real transition of the booleans, but two of
+     them can name the SAME mode — and a duplicate `ambient` would make
+     routineRuntime finalize the same presentation twice, recording one showing
+     as two. The surface reacts first; the observer second. */
+  const mode = modeOf();
+  if (mode === lastMode) return;
+  const prev = lastMode;
+  lastMode = mode;
+  emit("presence:changed", { mode, prev, reason });
 }
 
 function goAbsent(reason) {
@@ -207,5 +240,6 @@ export function __resetPresence() {
   dwelling = false;
   lastMotionAt = 0;
   lastReason = null;
+  lastMode = "ambient";
   listeners.clear();
 }

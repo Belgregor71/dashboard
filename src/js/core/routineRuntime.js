@@ -114,8 +114,9 @@ function onHero({ hero }) {
   presentation = hero?.source ? { source: hero.source, dwelt: false } : null;
 }
 
-function onHaState(event) {
-  const entity = event.detail;
+/* Takes the entity itself, because this now arrives on the BUS rather than as a
+   `CustomEvent` on `document` — see the subscription in init for why. */
+function onHaState(entity) {
   const id = String(entity?.entity_id ?? "");
   if (!id.startsWith("person.")) return;
   const state = String(entity?.state ?? "");
@@ -190,7 +191,18 @@ export function initRoutineRuntime(options = {}) {
 
   on("presence:changed", onPresence);
   on("attention:hero", onHero);
-  document.addEventListener("ha:state-updated", onHaState);
+
+  /* ⚠ THE BUS, NOT `document`. `entityFeed.js` is deliberately DOM-free so V3
+     can share it; the `document` re-broadcast of `ha:state-updated` lives in
+     `services/homeAssistant/events.js` (`registerHAEvents`), which the
+     INCUMBENT calls and V3 does not. So this listener — the departure and
+     return half of Phase 8 — heard nothing at all on the surface that ships.
+
+     The bus carries the same payloads from the same feed, one synchronous tick
+     EARLIER than the DOM copy, so the incumbent is unaffected beyond ordering.
+     A shared-runtime module must subscribe where the signal actually enters the
+     house; anything on `document` is incumbent-only by construction. */
+  on("ha:state-updated", onHaState);
 
   setInterval(flush, FLUSH_MS);
 
