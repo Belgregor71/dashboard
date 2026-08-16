@@ -417,7 +417,7 @@ test("⚠ every step reaches the glass — a ten-step method is not cut to six",
   const got = await page.evaluate(async () => {
     await window.__v3Subject("show.recipe", {}, { calendar: [], menu: "Spanish Chicken & Chorizo Traybake" });
     const mount = document.getElementById("subject-mount");
-    const scroller = mount.querySelector(".subject__method");
+    const scroller = mount.querySelector(".subject__scroll--method");
     return {
       steps: scroller ? scroller.querySelectorAll(".subject__row").length : 0,
       text: mount.textContent,

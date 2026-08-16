@@ -755,26 +755,28 @@ html, body {
    that still does not fit is fewer steps on screen, never smaller ones. */
 .subject__recipe .subject__row .subject__text { font-size: var(--t-measured-1); }
 
-/* ⚠ The method SCROLLS; it is not clipped. `.subject__recipe > div` above sets
-   `overflow: hidden` on both columns, which is right for the ingredients and was
-   the silent half of the truncation bug: with nowhere to go, the subject capped
-   itself at six steps and half this household's recipes are longer than that.
+/* ⚠ BOTH COLUMNS SCROLL; neither is clipped. `.subject__recipe > div` above sets
+   `overflow: hidden` on the columns, which was the silent half of the truncation
+   bug: with nowhere to go, the subject capped itself at six steps, and half this
+   household's recipes are longer than that. Photographed on the wall afterwards,
+   the INGREDIENTS were clipping mid-word for the same reason.
 
-   The scroller is a child of the right column rather than the column itself so
-   the "Method" heading stays put while the steps move under it. `overscroll-
-   behavior: contain` because this is a 24/7 kiosk and a scroll that chains to
-   the document is a scroll that can leave the wall somewhere nobody put it.
+   The scroller is a child of each column rather than the column itself, so the
+   "Ingredients" and "Method" headings stay put while their rows move under them.
+   `overscroll-behavior: contain` because this is a 24/7 kiosk and a scroll that
+   chains to the document is a scroll that can leave the wall somewhere nobody
+   put it.
 
-   No scrollbar: subjects/recipe.js ping-pongs this automatically, so the bar
+   No scrollbar: subjects/recipe.js ping-pongs these automatically, so the bar
    would be furniture advertising an interaction the wall does not offer. */
-.subject__method {
+.subject__scroll {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
 }
-.subject__method::-webkit-scrollbar { display: none; }
+.subject__scroll::-webkit-scrollbar { display: none; }
 
 /* ── The week ahead ─────────────────────────────────────────────────────────
    Seven equal columns, each a small vertical stack: day, icon, temperatures,

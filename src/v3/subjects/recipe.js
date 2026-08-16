@@ -161,31 +161,57 @@ export async function showRecipe(snapshot) {
   const body = document.createElement("div");
   body.className = "subject__recipe";
 
-  const left = document.createElement("div");
-  left.appendChild(title(recipe.servings ? `Ingredients · ${recipe.servings}` : "Ingredients"));
-  left.appendChild(column(recipe.ingredients.slice(0, MAX_INGREDIENTS).map((t) => ({ text: String(t) }))));
+  /* Each column is a heading over its own scroller, so the label stays put
+     while the rows move under it. Nothing is cut: what does not fit vertically
+     scrolls.
 
-  /* The method gets its own scroller between the heading and the list, so the
-     "Method" label stays put while the steps move under it. Every step is here;
-     what does not fit vertically scrolls rather than being cut. */
-  const right = document.createElement("div");
-  right.appendChild(title("Method"));
-  const scroller = document.createElement("div");
-  scroller.className = "subject__method";
-  scroller.appendChild(column(
+     ⚠ BOTH COLUMNS, and the second one was found the same way as the first —
+     photographed on the wall. With only the method scrolling, tonight's traybake
+     clipped its ingredients mid-word at "200g cherry tomatoes", because twelve
+     ingredients capped to ten still do not fit a 723px column at this size. A
+     half-shown ingredient list is worse than a half-shown method: the method you
+     read a step at a time, the ingredients you check before you start.
+
+     They share one speed and one dwell, so the two columns start together and
+     turn together — which reads as one movement rather than two things fidgeting
+     at each other. */
+  /* The modifier is not for styling — both scrollers are identical — it is so a
+     probe can name which column it means. Both share `.subject__scroll`, so a
+     bare querySelector finds the INGREDIENTS one, and a spec meaning to count
+     method steps would quietly count ingredients and pass at the wrong number. */
+  const mkColumn = (kind, heading, rows) => {
+    const col = document.createElement("div");
+    col.appendChild(title(heading));
+    const scroller = document.createElement("div");
+    scroller.className = `subject__scroll subject__scroll--${kind}`;
+    scroller.appendChild(column(rows));
+    col.appendChild(scroller);
+    return { col, scroller };
+  };
+
+  const left = mkColumn(
+    "ingredients",
+    recipe.servings ? `Ingredients · ${recipe.servings}` : "Ingredients",
+    recipe.ingredients.slice(0, MAX_INGREDIENTS).map((t) => ({ text: String(t) }))
+  );
+  const right = mkColumn(
+    "method",
+    "Method",
     recipe.steps.map((t, i) => ({ lead: String(i + 1), text: String(t) }))
-  ));
-  right.appendChild(scroller);
+  );
 
-  body.append(left, right);
+  body.append(left.col, right.col);
   node.appendChild(body);
 
-  const stopScroll = autoScroll(scroller);
+  const stopScrolls = [autoScroll(left.scroller), autoScroll(right.scroller)];
 
   return {
     node,
     /* Chained, not replaced: frame()'s teardown is what clears image srcs and
-       detaches the node, and the scroll loop is ours to stop on top of it. */
-    teardown: () => { stopScroll(); teardown(); }
+       detaches the node, and the scroll loops are ours to stop on top of it. */
+    teardown: () => {
+      for (const stop of stopScrolls) stop();
+      teardown();
+    }
   };
 }
