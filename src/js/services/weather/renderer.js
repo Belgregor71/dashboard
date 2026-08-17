@@ -13,7 +13,7 @@ import { loadLottieAnimation, syncLottiePlayback } from "../../helpers/lottie.js
 import { emit, on } from "../../core/eventBus.js";
 import { CONFIG } from "../../core/config.js";
 import { startWeatherMotion, stopWeatherMotion } from "../../weatherMotion.js";
-import { categoryForWeatherCode, intensityForWeatherCode, isThunderCode } from "../../weatherPrompts.js";
+import { getBaseCategory, intensityForWeatherCode, isThunderCode } from "../../weatherPrompts.js";
 import { WEATHER_LAT, WEATHER_LON } from "../../config/config.js";
 import { getTimes as getSunTimesFromCalc } from "../../vendor/suncalc.js";
 import { clearWeatherFxOverlay, setWeatherFxOverlay } from "./fxOverlay.js";
@@ -107,16 +107,10 @@ function bomLog(message, details = null) {
   console.log(`[Weather BOM] ${message}`);
 }
 
-export function getBaseCategory(code) {
-  const category = categoryForWeatherCode(code);
-  if (category === "mostly_clear" || category === "clear") return "clear";
-  if (category === "cloudy") return "cloudy";
-  if (category === "drizzle" || category === "rain" || category === "showers") return "rain";
-  if (category === "storms") return "storm";
-  if (category === "fog") return "fog";
-  if (category === "snow") return "cloudy";
-  return "cloudy";
-}
+/* Moved to weatherPrompts.js (2026-08-17) so V3 can reach it without importing
+   this DOM renderer. Re-exported because this module has been its address since
+   Phase 5 and the incumbent's importers should not have to care. */
+export { getBaseCategory };
 
 function dayKeyForDate(date = new Date()) {
   return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;

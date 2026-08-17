@@ -1,3 +1,10 @@
+/* ═══ V3-SHARED-RUNTIME ═════════════════════════════════════════════════════
+   Loaded by BOTH surfaces: the incumbent (/) and V3 (/v3/).
+   `src/js/` is not the old dashboard — it is V3's runtime library. A cleanup
+   that retires "the legacy tree" takes this file out from under V3 with it.
+   docs/design/V3-CUTOVER.md §1 · guarded by tests/v3-closure.spec.js
+   ════════════════════════════════════════════════════════════════════════ */
+
 // static/js/weatherPrompts.js
 // Map Open-Meteo weather codes into background/motion categories.
 
@@ -24,6 +31,27 @@ export function categoryForWeatherCode(code) {
 
   if (numericCode >= 95 && numericCode <= 99) return "storms";
 
+  return "cloudy";
+}
+
+// The BASE category — the five-word vocabulary the contextStore `condition`
+// slice speaks (clear|cloudy|rain|storm|fog), collapsing the finer grades above.
+// Lived in weather/renderer.js until V3 needed it too; that module is a 900-line
+// DOM renderer and importing it into V3 to reach one pure map would drag the
+// incumbent's whole weather surface into V3's bundle. It is HERE, next to the
+// map it collapses, so there is exactly one list — see the two enumerated
+// `.subject--*` lists in compose.css for what a second copy costs.
+//
+// ⚠ `snow` folds into `cloudy` deliberately: contextStore's readers (memory mood
+// matching, the delight dry-streak) have no snow case, and Brisbane has no snow.
+export function getBaseCategory(code) {
+  const category = categoryForWeatherCode(code);
+  if (category === "mostly_clear" || category === "clear") return "clear";
+  if (category === "cloudy") return "cloudy";
+  if (category === "drizzle" || category === "rain" || category === "showers") return "rain";
+  if (category === "storms") return "storm";
+  if (category === "fog") return "fog";
+  if (category === "snow") return "cloudy";
   return "cloudy";
 }
 
