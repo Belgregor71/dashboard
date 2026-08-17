@@ -124,9 +124,13 @@ test("Phase 10's delight registry is armed on this surface", async ({ page }) =>
   expect(personality.enabled).toBe(true);
 });
 
-test("intent is readable but disarmed until its flag is flipped", async ({ page }) => {
+test("flag off, intent is readable but disarmed — the rollback path", async ({ page }) => {
   await page.clock.setFixedTime(EVENING);
-  const { pageErrors } = await bootV3(page);
+  /* ⚠ PINNED OFF DELIBERATELY, and it must stay pinned. `v3HouseIntent` went
+     default-ON 2026-08-17; this spec is the one that proves the one-line revert
+     still lands somewhere sane, so it asserts the OFF state on purpose rather
+     than tracking whatever the default happens to be. */
+  const { pageErrors } = await bootV3(page, {}, { features: { v3HouseIntent: false } });
 
   // The handle exists in BOTH states — that is how the flag gets confirmed from
   // outside, and its absence is what made the orphan sweep necessary.

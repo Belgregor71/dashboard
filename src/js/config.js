@@ -82,15 +82,28 @@ window.CONFIG = {
     // `window.__intent` has been undefined on the wall and attentionRank's
     // rushed/unhurried could never fire — measured over CDP 2026-08-16.
     //
-    // Default OFF because arming it is NOT byte-identical, unlike the memory /
-    // routines / personality stages beside it. Two postures act: `rushed` takes
-    // the surface to interrupt-only, and `winding-down` (present, night, 9pm+)
-    // drops every non-interrupt candidate below score 45 — the whole ordinary
-    // V3 queue (commute 42, nowPlaying 41, plex 41, tonight's menu 40). That
-    // means a quieter wall in the evening kitchen, which is the room's call to
-    // make on the glass. Flip on after a live look; flag-off is the rollback and
-    // returns the exact pre-2026-08-17 behaviour.
-    v3HouseIntent: false,
+    // Shipped OFF in 1e4b445 because arming it is NOT byte-identical, unlike
+    // the memory / routines / personality stages beside it. Two postures act:
+    // `rushed` takes the surface to interrupt-only, and `winding-down`
+    // (present, night, 9pm+) drops every non-interrupt candidate below score 45
+    // — the whole ordinary V3 queue (commute 42, nowPlaying 41, plex 41,
+    // tonight's menu 40). So the evening kitchen wall goes quieter after nine.
+    //
+    // FLIPPED ON 2026-08-17 on the owner's call, after the context feed was
+    // proven live on the G11: __v3Context() read isNight:true / presence
+    // "ambient" with an empty room / condition "clear", and the driven arc
+    // ambient→glance→dwell→ambient tracked. That feed is the precondition —
+    // armed over the old frozen literals this would have asserted a
+    // confidently WRONG posture (permanently "someone is here", never night),
+    // which is worse than the dead lever it replaces.
+    //
+    // ⚠ `houseIntent` above is a DIFFERENT flag and stays true: it is the
+    // engine-side READ gate (attentionEngine.js:192). This one is the arming
+    // switch. Verify at the kiosk with __intent() (enabled + inputs) and
+    // __forceIntent({tempo:"rushed"}) → the glance stops being earned.
+    // One-line revert (-> false); tests/v3-context-feed.spec.js pins the off
+    // state so the rollback path stays covered.
+    v3HouseIntent: true,
 
     // Phase 7 "Dissolve the dashboard" (docs/vision/phase-7-dissolve.md). Lifts
     // the Phase 5 atmo-* token off the screensaver root onto a shared app root
