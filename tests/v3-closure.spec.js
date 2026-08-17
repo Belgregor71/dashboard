@@ -89,6 +89,13 @@ const SHARED_BOTH = [
   "js/services/briefingSchedule.js",
   "js/services/candidateSources.js",
   "js/services/delight.js",
+  /* ⚠ ENTERED V3'S CLOSURE 2026-08-17, and it entered by being CARVED OUT of
+     modules/goodnightRoutine.js rather than by a new import of it. That module
+     ends in `engageScreensaver()` — an incumbent-only surface — so reaching its
+     two pure functions from V3 would have dragged the whole incumbent
+     screensaver into V3's bundle. The shared half moved here; each surface
+     keeps its own ending. */
+  "js/services/goodnight.js",
   "js/services/homeAssistant/client.js",
   "js/services/homeAssistant/entityFeed.js",
   "js/services/homeAssistant/state.js",

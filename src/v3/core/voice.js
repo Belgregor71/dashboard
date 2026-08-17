@@ -20,6 +20,7 @@
 
 import { matchIntent } from "../../js/services/localIntents.js";
 import { answer } from "../../js/services/localAnswers.js";
+import { prepareGoodnight } from "../../js/services/goodnight.js";
 import { voiceSnapshot, houseDigest, couldBeAssist, rememberReply } from "../../js/services/voiceSnapshot.js";
 import { learnedTimes } from "../../js/core/routineRuntime.js";
 import { speak, silence, createSpeech, setSpeakingObserver } from "../../js/core/tts.js";
@@ -147,12 +148,12 @@ function hideHeard() {
    🔑 A rule enforced by a helper is only enforced on the callers that use it.
    `renderGlance()` in attention.js is the other writer of this node and it goes
    through setSaidText; these two must not disagree about the same element. */
-function say(text, refs) {
+function say(text, refs, opts = {}) {
   setSaidText(el.glanceSaid, text);
   lightRefs(refs);
   // The sweep is driven by real playback position, so it arrives at the last
   // word rather than at a guess about it.
-  return speak(text, { onAudio: (audio) => trackSpeech(audio) })
+  return speak(text, { ...opts, onAudio: (audio) => trackSpeech(audio) })
     .then(() => setPhase("idle"), () => setPhase("idle"));
 }
 
@@ -324,6 +325,42 @@ async function handlePhotoVeto(id) {
     : "Righto — you won't see that one again.";
 }
 
+/* ── Goodnight ──────────────────────────────────────────────────────────────
+   The second `action.*` the house can be told to DO, and the one the cutover
+   dropped. `localIntents.js` has matched "goodnight" since long before V3, and
+   services/vocabulary.js lists it in ALWAYS_TRUE — so the wall's own "what can
+   I say" card has been advertising it all along. What it reached was `answer()`,
+   which has no `action.*` case by design (the coverage test in local-voice.spec
+   exempts them precisely because they are the SURFACE's job), so every "night
+   night" fell through to Assist and then to the model, and the house had a
+   pleasant chat about bedtime instead of turning the lights off.
+
+   Third instance of the same cutover defect as initMemoryRuntime /
+   initRoutineRuntime / initRecipePanel: the behaviour was never broken, it was
+   never wired. Here the only caller was voiceCommands.js's dispatch table.
+
+   ⚠ SLOWER THAN AN ORDINARY REPLY, on purpose. 0.88 is the incumbent's rate and
+   it is the whole register of the moment — a goodnight delivered at the pace of
+   a commute readout is the house failing to notice what time it is. Note it
+   changes the TTS cache key (sha256(text::rate)), which is correct: this line
+   is a different utterance from the same words said briskly.
+─────────────────────────────────────────────────────────────────────────── */
+const GOODNIGHT_RATE = 0.88;
+
+/**
+ * Returns the line to speak, or null to fall through to the next lane — which
+ * is only the flag being off. Everything downstream of that is non-fatal by
+ * construction: the scene swallows its own failure, and a calendar that could
+ * not be read produces a goodnight that says nothing about tomorrow rather than
+ * one that claims tomorrow is empty.
+ *
+ * @returns {Promise<string|null>}
+ */
+async function handleGoodnight() {
+  if (!flag("v3Goodnight")) return null;
+  return prepareGoodnight();
+}
+
 /**
  * One turn. Returns { handled, lane }.
  */
@@ -366,6 +403,35 @@ export async function submit(text, { source = "unknown" } = {}) {
           rememberReply(spoken);
           consecutiveFailures = 0;
           endTurn(clean, spoken);
+          return { handled: true, lane: "local" };
+        }
+      } else if (intent.id === "action.goodnight") {
+        const spoken = await handleGoodnight();
+        if (spoken) {
+          setPhase("speaking");
+          // Visible while it is said. The line names tomorrow, and hearing a
+          // time without seeing it written is the one thing this surface is
+          // for.
+          deepen(DEPTH.GLANCE, "voice-action.goodnight");
+          await say(spoken, [], { rate: GOODNIGHT_RATE });
+          rememberReply(spoken);
+          consecutiveFailures = 0;
+          endTurn(clean, spoken);
+
+          /* ⚠ THE ONE PLACE THE VOICE PULLS THE SURFACE SHALLOWER, and it has
+             to be `setDepth`, not `deepen` — deepen() falls through to
+             sustain() for a shallower target, which would RE-ARM the hold on
+             whatever was up instead of letting it go. (Phase 1 recorded that
+             trap; the "depth 3, held, with nothing in it" finding above is the
+             same one arriving by another door.)
+
+             This is V3's whole answer to the incumbent's
+             `engageScreensaver({startMode:"minimal"})`. There is no screensaver
+             to engage: depth 0 IS the resting wall, the hour and the
+             photograph. Recession is normally automatic and downhill — this
+             just says the downhill part is due now rather than in 90 seconds,
+             because someone announced they were leaving the room. */
+          setDepth(DEPTH.FIELD, "voice-goodnight");
           return { handled: true, lane: "local" };
         }
       } else if (intent.id.startsWith("show.")) {

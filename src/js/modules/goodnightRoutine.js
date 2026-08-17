@@ -1,82 +1,13 @@
 import { speak } from "../core/tts.js";
 import { engageScreensaver } from "./screensaver.js";
-import { callHAService } from "../services/homeAssistant/client.js";
-import { CONFIG } from "../core/config.js";
+import { prepareGoodnight } from "../services/goodnight.js";
 
-async function getTomorrowEvents() {
-  try {
-    const res  = await fetch("/api/calendar/all");
-    const data = await res.json();
-
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toDateString();
-
-    return (data.events ?? data ?? [])
-      .filter(ev => {
-        const d = new Date(ev.start ?? ev.startDate ?? ev.date);
-        return d.toDateString() === tomorrowStr;
-      })
-      .slice(0, 3)
-      .map(ev => {
-        const title = String(ev.title ?? ev.summary ?? "Untitled event");
-        const start = ev.start ?? ev.startDate;
-        if (!start) return title;
-        const d = new Date(start);
-        // Skip time for all-day events (midnight exactly)
-        if (d.getHours() === 0 && d.getMinutes() === 0) return title;
-        const time = d.toLocaleTimeString("en-AU", {
-          hour:   "numeric",
-          minute: "2-digit",
-          hour12: true,
-        });
-        return `${title} at ${time}`;
-      });
-  } catch {
-    return [];
-  }
-}
-
-function buildMessage(events) {
-  let msg = "Goodnight!";
-
-  if (events.length === 0) {
-    msg += " Nothing on the calendar tomorrow — a whole day with nothing to do, isn't that just decadent.";
-  } else if (events.length === 1) {
-    msg += ` Tomorrow you've got ${events[0]}, so get some actual sleep for once.`;
-  } else {
-    const last = events[events.length - 1];
-    const rest = events.slice(0, -1).join(", ");
-    msg += ` Tomorrow you've got ${rest}, and ${last} — big day, better rest up.`;
-  }
-
-  msg += " Sleep well, gorgeous.";
-  return msg;
-}
-
-async function runHaScene() {
-  if (!CONFIG.homeAssistant?.enabled) return;
-  const scriptId = CONFIG.homeAssistant?.goodnightScript ?? "script.goodnight";
-  try {
-    await callHAService({
-      domain: "script",
-      service: "turn_on",
-      target: { entity_id: scriptId },
-    });
-  } catch {
-    // Non-fatal — script may not exist in HA
-  }
-}
-
+/* The incumbent's ending. Everything above it — tomorrow's events, the line,
+   the HA scene — moved to services/goodnight.js on 2026-08-17 so V3 could
+   reach it without importing the screensaver. See that file's header. */
 export async function triggerGoodnight() {
-  // Fetch calendar and fire HA scene in parallel — neither should block the other
-  const [events] = await Promise.all([
-    getTomorrowEvents(),
-    runHaScene(),
-  ]);
-
   // Speak the goodnight message and wait for it to finish before dimming
-  await speak(buildMessage(events), { rate: 0.88 });
+  await speak(await prepareGoodnight(), { rate: 0.88 });
 
   // Transition to minimal clock mode
   engageScreensaver({ startMode: "minimal" });

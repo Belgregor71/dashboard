@@ -1294,6 +1294,27 @@ window.CONFIG = {
     // appear. Flipping this without that env var draws a truthful picture of a
     // truncated feed, which is honest but not what was asked for.
     v3CalendarAhead: true,
+
+    // ── Goodnight, on V3 ────────────────────────────────────────────────────
+    // "Goodnight" / "night night" / "I'm going to bed" has matched in
+    // localIntents.js since long before V3, and services/vocabulary.js lists
+    // action.goodnight in ALWAYS_TRUE — so the wall's own "what can I say" card
+    // has been advertising it since the cutover, to a surface with no handler
+    // for it. answer() has no action.* case BY DESIGN, so the turn fell through
+    // to Assist and then to the model: the house chatted about bedtime instead
+    // of running the routine. Fourth instance of the cutover's one defect —
+    // behaviour that was never broken, only never wired.
+    //
+    // On: the shared half runs (HA script.goodnight + tomorrow's first three
+    // events spoken at rate 0.88) and the wall settles to depth 0.
+    // Off: handleGoodnight() returns null before touching anything and the turn
+    // falls through exactly as it does today, so the flag-off build is the
+    // build that shipped before this. One-line revert (-> false).
+    //
+    // ⚠ It FIRES AN HA SCRIPT — the only thing in this batch that changes the
+    // house rather than the screen. Default-off until it has been heard, and
+    // said, on the real wall.
+    v3Goodnight: false,
   },
 
   /* --------------------------------------------------------------

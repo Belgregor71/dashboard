@@ -343,6 +343,31 @@ test.describe("show-me surfaces — the new subjects", () => {
     }
   });
 
+  test("⚠ every action.* id has a branch on the surface that is actually up", () => {
+    /* `action.*` is exempt from needing an answerer here — the test above says
+       so, and it is right: an action changes the house, it does not describe
+       it. But the exemption is only safe while SOME surface handles the id, and
+       from the V3 cutover until 2026-08-17 none did. `action.goodnight` matched,
+       `answer()` correctly returned null, and the turn fell through to the model,
+       which chatted about bedtime. Nothing in this file could see it: the
+       matcher was never the broken half.
+
+       So the exemption is made conditional on the handler existing. `/` serves
+       V3, so V3 is the surface that must have it; the incumbent's dispatch table
+       is checked too, because it is the rollback host. */
+    const actions = INTENT_IDS.filter((id) => id.startsWith("action."));
+    expect(actions.length, "no action.* ids left — the filter is wrong").toBeGreaterThan(0);
+
+    const v3 = readFileSync(new URL("../src/v3/core/voice.js", import.meta.url), "utf8");
+    const incumbent = readFileSync(new URL("../src/js/core/voiceCommands.js", import.meta.url), "utf8");
+    for (const id of actions) {
+      expect(v3, `V3 (the surface on the wall) has no branch for ${id}`)
+        .toContain(`intent.id === "${id}"`);
+      expect(incumbent, `the rollback host has no dispatch entry for ${id}`)
+        .toContain(`"${id}"`);
+    }
+  });
+
   test("the surface answers match what the spoken intent used to say", () => {
     // Same snapshot, same words. This is what makes the matcher change
     // invisible on the wall rather than merely non-fatal.
