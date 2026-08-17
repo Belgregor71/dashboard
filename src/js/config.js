@@ -75,6 +75,23 @@ window.CONFIG = {
     // gate floor; kiosk-metrics flat) — now enabled.
     houseIntent: true,
 
+    // Arms Phase 6's intentEngine on V3 (src/v3/main.js, stage "intent").
+    // `houseIntent` above is the engine-side READ gate and has been true since
+    // 2026-07-11; this is the switch that makes there be a posture to read. The
+    // cutover left `initIntent()` with only js/core/app.js calling it, so
+    // `window.__intent` has been undefined on the wall and attentionRank's
+    // rushed/unhurried could never fire — measured over CDP 2026-08-16.
+    //
+    // Default OFF because arming it is NOT byte-identical, unlike the memory /
+    // routines / personality stages beside it. Two postures act: `rushed` takes
+    // the surface to interrupt-only, and `winding-down` (present, night, 9pm+)
+    // drops every non-interrupt candidate below score 45 — the whole ordinary
+    // V3 queue (commute 42, nowPlaying 41, plex 41, tonight's menu 40). That
+    // means a quieter wall in the evening kitchen, which is the room's call to
+    // make on the glass. Flip on after a live look; flag-off is the rollback and
+    // returns the exact pre-2026-08-17 behaviour.
+    v3HouseIntent: false,
+
     // Phase 7 "Dissolve the dashboard" (docs/vision/phase-7-dissolve.md). Lifts
     // the Phase 5 atmo-* token off the screensaver root onto a shared app root
     // (body) so the intent-dressed, weather-tinted room persists across

@@ -35,6 +35,9 @@ import { initNowPlaying, nowPlayingState } from "./core/now-playing.js";
 import { initDinner, lastDinner } from "./core/dinner.js";
 import { initMemoryRuntime } from "../js/core/memoryRuntime.js";
 import { initRoutineRuntime } from "../js/core/routineRuntime.js";
+import { initPersonalityRuntime } from "../js/core/personalityRuntime.js";
+import { initIntent } from "../js/core/intentEngine.js";
+import { initContextFeed, pushContext, feedWeatherCode } from "./core/context-feed.js";
 
 /* ⚠ `/js/config.js` is a separate <script> in index.html, so window.CONFIG is
    populated before this module runs — but read it LATE anyway (per call, not at
@@ -105,6 +108,13 @@ function syncSun() {
   root.style.setProperty("--sun-alt", s.altitudeDeg.toFixed(2));
   root.style.setProperty("--sun-warmth", Math.max(0, Math.min(1, (s.altitudeDeg + 6) / 18)).toFixed(3));
 
+  /* AFTER the stamp, never before: the context feed reads `data-night` off this
+     root rather than doing its own suncalc, so pushing first would publish
+     yesterday's answer for a minute. This is also what bounds `lastMotionAt`'s
+     staleness — presence pushes on a mode CHANGE, and the minute tick covers
+     the motion that happens between two of them. */
+  pushContext();
+
   return s;
 }
 
@@ -139,6 +149,9 @@ async function loadWeather() {
     if (!res.ok) return;
     weather = await res.json();
     pushCauses();
+    /* The code, not the icon — see feedWeatherCode. The substrate above wants
+       the server's finer category; contextStore wants the collapsed one. */
+    feedWeatherCode(weather?.now?.condition?.code ?? null);
   } catch {
     // Upstreams are allowed to be down. The substrate keeps its last causes;
     // an atmosphere that freezes is far better than one that lies.
@@ -238,6 +251,31 @@ function boot() {
   stage("voice", () => initVoice({ enabled: true, lat: CITY.lat, lon: CITY.lon }));
   stage("depth-teardown", () => onDepth(onDepthChange));
 
+  /* ── The sun, early ───────────────────────────────────────────────────────
+     Nothing but suncalc and the root element, so it can run this high up — and
+     it has to. `data-night` is what presence reads for its linger and what the
+     context feed publishes as `isNight`, and it used to be stamped for the
+     first time inside stage("causes"), twenty lines from the bottom of this
+     function. Every runtime that boots above that line saw a house where it was
+     never night. pushCauses() still calls syncSun(); the substrate wants the
+     same reading and calling it twice is idempotent. */
+  stage("sun", () => syncSun());
+
+  /* Moved up from the bottom for the head start, not for ordering: this is a
+     fire-and-forget fetch that feeds contextStore.condition whenever it lands.
+     personalityRuntime's dry-streak takes its first reading a second or two
+     into boot, and a null condition reads there as "it did not rain today" —
+     which is a wrong day in a counter that only moves once per day. */
+  stage("weather", () => loadWeather());
+
+  /* ── contextStore gets a writer at last ───────────────────────────────────
+     See core/context-feed.js. Before every runtime below, because the store is
+     the house those runtimes reason about: until 2026-08-17 it was a frozen
+     literal on this surface — nobody home reading as `presence:"glance"`,
+     `isNight:false` at midnight — and arming intent over that would have been
+     worse than leaving it dead. */
+  stage("context", () => initContextFeed());
+
   /* ── The house's feed ─────────────────────────────────────────────────────
      Both halves of the state the decision layer reads. The entity cache is
      filled by the SSE stream (live, push); the HTTP-backed half — weather,
@@ -317,6 +355,56 @@ function boot() {
      memory stage is: the engine reads the weights on its first tick, and armed
      late it would run that tick without them. */
   stage("routines", () => initRoutineRuntime({ enabled: flag("routineLearning") }));
+
+  /* ── Phase 10, and the FOURTH init* the cutover disarmed ──────────────────
+     `initPersonalityRuntime()` had exactly one caller — js/core/app.js — so
+     since the cutover `collectDelight()` has returned [] forever while
+     attentionEngine.js:20 imported it. No birthday, no occasion, no
+     home-after-away, no first-rain-after-a-dry-spell has been possible on this
+     wall. The live aggregates agreed: `delight {shown:1, dwell:0}`.
+
+     ⚠ WHAT WAS NOT LOST, so the fix is not mistaken for more than it is:
+     `personality.js` itself is PURE and has been working the whole time —
+     phrase(), shouldSpeak() and timing() are called directly by the surfacing
+     paths and never needed a runtime. Only the delight REGISTRY and its
+     persisted budget were orphaned.
+
+     ⚠ A celebration scores 47 (CELEBRATION_SCORE) — Low band, deliberately "a
+     warmth, never an interrupt". On V3 that means it can never earn the glance
+     at either bar, so it surfaces in the dwell spread: the house mentions your
+     birthday when you stand there, rather than announcing it to an empty room.
+
+     BEFORE initAttention() for the same reason memory and routines are: the
+     engine concats collectDelight() on its first tick and initAttention ticks
+     immediately. */
+  stage("personality", () => initPersonalityRuntime({ enabled: flag("personality") }));
+
+  /* ── Phase 6, the other dead lever — and the one that is NOT free ─────────
+     Same shape as every stage above it (only caller js/core/app.js), so
+     `window.__intent` read `undefined` on the wall while `config.js:76`
+     houseIntent read `true`, and `attentionEngine.js:192` has been handing
+     `attentionRank` the neutral literal since the cutover — `rushed` and
+     `unhurried` could never be true.
+
+     ⚠ BUT ARMING IT CHANGES THE WALL, which is why it has its own flag and
+     ships default-OFF while the four above ship armed. The posture is not
+     decoration: `rushed` (a hard calendar event inside 30 min, someone present)
+     drops the surface to interrupt-only, and `winding-down` (present, night,
+     9pm+) drops every non-interrupt candidate under score 45 — which on this
+     surface is the ENTIRE ordinary queue (commute 42, nowPlaying 41, plex 41,
+     tonight's menu 40). An evening kitchen is exactly when this wall is used,
+     so "the house goes quiet after nine" is a design decision for the room to
+     make on the glass, not one to discover from a config default.
+
+     `houseIntent` stays the engine-side READ gate and is untouched; this flag
+     is the arming switch, so flipping it off is a genuine return to today's
+     behaviour. Flag-off still registers `window.__intent`, which is how the
+     posture gets verified before the flip.
+
+     AFTER routines: `intentEngine.js:89` reads `learnedDeparture()` to sharpen
+     the budget when the calendar is silent. BEFORE attention, so the first tick
+     ranks against a real posture rather than the literal. */
+  stage("intent", () => initIntent({ enabled: flag("v3HouseIntent") }));
 
   /* The house's opinion, and its permission to act on it. See core/attention.js:
      an interrupt reaches the glance whether or not anyone is there, the High
@@ -413,7 +501,6 @@ function boot() {
 
   stage("hour", () => paintHour());
   stage("causes", () => pushCauses());
-  stage("weather", () => loadWeather());
   // Two handlers rather than .finally(): a rejection handled on a fresh chain
   // re-throws, and an uncaught page error on the kiosk is the bug class the
   // suite exists to catch. The rail is best-effort either way.
@@ -474,6 +561,12 @@ function registerHandles() {
       entities: Object.keys(getAllEntities()).length,
       houseCacheAgeMs: houseCacheAge()
     },
+    // The shared store and the posture derived from it, in the same read as the
+    // selection they shaped. Kept together on purpose: "why did the wall stay
+    // quiet?" is a question about all three at one instant, and three separate
+    // CDP round-trips answer it about three different instants.
+    context: window.__v3Context?.() ?? null,
+    intent: window.__intent?.() ?? null,
     attention: lastSelection(),
     announced: announcements(),
     alert: lastAlert(),

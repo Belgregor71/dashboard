@@ -71,6 +71,13 @@ const SHARED_BOTH = [
   "js/core/config.js",
   "js/core/contextStore.js",
   "js/core/eventBus.js",
+  /* ⚠ ENTERED V3'S CLOSURE 2026-08-17 with the context feed. Phase 6's runtime
+     is the fourth init* the cutover disarmed — `window.__intent` read
+     `undefined` on the wall while its flag read true — and it could not be
+     armed until contextStore had a V3 writer, because deriveIntent reads
+     exactly the three slices that were frozen. See v3/main.js stage "intent";
+     the arming rides `v3HouseIntent`, which is NOT `houseIntent`. */
+  "js/core/intentEngine.js",
   "js/core/memoryRuntime.js",
   "js/core/personality.js",
   "js/core/personalityRuntime.js",
@@ -118,7 +125,14 @@ const SHARED_BOTH = [
   "js/services/vocabulary.js",
   "js/services/voiceSnapshot.js",
   "js/services/weather/bom.js",
-  "js/vendor/suncalc.js"
+  "js/vendor/suncalc.js",
+  /* ⚠ ENTERED V3'S CLOSURE 2026-08-17, and like goodnight.js above it entered
+     by a CARVE-OUT rather than a new import: `getBaseCategory` lived in
+     services/weather/renderer.js, a 900-line DOM renderer whose import would
+     have pulled the incumbent's entire weather surface into V3's bundle. It
+     moved down here next to the map it collapses — one list, not two — and
+     renderer.js re-exports it so the incumbent's address is unchanged. */
+  "js/weatherPrompts.js"
 ];
 
 // In `src/js/` for history, but only V3 loads them. These are the dangerous

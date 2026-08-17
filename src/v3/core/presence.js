@@ -176,6 +176,17 @@ function onStateUpdated(entity) {
 export function isPresent() { return present; }
 export function isDwelling() { return dwelling; }
 
+/* The FSM slug for the current booleans — `modeOf()` and nothing else, so the
+   context feed cannot invent a second translation of the same two variables.
+   The vocabulary is the incumbent's (see the block above `modeOf`); this is the
+   synchronous read of what `presence:changed` last announced. */
+export function presenceMode() { return modeOf(); }
+
+/* Epoch ms of the last motion of any source, 0 before the first. The
+   contextStore slice `js/core/presence.js` used to write on every kitchen
+   event. */
+export function lastMotionAtMs() { return lastMotionAt; }
+
 export function onPresence(fn) {
   listeners.add(fn);
   return () => listeners.delete(fn);
