@@ -1345,6 +1345,55 @@ window.CONFIG = {
     // house rather than the screen. Default-off until it has been heard, and
     // said, on the real wall.
     v3Goodnight: false,
+
+    // ── The Ambient Archive, rebuilt on V3 as depth 0 ───────────────────────
+    // F4. The incumbent archive (modules/ambientArchive.js + its 513-line
+    // stylesheet) has not been on the wall since the cutover: / serves V3, V3
+    // has no screensaver, and a grep of src/v3/ for the archive returned one
+    // CSS comment. `ambientArchive: true` above is therefore true of a surface
+    // nobody sees, which is also why `archiveMotionLoop` has been "not
+    // assessable" for weeks.
+    //
+    // With this on, depth 0 stops being "a photograph with the hour on it" and
+    // becomes the archive composition: the memory as a lit card on a tilted
+    // plane, TWO large desaturated ghosts of itself bleeding off opposite
+    // edges, the year engraved 400px behind the plate, and one bold strip
+    // across the top carrying THE YEARS THIS DATE EXISTS IN, with the card's
+    // own year lit.
+    //
+    // ⚠⚠ THE STRIP IS THE THIRD YEAR RAIL BUILT FOR THIS SURFACE AND THE FIRST
+    // TWO WERE BOTH REJECTED ON THE PANEL (AMBIENT-ARCHIVE.md:120). It is here
+    // on the owner's direct instruction, 2026-08-18, after re-reading the
+    // reference frames — and it differs from both in the two ways they died:
+    // it carries information the wall does not already state (which years this
+    // date lives in, not just which one is up), and it takes the TOP band,
+    // which at depth 0 is empty, so the card keeps its full 1040x609 box.
+    // Build 1 cut the card to 53% of its area; this costs it nothing.
+    //
+    // ⚠⚠ IT DELIBERATELY CONTRADICTS A WRITTEN LAW, and the amendment ships
+    // with it. compose.css and DESIGN_SYSTEM.md §5.4 both say depth 0 is
+    // QUIESCENT, <=8% of one core, "anything that animates here is a bug".
+    // Four continuous loops at depth 0 move it into the LIVE AMBIENT band
+    // (<=25% sustained). Law 1's 2026-08-01 rewrite permits exactly this — the
+    // cause is nameable by anyone in the room, "the house is leafing through
+    // its album" — but a shipped surface that contradicts a written law
+    // silently repeals the law, so §5.4 names this state explicitly now.
+    //
+    // Motion hangs off `:root[data-depth="0"]:not([data-panel-dark="1"])`.
+    // Two consequences the incumbent never had: something arriving switches the
+    // loops OFF rather than hiding them, and a dark panel stops them too.
+    //
+    // ⚠ NOT YET SEEN ON THE WALL, and both earlier year rails were rejected
+    // within the hour of being looked at. Judge it in DAYLIGHT: the plate and
+    // the engraved year hide at night by design, so a night capture reads as
+    // an empty right two-thirds and overstates the problem.
+    //
+    // One-line revert (-> false): initArchive() returns before building
+    // anything — no host children, no listener, no hook, no CSS var — and
+    // depth 0 is the full-bleed photograph and the solved scrim, unchanged.
+    // That rollback path is not theoretical: it is the SAME path every depth
+    // above 0 takes, so production exercises it on every doorbell.
+    v3Archive: false,
   },
 
   /* --------------------------------------------------------------

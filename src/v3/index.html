@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="./css/type.css" />
   <link rel="stylesheet" href="./css/compose.css" />
   <link rel="stylesheet" href="./css/light.css" />
+  <link rel="stylesheet" href="./css/archive.css" />
 </head>
 <body>
   <!-- The substrate. One continuously-caused atmospheric field: sun altitude and
@@ -36,6 +37,20 @@
   <!-- Shaped gradient scrim. Opacity is COMPUTED from the measured luminance
        under the text, not guessed. Blur is not a material in V3. -->
   <div class="scrim" id="scrim"></div>
+
+  <!-- The Ambient Archive. Depth 0's other face: the memory as a lit card on a
+       tilted plane, two desaturated ghosts of itself, the year engraved behind
+       the plate, and one strip carrying the years this date reaches.
+
+       ⚠ IT LIVES HERE, A CHILD OF <body>, FOR TWO REASONS. Inside .photo its
+       z-index would be trapped in that element's stacking context — the exact
+       fault that painted #ground-caption under the scrim at 1.02:1. Inside
+       .stage it would be torn down on every depth change, and it has to survive
+       them: it is what depth 0 recedes BACK to.
+
+       Empty and invisible unless v3Archive is on. core/archive.js builds every
+       node it will ever have, once. -->
+  <div class="archive" id="archive" aria-hidden="true"></div>
 
   <!-- The field cools ~2% while the house is thinking. Above the substrate,
        below the content, so the text is never tinted. -->

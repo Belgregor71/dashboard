@@ -393,17 +393,54 @@ export function captionForFrame(assets) {
   const list = (assets ?? []).filter(Boolean);
   if (list.length < 2) return captionFor(list[0]);
 
-  const parts = [];
+  const { people, place, when } = frameParts(list);
+  return [people, place, when].filter(Boolean).join(" · ");
+}
+
+/**
+ * The same facts as the caption, BEFORE they are joined into a line.
+ *
+ * Exported because the archive's plate wants them in a different arrangement —
+ * an eyebrow, a title and a name on three rows — and re-deriving them over
+ * there would let the caption and the plate disagree about the same
+ * photograph. This is the rule daySources.js was carved out of temporalSpine
+ * for: two renderers, one reading.
+ *
+ * ⚠ `year` is deliberately NOT `when`. `when` is the trip if there was one
+ * ("Mexico 2017"), which is the right thing to say in a line and the wrong
+ * thing to set 400px high behind the plate or to light on a year axis. Earliest
+ * wins on a pair, so a diptych straddling the unknown-date bucket lights one
+ * year rather than choosing arbitrarily.
+ *
+ * @returns {{people:string, place:string, when:string, year:string}}
+ */
+export function frameParts(assets) {
+  const list = (assets ?? []).filter(Boolean);
   const people = joinPeople(uniq(list.flatMap(namesOf)));
-  if (people) parts.push(people);
+  const place = uniq(
+    list.map((a) => placeUnlessEchoed(placeOf(a), tripOf(a))).filter(Boolean)
+  ).join(" & ");
+  const when = uniq(list.map(whenOf).filter(Boolean)).sort().join(" & ");
+  const year = uniq(list.map(yearOf).filter(Boolean)).sort()[0] ?? "";
+  return { people, place, when, year };
+}
 
-  const places = uniq(list.map((a) => placeUnlessEchoed(placeOf(a), tripOf(a))).filter(Boolean));
-  if (places.length) parts.push(places.join(" & "));
-
-  const whens = uniq(list.map(whenOf).filter(Boolean)).sort();
-  if (whens.length) parts.push(whens.join(" & "));
-
-  return parts.join(" · ");
+/**
+ * The distinct years today's pool reaches, ascending.
+ *
+ * The archive's strip draws these as its axis, and it must read them off the
+ * ADOPTED POOL rather than fetching on-this-day for itself. A second fetch is a
+ * second answer — the pool is filtered (screenshots), ordered and, with the
+ * diptych on, paired and burst-collapsed — and a strip lighting a year the card
+ * can never reach would be the instrument lying about which reading is true.
+ *
+ * Empty until a pool is adopted, and empty on the random fallback: a date with
+ * no memories has no year axis to draw, and saying so is better than inventing
+ * one.
+ */
+export function poolYears() {
+  if (poolDayKey !== localDayKey()) return [];
+  return uniq(pool.flat().map(yearOf).filter(Boolean)).sort();
 }
 
 async function fetchPool() {
@@ -551,7 +588,7 @@ async function loadFirst(stallMs = STALL_MS) {
       current = { imgs, assets, assetId: assets[0].id, dayKey: localDayKey() };
       paintCaption();
       inFlight = false;
-      onPhoto(frameArg(imgs), { transitioning: false });
+      onPhoto(frameArg(imgs), { transitioning: false, assets });
     };
 
     for (const el of imgs) {
@@ -617,7 +654,7 @@ async function dissolve(settleMs = DISSOLVE_MS, stallMs = STALL_MS) {
       // The incoming photograph's own opacity may be lower than the outgoing
       // one's. It may not be applied yet — for the length of the settle both
       // are on the glass, and the scrim has to protect the brighter of them.
-      onPhoto(frameArg(imgs), { transitioning: true });
+      onPhoto(frameArg(imgs), { transitioning: true, assets, settleMs });
 
       setTimeout(() => {
         // ⚠ EVERY element of the outgoing frame. Removing only the first is how
@@ -629,7 +666,21 @@ async function dissolve(settleMs = DISSOLVE_MS, stallMs = STALL_MS) {
         // left half — the one the scrim samples first and the specs read.
         imgs[0].id = old.imgs[0].id || "ground";
         syncDiptychAttr();
-        onPhoto(frameArg(imgs), { transitioning: false });
+        /* ⚠ ONLY IF THIS FRAME IS STILL THE GROUND. This hand-off is fired from
+           a timer armed a whole settle ago, and a second exchange inside that
+           window — a veto answered by another veto, which is 1.2s of settle and
+           2s of buffer — delivers it AFTER the newer frame's own hand-off. Both
+           subscribers then act on a photograph that has already gone: the scrim
+           re-solves its opacity for it, and the archive puts it back on top of
+           the card, so the wall shows the picture the room just rejected.
+
+           Found by driving three exchanges inside one buffer window and reading
+           the archive's slots — the elements were right and the ORDER was not.
+           The removal above is unconditional either way: those nodes are this
+           dissolve's own predecessors whoever is on the glass now. */
+        if (current?.imgs?.[0] === imgs[0]) {
+          onPhoto(frameArg(imgs), { transitioning: false, assets, settleMs });
+        }
       }, settleMs + CLEANUP_BUFFER_MS);
     };
 
@@ -748,10 +799,23 @@ function tick() {
 
 /**
  * @param {HTMLImageElement} img  the #ground element from index.html
- * @param {{onPhoto?: (img: HTMLImageElement, meta: {transitioning: boolean}) => void}} opts
+ * @param {{onPhoto?: (img: HTMLImageElement,
+ *                     meta: {transitioning: boolean, assets: object[]}) => void}} opts
  *        Fired whenever the photograph on the glass changes — once on arrival
  *        and, across a day boundary, again when the settle is complete. The
- *        ground deliberately knows nothing about the scrim; main.js wires them.
+ *        ground deliberately knows nothing about the scrim or the archive;
+ *        main.js wires them, and both subscribe to this one seam.
+ *
+ *        `meta.assets` rides along for the archive's plate, which needs the
+ *        place, the people and the year rather than the pixels, and
+ *        `meta.settleMs` so a second renderer can exchange over the SAME
+ *        duration this one is using — otherwise a veto (brisk, because someone
+ *        just spoke) and the ambient rotation (slow, because nothing did) would
+ *        look identical on the archive's card, which is the one distinction the
+ *        veto's whole timing argument rests on. Absent on the first frame,
+ *        which has nothing to settle from. The scrim ignores both — an added
+ *        meta field is invisible to a reader that does not destructure it,
+ *        which is what keeps this one callback shared.
  */
 export function initGround(img, opts = {}) {
   host = img?.parentElement ?? null;

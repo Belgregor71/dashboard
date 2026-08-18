@@ -91,6 +91,12 @@ const SHARED_BOTH = [
   "js/modules/aiBriefing.js",
   "js/modules/briefingData.js",
   "js/services/alertRouter.js",
+  /* ⚠ ENTERED V3'S CLOSURE 2026-08-18 with the archive's rebuild on depth 0,
+     and it entered NARROWLY on purpose: V3 imports `cardRectFor` and the card
+     constants, not `plateFor`, whose caption parsing is incumbent-shaped (the
+     year leads there and trails here). The module imports only photoMemory.js,
+     which was already in this list, so this one line is the whole addition. */
+  "js/services/archiveModel.js",
   "js/services/attentionEngine.js",
   "js/services/attentionRank.js",
   "js/services/briefingSchedule.js",

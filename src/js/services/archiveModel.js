@@ -1,3 +1,17 @@
+/* ═══ V3-SHARED-RUNTIME ═════════════════════════════════════════════════════
+   Loaded by BOTH surfaces. The incumbent's modules/ambientArchive.js reads all
+   of it; V3's core/archive.js reads `cardRectFor` and the card-box constants
+   only — the card's geometry is the one part of the archive that is arithmetic
+   rather than composition, and both surfaces must land a 16:9 memory on the
+   same rectangle to the pixel or the port is not a port.
+
+   ⚠ `plateFor` is INCUMBENT-ONLY and cannot be called from V3. It parses a
+   caption whose year comes FIRST (`2021 · Nudgee · Melanie`, which is what
+   photoMemory.captionFor joins); V3's ground.js joins the opposite order,
+   `Melanie · Nudgee · 2021`, so the leading-\d{4} match silently returns null
+   for every V3 caption. V3 builds its plate from the ASSETS via
+   ground.frameParts() instead, which is the shape it actually has.
+   ═══════════════════════════════════════════════════════════════════════════ */
 import { captionParts, relativeYearPhrase } from "./photoMemory.js";
 
 // The pure half of the Ambient Archive (docs/design/AMBIENT-ARCHIVE.md).

@@ -1,0 +1,477 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE AMBIENT ARCHIVE — the whole visual system for depth 0's rebuilt ground.
+   core/archive.js builds the nodes; everything about how they look and move is
+   here. docs/design/AMBIENT-ARCHIVE.md · features.v3Archive
+
+   ⚠ ITS OWN FILE ON PURPOSE. tests/insights.spec.js forbids an unbound
+   `infinite` anywhere in the incumbent's shared stylesheets, and the same
+   reasoning applies here: a stylesheet that everything loads should not be the
+   place a continuous loop can be added without anyone noticing. Keeping the
+   archive's four loops in one file that exists only for them is what makes the
+   guardrail spec a two-line read rather than a sweep.
+
+   ⚠⚠ THE CAUSE IS `:root[data-archive="1"][data-depth="0"]`, and nothing here
+   may loop outside it. Depth 0 is the resting wall — the archive's motion is
+   legal there because the room can name its cause ("the house is leafing
+   through its album"), and the moment something arrives and pushes the surface
+   deeper that cause is gone. Leaving depth 0 switches the motion OFF rather
+   than hiding it. `:not([data-panel-dark="1"])` does the same when the panel
+   goes dark, which the incumbent archive never did: DPMS fires no
+   visibilitychange, so without it the loops run all night to a black screen.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* The scene's plane, inherited from the reference frames. */
+  --arch-plane: rotateY(-12deg) rotateX(8deg) rotateZ(2deg);
+
+  /* The strip's plane. Same yaw and pitch, roll cut from 2deg to 0.8deg: 2deg
+     is 75px of diagonal across a 2160px scale, which stops reading as "tilted"
+     and starts reading as "wonky". */
+  --arch-deck-plane: rotateY(-12deg) rotateX(8deg) rotateZ(0.8deg);
+
+  /* Amplitude. --arch-gain is written by core/archive.js (and turnable live via
+     window.__archiveGain); --arch-day is the night curve. §5.2: at 2am the wall
+     drifts less FAR, never less often — periods are constants, displacement is
+     not. */
+  --arch-gain: 2;
+  --arch-day: 1;
+  --arch-amp: calc(var(--arch-gain) * (0.34 + 0.66 * var(--arch-day)));
+
+  /* The card's box. These fallbacks ARE the verified rectangle: with a 16:9
+     memory cardRectFor() returns exactly this, so the common landscape frame
+     lands on the same pixels whether or not the fit has run yet. */
+  --arch-card-w: 1040px;
+  --arch-card-h: 585px;
+  --arch-card-top: 212px;
+
+  /* How long a memory takes to arrive on the card. Written per exchange by
+     core/archive.js from the settle ground.js is actually using, so a veto
+     (brisk, because someone just spoke) and the ambient rotation (slow, because
+     nothing did) stay honestly different. */
+  --arch-exchange: 1200ms;
+}
+
+/* Night lowers the amplitude rather than adding a second threshold. Same sun
+   altitude the rest of V3 reads; no clock time anywhere. */
+:root[data-night="1"] { --arch-day: 0.32; }
+
+/* ── The layer ──────────────────────────────────────────────────────────────
+   Between the scrim (2) and the ground caption (6). A direct child of <body>,
+   never of .photo — .photo is position:fixed with a z-index and is therefore a
+   stacking context, which is what buried #ground-caption under the scrim at
+   1.02:1 (compose.css records that one). Never of .stage either: subjects are
+   torn down on every depth change and this must survive them.
+
+   ⚠ WITH THE FLAG OFF `data-archive` IS ABSENT AND THIS RULE IS THE WHOLE
+   ROLLBACK — visibility:hidden, so the empty host paints nothing at all, not
+   even its background. The same rule runs at every depth above 0, which means
+   the rollback path is exercised in production on every doorbell rather than
+   only at revert time. */
+.archive {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  background: var(--surface);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--m-calm) var(--ease), visibility 0s linear var(--m-calm);
+}
+
+:root[data-archive="1"][data-depth="0"] .archive {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--m-calm) var(--ease), visibility 0s linear 0s;
+}
+
+/* The plate says who, where and when. #ground-caption says the same thing one
+   layer up, and the same fact told twice is furniture (law 3). It comes back
+   the instant the archive recedes, which is the same instant the full-bleed
+   photograph it belongs to comes back. */
+:root[data-archive="1"][data-depth="0"] .ground-caption {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.archive__scene {
+  position: absolute;
+  inset: 0;
+  perspective: 1400px;
+  perspective-origin: 50% 42%;
+  transform-style: preserve-3d;
+}
+
+/* ── The ghosts ─────────────────────────────────────────────────────────────
+   TWO, not thirty. The shipped surface tiled a 2900x1800 plane at 620x349 —
+   about thirty repeats, sixteen of them inside the frame — and the owner's
+   verdict was "the background tiles were too many". The reference frames have
+   one big desaturated enlargement bleeding off one corner and a partial at the
+   opposite edge, and that is what this is.
+
+   ⚠ THE FILTER IS ON THE SKIN AND THE DRIFT IS ON THE WRAPPER. A filter stack
+   on the same node a keyframe transforms is re-evaluated every composited
+   frame; split like this the crushed texture is rasterised once and only its
+   position moves. This is the single biggest reason to expect this to cost less
+   than the surface it replaces, and it is still a thing to MEASURE rather than
+   to believe. */
+.archive__ghost {
+  position: absolute;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.archive__ghost[data-ghost="a"] {
+  /* Bleeding off the bottom-right, ~55% of the frame's width. */
+  left: 940px;
+  top: 520px;
+  width: 1060px;
+  height: 600px;
+  transform: var(--arch-plane) translateZ(-280px);
+}
+
+.archive__ghost[data-ghost="b"] {
+  /* The partial at the upper-left, further back and smaller, so the two read as
+     depth rather than as a pair. */
+  left: -280px;
+  top: -60px;
+  width: 810px;
+  height: 460px;
+  transform: var(--arch-plane) translateZ(-320px);
+}
+
+.archive__ghost-skin {
+  position: absolute;
+  inset: 0;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  /* The reference's own numbers. Worth knowing what they actually do: a
+     grayscale + brightness(.17) + contrast(1.18) stack maps ANY input luminance
+     into roughly [0, 0.11], so a ghost is near-black whatever photograph is
+     behind it. That is why the text band over it needs no scrim of its own —
+     and why "the echo reads as visible tiling on a bright frame", the open
+     worry on the shipped surface, does not arise once there are two of them
+     instead of a repeating grid. */
+  filter: grayscale(1) brightness(0.17) contrast(1.18);
+  opacity: 0;
+  transition: opacity var(--arch-exchange) linear;
+}
+
+.archive__ghost-skin.is-shown { opacity: 1; }
+/* The incoming skin fades in ON TOP of the outgoing one, which stays opaque
+   underneath until a timer drops it. Same rule as the card below. */
+.archive__ghost-skin.is-top { z-index: 2; }
+
+:root[data-archive="1"][data-depth="0"]:not([data-panel-dark="1"]) .archive__ghost[data-ghost="a"] {
+  animation: arch-ghost-a 130s ease-in-out infinite alternate;
+}
+
+:root[data-archive="1"][data-depth="0"]:not([data-panel-dark="1"]) .archive__ghost[data-ghost="b"] {
+  /* 104s against 130s: co-prime enough that the two never settle into a shared
+     phase, which is what would turn two drifting objects back into one. */
+  animation: arch-ghost-b 104s ease-in-out infinite alternate;
+}
+
+@keyframes arch-ghost-a {
+  to {
+    transform: var(--arch-plane) translateZ(-280px)
+      translate3d(calc(-96px * var(--arch-amp)), calc(-42px * var(--arch-amp)), 0)
+      scale(calc(1 + 0.05 * var(--arch-amp)));
+  }
+}
+
+@keyframes arch-ghost-b {
+  to {
+    transform: var(--arch-plane) translateZ(-320px)
+      translate3d(calc(62px * var(--arch-amp)), calc(34px * var(--arch-amp)), 0)
+      scale(calc(1 + 0.04 * var(--arch-amp)));
+  }
+}
+
+/* ── The year strip ─────────────────────────────────────────────────────────
+   THE THIRD YEAR RAIL BUILT FOR THIS SURFACE. The first two were rejected on
+   the panel (AMBIENT-ARCHIVE.md records both), and this one exists on the
+   owner's direct instruction after re-reading the reference frames.
+
+   It differs from both in the two ways they died. It says something the wall
+   does not already say — which years this calendar date reaches, with the one
+   on the card lit — rather than restating the engraved numeral a third time.
+   And it takes the band ABOVE the card, which at depth 0 holds nothing, so the
+   card keeps its full box; build 1 was killed partly for shrinking it to 53% of
+   its area.
+
+   ⚠ IT NEVER MOVES, and a guardrail spec asserts that. The reference drifts its
+   strips +-80px, which was fine when they were texture. This one is an axis,
+   and an axis that slides is lying about what it measures. */
+.archive__strip {
+  position: absolute;
+  left: -120px;
+  /* ⚠ Measured against the PROJECTION, not chosen — core/archive.js carries the
+     working, and the two differ by ~60px at the top edge because this plane is
+     stretched ~1.7x by the perspective. Do not "tidy" these to round numbers
+     without re-running the geometry test. */
+  top: 60px;
+  width: 2160px;
+  height: 100px;
+  transform: var(--arch-deck-plane);
+  opacity: 0.95;
+  transition: opacity var(--m-calm) var(--ease);
+}
+
+/* ⚠ THE TOP-RIGHT CORNER BELONGS TO THE TRANSCRIPT (compose.css keeps the list
+   of who owns which corner, and it has been violated twice already). The strip
+   crosses that corner, so it stands down while the house is listening, thinking
+   or speaking rather than competing with what it heard. */
+:root:not([data-phase="idle"]) .archive__strip { opacity: 0.18; }
+
+/* ── The engraved year ──────────────────────────────────────────────────────
+   Roboto Flex at its lightest, not a condensed display face: V3 loads exactly
+   two families and adding a third is a new network dependency at boot for one
+   decorative numeral.
+
+   ⚠ aria-hidden, and it must never appear in a selector the contrast sweep
+   reads. At 5% ink this is a texture, not text, and a sweep asked to read it
+   would fail it correctly. */
+.archive__year {
+  position: absolute;
+  right: 36px;
+  top: 150px;
+  font-family: var(--font-measured);
+  font-size: 400px;
+  font-weight: 100;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in oklch, var(--ink) 5.5%, transparent);
+  -webkit-text-stroke: 1px color-mix(in oklch, var(--ink) 6%, transparent);
+  transform: var(--arch-plane) translateZ(-190px);
+  transition: opacity 2.4s ease;
+  pointer-events: none;
+}
+
+:root[data-archive="1"][data-depth="0"]:not([data-panel-dark="1"]) .archive__year {
+  animation: arch-year 92s ease-in-out infinite alternate;
+}
+
+@keyframes arch-year {
+  to {
+    transform: var(--arch-plane) translateZ(-190px)
+      translate3d(calc(-46px * var(--arch-amp)), calc(30px * var(--arch-amp)), 0);
+  }
+}
+
+/* ── The card ───────────────────────────────────────────────────────────────
+   The photograph is the point of a screensaver, and a build that shrank it to
+   make room for something else is precisely what the panel rejected once
+   already. Left pinned at 130 so a portrait simply does not reach as far right
+   and nothing else on the wall shifts.
+
+   ⚠ w/h/top are LAYOUT properties and §5.5 forbids animating them. They are
+   written instantly by applyRect(), riding the exchange that is already
+   happening — the reshape IS the memory arriving. */
+.archive__card-plane {
+  position: absolute;
+  left: 130px;
+  top: var(--arch-card-top);
+  width: var(--arch-card-w);
+  height: var(--arch-card-h);
+  transform: var(--arch-plane) translateZ(40px);
+  transform-style: preserve-3d;
+}
+
+.archive__card-wrap {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+:root[data-archive="1"][data-depth="0"]:not([data-panel-dark="1"]) .archive__card-wrap {
+  animation: arch-pivot 84s ease-in-out infinite alternate;
+}
+
+@keyframes arch-pivot {
+  to { transform: translateZ(calc(52px * var(--arch-amp))); }
+}
+
+.archive__card {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--surface-sunk);
+  box-shadow: 0 48px 110px oklch(0.05 0 0 / 0.62);
+  outline: 1px solid color-mix(in oklch, var(--ink) 18%, transparent);
+}
+
+/* Two slots, each up to two halves. Nothing is created per photograph: the
+   slots alternate and a frame with one photograph simply blanks the half it
+   does not use. */
+.archive__img {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: 0;
+  transition: opacity var(--arch-exchange) linear;
+}
+
+/* ⚠ THE INCOMING SLOT FADES IN ON TOP OF AN OPAQUE OUTGOING ONE, and the
+   outgoing one is NOT faded out at the same time. Cross-fading both leaves the
+   pair at ~50% each in the middle, and two half-transparent photographs do not
+   add up to one opaque one — the card's own backing shows through and the
+   picture dips dark halfway through every exchange. ground.js learned this on
+   the full-bleed ground; the card does not get to relearn it. */
+.archive__img.is-shown { opacity: 1; }
+.archive__img.is-top { z-index: 2; }
+.archive__img[data-blank="1"] { display: none; }
+
+/* A diptych inside the card: two halves either side of a seam of the card's own
+   backing, like matting between two prints. A butt joint reads as one torn
+   image. */
+.archive__card[data-halves="2"] .archive__img[data-half="0"] {
+  width: calc(50% - 8px);
+  left: 0;
+}
+.archive__card[data-halves="2"] .archive__img[data-half="1"] {
+  width: calc(50% - 8px);
+  left: calc(50% + 8px);
+}
+
+:root[data-archive="1"][data-depth="0"]:not([data-panel-dark="1"]) .archive__img.is-top {
+  /* THE TOP SLOT ONLY, not every slot that is opaque. During an exchange both
+     slots carry `is-shown`; animating both would composite a scaling texture
+     for a photograph nobody can see — measured at 3.1% of a core on the surface
+     this replaces. A fresh memory also earns a fresh move, which keying on
+     `is-top` gives for free. */
+  animation: arch-kenburns 96s ease-in-out infinite alternate;
+}
+
+@keyframes arch-kenburns {
+  to { transform: scale(calc(1 + 0.075 * var(--arch-amp))); }
+}
+
+.archive__lip {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 1px 0 color-mix(in oklch, var(--ink) 14%, transparent);
+}
+
+/* ── The plate ──────────────────────────────────────────────────────────────
+   Relocated language, never new language: this is what #ground-caption would
+   have said, arranged as an object rather than as a line.
+
+   ⚠ Its own backdrop, not bare over the photograph. A label floated over a
+   photograph at low ink is exactly the shape that measured 1.96:1 elsewhere in
+   this house; a plate is opaque and the reading is knowable. */
+.archive__plate {
+  position: absolute;
+  right: 110px;
+  top: 356px;
+  width: 470px;
+  z-index: 6;
+  transition: opacity 2.4s ease;
+}
+
+.archive__plate[data-blank="1"] { display: none; }
+
+.archive__plate > p {
+  margin: 0;
+  background: oklch(0.08 0.01 var(--atmo-hue) / 0.72);
+  padding: 14px 22px;
+}
+
+.archive__eyebrow {
+  font-family: var(--font-measured);
+  font-size: var(--t-rail);
+  font-weight: 600;
+  letter-spacing: 0.26em;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.archive__title {
+  font-family: var(--font-said);
+  font-size: var(--t-measured-1);
+  font-weight: 500;
+  line-height: 1.05;
+  color: var(--ink);
+}
+
+.archive__who {
+  font-family: var(--font-measured);
+  font-size: var(--t-rail);
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  color: var(--ink-dim);
+  border-left: 3px solid var(--warm);
+}
+
+.archive__who[data-blank="1"] { display: none; }
+
+/* ── Furniture ──────────────────────────────────────────────────────────── */
+
+/* The word off the left edge, cropped by the frame exactly as the references
+   crop theirs. aria-hidden: it is a texture with letterforms. */
+.archive__word {
+  position: absolute;
+  left: -58px;
+  top: 120px;
+  z-index: 6;
+  font-family: var(--font-said);
+  font-size: 150px;
+  font-weight: 400;
+  line-height: 0.9;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+  color: color-mix(in oklch, var(--ink) 4.5%, transparent);
+  pointer-events: none;
+}
+
+.archive__vig {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;
+  background: radial-gradient(
+    1700px 1050px at 42% 44%,
+    transparent 58%,
+    oklch(0.05 0.01 var(--atmo-hue) / 0.66) 98%
+  );
+}
+
+/* STATIC. A moving grain is the decorative loop law 1 bans outright — no cause,
+   no end, and it would repaint the whole frame forever. */
+.archive__grain {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+  opacity: 0.055;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ── Night ──────────────────────────────────────────────────────────────────
+   The plate and the engraved year go out entirely rather than dimming. At 2am
+   the wall should be a photograph and an hour, not an instrument panel — and a
+   dimmed label is a label somebody still tries to read. */
+:root[data-night="1"] .archive__plate,
+:root[data-night="1"] .archive__year {
+  opacity: 0;
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────────
+   The whole surface stands down, and it is `display: none` rather than
+   `opacity: 0` on purpose: at opacity 0 the layer is still composited and the
+   loops still run. Depth 0 falls back to the full-bleed photograph and the
+   solved scrim, which is the flag-off surface. */
+@media (prefers-reduced-motion: reduce) {
+  .archive { display: none; }
+  :root[data-archive="1"][data-depth="0"] .ground-caption {
+    opacity: 1;
+    visibility: visible;
+  }
+}

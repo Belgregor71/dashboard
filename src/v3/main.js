@@ -15,6 +15,7 @@ import { initPresenceLight } from "./core/presence-light.js";
 import { initVoice } from "./core/voice.js";
 import { initGround } from "./core/ground.js";
 import { initScrim, applyScrim, resampleScrim } from "./core/scrim.js";
+import { initArchive, archivePhoto } from "./core/archive.js";
 import { clearSubject, activeSubject, showSubject } from "./subjects/index.js";
 import { clearVocabularyCard, vocabularyCardMounted } from "./core/vocabulary-card.js";
 import { clearSpread, spreadMounted } from "./core/spread.js";
@@ -507,9 +508,21 @@ function boot() {
   // One stage for the same reason: the scrim without the ground has nothing to
   // measure, and the ground without the scrim is unreadable text over a photo.
   // Half of this pair working is not a partial success.
+  //
+  // The archive is the third subscriber to the same seam, and it is composed
+  // HERE rather than inside ground.js on purpose: the ground still knows
+  // nothing about who is looking at its photographs. Flag-off, initArchive
+  // returns before building anything and archivePhoto is an early return, so
+  // this composition costs one function call per exchange and changes nothing.
   stage("ground", () => {
     initScrim();
-    initGround(el.ground, { onPhoto: (img, meta) => applyScrim(img, meta) });
+    initArchive(document.getElementById("archive"));
+    initGround(el.ground, {
+      onPhoto: (img, meta) => {
+        applyScrim(img, meta);
+        archivePhoto(img, meta);
+      }
+    });
   });
 
   stage("hour", () => paintHour());
