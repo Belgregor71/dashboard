@@ -38,6 +38,7 @@ import { initRoutineRuntime } from "../js/core/routineRuntime.js";
 import { initPersonalityRuntime } from "../js/core/personalityRuntime.js";
 import { initIntent } from "../js/core/intentEngine.js";
 import { initContextFeed, pushContext, feedWeatherCode } from "./core/context-feed.js";
+import { initCommands } from "./core/commands.js";
 
 /* ⚠ `/js/config.js` is a separate <script> in index.html, so window.CONFIG is
    populated before this module runs — but read it LATE anyway (per call, not at
@@ -296,6 +297,18 @@ function boot() {
      One stage, not three: the feed, the socket and the first prefetch are one
      fact about the house being reachable, and three names for it would be
      three symptoms of one cause. */
+  /* ── HA's command channel gets a listener ─────────────────────────────────
+     See core/commands.js. `client.js` has been emitting these onto the bus on
+     this surface since the cutover with nobody subscribed: the only handler
+     ever written is registered by `registerHAEvents()`, and V3 calls
+     `registerEntityFeed()` instead — deliberately, since that is the DOM-free
+     half. Fifth init* the cutover disarmed.
+
+     ⚠ ABOVE stage("ha-feed") ON PURPOSE, and it is the same rule the feed
+     itself is placed by: a command that arrives between the socket opening and
+     this subscription existing is not late, it is lost. */
+  stage("commands", () => initCommands({ lat: CITY.lat, lon: CITY.lon }));
+
   stage("ha-feed", () => {
     registerEntityFeed();
     connectHA();
@@ -577,6 +590,10 @@ function registerHandles() {
     display: displayState(),
     nowPlaying: nowPlayingState(),
     presence: window.__v3Presence?.(),
+    // What HA last asked this screen to do, and whether it was honoured. A
+    // REFUSAL leaves nothing on the wall to look at by definition, so without
+    // this row the channel is only observable when it succeeds.
+    command: window.__v3Commands?.() ?? null,
     // Cutover §4. `failed: []` is the assertion worth making on a healthy
     // wall — a stage that started throwing in production is otherwise silent
     // by construction, because isolation is the thing hiding it.
