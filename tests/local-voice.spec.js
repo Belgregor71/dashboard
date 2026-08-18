@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { matchIntent, matchCamera, normalise, resolveDay, DAY_BEYOND, INTENT_IDS } from "../src/js/services/localIntents.js";
 import { answer, capSentences, ANSWERABLE } from "../src/js/services/localAnswers.js";
-import { pickLastCameraEvent } from "../src/js/services/voiceSnapshot.js";
+import { pickLastCameraEvent, refreshVoiceCache, voiceSnapshot } from "../src/js/services/voiceSnapshot.js";
 import { vocabularyFor, railPhrase, ALL_CANDIDATES } from "../src/js/services/vocabulary.js";
 
 /* The fast lane's contract. These are pure-node tests — no browser, no server,
@@ -46,7 +46,20 @@ const SNAP = {
   people: [{ name: "Greg", home: true }, { name: "Brett", home: false }],
   media: [{ title: "Nightswimming", artist: "R.E.M." }],
   sleep: { score: 88, label: "solid" },
-  commute: { greg: { minutes: 24, delayMin: 6 } },
+  /* ⚠⚠ THIS FIXTURE WAS THE REASON THE DEFECT SURVIVED 1,442 GREEN TESTS. It
+     used to read `{greg: {minutes: 24, delayMin: 6}}` — a shape
+     `/api/commute/all` has never served — because it was written to match the
+     answerer instead of the route. The answerer agreed with it, the sweep below
+     passed, and on the wall `self.commute` returned null every time. A fixture
+     that cannot produce the defect cannot catch it; this is now the payload the
+     live G11 actually returns, measured 2026-08-18. Its contract is pinned
+     independently in tests/commute-privacy.spec.js. */
+  commute: {
+    legs: [
+      { id: "greg", label: "Greg", seconds: 683, trafficDelaySeconds: 0 },
+      { id: "brett", label: "Brett", seconds: 1092, trafficDelaySeconds: 0 }
+    ]
+  },
   fuel: { sites: [{ price: 174.9, name: "the Nudgee servo" }] },
   todos: { shopping: ["milk", "bread", "coffee", "eggs"], tasks: ["call the plumber"] },
   camera: { known: true, lastEvent: { name: "front door", at: new Date().toISOString(), person: "Greg" } },
@@ -560,6 +573,69 @@ test.describe("answers", () => {
     expect(a.speech).toBe("Yes — rain in about 20 minutes.");
   });
 
+  /* ── self.commute · the lane that had two defects stacked ──────────────────
+     The cache slice was declared and never fetched, AND the answerer read a
+     shape the route has never served. The top one hid the bottom one: filling
+     the cache alone would have changed nothing and looked like a wasted fix.
+     Every case below is against the real payload.
+  ─────────────────────────────────────────────────────────────────────────── */
+  test.describe("self.commute", () => {
+    const leg = (id, label, seconds, delay = 0) =>
+      ({ id, label, seconds, trafficDelaySeconds: delay });
+
+    test("two drives are each NAMED — neither becomes 'the' commute", () => {
+      // houseSnapshot's own rule, one surface across: the leg that survives
+      // stays named rather than quietly becoming the only one. The old answerer
+      // took `c.greg ?? c.brett` and spoke one number with no name on it.
+      expect(answer(matchIntent("how's the traffic"), SNAP).speech)
+        .toBe("Greg's is 11 minutes, Brett's is 18.");
+    });
+
+    test("one drive needs no name — 'about eleven minutes' is the whole answer", () => {
+      const snap = { commute: { legs: [leg("greg", "Greg", 683)] } };
+      expect(answer(matchIntent("how long's my commute"), snap).speech).toBe("About 11 minutes.");
+    });
+
+    test("traffic is named only when it is worth naming", () => {
+      const light = { commute: { legs: [leg("greg", "Greg", 683, 120)] } };   // 2 min
+      const heavy = { commute: { legs: [leg("greg", "Greg", 1400, 400)] } };  // 7 min
+      expect(answer(matchIntent("how's the traffic"), light).speech).toBe("About 11 minutes.");
+      expect(answer(matchIntent("how's the traffic"), heavy).speech)
+        .toBe("About 23 minutes, 7 of that traffic.");
+    });
+
+    test("⚠ A DEAD LEG IS DROPPED, not spoken as a number it does not have", () => {
+      // The route returns `seconds: null` for a leg whose upstream failed, in a
+      // 200 alongside the leg that worked. Reading that as a drive would put
+      // "NaN minutes" in the room.
+      const snap = { commute: { legs: [leg("greg", "Greg", null), leg("brett", "Brett", 1092)] } };
+      expect(answer(matchIntent("how's the traffic"), snap).speech).toBe("About 18 minutes.");
+    });
+
+    test("⚠ every leg dead is silence, not a confident zero", () => {
+      const snap = { commute: { legs: [leg("greg", "Greg", null), leg("brett", "Brett", null)] } };
+      expect(answer(matchIntent("how's the traffic"), snap)).toBeNull();
+    });
+
+    test("⚠ the OLD invented shape now answers nothing — the fixture cannot drift back", () => {
+      /* `{greg: {minutes, delayMin}}` is what both the answerer and this file's
+         fixture believed in until 2026-08-18. If someone reshapes either one
+         back to it, this goes red instead of going quiet. */
+      expect(answer(matchIntent("how's the traffic"), { commute: { greg: { minutes: 24, delayMin: 6 } } }))
+        .toBeNull();
+    });
+  });
+
+  test("self.fuel reads the payload the route actually serves", () => {
+    // Measured on the live G11 2026-08-18: {sites:[{price, name, address,
+    // distanceKm}]}. This answerer was right all along and simply never fed.
+    const snap = { fuel: { sites: [{ price: 194.9, name: "EG Ampol Deagon", address: "180 Braun St", distanceKm: 4.6 }] } };
+    expect(answer(matchIntent("where's the cheapest petrol"), snap).speech)
+      .toBe("194.9 cents at EG Ampol Deagon.");
+    // Configured but nothing returned is silence, not "0 cents at undefined".
+    expect(answer(matchIntent("where's the cheapest petrol"), { fuel: { sites: [] } })).toBeNull();
+  });
+
   test("answers carry refs so the screen can light what is being talked about", () => {
     expect(answer(matchIntent("what's the weather"), SNAP).refs).toContain("weather");
     expect(answer(matchIntent("who's home"), SNAP).refs).toContain("people");
@@ -801,9 +877,15 @@ test.describe("the calendar's day slot", () => {
   });
 
   test("each calendar intent declines the days it cannot honour", () => {
+    /* ⚠ `${DAY}`, NOT A HARD-CODED WEEKDAY — this test read "tuesday" and so
+       passed six days in seven. On a Tuesday "on tuesday" resolves to TODAY,
+       show.day's gate correctly allows it, and the spec reported a defect that
+       was the calendar behaving exactly as designed. Found 2026-08-18, which
+       was a Tuesday. The block above already derives DAY from the fixture for
+       precisely this reason and says so; this test simply did not use it. */
     // cal.next has no day to take; show.day's subject draws today and only today.
-    expect(matchIntent("what's next tuesday")).toBeNull();
-    expect(matchIntent("show me my day on tuesday")).toBeNull();
+    expect(matchIntent(`what's next ${DAY}`)).toBeNull();
+    expect(matchIntent(`show me my day on ${DAY}`)).toBeNull();
     // cal.tomorrow is reached only by its own word, so any other day declines.
     expect(matchIntent("what's on tomorrow").id).toBe("cal.tomorrow");
     // The unslotted forms still work exactly as before.
@@ -1063,5 +1145,65 @@ test.describe("the weather's day slot", () => {
     expect(say("is it windy")).toBe("It's fairly calm, 6 k p h.");
     expect(say("do i need an umbrella")).toBe("Yes — rain in about 20 minutes.");
     expect(say("is it going to rain", { ...FEED, nowcast: null })).toBe("No, only 10 percent chance of rain.");
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE CACHE FILL — the defect underneath the answerer.
+
+   `cache.commute` and `cache.fuel` were declared in voiceSnapshot's cache the
+   day the module was written and `refreshVoiceCache()` never fetched either of
+   them, so both were permanently null to every answerer. Nothing failed and
+   nothing logged; the two lanes just always fell through to a 2-4 second round
+   trip to an agent that does not own the question.
+
+   ⚠ This is the assertion the answerer tests above CANNOT make. They pass a
+   snapshot in by hand, so they are true of a house whose cache is filled — and
+   for months no house's was.
+   ═══════════════════════════════════════════════════════════════════════════ */
+test.describe("refreshVoiceCache fills what it declares", () => {
+  /* Workers are reused across spec files, so a stubbed global left behind would
+     follow this file into the next pure-node spec in the same process. */
+  const realFetch = globalThis.fetch;
+  test.afterEach(() => { globalThis.fetch = realFetch; });
+
+  const ROUTES = {
+    "/api/commute/all": { legs: [{ id: "greg", label: "Greg", seconds: 683, trafficDelaySeconds: 0 }] },
+    "/api/fuel": { sites: [{ price: 194.9, name: "EG Ampol Deagon" }] }
+  };
+
+  function stub(routes) {
+    const asked = [];
+    globalThis.fetch = async (url) => {
+      asked.push(String(url));
+      const hit = Object.keys(routes).find((k) => String(url).includes(k));
+      if (!hit) return { ok: false, status: 404, json: async () => null };
+      return { ok: true, status: 200, json: async () => routes[hit] };
+    };
+    return asked;
+  }
+
+  test("⚠ it ASKS for the commute and the fuel at all — it never used to", async () => {
+    const asked = stub(ROUTES);
+    await refreshVoiceCache();
+    expect(asked.some((u) => u.includes("/api/commute/all")), "never asked for the commute").toBe(true);
+    expect(asked.some((u) => u.includes("/api/fuel")), "never asked for the fuel").toBe(true);
+  });
+
+  test("and the two lanes answer from it end to end", async () => {
+    stub(ROUTES);
+    await refreshVoiceCache();
+    const snap = voiceSnapshot();
+    expect(answer(matchIntent("how's the traffic"), snap).speech).toBe("About 11 minutes.");
+    expect(answer(matchIntent("where's the cheapest petrol"), snap).speech)
+      .toBe("194.9 cents at EG Ampol Deagon.");
+  });
+
+  test("⚠ a failed fetch leaves the last good value standing rather than blanking it", async () => {
+    stub(ROUTES);
+    await refreshVoiceCache();
+    stub({});                                   // every upstream 404s
+    await refreshVoiceCache();
+    expect(answer(matchIntent("how's the traffic"), voiceSnapshot()).speech).toBe("About 11 minutes.");
   });
 });

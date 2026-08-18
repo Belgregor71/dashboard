@@ -125,6 +125,33 @@ router.get("/api/commute/legs", (_req, res) => {
   res.json({ legs: legsFromEnv().map(({ id, label }) => ({ id, label })) });
 });
 
+/* ── The upstream is bounded HERE, not by counting callers ──────────────────
+   TomTom is metered and every `/api/commute/all` costs one request PER LEG, so
+   the daily bill is set by how many browser modules happen to poll — which is
+   the wrong thing for it to depend on. Until 2026-08-18 there was exactly one
+   poller (houseSnapshot, 5 min) and adding a second would have doubled it.
+
+   ⚠ 4 MINUTES IS CHOSEN AGAINST THE 5-MINUTE POLL, not picked round. A caller
+   on a 5-minute timer always misses — its next call is 5 min after the last,
+   past the TTL — so THE PRIMARY POLLER'S FRESHNESS IS UNCHANGED by this. What
+   the window catches is every ADDITIONAL caller landing inside it, which is now
+   free. Upstream cost stops scaling with the number of readers.
+
+   ⚠ A ROUND OF ALL-NULL LEGS IS NOT STORED. Every leg catches its own failure
+   and returns `seconds: null` inside a 200, so caching indiscriminately would
+   pin an outage in place for four minutes after it ended. Same rule as the
+   nulls themselves: absent is not an answer worth keeping.
+─────────────────────────────────────────────────────────────────────────── */
+export const ALL_CACHE_MS = 4 * 60 * 1000;
+let allCache = null;
+let allCacheAt = 0;
+
+/** Is this round worth keeping? Exported because it is the rule, not a detail:
+ *  the route itself cannot be driven under test on a box with no TomTom key. */
+export function worthCaching(legs) {
+  return Array.isArray(legs) && legs.some((leg) => typeof leg?.seconds === "number");
+}
+
 /**
  * Every configured leg in one request.
  *
@@ -147,6 +174,12 @@ router.get("/api/commute/all", async (_req, res) => {
     return;
   }
 
+  const now = Date.now();
+  if (allCache && now - allCacheAt < ALL_CACHE_MS) {
+    res.json(allCache);
+    return;
+  }
+
   const results = await Promise.all(legs.map(async (leg) => {
     try {
       const drive = await driveTime(origin, leg.destination, apiKey);
@@ -157,7 +190,12 @@ router.get("/api/commute/all", async (_req, res) => {
     }
   }));
 
-  res.json({ legs: results });
+  const payload = { legs: results };
+  if (worthCaching(results)) {
+    allCache = payload;
+    allCacheAt = now;
+  }
+  res.json(payload);
 });
 
 /**

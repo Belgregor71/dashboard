@@ -59,20 +59,38 @@ async function getJson(url) {
   }
 }
 
-/** Refresh the HTTP-backed half. Called on an init-once interval. */
+/** Refresh the HTTP-backed half. Called on an init-once interval.
+ *
+ * ⚠ `commute` and `fuel` WERE DECLARED IN THE CACHE ABOVE AND NEVER FETCHED,
+ * from the day this module was written until 2026-08-18 — so `self.commute` and
+ * `self.fuel` matched their sentences, read `undefined`, returned null, and sent
+ * every "how long's the drive" and "where's the cheapest petrol" on a 2-4 second
+ * round trip to an agent that does not own the question. The answerers were
+ * never wrong; they were never fed.
+ *
+ * ⚠ Adding commute here does NOT double the TomTom bill. The route bounds its
+ * own upstream on a 4-minute window as of the same change — sized so a 5-minute
+ * poller still always refreshes and every extra caller is free. Do not "fix"
+ * this by removing the fetch; fix it at the route if it ever needs fixing.
+ * `/api/fuel` has held a 2-hour cache since it was written.
+ */
 export async function refreshVoiceCache() {
-  const [weather, forecast, nowcast, calendar, bins] = await Promise.all([
+  const [weather, forecast, nowcast, calendar, bins, commute, fuel] = await Promise.all([
     getJson("/api/weather/now"),
     getJson("/api/weather/forecast"),
     getJson("/api/weather/nowcast"),
     getJson("/api/calendar/all"),
-    getJson("/api/bins")
+    getJson("/api/bins"),
+    getJson("/api/commute/all"),
+    getJson("/api/fuel")
   ]);
   if (weather) cache.weather = weather;
   if (forecast) cache.forecast = forecast;
   if (nowcast) cache.nowcast = nowcast.nowcast ?? null;
   if (calendar) cache.calendar = Array.isArray(calendar) ? calendar : calendar.events ?? [];
   if (bins) cache.bins = bins;
+  if (commute) cache.commute = commute;
+  if (fuel) cache.fuel = fuel;
   cache.fetchedAt = Date.now();
 }
 

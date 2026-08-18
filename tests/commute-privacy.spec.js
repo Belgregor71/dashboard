@@ -128,3 +128,45 @@ test("an unknown leg is a 404, not a silent fallback to some other drive", async
   const res = await request.get("/api/commute?leg=nobody");
   expect([404, 500]).toContain(res.status());
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE UPSTREAM IS BOUNDED BY THE ROUTE, NOT BY COUNTING CALLERS.
+
+   TomTom is metered and every /api/commute/all costs one request PER LEG, so
+   until 2026-08-18 the daily bill was set by how many browser modules happened
+   to poll. There was exactly one (houseSnapshot, 5 min) and adding voiceSnapshot
+   as a second would have doubled it — which is the wrong reason not to fix a
+   lane that had been mute for months.
+
+   ⚠ These are unit assertions rather than two live requests on purpose: this
+   route needs a TOMTOM_API_KEY and a COMMUTE_ORIGIN, and the test box has
+   neither, so a driven cache test would 500 and pass by not running. The rule
+   is exported so it can be asserted where it is actually decidable.
+   ═══════════════════════════════════════════════════════════════════════════ */
+test.describe("the /api/commute/all response cache", () => {
+  test("the window is shorter than the 5-minute poll, so the primary caller never goes stale", async () => {
+    const { ALL_CACHE_MS } = await import("../server/routes/commute.js");
+    /* The sizing IS the design. A caller on a 5-minute timer is always past the
+       window when it comes back, so its own freshness is untouched; every
+       additional caller landing inside the window is free. Widen this past the
+       poll and the wall starts reading a drive time it did not ask for. */
+    expect(ALL_CACHE_MS).toBeLessThan(5 * 60 * 1000);
+    expect(ALL_CACHE_MS).toBeGreaterThan(60 * 1000);
+  });
+
+  test("⚠ A ROUND OF DEAD LEGS IS NOT STORED — an outage must not outlive itself", async () => {
+    const { worthCaching } = await import("../server/routes/commute.js");
+    const leg = (seconds) => ({ id: "greg", label: "Greg", seconds, trafficDelaySeconds: null });
+
+    /* Every leg catches its own failure and returns `seconds: null` inside a
+       200, so caching indiscriminately would pin the outage in place for the
+       whole window AFTER TomTom came back. Same rule as the nulls themselves. */
+    expect(worthCaching([leg(null), leg(null)])).toBe(false);
+    expect(worthCaching([])).toBe(false);
+    expect(worthCaching(null)).toBe(false);
+
+    // One live leg is a real answer and is worth keeping, even beside a dead one.
+    expect(worthCaching([leg(null), leg(1092)])).toBe(true);
+    expect(worthCaching([leg(683)])).toBe(true);
+  });
+});

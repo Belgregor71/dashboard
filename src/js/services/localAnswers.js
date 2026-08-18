@@ -284,12 +284,41 @@ const ANSWERERS = {
     return { speech: `You scored ${sl.score} last night${sl.label ? ` — ${sl.label}` : ""}.`, refs: ["sleep"] };
   },
 
+  /* ⚠⚠ THIS READ A SHAPE THE SERVER HAS NEVER SERVED. It wanted
+     `{greg: {minutes, delayMin}}`; `/api/commute/all` returns
+     `{legs: [{id, label, seconds, trafficDelaySeconds}]}` and always has. So
+     even once the cache was finally populated (2026-08-18 — it had been declared
+     and never fetched) this would still have returned null, and the fill alone
+     would have looked like a fix that changed nothing. Two defects stacked, and
+     the top one hid the bottom one.
+
+     ⚠ THE HARD-CODED NAMES WENT WITH IT. `c.greg ?? c.brett` named two people
+     in an answerer, while the legs come from `legsFromEnv()` — so a renamed or
+     third leg silently muted the lane. And picking the first leg made whoever
+     is listed first into "the" commute; houseSnapshot's own note says a leg
+     that survives should stay NAMED rather than quietly become the only one. */
   "self.commute": (s) => {
-    const c = s.commute;
-    if (!c) return null;
-    const first = c.greg ?? c.brett;
-    if (!first) return null;
-    return { speech: `About ${first.minutes} minutes${first.delayMin > 3 ? `, ${first.delayMin} of that is traffic` : ""}.`, refs: ["commute"] };
+    const legs = (s.commute?.legs ?? []).filter((l) => Number.isFinite(l?.seconds));
+    if (!legs.length) return null;                          // not loaded, or every leg failed
+
+    const mins = (l) => Math.round(l.seconds / 60);
+
+    if (legs.length === 1) {
+      const only = legs[0];
+      const delay = Math.round((only.trafficDelaySeconds ?? 0) / 60);
+      return {
+        speech: `About ${mins(only)} minutes${delay > 3 ? `, ${delay} of that traffic` : ""}.`,
+        refs: ["commute"]
+      };
+    }
+
+    /* Two drives, two numbers, and the unit carried once: "Greg's is 11
+       minutes, Brett's is 18." The traffic clause is deliberately dropped here
+       — the sentence already holds two numbers and a name each, and the room
+       asked how long, not why. It survives on the single-leg path, which is
+       where there is room for it. */
+    const named = legs.map((l, i) => `${l.label}'s is ${mins(l)}${i === 0 ? " minutes" : ""}`);
+    return { speech: `${named.join(", ")}.`, refs: ["commute"] };
   },
 
   "self.fuel": (s) => {
