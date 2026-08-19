@@ -349,12 +349,40 @@
      slots carry `is-shown`; animating both would composite a scaling texture
      for a photograph nobody can see — measured at 3.1% of a core on the surface
      this replaces. A fresh memory also earns a fresh move, which keying on
-     `is-top` gives for free. */
-  animation: arch-kenburns 96s ease-in-out infinite alternate;
+     `is-top` gives for free.
+
+     ⚠⚠ AND IT SETTLES — the only animation on this surface that ends. Measured
+     A/B/A on the wall (30s windows, suppressing this rule alone): 27.4 → 21.5
+     → 28.0 gpu-process. ONE loop was 6.3 points, more than the entire 2.4
+     overage against §5.4's 25% live-ambient ceiling; the other four together
+     cost 21.5. Scaling a full-bleed texture forever is the only thing here big
+     enough to matter, and this repo has settled a Ken Burns once already for
+     exactly this reason (Mode-0 80% → 0%, docs/vision/phase-7-dissolve.md).
+
+     ⛔ `will-change: transform` on this element is a TESTED NEGATIVE — injected
+     live, 28.5/24.0, indistinguishable. It is the obvious read, since the
+     ghosts and the card-wrap carry it and the image does not, but the image is
+     already composited: the cost is the scaled texture, not the layer.
+
+     Nothing is lost by ending. The exchange moves `is-top` onto the incoming
+     slot, so the move RESTARTS on a fresh element for every photograph — each
+     memory still earns it, and the wall simply stops paying between memories.
+     Against ground.js's ten-minute rotation (CHECK_MS) that is 96s of move and
+     eight and a half minutes at rest: a peak episode that decays, which is
+     what §5.4 asks a moment to be. */
+  animation: arch-kenburns 96s ease-in-out 1 forwards;
 }
 
+/* ⚠ IT SHRINKS TO REST, and the direction is load-bearing rather than taste.
+   The end state IS the element's own transform, so when the next exchange
+   takes `is-top` away and the animation goes with it there is nothing to snap
+   back from. Ending scaled UP — the shape the loop had — would pop the
+   outgoing photograph 15% smaller at amp 2, in full view, at the moment the
+   incoming one is still transparent. A memory arrives a little large and comes
+   to rest; it does not get yanked back. */
 @keyframes arch-kenburns {
-  to { transform: scale(calc(1 + 0.075 * var(--arch-amp))); }
+  from { transform: scale(calc(1 + 0.075 * var(--arch-amp))); }
+  to { transform: scale(1); }
 }
 
 .archive__lip {

@@ -535,7 +535,17 @@ export function initArchive(host) {
         }
       : null,
     nodes: host.querySelectorAll("*").length,
-    anims: document.getAnimations().filter((a) => a.playState === "running").length
+    /* ⚠ A SNAPSHOT, and it moves with the clock now: arch-kenburns is a settle,
+       so this reads five while a photograph is coming to rest and four once it
+       has. A spec asserting it must pin its sample point. */
+    anims: document.getAnimations().filter((a) => a.playState === "running").length,
+    /* The number that does NOT move — the animations that never end on their
+       own. Four at depth 0 in daylight, three after dark. This is the one to
+       assert against, and the one a soak should watch: a fifth forever-loop
+       appearing here is the regression that put depth 0 over budget once. */
+    loops: document.getAnimations().filter(
+      (a) => a.playState === "running" && a.effect?.getComputedTiming().iterations === Infinity
+    ).length
   });
 
   /* The amplitude lever, turnable on the kiosk over CDP without a deploy. The

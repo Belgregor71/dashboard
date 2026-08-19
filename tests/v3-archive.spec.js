@@ -374,12 +374,65 @@ test("nothing grows across exchanges, and one timer never becomes many", async (
   expect(probe.slots).toBe(4);
   expect(probe.ghosts).toBe(2);
   expect(probe.layers).toBe(1);
-  /* The soak's own number, pinned so a later change cannot move it silently:
-     five loops at depth 0 in daylight, four after dark (the engraved year is
-     hidden then and must not animate for nobody). */
+  /* The soak's own numbers, pinned so a later change cannot move them silently.
+
+     ⚠ THE SAMPLE POINT IS NOW PART OF THE ASSERTION. arch-kenburns became a
+     SETTLE — a 96s one-shot that restarts on every exchange (archive.css) — so
+     `anims` counts five while a photograph is coming to rest and four once it
+     has. We are 2.2s past the last exchange, mid-settle, so five.
+
+     `loops` is the number that does not move with the clock: the animations
+     that never end on their own. FOUR at depth 0 in daylight, three after dark
+     (the engraved year is hidden then and must not animate for nobody). It read
+     five before the settle landed, and that fifth forever-loop was the whole of
+     depth 0's 2.4-point overage against §5.4's 25% ceiling — 6.3 points on the
+     wall, measured A/B/A. If it ever reads five again, that is the regression. */
   expect(probe.anims).toBe(5);
+  expect(probe.loops).toBe(4);
   expect(probe.top).toBe(1);
   expect(probe.shown).toBe(1);
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("the photograph's move ENDS, and it ends where the element rests", async ({ page }) => {
+  /* The settle is what keeps depth 0 inside §5.4: four forever-loops measure
+     21.5% of a core on the wall, five measure 27.4% against a 25% ceiling.
+     Driven rather than read off the stylesheet, because the two ways this gets
+     silently undone are both invisible to a text match for "forwards" — an
+     `infinite` creeping back onto a DIFFERENT selector for the same keyframes,
+     and a keyframe list that comes to rest somewhere other than the element's
+     own transform. */
+  const pageErrors = await bootArchive(page);
+  await groundShown(page);
+
+  const timing = await page.evaluate(() => {
+    const a = document.getAnimations().find((x) => x.animationName === "arch-kenburns");
+    if (!a) return null;
+    const t = a.effect.getComputedTiming();
+    return { iterations: t.iterations, fill: t.fill };
+  });
+  expect(timing, "arch-kenburns is not running at depth 0 at all").not.toBeNull();
+  expect(timing).toMatchObject({ iterations: 1, fill: "forwards" });
+
+  /* ⚠ THE ANTI-POP INVARIANT, and the reason the move shrinks rather than
+     grows. The next exchange takes `is-top` away and the animation goes with
+     it, so wherever the move ENDS is where the photograph jumps FROM. Ending
+     scaled up — the shape the old loop had — pops the outgoing frame 15% at
+     amp 2, at full opacity, while the incoming one is still transparent.
+     Finishing the move and then stripping the class must change nothing. */
+  const { settled, bare } = await page.evaluate(() => {
+    const img = document.querySelector('.archive__img.is-top:not([data-blank="1"])');
+    document.getAnimations().find((x) => x.animationName === "arch-kenburns").finish();
+    const settled = getComputedStyle(img).transform;
+    img.classList.remove("is-top");
+    const bare = getComputedStyle(img).transform;
+    img.classList.add("is-top");
+    return { settled, bare };
+  });
+  const atRest = (t) => t === "none" || t === "matrix(1, 0, 0, 1, 0, 0)";
+  expect(atRest(settled), `the move rests at ${settled}, so every exchange will pop`).toBe(true);
+  expect(atRest(bare), `the resting transform is ${bare}, not the element's own`).toBe(true);
 
   expect(pageErrors).toEqual([]);
 });
@@ -593,11 +646,14 @@ test("the year strip NEVER moves", () => {
 });
 
 test("the five periods are pinned, and night scales displacement not duration", () => {
-  /* ⚠ FIVE, not four. The incumbent ran four because its background was ONE
-     tiled echo; this one has two ghosts. Counted off the real wall
-     (`document.getAnimations()` at depth 0) rather than off the stylesheet,
-     because "how many should be running" is the soak's own question and an
-     expected count that is quietly wrong makes every future reading wrong. */
+  /* ⚠ FIVE PERIODS, but only FOUR LOOPS. The incumbent ran four periods because
+     its background was ONE tiled echo; this one has two ghosts. The fifth,
+     arch-kenburns, is a settle rather than a loop — it keeps its 96s and simply
+     stops at the end of it, which is what took depth 0 back inside §5.4.
+     Counted off the real wall (`document.getAnimations()` at depth 0) rather
+     than off the stylesheet, because "how many should be running" is the soak's
+     own question and an expected count that is quietly wrong makes every future
+     reading wrong. */
   const text = css();
   expect(text).toMatch(/animation:\s*arch-ghost-a 130s/);
   expect(text).toMatch(/animation:\s*arch-ghost-b 104s/);
