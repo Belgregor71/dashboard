@@ -282,7 +282,23 @@ const IMAGE_PATH = /\/(thumb|snapshot|live|image|basemap|overlay|art)/;
 
    Pinned ON here regardless of the shipped default, so the flip ceremony is a
    decision about the wall rather than the first time anyone measures it. */
-const PINNED_FLAGS = { groundMemories: true };
+/* ⚠⚠ v3Archive IS PINNED **OFF**, AND THAT IS NOT AN OVERSIGHT — it is the one
+   flag here whose ON state costs this gate a measurement. It went default-on
+   2026-08-20; inheriting that would hide #ground-caption at depth 0 (the
+   archive takes the depth-0 face), and the day-phase assertion below would go
+   red for a caption that is not broken, merely absent.
+
+   Pinning it ON is the tempting fix and it is the wrong one: it buys the
+   plate's words and loses the caption's, which is the exact trade the 1.02:1
+   finding above was paid for. The plate is measured against the real painted
+   stack in tests/v3-archive.spec.js, and its year labels are drawn into a
+   CANVAS that no DOM text sweep can ever reach regardless.
+
+   So the sweep keeps looking at the ground caption, on purpose, at the shipped
+   default's expense — which is exactly the "pinned, not inherited" rule above,
+   applied in the direction that keeps a surface measured rather than the one
+   that matches production. */
+const PINNED_FLAGS = { groundMemories: true, v3Archive: false };
 
 async function bootV3(page, { ground, phase }) {
   const pageErrors = [];

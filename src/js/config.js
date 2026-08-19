@@ -1383,17 +1383,29 @@ window.CONFIG = {
     // Two consequences the incumbent never had: something arriving switches the
     // loops OFF rather than hiding them, and a dark panel stops them too.
     //
-    // ⚠ NOT YET SEEN ON THE WALL, and both earlier year rails were rejected
-    // within the hour of being looked at. Judge it in DAYLIGHT: the plate and
-    // the engraved year hide at night by design, so a night capture reads as
-    // an empty right two-thirds and overstates the problem.
+    // ⚠ FLIPPED DEFAULT-ON 2026-08-20, in daylight and at depth 0 — which is
+    // the only condition it can honestly be judged in: the plate and the
+    // engraved year hide at night by design, so a night capture reads as an
+    // empty right two-thirds and overstates the problem. Both earlier year
+    // rails were rejected within the hour of being looked at, so this one is
+    // on trial rather than settled; the revert below is the whole plan if the
+    // room says no.
+    //
+    // ⚠⚠ THE CONTRAST SWEEP PINS THIS FLAG **OFF**, deliberately, and that pin
+    // is load-bearing rather than tidy-mindedness. At depth 0 the archive hides
+    // #ground-caption, and tests/verify/v3-contrast.spec.js asserts the caption
+    // was actually measured in the day phase — a guard that exists because this
+    // gate once went green across four runs for a node it had never looked at,
+    // which then came back at 1.02:1. Inheriting a default-on here would buy
+    // the plate and lose the caption. The plate's own words are measured in
+    // tests/v3-archive.spec.js instead, against the real painted stack.
     //
     // One-line revert (-> false): initArchive() returns before building
     // anything — no host children, no listener, no hook, no CSS var — and
     // depth 0 is the full-bleed photograph and the solved scrim, unchanged.
     // That rollback path is not theoretical: it is the SAME path every depth
     // above 0 takes, so production exercises it on every doorbell.
-    v3Archive: false,
+    v3Archive: true,
   },
 
   /* --------------------------------------------------------------

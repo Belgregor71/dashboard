@@ -38,14 +38,27 @@ async function bootWithCaption(page) {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
 
-  // Pinned on. The caption only exists behind this flag, and a flag-off run
-  // proves nothing about it — an empty caption is skipped by every text sweep
-  // in the repo, which is exactly how this defect survived.
+  /* Pinned on. The caption only exists behind this flag, and a flag-off run
+     proves nothing about it — an empty caption is skipped by every text sweep
+     in the repo, which is exactly how this defect survived.
+
+     ⚠⚠ AND v3Archive PINNED **OFF**, which this file did not need until that
+     flag went default-on 2026-08-20. The archive takes the depth-0 face and
+     hides #ground-caption, so an inherited default-on made the glyph count come
+     back 0 and this spec failed with "something is ALREADY painted over it" —
+     a true sentence about the archive and a false one about the scrim.
+
+     Pinning it off keeps the subject of this file the SCRIM, which is what it
+     is for. Whether the archive should be allowed to cover the caption is a
+     different question, asked on the wall, not here. */
   await page.route("**/js/config.js", async (route) => {
     const res = await route.fetch();
     await route.fulfill({
       response: res,
-      body: (await res.text()) + "\nwindow.CONFIG.features.groundMemories = true;\n"
+      body:
+        (await res.text()) +
+        "\nwindow.CONFIG.features.groundMemories = true;" +
+        "\nwindow.CONFIG.features.v3Archive = false;\n"
     });
   });
   await page.route("**/api/immich/on-this-day", (route) =>
