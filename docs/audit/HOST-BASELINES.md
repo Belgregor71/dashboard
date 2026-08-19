@@ -164,6 +164,7 @@ replaced by *"never move for a reason the room can't see"* plus a measured ceili
 | Quiescent ambient — no legal cause active | **≤ 8** | 3.1 | ~2.5× |
 | Live ambient — a continuous cause running (rain, wind, sun) | **≤ 25** sustained | **5.9** (V3, 2026-08-14) | ~4.2× |
 | Peak episode — a moment, must decay | **≤ 35** | 22.5 | ~1.5× |
+| **V3 archive — depth 0** (v3Archive default-on) | **≤ 25** sustained (live ambient) | **27.4** ⚠ OVER (2026-08-20, 0 h) | **none — −2.4** |
 
 Plus: never pin a core (`/proc/pressure/cpu` `avg10` ≈ 0), `scriptPct` under ~5% (0.2 quiescent /
 2.5 peak — stay GPU/raster-bound), sustained `tempC` under 70 °C (idle 33–34, peak 52.3).
@@ -822,3 +823,29 @@ it is now the largest remaining term and worth revisiting deliberately.
 ⚠ A sleeping PC **black-holes the SYN**, it does not refuse it, so the full timeout is
 paid. Simulate with a TEST-NET address (`192.0.2.1`), never a dead local port — a refused
 connection returns instantly and makes the failover look free.
+
+#### ⚠⚠ V3 archive — depth 0: the owed reading came back OVER BUDGET (2026-08-20, 0 h)
+
+`v3Archive` went default-on in `aab9acc`, which moves V3's depth 0 out of the quiescent row and
+into **live ambient** (≤ 25% sustained, DESIGN_SYSTEM.md §5.4). §5.4 predicted it "should cost
+less by construction" and said plainly that *"should" is not a measurement*. It is not:
+
+```
+gpu-process 1161   27.4 %   (30 s window, settled)   → ceiling 25 %, OVER by 2.4
+renderer    1306   24.0 %
+/proc/pressure/cpu  some avg10=0.00  full avg10=0.00  → no core pinned
+state: depth 0 · anims 5 · panelDark 0 · daylight, 07:0x AEST
+```
+
+⚠ **Not a warm-up artifact.** Two independent 30 s windows minutes apart read 27.7 and 27.4 —
+stable, not decaying. A single post-reload sample would have been fair to distrust; these are not.
+
+⚠ **`anims: 5`, not the four loops §5.4 describes** (card, two drifting ghosts, engraved year).
+Worth resolving before tuning — if the fifth loop is unaccounted for, it is the first place to
+look for the 2.4 points.
+
+The invariants that still hold: pressure ≈ 0 (never pins a core), and the rollback is a genuine
+return to the ≤ 8% quiescent row — `v3Archive: false`, one line, verified reversible at flip time.
+
+⏳ **Still owed: the 24 h and 72 h rows.** A surface that sits on the wall for hours is exactly
+the one whose reading must not be taken once.
