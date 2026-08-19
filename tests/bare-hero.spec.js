@@ -40,6 +40,35 @@ function enableFlags(bareHero) {
         // spine off deliberately: this is the state a one-line revert returns the
         // kiosk to, and it has to keep working.
         "\nwindow.CONFIG.features.temporalSpine = false;" +
+        /* ⚠⚠ AND THE VOICE LANE, WHICH IS A CROSS-TEST CHANNEL — not a flag
+           preference. This was the "populated stack never overlaps the centred
+           hero" flake: green in isolation, red in a full parallel run, and the
+           spec's own load-margin poll below could not fix it because it was
+           never about being slow.
+
+           voiceSession is default-ON, so this page opens
+           `new EventSource("/api/voice/stream")` (core/voiceSession.js). That
+           stream is fed by `voiceBus`, which is PROCESS-WIDE: a POST to
+           /api/voice/transcript is fanned out to EVERY connected page. The
+           suite shares one server across workers, and tests/api.spec.js and
+           tests/voice-session.spec.js both post transcripts — so a voice spec
+           in another worker drives THIS page into submitTranscripts(), which
+           does setMode(MODES.VOICE).
+
+           updateAttention() then takes the non-glance/dwell branch: hideHero(),
+           and `items = mode === "dwell" ? sel.stack : []` empties the stack. The
+           hero's box goes to 0 and never comes back, which is why the failure
+           artifact showed an empty <main> with the voice chip lit.
+
+           Reproduced deterministically 2026-08-20 by posting ONE transcript
+           mid-test — voice on: {h:0, pres:"voice", items:0}; pinned off:
+           {h:200, pres:"dwell", items:2}.
+
+           Flag-off opens no connection at all (see initTranscriptStream), so
+           this makes the page unreachable from the bus rather than merely
+           ignoring it. Any spec that drives the attention surface on
+           /index.html has the same exposure. */
+        "\nwindow.CONFIG.features.voiceSession = false;" +
         // Pin the BOM warnings entity to one that never exists: a real live warning
         // (via HA) is an interrupt-band candidate (95) that outranks the forced test
         // candidates and breaks the hero assertions. Must go through __DASH_CONFIG__ —
