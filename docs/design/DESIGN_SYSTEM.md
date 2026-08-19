@@ -375,23 +375,43 @@ the derivation live in `docs/audit/HOST-BASELINES.md`.
 | **Peak episode** — a moment (arrival, lightning, photo change) | **≤ 35%**, and must decay | 22.5 | A moment may spend; it may not stay. |
 
 **⚠ V3's depth 0 is quiescent *only with `v3Archive` off*, and that is an amendment rather
-than an exception (2026-08-18).** With the flag on, the resting wall carries the Ambient
-Archive — a card, two drifting ghosts and an engraved year, four continuous loops — so depth 0
-sits in the **live ambient** row, not the quiescent one. It is legal under law 1 as rewritten:
-the cause is continuous and the room can name it without studying the screen (*the house is
-leafing through its album*), which is exactly the test §5.1 states. It is written down here
-because `src/v3/css/compose.css` says depth 0 "must cost nothing" and a shipped surface that
-contradicts a written law silently repeals the law.
+than an exception (2026-08-18, re-measured 2026-08-20).** With the flag on, the resting wall
+carries the Ambient Archive — a card, two drifting ghosts and an engraved year, **four**
+continuous loops — so depth 0 sits in the **live ambient** row, not the quiescent one. It is
+legal under law 1 as rewritten: the cause is continuous and the room can name it without
+studying the screen (*the house is leafing through its album*), which is exactly the test §5.1
+states. It is written down here because `src/v3/css/compose.css` says depth 0 "must cost
+nothing" and a shipped surface that contradicts a written law silently repeals the law.
+
+**⚠⚠ FOUR, and the fifth animation is a SETTLE — the correction that made this row true
+(2026-08-20, `b6a7d86`).** The paragraph above said four and the wall ran five: `arch-kenburns`
+scaled the photograph itself, 96 s infinite alternate, and was never counted here. It alone
+measured **6.3 points of gpu-process** — more than the entire 2.4 by which depth 0 was over
+this ceiling. It now runs **once per photograph and comes to rest**, which is the same shape
+the substrate's Ken Burns settle used to take Mode-0 from 80% to 0%. Depth 0 therefore reads:
+
+| depth 0, `v3Archive` on | gpu-process | row |
+|---|---|---|
+| settled — the state the wall is in for ~8.5 of every 10 minutes | **21.1** | live ambient ≤ 25 ✅ |
+| mid-settle — 96 s per photograph, and per return to depth 0 | 27.3 | peak episode ≤ 35, decays ✅ |
+
+Two things this pins for anyone measuring it again. **A finished `forwards` animation is free** —
+the settled reading (21.1) lands on the A/B reading taken by suppressing the animation outright
+(21.5), so ending a move buys everything deleting it would. And **`anims` no longer identifies
+the state**: it counts running animations, so it reads 5 mid-move and 4 at rest. `__archive()`
+reports `loops` beside it — the animations whose iterations are `Infinity` — and *that* is the
+number a regression moves. Full method and the reproduction trap (depth 2 is held by attention
+most of the morning) in `docs/audit/HOST-BASELINES.md`.
 
 Two consequences worth stating rather than discovering:
 
 - **The quiescent row still applies to V3, and to depth 0 with the flag off.** The rollback is
   a genuine return to ≤8%, which is what makes the flag a real revert rather than a preference.
-- **The archive's own reading is owed and is not optional.** The surface it replaces measured
-  ~21% on the incumbent; this one should cost less by construction (two ghost layers instead of
-  a ~30-tile plane, the crush filter split off the animated wrapper so the texture is rasterised
-  once, and the loops gated off `data-panel-dark`) — but "should" is not a measurement. Record
-  it in `HOST-BASELINES.md` as a **V3 archive — depth 0** row, at 0 h / 24 h / 72 h.
+- **The archive's own reading was owed, and taking it is what found the fifth loop.** §5.4 had
+  predicted the surface "should cost less by construction" and said plainly that *"should" is not
+  a measurement* — it was over by 2.4 the first time anyone looked. **The 0 h row is now
+  recorded; the 24 h and 72 h rows are still owed**, and they belong to the *settled* state,
+  which is where the wall actually spends its time.
 
 Regardless of the table, three invariants hold:
 

@@ -1,8 +1,29 @@
 # Handover — settle the archive's Ken Burns (depth 0 is over its GPU budget)
 
-> **Status: not started, fully unblocked.** The diagnosis is finished and measured; what
-> is left is one CSS decision, two test updates, one doc amendment, and a live re-measure.
-> Nothing is blocked on the owner except the *feel* of the result on the wall.
+> # ✅ DONE — `b6a7d86`, 2026-08-20, live and measured.
+>
+> **Kept as the record of the diagnosis, not as work to pick up.** The settle shipped:
+> `arch-kenburns` is now `96s ease-in-out 1 forwards` and shrinks to rest, so depth 0
+> measures **21.1** settled (live ambient ≤ 25) and **27.3** during the 96 s move (peak
+> episode ≤ 35, decays). Pressure 0.00 in both.
+>
+> Three things this document could not know, all in `docs/audit/HOST-BASELINES.md`:
+> **(1)** a *finished* `forwards` animation costs exactly what suppressing it did — 21.1
+> against the A/B's 21.5 — so the settle buys the whole 6.3 points; **(2)** the move's
+> DIRECTION had to reverse, because `is-top` leaving takes the animation with it, and
+> ending scaled up popped the outgoing photograph 15% at full opacity; **(3)** §5's
+> "find the real cadence" is answered — `ground.js`'s `CHECK_MS` is 10 minutes, so it is
+> 96 s of move and ~8.5 minutes at rest, and the wall will not hold depth 0 for a
+> measurement in the morning because `attention:spread` re-asserts depth 2 within ~30 s.
+>
+> Still owed: the **24 h and 72 h** `HOST-BASELINES.md` rows, for the settled state.
+
+
+> **Status at the time of writing: not started, fully unblocked.** *(Superseded by the banner
+> above — everything below is the handover as it was handed over, left unedited so the
+> diagnosis and the fix can be read against each other.)* The diagnosis is finished and
+> measured; what is left is one CSS decision, two test updates, one doc amendment, and a live
+> re-measure. Nothing is blocked on the owner except the *feel* of the result on the wall.
 
 **One sentence:** `v3Archive` went default-on in `aab9acc`, which put depth 0 at **27.4%
 gpu-process against a 25% ceiling**, and the entire overage is one uncounted animation —
@@ -119,6 +140,11 @@ from two screenshots, not a measurement. Measure it.
    **quiescent** row (≤ 8%) between exchanges, with a peak episode at each one. That is a law
    amendment, and §5.4's own rule is that a shipped surface contradicting a written law
    silently repeals it — so amend the doc in the same change.
+   > ✅ **Amended — but this prediction was WRONG and the correction matters.** Depth 0 does
+   > **not** return to the quiescent row when the move ends: the other four loops are still
+   > running, and they measure **21.1**. Depth 0 stays in the **live ambient** row with 3.9 of
+   > headroom, and it is the *move* that became the peak episode (27.3, ≤ 35, decays). The
+   > quiescent row still belongs only to `v3Archive: false`, exactly as §5.4 already said.
 3. **`docs/audit/HOST-BASELINES.md`** carries the `V3 archive — depth 0` row at 27.4 ⚠ OVER.
    Replace with the post-fix reading; the **24 h and 72 h rows are still owed** regardless.
 

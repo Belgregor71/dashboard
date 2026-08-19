@@ -164,7 +164,8 @@ replaced by *"never move for a reason the room can't see"* plus a measured ceili
 | Quiescent ambient — no legal cause active | **≤ 8** | 3.1 | ~2.5× |
 | Live ambient — a continuous cause running (rain, wind, sun) | **≤ 25** sustained | **5.9** (V3, 2026-08-14) | ~4.2× |
 | Peak episode — a moment, must decay | **≤ 35** | 22.5 | ~1.5× |
-| **V3 archive — depth 0** (v3Archive default-on) | **≤ 25** sustained (live ambient) | **27.4** ⚠ OVER (2026-08-20, 0 h) | **none — −2.4** |
+| **V3 archive — depth 0** (v3Archive default-on) | **≤ 25** sustained (live ambient) | **21.1** settled (2026-08-20, `b6a7d86`) — was 27.4 ⚠ OVER while the fifth loop ran forever | ~1.2× |
+| **V3 archive — depth 0, mid-settle** (96 s per photograph) | **≤ 35** peak episode | 27.3 (2026-08-20), decays to the row above | ~1.3× |
 
 Plus: never pin a core (`/proc/pressure/cpu` `avg10` ≈ 0), `scriptPct` under ~5% (0.2 quiescent /
 2.5 peak — stay GPU/raster-bound), sustained `tempC` under 70 °C (idle 33–34, peak 52.3).
@@ -872,3 +873,64 @@ return to the ≤ 8% quiescent row — `v3Archive: false`, one line, verified re
 
 ⏳ **Still owed: the 24 h and 72 h rows.** A surface that sits on the wall for hours is exactly
 the one whose reading must not be taken once.
+
+#### ✅ V3 archive — depth 0: the fifth loop now SETTLES, and depth 0 is legal (2026-08-20, `b6a7d86`)
+
+`arch-kenburns` runs once per photograph and comes to rest — `96s ease-in-out 1 forwards`,
+shrinking to the element's own transform instead of scaling up forever. Measured on the wall the
+same morning, depth 0, daylight, `loops:4`:
+
+| depth 0 state | gpu-process 1161 | renderer 1306 | row | verdict |
+|---|---|---|---|---|
+| **settled** — the move has ended | **21.1** | **15.0** | live ambient ≤ 25 | ✅ inside, 3.9 of headroom |
+| **moving** — the 96 s settle in flight | 27.3 | 23.4 | peak episode ≤ 35 | ✅ inside, and it decays |
+| *(was: looping forever)* | *27.4* | *24.0* | *live ambient ≤ 25* | *⚠ OVER by 2.4* |
+
+`/proc/pressure/cpu` `some avg10=0.00 full avg10=0.00` in both states — still never pins a core.
+
+🔑 **The settled reading (21.1 / 15.0) lands on top of the A/B/A "suppressed" reading (21.5 /
+15.1).** That is the finding, not a coincidence: a **finished** `forwards` animation costs the
+same as an animation that was never there. The compositor holds a static transform and does no
+per-frame work, so ending the move buys the entire 6.3 points that deleting it would have —
+without deleting it.
+
+🔑 **The moving reading (27.3) matches the old shipped one (27.4).** The settle does not make the
+move cheaper; it makes it *end*. Anyone re-measuring mid-move and reading ~27 has not found a
+regression — check `arch-kenburns`'s `playState` before concluding anything.
+
+⚠ **HOW TO REPRODUCE THIS, because the wall will not sit still for you.** At 07:45 on a weekday
+depth 2 is `held` by `attention:spread` and re-asserts within ~30 s of any `__setDepth(0)`, so a
+30 s window taken naively straddles two depths and reads low (a contaminated 17.0 was measured
+this way). Pin depth with an in-page interval that re-asserts 0 every 2 s, **and give it a
+`setTimeout` that clears itself** so a dropped session cannot strand the wall at depth 0:
+
+```js
+window.__pin0 = setInterval(() => { if (window.__depth().depth !== 0) window.__setDepth(0); }, 2000);
+setTimeout(() => { clearInterval(window.__pin0); window.__pin0 = null; }, 300000);
+```
+
+⚠⚠ **A depth pin alone measures the WRONG THING now.** Every return to depth 0 restarts the
+settle, so a flapping pin holds the move permanently in flight — that path measured 27.3 and
+looked like the fix had not landed. To measure the *settled* state, finish the animation on a
+second interval alongside the pin:
+
+```js
+window.__fin0 = setInterval(() => {
+  const a = document.getAnimations().find((x) => x.animationName === "arch-kenburns");
+  if (a && a.playState === "running") a.finish();
+}, 500);
+```
+
+⚠ **`anims` is no longer the number to record for this surface — `loops` is.** `window.__archive()`
+now returns both: `anims` counts `playState === "running"` and therefore reads **5 during a
+photograph's move and 4 once it rests**, while `loops` counts only the animations whose
+`iterations` are `Infinity` and reads **4 at depth 0 in daylight, 3 after dark**, whatever the
+clock is doing. A future reading that records `anims` alone cannot be matched to a row.
+
+Verified live besides the numbers: driving an exchange (`__groundDissolve(1200)`) left the four
+loops on their own clock at 20 s and restarted `arch-kenburns` at 5 s — a fresh move for the new
+memory, which is the intent the stylesheet states. A diptych shows two `arch-kenburns`, one per
+half, and both settle.
+
+⏳ **Still owed: the 24 h and 72 h rows** — for the settled state, which is where the wall spends
+roughly eight and a half minutes of every ten.
