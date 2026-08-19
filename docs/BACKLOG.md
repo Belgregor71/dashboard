@@ -6,7 +6,9 @@ Where a doc and the code disagreed, the code won and the doc is flagged for corr
 
 Ordering: **security → new features → the measurement debt that gates them → cleanup.**
 
-> ## ✅ P0, **F1**, **F2**, **F3**, **F5**, **F7**, **F8**, **P4** and **M1** ARE CLOSED. **F6 is half done.** Start at **F4** (read it first — it is a decision, not a task).
+> ## ✅ P0, **F1**–**F5**, **F7**, **F8**, **P4** and **M1** ARE CLOSED. **F6 is half done.**
+> **F4 was rebuilt on V3 2026-08-18 and owes only its GPU reading and the panel's verdict** —
+> it is flag-off until someone has looked at it in daylight.
 >
 > **2026-08-15 — F3 is closed, and it was not a flag chore.** Two of its three flags were
 > **dead levers**: `motionWakeGate` has 0 occurrences in the V3 bundle and is now retired
@@ -51,8 +53,9 @@ Ordering: **security → new features → the measurement debt that gates them �
 > declared seam is missing, and `tests/kiosk-instrument.spec.js` keeps it that way. **F3 is
 > unblocked**; one real sweep on the G11 is still owed, and it is a reading, not a blocker.
 >
-> ⛔ **F4 is NOT unblocked — it is re-scoped.** The ambient archive does not exist in `src/v3/`
-> at all, so `archiveMotionLoop` has no V3 half to flip. Read the item before picking it up.
+> ✅ **F4 is closed as of 2026-08-18** — the archive was rebuilt on V3's depth 0 rather than
+> ported, and the year rail the owner missed is back. Flag-off pending the panel. (It was
+> re-scoped on 2026-08-15 when the grep showed the archive did not exist in `src/v3/` at all.)
 >
 > **And the headline finding is that two of the three P0 items were already done** before this
 > session began — H6 at the time of the audit, the security contract inside `api.spec.js`. Both
@@ -324,7 +327,54 @@ the three water binary sensors, so the dock's own error enum is invisible to eve
 
 ---
 
-### F4 · Ambient Archive — ⛔ **RE-SCOPED 2026-08-15: there is no V3 half to flip**
+### F4 · Ambient Archive — ✅ **REBUILT ON V3 2026-08-18. ⏳ Not yet seen on the wall.**
+
+**Built, suite +28 green, behind `v3Archive` (default-off).** The owner's call on the
+2026-08-15 re-scope was **port it**, and not as a port: the two complaints about what
+shipped were structural, so depth 0 gets a rebuilt composition rather than the old one
+moved across.
+
+- *"The background tiles were too many"* — the echo was a 2900×1800 plane tiled at 620×349,
+  ~30 repeats. Now **two large ghosts** bleeding off opposite edges, which is what the
+  reference frames actually do.
+- *"The year rail got lost"* — it had been **deleted** (`38f0320`), after two year-axis
+  builds were rejected on the panel. It is back and bold, and it is not those two: it draws
+  **the years this date reaches** with the card's own year lit, off `ground.poolYears()`,
+  and it takes the empty top band so the card keeps its full 1040×609 box.
+
+Files: `src/v3/core/archive.js`, `src/v3/css/archive.css`, `tests/v3-archive.spec.js`, plus
+`poolYears()`/`frameParts()` on `ground.js` and one line in `main.js`. Design record:
+`docs/design/AMBIENT-ARCHIVE.md` → *The V3 rebuild*.
+
+**Three things came out of it that are not the feature:**
+
+- 🔑 **A real defect in `ground.js`, not the archive.** Its second `onPhoto` fires from a
+  timer armed a whole settle earlier, so a slow ambient dissolve interrupted by a brisk veto
+  delivers the **old** frame's hand-off last — the scrim re-solved for a photograph that had
+  gone and the archive put it back on the card. Guarded; spec proven red by injection.
+- ⚠⚠ **A spec passed twice against a deliberately injected defect.**
+  `expect(path).toContain(id)` with single-letter fixture ids matched incidental letters in
+  `/api/immich/asset/…`. It compares a path segment now. *Injecting the defect is the only
+  reason this was ever known.*
+- ⚠ **`oklch()` does not resolve through `ctx.fillStyle` alone** — it round-trips the same
+  string. The colour has to be painted and the pixel read back.
+
+**What is left, and the last one is the gate:**
+
+1. **The §5.4 reading, at 0 h / 24 h / 72 h**, into `HOST-BASELINES.md` as a *V3 archive —
+   depth 0* row. Depth 0 moves from the quiescent band (≤8%) to live ambient (≤25%); both
+   `compose.css` and `DESIGN_SYSTEM.md` §5.4 now say so, and neither has a number yet. It
+   should cost **less** than the ~21% the incumbent measured — two ghost layers instead of a
+   ~30-tile plane, the crush filter split off the animated wrapper, and the loops gated off
+   `data-panel-dark` — but that is a prediction, not a measurement.
+2. **The Live Photo burst** (`ambientArchiveMotion`, `archiveMotionLoop`) is still
+   incumbent-only. Deferred behind the reading above, not forgotten.
+3. ⏳ **JUDGE IT ON THE PANEL, IN DAYLIGHT, BEFORE FLIPPING.** Both earlier year rails were
+   rejected within the hour of being looked at, and this is the third. A night capture will
+   lie: the plate and the engraved year hide at night by design, so the right two-thirds
+   reads empty and overstates the problem.
+
+<details><summary>the 2026-08-15 re-scope this closes</summary>
 
 **The estimate below is wrong and the item is bigger than it reads.** Verified by grep across
 `src/v3/`: the ambient archive does not exist on the V3 surface at all — one hit, a CSS
@@ -337,6 +387,8 @@ V3** (real work, real design questions, and V3's ground already answers much of 
 archive was for) or **a decision to let it stay an incumbent-only feature**. That is the
 owner's call and it should be made before any of the open judgements below are chased —
 every one of them assumes a surface that is not on the wall.
+
+</details>
 
 <details><summary>original item</summary>
 
@@ -654,7 +706,7 @@ secondary slot beside the menu hero, which the screenshot shows. Worth a decisio
 > paid at rest, so the ≤ 35 peak ceiling is no longer what binds this surface.
 > **M1 is closed.**
 >
-> ⛔ **F4 needs re-scoping before it is picked up** — see the correction on it above.
+> ✅ **F4 is done** — see the item. What is left of it is a GPU reading and a look at the wall.
 
 ✅ **The live-ambient row is closed** (2026-08-14, `HOST-BASELINES.md`): gpu-process **5.9%**
 of one core, renderer **5.3%**, one shared 30 s window, substrate animating at a measured
@@ -676,14 +728,21 @@ and `/` has served V3 since the cutover. So:
 - **The heap/DOM baselines describe a ~20× larger page.** V3 measures `domNodes` 42 /
   `cdpNodes` 268 / listeners 29 / lottieWrappers 0, against a "healthy" band of 926 / 2,315 /
   67 / 5. Not a gate any more.
-- **`heap-metrics.cjs`'s liveness block is permanently not-assessable** — it reads
-  `window.__archive()`. It refuses rather than passing falsely, but nothing watches Live Photo.
+- **`heap-metrics.cjs`'s liveness block was permanently not-assessable** — it reads
+  `window.__archive()`, which only the incumbent surface defined. It refuses rather than
+  passing falsely, but nothing watched Live Photo. ⚠ **V3's archive now defines
+  `window.__archive()` too**, behind `v3Archive`, with a DIFFERENT shape: no `motion` key at
+  all, and `ghosts`/`slots`/`years`/`nodes` where the incumbent had `card`/`plate`/`lit`.
+  A liveness block that keys off the hook EXISTING will start reporting again, against a
+  surface that has no Live Photo clip to watch. Check the shape, not the name.
 - 🔑 **`anims` cannot see the substrate** (rAF on a canvas, not a Web Animation), so the
   table's own "record `anims`" rule would file a live-ambient sample under the quiescent row.
   On V3 the discriminator is `__substrate().animating`/`paused`.
 
-**Next:** give V3 the seams the sweep needs, then re-run it. **F4 stays gated behind that** —
-it cannot be judged against a baseline the instrument cannot take.
+**Next:** give V3 the seams the sweep needs, then re-run it. **F4's own reading is the first
+customer** — it was built 2026-08-18 and flag-off precisely because it cannot be judged
+against a baseline the instrument cannot take, and depth 0 moving from the quiescent band to
+live ambient is exactly the transition this row exists to measure.
 
 ⚠ **F3 was never actually gated on this, and the gating was the wrong question.** Closed
 2026-08-15 without a new baseline, because it shipped no new cost: two of its three flags had

@@ -1,12 +1,125 @@
 # The Ambient Archive — calm law v3
 
+> ## ⛔ EVERYTHING BELOW DESCRIBES THE INCUMBENT SURFACE, WHICH IS NOT ON THE WALL
+>
+> **`/` has served V3 since the cutover, V3 has no screensaver, and there is no Mode 0.**
+> The archive described in this file — `src/js/modules/ambientArchive.js` and
+> `src/css/views/ambient-archive.css` — renders only on the incumbent dashboard, which
+> nothing loads. `features.ambientArchive: true` is therefore true of a surface nobody
+> sees, and it is why `archiveMotionLoop` has been "not assessable" for weeks.
+>
+> **The V3 rebuild is `src/v3/core/archive.js` + `src/v3/css/archive.css`, behind
+> `features.v3Archive`.** Read [the V3 rebuild](#the-v3-rebuild-2026-08-18) before this
+> file's geometry tables — most of them still hold, two of them deliberately do not, and
+> one of them ("the year has no ruler") has been **reversed by the owner**.
+>
+> This file stays as the implementation authority for the *decisions*, the traps and the
+> history. It is no longer a description of anything on the glass.
+>
 > Source: *The Day, Rendered — Proposal v2* §11 (Claude Design, July 2026) and
 > `Ambient Archive Screensaver.html`, answering `BRIEF-AMBIENT-2030.md`. Built from
 > `HANDOVER-AMBIENT-ARCHIVE.md`, which stays as the record of the two owner decisions
-> and the traps. **This file is the implementation authority for what shipped.**
+> and the traps.
 >
-> Flag: `features.ambientArchive` · default **on** since 2026-08-02 · one-line revert.
+> Flag: `features.ambientArchive` · default **on** since 2026-08-02 · incumbent only.
 > Companion: `TEMPORAL-SPINE.md` (the day, rendered flat, which this absorbs in Mode 0).
+
+## The V3 rebuild (2026-08-18)
+
+Flag `features.v3Archive`, **default off**, not yet seen on the wall.
+
+The archive stops being a screensaver and becomes **depth 0** — V3's resting wall, which
+until now was a full-bleed photograph with the hour on it. There is no Mode 0 to enter and
+no idle timer: `DEPTH.FIELD` *is* the resting state, so the composition is simply what the
+wall looks like when nothing has pushed it deeper.
+
+### The owner's five calls, and they are settled
+
+Raised 2026-08-18 on the two reference frames, against the surface that shipped:
+*"I was never quite happy with the layout. The background tiles were too many. The year
+rail got lost on the screen."*
+
+| | Call |
+|---|---|
+| **Where** | Replace depth 0's look. `ground.js` keeps the pool, the latch, the dissolve and the veto; the archive is a frame around it and owns none of its elements. |
+| **The ghosts** | **TWO large ghosts**, ~1060 and ~810 wide, bleeding off opposite edges, drifting on co-prime periods. Not ~30 tile repeats of a 2900×1800 plane. |
+| **The year rail** | **Back, and bold.** One strip, year numerals, red registration marks. The hour axis is **not** ported — one axis, and it is years. |
+| **The hour** | Unchanged: 168px, bottom-left. The strip takes the *high* band instead, which at depth 0 is empty. |
+| **Above depth 0** | The archive recedes to today's full-bleed photograph. One opacity cross-fade each way. |
+
+### ⚠⚠ The year rail is the THIRD, and this file told you not to build it
+
+"The year has no ruler" below records two rejected builds and says a third is furniture.
+**The owner has reversed that**, having looked at the references again. Do not re-argue it
+from this file — but do understand why this one is not those two, because that reasoning is
+the constraint on any future change to it:
+
+- **Build 1** drew the years as six rows receding in Z. **Build 2** drew them as a legible
+  shelf on a far plane. Both restated a year the wall already gave twice, and both took
+  vertical room from the photograph — build 1 cut the card to **53% of its area**.
+- **This one carries information the wall does not otherwise have**: the years *this
+  calendar date* reaches in the library, with the card's own year lit. "This date lives in
+  2011, 2015, 2019 and 2023; you are looking at 2019" is not a third telling of the
+  engraved numeral. The years come from `ground.poolYears()` — the **adopted pool**, never
+  a second fetch, so the strip cannot light a year the card can never reach.
+- **It costs the photograph nothing.** It takes the top band, which at depth 0 holds
+  nothing, and the card keeps its full 1040×609 box. A spec measures the painted boxes.
+- **It is bold enough to be read**: labels at `--t-rail` (32px) and the lit year at 48px,
+  against the shipped rail's 22px mono. "It got lost" was partly a size problem.
+
+### What carried over unchanged, and what did not
+
+**Unchanged:** the plane (`rotateY(-12) rotateX(8) rotateZ(2)`, perspective 1400 at
+50%/42%), `cardRectFor()` from `services/archiveModel.js` — so a 16:9 memory lands on
+**1040×585 at (130, 212), to the pixel** — the ghost crush (`grayscale(1) brightness(.17)
+contrast(1.18)`), the plate's shape and its "always speaks" rule, the vignette, the static
+grain, and the four motion periods (130s / 104s / 84s / 96s).
+
+**Deliberately not ported:** the hour axis and its `dayModel`/`daySources` chain (the strip
+means years now), the 30s repaint interval (nothing left is time-driven), and the Live
+Photo burst — `ambientArchiveMotion` / `archiveMotionLoop` stay incumbent-only pending
+this surface's own GPU reading.
+
+**New, and both are things the incumbent wanted and never had:**
+
+- `:not([data-panel-dark="1"])` on every loop. DPMS fires no `visibilitychange`, so the
+  shipped archive ran its four animations all night to a dark panel.
+- `--arch-gain` has a **writer** (`window.__archiveGain(n)`), turnable on the kiosk over
+  CDP without a deploy. It previously existed only as a `2` fallback inside a `calc()`
+  with nothing setting it, so "the one number to turn" could not be turned.
+
+### ⚠ It contradicts a written law, and the amendment shipped with it
+
+`compose.css` and `DESIGN_SYSTEM.md` §5.4 both put depth 0 in the **quiescent** band, ≤8%
+of one core, with "anything that animates here is a bug". Four continuous loops move it to
+**live ambient**, ≤25% sustained. That is legal under law 1 as rewritten — the cause is
+nameable by anyone in the room, *the house is leafing through its album* — but both places
+now say so explicitly, because a shipped surface that contradicts a written law silently
+repeals the law. **The reading itself is owed and is not optional.**
+
+### Traps this rebuild found or inherited
+
+- **`__ground().layers` must stay 1 at rest.** The card's `<img>`s live in `#archive`,
+  never in `.photo`, or every future soak reports a leak that is not there.
+- **`#archive` is a child of `<body>`.** Inside `.photo` its z-index would be trapped in
+  that element's stacking context — the fault that buried `#ground-caption` at 1.02:1.
+  Inside `.stage` it would be torn down on every depth change.
+- **A late hand-off from a superseded exchange** was a real defect *in `ground.js`*, found
+  by driving this. Its second `onPhoto` fires from a timer armed a whole settle earlier, so
+  a slow ambient dissolve interrupted by a brisk veto delivers the **old** frame last: the
+  scrim re-solved for a photograph that had gone and the archive put it back on the card.
+  Guarded on still being current.
+- **The strip's geometry is measured against the PROJECTION, not the CSS box.** Its plane
+  is stretched ~1.7× by the perspective; a 120px canvas at top 36 paints from y −23 to
+  y 183. Reasoning from the stylesheet is wrong by ~60px at the top edge.
+- **`plateFor()` in `archiveModel.js` cannot be called from V3.** It parses a caption whose
+  year leads; V3's `ground.js` puts the year last. V3 builds its plate from the assets via
+  `ground.frameParts()`.
+- **The strip's year labels are drawn into a canvas**, so no DOM contrast sweep can ever
+  see them. The sizes and ink alphas in `core/archive.js` are the whole defence, and the
+  panel is the only real check.
+
+---
 
 ## The idea
 

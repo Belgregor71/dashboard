@@ -374,6 +374,25 @@ the derivation live in `docs/audit/HOST-BASELINES.md`.
 | **Live ambient** — a legal continuous cause is running (rain, wind, sun) | **≤ 25%** sustained | — (new) | Continuous is now allowed, but it is the state the screen sits in for hours. |
 | **Peak episode** — a moment (arrival, lightning, photo change) | **≤ 35%**, and must decay | 22.5 | A moment may spend; it may not stay. |
 
+**⚠ V3's depth 0 is quiescent *only with `v3Archive` off*, and that is an amendment rather
+than an exception (2026-08-18).** With the flag on, the resting wall carries the Ambient
+Archive — a card, two drifting ghosts and an engraved year, four continuous loops — so depth 0
+sits in the **live ambient** row, not the quiescent one. It is legal under law 1 as rewritten:
+the cause is continuous and the room can name it without studying the screen (*the house is
+leafing through its album*), which is exactly the test §5.1 states. It is written down here
+because `src/v3/css/compose.css` says depth 0 "must cost nothing" and a shipped surface that
+contradicts a written law silently repeals the law.
+
+Two consequences worth stating rather than discovering:
+
+- **The quiescent row still applies to V3, and to depth 0 with the flag off.** The rollback is
+  a genuine return to ≤8%, which is what makes the flag a real revert rather than a preference.
+- **The archive's own reading is owed and is not optional.** The surface it replaces measured
+  ~21% on the incumbent; this one should cost less by construction (two ghost layers instead of
+  a ~30-tile plane, the crush filter split off the animated wrapper so the texture is rasterised
+  once, and the loops gated off `data-panel-dark`) — but "should" is not a measurement. Record
+  it in `HOST-BASELINES.md` as a **V3 archive — depth 0** row, at 0 h / 24 h / 72 h.
+
 Regardless of the table, three invariants hold:
 
 - **Never pin a core.** `/proc/pressure/cpu` `avg10` stays near 0 (currently 0.00).

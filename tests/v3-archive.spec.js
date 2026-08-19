@@ -3,6 +3,9 @@ import { fileURLToPath } from "node:url";
 import { test, expect } from "./fixtures/coverage.js";
 import { plateForFrame, yearPositions } from "../src/v3/core/archive.js";
 import { cardRectFor } from "../src/js/services/archiveModel.js";
+// The house's own contrast maths, so the archive is judged by the same
+// arithmetic the scrim solves with rather than by a second opinion.
+import { contrastRatio } from "../src/v3/core/scrim.js";
 
 /* THE AMBIENT ARCHIVE ON V3 — depth 0's other face, behind `v3Archive`.
 
@@ -447,6 +450,75 @@ test("the card takes the print's own shape from the DECODED rendition", async ({
   // Vertical centre held at 504.5, so the card grows about where it has always
   // sat rather than dropping toward the bottom of the frame.
   expect(card.top + card.h / 2).toBeCloseTo(504.5, 1);
+});
+
+test("every word on the plate clears WCAG AA over its own backdrop", async ({ page }) => {
+  /* ⚠ WHY THIS LIVES HERE AND NOT IN tests/verify/v3-contrast.spec.js. That
+     sweep boots ONE page per (ground, phase) and drives every surface across
+     it, so a pinned `v3Archive` would apply to all of them — and at depth 0 the
+     archive hides #ground-caption, which would silently retire the measurement
+     of the caption's own hard-won 5.29:1. Pinning the flag there buys the plate
+     and loses the caption. Measured here instead, against the real painted
+     stack, and the sweep is left exactly as it is.
+
+     ⚠ AND A GAP WORTH NAMING RATHER THAN LEAVING IMPLICIT: the strip's year
+     labels are drawn into a CANVAS, so no DOM text sweep can ever see them.
+     They are the one piece of archive text no automated gate covers — the
+     32px/48px sizes and the ink alphas in core/archive.js are the whole
+     defence, and the panel is the only real check. */
+  await bootArchive(page);
+  await groundShown(page);
+  await expect.poll(() => page.evaluate(() => window.__archive().plate)).not.toBeNull();
+
+  const rows = await page.evaluate(() => {
+    /* ⚠ oklch() DOES NOT RESOLVE THROUGH `ctx.fillStyle` ALONE. Assigning an
+       oklch() string and reading the property straight back returns the SAME
+       oklch() string in this Chromium, so a probe built that way parses nothing
+       and reports null — which is how this test failed first time round. The
+       colour has to be PAINTED and the pixel read back:
+
+         fillStyle = css; fillRect(...); getImageData(...)
+
+       Painting the layers in order also does the alpha compositing for free, so
+       the numbers below are the real stack — archive ground, then the plate's
+       0.72 backdrop, then the ink — rather than ink over an assumed black. */
+    const px = (...layers) => {
+      const c = document.createElement("canvas");
+      c.width = c.height = 1;
+      const ctx = c.getContext("2d", { willReadFrequently: true });
+      for (const css of layers) {
+        ctx.fillStyle = css;
+        ctx.fillRect(0, 0, 1, 1);
+      }
+      const d = ctx.getImageData(0, 0, 1, 1).data;
+      return [d[0] / 255, d[1] / 255, d[2] / 255];
+    };
+
+    const ground = getComputedStyle(document.getElementById("archive")).backgroundColor;
+    return [...document.querySelectorAll(".archive__plate > p")]
+      .filter((el) => el.textContent.trim() && el.dataset.blank !== "1")
+      .map((el) => {
+        const cs = getComputedStyle(el);
+        return {
+          cls: el.className.split(" ")[0],
+          fontSize: parseFloat(cs.fontSize),
+          backdrop: px(ground, cs.backgroundColor),
+          ink: px(ground, cs.backgroundColor, cs.color)
+        };
+      });
+  });
+
+  // eyebrow + title, and `who` too when the frame names anybody.
+  expect(rows.length).toBeGreaterThanOrEqual(2);
+
+  for (const row of rows) {
+    const ratio = contrastRatio(row.ink, row.backdrop);
+    expect(ratio, `${row.cls} at ${row.fontSize}px reads ${ratio.toFixed(2)}:1`)
+      .toBeGreaterThanOrEqual(4.5);
+    // The legibility FLOOR, which is a separate law from contrast: below
+    // --t-rail the text is not received at 3-4m however well it contrasts.
+    expect(row.fontSize, `${row.cls} is under the 32px floor`).toBeGreaterThanOrEqual(32);
+  }
 });
 
 // ── The CSS guardrail ───────────────────────────────────────────────────────

@@ -236,7 +236,19 @@ html, body {
 
 /* Depth 0 is the resting state and must cost nothing. The photograph carries
    it; the hour is the only text. Anything that animates here is a bug unless
-   the room can see its cause. */
+   the room can see its cause.
+
+   ⚠ AMENDED 2026-08-18, and the amendment is the point rather than a footnote.
+   Behind `v3Archive` this depth carries the Ambient Archive — a card, two
+   drifting ghosts and a year strip — which is FOUR continuous loops on the
+   resting wall. That is legal under law 1 as rewritten (the cause is nameable
+   by anyone in the room: the house is leafing through its album) but it moves
+   depth 0 out of §5.4's QUIESCENT band, ≤8%, and into LIVE AMBIENT, ≤25%
+   sustained. DESIGN_SYSTEM.md §5.4 names the state explicitly now.
+
+   The sentence above still holds for the flag-off surface, which is what this
+   file otherwise describes, and it is still the right default: a loop here
+   needs a named cause and a measured budget, not a preference. */
 .depth--field .hour {
   position: absolute;
   left: var(--safe);
