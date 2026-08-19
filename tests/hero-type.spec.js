@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { PIN_VOICE_OFF } from "./fixtures/pin-voice-off.js";
 
 /**
  * Design study 02 "The Hero Line" (docs/design/homeos-hero-type.html).
@@ -32,6 +33,11 @@ function enableFlags(page) {
       // measuring nothing anyone sees. Pin it off: this spec covers the rollback
       // surface, and that is the honest thing for it to be asserting.
       "\nwindow.CONFIG.features.temporalSpine = false;" +
+      /* And the voice lane, which is a CROSS-TEST CHANNEL rather than a flag
+         preference: one transcript POST anywhere in the suite reaches this page
+         over the shared bus and empties the attention surface for good.
+         fixtures/pin-voice-off.js carries the mechanism and the measurements. */
+      PIN_VOICE_OFF +
       // Pin the BOM warnings entity to one that never exists: a real live warning
       // (via HA) is an interrupt-band candidate (95) that outranks the forced test
       // candidates and breaks the tier assertions. Must go through __DASH_CONFIG__ —

@@ -1,3 +1,4 @@
+import { PIN_VOICE_OFF } from "./fixtures/pin-voice-off.js";
 import { test, expect } from "@playwright/test";
 import { existsSync, readFileSync } from "fs";
 import path from "path";
@@ -50,7 +51,11 @@ function forceFlags(flags) {
       const lines = Object.entries(flags)
         .map(([k, v]) => `window.CONFIG.features.${k} = ${v};`)
         .join("\n");
-      await route.fulfill({ response: res, body: (await res.text()) + "\n" + lines + "\n" });
+      /* PIN_VOICE_OFF goes on EVERY page this helper boots rather than through
+         `flags`, because it is not a flag preference: it is a cross-test channel.
+         One transcript POST anywhere in the suite reaches this page over the
+         shared voice bus and empties the surface. See fixtures/pin-voice-off.js. */
+      await route.fulfill({ response: res, body: (await res.text()) + "\n" + lines + "\n" + PIN_VOICE_OFF + "\n" });
     });
 }
 

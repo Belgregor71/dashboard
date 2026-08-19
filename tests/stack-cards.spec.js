@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { PIN_VOICE_OFF } from "./fixtures/pin-voice-off.js";
 
 /**
  * Tier-1a spec upgrade "rich stack cards" (features.stackCards, requires
@@ -38,6 +39,11 @@ function enableFlags(stackCards) {
         // pass while measuring nothing anyone sees. Pin it off: this spec covers the
         // rollback surface, and that is the honest thing for it to be asserting.
         "\nwindow.CONFIG.features.temporalSpine = false;" +
+        /* And the voice lane, which is a CROSS-TEST CHANNEL rather than a flag
+           preference: one transcript POST anywhere in the suite reaches this page
+           over the shared bus and empties the attention surface for good.
+           fixtures/pin-voice-off.js carries the mechanism and the measurements. */
+        PIN_VOICE_OFF +
         // Deterministic queue: no seed memories / predictive rules joining it.
         "\nwindow.CONFIG.features.memoryEngine = false;" +
         "\nwindow.CONFIG.features.predictiveCandidates = false;" +

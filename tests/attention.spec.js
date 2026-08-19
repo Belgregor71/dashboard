@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { PIN_VOICE_OFF } from "./fixtures/pin-voice-off.js";
 
 /**
  * Phase 2 attention-engine UI smoke (docs/vision/phase-2-attention-engine.md).
@@ -33,6 +34,10 @@ function enableFlags(page) {
       (await res.text()) +
       "\nwindow.CONFIG.features.presenceRuntime = true;" +
       "\nwindow.CONFIG.features.attentionEngine = true;" +
+      /* A cross-test channel, not a flag preference: one transcript POST
+         anywhere in the suite reaches this page over the shared voice bus
+         and empties the queue. See fixtures/pin-voice-off.js. */
+      PIN_VOICE_OFF +
       // Pin the BOM warnings entity to one that never exists: a real live warning
       // (e.g. a QLD marine wind warning via HA) is an interrupt-band candidate (95)
       // that outranks the forced test candidates and breaks the queue assertions.
@@ -112,6 +117,10 @@ test("a short-lived predictive candidate decays out of the queue", async ({ page
       (await res.text()) +
       "\nwindow.CONFIG.features.presenceRuntime = true;" +
       "\nwindow.CONFIG.features.attentionEngine = true;" +
+      /* A cross-test channel, not a flag preference: one transcript POST
+         anywhere in the suite reaches this page over the shared voice bus
+         and empties the queue. See fixtures/pin-voice-off.js. */
+      PIN_VOICE_OFF +
       "\nwindow.CONFIG.features.predictiveCandidates = true;" +
       // Same live-BOM-warning pin as enableFlags above (this test rolls its own route).
       '\nwindow.__DASH_CONFIG__ = Object.assign({}, window.__DASH_CONFIG__,' +
