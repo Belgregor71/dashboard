@@ -840,9 +840,32 @@ state: depth 0 · anims 5 · panelDark 0 · daylight, 07:0x AEST
 ⚠ **Not a warm-up artifact.** Two independent 30 s windows minutes apart read 27.7 and 27.4 —
 stable, not decaying. A single post-reload sample would have been fair to distrust; these are not.
 
-⚠ **`anims: 5`, not the four loops §5.4 describes** (card, two drifting ghosts, engraved year).
-Worth resolving before tuning — if the fifth loop is unaccounted for, it is the first place to
-look for the 2.4 points.
+⚠⚠ **THE FIFTH LOOP IS `arch-kenburns`, AND IT IS THE WHOLE OVERAGE.** `document.getAnimations()`
+on the wall returns `arch-pivot` (card), `arch-ghost-a`, `arch-ghost-b`, `arch-year` — §5.4's four
+— plus **`arch-kenburns`** on `.archive__img.is-top`: `transform: scale()`, 96 s, infinite
+alternate, 7.5% amplitude (`src/v3/css/archive.css:353`). §5.4 never counted it.
+
+Measured A/B/A on the live kiosk, 30 s windows, by suppressing only that one animation:
+
+| | gpu-process | renderer |
+|---|---|---|
+| A — 5 loops (shipped) | 27.4 | 24.0 |
+| **B — kenburns suppressed** | **21.5** | **15.1** |
+| A' — restored | 28.0 | 24.3 |
+
+**~6.3 points of gpu-process, and ~9 of renderer.** Suppressing it alone puts depth 0 back inside
+the ≤25% live-ambient ceiling at 21.5, with headroom. Nothing else needs to change to get legal.
+
+⛔ **`will-change: transform` is NOT the fix — tested, not assumed.** `.archive__ghost` and
+`.archive__card-wrap` both carry it and `.archive__img` does not, so re-rasterisation looked like
+the obvious explanation for the renderer cost. Injecting it on the live wall measured **28.5 /
+24.0** — indistinguishable from baseline. The image is already composited; the cost is the scaled
+texture itself, not layer promotion.
+
+🔑 **The repo has already solved this exact shape once:** [[project-ambient-substrate]] — a Ken
+Burns *settle* dropped Mode-0 GPU 80%→0%. A settle also fits the archive's stated intent better
+than deletion does ("a fresh memory earns a fresh move", archive.css:351): run the move once per
+photograph and let it come to rest, instead of scaling forever. Not implemented — the owner's call.
 
 The invariants that still hold: pressure ≈ 0 (never pins a core), and the rollback is a genuine
 return to the ≤ 8% quiescent row — `v3Archive: false`, one line, verified reversible at flip time.
