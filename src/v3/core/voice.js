@@ -33,6 +33,23 @@ import { vetoCurrent, restoreLastVeto } from "./ground.js";
 
 const LINGER_MS = 8_000;
 const DEIXIS_MS = 4_200;
+/* ⚠ THE READOUT AND THE REPLY ARE TWO DIFFERENT LIFETIMES, and until now only
+   the first of them had a timer. clearLinger's callback calls hideHeard(),
+   which hides `el.heard` — the recogniser's readout — and nothing else. The
+   house's own answer goes into `el.glanceSaid` through setSaidText(), which
+   nothing here ever cleared, so the reply survived until the DEPTH receded to
+   FIELD and attention.js's clearGlance() fired: HOLD_MS[GLANCE], 90 seconds,
+   for a sentence that took four to say.
+
+   That also fed back into recession. depthInhabited(GLANCE) in v3/main.js is
+   literally "does #glance-said have text in it", so a stale reply kept depth 1
+   looking occupied and stopped SPREAD and SUBJECT receding past it to the
+   field.
+
+   Twenty seconds is the owner's call and roughly a re-read: long enough to
+   look up from the bench and take the sentence in a second time, short enough
+   that the wall is a photograph again before you have wondered why it isn't. */
+const REPLY_MS = 20_000;
 /* ⚠ THE THREAD IS NOT THE READOUT, AND CONFLATING THEM COST THE HOUSE ITS
    MEMORY. LINGER_MS is a decision about the GLASS — how long "what I heard"
    stays legible after a reply, which is a couple of breaths. It was also, until
@@ -58,6 +75,7 @@ let enabled = false;
 let busy = false;
 let stream = null;
 let lingerTimer = null;
+let replyTimer = null;
 let threadTimer = null;
 let deixisTimer = null;
 let consecutiveFailures = 0;
@@ -164,6 +182,25 @@ function clearLinger() {
   }
 }
 
+function clearReplyTimer() {
+  if (replyTimer) {
+    clearTimeout(replyTimer);
+    replyTimer = null;
+  }
+}
+
+/* Blank the house's own line, but ONLY if it is still the one we wrote.
+   attention.js's renderGlance() writes this same node on its 30s tick, so a
+   fire-and-forget clear would wipe an attention line that had already replaced
+   the reply — the wall going blank for no reason the room can see. Comparing
+   the text is what keeps the two writers of #glance-said from disagreeing. */
+function clearReply(expected) {
+  clearReplyTimer();
+  if (!el.glanceSaid) return;
+  if (typeof expected === "string" && el.glanceSaid.textContent !== expected) return;
+  setSaidText(el.glanceSaid, "");
+}
+
 function clearThread() {
   if (threadTimer) {
     clearTimeout(threadTimer);
@@ -196,6 +233,18 @@ function endTurn(said, replied) {
     hideHeard();
     clearDeixis();
   }, LINGER_MS);
+
+  /* The reply outlives the readout — you stop needing to see what you SAID
+     well before you stop needing what you were TOLD — so it gets its own,
+     longer timer rather than riding on the one above. Armed only when there
+     was actually a reply: a turn that answered nothing left no line to clear,
+     and blanking the node would take away whatever attention.js had put there.
+
+     `replied` is captured so the clear can confirm the line is still ours. */
+  clearReplyTimer();
+  if (typeof replied === "string" && replied.trim()) {
+    replyTimer = setTimeout(() => clearReply(replied), REPLY_MS);
+  }
 
   // The conversation ends on its own, much later. Separate timer, separate
   // question — see THREAD_MS.
@@ -371,6 +420,11 @@ export async function submit(text, { source = "unknown" } = {}) {
 
   busy = true;
   clearLinger();
+  /* The previous turn's reply clear, too. clearReply() would refuse to blank a
+     line it did not write, so this is belt-and-braces rather than the guard —
+     but leaving a stale timer armed across a turn is how the linger bugs above
+     started, and this one is cheap to disarm. */
+  clearReplyTimer();
   // Both timers, or a thread reset armed by the PREVIOUS turn fires partway
   // through this one and empties `history` while the follow-up is in flight —
   // which is the exact failure this separation exists to fix, arriving by a

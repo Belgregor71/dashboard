@@ -567,3 +567,61 @@ test("streamed: a stream that dies mid-reply still releases the turn", async ({ 
   expect(next.handled).toBe(true);
   expect(pageErrors).toEqual([]);
 });
+
+/* ── The reply lets go of the glass ─────────────────────────────────────────
+   Reported from the wall 2026-08-19: "responses are staying on screen too
+   long". The readout had a timer (LINGER_MS, 8 s) and the REPLY did not —
+   clearLinger's callback calls hideHeard(), which touches `#heard` and nothing
+   else, so the house's own line sat in `#glance-said` until the depth receded
+   to FIELD and attention.js's clearGlance() fired. HOLD_MS[GLANCE] is 90 s.
+
+   ⚠ THE FIXTURE HAS TO BE ABLE TO PRODUCE THE DEFECT. Asserting only "the node
+   is empty at 25 s" would also pass on the old build whenever attention's 30 s
+   tick happened to overwrite the line first — a pass that means "something else
+   cleared it", which is not the property. So the reply is sampled while it is
+   still up, and only then fast-forwarded past REPLY_MS.
+─────────────────────────────────────────────────────────────────────────── */
+test("the reply clears itself rather than riding the 90-second depth hold", async ({ page }) => {
+  await page.clock.install();
+  const assist = [];
+  const converse = [];
+  await bootLanes(page, { assist, converse });
+
+  await page.evaluate(() => window.__v3Transcript("zzz what is the weather"));
+
+  const said = page.locator("#glance-said");
+  // It is up, and it is the house's line — the precondition the clear is about.
+  await expect(said).toHaveText("reply 1");
+
+  /* Past the readout's 8 s and well past REPLY_MS (20 s), but COMFORTABLY
+     SHORT of the 90 s GLANCE hold. That gap is the whole test: at 30 s the old
+     build is still holding depth 1 with the line in it. */
+  await page.clock.fastForward("00:30");
+  await expect(
+    said,
+    "the reply outlived its own timer — it is now waiting on the depth hold again"
+  ).toHaveText("");
+});
+
+test("a reply the room replaced is not blanked out from under it", async ({ page }) => {
+  await page.clock.install();
+  const assist = [];
+  const converse = [];
+  await bootLanes(page, { assist, converse });
+
+  await page.evaluate(() => window.__v3Transcript("zzz what is the weather"));
+  await expect(page.locator("#glance-said")).toHaveText("reply 1");
+
+  /* attention.js writes this same node on its 30 s tick. A fire-and-forget
+     clear would wipe whatever replaced the reply, and the room would watch the
+     wall go blank for no reason it can see — so clearReply() only blanks a line
+     it still recognises as its own. Standing in for the other writer here. */
+  await page.evaluate(() => {
+    document.getElementById("glance-said").textContent = "something attention put there";
+  });
+  await page.clock.fastForward("00:30");
+  await expect(
+    page.locator("#glance-said"),
+    "the voice's timer cleared a line the voice did not write"
+  ).toHaveText("something attention put there");
+});

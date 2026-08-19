@@ -48,9 +48,16 @@ const FIRED_KEY = "dashboard:briefing-fired-v3";
 
 /* Longer than a subject's 30s and longer than the door's 60s. A briefing is
    read, not glanced at, and the recession is still automatic — this only says
-   how patient it is. Four minutes is roughly twice the time it takes to hear
-   the spoken half and read the rest. */
-export const BRIEFING_HOLD_MS = 240_000;
+   how patient it is.
+
+   ⚠ WAS FOUR MINUTES UNTIL 2026-08-19, on the reasoning that it should be
+   twice the time it takes to hear the spoken half and read the rest. Owner's
+   verdict from the wall: it outstayed its welcome badly. Twice-the-reading-time
+   was the wrong model — nobody stands in front of a briefing for four minutes,
+   so the second half of that window was simply the kitchen unable to get its
+   photograph back. Ninety seconds is about the spoken half plus a beat to
+   finish reading, which is the whole job. */
+export const BRIEFING_HOLD_MS = 90_000;
 
 let timer = null;
 let unsubscribe = null;
