@@ -1,4 +1,5 @@
 import { test, expect } from "./fixtures/coverage.js";
+import { pinHealthOk } from "./fixtures/health-ok.js";
 
 /* Steps 1.4 + 1.5 — the point of Phase 1: the surface moves because the house
    moved, not because someone spoke to it.
@@ -38,6 +39,13 @@ async function bootV3(page) {
       body: (await res.text()) + "\nwindow.CONFIG.features.memoryEngine = false;\n"
     });
   });
+
+  /* The health lane is pinned healthy for exactly the reason the memory lane
+     above is pinned off: it announces at score 72, which outranks the 42 the
+     "day's readouts" test forces, so the hero became `health` and the assertion
+     failed for a correct reason. Same hidden coupling, one layer out — what the
+     queue holds was a function of how long the test server had been up. */
+  await pinHealthOk(page);
 
   await page.goto("/v3/");
   await page.waitForFunction(() => typeof window.__v3 === "function");

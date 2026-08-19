@@ -1,4 +1,5 @@
 import { test, expect } from "./fixtures/coverage.js";
+import { pinHealthOk } from "./fixtures/health-ok.js";
 
 /* PRESENCE EARNS MEDIUM — the bar that moves with the room.
 
@@ -33,6 +34,12 @@ async function bootV3(page, { presenceEarnsMedium }) {
         `\nwindow.CONFIG.features.presenceEarnsMedium = ${presenceEarnsMedium};\n`
     });
   });
+
+  /* MEDIUM is 50 and LOW is 45; the health lane announces at 72. A degraded
+     test server therefore wins the glance on every one of the four assertions
+     below, including the flag-OFF one — which is how a fixture problem gets
+     read as the flag not working. See fixtures/health-ok.js. */
+  await pinHealthOk(page);
 
   await page.goto("/v3/");
   await page.waitForFunction(() =>

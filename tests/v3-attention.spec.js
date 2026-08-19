@@ -1,4 +1,5 @@
 import { test, expect } from "./fixtures/coverage.js";
+import { pinHealthOk } from "./fixtures/health-ok.js";
 
 /* V3's attention tick — step 1.3. The engine itself is already covered in plain
    node by tests/insights.spec.js and tests/attention.spec.js, and the feed by
@@ -16,6 +17,13 @@ import { test, expect } from "./fixtures/coverage.js";
 async function bootV3(page) {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
+  /* ⚠ Without this, "a cold house scores nothing" is not asking about a cold
+     house at all. The suite's own dead-port HA stub makes the server report a
+     real fault once it is a minute old, and the health lane then announces a
+     score-72 candidate — so `queue`, `hero` and `sourceCount` all come back
+     non-empty and the spec fails for a reason it is not about. See
+     fixtures/health-ok.js; the timing is why it only shows up in a full run. */
+  await pinHealthOk(page);
   await page.goto("/v3/");
   await page.waitForFunction(() => typeof window.__v3 === "function");
   return pageErrors;
