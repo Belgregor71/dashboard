@@ -369,7 +369,13 @@ Files: `src/v3/core/archive.js`, `src/v3/css/archive.css`, `tests/v3-archive.spe
    `data-panel-dark` — but that is a prediction, not a measurement.
 2. **The Live Photo burst** (`ambientArchiveMotion`, `archiveMotionLoop`) is still
    incumbent-only. Deferred behind the reading above, not forgotten.
-3. ⏳ **JUDGE IT ON THE PANEL, IN DAYLIGHT, BEFORE FLIPPING.** Both earlier year rails were
+3. ⏳ **JUDGE IT ON THE PANEL, IN DAYLIGHT, BEFORE FLIPPING.** Deployed flag-off and proven a
+   no-op on the wall 2026-08-18, then driven flag-on over CDP: **eleven years on the strip**
+   off the live library (2012 and 2020 genuinely absent, which is the argument for placing
+   labels by value), a portrait card at **457×609** fit exactly to the print, and `anims` 0 at
+   depth 3 — the cause-binding seen on the glass rather than asserted. ⚠ **The 457px card is
+   the first thing to look at**: it is 45% of the reference's width, and "the photograph is
+   the point of a screensaver" is what killed rejected build 1. Both earlier year rails were
    rejected within the hour of being looked at, and this is the third. A night capture will
    lie: the plate and the engraved year hide at night by design, so the right two-thirds
    reads empty and overstates the problem.

@@ -374,6 +374,10 @@ test("nothing grows across exchanges, and one timer never becomes many", async (
   expect(probe.slots).toBe(4);
   expect(probe.ghosts).toBe(2);
   expect(probe.layers).toBe(1);
+  /* The soak's own number, pinned so a later change cannot move it silently:
+     five loops at depth 0 in daylight, four after dark (the engraved year is
+     hidden then and must not animate for nobody). */
+  expect(probe.anims).toBe(5);
   expect(probe.top).toBe(1);
   expect(probe.shown).toBe(1);
 
@@ -552,6 +556,31 @@ test("every looping animation hangs off the cause that ends", () => {
   expect(css()).not.toMatch(/animation-iteration-count/);
 });
 
+test("nothing animates an element the night rule has already hidden", () => {
+  /* ⚠ FOUND ON THE REAL WALL AFTER DARK, not by a spec: five loops were running
+     and only four had anything on the glass. `:root[data-night="1"]` takes the
+     engraved year to opacity 0, and a hidden element on a drift loop composites
+     every frame for nobody — the same waste the Ken Burns rule avoids by keying
+     on `is-top` rather than on every opaque slot.
+
+     Generalised rather than hard-coded to the year: anything the night rule
+     hides outright must not carry a loop that night leaves running. */
+  const text = css();
+  const hidden = [...text.matchAll(/:root\[data-night="1"\]([^{]*)\{[^}]*opacity:\s*0[^}]*\}/g)]
+    .flatMap((m) => (m[0].slice(0, m[0].indexOf("{")).match(/\.archive__[\w-]+/g) || []));
+  expect(hidden.length, "the night rule hid nothing — has it moved?").toBeGreaterThan(0);
+
+  for (const rule of rules()) {
+    const selector = rule.slice(0, rule.indexOf("{"));
+    if (!/\binfinite\b/.test(rule)) continue;
+    for (const cls of hidden) {
+      if (!selector.includes(cls)) continue;
+      expect(selector, `${cls} loops through the night it is hidden in`)
+        .toContain(':not([data-night="1"])');
+    }
+  }
+});
+
 test("the year strip NEVER moves", () => {
   /* Once the plane means "which years this date reaches", sliding it is a lie
      about what it measures. The reference drifts its strips +-80px, which was
@@ -563,10 +592,16 @@ test("the year strip NEVER moves", () => {
   }
 });
 
-test("the four periods are pinned, and night scales displacement not duration", () => {
+test("the five periods are pinned, and night scales displacement not duration", () => {
+  /* ⚠ FIVE, not four. The incumbent ran four because its background was ONE
+     tiled echo; this one has two ghosts. Counted off the real wall
+     (`document.getAnimations()` at depth 0) rather than off the stylesheet,
+     because "how many should be running" is the soak's own question and an
+     expected count that is quietly wrong makes every future reading wrong. */
   const text = css();
   expect(text).toMatch(/animation:\s*arch-ghost-a 130s/);
   expect(text).toMatch(/animation:\s*arch-ghost-b 104s/);
+  expect(text).toMatch(/animation:\s*arch-year 92s/);
   expect(text).toMatch(/animation:\s*arch-pivot 84s/);
   expect(text).toMatch(/animation:\s*arch-kenburns 96s/);
 

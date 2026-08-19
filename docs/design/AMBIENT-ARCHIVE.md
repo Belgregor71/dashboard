@@ -73,7 +73,14 @@ the constraint on any future change to it:
 50%/42%), `cardRectFor()` from `services/archiveModel.js` — so a 16:9 memory lands on
 **1040×585 at (130, 212), to the pixel** — the ghost crush (`grayscale(1) brightness(.17)
 contrast(1.18)`), the plate's shape and its "always speaks" rule, the vignette, the static
-grain, and the four motion periods (130s / 104s / 84s / 96s).
+grain, and the motion periods.
+
+**⚠ There are FIVE loops at depth 0, not four** — ghost-a 130s, ghost-b 104s, the engraved
+year 92s, the card's pivot 84s, Ken Burns 96s. The incumbent ran four because its background
+was one tiled echo; this one has two ghosts. **After dark it is four**: the night rule takes
+the engraved year to opacity 0 and its drift is gated off with it. Both numbers matter — a
+soak reading `anims` against a wrong expectation is a wrong reading, and this one was counted
+off `document.getAnimations()` on the real wall rather than off the stylesheet.
 
 **Deliberately not ported:** the hour axis and its `dayModel`/`daySources` chain (the strip
 means years now), the 30s repaint interval (nothing left is time-driven), and the Live
@@ -96,6 +103,30 @@ of one core, with "anything that animates here is a bug". Four continuous loops 
 nameable by anyone in the room, *the house is leafing through its album* — but both places
 now say so explicitly, because a shipped surface that contradicts a written law silently
 repeals the law. **The reading itself is owed and is not optional.**
+
+### What the wall said when it was driven, 2026-08-18
+
+Deployed flag-off (a **proven** no-op on the panel: 0 children, no marker, no hook,
+`__ground().layers` still 1), then looked at flag-on over CDP without flipping the default —
+a `window.CONFIG` setter installed via `Page.addScriptToEvaluateOnNewDocument`, which is the
+only way to see a boot-time flag without shipping it. Against the **live library**:
+
+- **Eleven years on the strip** — 2011, 2013–2019, 2021–2023 — with 2012 and 2020 genuinely
+  missing from this date. That gap is the argument for placing labels by **value**: an
+  evenly-spaced comb would have claimed two years the library does not have.
+- The memory up was a **portrait**: card `457×609 @ (130, 200)`, fit to the print exactly.
+  ⚠ That is 45% of the reference's width, and *"the photograph is the point of a
+  screensaver"* is what killed rejected build 1 — **the first thing to judge on the panel.**
+- Strip `top 5 → bottom 187` against a card top of `197`. It clears, by ten pixels, on a
+  real portrait card. The margin is thin by design and a spec measures it.
+- `ghosts 2 · slots 4 · nodes 24 · groundLayers 1` — fixed allocation, ground's metric intact.
+- **Depth 3 was up at one point and `anims` read 0.** The cause-binding, observed on the
+  glass rather than asserted: something arriving switches the loops *off*, not out of sight.
+
+⏳ **No verdict screenshot was taken, deliberately.** The look landed at 17:47 AEST with the
+sun at −4.89° — night had just engaged, and the plate and engraved year hide at night by
+design, so a capture then shows an empty right two-thirds and overstates the problem. **Judge
+it in daylight.**
 
 ### Traps this rebuild found or inherited
 

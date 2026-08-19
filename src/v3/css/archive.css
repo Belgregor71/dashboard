@@ -248,7 +248,13 @@
   pointer-events: none;
 }
 
-:root[data-archive="1"][data-depth="0"]:not([data-panel-dark="1"]) .archive__year {
+/* ⚠ AND NOT AT NIGHT. The night rule below takes this element to opacity 0
+   outright, and an invisible element on a drift loop composites every frame for
+   nobody — the same waste the Ken Burns rule avoids by keying on `is-top`
+   rather than on every opaque slot. Caught by reading `document.getAnimations()`
+   on the real wall after dark, not by a spec: five loops were running and only
+   four of them had anything on the glass. */
+:root[data-archive="1"][data-depth="0"]:not([data-panel-dark="1"]):not([data-night="1"]) .archive__year {
   animation: arch-year 92s ease-in-out infinite alternate;
 }
 
