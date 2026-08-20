@@ -762,8 +762,8 @@ owed. Take `/kiosk-metrics` at 0 h / 24 h / 72 h.
 
 ## P3 — Cleanup
 
-**Worked 2026-08-20.** Five items. Three are done, one is closed as *won't do*, and one
-is half-done with two decisions left to the owner. 🔑 **The recurring finding is that the
+**Worked and closed 2026-08-20.** Five items. Three done, and the rest closed on
+evidence or on the owner's call — nothing here is still open. 🔑 **The recurring finding is that the
 audit's own dead-code lists were built by literal-string sweeps, and a literal sweep
 cannot see a computed name.** It warned about exactly this for the lottie icons (§8) and
 then did not apply the warning to itself two sections earlier (§7). Six of M8's "30 dead
@@ -859,13 +859,13 @@ day you find out is the day the wall is already broken.
   verify has stopped.** If the question is worth answering it is a question about the
   rollback host, not the kiosk.
 
-- ⏳ **M6 — DEFERRED, and its justification has evaporated.** 18 MB of weather MP4s →
+- ⛔ **M6 — CLOSED, owner's call 2026-08-20. Its justification had evaporated.** 18 MB of weather MP4s →
   ~6 MB. The audit's reason was "each one is hardware-decoded on the Pi while visible" —
   which is now false twice: the wall is a **G11**, and **V3 never plays these at all**
   (0 hits for `weather_bg` in `dist/assets/v3-*.js`; `context-feed.js:10` says "V3 has no
   DOM weather"). What is left is 12 MB of repo and rsync, against a **visual** change to
   the rollback surface that CLAUDE.md says cannot be called done until it is seen — on a
-  surface that is not on the glass. **Owner's call.** ffmpeg is available on the dev box.
+  surface that is not on the glass. **Not worth it: closed rather than deferred.**
 
 ### C5 · Housekeeping — ✅ mostly done (`d5cc9cc`)
 
@@ -880,9 +880,11 @@ day you find out is the day the wall is already broken.
   and `docs/CAMERAS.md` ×3. Verified by importing the route, not by reading it.
 - ✅ **L7** — both scripts deleted, re-confirmed broken first (each imports a pre-Vite
   `static/js/...` path and dies on `ERR_MODULE_NOT_FOUND` at resolve time).
-- ⏳ **L8** — **owner's call, untouched.** `.reference/` is 265 MB, **untracked and
-  gitignored**, so deleting it is not recoverable through git. (`.playwright-mcp/` is
-  already gone.) `CLAUDE_CODE_PROMPT.md` goes with it.
+- ⛔ **L8 — CLOSED, owner's call 2026-08-20: both stay.** `.reference/` (265 MB) and
+  `CLAUDE_CODE_PROMPT.md` are **untracked and gitignored**, so they never reach the repo,
+  the deploy rsync or the kiosk — they cost local disk and nothing else, and deleting
+  `.reference/` is not recoverable through git. (`.playwright-mcp/` is already gone.)
+  🔑 **L8 was filed as repo hygiene and is not** — nothing in it is in the repo.
 - **L4, L5, L9, L10** — untouched, no urgency (config split, interval scheduler,
   config-precedence doc, drop `node-fetch` for global `fetch`).
 
