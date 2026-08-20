@@ -21,7 +21,15 @@ wait for it to actually go quiet, and only then listen.
 
 Config via env: WAKE_MODEL (hey_jarvis), WAKE_THRESHOLD (0.5), MIC_DEVICE
 (plughw:3,0), STT_URL, DASH_URL, SILENCE_RMS, TRAIL_SILENCE_MS, MAX_UTTER_MS,
-SPEAKING_URL, BARGE_URL, BARGE_THRESHOLD, BARGE_FRAMES.
+SPEAKING_URL, BARGE_URL, BARGE_THRESHOLD, BARGE_FRAMES, UNHEARD_URL,
+CAPTURE_VAD (rms|speech), SPEECH_ON, LEAD_SILENCE_MS, CAPTURE_TRACE.
+
+⚠ Env knobs are `Environment=` lines in voice-agent.service, NOT the .env file,
+and THIS FILE IS NOT DEPLOYED BY A GIT PULL — the unit runs
+/home/dashboard/voice-agent/voice_agent.py, outside the repo. Copy it and
+restart, or the agent you are reading is not the agent that is running.
+
+Offline proof for the capture loop: tools/voice-agent/capture_selftest.py.
 """
 import glob
 import io
@@ -96,6 +104,37 @@ MIN_SPEECH_FRAMES = int(os.environ.get("MIN_SPEECH_FRAMES", "3"))
 TRAIL_SILENCE_MS = int(os.environ.get("TRAIL_SILENCE_MS", "800"))
 MAX_UTTER_MS = int(os.environ.get("MAX_UTTER_MS", "8000"))
 COOLDOWN_S = float(os.environ.get("COOLDOWN_S", "1.5"))
+
+# ── Endpointing on SPEECH rather than LOUDNESS (V2) ──────────────────────────
+# ⚠ MEASURED, 2026-08-20: failure is systematically SLOWER than success here.
+# A command that is heard finishes in 3-10 s; every `empty transcript` in five
+# days of journal took 10-13 s. Two separate reasons, and both are below:
+#
+#  1. The discriminator does not discriminate. `/api/voice/ambient` reads this
+#     kitchen's floor at -36.5 dB ≈ RMS 518, against SILENCE_RMS 500 — so
+#     ordinary room tone counts as speech, `trail` is reset every frame and the
+#     capture runs to MAX_UTTER_MS. It is MARGINAL rather than always over
+#     (short commands do end in 3 s), which is exactly why RE-TUNING THE
+#     THRESHOLD IS A COIN FLIP AND NOT A FIX. soundPresence already measured
+#     this in this room and moved to silero for it; see _speech_probability.
+#
+#  2. Even a perfect discriminator would not fix a SILENT wake. The trailing-
+#     silence break below is unreachable until `speech_frames` reaches
+#     MIN_SPEECH_FRAMES, so when nobody speaks at all `trail` never starts and
+#     the loop runs the full 8 s no matter what. That is what LEAD_SILENCE_MS
+#     is for: give up early when nothing has arrived YET.
+#
+# CAPTURE_VAD=rms is today's behaviour, byte for byte. "speech" arms both.
+# ⚠ SPEECH_ON IS A PLACEHOLDER UNTIL THE TRACE BELOW HAS BEEN READ. Do not
+# re-tune it from a guess — the per-capture line names the numbers it should
+# come from, for this room, through this mic, at this gain.
+CAPTURE_VAD = os.environ.get("CAPTURE_VAD", "rms").strip().lower()
+SPEECH_ON = float(os.environ.get("SPEECH_ON", "0.5"))
+LEAD_SILENCE_MS = int(os.environ.get("LEAD_SILENCE_MS", "1500"))
+# One summary line per capture, always. The barge-in note below records what it
+# costs to have a loop that "logs when it acts and says nothing when it does
+# not": an owner report that could be neither confirmed nor denied.
+CAPTURE_TRACE = os.environ.get("CAPTURE_TRACE", "1") == "1"
 
 # Probe mode: never capture, just log every contiguous run of frames scoring
 # above PROBE_FLOOR. Answers whether a TV false-wake is a one-frame spike while
@@ -322,7 +361,10 @@ def _init_vad():
     """Load silero from openWakeWord's own bundle. Failure must never be fatal:
     a missing VAD costs presence, and a crashed agent costs the wake word."""
     global _vad
-    if not (VAD_ENABLED and AMBIENT_ENABLED):
+    # ⚠ NOT `and AMBIENT_ENABLED` any more. The capture loop can now endpoint on
+    # this, so tying it to the presence relay would mean switching off a cosmetic
+    # feature silently changed how the microphone decides you stopped talking.
+    if not (VAD_ENABLED and (AMBIENT_ENABLED or CAPTURE_VAD == "speech")):
         return
     try:
         import numpy as _np  # noqa: F401  (already a hard dep of openwakeword)
@@ -387,9 +429,28 @@ def ambient_tick(frame):
 
 
 def capture_utterance(proc):
+    """Capture until the person stops talking — or until it is clear they never
+    started.
+
+    ⚠ SILERO IS FED EVERY FRAME HERE, and that is a fix rather than a cost. This
+    loop has always had its own reader and has never called ambient_tick(), so
+    the VAD saw NOTHING for the whole of every capture — precisely the
+    discontinuity its own docstring warns about, on the recurrent state, at the
+    only moment anyone is actually speaking. Scoring here makes the stream
+    continuous again. Measured cost is 0.61 ms/frame against 80 ms of audio.
+    """
     frames, speech_frames, trail = [], 0, 0.0
     start = time.time()
     trail_limit = TRAIL_SILENCE_MS / 1000.0
+    lead_limit = LEAD_SILENCE_MS / 1000.0
+    # ⚠ FAIL BACK TO LOUDNESS IF SILERO IS NOT LOADED. A missing VAD scores every
+    # frame 0.0, which under speech endpointing means "nobody ever spoke" — the
+    # house would go deaf rather than degrade. A dead mic is the one failure this
+    # agent must never choose.
+    use_speech = CAPTURE_VAD == "speech" and _vad is not None
+    peak_speech, peak_rms, trace = 0.0, 0, []
+    ended = "eof"
+
     while True:
         f = read_frame(proc)
         if f is None:
@@ -397,16 +458,45 @@ def capture_utterance(proc):
         frames.append(f)
         level = rms(f)
         send_level(level)          # non-blocking; drops rather than delays
-        if level >= SILENCE_RMS:
+        # Scored whenever the VAD exists, not only when it decides, so the trace
+        # can be read against a capture the OLD rule made — which is the whole
+        # point of shipping this before the threshold is chosen.
+        speech = _speech_probability(f) if _vad is not None else 0.0
+        if speech > peak_speech:
+            peak_speech = speech
+        if level > peak_rms:
+            peak_rms = level
+        if CAPTURE_TRACE and len(trace) < 150:
+            trace.append(f"{int(level)}:{speech:.2f}")
+
+        voiced = speech >= SPEECH_ON if use_speech else level >= SILENCE_RMS
+        if voiced:
             speech_frames += 1
             trail = 0.0
         elif speech_frames >= MIN_SPEECH_FRAMES:
             trail += FRAME / RATE
             if trail >= trail_limit:
+                ended = "trail"
                 break
-        if (time.time() - start) * 1000 >= MAX_UTTER_MS:
+        elif use_speech and (time.time() - start) >= lead_limit:
+            # Nothing has arrived YET. This is the branch the old loop did not
+            # have, and the reason a silent wake cost the full 8 s: `trail` is
+            # gated behind speech_frames, so with nobody talking it never starts.
+            ended = "lead"
             break
-    if speech_frames < MIN_SPEECH_FRAMES:
+
+        if (time.time() - start) * 1000 >= MAX_UTTER_MS:
+            ended = "cap"
+            break
+
+    took = int((time.time() - start) * 1000)
+    heard = speech_frames >= MIN_SPEECH_FRAMES
+    if CAPTURE_TRACE:
+        log(f"capture {took}ms ended={ended} by={'speech' if use_speech else 'rms'} "
+            f"frames={len(frames)} voiced={speech_frames} kept={heard} "
+            f"peak_rms={peak_rms} peak_speech={peak_speech:.2f}")
+        log(f"  trace rms:speech {' '.join(trace)}")
+    if not heard:
         return None
     return np.concatenate(frames)
 
