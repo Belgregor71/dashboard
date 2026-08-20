@@ -124,13 +124,34 @@ COOLDOWN_S = float(os.environ.get("COOLDOWN_S", "1.5"))
 #     the loop runs the full 8 s no matter what. That is what LEAD_SILENCE_MS
 #     is for: give up early when nothing has arrived YET.
 #
-# CAPTURE_VAD=rms is today's behaviour, byte for byte. "speech" arms both.
-# ⚠ SPEECH_ON IS A PLACEHOLDER UNTIL THE TRACE BELOW HAS BEEN READ. Do not
-# re-tune it from a guess — the per-capture line names the numbers it should
-# come from, for this room, through this mic, at this gain.
-CAPTURE_VAD = os.environ.get("CAPTURE_VAD", "rms").strip().lower()
+# ── SPEECH_ON = 0.5, AND IT IS MEASURED, NOT GUESSED ─────────────────────────
+# Two captures through this mic, in this room, at this gain, 2026-08-20:
+#
+#   spoken "show me the weather for the next seven days."
+#     101 frames · speech max 1.00 · 25 frames >= 0.50
+#     ⚠ RMS called 81 of those 101 frames voiced — INCLUDING 4.8 s of trailing
+#       silence after the sentence ended — which is why it ran to the 8 s cap.
+#   silent (wake, then nothing)
+#     42 frames · speech max 0.16 · 95th pct 0.10 · ZERO frames >= 0.20
+#     ⚠ RMS found 4 frames over 500, enough to clear MIN_SPEECH_FRAMES, so 3.4 s
+#       of room tone went to whisper — WHICH HALLUCINATED "Okay." A latency bug
+#       that was also one step from acting on a word nobody said.
+#
+# So the two distributions do not overlap anywhere near here: 0.50 sits 0.34
+# above the loudest frame silence ever produced, and 25 frames clear it where
+# only MIN_SPEECH_FRAMES (3) are needed. Simulated against those exact traces,
+# the spoken turn ends on `trail` at 4.0 s (was 8.1 s) and the silent one on
+# `lead` at 1.5 s (was 3.4 s, plus an STT round trip that invented a word).
+#
+# Re-tune from the per-capture trace below, never from a guess — that is the
+# mistake SILENCE_RMS already made in this room.
+CAPTURE_VAD = os.environ.get("CAPTURE_VAD", "speech").strip().lower()
 SPEECH_ON = float(os.environ.get("SPEECH_ON", "0.5"))
 LEAD_SILENCE_MS = int(os.environ.get("LEAD_SILENCE_MS", "1500"))
+# Rollback with no deploy: a drop-in beside the two already on the G11 —
+#   /etc/systemd/system/voice-agent.service.d/capture-vad.conf
+#   [Service]
+#   Environment=CAPTURE_VAD=rms
 # One summary line per capture, always. The barge-in note below records what it
 # costs to have a loop that "logs when it acts and says nothing when it does
 # not": an owner report that could be neither confirmed nor denied.

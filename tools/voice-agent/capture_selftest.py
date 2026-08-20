@@ -170,6 +170,36 @@ def _(): # the mirror of the room-tone case — RMS under the old floor, real sp
     assert pcm is not None, "a softly spoken command was discarded"
 
 
+@case("the DEFAULT is speech endpointing — the flip itself, pinned")
+def _():
+    va = load()                       # no env at all
+    assert va.CAPTURE_VAD == "speech", f"default reverted to {va.CAPTURE_VAD!r}"
+    pcm, took = run(va, secs(20, ROOM, 0.03))
+    assert pcm is None and took < 1700, f"silent wake still cost {took}ms"
+
+
+@case("measured: the real traces from the wall would endpoint correctly")
+def _():
+    """The two captures of 2026-08-20, replayed frame for frame at their
+    recorded speech probabilities. This is the only case here whose numbers came
+    out of the room rather than out of my head."""
+    va = load()
+    # "show me the weather for the next seven days." — speech, then 4.8s of
+    # trailing silence that RMS counted as voiced.
+    spoken = ([(900, 0.48), (688, 0.37), (697, 0.31), (545, 0.27), (547, 0.24),
+               (487, 0.20), (593, 0.18), (595, 0.16), (562, 0.14), (568, 0.15),
+               (798, 0.38), (1532, 0.77)]
+              + [(2500, 0.97)] * 12 + [(1200, 0.60)] * 2 + [(600, 0.05)] * 60)
+    pcm, took = run(va, spoken)
+    assert pcm is not None, "THE HOUSE WENT DEAF on a real recorded command"
+    assert took < 5000, f"still running long on a real command: {took}ms"
+    # the silent one: 42 frames, nothing above 0.16
+    silent = [(518, 0.03)] * 20 + [(584, 0.16)] + [(520, 0.04)] * 21
+    pcm, took = run(va, silent)
+    assert pcm is None, "room tone captured again — whisper would invent a word"
+    assert took < 1700, f"silent wake still cost {took}ms"
+
+
 if __name__ == "__main__":
     bad = 0
     for name, fn in CASES:
