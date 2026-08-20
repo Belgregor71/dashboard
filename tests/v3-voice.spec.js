@@ -707,3 +707,126 @@ test("the cue stays dark while a reply is still playing", async ({ page, request
   await Promise.race([turn, page.waitForTimeout(3000)]);
   expect(pageErrors).toEqual([]);
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AND THE HOUSE SAYING IT CANNOT (V1, second half)
+
+   The third cue had no raiser anywhere in the repo, and the reason is worth
+   keeping: a tool call that is REFUSED (an entity off the roster) or that FAILS
+   (the house did not answer) is handed to the model as a tool_result, and the
+   model writes a perfectly ordinary sentence about it. The room heard an
+   apology; the wall showed a successful turn. Nothing downstream of the tool
+   loop could tell the two apart, because the difference had already been
+   dissolved into prose. So the fact travels out of band as `toolFailed`.
+
+   ⚠ THE SERVER HALF CANNOT BE INTEGRATION TESTED HERE, for the reason
+   voice-tools.spec.js already records: playwright.config.js stubs
+   ANTHROPIC_API_KEY to "", so getAnthropic() returns null and the tool loop
+   never runs in this suite. These pin the half that paints — which is where the
+   cue lives, and where the ordering hazard is.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+async function bootCannot(page, { toolFailed = false, streaming = true, replySeconds = 0.2 } = {}) {
+  await page.route("**/js/config.js", async (route) => {
+    const res = await route.fetch();
+    await route.fulfill({
+      response: res,
+      body: (await res.text())
+        + "\nwindow.CONFIG.features.voiceFailureCues = true;"
+        + `\nwindow.CONFIG.features.voiceStreaming = ${streaming};\n`
+    });
+  });
+  await page.route("**/api/tts/speak", (route) =>
+    route.fulfill({ contentType: "audio/wav", body: silentWav(replySeconds) })
+  );
+  await page.route("**/api/voice/assist", (route) =>
+    route.fulfill({ json: { handled: false, speech: null, conversationId: null } })
+  );
+  await page.route("**/api/voice/converse", (route) => {
+    const body = route.request().postDataJSON();
+    const reply = "I can't reach that one.";
+    // Emitted only when true, exactly as the route does — so the negative
+    // control is testing the real absent-key shape, not a `false` the client
+    // could be reading by accident.
+    const done = { reply, source: "claude", ...(toolFailed && { toolFailed: true }) };
+    if (!body?.stream) return route.fulfill({ json: done });
+    return route.fulfill({
+      contentType: "text/event-stream",
+      body: `event: chunk\ndata: ${JSON.stringify({ text: reply })}\n\n`
+          + `event: done\ndata: ${JSON.stringify(done)}\n\n`
+    });
+  });
+  return boot(page);
+}
+
+test("a tool the house could not run lights the cannot cue — streamed", async ({ page }) => {
+  const pageErrors = await bootCannot(page, { toolFailed: true });
+
+  await page.evaluate(() => window.__v3Transcript("zzz turn on the shed light"));
+  await expect.poll(() => page.evaluate(failState), { timeout: 5000 }).toBe("cannot");
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("an ordinary answer leaves the cannot cue dark", async ({ page }) => {
+  // The control that stops the cue being a light that is simply always on.
+  const pageErrors = await bootCannot(page, { toolFailed: false });
+
+  await page.evaluate(() => window.__v3Transcript("zzz what is the weather"));
+  await page.waitForTimeout(1500);
+  /* ⚠ not.toBe("cannot"), not toBe(null) — and the difference is a real flake,
+     not pedantry. voiceBus is PROCESS-WIDE, so an /api/voice/unheard POST from
+     the contract specs in another worker reaches this page too, and this is one
+     of the only pages in the suite with voiceFailureCues armed. Asserting an
+     empty fail state would make this test fail on an event it does not own.
+     What it exists to prove is narrower and exact: a turn that succeeded is not
+     reported to the room as one the house could not do. */
+  expect(
+    await page.evaluate(failState),
+    "a successful turn was reported to the room as a failure"
+  ).not.toBe("cannot");
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("the cannot cue also reaches the non-streamed leg", async ({ page }) => {
+  // Two legs answer this route and BOTH had to carry the flag. The JSON one is
+  // not dead code — it is what a stream that dies mid-reply falls back to.
+  const pageErrors = await bootCannot(page, { toolFailed: true, streaming: false });
+
+  await page.evaluate(() => window.__v3Transcript("zzz turn on the shed light"));
+  await expect.poll(() => page.evaluate(failState), { timeout: 5000 }).toBe("cannot");
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("the cannot cue waits for the reply to finish speaking", async ({ page }) => {
+  /* ⚠ THE ORDERING HAZARD. setFailure() opens by dropping the phase to idle, so
+     raising this the moment the payload arrives would cut the sweep off a
+     sentence the room is still listening to — and this is the one cue whose
+     whole design is that the rim COMPLETES and the light stays.
+
+     🔑 THE LOAD-BEARING ASSERTION IS THE LAST ONE, not the mid-flight null.
+     Neuter-verified by moving reportCannot() up to the moment converseStreamed
+     returns: the mid-flight check still passes, because an early cue is wiped
+     within milliseconds by trackSpeech()'s own setPhase("speaking") and is
+     already gone by the time the poll observes the speaking phase. What the
+     defect actually produces is a cue that flashes, is erased, and NEVER COMES
+     BACK — so it is the "cannot" at the end that catches it. A four-second
+     reply is what makes the two moments distinguishable at all. */
+  const pageErrors = await bootCannot(page, { toolFailed: true, replySeconds: 4 });
+
+  const turn = page.evaluate(() => window.__v3Transcript("zzz turn on the shed light"));
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.dataset.phase), { timeout: 10_000 })
+    .toBe("speaking");
+  expect(
+    await page.evaluate(failState),
+    "the cue was raised over a reply that was still being spoken"
+  ).toBe(null);
+
+  await turn;
+  await expect.poll(() => page.evaluate(failState), { timeout: 5000 }).toBe("cannot");
+
+  expect(pageErrors).toEqual([]);
+});

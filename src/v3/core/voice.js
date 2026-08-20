@@ -287,6 +287,7 @@ async function converseStreamed(body, speech) {
   let buffer = "";
   let reply = null;
   let spoke = false;
+  let toolFailed = false;
 
   try {
     for (;;) {
@@ -313,6 +314,7 @@ async function converseStreamed(body, speech) {
           spoke = true;
         } else if (event === "done") {
           reply = payload.reply ?? null;
+          toolFailed = payload.toolFailed === true;
         } else if (event === "failed") {
           return { reply: null, spoke };
         }
@@ -323,7 +325,7 @@ async function converseStreamed(body, speech) {
     return { reply: null, spoke };
   }
 
-  return { reply, spoke };
+  return { reply, spoke, toolFailed };
 }
 
 async function postJson(url, body) {
@@ -642,7 +644,7 @@ export async function submit(text, { source = "unknown" } = {}) {
       setPhase("speaking");
       deepen(DEPTH.GLANCE, "voice-converse");
       const speech = createSpeech({ onAudio: (audio) => trackSpeech(audio) });
-      const { reply, spoke } = await converseStreamed(body, speech);
+      const { reply, spoke, toolFailed } = await converseStreamed(body, speech);
       speech.close();
       await speech.done;             // let the queue finish what it is saying
       setPhase("idle");
@@ -651,6 +653,7 @@ export async function submit(text, { source = "unknown" } = {}) {
         setSaidText(el.glanceSaid, reply);
         rememberReply(reply);
         consecutiveFailures = 0;
+        reportCannot(toolFailed);
         endTurn(clean, reply);
         return { handled: true, lane: "converse" };
       }
@@ -677,6 +680,7 @@ export async function submit(text, { source = "unknown" } = {}) {
       await say(converse.reply, converse.refs);
       rememberReply(converse.reply);
       consecutiveFailures = 0;
+      reportCannot(converse.toolFailed);
       endTurn(clean, converse.reply);
       return { handled: true, lane: "converse" };
     }
@@ -711,6 +715,25 @@ export async function submit(text, { source = "unknown" } = {}) {
  *  design: if it did not hear you, saying "sorry?" out loud is just noise. */
 export function reportUnheard() {
   setFailure("unheard");
+}
+
+/* Understood, and the house genuinely cannot — the third cue, and until now the
+   one with no raiser anywhere in the repo.
+
+   It is NOT a repair prompt and must not touch consecutiveFailures: the turn
+   SUCCEEDED. Someone asked for a light that is not on the roster, or asked for
+   one that is and the house did not answer; the model was handed that error and
+   has already said so in its own words. This is the light that agrees with the
+   sentence, which is why it is the only one of the three that both speaks and
+   shows.
+
+   ⚠ Called AFTER the reply has finished, on both legs — the JSON one awaits
+   say(), the streamed one awaits speech.done. setFailure() opens by dropping
+   the phase to idle, and calling it any earlier would cut the sweep off a
+   reply the room is still listening to. */
+function reportCannot(failed) {
+  if (failed !== true || !flag("voiceFailureCues")) return;
+  setFailure("cannot");
 }
 
 /* Read per-call, never at module load: ES imports hoist above the point where

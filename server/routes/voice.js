@@ -267,7 +267,20 @@ async function streamRound(client, { system, turns, tools, onChunk }) {
   return msg;
 }
 
-async function converseWithClaude(messages, system, tools = [], onChunk = null) {
+/* `onToolError` is how the third failure cue gets out of here.
+ *
+ * A refused plan and a house that did not answer are the only two things in
+ * this whole pipeline that mean "understood you, and genuinely cannot" — and
+ * they were invisible past this function, because the model is HANDED the
+ * error and writes a perfectly ordinary sentence about it. The room heard the
+ * sentence and the wall showed a successful turn. So the fact is reported out
+ * of band rather than parsed back out of the prose.
+ *
+ * ⚠ An out-parameter, deliberately, not a changed return type: this function
+ * returns a string-or-null to several callers and tests, and widening it to an
+ * object would touch every one of them to carry a flag that is usually absent.
+ */
+async function converseWithClaude(messages, system, tools = [], onChunk = null, onToolError = null) {
   const client = getAnthropic();
   if (!client) return null;
 
@@ -305,6 +318,9 @@ async function converseWithClaude(messages, system, tools = [], onChunk = null) 
 
     const calls = msg.content.filter(b => b.type === "tool_use");
     const results = await Promise.all(calls.map(runToolCall));
+    // The model still gets the error and still answers in its own words; this
+    // only lets the WALL know that the answer was an apology.
+    if (onToolError && results.some(r => r.is_error)) onToolError();
     // ALL results in ONE user message. Splitting them across messages trains the
     // model out of asking for parallel calls, and "lights off and pause the
     // music" is exactly the turn that wants them.
@@ -362,6 +378,14 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
     recordExchange({ said: text, replied: reply }).catch(() => {});
   };
 
+  /* Set when any tool call in this turn was refused or failed. It rides the
+     response so the page can raise `cannot` — the one failure cue where there
+     IS something to say, and the model has already said it. Emitted only when
+     true, so a turn with no tools (the common one, and every flag-off request)
+     carries a byte-identical body. */
+  let toolFailed = false;
+  const noteToolError = () => { toolFailed = true; };
+
   /* ── The streamed turn ──────────────────────────────────────────────────
      Opt-in per request. The room's wait used to be strictly serial — the whole
      answer, then the whole WAV — so nothing was heard for the sum of both.
@@ -392,7 +416,7 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
       const reply = await converseWithClaude(messages, system, tools, (chunk) => {
         spoken.push(chunk);
         if (open) res.write(toSse("chunk", { text: chunk }));
-      });
+      }, noteToolError);
       if (!open) return res.end();
 
       // `reply` is the model's full text; `spoken` is what actually went out.
@@ -401,7 +425,7 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
       const full = reply ?? spoken.join(" ");
       reportSuccess("ai");
       remember(full);
-      res.write(toSse("done", { reply: full, source: "claude" }));
+      res.write(toSse("done", { reply: full, source: "claude", ...(toolFailed && { toolFailed: true }) }));
       return res.end();
     } catch (err) {
       console.error("[Voice] streamed converse failed:", err.message);
@@ -412,11 +436,11 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
   }
 
   try {
-    const reply = await converseWithClaude(messages, system, tools);
+    const reply = await converseWithClaude(messages, system, tools, null, noteToolError);
     if (reply) {
       reportSuccess("ai");
       remember(reply);
-      return res.json({ reply, source: "claude" });
+      return res.json({ reply, source: "claude", ...(toolFailed && { toolFailed: true }) });
     }
   } catch (err) {
     console.error("[Voice] Claude converse error, falling back to Ollama:", err.message);
