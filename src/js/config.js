@@ -493,6 +493,31 @@ window.CONFIG = {
     // One-line revert (-> false) is the rollback path.
     voiceHalfDuplex: true,
 
+    // THE OTHER TWO FAILURE CUES — the house can say it did not hear you, and
+    // that it heard you and cannot.
+    //
+    // presence-light.js designs three distinct failures on purpose: the repair
+    // differs by type, and "didn't hear you" and "heard you and can't help"
+    // feel nothing alike to the person who said it. Only ONE of the three could
+    // ever appear. `unheard` had an exported raiser nobody called; `cannot` had
+    // no raiser at all. So every failure that was not a routing miss showed the
+    // room the same thing a broken wall shows it: nothing.
+    //
+    // On: the agent reports a turn that ended in nothing to /api/voice/unheard
+    // (no speech after the wake, an empty transcript, STT unreachable, a
+    // barge-in it could not win) and the page raises the `unheard` pulse; and a
+    // converse turn whose tool call was refused or failed comes back with
+    // toolFailed, which raises the `cannot` light after the reply is spoken.
+    // Off: neither listener acts, the converse response is read as before, and
+    // the agent's report fans out to a page that ignores it — today's silence,
+    // exactly. One-line revert (-> false) is the rollback path.
+    //
+    // ⚠ Flipping this ON has a SUITE consequence: voiceBus is process-wide, so
+    // one /api/voice/unheard POST reaches EVERY page in the run. With the flag
+    // off that is inert; with it on, a spec that fires one can paint
+    // data-fail="unheard" on an unrelated worker's page.
+    voiceFailureCues: false,
+
     // STREAMED REPLIES — speak sentence one while the model writes sentence two.
     //
     // The conversational turn is four blocking steps in series: wake+STT, a HA

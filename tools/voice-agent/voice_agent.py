@@ -75,6 +75,7 @@ AMBIENT_PERIOD_S = float(os.environ.get("AMBIENT_PERIOD_S", "1.0"))
 # the echo of its own telemetry.
 SPEAKING_URL = os.environ.get("SPEAKING_URL", "http://localhost:3000/api/voice/stream?agent=1")
 BARGE_URL = os.environ.get("BARGE_URL", "http://localhost:3000/api/voice/barge-in")
+UNHEARD_URL = os.environ.get("UNHEARD_URL", "http://localhost:3000/api/voice/unheard")
 HALF_DUPLEX = os.environ.get("HALF_DUPLEX", "1") == "1"
 # Barging in is destructive — it cuts the house off mid-sentence — so the bar is
 # higher than a normal wake and the score has to HOLD. A single frame spiking
@@ -428,11 +429,16 @@ def _post(url, data, ctype, timeout):
 
 
 def transcribe(wav):
+    """Text, "" when the STT heard nothing, or None when it could not be asked.
+
+    The caller only needs truthiness to decide the turn is over — but the two
+    falsy answers are different facts about the house and the wall reports them
+    with different reasons, so they must not collapse into one empty string."""
     try:
         return (_post(STT_URL, wav, "audio/wav", 30).get("text") or "").strip()
     except (urllib.error.URLError, OSError, ValueError) as e:
         log("STT unreachable — dropping turn:", e)
-        return ""
+        return None
 
 
 def forward(text):
@@ -440,6 +446,29 @@ def forward(text):
         _post(DASH_URL, json.dumps({"text": text}).encode(), "application/json", 5)
     except (urllib.error.URLError, OSError, ValueError) as e:
         log("dashboard forward failed:", e)
+
+
+def report_unheard(reason):
+    """Tell the wall the wake went nowhere.
+
+    The dashboard cannot work this out for itself. Everything that can swallow a
+    turn — the VAD hearing no speech, whisper returning nothing, whisper being
+    unreachable, a barge-in that never got the floor — happens on THIS side of
+    the transcript POST, so from the page's side the wake and the silence that
+    followed it are literally indistinguishable from an idle room. Without this
+    the house has exactly one failure it can show, and every other kind of miss
+    looks like a broken screen.
+
+    Blocking, like forward() and for the same reason: it runs only on the slow
+    path after a turn is already over, never in the 80 ms capture loop. Fire and
+    forget beyond that — a dashboard that is down must never cost the mic its
+    rearm.
+    """
+    try:
+        _post(UNHEARD_URL, json.dumps({"reason": reason}).encode(),
+              "application/json", 2)
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        log("unheard report failed:", e)
 
 
 # ── Is the house speaking? ───────────────────────────────────────────────────
@@ -684,6 +713,7 @@ def main():
                     # It would not stop. Capturing anyway just feeds it its own
                     # voice again, which is the bug, so abandon the turn.
                     log("playback did not stop — abandoning the turn")
+                    report_unheard("barge-in-timeout")
                     rearm(oww, proc, "barge-in timeout")
                     continue
                 time.sleep(BARGE_SETTLE_MS / 1000.0)
@@ -702,11 +732,15 @@ def main():
             send_level(0)
             if pcm is None:
                 log("no speech after wake")
+                report_unheard("no-speech")
                 rearm(oww, proc, "no speech")
                 continue
             text = transcribe(to_wav(pcm))
             if not text:
                 log("empty transcript")
+                # Log line deliberately unchanged — it is what the journal
+                # recipe greps for. The distinction rides the reason instead.
+                report_unheard("stt-unreachable" if text is None else "empty-transcript")
                 rearm(oww, proc, "empty transcript")
                 continue
             log("heard:", repr(text))

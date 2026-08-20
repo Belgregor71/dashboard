@@ -798,6 +798,23 @@ export function initVoice({ enabled: on = false, lat = null, lon = null } = {}) 
     } catch { /* malformed frame — never throw into the stream */ }
   });
 
+  /* The wake fired and nothing followed. This is the ONLY caller `unheard` can
+     have: every path that ends a turn in nothing — no speech after the wake, an
+     empty transcript, an unreachable STT, a barge-in the agent could not win —
+     happens inside the agent, and the page never sees a request on any of them.
+     Without this the rim simply lifted and decayed, which is what a broken wall
+     looks like too.
+
+     ⚠ NEVER WHILE A TURN IS IN FLIGHT. The agent reports the barge-in timeout
+     as unheard — truthfully, from the room's point of view — but that one
+     arrives while a reply is still PLAYING, and setFailure() opens by dropping
+     the phase to idle. Raising it there would take the sweep off a voice the
+     room can still hear and call the reply a failure while it is speaking. */
+  stream.addEventListener("voice_unheard", () => {
+    if (!flag("voiceFailureCues") || busy) return;
+    reportUnheard();
+  });
+
   // After the stream exists — it is what the barge-in listener attaches to.
   if (flag("voiceHalfDuplex")) initHalfDuplex();
 }

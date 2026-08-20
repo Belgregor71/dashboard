@@ -625,3 +625,85 @@ test("a reply the room replaced is not blanked out from under it", async ({ page
     "the voice's timer cleared a line the voice did not write"
   ).toHaveText("something attention put there");
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE HOUSE SAYING IT DID NOT HEAR YOU (V1)
+
+   presence-light.js designs three distinct failures and, until this landed,
+   only ONE of them could ever appear. `unheard` had an exported raiser
+   (reportUnheard) that nothing in the repo called, because every path that ends
+   a turn in nothing lives in the mic agent: the VAD hearing no speech after the
+   wake, whisper returning an empty string, whisper being unreachable, a
+   barge-in that never won the floor. The page sees no request on any of them.
+
+   So the mechanism is a report the agent POSTs and the page paints, and these
+   pin both ends of it — including the one place it must STAY silent.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+async function bootFailureCues(page) {
+  await page.route("**/js/config.js", async (route) => {
+    const res = await route.fetch();
+    await route.fulfill({
+      response: res,
+      body: (await res.text()) + "\nwindow.CONFIG.features.voiceFailureCues = true;\n"
+    });
+  });
+  const pageErrors = await boot(page);
+  // The listener is attached to the EventSource, so a report sent before the
+  // stream is up reaches nobody and the test measures its own race.
+  await expect
+    .poll(() => page.evaluate(() => window.__v3Voice().streamOpen), { timeout: 10_000 })
+    .toBe(true);
+  return pageErrors;
+}
+
+const failState = () => document.documentElement.dataset.fail ?? null;
+
+test("a wake that went nowhere lights the unheard cue", async ({ page, request }) => {
+  const pageErrors = await bootFailureCues(page);
+
+  expect(await page.evaluate(failState), "the wall started out failed").toBe(null);
+  expect((await request.post("/api/voice/unheard", { data: { reason: "no-speech" } })).status()).toBe(200);
+
+  await expect.poll(() => page.evaluate(failState), { timeout: 5000 }).toBe("unheard");
+
+  /* And it LETS GO. The cue is a 2.6 s hold by design — a failure light left on
+     the wall is worse than no light at all, because the next glance reads a
+     house that is still broken hours after one missed sentence. */
+  await expect.poll(() => page.evaluate(failState), { timeout: 6000 }).toBe(null);
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("the cue stays dark while a reply is still playing", async ({ page, request }) => {
+  /* ⚠ THE BARGE-IN TIMEOUT REPORTS UNHEARD WHILE THE HOUSE IS TALKING. From the
+     room's side that is true — someone spoke and got nothing — but setFailure()
+     opens by dropping the phase to idle, so raising it here would take the
+     sweep off a voice the room can still HEAR and call a reply a failure
+     mid-sentence. The report is correct; painting it is not. */
+  await page.route("**/api/tts/speak", (route) =>
+    route.fulfill({ contentType: "audio/wav", body: silentWav(30) })
+  );
+  const pageErrors = await bootFailureCues(page);
+
+  const turn = page.evaluate(() => window.__v3Transcript("what time is it"));
+  await expect.poll(() => page.evaluate(() => window.__v3Voice().busy), { timeout: 10_000 }).toBe(true);
+
+  expect((await request.post("/api/voice/unheard", { data: { reason: "barge-in-timeout" } })).status()).toBe(200);
+
+  // Long enough that a raise would have landed — the cue is painted synchronously
+  // on the SSE frame, so this is a wait for something that must never arrive.
+  await page.waitForTimeout(1200);
+  expect(
+    await page.evaluate(failState),
+    "an unheard cue was painted over a reply that was still playing"
+  ).toBe(null);
+  expect(await page.evaluate(() => document.documentElement.dataset.phase)).toBe("speaking");
+
+  /* Never leave a 30 s reply in flight when the page is about to close. The
+     barge-in is the real lever for that and it is already the tested one — but
+     it only silences when voiceHalfDuplex armed the listener, which this boot
+     does not, so the race is the actual teardown. */
+  await Promise.race([turn, page.waitForTimeout(3000)]);
+  expect(pageErrors).toEqual([]);
+});

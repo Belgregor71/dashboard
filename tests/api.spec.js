@@ -1320,6 +1320,66 @@ test.describe("ai + tts", () => {
     expect(received, "no voice_barge_in frame reached the kiosk").not.toBe("TIMEOUT");
     expect(received).toContain("event: voice_barge_in");
   });
+
+  // --- The turn that ended in nothing (V1) ---
+  // The agent is the only party that can report this, so the route is the whole
+  // mechanism: without the fan-out the page's `unheard` cue has no raiser and
+  // two of the three designed failures can never appear.
+  test("POST /api/voice/unheard accepts a report from loopback", async ({ request }) => {
+    const { status, body } = await expectJson(request, "/api/voice/unheard", {
+      method: "post",
+      data: { reason: "no-speech" },
+      statuses: [200]
+    });
+    expect(status).toBe(200);
+    expect(body).toHaveProperty("ok", true);
+  });
+
+  test("POST /api/voice/unheard takes a bare body — the report is the point, not the reason", async ({ request }) => {
+    // The reason is diagnostic; the page shows one cue for all of them. An
+    // agent that reports WITHOUT one must still reach the wall, or a future
+    // caller that forgets the field silently loses the cue.
+    const res = await request.post("/api/voice/unheard", { data: {} });
+    expect(res.status()).toBe(200);
+    expect(await res.json()).toHaveProperty("ok", true);
+  });
+
+  test("an unheard report reaches the KIOSK stream and NOT the agent's", async ({ request }) => {
+    // Both halves in one test on purpose: the agent generated this event, and
+    // handing it back would have it re-report its own silence in a loop.
+    const http = await import("node:http");
+    // Resolves with the frames when one arrives, or "NO-UNHEARD" if none does.
+    // The kiosk half asserts the first; the agent half asserts the second, so
+    // the timeout is a RESULT on one side and a failure on the other.
+    const open = (url) => new Promise((resolve) => {
+      const req = http.get(url, (res) => {
+        let buf = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => {
+          buf += chunk;
+          if (buf.includes("event: voice_unheard")) { req.destroy(); resolve(buf); }
+        });
+      });
+      req.on("error", () => resolve("TIMEOUT"));
+      setTimeout(() => { req.destroy(); resolve("NO-UNHEARD"); }, 4000);
+    });
+
+    let posted;
+    const kiosk = open("http://127.0.0.1:3210/api/voice/stream");
+    const agent = open("http://127.0.0.1:3210/api/voice/stream?agent=1");
+    setTimeout(() => {
+      posted = request.post("/api/voice/unheard", { data: { reason: "empty-transcript" } });
+    }, 500);
+
+    const received = await kiosk;
+    await settle(posted);
+
+    expect(received, "no voice_unheard frame reached the kiosk").not.toBe("NO-UNHEARD");
+    expect(received, "the kiosk stream errored").not.toBe("TIMEOUT");
+    expect(received).toContain("event: voice_unheard");
+    expect(received).toContain("empty-transcript");
+    expect(await agent, "the agent was told about its own silence").toBe("NO-UNHEARD");
+  });
 });
 
 

@@ -579,6 +579,31 @@ router.post("/api/voice/barge-in", (req, res) => {
   return res.json({ ok: true });
 });
 
+// --- The turn that ended in nothing ---
+// The wake fired and nothing came of it. ONLY THE AGENT CAN KNOW THIS. It holds
+// the wake, the VAD capture and the STT hop, and every one of those can end in
+// nothing while this server sees no request at all — no transcript, no level,
+// nothing to infer from. So the page cannot deduce it either, and until this
+// route existed `presence-light.js`'s `unheard` cue was unreachable by
+// construction: the rim lifted on the level frames, decayed, and a house that
+// did not hear you was indistinguishable from a house that is broken.
+//
+// ⚠ NOT a timeout on the page instead. The obvious alternative — arm a
+// watchdog on wake and fire `unheard` if no transcript arrives — cannot be
+// tuned: the agent's own STT call waits up to 30 s, so any watchdog short
+// enough to be a useful cue would raise "didn't catch that" over a turn that
+// then answers itself a beat later. The fact belongs to whoever holds it.
+//
+// `reason` is diagnostic only; the page shows one cue for all of them, because
+// to the person in the room they are the same event.
+router.post("/api/voice/unheard", (req, res) => {
+  if (!isLoopback(req)) return res.status(403).json({ error: "loopback only" });
+  const raw = req.body?.reason;
+  const reason = typeof raw === "string" ? raw.trim().slice(0, 40) : "";
+  voiceBus.emit("unheard", { reason, at: Date.now() });
+  return res.json({ ok: true });
+});
+
 router.get("/api/voice/stream", (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -615,6 +640,9 @@ router.get("/api/voice/stream", (req, res) => {
     // Transitions only — a rising edge, then at most one every 10s while the
     // room stays busy. Cheap enough to ride the same connection.
     subscribe("sound_presence", "voice_sound_presence");
+    // Rare — a handful a day at most, and only ever after a wake that went
+    // nowhere. Cheapest possible passenger on a connection that is already open.
+    subscribe("unheard", "voice_unheard");
   }
 
   const heartbeat = setInterval(() => res.write(": ping\n\n"), 20_000);
