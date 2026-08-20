@@ -131,6 +131,20 @@ test("the entity decoder stays detached, and stays a textarea", () => {
 // hostile payload is inert through the textarea and live through a div.
 test("the textarea idiom yields text where a div would yield an element", async ({ page }) => {
   const counts = await page.evaluate((payload) => {
+    /* ⚠ THE PAYLOAD REALLY DOES FIRE, and its alert() is what made this test
+       flaky under load. `<img src=x>` fails to load, so onerror runs — but
+       ASYNCHRONOUSLY, after this evaluate has already returned. Playwright then
+       auto-dismisses the dialog it opened, and on a loaded run that dismissal
+       races the session closing: "Protocol error
+       (Page.handleJavaScriptDialog): Internal server error, session closed."
+       Seen in a pre-push gate 2026-08-20; passes 3/3 in isolation, which is
+       exactly why it must not be retried into submission.
+
+       Stubbing alert costs the test nothing — it asserts ELEMENT COUNTS, never
+       that a dialog appeared. The payload stays hostile, the img is still
+       created, the control still counts 1. It just no longer opens a native
+       dialog whose lifetime outlives the test. */
+    window.alert = () => {};
     const viaTextarea = document.createElement("textarea");
     viaTextarea.innerHTML = payload;
     const probe = document.createElement("div");
