@@ -121,11 +121,25 @@
       soft pulse at the edge and nothing else. No speech: if it did not hear
       you, saying "sorry?" out loud is just noise in the room. */
 :root[data-fail="unheard"] .presence::before {
-  animation: fail-pulse 900ms var(--ease) 1 forwards;
+  animation: fail-pulse 1600ms var(--ease) 1 forwards;
 }
+/* ⚠ SEEN ON THE WALL 2026-08-20: TIMELY, AND STILL MISSED. Once V2 got the
+   report down from ~10 s to 1.6 s the owner could finally see this fire — and
+   reported it as too subtle to notice. Measured over CDP, the old curve
+   explains why: opacity cleared 0.3 for only about 200 ms of its 900 ms life
+   (0.24 at 80 ms, 0.42 at 320 ms, 0.16 at 450 ms). That is a blink, not an
+   acknowledgement.
+
+   Still ONE soft pulse — the design intent is unchanged, and a flashing wall
+   would be worse than a silent one. What changes is DWELL: it rises a little
+   further (0.55), holds near the top rather than spiking through it, and takes
+   1.6 s over it. Roughly 700 ms above 0.4 instead of 200 ms above 0.3.
+   ⚠ Must stay under setFailure()'s 2600 ms hold, or the cue is cut off
+   mid-animation by the attribute being removed. */
 @keyframes fail-pulse {
   0%   { opacity: 0;    transform: scaleY(0.5); }
-  35%  { opacity: 0.42; transform: scaleY(0.72); }
+  22%  { opacity: 0.55; transform: scaleY(0.75); }
+  55%  { opacity: 0.5;  transform: scaleY(0.72); }
   100% { opacity: 0;    transform: scaleY(0.5); }
 }
 
