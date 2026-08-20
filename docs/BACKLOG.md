@@ -941,11 +941,63 @@ with it on, a contract spec can paint `data-fail="unheard"` on an unrelated work
 The `cannot` control asserts `not.toBe("cannot")` rather than an empty fail state for
 exactly this reason.
 
-**Still owed:**
-1. `scp tools/voice-agent/voice_agent.py` to `/home/dashboard/voice-agent/` and restart the
-   unit — **the deploy timer does not do this**, it only pulls the repo copy.
-2. Flip `voiceFailureCues` on and hear/see it: say the wake word and then nothing, and
-   watch for the single soft pulse.
+**✅ Both shipped and live-verified 2026-08-20** — pushed `6169f10`, agent copied to
+`/home/dashboard/voice-agent/` and restarted (md5s reconciled; the deploy timer does NOT
+do this, it only pulls the repo copy), kiosk reloaded.
+
+🔑 **The DOM read is not the paint read, and both were taken.** Driving the route from the
+page gave `{before:null → during:"unheard" → after:null}`, which also settles what the
+reload check cannot: `kiosk-drive.cjs reload` compares STYLESHEET hashes only, and this
+change was JS — the listener firing at all *is* the proof the new bundle is live. Then the
+pulse itself was sampled through its animation on `.presence::before`: 0.24 at 80 ms, peak
+**0.42 at 320 ms**, 0.014 at 650 ms, 0 by 900 ms, over a 1920×260 band at the foot of the
+screen. The cue is real and renders as designed.
+
+⛔ **AND THE FLAG IS STILL OFF, on the owner's call — the cue arrives ~10 s too late.**
+Two genuine wakes (0.89, 0.98) reported cleanly and the owner **saw nothing at all**. See
+the new item below; V1's mechanism is not what is wrong.
+
+### V2 · The capture cannot tell when you stopped talking *(new, from V1's live test)*
+
+**The failures are systematically the slow path, and that is a property of the loop rather
+than bad luck.** `capture_utterance` (`tools/voice-agent/voice_agent.py`) ends an utterance
+after `TRAIL_SILENCE_MS` (800 ms) of frames below `SILENCE_RMS` (500). A wake followed by
+real speech gives it a clean speech-then-silence shape to end on. A wake followed by
+**nothing** never does — room tone keeps `trail` reset — so it runs to `MAX_UTTER_MS`
+(8000 ms) every time, and only then pays the STT round trip.
+
+Measured on the wall 2026-08-20, from `journalctl -u voice-agent.service`:
+
+| outcome | wake → result |
+|---|---|
+| short command heard | **3 s** |
+| longer command heard | 7–10 s |
+| **`empty transcript`** — every instance, Aug 16 through Aug 20 | **10–13 s** |
+
+So success is fast and failure is slow, which is precisely backwards for a cue whose whole
+job is to answer the person who just spoke. V1 built the report; it can never be timely
+until this is fixed.
+
+⚠ **The obvious fix is the wrong one, and the evidence is already in this repo.**
+`/api/voice/ambient` reads `floorDb -36.5`, `medianDb -35.6`, `peakDb -20.1` — a floor of
+roughly **RMS 518 against a threshold of 500**. But that is *marginal, not uniformly over*:
+the 3-second turns above prove the break does fire sometimes. **Re-tuning `SILENCE_RMS` is
+therefore a coin flip, not a fix** — and this exact conclusion was already reached in this
+exact room for `soundPresence`, whose own comment records it: *"Loudness was tried first and
+MEASURED AGAINST THIS KITCHEN on 2026-08-09. It does not work here, and no threshold fixes
+it"* — conversation sat 2.2 dB above the floor and the EMPTY room reached 6.5 dB. The
+distributions overlap.
+
+🔑 **The discriminator the agent needs is already loaded.** `_speech_probability()` runs
+silero, bundled inside the installed openWakeWord — no new dependency, no new listener, one
+float. The **ambient relay was moved onto it and the capture loop never was.** That is the
+whole item: endpoint `capture_utterance` on speech probability rather than loudness.
+
+⚠ **Risk: this is the mic's core loop.** A bad move here does not degrade the cue, it makes
+the house deaf. Wants its own live verification (a real spoken command still heard, AND a
+silent wake ending in about a second), not a flag flip.
+
+Then: flip `voiceFailureCues` on and watch for the pulse.
 
 ---
 
