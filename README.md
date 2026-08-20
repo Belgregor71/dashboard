@@ -81,7 +81,7 @@ The pure reasoning cores (`atmosphere`, `houseModel`, `routineStore`, `memoryEng
 
 ## Design system
 
-All styling goes through CSS custom properties defined in `src/css/base/variables.css`. See `STYLE_GUIDE.md` for the full token reference. Key rules:
+All styling goes through CSS custom properties defined in `src/css/base/variables.css`. See `docs/STYLE_GUIDE.md` for the full token reference. Key rules:
 
 - **Glass surfaces** — use `--glass-blur`, `--glass-bg`, `--glass-border`, `--glass-shadow`, `--glass-sheen` together, never piecemeal.
 - **Text color** — use `--ink` / `--ink-dim` / `--ink-faint` on dark/glass backgrounds; `color: #fff` only on saturated status-coloured badge backgrounds.

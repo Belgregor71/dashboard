@@ -22,7 +22,7 @@ If Home Assistant logs repeated invalid authentication for `/api/websocket` from
 
 ## 2) Camera configuration
 
-Camera tiles are defined in `config/cameras.js`. Update the IDs and stream paths to match your go2rtc mapping:
+Camera tiles are defined in `server/config/cameras.js`. Update the IDs and stream paths to match your go2rtc mapping:
 
 ```js
 export const CAMERA_CONFIG = [
@@ -53,7 +53,7 @@ The server prefers each camera's `eventImageEntity` (for example `image.<camera>
 
 Near-real-time Home Assistant entity changes are delivered through the server-side websocket bridge and `/api/ha/stream`.
 
-Current assumptions in `config/cameras.js` include:
+Current assumptions in `server/config/cameras.js` include:
 
 * `doorbell` uses `image.doorbell_event_image`
 * `backyard` uses `image.backyard_event_image`
@@ -77,7 +77,7 @@ streams:
   side_gate: rtsp://USER:PASS@CAMERA_IP/live0
 ```
 
-If you already have the Eufy integration in Home Assistant exposing RTSP, point go2rtc at those RTSP URLs. Keep the names (`kitchen`, `piano_room`, etc.) aligned with `config/cameras.js`.
+If you already have the Eufy integration in Home Assistant exposing RTSP, point go2rtc at those RTSP URLs. Keep the names (`kitchen`, `piano_room`, etc.) aligned with `server/config/cameras.js`.
 
 ## 4) Validate from the Pi
 

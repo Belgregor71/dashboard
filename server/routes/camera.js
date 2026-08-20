@@ -2,7 +2,7 @@ import express from "express";
 import fetch from "node-fetch";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
-import { CAMERA_CONFIG } from "../../config/cameras.js";
+import { CAMERA_CONFIG } from "../config/cameras.js";
 import { normalizeBaseUrl } from "../config.js";
 import { haPost } from "../ha/haRest.js";
 import { fetchWithTimeout } from "../utils/fetch.js";

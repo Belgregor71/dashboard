@@ -155,4 +155,4 @@ WP2 lean-in stack → WP3 arrival card → WP4 tender memory. WP2 first: it prov
 - `screenshots/` — one capture per state (photo background hidden; gradient stand-ins only): ambient captioned, ambient tender, glance hero (rain/warn), glance concierge idle, lean-in stack, voice reserved, arrival card.
 - `HomeOS Home.html` — the interactive reference. Keys 0–3 switch modes, `A` fires the arrival; the Tweaks panel drives atmosphere, memory (off/captioned/tender) and the concierge idle state.
 - `homeos-tweaks.jsx`, `tweaks-panel.jsx`, `image-slot.js` — demo scaffolding, not for porting.
-- In-repo references: `docs/design/PLAN.md`, `docs/design/README.md`, the `homeos-*.html` studies, `STYLE_GUIDE.md`, `src/js/modules/focusHero.js` (tiering, concierge, stack teardown), `server/routes/ai.js` (concierge voice).
+- In-repo references: `docs/design/PLAN.md`, `docs/design/README.md`, the `homeos-*.html` studies, `docs/STYLE_GUIDE.md`, `src/js/modules/focusHero.js` (tiering, concierge, stack teardown), `server/routes/ai.js` (concierge voice).

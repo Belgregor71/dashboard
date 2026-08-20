@@ -3,7 +3,7 @@
 The design track for the presence-first display (the "Home OS" behavioural layer;
 see [`../vision/`](../vision/)). This is the **shared source of truth for Claude
 Design**: point Claude Design at this repo and it reads the real tokens
-(`src/css/base/variables.css`), the conventions (`../../STYLE_GUIDE.md`), and this
+(`src/css/base/variables.css`), the conventions (`docs/STYLE_GUIDE.md`), and this
 brief, then reconciles new designs against all three.
 
 The artifacts below are *design intent*, not production code — the standalone HTML
@@ -47,14 +47,14 @@ the table below point to the same studies rendered on the artifact host.
 
 ## Working with Claude Design (visual-first; code is the medium)
 
-1. **Ingest the repo.** Have Claude Design read this codebase so it uses `variables.css` tokens + `STYLE_GUIDE.md` conventions + this brief. Fonts are already loaded in `index.html` (Barlow Condensed / Inter) — the artifact fallbacks are only a host limitation.
+1. **Ingest the repo.** Have Claude Design read this codebase so it uses `variables.css` tokens + `docs/STYLE_GUIDE.md` conventions + this brief. Fonts are already loaded in `index.html` (Barlow Condensed / Inter) — the artifact fallbacks are only a host limitation.
 2. **One surface per session.** Give it the target artifact for that component and ask it to render that surface on the canvas using the real tokens. Refine via chat / inline comments / sliders.
 3. **Keep it shippable on the canvas** — pass the constraints below so the design doesn't collide with the Pi.
 4. **Hand off via the Claude Code bundle**, then land it with the shipping discipline (next section). Claude Design shapes the look; Claude Code makes it shippable.
 
 ### Prompt seed (adapt per surface)
 
-> Read this repo and apply `src/css/base/variables.css` tokens and `STYLE_GUIDE.md`
+> Read this repo and apply `src/css/base/variables.css` tokens and `docs/STYLE_GUIDE.md`
 > conventions. Render **[surface]** on the canvas, matching the target look in
 > [artifact URL]. Constraints: dark, weather-tinted ground; Barlow Condensed
 > (display) + Inter (body), already loaded; **motion is available and may be
@@ -69,7 +69,7 @@ the table below point to the same studies rendered on the artifact host.
 Every landing follows the loop that shipped Phases 1–10:
 
 - **Behind a `features.*` flag** in `src/js/config.js`; flag-off must be byte-identical; one-line revert.
-- **Extend `variables.css`, don't fork it.** Touch the real component (`focusHero.js`, `screensaver.js`, `arrivalGreeting.js`, `atmosphere.js`, the matching `src/css/`), follow `STYLE_GUIDE.md`. No parallel CSS tree.
+- **Extend `variables.css`, don't fork it.** Touch the real component (`focusHero.js`, `screensaver.js`, `arrivalGreeting.js`, `atmosphere.js`, the matching `src/css/`), follow `docs/STYLE_GUIDE.md`. No parallel CSS tree.
 - **Motion passes the cause test** (`DESIGN_SYSTEM.md` §5.1) and lands inside the §5.4 budget — verify with `/kiosk-metrics`. Quiescent ambient (no active cause) is the tight one: ≤ 8% of one core.
 - **Photos are real** (Immich / screensaver), not gradients.
 - **`npm test` green**, then **deploy flag-off (no-op) → flip on the Pi → verify at 3–4m + `/kiosk-metrics` flat → default-on.** Dev-session rendering is unreliable (see `CLAUDE.md`); verify on the actual panel.

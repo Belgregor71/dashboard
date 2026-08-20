@@ -15,7 +15,7 @@ Constant across all four WPs — the packages below only call out deviations:
 
 1. **New `features.*` flag** in `src/js/config.js`; **flag-off byte-identical**; one-line revert.
 2. **Extend `src/css/base/variables.css`, don't fork** — no parallel CSS tree; touch the
-   real component + its `src/css/` file; follow `STYLE_GUIDE.md`.
+   real component + its `src/css/` file; follow `docs/STYLE_GUIDE.md`.
 3. **Motion passes the cause test** — *(revised 2026-08-01; this guardrail used to read "0% GPU
    at rest is law — no looping animation". `DESIGN_SYSTEM.md` §0.1 says why it changed.)* Motion
    may be continuous and may live on the resting surface, provided the room can attribute it to

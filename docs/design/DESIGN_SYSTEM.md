@@ -10,7 +10,7 @@ target and the code is the work item.
   the wall, not a phone — nothing here scales down responsively; it is a fixed-resolution surface.
 - **Companion docs:** `README.md` (the handoff brief) · `PLAN.md` (the four shipped WP surfaces) ·
   `DESIGN_ROLLOUT.md` (the plan that brings the *rest* of the dashboard up to this spec) ·
-  `STYLE_GUIDE.md` (repo CSS conventions) · `BRIEF-AMBIENT-2030.md` (forward-looking brief for
+  `docs/STYLE_GUIDE.md` (repo CSS conventions) · `BRIEF-AMBIENT-2030.md` (forward-looking brief for
   the post-Pi hardware — extends this system, does not replace it).
 - **How to use:** extend `src/css/base/variables.css` with the tokens here — **never fork it**.
   Reference tokens, not raw values, in component CSS. The token names below are the canonical ones;
