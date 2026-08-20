@@ -67,19 +67,59 @@ the constraint on any future change to it:
 - **It is bold enough to be read**: labels at `--t-rail` (32px) and the lit year at 48px,
   against the shipped rail's 22px mono. "It got lost" was partly a size problem.
 
+**⚠⚠ AND ITS RIGHT-HAND END WAS OFF THE GLASS UNTIL 2026-08-20.** The axis endpoints were the
+one part of this geometry derived in canvas space (`MARGIN - STRIP_LEFT`) rather than measured
+against the projection, and the strip is a canvas on the deck plane under the scene's 1400px
+perspective: it compresses the middle (canvas 1080 lands at frame 962) and flares the ends, so
+canvas 1932 is frame **1912** — eight pixels from the edge — not the intended 1812. Because the
+pool's newest year is *always* the axis maximum, every memory from the most recent year had its
+48px lit label painted half off the screen. Reported as *"the highlight marked 2023 correctly
+but because 2023 is at the extreme right it didn't look correct"* — a clipped label, not a
+scaling choice.
+
+The endpoints are now probed values (canvas **320 → frame 298**, canvas **1689 → frame 1614**)
+with deliberate headroom past the safe margins, so ~250px of ruled line runs beyond the
+outermost year at each end and off the glass. The ruling is unchanged, still painted edge to
+edge. A spec projects the endpoints through a probe carrying the strip's own transform and
+asserts the whole lit label clears the margin — a canvas-space unit test cannot see this class
+of defect, and the one that shipped asserted the wrong numbers with the wrong reasoning in its
+comment.
+
+**What the axis does NOT do is scroll.** It rescales to the pool's minimum and maximum, so the
+oldest year this date reaches is always at the left end and the newest always at the right. A
+1973 photograph would put 1973 at the left end and compress 2011–2023 into the right quarter;
+a 2026 one simply becomes the new maximum. The gaps stay true — that is the whole argument for
+placing years by value — but the ends are always occupied by definition, which is exactly why
+they need headroom rather than margins.
+
 ### What carried over unchanged, and what did not
 
 **Unchanged:** the plane (`rotateY(-12) rotateX(8) rotateZ(2)`, perspective 1400 at
 50%/42%), `cardRectFor()` from `services/archiveModel.js` — so a 16:9 memory lands on
-**1040×585 at (130, 212), to the pixel** — the ghost crush (`grayscale(1) brightness(.17)
-contrast(1.18)`), the plate's shape and its "always speaks" rule, the vignette, the static
-grain, and the motion periods.
+**1040×585 at (130, 212), to the pixel** — the plate's shape and its "always speaks" rule,
+the vignette, the static grain, and the motion periods.
 
-**⚠ There are FIVE loops at depth 0, not four** — ghost-a 130s, ghost-b 104s, the engraved
-year 92s, the card's pivot 84s, Ken Burns 96s. The incumbent ran four because its background
-was one tiled echo; this one has two ghosts. **After dark it is four**: the night rule takes
-the engraved year to opacity 0 and its drift is gated off with it. Both numbers matter — a
-soak reading `anims` against a wrong expectation is a wrong reading, and this one was counted
+**⚠ The ghost crush was on that list and is NOT any more (2026-08-20).** `grayscale(1)
+brightness(.17) contrast(1.18)` came over unchanged from a surface that drew ~30 tile repeats
+of one plane, where it read as texture. On TWO ghosts 1060 and 810 wide the identical numbers
+read as two black rectangles — *"it's good for them to be subtle but really can't see them"* —
+so the brightness is now `--arch-ghost`, default **0.30**, turnable live with
+`window.__archiveGhost(n)` and bounded at 0.6. The grayscale and the contrast are the
+reference's and are not on trial. The crush's ceiling is load-bearing, not decorative: it is
+why the plate over ghost a needs no scrim of its own, and the plate's contrast spec is the
+gate on how far this can be pushed.
+
+**⚠ There are FOUR loops at depth 0, and a FIFTH animation that ENDS** (amended 2026-08-20,
+`b6a7d86`) — ghost-a 130s, ghost-b 104s, the engraved year 92s, the card's pivot 84s, and
+Ken Burns 96s **as a settle**: `1 forwards`, once per photograph, coming to rest. It looped
+until it was measured, and it alone cost 6.3 points of gpu-process — more than the whole
+amount by which depth 0 was over §5.4's ceiling. Settled, depth 0 reads 21.1; during the move,
+27.3. The incumbent ran four loops because its background was one tiled echo; this one has two
+ghosts. **After dark it is three loops**: the night rule takes the engraved year to opacity 0
+and its drift is gated off with it. Both numbers matter — a soak reading `anims` against a
+wrong expectation is a wrong reading — and `anims` is no longer the one to read, because it
+counts the settle while it runs (5 mid-move, 4 at rest). `__archive().loops` counts only what
+never ends, and this was counted
 off `document.getAnimations()` on the real wall rather than off the stylesheet.
 
 **Deliberately not ported:** the hour axis and its `dayModel`/`daySources` chain (the strip

@@ -38,21 +38,35 @@ test("years are placed by VALUE, so a gap in the library shows as a gap", () => 
   expect((b - a) / (c - a)).toBeCloseTo(1 / 12, 5);
 });
 
-test("the axis spans the frame's safe margins, like every other V3 surface", () => {
+test("the axis ends carry headroom, and the numbers are PROJECTED not derived", () => {
   const marks = yearPositions(["2010", "2020"], "2020");
-  // Canvas space: the strip bleeds 120px past the left edge, so frame x 108
-  // is canvas x 228 and frame x 1812 is canvas x 1932.
-  expect(marks[0].x).toBe(228);
-  expect(marks[1].x).toBe(1932);
+  /* ⚠ THESE ARE MEASURED, NOT CONVERTED — and the version of this test that
+     shipped is exactly why. It asserted 228 and 1932 and explained them as
+     "the strip bleeds 120px past the left edge, so frame x 108 is canvas x
+     228". That arithmetic is wrong: the strip is a canvas on the DECK PLANE
+     under the scene's 1400px perspective, which compresses its middle (canvas
+     1080 lands at frame 962) and flares its ends. Canvas 1932 is frame 1912,
+     eight pixels off the right edge of the glass, so the lit label of any
+     memory from the pool's newest year — always the axis maximum — was painted
+     half off the screen.
+
+     320 -> frame 298 and 1689 -> frame 1614, probed on the wall. The gap to the
+     safe margins (canvas 70 and 1849) is deliberate headroom: a year sitting ON
+     the margin still reads as the ruler ending there. The projection itself is
+     asserted in "the axis ends land inside the glass" below — this test only
+     pins the two numbers so they cannot drift without someone re-measuring. */
+  expect(marks[0].x).toBe(320);
+  expect(marks[1].x).toBe(1689);
 });
 
 test("one year alone is centred, not pinned to the left margin", () => {
   const marks = yearPositions(["2019"], "2019");
   expect(marks).toHaveLength(1);
   // A single mark hard left reads as the start of a scale that has no end.
-  expect(marks[0].x).toBe(228 + (1932 - 228) / 2 + 0);
+  expect(marks[0].x).toBe(320 + (1689 - 320) / 2);
   expect(marks[0].lit).toBe(true);
 });
+
 
 test("years are de-duplicated and sorted, and only the card's year is lit", () => {
   const marks = yearPositions(["2019", "2011", "2019", "2015"], "2015");
@@ -314,6 +328,64 @@ test("the strip takes the empty top band and never reaches the card or the hour"
   // And the card is still the hero: the shipped 1040-wide box, or taller-and-
   // narrower for a portrait, never a strip of one.
   expect(probe.card.height).toBeGreaterThan(400);
+});
+
+test("the axis ends land inside the glass, with the lit label whole", async ({ page }) => {
+  /* ⚠⚠ THE GUARD THE SHIPPED SURFACE DID NOT HAVE, and the reason it shipped
+     broken: every other number in core/archive.js's geometry block was measured
+     against the projection, but the axis was DERIVED in canvas space
+     (`MARGIN - STRIP_LEFT`) as though the strip mapped 1:1 to the frame. It
+     does not — it is a canvas on the deck plane under a 1400px perspective —
+     and a unit test on canvas coordinates cannot tell. So this one projects.
+
+     What it is really protecting: the pool's newest year is ALWAYS the axis
+     maximum, so if that end sits at the frame edge, every memory from the most
+     recent year gets its 48px lit label painted half off the screen. That is a
+     defect a person sees on the wall and no canvas-space assertion can. */
+  const pageErrors = await bootArchive(page);
+  await groundShown(page);
+
+  // The public seam gives the endpoints: two years an axis apart put a mark on
+  // each end, whatever the constants happen to be.
+  const [x0, x1] = yearPositions(["2000", "2100"], "2000").map((m) => m.x);
+
+  const ends = await page.evaluate(([a, b]) => {
+    const s = document.querySelector(".archive__strip");
+    const cs = getComputedStyle(s);
+    /* A div carrying the strip's own box and transform, so its children project
+       exactly as canvas pixels do. Inserted and removed inside one evaluate —
+       nothing observes the subtree, and nothing is left on the page. */
+    const probe = document.createElement("div");
+    probe.style.cssText = `position:absolute;left:${cs.left};top:${cs.top};` +
+      `width:${cs.width};height:${cs.height};transform:${cs.transform};pointer-events:none;`;
+    for (const x of [a, b]) {
+      const m = document.createElement("i");
+      m.style.cssText = `position:absolute;left:${x}px;top:0;width:1px;height:1px;`;
+      probe.appendChild(m);
+    }
+    s.parentNode.appendChild(probe);
+    const out = [...probe.children].map((c) => c.getBoundingClientRect().left);
+    probe.remove();
+    return out;
+  }, [x0, x1]);
+
+  const FRAME = 1920;
+  const SAFE = 108;              // V3's safe margin, the same one every surface uses
+  const LIT_HALF = 58;           // half a four-digit label at 48px tabular
+
+  // 1 — the whole lit label, at either end, inside the safe margin. This is the
+  //     assertion the shipped axis failed: its right end projected to 1912.
+  expect(ends[0] - LIT_HALF, `left end projects to ${Math.round(ends[0])}`)
+    .toBeGreaterThanOrEqual(SAFE);
+  expect(ends[1] + LIT_HALF, `right end projects to ${Math.round(ends[1])}`)
+    .toBeLessThanOrEqual(FRAME - SAFE);
+
+  // 2 — and headroom beyond that, so the outermost year does not read as the
+  //     ruler stopping. The ruling itself still runs off both edges.
+  expect(ends[0]).toBeGreaterThanOrEqual(SAFE + 150);
+  expect(FRAME - ends[1]).toBeGreaterThanOrEqual(SAFE + 150);
+
+  expect(pageErrors).toEqual([]);
 });
 
 test("the layer is depth 0's, and recedes to the full-bleed photograph above it", async ({ page }) => {

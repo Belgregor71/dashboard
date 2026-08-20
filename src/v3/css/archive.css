@@ -49,6 +49,26 @@
      (brisk, because someone just spoke) and the ambient rotation (slow, because
      nothing did) stay honestly different. */
   --arch-exchange: 1200ms;
+
+  /* HOW FAR THE GHOST CRUSH LIFTS. Written by core/archive.js and turnable live
+     via `window.__archiveGhost(n)`, the same lever --arch-gain has, because
+     "how visible should a ghost be" is a judgement made in front of the wall
+     and not in a stylesheet.
+
+     ⚠ 0.17 WAS INHERITED FROM A SURFACE THAT DREW THIRTY OF THESE. The crush
+     (`grayscale(1) brightness(.17) contrast(1.18)`) came over unchanged from
+     the incumbent, where it sat on ~30 tile repeats of one plane — at that size
+     it read as texture. On TWO ghosts 1060 and 810 wide the identical numbers
+     read as two black rectangles, i.e. as holes in the composition rather than
+     as photographs behind it. The stack maps input luminance to roughly
+     [0, 0.11] at 0.17; at 0.30 it reaches [0, 0.26], which is still far below
+     the card and still reads as an echo, but has structure in it.
+
+     ⚠ The plate sits OVER ghost a. Its rows carry their own 72%-opaque backing,
+     so lifting this attenuates to about a fifth behind the text — but the plate
+     contrast spec is the authority, not that arithmetic, and it measures the
+     real painted stack. */
+  --arch-ghost: 0.3;
 }
 
 /* Night lowers the amplitude rather than adding a second threshold. Same sun
@@ -144,14 +164,23 @@
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
-  /* The reference's own numbers. Worth knowing what they actually do: a
-     grayscale + brightness(.17) + contrast(1.18) stack maps ANY input luminance
-     into roughly [0, 0.11], so a ghost is near-black whatever photograph is
-     behind it. That is why the text band over it needs no scrim of its own —
-     and why "the echo reads as visible tiling on a bright frame", the open
-     worry on the shipped surface, does not arise once there are two of them
-     instead of a repeating grid. */
-  filter: grayscale(1) brightness(0.17) contrast(1.18);
+  /* Worth knowing what this stack actually does: grayscale + brightness(b) +
+     contrast(1.18) maps ANY input luminance into roughly [0, (b - 0.5) * 1.18 +
+     0.5], so a ghost is a flat dark field whatever photograph is behind it —
+     at the inherited b = 0.17 that ceiling is 0.11, and at 0.30 it is 0.26.
+     The brightness is the ONE number here that is turnable (--arch-ghost, and
+     `window.__archiveGhost(n)`); the grayscale and the contrast are the
+     reference's and are not on trial.
+
+     ⚠ THE CEILING IS WHY THE TEXT BAND OVER THIS NEEDS NO SCRIM OF ITS OWN, so
+     it is load-bearing rather than a look: raise --arch-ghost far enough and the
+     plate's contrast becomes the ghost's problem. The plate spec measures the
+     real painted stack and is the gate on how far this can go.
+
+     It is also why "the echo reads as visible tiling on a bright frame" — the
+     open worry on the shipped surface — does not arise once there are two of
+     these instead of a repeating grid. */
+  filter: grayscale(1) brightness(var(--arch-ghost)) contrast(1.18);
   opacity: 0;
   transition: opacity var(--arch-exchange) linear;
 }

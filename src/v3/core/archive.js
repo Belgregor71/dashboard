@@ -94,11 +94,37 @@ const MARK_H = 22;          // the red registration mark at a labelled year
 const LABEL_Y = 76;
 const LIT_Y = 84;
 
-/* The axis spans the frame's safe margins, so the first and last year sit where
-   every other V3 surface starts and stops. */
-const MARGIN = 108;
-const AXIS_X0 = MARGIN - STRIP_LEFT;
-const AXIS_SPAN = FRAME_W - MARGIN * 2;
+/* THE AXIS. ⚠⚠ MEASURED AGAINST THE PROJECTION, like every other number in this
+   block — and the shipped values were NOT, which is the defect these replace.
+   They were derived as `MARGIN - STRIP_LEFT`, i.e. as though canvas x mapped to
+   frame x with a flat -120px bleed offset. It does not. The deck plane is
+   projected under the scene's 1400px perspective, which COMPRESSES ITS MIDDLE
+   and flares its ends. Probed on the wall at 1920x1080 (a 1px marker inside a
+   div carrying the strip's own box and transform), canvas x -> frame x:
+
+     0 ->   57      70 ->  108     228 ->  226     320 ->  298
+   600 ->  526    1080 ->  962    1560 -> 1465    1689 -> 1614
+  1849 -> 1808    1932 -> 1912    2040 -> 2053    2160 -> 2215
+
+   Note 1080 -> 962: the middle is pulled ~118px LEFT, so no offset, however
+   carefully chosen, describes this mapping. Only measurement does.
+
+   The shipped axis therefore ran to frame 1912 — EIGHT PIXELS from the right
+   edge of the glass. The newest year in a pool is always the axis maximum, so
+   any memory from the most recent year had its 48px lit label painted half off
+   the screen. That is what "the 2023 highlight at the extreme right didn't look
+   correct" was: not a scaling choice, a clipped label.
+
+   ⚠ AND THE ENDS CARRY HEADROOM, which is a design call on top of the fix.
+   Frame 108/1812 are the safe margins every other V3 surface uses (canvas 70
+   and 1849), but a year sitting exactly on the margin still reads as the ruler
+   ENDING there, and the outermost years are the two the eye lands on. These put
+   them at frame 298 and 1614, leaving ~250px of ruled line running past each
+   one and off the glass — so the spine reads as a longer instrument seen
+   through a window, which is what it is. The RULING is unchanged: still painted
+   edge to edge across the whole canvas, still bleeding past both frame edges. */
+const AXIS_X0 = 320;
+const AXIS_SPAN = 1369;
 
 /* --t-rail is V3's legibility FLOOR (32px at 3-4m), and the year labels are
    text a person is meant to read. The shipped rail set them at 22px mono,
@@ -144,6 +170,8 @@ let lastSrcKey = "";
    as a bare calc() fallback because the shipped one never had one and "the one
    number to turn" turned out to be unturnable on the wall. */
 let gain = 2;
+/* Mirrors --arch-ghost so the lever reports the live value rather than a stale one. */
+let ghost = 0.3;
 
 /* ── The plate ──────────────────────────────────────────────────────────────
    RELOCATED LANGUAGE, NEVER NEW LANGUAGE. Everything on it is already what
@@ -557,6 +585,20 @@ export function initArchive(host) {
     gain = v;
     document.documentElement.style.setProperty("--arch-gain", String(gain));
     return gain;
+  };
+
+  /* The ghost lever, same reason and same shape as the gain above: how visible
+     an echo should be is judged in front of the wall, not in a stylesheet, and
+     the inherited 0.17 was tuned for thirty small tiles rather than two large
+     shapes. Bounded at 0.6 — past that the crush stops being a crush and the
+     plate's own contrast starts depending on the photograph behind it, which is
+     the one thing this filter exists to prevent. */
+  window.__archiveGhost = (n) => {
+    const v = Number(n);
+    if (!Number.isFinite(v) || v < 0 || v > 0.6) return ghost;
+    ghost = v;
+    document.documentElement.style.setProperty("--arch-ghost", String(ghost));
+    return ghost;
   };
 
   return true;
