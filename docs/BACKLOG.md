@@ -888,14 +888,64 @@ day you find out is the day the wall is already broken.
 - **L4, L5, L9, L10** — untouched, no urgency (config split, interval scheduler,
   config-precedence doc, drop `node-fetch` for global `fetch`).
 
-### V1 · The house cannot say it did not hear you *(new, from C2)*
+### V1 · ✅ **DONE — all three failure cues are reachable** (`0638f53`, `a61a374`)
 
-Two of `presence-light.js`'s three failure cues are unreachable: `unheard` has a raiser
-nobody calls (`voice.js:reportUnheard`), and `cannot` has no raiser at all. The missing
-half is a **wake signal on the browser stream** — `/api/voice/stream` subscribes
-`transcript`, `level`, `barge_in`, `sound_presence` and nothing else, so the page cannot
-know a wake fired and nothing followed. Needs the out-of-repo agent to emit it. Small, and
-it is the difference between a wall that looks broken and one that says "I didn't catch that".
+⏳ **Not yet on the wall.** Flag `voiceFailureCues` is default OFF, and the agent half is
+`tools/voice-agent/voice_agent.py`, which **a deploy does not ship** — it needs `scp` +
+`sudo systemctl restart voice-agent.service`. See "still owed" below.
+
+`presence-light.js:92` designs three distinct failures because the repair differs by type,
+and exactly one of them could ever appear. Both gaps turned out to have the same shape —
+**the fact belonged to a process that had no way to say it** — and both are fixed by a
+report rather than an inference.
+
+**`unheard`.** Its raiser was exported and uncalled, and no page-side code could have
+called it: every path that ends a turn in nothing happens inside the mic agent (the VAD
+hearing no speech after the wake, whisper returning `""`, whisper unreachable, a barge-in
+that never won the floor) and the dashboard sees **no request at all** on any of them. The
+rim lifted on the level frames and decayed — which is what a broken wall looks like too.
+New `POST /api/voice/unheard` (loopback only) fans out as `voice_unheard` on the **kiosk**
+half of the stream, never the agent half; the agent calls it on all four dead ends with the
+reason that separates them, and `transcribe()` now returns `None` for an unreachable STT
+against `""` for a genuinely empty one, because those are different facts about the house
+and used to collapse into one empty string.
+- 🔑 **NOT a page-side watchdog.** The obvious design — arm a timer on wake, fire if no
+  transcript arrives — cannot be tuned: the agent's own STT call waits up to **30 s**, so
+  any timeout short enough to be a useful cue calls a turn failed a beat before it answers.
+- ⚠ **Never raised while a turn is in flight** (`|| busy`). The barge-in timeout reports
+  unheard while a reply is still PLAYING, and `setFailure()` opens by dropping the phase to
+  idle — it would take the sweep off a voice the room can still hear. Neuter-verified: the
+  spec paints `unheard` over a 30 s reply with the guard removed.
+
+**`cannot`.** A tool call that is refused or fails is handed to the model as a
+`tool_result`, and the model writes an ordinary sentence about it — so the room heard an
+apology and the wall showed a success. The difference had already been dissolved into
+prose by the time anything downstream could see it. `converseWithClaude` now takes an
+optional `onToolError` (an out-parameter, not a widened return — it answers string-or-null
+to several callers and tests), the route emits `toolFailed` on both legs and **only when
+true**, and the page raises the cue **after the reply has finished speaking** on both.
+- 🔑 **The neuter is what wrote the spec's comment.** Raising it the moment the payload
+  arrives makes the cue flash and vanish — `trackSpeech()`'s own `setPhase("speaking")`
+  wipes it within milliseconds and it never returns. So the mid-flight `null` check
+  **passes against the defect**; only the assertion after the turn catches it.
+- It does not touch `consecutiveFailures`. The turn succeeded.
+
+⚠ **The server half of `cannot` is not integration tested,** for the reason
+`voice-tools.spec.js` already records: `playwright.config.js` stubs `ANTHROPIC_API_KEY` to
+`""`, so `getAnthropic()` returns null and the tool loop never runs in this suite. The nine
+new specs (3 contract, 6 browser) pin the route, the fan-out, and the half that paints.
+
+⚠ **A suite consequence of flipping the flag on:** `voiceBus` is process-wide, so one
+`/api/voice/unheard` POST reaches **every page in the run**. Inert while the flag is off;
+with it on, a contract spec can paint `data-fail="unheard"` on an unrelated worker's page.
+The `cannot` control asserts `not.toBe("cannot")` rather than an empty fail state for
+exactly this reason.
+
+**Still owed:**
+1. `scp tools/voice-agent/voice_agent.py` to `/home/dashboard/voice-agent/` and restart the
+   unit — **the deploy timer does not do this**, it only pulls the repo copy.
+2. Flip `voiceFailureCues` on and hear/see it: say the wake word and then nothing, and
+   watch for the single soft pulse.
 
 ---
 
