@@ -161,11 +161,3 @@ export function initArrival() {
 
   return unsubscribe;
 }
-
-/** Test seam — forgets every person so a spec starts cold. */
-export function __resetArrival() {
-  if (unsubscribe) { unsubscribe(); unsubscribe = null; }
-  lastState.clear();
-  awaySince.clear();
-  last = null;
-}

@@ -240,17 +240,3 @@ export function initPresence() {
 
   return unsubscribe;
 }
-
-/** Test seam — drops every timer and subscription so a spec starts cold. */
-export function __resetPresence() {
-  if (unsubscribe) { unsubscribe(); unsubscribe = null; }
-  if (unsubscribeSound) { unsubscribeSound(); unsubscribeSound = null; }
-  if (lingerTimer) { clearTimeout(lingerTimer); lingerTimer = null; }
-  if (dwellTimer) { clearTimeout(dwellTimer); dwellTimer = null; }
-  present = false;
-  dwelling = false;
-  lastMotionAt = 0;
-  lastReason = null;
-  lastMode = "ambient";
-  listeners.clear();
-}

@@ -147,11 +147,3 @@ export function initBriefingWindow() {
      will run. */
   window.__v3Briefing = (opts) => checkBriefingWindow(opts ?? { force: true });
 }
-
-/** Test seam — drops the timer, the subscription and the record. */
-export function __resetBriefingWindow() {
-  if (timer) { clearInterval(timer); timer = null; }
-  if (unsubscribe) { unsubscribe(); unsubscribe = null; }
-  opening = false;
-  last = null;
-}

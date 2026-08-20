@@ -297,15 +297,3 @@ export function initNowPlaying() {
   evaluateNowPlaying();
   return true;
 }
-
-/** Test seam — back to cold, including every timer and the subscription. */
-export function __resetNowPlaying() {
-  if (unsubscribe) { unsubscribe(); unsubscribe = null; }
-  if (recheckTimer) { clearInterval(recheckTimer); recheckTimer = null; }
-  if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
-  cancelClear();
-  el = null;
-  signature = null;
-  renders = 0;
-  last = null;
-}

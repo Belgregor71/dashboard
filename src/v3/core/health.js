@@ -212,9 +212,3 @@ export function initHealth() {
   poll();
   timer = setInterval(() => { poll(); }, POLL_MS);
 }
-
-/** Test seam — stops the interval so a spec starts cold. */
-export function __resetHealth() {
-  if (timer) { clearInterval(timer); timer = null; }
-  last = null;
-}

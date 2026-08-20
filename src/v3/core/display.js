@@ -158,9 +158,6 @@ export async function evaluateDisplay({ now = Date.now() } = {}) {
   return dark;
 }
 
-/** Is the panel powered down right now? */
-export function isPanelDark() { return dark; }
-
 /**
  * Light the panel, if it is dark and if we are allowed to.
  *
@@ -235,18 +232,4 @@ export function initDisplay() {
   window.__v3Wake = (reason) => requestPanelWake(reason ?? "manual");
 
   return true;
-}
-
-/** Test seam — back to cold, including the timer and every listener. */
-export function __resetDisplay() {
-  if (timer) { clearInterval(timer); timer = null; }
-  listeners = [];
-  window_ = null;
-  monitor = null;
-  monitorAt = 0;
-  dark = false;
-  litUntil = 0;
-  lastWindowBelief = null;
-  wakes = 0;
-  delete document.documentElement.dataset.panelDark;
 }

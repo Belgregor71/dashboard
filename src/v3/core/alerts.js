@@ -149,10 +149,3 @@ export function initAlerts() {
 
   return unsubscribe;
 }
-
-/** Test seam — drops the subscription and every cooldown so a spec starts cold. */
-export function __resetAlerts() {
-  if (unsubscribe) { unsubscribe(); unsubscribe = null; }
-  cooldowns.clear();
-  last = null;
-}
