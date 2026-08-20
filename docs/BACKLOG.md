@@ -762,44 +762,138 @@ owed. Take `/kiosk-metrics` at 0 h / 24 h / 72 h.
 
 ## P3 — Cleanup
 
-### C1 · `ground.js`'s dissolve path — still uncovered
-`dissolve()`, `tick()`, `oneShot()` have never run under test, and `ground.js` has grown
-substantially since that was measured (diptych, memories, veto) without the path being
-exercised. `window.__groundDissolve` exists **specifically to drive this from a probe** and now
-has callers — use it.
+**Worked 2026-08-20.** Five items. Three are done, one is closed as *won't do*, and one
+is half-done with two decisions left to the owner. 🔑 **The recurring finding is that the
+audit's own dead-code lists were built by literal-string sweeps, and a literal sweep
+cannot see a computed name.** It warned about exactly this for the lottie icons (§8) and
+then did not apply the warning to itself two sections earlier (§7). Six of M8's "30 dead
+CSS classes" are alive.
 
-### C2 · Ten dead seams — wire them in or delete them
-Verified 2026-08-14: each of these has **exactly one reference repo-wide, its own definition**:
+### C1 · ✅ **DONE** — `ground.js`'s stall and its second attempt (`88b2a20`)
 
-```
-__resetAlerts  __resetArrival  __resetBriefingWindow  __resetDisplay  __resetHealth
-__resetNowPlaying  __resetPresence  isPanelDark  reportUnheard  __groundRetry
-```
+⚠ **The item was two-thirds stale and one-third right.**
 
-Seven are `__reset*` test seams no test uses. C1 and S3 want exactly these — wire them into
-those specs, or delete them. They should not survive another cycle unexamined.
+- `dissolve()` **is** covered — `ground-diptych.spec.js` drives it twice through
+  `__groundDissolve`, and `photo-veto.spec.js` reaches it through `__groundVeto`.
+- `oneShot()` was **never `ground.js`'s**. It lives in `src/js/modules/background.js`, on
+  the incumbent surface. The item had it filed against the wrong module.
+- What *was* uncovered: the **stall** and the **retry**. Every existing failure test 404s
+  the thumb, which fires `onerror` and takes the latch at once; a request that simply
+  hangs fires nothing, and `shot.arm(fail, stallMs)` is all that clears `inFlight`.
+  And nothing proved that after a failure the *next* attempt succeeds — which is the
+  entire reason `loadFirst` leaves `current` null.
 
-### C3 · Delete the modules V3 no longer loads
-Fed by **S2**. The `innerHTML`-heavy modules with zero refs from `src/v3/` are dead weight on
-the live surface. Deleting beats sanitizing. ⚠ Confirm each is not reached via a non-V3 entry
-point (the Memory Studio / Recipe Book LAN portals) **before** removing.
+`tests/ground-retry.spec.js` covers both. 🔑 **The elapsed time is the assertion.** With
+`arm()` removed the latch still clears — at ~2900 ms, when the hung thumb finally arrives
+and `half()` settles the frame — so a spec that only polled `inFlight` would go green
+against the exact defect it exists for. Both tests neuter-verified, each red on its own
+assertion and green on the other's.
+
+### C2 · ✅ **DONE** — eight of the ten seams removed; two are not cleanup (`39f2cb3`)
+
+All ten re-verified at one repo-wide reference each before touching anything.
+
+**Deleted (8):** the seven `__reset*` plus `isPanelDark`. 🔑 **The seven were unreachable
+from BOTH halves of the suite, by construction** — which is why no test ever grew into
+them. Node-side specs cannot use them (the state they clear is created only by `init*()`,
+which needs a real page; the exports a node spec *does* call are pure). Browser-side specs
+cannot either (they are ESM exports, never put on `window` — unlike the six drive seams
+beside them, `__v3Alert` / `__v3Arrival` / `__v3Briefing` / `__v3PanelDark` /
+`__v3DisplayTick` / `__v3Wake`, all of which have callers) — and a browser spec gets a
+fresh page per test anyway. **Every reset seam in this repo that IS used
+(`__resetEntities`, `__resetHouseCache`, `__resetBoot`, `__resetRoster`) belongs to a
+node-safe module.** If a browser spec ever needs a mid-page cold start, the right form is
+`window.__resetX` beside `window.__v3X`.
+
+**Kept, deliberately (2):**
+- ⚠ **`reportUnheard()` is a DEAD LEVER, not dead code.** `presence-light.js:88` designs
+  three distinct failure cues; only `misheard` can ever appear. Nothing calls this, so
+  "the house heard nothing" is unreachable — and `cannot` is unreachable too. **Wiring it
+  is not cleanup:** the browser's voice stream carries `transcript` / `level` / `barge_in` /
+  `sound_presence` and **no wake event** (`server/routes/voice.js:608`), so "a wake fired
+  and nothing arrived" is a fact only the out-of-repo agent holds. → new item **V1** below.
+- `__groundRetry` was **C1's instrument**. Spent there.
+
+### C3 · ⛔ **WON'T DO — deleting these would destroy the rollback** (closed 2026-08-20)
+
+S2 already weakened this; verified and now closed. The incumbent tree is not dead code, it
+is **cold standby**: `V3_DEFAULT=0` is a hard override read at `server/config.js:58`, the
+rollback needs **no deploy and no push** (`V3-CUTOVER.md:504`), and those modules are in
+the shipped bundle — `dist/assets/index-*.js` carries 14 hits for `screensaver` alone.
+Deleting them would turn a one-line rollback into a revert-and-redeploy, silently, and the
+day you find out is the day the wall is already broken.
 
 ### C4 · The audit's remaining MEDIUM items
-- **M6** — 18 MB of weather MP4s in `static/assets/weather_bg/` → ~6 MB H.264 (~3 h).
-- **M7** — 236 lottie JSONs shipped, ~120 believed unreachable (~2 h; grep computed names first).
-- **M8** — 30 dead CSS classes + 8 dead event subscriptions (~2 h).
-- **M10** — verify the `atmoFx` rAF loop fully stops in Mode 0 via `/kiosk-metrics` (~1 h;
-  fold into M1).
 
-### C5 · Housekeeping
-- **L2** — 6 docs still at repo root (`CALENDAR_UPGRADES_TESTING`, `CAMERAS`,
-  `CLAUDE_CODE_PROMPT`, `KIOSK_TROUBLESHOOTING`, `STYLE_GUIDE`, `WEATHER_BG_LOOPS`) → `docs/`.
-- **L3** — `config/cameras.js` → `server/config/`, delete the root `config/`.
-- **L7** — `scripts/audit-weathercodes.js` and `scripts/test-bom-bundle.js` **cannot run**
-  (broken imports). Delete.
-- **L8** — `.reference/` (265 MB) + `.playwright-mcp/` (129 MB) off the dev machine.
+- ✅ **M7 — DONE** (`615cf7e`). 181 unreachable lottie icons deleted, 2.4 MB → 936 KB.
+  🔑 **The audit's three computed-name warnings reduced to one, and only checking said
+  which:** grepping every template literal ending in `.json` across `src/` and `server/`
+  finds exactly one construction that names an icon (`getWindBeaufortFilename`), while
+  `uv-index` and `moon` appear **nowhere in the repo at all**. Beaufort kept whole, 13/13.
+  ⚠ **Found while doing it:** the audit's *other* finding — 6 lottie files that do not
+  exist — is a second `WEATHER_ANIMATIONS` map in `src/js/config/config.js` with **zero
+  importers**, tree-shaken out of all three bundles. Never a live defect; 31 lines of
+  config that looked authoritative and named files that were not there. Deleted.
+  🔑 **The failure mode is silent** — a 404 gives lottie-web no animation, no exception and
+  no gap, just an empty weather strip — so `tests/lottie-icons.spec.js` now pins both
+  directions, proven by restoring the dead map (red, naming all six) and by removing one
+  beaufort file (red at `117 km/h -> wind-beaufort-11.json`).
+
+- ⛔ **M8 — NOTHING TO DO, AND THE ITEM WAS WRONG** (closed 2026-08-20).
+  **CSS:** 24 of the 30 were already gone. The remaining 6 are **alive**, every one of them
+  built from a template literal the audit's sweep could not see —
+  `weather-fx-layer--${mode}` (`services/weather/fxOverlay.js:39`, live via
+  `renderer.js:19`) and `timeline-stop--${variant}` (`modules/calendar.js:813`).
+  **Deleting them on the audit's word would have broken the weather overlay and the
+  timeline's now/next highlight.**
+  **Events:** 7 of the 8 dead subscriptions are already gone. The 8th, `ha:message`, is a
+  **comment at `systemStatus.js:374` explaining the refactor that removed it** and naming
+  what replaced it — deleting it would delete the explanation.
+  ⏳ Left alone on purpose: `emit("intent:changed")` (`core/intentEngine.js:78`) still has
+  no subscriber, but it is in the incumbent-only tree, which C3 just established is frozen
+  rollback rather than a place to make cosmetic edits.
+
+- ⛔ **M10 — NOT MEASURABLE, same shape as M1** (closed 2026-08-20). `atmoFx` lives
+  entirely in `src/js/` (`services/atmoFx/{planner,runtime}.js`) with **zero references
+  from `src/v3/`**. The wall runs V3. **There is no atmoFx rAF loop on the live surface to
+  verify has stopped.** If the question is worth answering it is a question about the
+  rollback host, not the kiosk.
+
+- ⏳ **M6 — DEFERRED, and its justification has evaporated.** 18 MB of weather MP4s →
+  ~6 MB. The audit's reason was "each one is hardware-decoded on the Pi while visible" —
+  which is now false twice: the wall is a **G11**, and **V3 never plays these at all**
+  (0 hits for `weather_bg` in `dist/assets/v3-*.js`; `context-feed.js:10` says "V3 has no
+  DOM weather"). What is left is 12 MB of repo and rsync, against a **visual** change to
+  the rollback surface that CLAUDE.md says cannot be called done until it is seen — on a
+  surface that is not on the glass. **Owner's call.** ffmpeg is available on the dev box.
+
+### C5 · Housekeeping — ✅ mostly done (`d5cc9cc`)
+
+- ✅ **L2** — five root docs moved to `docs/`. Inbound references followed rather than
+  assumed: `STYLE_GUIDE.md` had eight mentions across README + four design docs, one of
+  them a relative path (`../../STYLE_GUIDE.md`) the move would have broken.
+  ⚠ **The sixth was not repo clutter.** `CLAUDE_CODE_PROMPT.md` is **gitignored**
+  (`.gitignore:29`) — the original scaffold prompt, and the thing that created
+  `.reference/`. It belongs with L8. Left in place.
+- ✅ **L3** — `config/cameras.js` → `server/config/cameras.js`, root `config/` gone. One
+  code importer, plus the camera-debug skill in `.claude/` **and** its `.agents/` mirror,
+  and `docs/CAMERAS.md` ×3. Verified by importing the route, not by reading it.
+- ✅ **L7** — both scripts deleted, re-confirmed broken first (each imports a pre-Vite
+  `static/js/...` path and dies on `ERR_MODULE_NOT_FOUND` at resolve time).
+- ⏳ **L8** — **owner's call, untouched.** `.reference/` is 265 MB, **untracked and
+  gitignored**, so deleting it is not recoverable through git. (`.playwright-mcp/` is
+  already gone.) `CLAUDE_CODE_PROMPT.md` goes with it.
 - **L4, L5, L9, L10** — untouched, no urgency (config split, interval scheduler,
   config-precedence doc, drop `node-fetch` for global `fetch`).
+
+### V1 · The house cannot say it did not hear you *(new, from C2)*
+
+Two of `presence-light.js`'s three failure cues are unreachable: `unheard` has a raiser
+nobody calls (`voice.js:reportUnheard`), and `cannot` has no raiser at all. The missing
+half is a **wake signal on the browser stream** — `/api/voice/stream` subscribes
+`transcript`, `level`, `barge_in`, `sound_presence` and nothing else, so the page cannot
+know a wake fired and nothing followed. Needs the out-of-repo agent to emit it. Small, and
+it is the difference between a wall that looks broken and one that says "I didn't catch that".
 
 ---
 
