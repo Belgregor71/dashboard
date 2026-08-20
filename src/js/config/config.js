@@ -63,34 +63,3 @@ export const EVENT_ICONS = {
    Do not reintroduce them. The route ignores a client-supplied `origin`
    entirely, so a caller that passed one would silently route from the wrong
    place rather than fail loudly. */
-
-export const WEATHER_ANIMATIONS = {
-  0: { day: "clear-day.json", night: "clear-night.json" },
-  1: { day: "clear-day.json", night: "clear-night.json" },
-  2: { day: "partly-cloudy-day.json", night: "partly-cloudy-night.json" },
-  3: { day: "overcast-day.json", night: "overcast-night.json" },
-  45: { day: "fog-day.json", night: "fog-night.json" },
-  48: { day: "fog-day.json", night: "fog-night.json" },
-  51: { day: "drizzle-day.json", night: "drizzle-night.json" },
-  53: { day: "drizzle-day.json", night: "drizzle-night.json" },
-  55: { day: "drizzle-day.json", night: "drizzle-night.json" },
-  56: { day: "drizzle-day.json", night: "drizzle-night.json" },
-  57: { day: "drizzle-day.json", night: "drizzle-night.json" },
-  61: { day: "rain-day.json", night: "rain-night.json" },
-  63: { day: "rain-day.json", night: "rain-night.json" },
-  65: { day: "rain-day.json", night: "rain-night.json" },
-  66: { day: "rain-day.json", night: "rain-night.json" },
-  67: { day: "rain-day.json", night: "rain-night.json" },
-  71: { day: "snow-day.json", night: "snow-night.json" },
-  73: { day: "snow-day.json", night: "snow-night.json" },
-  75: { day: "snow-day.json", night: "snow-night.json" },
-  77: { day: "snow-day.json", night: "snow-night.json" },
-  80: { day: "rain-day.json", night: "rain-night.json" },
-  81: { day: "rain-day.json", night: "rain-night.json" },
-  82: { day: "rain-day.json", night: "rain-night.json" },
-  85: { day: "snow-day.json", night: "snow-night.json" },
-  86: { day: "snow-day.json", night: "snow-night.json" },
-  95: { day: "thunderstorms-day.json", night: "thunderstorms-night.json" },
-  96: { day: "thunderstorms-day.json", night: "thunderstorms-night.json" },
-  97: { day: "thunderstorms-day.json", night: "thunderstorms-night.json" }
-};
