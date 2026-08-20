@@ -121,7 +121,15 @@
       soft pulse at the edge and nothing else. No speech: if it did not hear
       you, saying "sorry?" out loud is just noise in the room. */
 :root[data-fail="unheard"] .presence::before {
-  animation: fail-pulse 1600ms var(--ease) 1 forwards;
+  /* ⚠ ORIGIN AT THE BOTTOM, for this state only. The default centre origin
+     grows the band in both directions, so half the travel goes off the bottom
+     of the screen and the visible change is roughly half what the numbers say.
+     Pinned to the edge, the whole swell is upward and visible. Scoped here
+     rather than on .presence::before, because `speaking` (scaleY 0.7) and
+     `cannot` (scaleY 0.85) are STATIC heights that would move if this changed
+     under them. */
+  transform-origin: bottom;
+  animation: fail-pulse 1400ms var(--ease) 1 forwards;
 }
 /* ⚠ SEEN ON THE WALL 2026-08-20: TIMELY, AND STILL MISSED. Once V2 got the
    report down from ~10 s to 1.6 s the owner could finally see this fire — and
@@ -130,17 +138,22 @@
    (0.24 at 80 ms, 0.42 at 320 ms, 0.16 at 450 ms). That is a blink, not an
    acknowledgement.
 
-   Still ONE soft pulse — the design intent is unchanged, and a flashing wall
-   would be worse than a silent one. What changes is DWELL: it rises a little
-   further (0.55), holds near the top rather than spiking through it, and takes
-   1.6 s over it. Roughly 700 ms above 0.4 instead of 200 ms above 0.3.
-   ⚠ Must stay under setFailure()'s 2600 ms hold, or the cue is cut off
-   mid-animation by the attribute being removed. */
+   ⚠⚠ AND THE FIRST FIX FOR THAT WAS WRONG, on the wall the same evening:
+   holding near the peak for 700 ms bought dwell and DESTROYED THE MOTION.
+   "Wouldn't say it pulses — just sits at the bottom of the screen." Measured,
+   the plateau was flat within 0.05 from 199 ms to 900 ms, and the only other
+   travel was scaleY 0.75→0.72, four percent. Visible, and static.
+
+   A pulse needs a rise and a fall the eye can follow, so the dwell now comes
+   from DURATION and from TRAVEL rather than from a hold: one smooth swell to
+   0.58, and scaleY 0.40→1.00 against a 260 px band — the glow visibly grows
+   ~156 px off the edge and recedes. Still one beat; the wall must never flash.
+   ⚠ Must stay under setFailure()'s 2600 ms hold, or the attribute is removed
+   while the animation is still running and the cue is cut off mid-breath. */
 @keyframes fail-pulse {
-  0%   { opacity: 0;    transform: scaleY(0.5); }
-  22%  { opacity: 0.55; transform: scaleY(0.75); }
-  55%  { opacity: 0.5;  transform: scaleY(0.72); }
-  100% { opacity: 0;    transform: scaleY(0.5); }
+  0%   { opacity: 0;    transform: scaleY(0.40); }
+  30%  { opacity: 0.58; transform: scaleY(1.00); }
+  100% { opacity: 0;    transform: scaleY(0.40); }
 }
 
 /* 2. Heard you, didn't understand. The rim gathers and then DISSOLVES — the
