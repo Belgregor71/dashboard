@@ -171,7 +171,7 @@ let lastSrcKey = "";
    number to turn" turned out to be unturnable on the wall. */
 let gain = 2;
 /* Mirrors --arch-ghost so the lever reports the live value rather than a stale one. */
-let ghost = 0.3;
+let ghost = 0.22;
 
 /* ── The plate ──────────────────────────────────────────────────────────────
    RELOCATED LANGUAGE, NEVER NEW LANGUAGE. Everything on it is already what

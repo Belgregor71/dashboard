@@ -61,14 +61,22 @@
      it read as texture. On TWO ghosts 1060 and 810 wide the identical numbers
      read as two black rectangles, i.e. as holes in the composition rather than
      as photographs behind it. The stack maps input luminance to roughly
-     [0, 0.11] at 0.17; at 0.30 it reaches [0, 0.26], which is still far below
-     the card and still reads as an echo, but has structure in it.
+     [0, 0.11] at 0.17 and [0, 0.17] at 0.22.
+
+     🔑 0.22 IS THE OWNER'S CALL, TAKEN OFF AN A/B ON THE WALL, and 0.30 was the
+     first attempt at it. Both were captured seconds apart on the same 2017
+     photograph at depth 0: at 0.30 the bottom-right ghost reads as a SECOND
+     PHOTOGRAPH and the composition becomes three pictures competing; at 0.22
+     the card is unambiguously the subject again while the ghosts keep their
+     structure. ⚠ Judge any future change on a BRIGHT memory — that frame was a
+     sunlit street, which is about as light as this crush can make a ghost, and
+     a dark one sits further back at the same setting.
 
      ⚠ The plate sits OVER ghost a. Its rows carry their own 72%-opaque backing,
      so lifting this attenuates to about a fifth behind the text — but the plate
      contrast spec is the authority, not that arithmetic, and it measures the
      real painted stack. */
-  --arch-ghost: 0.3;
+  --arch-ghost: 0.22;
 }
 
 /* Night lowers the amplitude rather than adding a second threshold. Same sun
@@ -167,7 +175,8 @@
   /* Worth knowing what this stack actually does: grayscale + brightness(b) +
      contrast(1.18) maps ANY input luminance into roughly [0, (b - 0.5) * 1.18 +
      0.5], so a ghost is a flat dark field whatever photograph is behind it —
-     at the inherited b = 0.17 that ceiling is 0.11, and at 0.30 it is 0.26.
+     at the inherited b = 0.17 that ceiling is 0.11, and at the shipped 0.22
+     it is 0.17.
      The brightness is the ONE number here that is turnable (--arch-ghost, and
      `window.__archiveGhost(n)`); the grayscale and the contrast are the
      reference's and are not on trial.

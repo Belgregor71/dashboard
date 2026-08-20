@@ -103,11 +103,19 @@ the vignette, the static grain, and the motion periods.
 brightness(.17) contrast(1.18)` came over unchanged from a surface that drew ~30 tile repeats
 of one plane, where it read as texture. On TWO ghosts 1060 and 810 wide the identical numbers
 read as two black rectangles — *"it's good for them to be subtle but really can't see them"* —
-so the brightness is now `--arch-ghost`, default **0.30**, turnable live with
+so the brightness is now `--arch-ghost`, **default 0.22**, turnable live with
 `window.__archiveGhost(n)` and bounded at 0.6. The grayscale and the contrast are the
-reference's and are not on trial. The crush's ceiling is load-bearing, not decorative: it is
-why the plate over ghost a needs no scrim of its own, and the plate's contrast spec is the
-gate on how far this can be pushed.
+reference's and are not on trial.
+
+**0.22 is the owner's call off an A/B on the wall**, and 0.30 was the first attempt at it.
+Same 2017 photograph, seconds apart, both at depth 0: at 0.30 the bottom-right ghost reads as
+a *second photograph* and the composition becomes three pictures competing; at 0.22 the card
+is unambiguously the subject while the ghosts keep their structure. ⚠ Judge any future change
+on a **bright** memory — that frame was a sunlit street, about as light as this crush can make
+a ghost, and a dark one sits further back at the same setting.
+
+The crush's ceiling is load-bearing, not decorative: it is why the plate over ghost a needs no
+scrim of its own, and the plate's contrast spec is the gate on how far this can be pushed.
 
 **⚠ There are FOUR loops at depth 0, and a FIFTH animation that ENDS** (amended 2026-08-20,
 `b6a7d86`) — ghost-a 130s, ghost-b 104s, the engraved year 92s, the card's pivot 84s, and
