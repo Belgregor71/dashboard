@@ -512,11 +512,24 @@ window.CONFIG = {
     // the agent's report fans out to a page that ignores it — today's silence,
     // exactly. One-line revert (-> false) is the rollback path.
     //
-    // ⚠ Flipping this ON has a SUITE consequence: voiceBus is process-wide, so
-    // one /api/voice/unheard POST reaches EVERY page in the run. With the flag
-    // off that is inert; with it on, a spec that fires one can paint
-    // data-fail="unheard" on an unrelated worker's page.
-    voiceFailureCues: false,
+    // Flipped ON 2026-08-20 after live verification on the G11, in two parts —
+    // the mechanism, then the timing, because the first was not enough:
+    //   · the cue paints end to end on the wall (null -> "unheard" -> null),
+    //     and the PAINT was measured, not just the attribute: peak opacity 0.58
+    //     with the glow growing ~156px off the bottom edge and receding;
+    //   · ⚠ AND IT WAS STILL USELESS UNTIL V2. The report could not arrive for
+    //     10-13s, because a failed capture never gets a clean endpoint and ran
+    //     to MAX_UTTER_MS. The owner watched, saw nothing, and was right to.
+    //     With speech endpointing it lands at ~1.6s and they can see it fire.
+    // ⚠ THE AGENT HALF IS NOT DEPLOYED BY A GIT PULL — voice-agent.service runs
+    // /home/dashboard/voice-agent/voice_agent.py, outside the repo. Flag-on with
+    // an un-copied agent means the route is live and nothing ever posts to it.
+    // ⚠ SUITE CONSEQUENCE, now real rather than theoretical: voiceBus is
+    // process-wide, so one /api/voice/unheard POST reaches EVERY page in the
+    // run, and with this on they all paint. The `cannot` control asserts
+    // not.toBe("cannot") rather than an empty fail state for exactly that.
+    // One-line revert (-> false) is the rollback path.
+    voiceFailureCues: true,
 
     // STREAMED REPLIES — speak sentence one while the model writes sentence two.
     //
