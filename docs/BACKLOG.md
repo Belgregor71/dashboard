@@ -953,11 +953,24 @@ pulse itself was sampled through its animation on `.presence::before`: 0.24 at 8
 **0.42 at 320 ms**, 0.014 at 650 ms, 0 by 900 ms, over a 1920×260 band at the foot of the
 screen. The cue is real and renders as designed.
 
-⛔ **AND THE FLAG IS STILL OFF, on the owner's call — the cue arrives ~10 s too late.**
-Two genuine wakes (0.89, 0.98) reported cleanly and the owner **saw nothing at all**. See
-the new item below; V1's mechanism is not what is wrong.
+✅ **FLAG FLIPPED ON 2026-08-20** (`89581c5`) — but only after V2, and the sequence is the
+lesson: two genuine wakes (0.89, 0.98) reported perfectly and the owner **saw nothing at
+all**, because the report could not arrive for 10-13 s. **A mechanism that is correct at
+every layer can still be worthless.** V2 made it timely; then the cue itself needed two
+more passes to be legible. Suite 1525 pass / 1 skip flag-on, reversibility check green.
+Revert: `voiceFailureCues -> false`.
 
-### V2 · The capture cannot tell when you stopped talking *(new, from V1's live test)*
+⚠⚠ **THE PULSE TOOK TWO GOES, AND THE FIRST FIX WAS A REGRESSION I INTRODUCED.** Owner:
+*"could see it, wouldn't say it pulses — just sits at the bottom of the screen."* Fixing
+"too subtle" by holding near the peak for 700 ms bought dwell and **destroyed the motion** —
+measured flat within 0.05 from 199-900 ms, with the only other travel scaleY 0.75→0.72.
+🔑 **A plateau is the opposite of a pulse.** The dwell now comes from DURATION and TRAVEL:
+one swell to 0.58 over 1400 ms with scaleY 0.40→1.00, so the glow visibly grows ~156 px off
+the edge and recedes. ⚠ `transform-origin: bottom` scoped to this state only — the default
+centre origin sends half the travel off the bottom of the screen, and `speaking`/`cannot`
+are static heights that would shift if it were global.
+
+### V2 · ✅ **DONE — the capture endpoints on speech now** (`7edcf74`, `5682943`, LIVE)
 
 **The failures are systematically the slow path, and that is a property of the loop rather
 than bad luck.** `capture_utterance` (`tools/voice-agent/voice_agent.py`) ends an utterance
@@ -997,7 +1010,46 @@ whole item: endpoint `capture_utterance` on speech probability rather than loudn
 the house deaf. Wants its own live verification (a real spoken command still heard, AND a
 silent wake ending in about a second), not a flag flip.
 
-Then: flip `voiceFailureCues` on and watch for the pulse.
+**✅ Shipped and verified on the wall 2026-08-20.** `CAPTURE_VAD=speech` is the default.
+
+🔑 **The threshold came from the room. The placeholder happened to be right, but only
+measuring could show that.** Two captures, per frame:
+
+| | spoken command | silent wake |
+|---|---|---|
+| speech max | **1.00** (25 frames ≥ 0.5) | **0.16** (ZERO frames ≥ 0.2) |
+| RMS "voiced" | 81 of 101 frames | 4 frames (peak 584) |
+
+The spoken capture's speech ended at ~3.2 s and **RMS counted the following 4.8 s of pure
+silence as voiced** — the 8 s cap, explained. `SPEECH_ON=0.5` sits 0.34 clear of the
+loudest frame silence ever produced.
+
+**Measured live, after:**
+
+| | before | after |
+|---|---|---|
+| silent wake | 3.4-8.1 s, kept, whisper invented a word | **1.6 s** · `ended=lead` · `voiced=0` · dropped, no STT call |
+| real command | 8.1 s · `ended=cap` | **2.2 s** · `ended=trail` · heard correctly |
+
+⚠⚠ **AND IT WAS NOT ONLY A LATENCY BUG.** One silent capture logged `peak_rms=1303` —
+2.6× SILENCE_RMS — against `peak_speech=0.14`. Under the old rule that is kept, sent to
+whisper, and **whisper hallucinates**: a real silent wake produced the transcript
+`"Okay."`, which would have reached the voice lanes indistinguishable from speech. **The
+house was one step from acting on a word nobody said.**
+
+🔑 **`capture_utterance` had never fed silero at all** — it has its own reader and never
+called `ambient_tick()`, so the VAD was blind for the whole of every capture, on recurrent
+state, at the only moment anyone was speaking. Scoring there restores continuity.
+
+**`tools/voice-agent/capture_selftest.py`** — 10 cases, no mic and no models, including the
+two real traces replayed frame for frame. 🔑 **The fake clock is advanced by the audio
+itself**: with real time and instant synthetic frames every duration assertion is vacuous.
+Neuter-verified both ways that matter — removing the `_vad is not None` fallback fails
+*"a missing silero falls back to loudness"*, and disabling the lead branch fails *"a silent
+wake gives up in about a second and a half"*.
+
+⚠ Rollback needs no deploy: a `capture-vad.conf` drop-in beside the two already on the G11,
+`Environment=CAPTURE_VAD=rms`.
 
 ---
 
