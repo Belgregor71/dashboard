@@ -144,11 +144,41 @@ const HALVES = 2;
 const CLEANUP_BUFFER_MS = 2000;
 const DEFAULT_EXCHANGE_MS = 1200;
 
+/* ⚠⚠ THE CARD IS NOT THE WALLPAPER, AND ground.js's SETTLE IS THE WALLPAPER'S.
+   `ground.js` hands its own `DISSOLVE_MS` down through `meta.settleMs` and it is
+   SIXTY SECONDS — the right number for a full-bleed photograph, which should
+   change without anyone noticing. On the CARD it is the opposite number: the
+   card is the subject of the composition, so the same ramp leaves an incoming
+   photograph semi-transparent over an opaque one for most of a minute.
+
+   Measured on the wall 2026-08-22 before this clamp: the incoming slot read
+   0.60 → 1.00 over 27.5s with THREE slots opaque the whole way. That is what
+   "a really clunky slow transition" was — not a jerk, a half-minute double
+   exposure.
+
+   2600ms is the incumbent's verified number (`src/css/views/ambient-archive.css`
+   `transition: opacity 2.6s ease`), and `AMBIENT-ARCHIVE.md` names the exchange
+   as the ONE thing on this surface a person is meant to catch — everything else
+   is deliberately too slow to see.
+
+   ⚠ A CEILING, NEVER A FIXED VALUE. A veto settles briskly because someone just
+   spoke, and that briskness is real information; clamping keeps it while capping
+   the ambient rotation. Raising this past ~3s starts rebuilding the smear. */
+const CARD_EXCHANGE_MAX_MS = 2600;
+
+/* The beat of blur that makes the exchange an EVENT WITH AN END rather than a
+   slow smear — and the thing the instant reshape in `applyRect()` hides behind
+   (`AMBIENT-ARCHIVE.md`: "the shape change rides the exchange's existing 300ms
+   blur"). It was in the surface this replaced and was simply never ported, which
+   is why the rebuilt exchange had nothing marking it at all. */
+const EXCHANGE_BLUR_MS = 300;
+
 let root = null;
 let built = false;
 let slot = 0;               // which card slot is on top
 let ghostSlot = 0;
 let exchangeTimer = null;
+let blurTimer = null;
 let stripCanvas = null;
 let cardPlane = null;
 let cardEl = null;
@@ -438,12 +468,19 @@ export function archivePhoto(frame, meta = {}) {
   }
   lastSrcKey = key;
 
-  /* Exchange over the SAME settle ground.js is using, so a veto stays brisk and
-     the ambient rotation stays slow. The first frame has nothing to settle from
-     and falls back to V3's own --settle. */
-  if (Number.isFinite(meta.settleMs) && meta.settleMs >= 0) {
-    root?.style.setProperty("--arch-exchange", `${meta.settleMs}ms`);
-  }
+  /* Exchange over ground.js's settle, CLAMPED — see CARD_EXCHANGE_MAX_MS. A
+     veto still lands brisk because its settle is already under the ceiling; the
+     ambient rotation no longer drags a minute-long double exposure across the
+     card. The first frame has nothing to settle from and falls back to the
+     module's own default.
+
+     ⚠ ONE value, computed ONCE and used for BOTH the CSS var and the cleanup
+     timer below. They were separately derived from `meta.settleMs` before, which
+     is exactly the shape that lets a future edit move one and not the other. */
+  const settleMs = Number.isFinite(meta.settleMs) && meta.settleMs >= 0
+    ? Math.min(meta.settleMs, CARD_EXCHANGE_MAX_MS)
+    : DEFAULT_EXCHANGE_MS;
+  root?.style.setProperty("--arch-exchange", `${settleMs}ms`);
 
   const next = slot ^ 1;
   const halves = cardImgs[next];
@@ -478,11 +515,27 @@ export function archivePhoto(frame, meta = {}) {
   }
   ghostSlot = nextGhost;
 
+  /* A beat of blur as one memory gives way to the next. Dropped by a TIMER 300ms
+     later — never `transitionend`, which does not fire while the element or an
+     ancestor is `display:none`, and this whole layer is `display:none` under
+     reduced motion and invisible at every depth above 0 (CLAUDE.md). The
+     stylesheet eases it back OUT over 2.8s, so the blur lands hard and clears
+     slowly: the discontinuity is hidden, the recovery is not.
+
+     ⚠ ONE timer, cleared before it is re-armed. A per-exchange timer that
+     accumulated is the leak class this house has already paid for twice, and the
+     exchange above is armed the same way for the same reason. */
+  cardEl?.classList.add("is-exchanging");
+  clearTimeout(blurTimer);
+  blurTimer = setTimeout(() => {
+    blurTimer = null;
+    cardEl?.classList.remove("is-exchanging");
+  }, EXCHANGE_BLUR_MS);
+
   /* Once the incoming layer is fully opaque the outgoing one is covered and
      costs a composite for nobody, so it stands down. ONE timer, cleared before
      it is re-armed — a per-exchange timer that accumulated would be exactly the
      leak class this house has paid for twice. */
-  const settleMs = Number.isFinite(meta.settleMs) ? meta.settleMs : DEFAULT_EXCHANGE_MS;
   clearTimeout(exchangeTimer);
   exchangeTimer = setTimeout(() => {
     cardImgs[slot ^ 1].forEach((img) => img.classList.remove("is-shown"));

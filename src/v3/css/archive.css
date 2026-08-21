@@ -344,6 +344,37 @@
   background: var(--surface-sunk);
   box-shadow: 0 48px 110px oklch(0.05 0 0 / 0.62);
   outline: 1px solid color-mix(in oklch, var(--ink) 18%, transparent);
+  /* THE RECOVERY, not the blur — see .is-exchanging below. Asymmetric on
+     purpose: 300ms in, 2.8s out. */
+  transition: filter 2.8s ease;
+}
+
+/* ── The exchange ───────────────────────────────────────────────────────────
+   A BEAT OF BLUR AS ONE MEMORY GIVES WAY TO THE NEXT, and the only thing on
+   this surface a person is actually meant to catch. Everything else here —
+   pivot 84s, drift 130s/104s, year 92s — is deliberately below the threshold of
+   perception, which `AMBIENT-ARCHIVE.md` says in those words. That makes this
+   load-bearing rather than decorative: without it the surface has NO catchable
+   motion at all, which is precisely how it read on the wall on 2026-08-22.
+
+   ⚠ IT WAS IN THE SURFACE THIS REPLACED AND WAS NEVER PORTED. The incumbent's
+   `src/css/views/ambient-archive.css` carries these exact numbers, and its own
+   comment calls it "an event with an end, not a texture". The V3 rebuild took
+   the crossfade and left the blur behind, so the exchange became a slow smear
+   with nothing marking where it began.
+
+   ⚠ IT IS ALSO THE MASK FOR THE RESHAPE. `applyRect()` writes width/height/top
+   INSTANTLY because §5.5 forbids animating layout — the card is allowed to
+   change shape only because this hides the moment it does. Removing this
+   quietly turns a masked reshape into a visible jump.
+
+   ⚠ ON THE CARD, NOT THE PLANE. `.archive__card` holds the four photo slots and
+   the lip and nothing else; the plate is a sibling two levels out. A filter here
+   must never reach the text, which is the one thing on this surface that has a
+   measured contrast obligation. */
+.archive__card.is-exchanging {
+  filter: blur(16px) brightness(0.8);
+  transition: filter 300ms ease;
 }
 
 /* Two slots, each up to two halves. Nothing is created per photograph: the

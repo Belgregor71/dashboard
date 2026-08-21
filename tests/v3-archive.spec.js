@@ -425,7 +425,14 @@ test("nothing grows across exchanges, and one timer never becomes many", async (
     await page.evaluate(() => window.__groundDissolve(20, 200));
     await expect.poll(() => page.evaluate(() => window.__ground().inFlight)).toBe(false);
   }
-  await page.waitForTimeout(2200);   // past the exchange cleanup
+  /* ⚠ PAST THE EXCHANGE CLEANUP (settle 20 + 2000 buffer) AND PAST THE BLUR'S
+     RECOVERY. `getAnimations()` counts CSS TRANSITIONS, not only keyframe
+     animations, so the card's `transition: filter 2.8s` — armed when the
+     exchange blur comes off at 300ms — is a sixth entry until ~3.1s. It read
+     six here the moment the blur landed. Sampling inside that window would pin
+     a number that means "we happened to look while the card was un-blurring",
+     which is the timing-dependence the `anims` comment below warns about. */
+  await page.waitForTimeout(3400);
 
   /* A page that runs for weeks may not grow. Every node the archive will ever
      have is built once; an exchange swaps `src` and two class names. */
@@ -453,6 +460,9 @@ test("nothing grows across exchanges, and one timer never becomes many", async (
      `anims` counts five while a photograph is coming to rest and four once it
      has. We are 2.2s past the last exchange, mid-settle, so five.
 
+     ⚠ AND `anims` COUNTS TRANSITIONS TOO — see the wait above. Five here means
+     four loops plus the settle, with the blur's recovery already finished.
+
      `loops` is the number that does not move with the clock: the animations
      that never end on their own. FOUR at depth 0 in daylight, three after dark
      (the engraved year is hidden then and must not animate for nobody). It read
@@ -463,6 +473,89 @@ test("nothing grows across exchanges, and one timer never becomes many", async (
   expect(probe.loops).toBe(4);
   expect(probe.top).toBe(1);
   expect(probe.shown).toBe(1);
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("the card's exchange is CLAMPED — the wallpaper's minute is not the card's", async ({ page }) => {
+  /* ⚠⚠ THIS SPEC EXISTS BECAUSE THE SURFACE WENT GREEN WHILE READING WRONG.
+     `ground.js` hands `meta.settleMs` down and its ambient value is
+     `DISSOLVE_MS` = SIXTY SECONDS. The archive used it raw, so the card — the
+     SUBJECT of the composition, not the wallpaper — cross-faded over a full
+     minute. Measured on the wall 2026-08-22: the incoming slot climbed
+     0.60 → 1.00 across 27.5s with three slots opaque the whole way, which is a
+     half-minute double exposure rather than a transition.
+
+     Nothing caught it because every existing assertion here drives dissolves at
+     20ms. A settle UNDER the ceiling is exactly the case a clamp cannot fail,
+     so the suite could only ever have seen the fixed state. The number under
+     test is the AMBIENT one, and it has to be driven explicitly. */
+  const pageErrors = await bootArchive(page);
+  await groundShown(page);
+
+  const exch = () => page.evaluate(() =>
+    document.documentElement.style.getPropertyValue("--arch-exchange"));
+
+  // The ambient rotation's own settle, at full length.
+  await page.evaluate(() => window.__groundDissolve(60_000, 200));
+  await expect.poll(exch, {
+    message: "a 60s wallpaper settle must not become a 60s card crossfade"
+  }).toBe("2600ms");
+
+  await expect.poll(() => page.evaluate(() => window.__ground().inFlight)).toBe(false);
+
+  /* ⚠ A CEILING, NOT A FIXED VALUE — and this half is the reason to say so. A
+     veto settles briskly BECAUSE someone just spoke, and that briskness is
+     information the room can read. Clamping to a constant would throw it away,
+     and the throwing-away would be invisible: the surface would still look
+     fine, it would just stop distinguishing "you rejected this" from "ten
+     minutes passed". */
+  await page.evaluate(() => window.__groundDissolve(900, 200));
+  await expect.poll(exch, {
+    message: "a settle already under the ceiling must pass through untouched"
+  }).toBe("900ms");
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("the exchange is MARKED by a blur, and the blur is an event with an end", async ({ page }) => {
+  /* The one catchable thing on this surface. `AMBIENT-ARCHIVE.md` puts pivot,
+     drift and zoom all deliberately below the threshold of perception and names
+     the exchange and its 300ms blur as the exceptions — so this is not polish,
+     it is the entire visible motion budget of depth 0.
+
+     ⚠ IT SHIPPED IN THE INCUMBENT AND WAS NEVER PORTED TO V3. The rebuild took
+     the crossfade and left the blur, and no spec noticed because no spec ever
+     asked whether the exchange was marked at all.
+
+     ⚠ OBSERVED, NEVER SAMPLED. The class lives for 300ms; polling for it is a
+     race with the thing under test. An attribute observer scoped to the one
+     element records that it happened without depending on when we look. */
+  const pageErrors = await bootArchive(page);
+  await groundShown(page);
+
+  await page.evaluate(() => {
+    const card = document.querySelector(".archive__card");
+    window.__blurSeen = false;
+    new MutationObserver(() => {
+      if (card.classList.contains("is-exchanging")) window.__blurSeen = true;
+    }).observe(card, { attributes: true, attributeFilter: ["class"] });
+  });
+
+  await page.evaluate(() => window.__groundDissolve(900, 200));
+  await expect.poll(() => page.evaluate(() => window.__blurSeen), {
+    message: "an exchange with nothing marking it is the smear this fixed"
+  }).toBe(true);
+
+  /* And it CLEARS. A blur that stuck would be far worse than none: the card is
+     the photograph, and `filter` on it re-rasterises every frame the Ken Burns
+     settle is still scaling. Left on, it would be a permanent cost against the
+     §5.4 ceiling that no `anims`/`loops` count can see, because it is not an
+     animation at all. */
+  await expect.poll(
+    () => page.evaluate(() => document.querySelector(".archive__card").className),
+    { message: "the blur must come off on its own timer" }
+  ).not.toContain("is-exchanging");
 
   expect(pageErrors).toEqual([]);
 });

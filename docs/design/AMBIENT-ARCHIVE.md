@@ -178,6 +178,34 @@ it in daylight.**
 
 ### Traps this rebuild found or inherited
 
+- **⚠⚠ THE REBUILD TOOK THE CROSSFADE AND LEFT THE BLUR** (found 2026-08-22, on the
+  owner's report that *"I don't see any animation except a really clunky slow
+  transition"*). Two separate omissions compounding, and the second is the one that
+  hid the first:
+  - `.archive__card.is-exchanging { filter: blur(16px) brightness(0.8) }` shipped in
+    the incumbent and was **never ported to V3** — `is-exchanging` appeared nowhere in
+    `src/v3/`, and `archive.css` contained no `blur` at all. This document already
+    named the blur as one of only **two** catchable things on the surface, so its
+    absence did not merely cost polish: it left depth 0 with **no perceptible motion
+    whatsoever**, everything else here being deliberately sub-threshold.
+  - V3 drove the crossfade off `meta.settleMs` **raw**, and `ground.js` hands down its
+    own `DISSOLVE_MS` — **sixty seconds**. That is the correct number for a full-bleed
+    photograph nobody should notice changing, and the wrong one by a factor of ~23 for
+    the card, which is the subject of the composition. Measured on the wall before the
+    fix: the incoming slot climbed **0.60 → 1.00 across 27.5 s with three slots opaque
+    throughout** — a half-minute double exposure.
+  - 🔑 **The suite could not have caught it.** Every existing exchange assertion drives
+    `__groundDissolve(20, 200)`, and a settle *under* the ceiling is exactly the case a
+    clamp cannot fail. The ambient number is the one under test and it has to be driven
+    explicitly; `tests/v3-archive.spec.js` now does.
+  - ⚠ The clamp is a **ceiling, not a constant** (`CARD_EXCHANGE_MAX_MS = 2600`). A veto
+    settles briskly *because someone just spoke*, and flattening that to a fixed value
+    would discard real information invisibly — the surface would still look right and
+    would simply stop distinguishing "you rejected this" from "ten minutes passed".
+  - ⚠ **`getAnimations()` counts CSS transitions.** The blur's 2.8 s recovery is a sixth
+    entry in `__archive().anims` until it finishes, which broke the pinned `anims: 5`.
+    `loops` was unmoved, which is the whole reason that second number exists.
+
 - **`__ground().layers` must stay 1 at rest.** The card's `<img>`s live in `#archive`,
   never in `.photo`, or every future soak reports a leak that is not there.
 - **`#archive` is a child of `<body>`.** Inside `.photo` its z-index would be trapped in
