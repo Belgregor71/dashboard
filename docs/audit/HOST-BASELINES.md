@@ -164,8 +164,25 @@ replaced by *"never move for a reason the room can't see"* plus a measured ceili
 | Quiescent ambient — no legal cause active | **≤ 8** | 3.1 | ~2.5× |
 | Live ambient — a continuous cause running (rain, wind, sun) | **≤ 25** sustained | **5.9** (V3, 2026-08-14) | ~4.2× |
 | Peak episode — a moment, must decay | **≤ 35** | 22.5 | ~1.5× |
-| **V3 archive — depth 0** (v3Archive default-on) | **≤ 25** sustained (live ambient) | **21.1** settled (2026-08-20, `b6a7d86`) — was 27.4 ⚠ OVER while the fifth loop ran forever | ~1.2× |
-| **V3 archive — depth 0, mid-settle** (96 s per photograph) | **≤ 35** peak episode | 27.3 (2026-08-20), decays to the row above | ~1.3× |
+| **V3 archive — depth 0** (v3Archive default-on) | **≤ 25** sustained (live ambient) | **21.3** settled (2026-08-22, gain 4) · 21.5 at gain 2 · 21.1 (2026-08-20, `b6a7d86`) — was 27.4 ⚠ OVER while the fifth loop ran forever | ~1.2× |
+| **V3 archive — depth 0, mid-settle** (96 s per photograph) | **≤ 35** peak episode | **31.6** (2026-08-22, gain 4) · 28.4 at gain 2 · 27.3 (2026-08-20), decays to the row above | ~1.1× |
+
+> **2026-08-22 — the exchange fix, and the gain raised to 4.** Both readings above were
+> retaken on `fe352bf` (daylight, depth 0, renderer 1306 / gpu 1161, 30 s windows,
+> `/proc/pressure/cpu` avg10 **0.00** in every one).
+>
+> - The **exchange blur** (`.archive__card.is-exchanging`, 300 ms in / 2.8 s out) costs
+>   **nothing sustained** — settled 21.5 at gain 2 against the 21.1 it replaced, inside
+>   noise. ⚠ Its own 3.5 s window was **not** isolated; both sustained rows sit inside
+>   their ceilings, which is what §5.4 actually asks for.
+> - **Gain 2 → 4 is free when settled and is not free at the peak.** Settled 21.5 → 21.3
+>   (amplitude moves composited layers further; it does not change raster cost).
+>   Mid-move **28.4 → 31.6**, because `arch-kenburns` scales the card texture 1.294
+>   instead of 1.15. That is 3.4 of headroom against 35, where gain 2 had 6.6.
+> - 🔑 **The number to watch on any future gain change is the MID-MOVE row, not the
+>   settled one.** The settled row is insensitive to amplitude and will report "no
+>   change" while the peak climbs — this is the same animation whose forever-loop cost
+>   6.3 points and forced the settle in the first place.
 
 Plus: never pin a core (`/proc/pressure/cpu` `avg10` ≈ 0), `scriptPct` under ~5% (0.2 quiescent /
 2.5 peak — stay GPU/raster-bound), sustained `tempC` under 70 °C (idle 33–34, peak 52.3).

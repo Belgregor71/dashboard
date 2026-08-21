@@ -215,8 +215,31 @@ let lastSrcKey = "";
    how often. The night half is CSS (`:root[data-night="1"]` lowers --arch-day);
    this is the daylight multiplier, and it exists as a real writer rather than
    as a bare calc() fallback because the shipped one never had one and "the one
-   number to turn" turned out to be unturnable on the wall. */
-let gain = 2;
+   number to turn" turned out to be unturnable on the wall.
+
+   ⚠⚠ 4 IS THE OWNER'S CALL, TAKEN LIVE ON THE WALL 2026-08-22, and it replaces the
+   2026-08-02 call of 2. The reason 2 was wrong is measurable rather than a matter
+   of taste: at gain 2 in daylight ghost a drifts 0.43-0.8 px/s and the card's
+   painted width changes ~2px in 20s, which is below what anyone can see. That was
+   defensible while the exchange carried the surface's visible motion — and for
+   two days it did not, because the exchange had no blur and ran for a minute.
+   Turned live via `__archiveGain(4)` and measured over 20s: ghost a 2.81 px/s,
+   ghost b 2.57, the year 1.74, the card +7.64px. Perceptible, which is the whole
+   requirement.
+
+   ⚠ IT IS NOT FREE, AND THE COST IS ALL IN ONE PLACE. Settled is unchanged (21.3
+   against gain 2's 21.5) because amplitude moves already-composited layers further
+   without changing what must be rasterised. But `arch-kenburns` scales the card
+   texture by `1 + 0.075 * amp`, so gain 4 makes it 1.294 rather than 1.15, and the
+   mid-move peak went 28.4 -> 31.6 against §5.4's 35. That is legal with 3.4 of
+   headroom where gain 2 had 6.6. This is the same animation that cost 6.3 points
+   and forced the settle, so ANY future raise of this number must re-measure the
+   mid-move row and not merely the settled one. Pressure stayed 0.00 throughout.
+
+   ⚠ The CSS fallback in archive.css must move WITH this. It is what applies in the
+   frames before initArchive() writes the var, and a mismatch is a visible amplitude
+   step at boot. */
+let gain = 4;
 /* Mirrors --arch-ghost so the lever reports the live value rather than a stale one. */
 let ghost = 0.22;
 

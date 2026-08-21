@@ -33,7 +33,10 @@
      window.__archiveGain); --arch-day is the night curve. §5.2: at 2am the wall
      drifts less FAR, never less often — periods are constants, displacement is
      not. */
-  --arch-gain: 2;
+  /* ⚠ MIRRORS `let gain` IN core/archive.js AND MUST MOVE WITH IT — this is what
+     applies in the frames before initArchive() writes the var, so a mismatch is a
+     visible amplitude step at boot. Raised 2 -> 4 on the wall 2026-08-22. */
+  --arch-gain: 4;
   --arch-day: 1;
   --arch-amp: calc(var(--arch-gain) * (0.34 + 0.66 * var(--arch-day)));
 

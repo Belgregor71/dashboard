@@ -400,10 +400,26 @@ shifts a 9 am photo to 7 pm in Brisbane. `localHourOf` reads the fields, exactly
   *the house is leafing through its album*.
 - **Too slow to catch.** Pivot 84 s, drift 130 s / 92 s, zoom 96 s. Only the memory
   exchange and its 300 ms blur are catchable, and both are *events with ends*.
-- **Amplitude** = `--arch-gain` × the `--clock-dim` curve (§5.2). Gain is **2** — the
-  owner's 2026-08-02 call after the reference's own amplitude proved invisible on the
-  wall. Periods never scale; a slow effect that still travels far is what wakes someone
-  up. **`--arch-gain` is the one number to turn** if the wall wants more or less life.
+- **Amplitude** = `--arch-gain` × the `--clock-dim` curve (§5.2). Gain is **4** — the
+  owner's 2026-08-22 call, taken live on the wall, replacing the 2026-08-02 call of 2
+  (which had itself replaced the reference's own amplitude for the same reason). Periods
+  never scale; a slow effect that still travels far is what wakes someone up.
+  **`--arch-gain` is the one number to turn** if the wall wants more or less life.
+  - Why 2 was wrong is **measured, not taste**: at gain 2 in daylight ghost a drifts
+    0.43–0.8 px/s and the card's painted width changes ~2 px in 20 s — under the
+    threshold of sight. Defensible only while the exchange carried the visible motion,
+    which for two days it did not (it had no blur and ran for a minute). At gain 4:
+    ghost a **2.81 px/s**, ghost b 2.57, the year 1.74, the card **+7.64 px / 20 s**.
+  - ⚠ **The cost is all in one place.** Settled is unchanged — 21.3 against gain 2's
+    21.5, because amplitude moves already-composited layers further without changing
+    what must be rasterised. But `arch-kenburns` scales the card texture by
+    `1 + 0.075 × amp`, so gain 4 makes it **1.294** rather than 1.15 and the mid-move
+    peak went **28.4 → 31.6** against §5.4's 35. Legal, with 3.4 of headroom where gain
+    2 had 6.6. This is the same animation that cost 6.3 points and forced the settle,
+    so **any future raise must re-measure the mid-move row, not just the settled one.**
+  - ⚠ Two sites, and they must move together: `let gain` in `core/archive.js` and the
+    `--arch-gain` fallback in `css/archive.css`. The fallback applies in the frames
+    before `initArchive()` writes the var; a mismatch is an amplitude step at boot.
 - **⚠ The ruler never moves.** The reference drifts its strips ±80 px, which was fine
   when they were decoration. This one carries the hour axis, and ±80 px on it is a
   ~50-minute lie. Those keyframes are deliberately absent, and a test asserts it.
