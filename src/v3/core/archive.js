@@ -173,12 +173,29 @@ const CARD_EXCHANGE_MAX_MS = 2600;
    is why the rebuilt exchange had nothing marking it at all. */
 const EXCHANGE_BLUR_MS = 300;
 
+/* WHEN THE WORDS CHANGE, as a fraction of the crossfade rather than a constant.
+   The plate names ONE photograph, and for the length of an exchange there are
+   two on the glass — so there is no instant at which the old words and the new
+   words are both honest, and the only question is which lie is shorter. Swapping
+   at 92% puts the change where the incoming photograph has visually won but the
+   card has not finished settling, which is the same place the incumbent put it
+   (`EXCHANGE_SWAP_MS` 2400 against a 2.6s crossfade).
+
+   ⚠ A RATIO AND NOT A NUMBER, because `settleMs` is not one. A veto crossfades
+   in ~1.2s and the ambient rotation in 2.6s; a fixed 2400ms would hold stale
+   words on the glass for twice the length of the exchange that replaced them.
+   Floored at the blur so the plate has actually gone before its text changes —
+   swapping words while they are still readable is the pop this exists to
+   remove. */
+const PLATE_SWAP_RATIO = 0.92;
+
 let root = null;
 let built = false;
 let slot = 0;               // which card slot is on top
 let ghostSlot = 0;
 let exchangeTimer = null;
 let blurTimer = null;
+let plateTimer = null;
 let stripCanvas = null;
 let cardPlane = null;
 let cardEl = null;
@@ -557,12 +574,41 @@ export function archivePhoto(frame, meta = {}) {
     }, { once: true });
   });
 
-  const { year } = frameParts(meta.assets);
-  litYear = year || "";
-  if (yearEl) yearEl.textContent = litYear;
-  lastYears = poolYears();
-  drawStrip();
-  paintPlate(meta.assets);
+  /* ⚠⚠ THE WORDS RIDE THE EXCHANGE — THEY DO NOT LEAD IT. All four of these
+     swapped INSTANTLY while the photograph took the whole crossfade to arrive,
+     so the plate named the incoming memory over a card still showing the
+     outgoing one. At the 60s settle this shipped with that was a caption
+     contradicting the picture for most of a minute; at 2.6s it is a pop, which
+     is smaller but is the same defect.
+
+     The plate and the engraved year stand DOWN first (fast, with the blur),
+     their text changes while they are invisible, and they return on the calm
+     2.4s ease the stylesheet already gives them. Same asymmetry as the blur:
+     the discontinuity is hidden, the recovery is not.
+
+     ⚠ ONE timer, cleared before re-arm — and it must survive being superseded,
+     because two exchanges inside one settle is a real state (a veto answered by
+     another veto). The pending swap is dropped rather than allowed to paint a
+     memory that has already gone. */
+  plateEl?.classList.add("is-exchanging");
+  yearEl?.classList.add("is-exchanging");
+  const swapMs = Math.max(EXCHANGE_BLUR_MS, Math.round(settleMs * PLATE_SWAP_RATIO));
+  clearTimeout(plateTimer);
+  plateTimer = setTimeout(() => {
+    plateTimer = null;
+    /* ⚠ STILL THE CURRENT MEMORY? This fires a whole swap after it was armed,
+       and ground.js's own late-hand-off trap is the same shape one plane down:
+       a superseded exchange must not put its words back on the wall. */
+    if (lastSrcKey !== key) return;
+    const { year } = frameParts(meta.assets);
+    litYear = year || "";
+    if (yearEl) yearEl.textContent = litYear;
+    lastYears = poolYears();
+    drawStrip();
+    paintPlate(meta.assets);
+    plateEl?.classList.remove("is-exchanging");
+    yearEl?.classList.remove("is-exchanging");
+  }, swapMs);
 }
 
 /**

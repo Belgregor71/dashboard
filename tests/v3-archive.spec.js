@@ -560,6 +560,53 @@ test("the exchange is MARKED by a blur, and the blur is an event with an end", a
   expect(pageErrors).toEqual([]);
 });
 
+test("the words NEVER change while they are readable", async ({ page }) => {
+  /* The plate names ONE photograph, and an exchange puts two on the glass. The
+     rebuild swapped all four pieces of language — plate rows, engraved numeral,
+     the strip's lit year, the pool — the instant `archivePhoto()` ran, while the
+     picture itself took the whole crossfade to arrive. So the caption described
+     the INCOMING memory over a card still showing the OUTGOING one. At the 60s
+     settle that shipped, it did so for most of a minute.
+
+     ⚠ THE ASSERTION IS THE INVARIANT, NOT A TIMING. Polling for "what does the
+     plate say at t=400ms" would pin the current swap ratio and re-break the
+     moment anyone tuned it. What must hold at ANY ratio is that the words are
+     invisible at the instant they change — so this observes every text mutation
+     and records the plate's opacity AT THAT MOMENT. Instant swap records 1;
+     riding the exchange records 0. It cannot pass against the defect. */
+  const pageErrors = await bootArchive(page);
+  await groundShown(page);
+  // Past the first frame's own swap, so the records below belong to the
+  // exchange this test drives and not to the arrival that preceded it.
+  await page.waitForTimeout(1800);
+
+  await page.evaluate(() => {
+    const plate = document.querySelector(".archive__plate");
+    window.__swaps = [];
+    new MutationObserver(() => {
+      window.__swaps.push(+getComputedStyle(plate).opacity);
+    }).observe(plate, { subtree: true, childList: true, characterData: true });
+  });
+
+  await page.evaluate(() => window.__groundDissolve(900, 200));
+  await expect.poll(() => page.evaluate(() => window.__swaps.length)).toBeGreaterThan(0);
+
+  const swaps = await page.evaluate(() => window.__swaps);
+  for (const o of swaps) {
+    expect(o, `the plate changed its words at opacity ${o} — the room can read that`)
+      .toBeLessThan(0.05);
+  }
+
+  /* And it comes BACK — a plate that stood down and never returned would pass
+     the loop above perfectly. */
+  await expect.poll(
+    () => page.evaluate(() => +getComputedStyle(document.querySelector(".archive__plate")).opacity),
+    { message: "the words must return once the memory has arrived" }
+  ).toBeGreaterThan(0.9);
+
+  expect(pageErrors).toEqual([]);
+});
+
 test("the photograph's move ENDS, and it ends where the element rests", async ({ page }) => {
   /* The settle is what keeps depth 0 inside §5.4: four forever-loops measure
      21.5% of a core on the wall, five measure 27.4% against a 25% ceiling.

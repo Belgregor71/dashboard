@@ -202,6 +202,25 @@ it in daylight.**
     settles briskly *because someone just spoke*, and flattening that to a fixed value
     would discard real information invisibly — the surface would still look right and
     would simply stop distinguishing "you rejected this" from "ten minutes passed".
+- **The words led the picture instead of riding it** (same session, found while fixing the
+  above). The plate rows, the engraved numeral, the strip's lit year and the pool all
+  swapped the instant `archivePhoto()` ran, while the photograph took the whole crossfade
+  to arrive — so the caption named the INCOMING memory over a card still showing the
+  OUTGOING one. At the 60s settle that was a contradiction held for most of a minute; at
+  2.6s it is a pop, which is smaller but the same defect. The plate and the year now stand
+  down fast with the blur, change while invisible, and return on the calm 2.4s ease.
+  - ⚠ **The swap point is a RATIO (`PLATE_SWAP_RATIO` 0.92), not a constant.** `settleMs`
+    is not one either — a veto crossfades in ~1.2s and the ambient rotation in 2.6s, so a
+    fixed 2400ms would hold stale words for twice the length of the exchange that replaced
+    them. Floored at the blur, so the plate is gone before its text changes.
+  - 🔑 **The spec asserts the INVARIANT, not a timing**: it observes every text mutation and
+    records the plate's opacity *at that instant*, which must be 0. Pinning "what does it
+    say at t=400ms" would have re-broken the moment anyone tuned the ratio. Verified red
+    against the injected instant swap — *"the plate changed its words at opacity 1"*.
+  - ⚠ Night must keep winning: `:root[data-night="1"] .archive__plate` is (0,3,0) against
+    the stand-down rule's (0,2,0), so the plate does not fade back in at 2am. Lowering that
+    selector's specificity is how it quietly would.
+
   - ⚠ **`getAnimations()` counts CSS transitions.** The blur's 2.8 s recovery is a sixth
     entry in `__archive().anims` until it finishes, which broke the pinned `anims: 5`.
     `loops` was unmoved, which is the whole reason that second number exists.

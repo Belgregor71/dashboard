@@ -2,6 +2,20 @@
 
 ## Project: Kiosk Dashboard (GMKtec G11, migrated off a Raspberry Pi 4 on 2026-08-01)
 
+### Architecture
+
+- **Two frontends coexist.** `src/js/` is the incumbent; `src/v3/` is the current surface.
+  Vite builds both entries. `/` serves V3 (`server/config.js:45`, `DEFAULT_ROOT_SURFACE`);
+  `/index.html` and `/v3/` stay reachable whichever way it points. **Check which surface a
+  change targets before editing** — the same feature often exists in both.
+- **V3 is not standalone**: it imports ~26 modules from `src/js/`. The incumbent tree is a
+  live dependency, not dead code — don't delete from it on an audit's say-so.
+- `server.js` mounts `server/routes/*.js` (26 route modules) under `/api`. Route order
+  matters — see the measured comments in `server.js` around the static mounts.
+- Scripts: `npm run dev` (vite) · `npm run build` (vite + copy-static-config) ·
+  `npm start` (node server.js, port 3000) · `npm test` (Playwright) ·
+  `verify:contrast` `verify:flags` `verify:patterns` `verify:contracts` `verify:v3-coverage`
+
 ### Verification & Deployment
 
 - This dashboard runs on a **GMKtec G11 mini PC** (AMD Ryzen Embedded R2514, Vega 8, 16 GB, Debian 13 + X11) driving a 32" landscape display. It ran on a Raspberry Pi 4 until 2026-08-01; that Pi is retained as the warm rollback host. A fix is not complete until verified on the actual kiosk display / live environment — dev-session rendering is often unreliable (lottie icons, camera snapshots, TTS timing). Don't declare a fix done while it's still "pending kiosk retest".
@@ -9,6 +23,9 @@
 - Access: **`ssh pi-dashboard` → the G11** (192.168.0.183, user `dashboard`, repo at `/home/dashboard/dashboard`). The alias name is **historical and deliberately unchanged** — keeping it means the deploy chain, all 7 skills and the pre-approved permissions need zero edits. The Pi 4 rollback host is **`ssh pi4-rollback`** (192.168.0.186); its kiosk is disabled but `dashboard.service` + `dashboard-deploy.timer` stay running so it remains code-current. Dashboard serves on port 3000 (systemd sets `PORT=3000`, and `.env.example:1` now agrees). Kiosk Chromium exposes CDP on 127.0.0.1:9222 (localhost only — run a node script on the kiosk host to reach it).
 - **Host-specific gotchas on the G11:** `vcgencmd` does not exist — read `tempC` from `/api/system/metrics` (autodetects `k10temp`; `/sys/class/thermal/` is absent entirely). `nproc` is **8**, not 4, so every "% of the box" derived from `gpucpu.sh` changes denominator. `sudo` is narrowed to three passwordless systemctl commands; anything else needs a password. Baselines for both hosts live in `docs/audit/HOST-BASELINES.md`.
 - During long sessions, commit working progress locally in small checkpoints — but don't push until verified, because pushing to main deploys to the live kiosk.
+- **Surface rollback needs no deploy:** `V3_DEFAULT=0` in the kiosk's `.env` + a
+  `dashboard.service` restart forces the incumbent back in place; `=1` forces V3.
+  Unset falls through to the committed default. `root-surface.spec.js` pins that default.
 
 ### Feature Flags
 
@@ -18,15 +35,21 @@
 - Every flag must be cleanly reversible — flipping it off is the rollback path, so verify
   the off state still passes tests after the flip (flag flips have broken tests that
   assumed the old default).
+- Flags live in `src/js/config.js` under `features:` (~78 flags), copied to
+  `static/js/config.js` on every build. That file is **tracked and shipped in the
+  public bundle** — never put a secret or an address in it.
 
 ### Testing & Pre-Push Gate
 
-- `npm test` runs the Playwright suite: API contract tests (`tests/api.spec.js`) and a
-  headless browser smoke test (`tests/ui.spec.js`). The smoke test needs `npm run build`
-  first. Test server runs on port 3210 with AI upstreams stubbed off (no API spend).
-- A pre-push hook (`.githooks/pre-push`) runs build + tests before any push — because
-  pushing to main deploys the Pi. Wire it per clone: `git config core.hooksPath .githooks`.
-  Never bypass with `--no-verify` unless the user explicitly asks.
+- `npm test` runs the Playwright suite — ~100 spec files in `tests/`, spanning API
+  contracts (`api.spec.js`), a browser smoke test (`ui.spec.js`), and per-feature specs.
+  Browser specs need `npm run build` first. Test server runs on port 3210 with AI
+  upstreams stubbed off (no API spend). Target one file when iterating:
+  `npx playwright test tests/<name>.spec.js`.
+- `.githooks/pre-push` runs 6 gates (~60s): a `TEMPORARILY FLIPPED` config abort,
+  contract scan, build, `npm test`, known-defect pattern scan, contrast sweep.
+  Flag reversibility is deliberately NOT here (too slow) — it runs in `/flag-flip`.
+  Wire per clone: `git config core.hooksPath .githooks`. Never `--no-verify` unless asked.
 - Contract-test philosophy: upstreams (HA, Sonarr, calendars) may be down on any machine,
   so tests assert known status sets + JSON shapes, never live data. When adding a server
   route, add its contract test in the same change.

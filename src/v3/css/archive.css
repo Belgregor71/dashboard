@@ -479,6 +479,28 @@
 
 .archive__plate[data-blank="1"] { display: none; }
 
+/* ── The words standing down ────────────────────────────────────────────────
+   THE PLATE NAMES ONE PHOTOGRAPH AND AN EXCHANGE PUTS TWO ON THE GLASS. All of
+   this — the plate rows, the engraved numeral, the strip's lit year — used to
+   swap the instant `archivePhoto()` ran, while the picture took the whole
+   crossfade to arrive. The caption therefore described the incoming memory over
+   a card still showing the outgoing one. At the 60s settle that shipped, it did
+   so for most of a minute.
+
+   Out fast with the blur, back on the calm 2.4s ease the rules above already
+   give them. The asymmetry is the point and it is the same one the card's blur
+   uses: hide the discontinuity, let the recovery be seen.
+
+   ⚠ NIGHT STILL WINS. `:root[data-night="1"] .archive__plate` is (0,3,0) against
+   this rule's (0,2,0), so the plate does not fade back IN at 2am — it stays out,
+   which is what the night rule is for. Lowering this selector's specificity is
+   how that quietly breaks. */
+.archive__plate.is-exchanging,
+.archive__year.is-exchanging {
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
 .archive__plate > p {
   margin: 0;
   background: oklch(0.08 0.01 var(--atmo-hue) / 0.72);
