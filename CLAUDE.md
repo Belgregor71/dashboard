@@ -15,6 +15,11 @@
 - Scripts: `npm run dev` (vite) · `npm run build` (vite + copy-static-config) ·
   `npm start` (node server.js, port 3000) · `npm test` (Playwright) ·
   `verify:contrast` `verify:flags` `verify:patterns` `verify:contracts` `verify:v3-coverage`
+- **`CLAUDE.md` and `.claude/skills/` have a gitignored agent-facing mirror** (`AGENTS.md`,
+  `.agents/skills/` — the skills there cite the house rules by section name). Regenerate
+  after editing either: `node scripts/mirror-agents.mjs` (`--check` verifies without
+  writing). It is deliberately **not** a blanket find/replace — vendored skills and
+  `$HOME`/URL paths are guarded; read the script header before widening the rule.
 
 ### Verification & Deployment
 
