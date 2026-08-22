@@ -23,8 +23,8 @@ Config via env: WAKE_MODEL (hey_jarvis), WAKE_THRESHOLD (0.5), MIC_DEVICE
 (plughw:3,0), STT_URL, DASH_URL, SILENCE_RMS, TRAIL_SILENCE_MS, MAX_UTTER_MS,
 SPEAKING_URL, BARGE_URL, BARGE_THRESHOLD, BARGE_FRAMES, UNHEARD_URL,
 CAPTURE_VAD (rms|speech|smart), SPEECH_ON, LEAD_SILENCE_MS, CAPTURE_TRACE,
-SMART_TURN_MODEL_PATH, SMART_TURN_ON, SMART_AFTER_MS, SMART_EVERY_MS,
-SMART_TRAIL_MAX_MS, SMART_WINDOW_MS.
+SMART_TURN_MODEL_PATH, SMART_TURN_FILTERS, SMART_TURN_THREADS, SMART_TURN_ON,
+SMART_AFTER_MS, SMART_EVERY_MS, SMART_TRAIL_MAX_MS.
 
 ⚠ Env knobs are `Environment=` lines in voice-agent.service, NOT the .env file,
 and THIS FILE IS NOT DEPLOYED BY A GIT PULL — the unit runs
@@ -201,9 +201,6 @@ SMART_EVERY_MS = int(os.environ.get("SMART_EVERY_MS", "160"))
 # is unfinished is given longer. MAX_UTTER_MS still caps everything, so the
 # worst case is the 8 s that already exists.
 SMART_TRAIL_MAX_MS = int(os.environ.get("SMART_TRAIL_MAX_MS", "2000"))
-# The window handed to the model, ending at now. Smart Turn was trained on
-# utterance-final audio up to 8 s; more than that is neither cheap nor useful.
-SMART_WINDOW_MS = int(os.environ.get("SMART_WINDOW_MS", "8000"))
 # Rollback with no deploy: a drop-in beside the two already on the G11 —
 #   /etc/systemd/system/voice-agent.service.d/capture-vad.conf
 #   [Service]
@@ -472,18 +469,41 @@ def _speech_probability(frame):
 
 
 # ── The turn model ───────────────────────────────────────────────────────────
-# Deliberately introspective rather than hard-coded to one export. The ONNX
-# input name and shape differ between smart-turn releases (and between an
-# official export and a re-quantised one), and a KeyError on a tensor name would
-# be a deaf-adjacent failure bought for tidiness. Ask the session what it wants.
+# ⚠⚠ THE INPUT IS NOT AUDIO. Smart Turn v3's backbone is a Whisper Tiny encoder,
+# so the ONNX takes `input_features` of shape (1, 80, 800) — an 80-bin log-mel
+# spectrogram over the last 8 s at hop 160 — and returns ONE sigmoid probability
+# in a tensor confusingly named `logits`. Introspected from the real file on the
+# G11, 2026-08-22; the published docs said (1, 80, 3000), which is Whisper's 30 s
+# default and is not what this export wants.
 #
-# ⚠ THE BINDING BELOW IS UNVERIFIED AGAINST A REAL WEIGHTS FILE. It is written
-# to fail into `speech`, and _turn_probability() returns None for anything it
-# does not understand, so an export this does not fit costs the trace line and
-# nothing else. Confirm on the G11 with the real .onnx before trusting `smart`
-# in the room — the tell is a trace line whose `turn=` never moves.
+# The reference implementation gets its features from transformers'
+# WhisperFeatureExtractor. That is NOT a dependency this process can afford — it
+# is the one whose failure means a deaf house, and transformers pulls
+# huggingface_hub, tokenizers and safetensors behind it for what is, at bottom,
+# an STFT and a matrix multiply. So the mel is computed here in numpy, which is
+# already a hard dependency, against a filterbank exported ONCE from the
+# reference extractor and shipped beside the model.
+#
+# ⚠ THAT SUBSTITUTION IS VERIFIED, NOT ASSUMED. tools/voice-agent/st_verify.py
+# reproduces WhisperFeatureExtractor to a worst case of 8.3e-07 across four
+# signals, and the model's own output to 5e-07. A silently-wrong filterbank
+# would give a model that runs and returns plausible nonsense, which is worse
+# than one that does not load — so it was checked numerically before trusting.
+SMART_TURN_FILTERS = os.environ.get(
+    "SMART_TURN_FILTERS",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "mel_filters_80.npy"))
+# MEASURED on the G11, 2026-08-22, and the vendor's "12 ms on CPU" does not hold
+# here: 194 ms at 1 thread, 117 at 2, 89.5 at 4, 114 at 8. Four is the floor and
+# eight is worse — the identical shape kokoro and CTranslate2 both showed on this
+# box. onnxruntime otherwise defaults to ALL cores, which is the real hazard.
+SMART_TURN_THREADS = int(os.environ.get("SMART_TURN_THREADS", "4"))
+
+N_FFT, HOP_LENGTH = 400, 160            # Whisper tiny's frontend
+MEL_SAMPLES = 8 * RATE                  # the 8 s window the export is fixed to
+MEL_FRAMES = MEL_SAMPLES // HOP_LENGTH  # 800
+
 _turn = None
-_turn_input = None
+_turn_filters = None
 _turn_logged = False      # see the except in _turn_probability
 
 
@@ -494,69 +514,151 @@ def _init_turn():
         log("⚠ CAPTURE_VAD=smart but SMART_TURN_MODEL_PATH is unset — "
             "endpointing stays on silero")
         return
-    global _turn, _turn_input
+    global _turn, _turn_filters
     try:
         import onnxruntime as ort
-        # ONE thread. This runs inside the 80 ms capture loop on a box that is
-        # also driving a 32" panel, and onnxruntime defaults to ALL cores —
-        # the same default that had to be bounded for kokoro and CTranslate2.
+        _turn_filters = np.load(SMART_TURN_FILTERS)
+        if _turn_filters.shape != (N_FFT // 2 + 1, 80):
+            raise ValueError(f"mel filterbank is {_turn_filters.shape}, expected "
+                             f"{(N_FFT // 2 + 1, 80)}")
         opts = ort.SessionOptions()
-        opts.intra_op_num_threads = 1
+        opts.intra_op_num_threads = SMART_TURN_THREADS
         opts.inter_op_num_threads = 1
-        _turn = ort.InferenceSession(SMART_TURN_MODEL_PATH,
-                                     sess_options=opts,
-                                     providers=["CPUExecutionProvider"])
-        _turn_input = _turn.get_inputs()[0]
+        session = ort.InferenceSession(SMART_TURN_MODEL_PATH, sess_options=opts,
+                                       providers=["CPUExecutionProvider"])
+        shape = session.get_inputs()[0].shape
+        # The batch axis is symbolic; the two that carry meaning are not. A model
+        # whose mel geometry differs from the one computed below would return
+        # confident nonsense rather than fail, so it is refused here instead.
+        if list(shape[1:]) != [80, MEL_FRAMES]:
+            raise ValueError(f"model wants {shape}, this binding produces "
+                             f"(1, 80, {MEL_FRAMES})")
+        _turn = session
+        threading.Thread(target=_turn_worker, daemon=True).start()
         log(f"turn model on → {os.path.basename(SMART_TURN_MODEL_PATH)} "
-            f"input {_turn_input.name}{_turn_input.shape} "
-            f"(complete ≥ {SMART_TURN_ON})")
-    except Exception as exc:      # pragma: no cover - environment-dependent
+            f"{shape} × {SMART_TURN_THREADS} threads (complete ≥ {SMART_TURN_ON})")
+    except Exception as exc:  # pragma: no cover - environment-dependent
         _turn = None
         log(f"turn model unavailable, endpointing stays on silero: {exc}")
+
+
+# Periodic Hann, matching transformers' window_function(400, "hann").
+_HANN = np.hanning(N_FFT + 1)[:-1].astype(np.float32)
+
+
+def _turn_features(pcm):
+    """int16 audio → (1, 80, 800) log-mel, the reference pipeline exactly.
+
+    The ORDER is load-bearing and was read off the reference rather than guessed:
+    keep the LAST 8 s, normalise to zero mean / unit variance over the REAL
+    samples only, right-pad the remainder with silence, then the spectrogram.
+    Normalising after padding would fold the padding into the statistics and
+    shift every value in the window.
+    """
+    audio = pcm[-MEL_SAMPLES:].astype(np.float32) / 32768.0
+    audio = (audio - audio.mean()) / np.sqrt(audio.var() + 1e-7)
+    if len(audio) < MEL_SAMPLES:
+        audio = np.concatenate([audio, np.zeros(MEL_SAMPLES - len(audio), np.float32)])
+    pad = N_FFT // 2
+    padded = np.pad(audio, (pad, pad), mode="reflect")
+    frames = 1 + (len(padded) - N_FFT) // HOP_LENGTH
+    idx = np.arange(N_FFT)[None, :] + HOP_LENGTH * np.arange(frames)[:, None]
+    power = np.abs(np.fft.rfft(padded[idx] * _HANN, n=N_FFT, axis=1)) ** 2
+    mel = np.log10(np.maximum(1e-10, power @ _turn_filters)).T[:, :-1]
+    mel = np.maximum(mel, mel.max() - 8.0)
+    return ((mel + 4.0) / 4.0).astype(np.float32)[None, :, :]
 
 
 def _turn_probability(pcm):
     """P(the speaker has finished), or None when the model has no opinion.
 
-    None is a real answer and the caller treats it as "keep waiting" — an
+    None is a real answer and every caller treats it as KEEP WAITING — an
     inference that raised must never be read as a completed sentence, because
-    that direction cuts people off, which is the defect this is here to fix.
+    that direction cuts people off, which is the defect this exists to fix.
     """
-    if _turn is None:
+    if _turn is None or _turn_filters is None:
         return None
     try:
-        import numpy as np
-        audio = pcm[-int(RATE * SMART_WINDOW_MS / 1000):].astype(np.float32) / 32768.0
-        # Shape from the model's own signature: everything the exports use is
-        # some arrangement of (batch, samples), so fill the known dims and let
-        # the sample axis take the rest.
-        rank = len(_turn_input.shape) if _turn_input.shape else 1
-        feed = {_turn_input.name: audio.reshape((1,) * (rank - 1) + (-1,))}
-        out = np.asarray(_turn.run(None, feed)[0]).ravel()
-        if out.size == 0:
-            return None
-        if out.size == 1:
-            value = float(out[0])
-            # A single output may be a probability or a logit. A probability is
-            # already in range; anything else gets squashed rather than compared
-            # against a threshold it was never on the same scale as.
-            return value if 0.0 <= value <= 1.0 else float(1.0 / (1.0 + np.exp(-value)))
-        # Two or more: logits over [incomplete, complete].
-        exp = np.exp(out - out.max())
-        return float((exp / exp.sum())[-1])
-    except Exception as exc:      # pragma: no cover - environment-dependent
-        # ⚠ ONCE PER PROCESS, not once per call. This runs every SMART_EVERY_MS
-        # through the whole trailing window, so a binding that does not fit the
-        # export would write ~12 identical lines PER TURN, for weeks — burying
-        # the wake and capture lines this journal exists to carry. A permanent
-        # failure is one fact; the trace line's `asks=0` is what reports that it
-        # is still happening.
+        out = _turn.run(None, {"input_features": _turn_features(pcm)})[0]
+        value = float(np.asarray(out).ravel()[0])
+        # Already a sigmoid despite the tensor being named `logits` — measured,
+        # four signals came back in 0.79-0.99. The squash below is the guard for
+        # an export that is not, so a future model cannot be read on a scale it
+        # was never on.
+        return value if 0.0 <= value <= 1.0 else float(1.0 / (1.0 + np.exp(-value)))
+    except Exception as exc:  # pragma: no cover - environment-dependent
+        # ⚠ ONCE PER PROCESS, not once per call. A binding that does not fit the
+        # export would otherwise write an identical line on every ask, for weeks,
+        # burying the wake and capture lines this journal exists to carry. The
+        # trace line's `asks=0` is what reports it is still happening.
         global _turn_logged
         if not _turn_logged:
             _turn_logged = True
             log(f"⚠ turn inference failed — endpointing falls back to silence "
                 f"for the rest of this run: {exc}")
         return None
+
+
+# ── Asking without stopping to listen ────────────────────────────────────────
+# ⚠⚠ THE INFERENCE IS LONGER THAN A FRAME, SO IT CANNOT BE INLINE. Measured on
+# the G11: 89.5 ms at four threads, against the 80 ms of audio this loop has to
+# collect on time. A blocking call would stretch every frame it landed in, drift
+# the trailing-silence count it exists to improve, and back arecord's pipe up —
+# the `overrun!!!` that drain() above is the cleanup for.
+#
+# So the ask goes to a worker and the loop keeps reading frames. The answer
+# lands a frame or two later, which costs almost nothing: the decision arrives
+# at about SMART_AFTER_MS + 100 ms ≈ 340 ms, against the 800 ms it replaces.
+#
+# Same discipline as the level and ambient relays — depth-1 queue, drop when
+# full — and for the same stated reason. `gen` is what keeps a late answer from
+# a finished capture out of the next one: a reply whose generation does not
+# match the capture that asked for it is discarded rather than acted on.
+_turn_q = queue.Queue(maxsize=1)
+_turn_result = queue.Queue(maxsize=1)
+_turn_seq = 0
+
+
+def _turn_worker():
+    while True:
+        ask, pcm = _turn_q.get()
+        p = _turn_probability(pcm)
+        if p is None:
+            continue          # no opinion; the capture keeps waiting on its own
+        try:
+            _turn_result.put_nowait((ask, p))
+        except queue.Full:
+            pass              # nobody collected the last one; move on
+
+
+def turn_submit(pcm):
+    """Non-blocking. Returns an ask id, or None when one is already in flight."""
+    global _turn_seq
+    _turn_seq += 1
+    try:
+        _turn_q.put_nowait((_turn_seq, pcm))
+        return _turn_seq
+    except queue.Full:
+        return None
+
+
+def turn_poll(ask):
+    """The answer to THAT ask, or None. Never blocks, and never guesses.
+
+    ⚠ THE ID CHECK IS NOT BOOKKEEPING. An answer is a claim about audio ending
+    at the moment it was asked, and two things can make it stale before it
+    lands: the capture ended, or — the one that would actually bite — the person
+    started talking again. An answer from before they resumed says "that was the
+    end" about a sentence that has since continued, and acting on it is the
+    clipping bug arriving through the back door. The caller drops its id the
+    instant a voiced frame appears, so a late reply matches nothing and is
+    discarded here.
+    """
+    try:
+        answered, p = _turn_result.get_nowait()
+    except queue.Empty:
+        return None
+    return p if ask is not None and answered == ask else None
 
 
 def _ambient_worker():
@@ -621,7 +723,7 @@ def capture_utterance(proc):
     smart_after = SMART_AFTER_MS / 1000.0
     smart_every = SMART_EVERY_MS / 1000.0
     smart_trail_max = max(SMART_TRAIL_MAX_MS, TRAIL_SILENCE_MS) / 1000.0
-    turn_p, turn_asks, last_ask = None, 0, 0.0
+    turn_p, turn_asks, last_ask, ask = None, 0, 0.0, None
     peak_speech, peak_rms, trace = 0.0, 0, []
     ended = "eof"
 
@@ -647,23 +749,34 @@ def capture_utterance(proc):
         if voiced:
             speech_frames += 1
             trail = 0.0
+            # They are talking again, so any answer still in flight is about an
+            # ending that did not happen. Dropping the id is what makes it
+            # unclaimable — see turn_poll.
+            ask = None
         elif speech_frames >= MIN_SPEECH_FRAMES:
             trail += FRAME / RATE
             if use_smart:
                 now = time.time()
                 if trail >= smart_after and (now - last_ask) >= smart_every:
-                    last_ask = now
-                    p = _turn_probability(np.concatenate(frames))
-                    # None means the model had no opinion. Treated as KEEP
-                    # WAITING, never as "finished" — a failed inference that
-                    # ended the turn would cut people off, which is the exact
-                    # defect this branch exists to remove.
-                    if p is not None:
-                        turn_p = p
+                    # np.concatenate copies, which is what makes handing this to
+                    # another thread safe while the loop keeps appending.
+                    fresh = turn_submit(np.concatenate(frames))
+                    if fresh is not None:
+                        ask, last_ask = fresh, now
                         turn_asks += 1
-                        if p >= SMART_TURN_ON:
-                            ended = "smart"
-                            break
+                # Polled every frame, not only after an ask: the answer arrives
+                # a frame or two later and this is where it is collected.
+                p = turn_poll(ask)
+                # None means no answer yet, or no opinion. Either way it is KEEP
+                # WAITING, never "finished" — a failed or missing inference that
+                # ended the turn would cut people off, which is the exact defect
+                # this branch exists to remove.
+                if p is not None:
+                    turn_p = p
+                    ask = None
+                    if p >= SMART_TURN_ON:
+                        ended = "smart"
+                        break
                 # The hard bound on being told to wait. Reached when the model
                 # keeps saying "not finished" — or when it never answers at all,
                 # which is what makes this the fallback as well as the ceiling.

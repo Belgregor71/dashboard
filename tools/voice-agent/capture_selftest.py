@@ -45,7 +45,7 @@ def load(**env):
               "SILENCE_RMS", "TRAIL_SILENCE_MS", "CAPTURE_TRACE", "LEVEL_ENABLED",
               "AMBIENT_ENABLED", "SMART_TURN_MODEL_PATH", "SMART_TURN_ON",
               "SMART_AFTER_MS", "SMART_EVERY_MS", "SMART_TRAIL_MAX_MS",
-              "SMART_WINDOW_MS"):
+              "SMART_TURN_FILTERS", "SMART_TURN_THREADS"):
         os.environ.pop(k, None)
     os.environ["LEVEL_ENABLED"] = "0"      # no HTTP from a self-test
     os.environ["AMBIENT_ENABLED"] = "0"
@@ -86,28 +86,59 @@ class FakeMic:
 
 
 class FakeSession:
-    """Stands in for the onnxruntime session, so the REAL _turn_probability —
-    its reshape, its logit/probability sniffing, its except — is what runs.
-
-    Stubbing _turn_probability itself would test the harness instead: the branch
-    that matters most below is the one where inference RAISES, and that branch
-    lives inside the function a stub would replace.
-    """
+    """Stands in for the onnxruntime session in the two cases that unit-test
+    _turn_probability directly — its feature call, its probability-vs-logit
+    sniffing, its except. Everything else stubs turn_submit/turn_poll instead,
+    because the capture loop talks to those and not to the model."""
     def __init__(self, answer):
-        self.answer = answer          # callable(pcm) -> array-like, or raises
+        self.answer = answer          # callable(features) -> array-like, or raises
         self.calls = 0
 
     def run(self, _outputs, feed):
         self.calls += 1
-        # ⚠ RAVELLED. The real binding feeds a (1, N) tensor, so `len()` on it
-        # is 1 — which silently turned the pause case's "have we heard 3 s yet?"
-        # into "is 1 > 48000", i.e. permanently NO. It failed as a wrong
-        # ASSERTION about the implementation, which had behaved correctly.
-        pcm = np.asarray(list(feed.values())[0]).ravel()
-        return [self.answer(pcm)]
+        return [self.answer(feed["input_features"])]
 
 
-def run(va, script, vad=True, turn=None):
+def fake_turn(va, answer, delay_frames):
+    """Scripted stand-in for the worker thread.
+
+    ⚠ THE REAL ASK IS ASYNCHRONOUS AND THAT IS NOT A DETAIL. Inference measured
+    89.5 ms on the G11 against 80 ms frames, so it cannot run inline, so the
+    answer always lands SOME FRAMES AFTER the question. `delay_frames` is how
+    this harness reproduces that deterministically against a fake clock — a
+    stub that answered instantly would test a loop nobody runs.
+
+    `answer` returning None is the worker having no opinion (a raised
+    inference), which publishes nothing at all.
+    """
+    pending = {"left": None, "val": None, "id": 0}
+
+    def submit(pcm):
+        if pending["left"] is not None:
+            return None                      # one in flight; the real queue drops too
+        pending["id"] += 1
+        pending["left"] = delay_frames
+        pending["val"] = answer(pcm)
+        return pending["id"]
+
+    def poll(ask):
+        if pending["left"] is None:
+            return None
+        if pending["left"] > 0:
+            pending["left"] -= 1
+            return None
+        val, aid = pending["val"], pending["id"]
+        # Consumed either way — the real turn_poll's get_nowait removes the item
+        # before it checks the id, and a stub that held onto a mismatched answer
+        # would wedge instead of moving on.
+        pending["left"] = None
+        return val if (ask is not None and aid == ask) else None
+
+    va.turn_submit, va.turn_poll = submit, poll
+    return pending
+
+
+def run(va, script, vad=True, turn=None, delay_frames=1):
     clock = Clock()
     va.time = clock
     mic = FakeMic(script, clock, va.RATE, va.FRAME)
@@ -116,8 +147,9 @@ def run(va, script, vad=True, turn=None):
     va._speech_probability = lambda f: next(probs, 0.0)
     # `turn=None` is a model that was never loaded — the fallback path, and the
     # one that must never cost the house its microphone.
-    va._turn = FakeSession(turn) if turn else None
-    va._turn_input = types.SimpleNamespace(name="audio", shape=[1, -1])
+    va._turn = object() if turn else None
+    if turn:
+        fake_turn(va, turn, delay_frames)
     proc = types.SimpleNamespace(stdout=mic)
     t0 = clock.t
     pcm = va.capture_utterance(proc)
@@ -231,12 +263,13 @@ def _():
 # ── CAPTURE_VAD=smart ────────────────────────────────────────────────────────
 # The rule under test is the ENDPOINTING, not the model — the same split the
 # speech cases above use, where silero is scripted rather than loaded. What a
-# real Smart Turn export makes of real audio is a question for the wall and the
-# `turn=` column in the trace; what these fix is that the loop reacts to its
-# answer correctly, including when the answer never comes.
+# real Smart Turn export makes of real room speech is a question for the wall
+# and the `turn=` column in the trace; what these fix is that the loop reacts to
+# its answer correctly, including when the answer is late, stale, or absent.
 
-DONE = lambda _pcm: [0.9]            # "that sentence is finished"
-MORE = lambda _pcm: [0.1]            # "they are still going"
+DONE = lambda _pcm: 0.9              # "that sentence is finished"
+MORE = lambda _pcm: 0.1              # "they are still going"
+MUTE = lambda _pcm: None             # no opinion — a raised inference
 
 
 @case("smart mode: a finished sentence ends sooner than 800ms of silence")
@@ -245,7 +278,7 @@ def _():
     pcm, took = run(va, secs(2, SPEECH, 0.92) + secs(3, ROOM, 0.03), turn=DONE)
     assert pcm is not None, "THE HOUSE WENT DEAF: a spoken command was dropped"
     # speech mode takes ~2.8s on this exact script (the case above pins it).
-    # Ending on the model rather than on the clock should cost ~2.0 + 0.24.
+    # Ending on the model should cost ~2.0 + 0.24 + one frame of answer latency.
     assert took < 2600, f"smart mode did not end early: {took}ms"
     assert took > 2100, f"ended DURING speech, which is the clipping bug: {took}ms"
 
@@ -257,17 +290,15 @@ def _():
     script = (secs(1, SPEECH, 0.92) + secs(1.2, ROOM, 0.03)
               + secs(1.5, SPEECH, 0.92) + secs(3, ROOM, 0.03))
 
-    # The model says "still going" until 3s of audio has accumulated — i.e.
-    # through the pause, and not after the second burst.
-    def thinking(pcm):
-        return [0.9] if len(pcm) > va.RATE * 3 else [0.1]
-
     va = load(CAPTURE_VAD="speech")
     _, cut = run(va, script)
     assert cut < 2400, f"premise gone — speech mode no longer cuts here ({cut}ms)"
 
+    # "still going" until 3 s of audio has accumulated: through the pause, and
+    # not after the second burst. pcm is raw int16 here, so len() is samples.
     va = load(CAPTURE_VAD="smart", SMART_AFTER_MS=240, SMART_TRAIL_MAX_MS=2000)
-    pcm, took = run(va, script, turn=thinking)
+    pcm, took = run(va, script,
+                    turn=lambda pcm: 0.9 if len(pcm) > va.RATE * 3 else 0.1)
     assert pcm is not None, "the turn was dropped entirely"
     assert took > 3000, f"cut off mid-sentence anyway at {took}ms (speech: {cut}ms)"
     assert took < 4200, f"kept listening long past the end: {took}ms"
@@ -282,19 +313,32 @@ def _():
     assert 2700 <= took <= 3100, f"did not degrade to the speech rule: {took}ms"
 
 
-@case("⚠⚠ an inference that RAISES means keep waiting, never 'finished'")
+@case("⚠⚠ a model with no opinion means keep waiting, never 'finished'")
 def _():
-    """The direction matters more than the fallback. A model error read as a
-    completed sentence would cut people off — the exact defect smart mode is
-    here to remove — so None falls through to the trailing bound instead."""
-    def boom(_pcm):
-        raise RuntimeError("the export did not fit the binding")
-
+    """A raised inference publishes nothing, so the loop simply never hears
+    back. The direction matters more than the fallback: read as 'finished' it
+    would cut people off, which is the defect smart mode is here to remove."""
     va = load(CAPTURE_VAD="smart", SMART_AFTER_MS=240, SMART_TRAIL_MAX_MS=2000)
-    pcm, took = run(va, secs(1, SPEECH, 0.92) + secs(4, ROOM, 0.03), turn=boom)
-    assert pcm is not None, "a failed inference cost the whole turn"
-    assert took > 2600, f"a raising model ended the turn early: {took}ms"
-    assert took < 3400, f"a raising model never ended the turn: {took}ms"
+    pcm, took = run(va, secs(1, SPEECH, 0.92) + secs(4, ROOM, 0.03), turn=MUTE)
+    assert pcm is not None, "a silent model cost the whole turn"
+    assert took > 2600, f"a model that never answered ended the turn early: {took}ms"
+    assert took < 3400, f"a model that never answered never ended it: {took}ms"
+
+
+@case("⚠⚠ an answer that arrives AFTER they start talking again is discarded")
+def _():
+    """The bug the ask id exists for. The model is asked during a pause, says
+    'finished', and the reply lands a few frames later — by which time the
+    person has resumed. Acting on it is the clipping bug through the back door.
+
+    delay_frames=4 puts the answer squarely inside the second burst."""
+    script = (secs(1, SPEECH, 0.92) + secs(0.4, ROOM, 0.03)
+              + secs(1.5, SPEECH, 0.92) + secs(3, ROOM, 0.03))
+    va = load(CAPTURE_VAD="smart", SMART_AFTER_MS=240, SMART_TRAIL_MAX_MS=2000)
+    pcm, took = run(va, script, turn=DONE, delay_frames=4)
+    assert pcm is not None, "the turn was dropped entirely"
+    # Ending on the stale answer would land around 1.7s, mid second burst.
+    assert took > 2900, f"acted on a stale 'finished' at {took}ms — id check failed"
 
 
 @case("smart mode still respects MAX_UTTER_MS when the model never agrees")
@@ -305,19 +349,43 @@ def _():
     assert 7900 <= took <= 8200, f"the 8s cap stopped bounding the loop: {took}ms"
 
 
-@case("smart mode reads a 2-logit output as [incomplete, complete]")
+@case("the mel frontend is the shape the export demands: (1, 80, 800)")
 def _():
-    """The export shape this binding is least sure of. Softmax over [-2, 2]
-    puts 0.98 on 'complete', so the turn must end on the model."""
-    va = load(CAPTURE_VAD="smart", SMART_AFTER_MS=240)
-    pcm, took = run(va, secs(2, SPEECH, 0.92) + secs(3, ROOM, 0.03),
-                    turn=lambda _p: [[-2.0, 2.0]])
-    assert pcm is not None and took < 2600, f"2-logit output not understood: {took}ms"
-    # And the other way round, which must NOT end the turn.
-    va = load(CAPTURE_VAD="smart", SMART_AFTER_MS=240, SMART_TRAIL_MAX_MS=2000)
-    _, took = run(va, secs(2, SPEECH, 0.92) + secs(3, ROOM, 0.03),
-                  turn=lambda _p: [[2.0, -2.0]])
-    assert took > 3600, f"'incomplete' logits still ended the turn: {took}ms"
+    va = load(CAPTURE_VAD="smart")
+    va._turn_filters = np.zeros((va.N_FFT // 2 + 1, 80), np.float32) + 1e-3
+    for samples in (16000, 128000, 400000):     # short, exact, over-long
+        f = va._turn_features(np.zeros(samples, np.int16))
+        assert f.shape == (1, 80, va.MEL_FRAMES), f"{samples} -> {f.shape}"
+        assert f.dtype == np.float32, f.dtype
+
+
+@case("⚠ the output is a sigmoid despite the tensor being named 'logits'")
+def _():
+    """Measured on the real export: four signals came back in 0.79-0.99. An
+    in-range value must pass through untouched; anything else is squashed, so a
+    future export cannot be read on a scale it was never on."""
+    va = load(CAPTURE_VAD="smart")
+    va._turn_filters = np.zeros((va.N_FFT // 2 + 1, 80), np.float32) + 1e-3
+    audio = np.zeros(128000, np.int16)
+    va._turn = FakeSession(lambda _f: np.array([[0.83]], np.float32))
+    assert abs(va._turn_probability(audio) - 0.83) < 1e-6, "a probability was squashed"
+    va._turn = FakeSession(lambda _f: np.array([[4.0]], np.float32))
+    assert abs(va._turn_probability(audio) - 0.982) < 1e-3, "a logit was not squashed"
+
+
+@case("⚠⚠ an inference that RAISES returns None, and says so exactly once")
+def _():
+    va = load(CAPTURE_VAD="smart")
+    va._turn_filters = np.zeros((va.N_FFT // 2 + 1, 80), np.float32) + 1e-3
+    def boom(_f):
+        raise RuntimeError("the export did not fit the binding")
+    va._turn = FakeSession(boom)
+    said = []
+    va.log = lambda *a: said.append(" ".join(str(x) for x in a))
+    audio = np.zeros(128000, np.int16)
+    assert all(va._turn_probability(audio) is None for _ in range(5)), \
+        "a raised inference was read as an answer"
+    assert len(said) == 1, f"logged {len(said)} times, not once — the journal floods"
 
 
 if __name__ == "__main__":
