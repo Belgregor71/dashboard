@@ -110,28 +110,36 @@ def fake_turn(va, answer, delay_frames):
 
     `answer` returning None is the worker having no opinion (a raised
     inference), which publishes nothing at all.
+
+    ⚠⚠ AND IT LETS ASKS OVERLAP, WHICH THE FIRST VERSION OF THIS STUB DID NOT.
+    That omission is why 19/19 passed against a defect the very first live turn
+    hit: the stub refused a second submit while one was in flight, so it quietly
+    enforced the rule the code under test was missing. The real turn_submit
+    ALWAYS succeeds — `_turn_q` has maxsize=1 but the worker empties it the
+    instant it is filled — and the one-in-flight rule belongs to the CALLER.
+    A stub kinder than reality is a stub that cannot fail.
     """
-    pending = {"left": None, "val": None, "id": 0}
+    pending, slot, seq = [], {"v": None}, {"n": 0}
 
     def submit(pcm):
-        if pending["left"] is not None:
-            return None                      # one in flight; the real queue drops too
-        pending["id"] += 1
-        pending["left"] = delay_frames
-        pending["val"] = answer(pcm)
-        return pending["id"]
+        seq["n"] += 1
+        pending.append([delay_frames, answer(pcm), seq["n"]])
+        return seq["n"]
 
     def poll(ask):
-        if pending["left"] is None:
+        for item in pending:
+            item[0] -= 1
+        for item in [i for i in pending if i[0] <= 0]:
+            pending.remove(item)
+            if item[1] is not None:          # None = the worker had no opinion
+                slot["v"] = (item[2], item[1])   # newest wins, as the worker does
+        got, slot["v"] = slot["v"], None
+        if got is None:
             return None
-        if pending["left"] > 0:
-            pending["left"] -= 1
-            return None
-        val, aid = pending["val"], pending["id"]
+        aid, val = got
         # Consumed either way — the real turn_poll's get_nowait removes the item
         # before it checks the id, and a stub that held onto a mismatched answer
         # would wedge instead of moving on.
-        pending["left"] = None
         return val if (ask is not None and aid == ask) else None
 
     va.turn_submit, va.turn_poll = submit, poll
@@ -339,6 +347,32 @@ def _():
     assert pcm is not None, "the turn was dropped entirely"
     # Ending on the stale answer would land around 1.7s, mid second burst.
     assert took > 2900, f"acted on a stale 'finished' at {took}ms — id check failed"
+
+
+@case("⚠⚠ SEEN LIVE: inference SLOWER than the re-ask interval must still converge")
+def _():
+    """The defect the first live turn hit, and the reason this stub had to be
+    rewritten to allow overlapping asks.
+
+    `_turn_q` has maxsize=1, but the worker empties it the moment it is filled,
+    so turn_submit succeeds again while the previous inference is still running.
+    Every new ask advanced the id and every answer landed stale:
+    `turn=- asks=9`, and the capture then sat out the full SMART_TRAIL_MAX_MS —
+    5115 ms against a ~2270 ms baseline, i.e. WORSE than the rule it replaced.
+
+    ⚠ delay_frames MUST EXCEED THE ASK INTERVAL or there is no overlap and the
+    case proves nothing. At 3 the answer lands exactly as the next ask falls due
+    and the defective build passes; 5 (~400 ms, which is what the G11 actually
+    shows under load) gives 8 overlapping asks and 0 successful polls. Verified
+    by injection: 2559 ms with the gate, 3999 ms without."""
+    va = load(CAPTURE_VAD="smart", SMART_AFTER_MS=240, SMART_EVERY_MS=160,
+              SMART_TRAIL_MAX_MS=2000)
+    pcm, took = run(va, secs(2, SPEECH, 0.92) + secs(3, ROOM, 0.03),
+                    turn=DONE, delay_frames=5)
+    assert pcm is not None, "the turn was dropped entirely"
+    # It must end ON THE MODEL, not by timing out at 2.0s of trailing silence.
+    assert took < 2800, (f"never collected an answer: {took}ms — the asks are "
+                         f"outrunning them again")
 
 
 @case("smart mode still respects MAX_UTTER_MS when the model never agrees")

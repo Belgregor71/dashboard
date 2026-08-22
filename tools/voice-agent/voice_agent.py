@@ -625,14 +625,35 @@ def _turn_worker():
         p = _turn_probability(pcm)
         if p is None:
             continue          # no opinion; the capture keeps waiting on its own
+        # ⚠ NEWEST WINS. An answer still sitting uncollected is about audio that
+        # ended earlier, so it must not keep this one out — put_nowait onto a
+        # full queue DROPS THE NEW ONE, which is precisely backwards.
+        try:
+            _turn_result.get_nowait()
+        except queue.Empty:
+            pass
         try:
             _turn_result.put_nowait((ask, p))
         except queue.Full:
-            pass              # nobody collected the last one; move on
+            pass              # a poll raced us for the slot; it will ask again
 
 
 def turn_submit(pcm):
-    """Non-blocking. Returns an ask id, or None when one is already in flight."""
+    """Non-blocking. Returns an ask id, or None when the queue would not take it.
+
+    ⚠⚠ THIS RETURNING AN ID DOES NOT MEAN NOTHING ELSE IS IN FLIGHT, and reading
+    it that way is what broke the first live run. `_turn_q` has maxsize=1, but
+    the worker `get()`s the item the instant it is queued — so the slot is free
+    again while the inference is still running, and a second submit sails
+    through. Measured on the wall 2026-08-22: asks went out every 160 ms against
+    a ~200 ms inference, every new ask advanced the id, and every answer landed
+    stale and was discarded. `turn=- asks=9`, and the capture then sat out the
+    full SMART_TRAIL_MAX_MS — 5115 ms against a ~2270 ms baseline.
+
+    THE CALLER holds the one-in-flight rule (it only submits while `ask is
+    None`), because only the caller knows the other reason to stop waiting: the
+    person started talking again.
+    """
     global _turn_seq
     _turn_seq += 1
     try:
@@ -757,7 +778,10 @@ def capture_utterance(proc):
             trail += FRAME / RATE
             if use_smart:
                 now = time.time()
-                if trail >= smart_after and (now - last_ask) >= smart_every:
+                # ⚠ `ask is None` IS THE ONE-IN-FLIGHT RULE AND IT LIVES HERE.
+                # The queue cannot enforce it — see turn_submit — and without it
+                # the asks outrun the answers and every answer arrives stale.
+                if ask is None and trail >= smart_after and (now - last_ask) >= smart_every:
                     # np.concatenate copies, which is what makes handing this to
                     # another thread safe while the loop keeps appending.
                     fresh = turn_submit(np.concatenate(frames))
