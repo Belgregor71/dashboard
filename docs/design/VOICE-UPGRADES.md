@@ -128,9 +128,9 @@ already records that re-tuning a threshold here is a coin flip rather than a fix
 implementations:
 
 - [`pipecat-ai/smart-turn`](https://github.com/pipecat-ai/smart-turn) (Apache-2.0). v2 was a
-  360 MB wav2vec2 + linear classifier. **v3 exports to ONNX at 8 MB int8 with ~12 ms CPU
-  inference** — and `onnxruntime` is *already* a hard dependency of the installed openWakeWord.
-  Weights, training script and datasets are all open.
+  360 MB wav2vec2 + linear classifier. **v3 exports to ONNX at 8 MB int8** — and
+  `onnxruntime` is *already* a hard dependency of the installed openWakeWord. Weights,
+  training script and datasets are all open.
 - [LiveKit's turn-detector](https://docs.livekit.io/agents/build/turns/) — open weights,
   listens to audio directly rather than waiting on a transcript, fuses semantic and acoustic
   cues. Stronger, but it arrives attached to the LiveKit Agents framework.
@@ -142,6 +142,29 @@ no-deploy systemd rollback.
 It does **not** replace silero. Silero stays the cheap per-frame gate that says *someone is
 talking*; Smart Turn answers the different and more expensive question *are they finished*,
 and only needs to run on the trailing window.
+
+#### ⚠ Two published numbers are wrong on this box — both measured 2026-08-22
+
+Recorded because both were load-bearing for the design, and both changed it.
+
+1. **The input is not audio.** The backbone is a Whisper Tiny encoder, so the export takes
+   `input_features` of shape **(1, 80, 800)** — an 80-bin log-mel over the last 8 s at hop
+   160 — and returns one sigmoid probability in a tensor named `logits`. The published spec
+   says `(1, 80, 3000)`, which is Whisper's 30 s default and not what this export wants.
+   The reference builds features with transformers' `WhisperFeatureExtractor`; the agent
+   computes the same mel in numpy against a filterbank exported once from that extractor,
+   verified to **8.3e-07** by `tools/voice-agent/st_verify.py`.
+2. **"12 ms CPU inference" is not this CPU.** On the G11: **194 ms at 1 thread, 117 at 2,
+   89.5 at 4, 114 at 8** — the same four-is-the-floor, eight-is-worse shape kokoro and
+   CTranslate2 both showed here. 89.5 ms is longer than the 80 ms frame the capture loop
+   must collect on time, so **the ask cannot be inline** and runs on a worker thread, the
+   same discipline the level and ambient relays already use.
+
+⚠ **Discrimination is still an open question.** A Kokoro-synthesised sanity check caught 1 of
+3 deliberately-unfinished phrases — but a TTS reads every string with terminal prosody, so
+that test is *inconclusive rather than damning*: it says the model responds to lexical cues
+and that synthetic speech cannot test the prosodic half. The `turn=` column in the capture
+trace on the real wall is what settles it.
 
 ### 2.3 STT — accuracy, and whether the model is even the problem
 
