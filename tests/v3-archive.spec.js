@@ -199,6 +199,21 @@ async function bootArchive(
     });
   });
 
+  /* ⚠⚠ SEVER THE VOICE BUS. `voiceBus` is process-wide and initVoice is called
+     with a hardcoded `enabled: true` (main.js), so EVERY V3 page in the suite
+     subscribes to /api/voice/stream — and one transcript POSTed by a voice spec
+     in another worker is delivered to all of them. That is what put
+     "show me the driveway" on this spec's page and drove it off the depth this
+     file had just set: it went red on a transcript it never sent.
+
+     Answered with a non-`text/event-stream` body rather than aborted, because
+     the EventSource spec fails the connection permanently on a wrong MIME type.
+     An abort would look identical here and reconnect every three seconds for
+     the life of the test. */
+  await page.route("**/api/voice/stream", (route) =>
+    route.fulfill({ status: 200, contentType: "text/plain", body: "" })
+  );
+
   await page.route("**/api/immich/on-this-day", (route) =>
     route.fulfill({ contentType: "application/json", body: JSON.stringify({ assets: pool }) })
   );
