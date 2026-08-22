@@ -42,8 +42,14 @@
 const STALL_MS = 30 * 1000;
 
 /* How often we ask whether the calendar day has turned. Cheap, init-once, and
-   the only timer this module owns. */
-const CHECK_MS = 10 * 60 * 1000;
+   the only timer this module owns.
+
+   ⚠ EXPORTED because with memories on the tick IS the rotation (see `tick()`),
+   which makes this the period a frame holds the wall — and the archive divides
+   it to give each half of a pair its own turn on the card. Deriving it there
+   rather than restating it is what keeps a later change to the rotation from
+   silently desynchronising the two. */
+export const CHECK_MS = 10 * 60 * 1000;
 
 /* The day-boundary settle. A minute, matching the incumbent's dissolve: the one
    photographic change in a day should not be an event, it should be something

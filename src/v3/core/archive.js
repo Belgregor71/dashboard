@@ -49,7 +49,7 @@
 
 import { cardRectFor } from "../../js/services/archiveModel.js";
 import { relativeYearPhrase } from "../../js/services/photoMemory.js";
-import { frameParts, poolYears } from "./ground.js";
+import { CHECK_MS as GROUND_ROTATE_MS, frameParts, poolYears } from "./ground.js";
 
 /* ⚠ Read the flag PER CALL, never at module load. ES imports hoist above the
    point where /js/config.js assigns window.CONFIG, so a module-level read is
@@ -132,10 +132,32 @@ const AXIS_SPAN = 1369;
 const LABEL_PX = 32;
 const LIT_PX = 48;
 
-/* Two halves at most — a diptych frame. Slots are allocated once at build and
-   never grow; `blank` halves are hidden rather than removed. */
+/* ⚠⚠ ONE PHOTOGRAPH PER SLOT — the card is never a diptych. Owner's call,
+   2026-08-22. `ground.js` still pairs portraits behind `groundDiptych` and the
+   full-bleed wall at depths 1-3 is UNTOUCHED, but the card is the subject of
+   this composition rather than a wall to fill: two prints inside one frame,
+   each already scaled to 457px, is a collage of a collage.
+
+   A pair is not skipped, it is UNFOLDED — half one, then half two, as two
+   ordinary card exchanges (see HALF_HOLD_MS). Showing only the first would
+   quietly cost depth 0 half of every portrait in the library, on the surface
+   that is up ~95% of the time.
+
+   Two slots, allocated once at build and never grown, so an exchange has
+   something to cross-fade from; `blank` is the state before the first arrival. */
 const SLOTS = 2;
-const HALVES = 2;
+
+/* HOW LONG THE FIRST HALF OF A PAIR HOLDS THE CARD. Derived from ground's own
+   rotation and never chosen: with memories on the tick IS the rotation, so a
+   pair splits one frame's turn evenly and a later change to the rotation
+   carries here rather than desynchronising from it.
+
+   ⚠ IT FIRES ONCE PER FRAME AND DOES NOT LOOP. The next tick brings a new
+   memory long before the card could want the first half back, and a pair
+   cycling 0,1,0,1 forever would be movement with no cause the room can see —
+   which is the whole subject of the calm law. A single photograph never arms
+   it at all. */
+const HALF_HOLD_MS = Math.round(GROUND_ROTATE_MS / 2);
 
 /* The outgoing slot is dropped this long after the settle, by a TIMER — never
    by transitionend, which does not fire while the element or an ancestor is
@@ -196,10 +218,11 @@ let ghostSlot = 0;
 let exchangeTimer = null;
 let blurTimer = null;
 let plateTimer = null;
+let halfTimer = null;
 let stripCanvas = null;
 let cardPlane = null;
 let cardEl = null;
-let cardImgs = [];          // [slot][half]
+let cardImgs = [];          // [slot] — ONE photograph each, never a diptych
 let ghostSkins = [];        // [ghost][slot]
 let plateEl = null;
 let plateRows = null;
@@ -207,7 +230,20 @@ let yearEl = null;
 let litYear = "";
 let lastYears = [];
 let lastRect = null;
-let lastSrcKey = "";
+
+/* THE FRAME GROUND LAST HANDED OVER — one photograph or a pair — and which of
+   its photographs is on the card. Held rather than consumed, because a pair is
+   presented across two exchanges minutes apart and the second one has to be
+   able to find its own asset, its own aspect and its own words. */
+let heldFrame = null;       // { key, imgs, srcs, assets, settleMs }
+let heldIndex = 0;
+
+/* ⚠ THE STALENESS TOKEN, and it counts PRESENTATIONS, not frames. It replaces a
+   comparison against the frame's src key, which was correct while one frame was
+   one exchange and is not any more: both halves of a pair carry the same key, so
+   a key check cannot tell the first half's pending plate swap from the second
+   half's — and would let half one's words paint over half two's card. */
+let presentSeq = 0;
 
 /* ── The one number to turn ─────────────────────────────────────────────────
    Amplitude, not period. DESIGN_SYSTEM §5.2: a slow effect that still travels
@@ -242,6 +278,12 @@ let lastSrcKey = "";
 let gain = 4;
 /* Mirrors --arch-ghost so the lever reports the live value rather than a stale one. */
 let ghost = 0.22;
+
+/* How long half one of a pair holds the card, live. Same shape and same reason
+   as the two levers above: "long enough to look at, short enough that its
+   partner still gets a turn" is judged in front of the wall, not in a constant.
+   Seeded from HALF_HOLD_MS, which is where the reasoning lives. */
+let halfHold = HALF_HOLD_MS;
 
 /* ── The plate ──────────────────────────────────────────────────────────────
    RELOCATED LANGUAGE, NEVER NEW LANGUAGE. Everything on it is already what
@@ -383,24 +425,18 @@ function build(host) {
   cardWrap.className = "archive__card-wrap";
   const card = document.createElement("div");
   card.className = "archive__card";
-  card.dataset.halves = "1";
   cardEl = card;
 
   cardImgs = [];
   for (let s = 0; s < SLOTS; s++) {
-    const halves = [];
-    for (let h = 0; h < HALVES; h++) {
-      const img = document.createElement("img");
-      img.className = "archive__img";
-      img.alt = "";
-      img.decoding = "async";
-      img.dataset.slot = String(s);
-      img.dataset.half = String(h);
-      img.dataset.blank = "1";
-      card.append(img);
-      halves.push(img);
-    }
-    cardImgs.push(halves);
+    const img = document.createElement("img");
+    img.className = "archive__img";
+    img.alt = "";
+    img.decoding = "async";
+    img.dataset.slot = String(s);
+    img.dataset.blank = "1";
+    card.append(img);
+    cardImgs.push(img);
   }
   const lip = document.createElement("div");
   lip.className = "archive__lip";
@@ -440,19 +476,33 @@ function build(host) {
 
 /* ── A memory arrives ───────────────────────────────────────────────────── */
 
-/** The frame's combined aspect: two portraits side by side make one wide card.
+/** The aspect of the ONE photograph on the card — a portrait gets a portrait
+ *  card, 457x609, and never half of a 914-wide one.
  *  ⚠ FROM THE DECODED RENDITION, NEVER FROM EXIF. Immich's exifImageWidth is
  *  pre-rotation, so an EXIF-derived fit puts every portrait iPhone photograph
  *  in a landscape card — a worse crop than the one the fit exists to remove. */
-function frameAspect(imgs) {
-  let total = 0;
-  for (const img of imgs) {
-    const w = img?.naturalWidth ?? 0;
-    const h = img?.naturalHeight ?? 0;
-    if (!(w > 0 && h > 0)) return null;
-    total += w / h;
-  }
-  return total > 0 ? total : null;
+function imgAspect(img) {
+  const w = img?.naturalWidth ?? 0;
+  const h = img?.naturalHeight ?? 0;
+  return w > 0 && h > 0 ? w / h : null;
+}
+
+/** The one asset the card is naming, as the single-element list every reader
+ *  here already takes.
+ *
+ *  ⚠ THE PLATE NAMES ONE PHOTOGRAPH, and now the card holds one — so each half
+ *  of a pair gets its own words and its own lit year. `plateForFrame`'s
+ *  earliest-year-wins rule is what a SHARED caption needed and there is no
+ *  longer a shared caption; handing it the whole pair here would caption half
+ *  two with half one's year for as long as half two is up.
+ *
+ *  ⚠ `assets` is index-aligned with `imgs` by construction — ground.js sets
+ *  `el.src = thumbUrl(assets[i].id)` off the same index — but a frame that
+ *  arrived without them falls back to the whole list rather than to nothing. */
+function assetsAt(index) {
+  const list = heldFrame?.assets;
+  if (!Array.isArray(list) || !list.length) return list;
+  return list[index] ? [list[index]] : list;
 }
 
 function applyRect(rect) {
@@ -484,72 +534,42 @@ function paintPlate(assets) {
 }
 
 /**
- * The photograph on the glass changed. Re-present it.
+ * Put ONE photograph of the held frame on the card.
  *
- * @param {HTMLImageElement|HTMLImageElement[]} frame ground.js's own element(s)
- * @param {{transitioning:boolean, assets?:object[]}} meta
+ * Every exchange this surface performs goes through here — a new memory from
+ * ground.js, and the second half of a pair minutes later. They are deliberately
+ * the same event: half two is not a special case of the layout, it is another
+ * memory arriving, with its own blur, its own words and its own lit year.
+ *
+ * @param {number} index which photograph of the held frame
  */
-export function archivePhoto(frame, meta = {}) {
-  if (!built || !enabled()) return;
-  const imgs = (Array.isArray(frame) ? frame : [frame]).filter(Boolean);
-  if (!imgs.length) return;
+function present(index) {
+  const held = heldFrame;
+  const src = held?.srcs?.[index];
+  if (!src) return;
 
-  const srcs = imgs.map((i) => i.currentSrc || i.src).filter(Boolean);
-  if (!srcs.length) return;
-
-  /* ⚠ ground.js fires onPhoto TWICE per exchange — once when the incoming frame
-     settles and again when the outgoing one has been removed. The second call
-     names the same photograph, and cross-fading the card into itself would put
-     a 60s opacity ramp on the glass for no cause at all. */
-  const key = srcs.join("|");
-  if (key === lastSrcKey) {
-    paintPlate(meta.assets);
-    return;
-  }
-  lastSrcKey = key;
-
-  /* Exchange over ground.js's settle, CLAMPED — see CARD_EXCHANGE_MAX_MS. A
-     veto still lands brisk because its settle is already under the ceiling; the
-     ambient rotation no longer drags a minute-long double exposure across the
-     card. The first frame has nothing to settle from and falls back to the
-     module's own default.
-
-     ⚠ ONE value, computed ONCE and used for BOTH the CSS var and the cleanup
-     timer below. They were separately derived from `meta.settleMs` before, which
-     is exactly the shape that lets a future edit move one and not the other. */
-  const settleMs = Number.isFinite(meta.settleMs) && meta.settleMs >= 0
-    ? Math.min(meta.settleMs, CARD_EXCHANGE_MAX_MS)
-    : DEFAULT_EXCHANGE_MS;
+  heldIndex = index;
+  const seq = ++presentSeq;
+  const settleMs = held.settleMs;
   root?.style.setProperty("--arch-exchange", `${settleMs}ms`);
 
   const next = slot ^ 1;
-  const halves = cardImgs[next];
-  halves.forEach((img, i) => {
-    if (i < srcs.length) {
-      img.src = srcs[i];
-      img.dataset.blank = "0";
-    } else {
-      // Cleared, not removed: fixed allocation is what keeps a page that runs
-      // for weeks from growing, and a stale src on a hidden slot pins a decoded
-      // bitmap for nothing.
-      img.removeAttribute("src");
-      img.dataset.blank = "1";
-    }
-  });
-  cardEl?.setAttribute("data-halves", String(srcs.length));
+  const img = cardImgs[next];
+  img.src = src;
+  img.dataset.blank = "0";
 
   /* ⚠ THE OUTGOING SLOT KEEPS `is-shown` AND ONLY LOSES `is-top`. The incoming
      one fades in ON TOP of a still-opaque photograph; fading both at once
      leaves the pair at ~50% each in the middle and the card's own backing shows
      through, so every exchange dips dark halfway. It is the same rule
      ground.js's dissolve is built on, one plane forward. */
-  cardImgs[slot].forEach((img) => img.classList.remove("is-top"));
-  halves.forEach((img) => img.classList.add("is-shown", "is-top"));
+  cardImgs[slot].classList.remove("is-top");
+  img.classList.add("is-shown", "is-top");
   slot = next;
 
   const nextGhost = ghostSlot ^ 1;
   for (const skins of ghostSkins) {
-    skins[nextGhost].style.backgroundImage = `url("${srcs[0].replace(/"/g, "%22")}")`;
+    skins[nextGhost].style.backgroundImage = `url("${src.replace(/"/g, "%22")}")`;
     skins[nextGhost].classList.add("is-shown", "is-top");
     skins[ghostSlot].classList.remove("is-top");
   }
@@ -578,24 +598,24 @@ export function archivePhoto(frame, meta = {}) {
      leak class this house has paid for twice. */
   clearTimeout(exchangeTimer);
   exchangeTimer = setTimeout(() => {
-    cardImgs[slot ^ 1].forEach((img) => img.classList.remove("is-shown"));
+    cardImgs[slot ^ 1].classList.remove("is-shown");
     for (const skins of ghostSkins) skins[ghostSlot ^ 1].classList.remove("is-shown");
   }, settleMs + CLEANUP_BUFFER_MS);
 
-  const rect = cardRectFor(frameAspect(imgs));
+  const source = held.imgs[index];
+  const rect = cardRectFor(imgAspect(source));
   if (rect) applyRect(rect);
   // A rendition that has not decoded yet reports 0×0. Re-measure on its load
   // rather than leaving the card on the previous memory's shape — and re-check
-  // the key first, because on a cold NAS the rotation can outrun a fetch and
+  // the token first, because on a cold NAS the rotation can outrun a fetch and
   // reshaping around a photograph nobody is looking at is a move with no cause.
-  imgs.forEach((img) => {
-    if (img.complete) return;
-    img.addEventListener("load", () => {
-      if (lastSrcKey !== key) return;
-      const late = cardRectFor(frameAspect(imgs));
+  if (source && !source.complete) {
+    source.addEventListener("load", () => {
+      if (presentSeq !== seq) return;
+      const late = cardRectFor(imgAspect(source));
       if (late) applyRect(late);
     }, { once: true });
-  });
+  }
 
   /* ⚠⚠ THE WORDS RIDE THE EXCHANGE — THEY DO NOT LEAD IT. All four of these
      swapped INSTANTLY while the photograph took the whole crossfade to arrive,
@@ -619,19 +639,93 @@ export function archivePhoto(frame, meta = {}) {
   clearTimeout(plateTimer);
   plateTimer = setTimeout(() => {
     plateTimer = null;
-    /* ⚠ STILL THE CURRENT MEMORY? This fires a whole swap after it was armed,
-       and ground.js's own late-hand-off trap is the same shape one plane down:
-       a superseded exchange must not put its words back on the wall. */
-    if (lastSrcKey !== key) return;
-    const { year } = frameParts(meta.assets);
+    /* ⚠ STILL THE CURRENT PRESENTATION? This fires a whole swap after it was
+       armed, and ground.js's own late-hand-off trap is the same shape one plane
+       down: a superseded exchange must not put its words back on the wall.
+       Against the SEQUENCE, never against the frame's src key — both halves of
+       a pair share that key, so a key check would let half one's words land on
+       half two's card and call it current. */
+    if (presentSeq !== seq) return;
+    const assets = assetsAt(index);
+    const { year } = frameParts(assets);
     litYear = year || "";
     if (yearEl) yearEl.textContent = litYear;
     lastYears = poolYears();
     drawStrip();
-    paintPlate(meta.assets);
+    paintPlate(assets);
     plateEl?.classList.remove("is-exchanging");
     yearEl?.classList.remove("is-exchanging");
   }, swapMs);
+
+  /* ── The other half, later ────────────────────────────────────────────────
+     A pair is unfolded, not skipped. ONE timer, cleared before it is re-armed
+     and never chained past the last photograph, so a frame arms at most one
+     pending swap and a single photograph arms none.
+
+     ⚠ THE FRAME IS RE-CHECKED BY IDENTITY WHEN IT FIRES. Five minutes is long
+     enough for a veto, a day boundary or a retry to have replaced the whole
+     frame, and putting half two of a memory the room already dismissed onto the
+     card would read as the wall arguing back. */
+  clearTimeout(halfTimer);
+  halfTimer = null;
+  if (index + 1 < held.srcs.length) {
+    halfTimer = setTimeout(() => {
+      halfTimer = null;
+      if (heldFrame !== held) return;
+      present(index + 1);
+    }, halfHold);
+  }
+}
+
+/**
+ * The photograph on the glass changed. Re-present it.
+ *
+ * ⚠ A FRAME IS NOT AN EXCHANGE ANY MORE. Behind `groundDiptych` ground hands
+ * over a PAIR, and the card takes them one at a time — this seats the frame and
+ * starts it; `present()` does the rest.
+ *
+ * @param {HTMLImageElement|HTMLImageElement[]} frame ground.js's own element(s)
+ * @param {{transitioning:boolean, assets?:object[], settleMs?:number}} meta
+ */
+export function archivePhoto(frame, meta = {}) {
+  if (!built || !enabled()) return;
+  const imgs = (Array.isArray(frame) ? frame : [frame]).filter(Boolean);
+  if (!imgs.length) return;
+
+  const srcs = imgs.map((i) => i.currentSrc || i.src).filter(Boolean);
+  if (!srcs.length) return;
+
+  /* ⚠ ground.js fires onPhoto TWICE per exchange — once when the incoming frame
+     settles and again when the outgoing one has been removed. The second call
+     names the same photograph, and cross-fading the card into itself would put
+     a 60s opacity ramp on the glass for no cause at all.
+
+     ⚠⚠ AND IT MUST NOT RESTART A PAIR. The repeat lands ~2s after the first
+     call, long before the half-hold, so re-seating the frame here would re-arm
+     the timer off the wrong instant and, worse, replay half one. The words are
+     repainted for whichever half is up and nothing else moves. */
+  const key = srcs.join("|");
+  if (key === heldFrame?.key) {
+    paintPlate(assetsAt(heldIndex));
+    return;
+  }
+
+  /* Exchange over ground.js's settle, CLAMPED — see CARD_EXCHANGE_MAX_MS. A
+     veto still lands brisk because its settle is already under the ceiling; the
+     ambient rotation no longer drags a minute-long double exposure across the
+     card. The first frame has nothing to settle from and falls back to the
+     module's own default.
+
+     ⚠ ONE value, computed ONCE and used for BOTH the CSS var and the cleanup
+     timer. They were separately derived from `meta.settleMs` before, which is
+     exactly the shape that lets a future edit move one and not the other. Held
+     on the frame so half two crosses at the same speed half one did. */
+  const settleMs = Number.isFinite(meta.settleMs) && meta.settleMs >= 0
+    ? Math.min(meta.settleMs, CARD_EXCHANGE_MAX_MS)
+    : DEFAULT_EXCHANGE_MS;
+
+  heldFrame = { key, imgs, srcs, assets: meta.assets, settleMs };
+  present(0);
 }
 
 /**
@@ -660,6 +754,15 @@ export function initArchive(host) {
     gain,
     lit: litYear || null,
     years: lastYears.slice(),
+    /* How many photographs the held frame has and which one is on the card.
+       `frame` reads 2 on a diptych pair and `shown` below still reads 1 — that
+       pairing is the whole assertion: ground still pairs, the card does not. */
+    frame: heldFrame?.srcs.length ?? 0,
+    half: heldFrame ? heldIndex : null,
+    /* Whether the other half is still owed. A pending timer here at rest with
+       `frame` 1 would be the leak shape this surface has paid for twice. */
+    pendingHalf: halfTimer !== null,
+    halfHold,
     // The PAINTED rectangle, not what applyRect asked for — "is it actually
     // fitting" should be a read, not a squint.
     card: cardPlane
@@ -721,6 +824,26 @@ export function initArchive(host) {
     ghost = v;
     document.documentElement.style.setProperty("--arch-ghost", String(ghost));
     return ghost;
+  };
+
+  /* The half-hold lever — same reason and same shape as the two above. How long
+     half one of a pair should keep the card before its partner takes it is a
+     "stand in front of it and see" number, and the default is arithmetic (half
+     a rotation) rather than a judgement.
+
+     Bounded to (0, one rotation]. Zero would present both halves in the same
+     task, which is the diptych back in a worse form; longer than a rotation
+     means half two is never reached and the pairing silently becomes the
+     show-one-and-skip-one this was chosen over.
+
+     ⚠ IT TAKES EFFECT ON THE NEXT FRAME, not on the one already on the glass —
+     the pending swap was armed at the old value. Drive a fresh frame with
+     `window.__groundDissolve(ms)` to see it. */
+  window.__archiveHalfHold = (ms) => {
+    const v = Number(ms);
+    if (!Number.isFinite(v) || v <= 0 || v > GROUND_ROTATE_MS) return halfHold;
+    halfHold = v;
+    return halfHold;
   };
 
   return true;

@@ -179,7 +179,10 @@ const POOL = [
    archive, and the law-3 assertion below passes or fails by time of day. */
 const MIDDAY = new Date("2026-07-06T12:00:00");
 
-async function bootArchive(page, { v3Archive = true, groundMemories = true, pool = POOL } = {}) {
+async function bootArchive(
+  page,
+  { v3Archive = true, groundMemories = true, groundDiptych = false, pool = POOL } = {}
+) {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
   await page.clock.setFixedTime(MIDDAY);
@@ -192,7 +195,7 @@ async function bootArchive(page, { v3Archive = true, groundMemories = true, pool
         (await res.text()) +
         `\nwindow.CONFIG.features.v3Archive = ${v3Archive};` +
         `\nwindow.CONFIG.features.groundMemories = ${groundMemories};` +
-        `\nwindow.CONFIG.features.groundDiptych = false;\n`
+        `\nwindow.CONFIG.features.groundDiptych = ${groundDiptych};\n`
     });
   });
 
@@ -257,20 +260,31 @@ test("flag on: the composition is up at depth 0 and the caption stands down", as
 
   expect(probe.visible).toBe(true);
   expect(probe.ghosts).toBe(2);
-  // Two slots x two halves, allocated once and never grown.
-  expect(probe.slots).toBe(4);
+  /* TWO slots, one photograph each, allocated once and never grown. It was
+     four — two slots x two halves — while the card could hold a diptych. It
+     cannot: a pair is unfolded into two exchanges instead. */
+  expect(probe.slots).toBe(2);
   expect(probe.years).toEqual(["2011", "2015", "2019", "2023"]);
   expect(probe.years).toContain(probe.lit);
   expect(probe.plate).not.toBeNull();
   expect(probe.plate.title).toBe("Nudgee");
+
+  /* A single photograph ARMS NOTHING. The half-hold timer exists only to unfold
+     a pair, and a pending timer here — on the flag-off-diptych path, which is
+     most days — would be one dangling `setTimeout` per rotation forever on a
+     page that never reloads. That is the leak class this house has paid for
+     twice, so it is asserted rather than reasoned about. */
+  expect(probe.frame).toBe(1);
+  expect(probe.half).toBe(0);
+  expect(probe.pendingHalf).toBe(false);
 
   // The plate says who/where/when now, so the caption would be the same fact
   // told twice.
   expect(probe.captionVisible).toBe(false);
 
   /* ⚠ ground.js's own metric MUST BE UNTOUCHED. `layers` is what the soak reads
-     to decide the ground is leaking; the archive's four <img>s live in its own
-     host precisely so this stays 1. */
+     to decide the ground is leaking; the archive's <img>s live in its own host
+     precisely so this stays 1. */
   expect(probe.layers).toBe(1);
   expect(probe.imgs).toBe(1);
 
@@ -443,14 +457,14 @@ test("nothing grows across exchanges, and one timer never becomes many", async (
     layers: window.__ground().layers,
     /* Exactly one PAINTING slot once the settle is over. Both would mean the
        outgoing layer is compositing for nobody, forever.
-       ⚠ `:not([data-blank="1"])` matters: the unused half of a single-photograph
-       frame keeps its classes and is display:none, so a bare class count says
-       two and means one. */
+       ⚠ `:not([data-blank="1"])` matters: a slot that has never held a
+       photograph keeps its classes off but is display:none either way, and this
+       keeps the count about pictures rather than about elements. */
     top: document.querySelectorAll('.archive__img.is-top:not([data-blank="1"])').length,
     shown: document.querySelectorAll('.archive__img.is-shown:not([data-blank="1"])').length
   }));
 
-  expect(probe.slots).toBe(4);
+  expect(probe.slots).toBe(2);
   expect(probe.ghosts).toBe(2);
   expect(probe.layers).toBe(1);
   /* The soak's own numbers, pinned so a later change cannot move them silently.
@@ -473,6 +487,139 @@ test("nothing grows across exchanges, and one timer never becomes many", async (
   expect(probe.loops).toBe(4);
   expect(probe.top).toBe(1);
   expect(probe.shown).toBe(1);
+
+  expect(pageErrors).toEqual([]);
+});
+
+/* ── A pair is UNFOLDED, never laid side by side ─────────────────────────────
+   `ground.js` pairs portraits behind `groundDiptych` and the full-bleed wall at
+   depths 1-3 shows them side by side. The CARD does not, and never did anything
+   else with them before 2026-08-22: it re-presented whatever arrived, so a pair
+   landed as two 457px prints either side of a seam — a collage of a collage.
+
+   These two specs pin the SPLIT: ground still pairs (`imgs` 2) while the card
+   holds one (`shown` 1), and the partner is not thrown away, it takes the card
+   on its own timer with its own words. Showing only half one would be a smaller
+   diff and would quietly cost depth 0 half of every portrait in the library. */
+
+/* Two same-year pairs, both morning-then-evening, so the SHUFFLE cannot make
+   the order ambiguous: pairing sorts each year's group by time, so half one is
+   always the morning frame and half two always the evening one — and they carry
+   different cities so the plate has something to be wrong about.
+   ⚠ Ids are long and distinct on purpose. A single-letter id is a substring of
+   every URL in the fixture, which is how an assertion here has gone green
+   against an injected defect before; these are matched WHOLE, never contained. */
+const PAIR_POOL = [
+  { id: "pair-alpha-morning", aspect: 0.75, localDateTime: "2015-08-18T08:00:00Z", city: "Nudgee", people: [] },
+  { id: "pair-alpha-evening", aspect: 0.75, localDateTime: "2015-08-18T19:00:00Z", city: "Sandgate", people: [] },
+  { id: "pair-beta-morning", aspect: 0.75, localDateTime: "2019-08-18T08:00:00Z", city: "Nudgee", people: [] },
+  { id: "pair-beta-evening", aspect: 0.75, localDateTime: "2019-08-18T19:00:00Z", city: "Sandgate", people: [] }
+];
+const pairOf = (id) => id.split("-")[1];
+
+test("a diptych pair reaches the card ONE PHOTOGRAPH AT A TIME", async ({ page }) => {
+  const pageErrors = await bootArchive(page, { groundDiptych: true, pool: PAIR_POOL });
+  await groundShown(page);
+  await expect.poll(() => page.evaluate(() => window.__archive().lit)).toBeTruthy();
+
+  const probe = await page.evaluate(() => ({
+    ...window.__archive(),
+    groundImgs: window.__ground().imgs,
+    layers: window.__ground().layers
+  }));
+
+  /* ⚠⚠ THIS PAIR OF NUMBERS IS THE WHOLE FEATURE, and neither means anything
+     alone. `groundImgs` 2 says the full-bleed diptych is still being built —
+     lose that and this stopped being a change to the archive and became a
+     removal of the diptych. `shown` 1 says the card took one of them. */
+  expect(probe.groundImgs).toBe(2);
+  expect(probe.frame).toBe(2);
+  expect(probe.shown).toBe(1);
+
+  // Half one is up and its partner is owed, not dropped.
+  expect(probe.half).toBe(0);
+  expect(probe.pendingHalf).toBe(true);
+
+  /* AND THE CARD IS SHAPED FOR ONE PHOTOGRAPH. The fit reads the decoded
+     rendition, and the fixture decodes 1x1 — so a card built for the pair would
+     ask for `cardRectFor(2)`, a 1040-wide landscape plate, and a card built for
+     one asks for `cardRectFor(1)`. The rectangle is what makes this a real
+     re-composition rather than a hidden second half. */
+  expect(probe.card.wanted).toEqual(cardRectFor(1));
+  expect(probe.card.wanted).not.toEqual(cardRectFor(2));
+
+  // ground.js's soak metric is still counting photographs, not elements.
+  expect(probe.layers).toBe(1);
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("the partner takes the card on its own timer, and the words go with it", async ({ page }) => {
+  /* ⚠ OBSERVED, NEVER SAMPLED — the same rule the blur and the plate specs
+     below run on. Half one holds the card for a bounded window and polling for
+     "what is up at t=400ms" is a race with the thing under test. Both sequences
+     are recorded by mutation, so the assertion is about ORDER and cannot pass
+     by looking at the right moment. */
+  const pageErrors = await bootArchive(page, { groundDiptych: true, pool: PAIR_POOL });
+  await groundShown(page);
+  await expect.poll(() => page.evaluate(() => window.__archive().frame)).toBe(2);
+
+  /* Half a rotation is five minutes on the wall, which is not a test. The lever
+     is the same shape as __archiveGain/__archiveGhost and takes effect on the
+     NEXT frame, so the dissolve below is what actually exercises it. 2000ms is
+     comfortably past the plate's own swap (~300ms) — at a shorter hold half one
+     would be replaced before its words ever landed, which would make this spec
+     pass for the wrong reason. */
+  expect(await page.evaluate(() => window.__archiveHalfHold(2000))).toBe(2000);
+
+  await page.evaluate(() => {
+    window.__cardIds = [];
+    window.__plateTitles = [];
+    const card = document.querySelector(".archive__card");
+    new MutationObserver((recs) => {
+      for (const r of recs) {
+        const id = r.target.src?.match(/\/asset\/([^/]+)\/thumb/)?.[1];
+        if (id && window.__cardIds.at(-1) !== id) window.__cardIds.push(id);
+      }
+    }).observe(card, { subtree: true, attributes: true, attributeFilter: ["src"] });
+
+    const title = document.querySelector(".archive__title");
+    new MutationObserver(() => {
+      const t = title.textContent;
+      if (t && window.__plateTitles.at(-1) !== t) window.__plateTitles.push(t);
+    }).observe(title, { subtree: true, childList: true, characterData: true });
+  });
+
+  // A fresh frame, briskly, so the recorded sequence starts at a known point.
+  await page.evaluate(() => window.__groundDissolve(60, 200));
+
+  await expect.poll(() => page.evaluate(() => window.__archive().half), {
+    timeout: 10_000,
+    message: "half two never took the card — a pair the wall shows once is a pair it half-loses"
+  }).toBe(1);
+  // And nothing is still owed once it has: one timer per frame, not a chain.
+  await expect.poll(() => page.evaluate(() => window.__archive().pendingHalf)).toBe(false);
+
+  const ids = await page.evaluate(() => window.__cardIds);
+  expect(ids).toHaveLength(2);
+  const [first, second] = ids;
+  expect(first).toMatch(/-morning$/);
+  expect(second).toMatch(/-evening$/);
+  // The SAME pair, unfolded — not two frames arriving early.
+  expect(pairOf(second)).toBe(pairOf(first));
+
+  /* THE WORDS BELONG TO THE PHOTOGRAPH, NOT TO THE FRAME. `plateForFrame` takes
+     the earliest year and joins the places when it is handed a pair, which is
+     what a SHARED caption needed; handing it the whole pair here would leave
+     half two captioned "Nudgee & Sandgate" — a line true of neither picture on
+     the card. */
+  await expect.poll(() => page.evaluate(() => window.__plateTitles)).toEqual([
+    "Nudgee",
+    "Sandgate"
+  ]);
+
+  // Still one photograph painting once the second exchange has settled.
+  await expect.poll(() => page.evaluate(() => window.__archive().shown)).toBe(1);
 
   expect(pageErrors).toEqual([]);
 });
