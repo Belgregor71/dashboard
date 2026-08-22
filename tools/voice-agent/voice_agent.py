@@ -22,7 +22,9 @@ wait for it to actually go quiet, and only then listen.
 Config via env: WAKE_MODEL (hey_jarvis), WAKE_THRESHOLD (0.5), MIC_DEVICE
 (plughw:3,0), STT_URL, DASH_URL, SILENCE_RMS, TRAIL_SILENCE_MS, MAX_UTTER_MS,
 SPEAKING_URL, BARGE_URL, BARGE_THRESHOLD, BARGE_FRAMES, UNHEARD_URL,
-CAPTURE_VAD (rms|speech), SPEECH_ON, LEAD_SILENCE_MS, CAPTURE_TRACE.
+CAPTURE_VAD (rms|speech|smart), SPEECH_ON, LEAD_SILENCE_MS, CAPTURE_TRACE,
+SMART_TURN_MODEL_PATH, SMART_TURN_ON, SMART_AFTER_MS, SMART_EVERY_MS,
+SMART_TRAIL_MAX_MS, SMART_WINDOW_MS.
 
 ⚠ Env knobs are `Environment=` lines in voice-agent.service, NOT the .env file,
 and THIS FILE IS NOT DEPLOYED BY A GIT PULL — the unit runs
@@ -148,6 +150,60 @@ COOLDOWN_S = float(os.environ.get("COOLDOWN_S", "1.5"))
 CAPTURE_VAD = os.environ.get("CAPTURE_VAD", "speech").strip().lower()
 SPEECH_ON = float(os.environ.get("SPEECH_ON", "0.5"))
 LEAD_SILENCE_MS = int(os.environ.get("LEAD_SILENCE_MS", "1500"))
+
+# ── CAPTURE_VAD=smart — endpointing on whether the SENTENCE is finished ──────
+# ⚠ THE RULE ABOVE CANNOT TELL A PAUSE FROM AN ENDING, AND NO THRESHOLD FIXES
+# THAT. Both of these produce identical silence after identical speech:
+#
+#     "what's on today —"        (thinking, about to keep going)
+#     "what's on today."         (finished)
+#
+# So `trail` clips the first at 800 ms and taxes the second 800 ms, and the
+# whole V2 note above is the record of discovering that re-tuning a threshold
+# here is a coin flip. It is a coin flip because the statistic is the wrong one:
+# loudness could not see what a speech model can (that is why silero is here),
+# and silero cannot see what a TURN model can.
+#
+# Smart Turn v3 (pipecat-ai/smart-turn, Apache-2.0) is trained on exactly this
+# question and takes the AUDIO, not a transcript — the cues are semantic AND
+# prosodic, and half of them are gone by the time whisper has been asked. The
+# CPU export is an 8 MB int8 ONNX file at ~12 ms, and `onnxruntime` is already a
+# hard dependency of the installed openwakeword. It is a file, not a stack.
+#
+# ⚠⚠ SILERO IS NOT REPLACED. It stays the cheap per-frame gate that answers "is
+# someone talking"; this answers the different and dearer question "are they
+# FINISHED", and only needs asking once the cheap gate has gone quiet. Feeding
+# the turn model every frame would be 12 ms against 80 ms of audio for an answer
+# that is meaningless mid-word.
+#
+# ⚠ FAILS TO `speech`, NEVER TO DEAF. No model file, a bad load, a bad inference
+# — every one of them degrades to the rule above, the same way _init_vad()
+# degrades to loudness. A deaf mic is the one failure this agent must not choose.
+# The weights are NOT in this repo and must not be — an 8 MB binary in a tree
+# that deploys by `git pull` to a wall is not a dependency, it is a habit. Fetch
+# the v3 CPU export from pipecat-ai/smart-turn onto the G11 beside the agent
+# (/home/dashboard/voice-agent/) and point this at it. Unset = the mode is off
+# and the loop is exactly the one measured on 2026-08-20.
+SMART_TURN_MODEL_PATH = os.environ.get("SMART_TURN_MODEL_PATH", "")
+# How complete the sentence has to sound. 0.5 is the model's own operating
+# point; it is NOT tuned for this kitchen yet, and the trace line below is what
+# it should be tuned from — the same way SPEECH_ON was.
+SMART_TURN_ON = float(os.environ.get("SMART_TURN_ON", "0.5"))
+# Don't ask until the room has actually gone quiet for a beat. Asking during
+# speech wastes the inference; asking after one silent frame asks about a comma.
+SMART_AFTER_MS = int(os.environ.get("SMART_AFTER_MS", "240"))
+# And don't ask on every frame after that. 160 ms = every other frame.
+SMART_EVERY_MS = int(os.environ.get("SMART_EVERY_MS", "160"))
+# ⚠ THIS IS THE KNOB THAT MAKES THE FEATURE TWO-SIDED, and the one that can cost
+# something. With it at TRAIL_SILENCE_MS the model can only ever end a turn
+# EARLIER than today — strictly safe, and strictly half the value, because the
+# mid-sentence pause is still clipped at 800 ms. Above it, a turn the model says
+# is unfinished is given longer. MAX_UTTER_MS still caps everything, so the
+# worst case is the 8 s that already exists.
+SMART_TRAIL_MAX_MS = int(os.environ.get("SMART_TRAIL_MAX_MS", "2000"))
+# The window handed to the model, ending at now. Smart Turn was trained on
+# utterance-final audio up to 8 s; more than that is neither cheap nor useful.
+SMART_WINDOW_MS = int(os.environ.get("SMART_WINDOW_MS", "8000"))
 # Rollback with no deploy: a drop-in beside the two already on the G11 —
 #   /etc/systemd/system/voice-agent.service.d/capture-vad.conf
 #   [Service]
@@ -415,6 +471,94 @@ def _speech_probability(frame):
         return 0.0
 
 
+# ── The turn model ───────────────────────────────────────────────────────────
+# Deliberately introspective rather than hard-coded to one export. The ONNX
+# input name and shape differ between smart-turn releases (and between an
+# official export and a re-quantised one), and a KeyError on a tensor name would
+# be a deaf-adjacent failure bought for tidiness. Ask the session what it wants.
+#
+# ⚠ THE BINDING BELOW IS UNVERIFIED AGAINST A REAL WEIGHTS FILE. It is written
+# to fail into `speech`, and _turn_probability() returns None for anything it
+# does not understand, so an export this does not fit costs the trace line and
+# nothing else. Confirm on the G11 with the real .onnx before trusting `smart`
+# in the room — the tell is a trace line whose `turn=` never moves.
+_turn = None
+_turn_input = None
+_turn_logged = False      # see the except in _turn_probability
+
+
+def _init_turn():
+    if CAPTURE_VAD != "smart":
+        return
+    if not SMART_TURN_MODEL_PATH:
+        log("⚠ CAPTURE_VAD=smart but SMART_TURN_MODEL_PATH is unset — "
+            "endpointing stays on silero")
+        return
+    global _turn, _turn_input
+    try:
+        import onnxruntime as ort
+        # ONE thread. This runs inside the 80 ms capture loop on a box that is
+        # also driving a 32" panel, and onnxruntime defaults to ALL cores —
+        # the same default that had to be bounded for kokoro and CTranslate2.
+        opts = ort.SessionOptions()
+        opts.intra_op_num_threads = 1
+        opts.inter_op_num_threads = 1
+        _turn = ort.InferenceSession(SMART_TURN_MODEL_PATH,
+                                     sess_options=opts,
+                                     providers=["CPUExecutionProvider"])
+        _turn_input = _turn.get_inputs()[0]
+        log(f"turn model on → {os.path.basename(SMART_TURN_MODEL_PATH)} "
+            f"input {_turn_input.name}{_turn_input.shape} "
+            f"(complete ≥ {SMART_TURN_ON})")
+    except Exception as exc:      # pragma: no cover - environment-dependent
+        _turn = None
+        log(f"turn model unavailable, endpointing stays on silero: {exc}")
+
+
+def _turn_probability(pcm):
+    """P(the speaker has finished), or None when the model has no opinion.
+
+    None is a real answer and the caller treats it as "keep waiting" — an
+    inference that raised must never be read as a completed sentence, because
+    that direction cuts people off, which is the defect this is here to fix.
+    """
+    if _turn is None:
+        return None
+    try:
+        import numpy as np
+        audio = pcm[-int(RATE * SMART_WINDOW_MS / 1000):].astype(np.float32) / 32768.0
+        # Shape from the model's own signature: everything the exports use is
+        # some arrangement of (batch, samples), so fill the known dims and let
+        # the sample axis take the rest.
+        rank = len(_turn_input.shape) if _turn_input.shape else 1
+        feed = {_turn_input.name: audio.reshape((1,) * (rank - 1) + (-1,))}
+        out = np.asarray(_turn.run(None, feed)[0]).ravel()
+        if out.size == 0:
+            return None
+        if out.size == 1:
+            value = float(out[0])
+            # A single output may be a probability or a logit. A probability is
+            # already in range; anything else gets squashed rather than compared
+            # against a threshold it was never on the same scale as.
+            return value if 0.0 <= value <= 1.0 else float(1.0 / (1.0 + np.exp(-value)))
+        # Two or more: logits over [incomplete, complete].
+        exp = np.exp(out - out.max())
+        return float((exp / exp.sum())[-1])
+    except Exception as exc:      # pragma: no cover - environment-dependent
+        # ⚠ ONCE PER PROCESS, not once per call. This runs every SMART_EVERY_MS
+        # through the whole trailing window, so a binding that does not fit the
+        # export would write ~12 identical lines PER TURN, for weeks — burying
+        # the wake and capture lines this journal exists to carry. A permanent
+        # failure is one fact; the trace line's `asks=0` is what reports that it
+        # is still happening.
+        global _turn_logged
+        if not _turn_logged:
+            _turn_logged = True
+            log(f"⚠ turn inference failed — endpointing falls back to silence "
+                f"for the rest of this run: {exc}")
+        return None
+
+
 def _ambient_worker():
     while True:
         payload = _ambient_q.get()
@@ -468,7 +612,16 @@ def capture_utterance(proc):
     # frame 0.0, which under speech endpointing means "nobody ever spoke" — the
     # house would go deaf rather than degrade. A dead mic is the one failure this
     # agent must never choose.
-    use_speech = CAPTURE_VAD == "speech" and _vad is not None
+    use_speech = CAPTURE_VAD in ("speech", "smart") and _vad is not None
+    # ⚠ `and use_speech`, not just `_turn is not None`. Smart Turn is only ever
+    # ASKED once the cheap gate says the room has gone quiet, so without silero
+    # there is no trailing window to ask about and the mode has to collapse all
+    # the way back to loudness rather than half-way.
+    use_smart = CAPTURE_VAD == "smart" and _turn is not None and use_speech
+    smart_after = SMART_AFTER_MS / 1000.0
+    smart_every = SMART_EVERY_MS / 1000.0
+    smart_trail_max = max(SMART_TRAIL_MAX_MS, TRAIL_SILENCE_MS) / 1000.0
+    turn_p, turn_asks, last_ask = None, 0, 0.0
     peak_speech, peak_rms, trace = 0.0, 0, []
     ended = "eof"
 
@@ -496,7 +649,28 @@ def capture_utterance(proc):
             trail = 0.0
         elif speech_frames >= MIN_SPEECH_FRAMES:
             trail += FRAME / RATE
-            if trail >= trail_limit:
+            if use_smart:
+                now = time.time()
+                if trail >= smart_after and (now - last_ask) >= smart_every:
+                    last_ask = now
+                    p = _turn_probability(np.concatenate(frames))
+                    # None means the model had no opinion. Treated as KEEP
+                    # WAITING, never as "finished" — a failed inference that
+                    # ended the turn would cut people off, which is the exact
+                    # defect this branch exists to remove.
+                    if p is not None:
+                        turn_p = p
+                        turn_asks += 1
+                        if p >= SMART_TURN_ON:
+                            ended = "smart"
+                            break
+                # The hard bound on being told to wait. Reached when the model
+                # keeps saying "not finished" — or when it never answers at all,
+                # which is what makes this the fallback as well as the ceiling.
+                if trail >= smart_trail_max:
+                    ended = "trail"
+                    break
+            elif trail >= trail_limit:
                 ended = "trail"
                 break
         elif use_speech and (time.time() - start) >= lead_limit:
@@ -513,9 +687,20 @@ def capture_utterance(proc):
     took = int((time.time() - start) * 1000)
     heard = speech_frames >= MIN_SPEECH_FRAMES
     if CAPTURE_TRACE:
-        log(f"capture {took}ms ended={ended} by={'speech' if use_speech else 'rms'} "
+        # ⚠ `turn=` IS THE WHOLE POINT OF SHIPPING THIS BEFORE THE THRESHOLD IS
+        # CHOSEN, exactly as the speech column was. `asks` beside it is the
+        # discriminator that a probability alone cannot give: `turn=0.31 asks=0`
+        # means the model was never consulted (a binding that does not fit the
+        # export, or silence that never reached SMART_AFTER_MS), which reads
+        # identically to a model that is working and unconvinced.
+        smart = ""
+        if use_smart:
+            seen = f"{turn_p:.2f}" if turn_p is not None else "-"
+            smart = f" turn={seen} asks={turn_asks}"
+        log(f"capture {took}ms ended={ended} "
+            f"by={'smart' if use_smart else 'speech' if use_speech else 'rms'} "
             f"frames={len(frames)} voiced={speech_frames} kept={heard} "
-            f"peak_rms={peak_rms} peak_speech={peak_speech:.2f}")
+            f"peak_rms={peak_rms} peak_speech={peak_speech:.2f}{smart}")
         log(f"  trace rms:speech {' '.join(trace)}")
     if not heard:
         return None
@@ -738,8 +923,23 @@ def main():
         threading.Thread(target=_level_worker, daemon=True).start()
         log(f"level relay on → {LEVEL_URL}")
 
+    # ⚠ MOVED OUT OF THE `if AMBIENT_ENABLED` BLOCK, which is a fix rather than
+    # tidying. _init_vad's own guard already reads
+    # `VAD_ENABLED and (AMBIENT_ENABLED or CAPTURE_VAD == "speech")` — it was
+    # written to be armable for ENDPOINTING with the presence relay off, for the
+    # reason its comment gives: switching off a cosmetic feature must not
+    # silently change how the microphone decides you stopped talking. But its
+    # only call site was inside the relay's own block, so that second arm was
+    # unreachable. Dormant (AMBIENT_ENABLED defaults to 1) and now closed —
+    # third time in this repo that a guard has been stricter than the call site
+    # that feeds it.
+    _init_vad()
+    # Endpointing, not telemetry, so it sits beside the VAD and not beside the
+    # relay. Loaded ONCE at startup, never per capture: this process runs for
+    # weeks and its failure mode is a house that cannot hear.
+    _init_turn()
+
     if AMBIENT_ENABLED:
-        _init_vad()
         threading.Thread(target=_ambient_worker, daemon=True).start()
         log(f"ambient relay on → {AMBIENT_URL} every {AMBIENT_PERIOD_S}s")
 
