@@ -75,3 +75,4 @@ tools/voice-agent/*.log
 
 # graphify knowledge-graph output (regenerable; 5.7MB)
 graphify-out/
+tools/voice-pc/hotwords.txt

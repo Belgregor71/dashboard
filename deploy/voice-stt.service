@@ -35,6 +35,34 @@ Environment=STT_DEVICE=cpu
 Environment=STT_COMPUTE=int8
 Environment=OMP_NUM_THREADS=4
 
+# ── Decode hardening + the shadow leg (2026-08-22) ───────────────────────────
+# ⚠ ALL UNSET BY DEFAULT, AND THAT IS THE ROLLBACK. stt_server.py builds its
+# extra decode arguments from these and inserts NOTHING when they are unset, so
+# the unit as shipped transcribes byte-identically to the one measured at
+# 1185 ms for 6400 ms of audio. Uncomment, `systemctl daemon-reload`, restart.
+#
+# Two failures these answer, both on the record:
+#   "hanging the washing out"  -> "hanging out the washy"   (domain nouns)
+#   3.4 s of room tone         -> "Okay."                    (hallucination)
+#
+# ⚠⚠ MEASURE BEFORE SWAPPING THE ENGINE. STT_SHADOW_MODEL runs a second model on
+# the same bytes, off the response path, and logs where the two disagree — real
+# room speech, no audio stored. That is what says whether the MODEL is the limit
+# or the DECODE SETTINGS are. The one previous attempt to benchmark this fed
+# Kokoro-synthesised speech and got a perfect transcript while the room was
+# being misheard; do not repeat it.
+#
+# Environment=STT_CONDITION_PREV=0
+# Environment=STT_NO_SPEECH=0.6
+# Environment=STT_TEMPERATURE=0
+# Environment=STT_HOTWORDS_FILE=/home/dashboard/voice-stt/hotwords.txt
+# Environment=STT_SHADOW_MODEL=small.en
+#
+# ⚠ The shadow loads a SECOND model into a service capped at MemoryMax=2G.
+# base.en int8 is ~75 MB and small.en ~250 MB, so the pair is comfortable — but
+# check `systemctl status voice-stt` for an OOM kill after enabling it, because
+# the failure mode of that cap is a restart loop, i.e. a deaf house.
+
 # Same bounding as voice-tts.service. Measured under a pathologically sustained
 # transcription loop: gpu-process 5.1, renderer 5.3, substrateFps 15, pressure
 # avg10 0.01, 46 °C — i.e. the wall did not notice.

@@ -1,0 +1,46 @@
+# Domain vocabulary for the STT decoder — the shape, not the contents.
+#
+# Copy to a path OUTSIDE this repository and point STT_HOTWORDS_FILE at it:
+#   Environment=STT_HOTWORDS_FILE=/home/dashboard/voice-stt/hotwords.txt
+#
+# ⚠⚠ THE REAL FILE MUST NEVER BE COMMITTED. The words worth biasing toward are
+# household names, suburbs and street names — and this repository is PUBLIC, and
+# has already shipped a street address in the public bundle once. `hotwords.txt`
+# is gitignored beside this file so a copy made in place cannot be added by
+# accident, but the intended home is outside the tree entirely.
+#
+# One phrase per line. Blank lines and `#` comments ignored. Keep the list SHORT
+# — a hint is a hint, and a hundred nouns biases the decoder toward reciting
+# them. Start with the words you have actually heard it get wrong.
+#
+# What belongs here, by category:
+#   * the wake word, so it is stripped cleanly rather than half-transcribed
+#   * household member names          (LOCAL FILE ONLY)
+#   * suburbs and street names        (LOCAL FILE ONLY)
+#   * room and device names, as HA actually spells them
+#   * the subjects the wall can show
+
+# ── The wake word ─────────────────────────────────────────────────────────────
+Mycroft
+
+# ── Household + places ────────────────────────────────────────────────────────
+# LOCAL FILE ONLY — nothing real goes on the lines below in this example.
+# <first names of everyone who talks to the wall>
+# <suburbs that appear in the commute and in photo captions>
+
+# ── Rooms and devices, spelled the way Home Assistant spells them ─────────────
+# Generate the real list from the roster the voice lane already builds:
+#   node -e "import('./server/services/voiceTools.js').then(m=>console.log(m.entityRoster()))"
+living room
+kitchen
+backyard
+driveway
+side gate
+front door
+doorbell
+
+# ── What the wall can be asked to show ────────────────────────────────────────
+radar
+briefing
+forecast
+calendar

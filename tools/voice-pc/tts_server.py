@@ -26,9 +26,24 @@ import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # Under pythonw.exe (autostart, no console) route prints to a logfile.
+#
+# ⚠ UTF-8 IS FORCED FOR THE SAME REASON AS stt_server.py — read the longer note
+# there. On Windows both a pipe and a plain-`open` logfile default to cp1252,
+# and this file prints the text it was asked to SPEAK. Most of what the house
+# says is cp1252-safe (em dash, curly quotes and ° all are), so this is
+# prophylactic here rather than a fixed sighting — but the failure it prevents
+# is a UnicodeEncodeError inside the request handler, which is a silent turn
+# caused entirely by a log line.
 if sys.stdout is None:
-    _log = open(os.path.join(os.path.dirname(__file__), "tts.log"), "a", buffering=1)
+    _log = open(os.path.join(os.path.dirname(__file__), "tts.log"), "a",
+                buffering=1, encoding="utf-8", errors="replace")
     sys.stdout = sys.stderr = _log
+else:
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001
+            pass
 
 import numpy as np
 from kokoro_onnx import Kokoro
