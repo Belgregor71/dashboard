@@ -51,6 +51,31 @@ test("substrate on: the atmosphere token persists across a presence mode change"
   await forceSubstrate(true)(page);
   await page.clock.setFixedTime(MIDDAY);
 
+  /* ⚠⚠ THE INCUMBENT FETCHES LIVE WEATHER STRAIGHT FROM THE PAGE —
+     `services/weather/api.js` calls api.open-meteo.com directly — so this spec
+     depended on both the LATENCY and the CONTENT of real Brisbane weather.
+     `computeToken()` reads `getContext().condition`, which renderer.js sets the
+     moment that fetch resolves, and under full-suite load it resolved BETWEEN
+     the `awake` and `ambient` reads below.
+
+     Measured 2026-08-22 in a pre-push gate: awake `atmo-clear-day`, ambient
+     `atmo-cloudy`, then 3/3 green standalone. That is the signature
+     project-atmo-class-test-race records — a later assertion on a value an
+     earlier one already read, with the weather subscriber in between — arriving
+     where reactive-glass's and night-sky's single-evaluate fix cannot reach,
+     because the evaluate below has to await a presence mode change.
+
+     BLOCKED rather than stubbed, for two reasons. This test asserts the token is
+     the SAME throughout and explicitly not WHICH token (see the comment below),
+     so a condition that never resolves closes the window by construction rather
+     than narrowing it. And there is no open-meteo fixture in this suite to crib,
+     so inventing one risks a missing field failing the run for a new reason.
+
+     It also puts the spec back inside the house rule it was quietly breaking:
+     upstreams may be down on any machine, so tests assert shapes, never live
+     data. */
+  await page.route("https://api.open-meteo.com/**", (route) => route.abort());
+
   await page.goto("/index.html");
   await page.waitForFunction(() => typeof window.__atmosphere === "function");
 
