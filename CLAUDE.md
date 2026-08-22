@@ -82,6 +82,7 @@ it is "what happens if this is wrong".
 | **`suite-triage` subagent** | Haiku | Running specs and reporting only the failures | Fixing the failures |
 | **`Explore` (built-in)** | — | Broad sweeps across many directories and naming conventions | Reviewing or auditing what it found |
 | **`/xreview` → Gemini CLI** | Gemini Flash (AI Studio free tier, ~1,500/day) | A cold adversarial read of the outgoing diff before push | Write access. It runs `--approval-mode plan`, read-only, and that is not negotiable |
+| **`scripts/xbulk.mjs` → LM Studio** | local ~20B, free and unlimited | Distilling mountains: test logs, `journalctl`, CDP dumps, "which files mention X" | Any judgement call. It is a filter, not a reasoner — its output is evidence, never a verdict |
 
 **The rule that saves the most tokens:** a subagent's tool output never enters
 this session's context — only its report does. So anything whose *output* is
@@ -105,6 +106,13 @@ Gemini reads `AGENTS.md`, the same mirror Codex would (`.gemini/settings.json`
 sets `context.fileName`). **Regenerate the mirror after editing this file** or
 the second model reviews against stale house rules:
 `node scripts/mirror-agents.mjs`.
+
+**The bulk lane runs on your own machine.** `scripts/xbulk.mjs` talks to LM Studio's
+OpenAI-compatible server on 127.0.0.1:1234 (`lms server start`) — no key, no quota,
+no network, nothing leaves the box. Oversized input is **map-reduced, not truncated**:
+a 101-spec test run is far bigger than a local model's context, and silently dropping
+the tail would produce a clean report that never saw the failures. Give it extraction,
+never judgement.
 
 **⚠ Gemini auth is an API key, not a Google sign-in.** Google retired Gemini Code
 Assist for individuals on this client; OAuth now *succeeds* and then refuses the
