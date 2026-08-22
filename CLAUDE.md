@@ -81,7 +81,7 @@ it is "what happens if this is wrong".
 | **`scout` subagent** | Haiku | "Where does X live", "who calls Y", "is this flag reachable", "does the incumbent have this too" | Any verdict that leads to a deletion |
 | **`suite-triage` subagent** | Haiku | Running specs and reporting only the failures | Fixing the failures |
 | **`Explore` (built-in)** | — | Broad sweeps across many directories and naming conventions | Reviewing or auditing what it found |
-| **`/xreview` → Gemini CLI** | Gemini 3 Pro (free tier) | A cold adversarial read of the outgoing diff before push | Write access. It runs `--approval-mode plan`, read-only, and that is not negotiable |
+| **`/xreview` → Gemini CLI** | Gemini Flash (AI Studio free tier, ~1,500/day) | A cold adversarial read of the outgoing diff before push | Write access. It runs `--approval-mode plan`, read-only, and that is not negotiable |
 
 **The rule that saves the most tokens:** a subagent's tool output never enters
 this session's context — only its report does. So anything whose *output* is
@@ -106,10 +106,16 @@ sets `context.fileName`). **Regenerate the mirror after editing this file** or
 the second model reviews against stale house rules:
 `node scripts/mirror-agents.mjs`.
 
+**⚠ Gemini auth is an API key, not a Google sign-in.** Google retired Gemini Code
+Assist for individuals on this client; OAuth now *succeeds* and then refuses the
+tier (`IneligibleTierError`), which reads like a broken login and is not one.
+Key from <https://aistudio.google.com/apikey> into `.gemini/.env` — which wins
+over `.env` in the lookup order, so the reviewer never loads the HA token.
+
 **Codex is not wired up.** It needs a ChatGPT Plus subscription or a metered API
-key, neither of which exists here. `.codex/hooks.json` and the `AGENTS.md` mirror
-are already in place, so adding it later is auth and a runner script, nothing
-structural.
+key. `.codex/hooks.json` and the `AGENTS.md` mirror are already in place, so
+adding it later is auth and a runner script, nothing structural — worth
+reconsidering now that Gemini's free tier is Flash-class rather than Pro.
 
 ### 24/7 Kiosk Memory Discipline
 

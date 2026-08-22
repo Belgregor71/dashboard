@@ -172,20 +172,47 @@ writeFileSync(outFile, run.stdout || run.stderr || '', 'utf8');
 // non-zero, so the parse above fails and the real cause is buried in a stack
 // trace. Catch it by name and print the one thing that actually fixes it: this
 // is a browser OAuth flow, and it cannot happen inside a spawned process.
-const NEEDS_LOGIN = /Authentication cancelled|Please set an Auth method|initOauthClient|not authenticated|invalid_grant/i;
+// Google retired the Gemini CLI free tier for individuals (Code Assist for
+// individuals) and now points at the Antigravity suite. OAuth sign-in still
+// SUCCEEDS and then the tier is refused — so the failure looks like an auth
+// bug when it is a product change. It is called out by name here because the
+// generic "not signed in" message sent someone round the login loop twice.
+const TIER_GONE = /IneligibleTierError|no longer supported for Gemini Code Assist|UNSUPPORTED_CLIENT/i;
+const NEEDS_KEY = /Please set an Auth method|GEMINI_API_KEY|API key not found|API_KEY_INVALID|API key not valid/i;
+const NEEDS_LOGIN = /Authentication cancelled|initOauthClient|not authenticated|invalid_grant/i;
+const QUOTA = /RESOURCE_EXHAUSTED|429|quota|rate limit/i;
 const blob = `${run.stdout || ''}\n${run.stderr || ''}`;
 
 if (!parsed || parsed.error) {
+  if (TIER_GONE.test(blob)) {
+    console.error('xreview: Google has retired the Gemini CLI free tier for individuals.');
+    console.error('');
+    console.error('  Signing in with Google no longer works, however many times you try —');
+    console.error('  the login succeeds and then the TIER is refused. Use an API key instead:');
+    console.error('');
+    console.error('    1. Create a key at  https://aistudio.google.com/apikey');
+    console.error('    2. Put it in  .gemini/.env  (gitignored) as one line:');
+    console.error('         GEMINI_API_KEY=your-key-here');
+    console.error('');
+    console.error('  ~/.gemini/settings.json is already set to gemini-api-key.');
+    console.error('  NOTE the lookup order: <repo>/.gemini/.env wins over <repo>/.env, which is');
+    console.error('  why the key goes there and not in the dashboard .env next to the HA token.');
+    process.exit(1);
+  }
+  if (NEEDS_KEY.test(blob)) {
+    console.error('xreview: no usable GEMINI_API_KEY.');
+    console.error('');
+    console.error('  Create one at https://aistudio.google.com/apikey and put it in');
+    console.error('  .gemini/.env (gitignored) as:   GEMINI_API_KEY=your-key-here');
+    process.exit(1);
+  }
+  if (QUOTA.test(blob)) {
+    console.error('xreview: Gemini refused on quota (free tier is ~1,500 requests/day, 15/min).');
+    console.error('  Wait a minute, or pass --model to pick a model with headroom left.');
+    process.exit(1);
+  }
   if (NEEDS_LOGIN.test(blob)) {
-    console.error('xreview: Gemini is not signed in.');
-    console.error('');
-    console.error('  Run this once, in your own terminal, and sign in with your Google account:');
-    console.error('');
-    console.error('      gemini');
-    console.error('');
-    console.error('  It opens a browser. ~/.gemini/settings.json already selects oauth-personal,');
-    console.error('  so there is no auth picker. Sign in, then /quit. The token persists and');
-    console.error('  xreview works from then on. A spawned process cannot do this for you.');
+    console.error('xreview: Gemini could not authenticate. Raw output: ' + outFile);
     process.exit(1);
   }
   const msg = parsed?.error?.message || JSON.stringify(parsed?.error) || 'no JSON on stdout';
