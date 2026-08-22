@@ -17,11 +17,13 @@ dist/
 # make the copy canonical and let it drift from the original unwatched. It had
 # already drifted two days in: the generator's s/.claude/.Codex/ left
 # `.agents/skills/audit/SKILL.md` invoking a path that does not exist.
-# .codex/ is Codex's own hooks. None of it is this project's source, and this
+# .codex/ is Codex's own hooks and .gemini/ is Gemini CLI's config plus its
+# last review response. None of it is this project's source, and this
 # repo is public.
 .agents/
 .codex/
 AGENTS.md
+.gemini/
 *.env.local
 screenshot*.png
 .reference/

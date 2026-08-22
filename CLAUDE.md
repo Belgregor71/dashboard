@@ -66,6 +66,51 @@
   `.finally()` re-throws rejections on a fresh unhandled chain — use a two-handler
   `.then(fn, fn)` for cleanup on promises whose rejection is handled elsewhere.
 
+### Model Routing — which brain does which job
+
+Three models are available to this repo and they are not interchangeable. The
+default is wrong in both directions: doing a grep sweep on Opus wastes the
+weekly limit, and letting a cheap model decide a flag default risks the kiosk.
+
+**Route by consequence, not by difficulty.** The question is not "is this hard",
+it is "what happens if this is wrong".
+
+| Lane | Model | Give it | Never give it |
+|---|---|---|---|
+| **Main session** | Opus 5 | Design, root-cause debugging, anything that changes a flag default, deploys, kiosk verification, any call that depends on the live environment | Bulk search, raw test output |
+| **`scout` subagent** | Haiku | "Where does X live", "who calls Y", "is this flag reachable", "does the incumbent have this too" | Any verdict that leads to a deletion |
+| **`suite-triage` subagent** | Haiku | Running specs and reporting only the failures | Fixing the failures |
+| **`Explore` (built-in)** | — | Broad sweeps across many directories and naming conventions | Reviewing or auditing what it found |
+| **`/xreview` → Gemini CLI** | Gemini 3 Pro (free tier) | A cold adversarial read of the outgoing diff before push | Write access. It runs `--approval-mode plan`, read-only, and that is not negotiable |
+
+**The rule that saves the most tokens:** a subagent's tool output never enters
+this session's context — only its report does. So anything whose *output* is
+large but whose *answer* is small belongs in a subagent, however trivial the
+task. That is the whole trick. `npm test` and a repo-wide grep are the two
+biggest offenders.
+
+Corollary: **do not re-read what a subagent already reported.** Re-opening the
+files to "check its work" spends exactly what delegating saved. If the report is
+not trustworthy enough to act on, fix the agent's brief, not this turn.
+
+**Cross-model review.** `/xreview` hands the diff to Gemini, which reads the
+files, chases callers, and returns findings — all of that reading happens in
+Gemini's context on Google's free tier, not here. It is advisory and deliberately
+**not** in `.githooks/pre-push`: that gate targets ~60s and must never depend on
+a free-tier network call, because a slow gate gets bypassed with `--no-verify`,
+which disables all six real ones. Treat its findings with the same scepticism as
+any agent report — verify before patching, and never delete on its say-so.
+
+Gemini reads `AGENTS.md`, the same mirror Codex would (`.gemini/settings.json`
+sets `context.fileName`). **Regenerate the mirror after editing this file** or
+the second model reviews against stale house rules:
+`node scripts/mirror-agents.mjs`.
+
+**Codex is not wired up.** It needs a ChatGPT Plus subscription or a metered API
+key, neither of which exists here. `.codex/hooks.json` and the `AGENTS.md` mirror
+are already in place, so adding it later is auth and a runner script, nothing
+structural.
+
 ### 24/7 Kiosk Memory Discipline
 
 The page runs for weeks without a reload; slow leaks are the primary failure mode
