@@ -13,7 +13,8 @@ Run (Linux):    .venv/bin/python stt_server.py
 Config via env: STT_MODEL (base.en), STT_DEVICE (cpu), STT_COMPUTE (int8),
                 STT_HOST (0.0.0.0), STT_PORT (8123), STT_BEAM (5),
                 STT_CONDITION_PREV, STT_NO_SPEECH, STT_TEMPERATURE,
-                STT_HOTWORDS_FILE, STT_SHADOW_MODEL, STT_SHADOW_COMPUTE.
+                STT_HOTWORDS_FILE, STT_SHADOW_MODEL, STT_SHADOW_COMPUTE,
+                STT_SHADOW_THREADS.
 
 ⚠ EVERY KNOB ADDED AFTER STT_BEAM IS UNSET BY DEFAULT AND ADDS NOTHING TO THE
 DECODE CALL WHEN UNSET. That is deliberate: `decode_kwargs()` starts empty and
@@ -107,6 +108,17 @@ HOTWORDS_FILE = os.environ.get("STT_HOTWORDS_FILE", "")
 # The shadow leg (see shadow_worker below). Unset = the whole feature is absent.
 SHADOW_MODEL = os.environ.get("STT_SHADOW_MODEL", "")
 SHADOW_COMPUTE = os.environ.get("STT_SHADOW_COMPUTE", COMPUTE)
+# ⚠⚠ THE SHADOW MUST NOT STARVE THE LIVE TRANSCRIBER, and "it runs off the
+# response path" is not enough on its own. MEASURED 2026-08-22 with three
+# back-to-back turns: small.en took 5.9-10.5 s and dragged base.en from its
+# usual RTF 0.19 out to 2836 ms for a 2 s clip — because BOTH grab every OMP
+# thread and CTranslate2 defaults to all of them.
+#
+# Turns really do arrive back to back: THREAD_MS keeps a conversation open for
+# five minutes and follow-ups are the whole point of it. So the shadow is capped
+# here rather than left to compete. Two threads leaves two for the live path,
+# where base.en still runs comfortably under real time.
+SHADOW_THREADS = int(os.environ.get("STT_SHADOW_THREADS", "2"))
 
 print(f"[stt] loading {MODEL_NAME} ({DEVICE}/{COMPUTE}) …", flush=True)
 _t0 = time.time()
@@ -319,12 +331,13 @@ def main():
             print(f"[stt] loading shadow {SHADOW_MODEL} ({DEVICE}/{SHADOW_COMPUTE}) …",
                   flush=True)
             shadow = WhisperModel(SHADOW_MODEL, device=DEVICE,
-                                  compute_type=SHADOW_COMPUTE)
+                                  compute_type=SHADOW_COMPUTE,
+                                  cpu_threads=SHADOW_THREADS)
             # daemon=True so a shadow mid-transcription can never hold the
             # service open through a restart.
             threading.Thread(target=_shadow_worker, daemon=True).start()
-            print(f"[stt] shadow on → comparing every turn against {SHADOW_MODEL}",
-                  flush=True)
+            print(f"[stt] shadow on → comparing every turn against {SHADOW_MODEL} "
+                  f"on {SHADOW_THREADS} threads", flush=True)
         except Exception as err:  # noqa: BLE001
             shadow = None
             print(f"[stt] shadow unavailable, continuing without: {err}", flush=True)
