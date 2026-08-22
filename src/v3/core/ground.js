@@ -69,6 +69,17 @@ let inFlight = false;
 let checkTimer = null;
 let onPhoto = () => {};
 
+/* WHICH ONE OF THIS FRAME'S PHOTOGRAPHS THE ROOM CAN SEE, injected — see
+   `vetoCurrent()`. Defaults to "no idea", which is the flag-off answer and the
+   answer this module gave for its whole life before 2026-08-22: hide the frame
+   whole.
+
+   ⚠ INJECTED, NEVER IMPORTED. This module still knows nothing about who is
+   looking at its photographs — main.js composes the archive onto it, and the
+   same note there says why. An import of core/archive.js here would also be a
+   cycle, since the archive imports this file. */
+let focusId = () => null;
+
 /* Local date key, never toISOString: the UTC date disagrees with "today" for
    ten hours of every Brisbane day, which would move the change to mid-morning. */
 const localDayKey = () => new Date().toDateString();
@@ -718,13 +729,24 @@ async function dissolve(settleMs = DISSOLVE_MS, stallMs = STALL_MS) {
 }
 
 /**
- * "Not this one." Hide every photograph currently on the ground and move on.
+ * "Not this one." Hide what the room is pointing at and move on.
  *
  * Returns what it hid so the voice can say something true — how many, and
- * nothing at all when there was nothing to hide. A frame is hidden WHOLE: on a
- * diptych the room is looking at both halves and pointing at neither, and
- * hiding one would leave the other to come back tomorrow beside a new partner,
- * which is not what anyone meant.
+ * nothing at all when there was nothing to hide.
+ *
+ * ⚠⚠ WHAT "THIS ONE" MEANS DEPENDS ON WHAT IS ON THE GLASS, and it has two
+ * answers rather than one.
+ *
+ *   FULL-BLEED (any depth above 0, reduced motion, or the archive flag off) —
+ *   the frame is hidden WHOLE. On a diptych both halves are up and the room is
+ *   pointing at neither, so hiding one would leave the other to come back
+ *   tomorrow beside a new partner, which is not what anyone meant.
+ *
+ *   THE ARCHIVE CARD (depth 0) — one photograph is up, so exactly one is hidden.
+ *   Before 2026-08-22 the card held a diptych too and the whole-frame rule was
+ *   right at every depth; it now holds one at a time, and hiding the pair would
+ *   delete a picture the room never saw. `archiveFocusId()` is the seam and its
+ *   own note lists the conditions.
  *
  * ⚠ THE POOL IS DRAWN ONCE A DAY, so the server list alone is not enough — the
  * rejected photograph is already in memory and would keep coming round until
@@ -734,14 +756,37 @@ async function dissolve(settleMs = DISSOLVE_MS, stallMs = STALL_MS) {
  */
 export async function vetoCurrent() {
   const assets = current?.assets ?? [];
-  const ids = assets.map((a) => a.id).filter(Boolean);
+
+  /* ⚠ THE FOCUS MUST BE IN THIS FRAME or it is ignored. It cannot fail to be —
+     the archive is handed `current.assets` itself — but a focus that named a
+     photograph the ground is not showing would hide the wrong picture, and
+     falling back to the frame on the glass is the only answer that is still
+     about what the room can see. */
+  const focused = focusId();
+  const targets = focused && assets.some((a) => a.id === focused)
+    ? assets.filter((a) => a.id === focused)
+    : assets;
+
+  const ids = targets.map((a) => a.id).filter(Boolean);
   if (!ids.length) return { hidden: [], pair: false };
 
+  /* Derived from what was ACTUALLY hidden, never from the frame — which is what
+     keeps the voice honest for free. "Righto — both of those, gone for good."
+     over a card showing ONE photograph is the house describing something the
+     room cannot see; with one id hidden this reads false and the singular line
+     is spoken. Same for `restoreLastVeto`'s "Both of those are back". */
   const pair = ids.length > 1;
   const gone = new Set(ids);
-  // Drop every FRAME that contains one, so half a vetoed pair cannot survive as
-  // a single. Filtering in place keeps the cursor's meaning: entries before it
-  // have been seen, and removing a seen one would show an unseen frame twice.
+  /* Drop every FRAME that contains one, so half a vetoed pair cannot survive as
+     a single. Filtering in place keeps the cursor's meaning: entries before it
+     have been seen, and removing a seen one would show an unseen frame twice.
+
+     ⚠ THE UNVETOED PARTNER GOES WITH IT FOR TODAY, and that is a call rather
+     than an oversight. Splicing the frame back in as `[B]` would put a lone
+     portrait FULL-BLEED at depths 1-3 — the 1.33x upscale and 42% crop the
+     diptych exists to avoid — for the rest of the day. B is not hidden, so it
+     returns tomorrow, which is what "on this day" means anyway and is the same
+     reasoning `restoreLastVeto()` already ships with. */
   let removedBehind = 0;
   pool = pool.filter((frame, i) => {
     const doomed = frame.some((a) => gone.has(a.id));
@@ -827,6 +872,10 @@ export function initGround(img, opts = {}) {
   host = img?.parentElement ?? null;
   if (!host) return;
   onPhoto = opts.onPhoto ?? (() => {});
+  /* Optional, and its absence is the flag-off behaviour rather than a degraded
+     one: no focus means "hide the frame whole", which is what this module did
+     for its whole life. See `vetoCurrent()`. */
+  focusId = opts.focusId ?? (() => null);
 
   void loadFirst();
 

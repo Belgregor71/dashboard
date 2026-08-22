@@ -267,18 +267,91 @@ test("⚠ a vetoed photograph cannot come back today — the pool is drawn ONCE 
     .toBe(1);
 });
 
-test("a diptych is vetoed WHOLE — both halves, never one", async ({ page }) => {
-  /* The room is looking at both and pointing at neither. Hiding one half would
-     leave the other to return tomorrow beside a different partner, which is not
-     what anyone meant by "not this one". */
+/* ── "This one" means what is ON THE GLASS, and that is two different things ──
+   ⚠⚠ THE WHOLE-FRAME RULE'S PREMISE EXPIRED ON 2026-08-22. It was "the room is
+   looking at both halves and pointing at neither", which is still exactly true
+   of the FULL-BLEED diptych at depths 1-3 and became false at depth 0 the day
+   the archive card stopped holding two prints. Both halves of that split are
+   pinned below, because either one alone would look like the whole rule. */
+
+const DIPTYCH_POOL = () => [
+  portrait("p1", "2013-08-13T06:00:00Z"),
+  portrait("p2", "2013-08-13T07:00:00Z")
+];
+
+test("on the archive card, ONE photograph is vetoed — not its unseen partner", async ({ page }) => {
+  /* The card holds one at a time now, so the room is looking at exactly one and
+     pointing at it. Hiding the pair would delete a picture nobody rejected and
+     nobody had even seen yet — and the wall would say "both of those, gone for
+     good" over a card showing one, which is the house describing something the
+     room cannot see. */
+  const posted = await bootV3(page, { diptych: true, pool: DIPTYCH_POOL() });
+
+  const shown = await page.evaluate(() => window.__ground());
+  // ⚠ ground STILL PAIRS. Lose this and the test below is measuring the diptych
+  // being switched off rather than the card presenting one half of it.
+  expect(shown.pair).toBe(true);
+
+  // The archive is the surface, and it is showing half one.
+  const onCard = await page.evaluate(() => window.__archiveFocus());
+  expect(onCard).toBe("p1");
+
+  const result = await page.evaluate(() => window.__groundVeto());
+  expect(result.hidden).toEqual(["p1"]);
+  expect(posted[0].ids).toEqual(["p1"]);
+
+  /* `pair` false is what makes the VOICE honest without a second decision — it
+     is derived from what was hidden, so `handlePhotoVeto` speaks the singular
+     line on its own. */
+  expect(result.pair).toBe(false);
+});
+
+test("⚠⚠ vetoing while HALF TWO holds the card hides half two, not half one", async ({ page }) => {
+  /* THE ASSERTION THE OBVIOUS TEST MISSES. A focus that returned `assets[0]`
+     instead of `assets[heldIndex]` passes every other test in this file — the
+     card shows half one for the first five minutes of a frame, so a veto in
+     that window cannot tell the two apart. It would then quietly hide the
+     photograph the room is NOT looking at while leaving the one it just
+     rejected on the glass, which is the veto's worst possible failure. */
   const pool = [
     portrait("p1", "2013-08-13T06:00:00Z"),
-    portrait("p2", "2013-08-13T07:00:00Z")
+    portrait("p2", "2013-08-13T07:00:00Z"),
+    portrait("q1", "2016-08-13T06:00:00Z"),
+    portrait("q2", "2016-08-13T07:00:00Z")
   ];
   const posted = await bootV3(page, { diptych: true, pool });
 
-  const shown = await page.evaluate(() => window.__ground());
-  expect(shown.pair).toBe(true);
+  /* Half a rotation is five minutes on the wall. The lever takes effect on the
+     NEXT frame, so the dissolve is what actually exercises it — and with a pool
+     of two pairs the next frame is always the other pair, never the same key. */
+  await page.evaluate(() => window.__archiveHalfHold(300));
+  await page.evaluate(() => window.__groundDissolve(60, 200));
+  await expect
+    .poll(() => page.evaluate(() => window.__archive().half), { timeout: 10_000 })
+    .toBe(1);
+
+  const onCard = await page.evaluate(() => window.__archiveFocus());
+  // Pairing sorts each year's group by time, so half two is the later frame.
+  expect(onCard).toMatch(/2$/);
+
+  const result = await page.evaluate(() => window.__groundVeto());
+  expect(result.hidden).toEqual([onCard]);
+  expect(posted[0].ids).toEqual([onCard]);
+  expect(result.pair).toBe(false);
+});
+
+test("⚠ at depth 1 the FULL-BLEED diptych is still vetoed WHOLE", async ({ page }) => {
+  /* The archive recedes above depth 0 and both halves really are on the glass,
+     so the original rule is still the right one here. This is the half of the
+     split that a change to `archiveFocusId()` could silently take with it. */
+  const posted = await bootV3(page, { diptych: true, pool: DIPTYCH_POOL() });
+
+  await page.evaluate(() => window.__setDepth(1, "spec"));
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.dataset.depth))
+    .toBe("1");
+  // No focus at all — "hide the frame whole" is the answer, not a fallback.
+  expect(await page.evaluate(() => window.__archiveFocus())).toBeNull();
 
   const result = await page.evaluate(() => window.__groundVeto());
   expect(result.pair).toBe(true);

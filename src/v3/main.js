@@ -15,7 +15,7 @@ import { initPresenceLight } from "./core/presence-light.js";
 import { initVoice } from "./core/voice.js";
 import { initGround } from "./core/ground.js";
 import { initScrim, applyScrim, resampleScrim } from "./core/scrim.js";
-import { initArchive, archivePhoto } from "./core/archive.js";
+import { initArchive, archivePhoto, archiveFocusId } from "./core/archive.js";
 import { clearSubject, activeSubject, showSubject } from "./subjects/index.js";
 import { clearVocabularyCard, vocabularyCardMounted } from "./core/vocabulary-card.js";
 import { clearSpread, spreadMounted } from "./core/spread.js";
@@ -514,6 +514,12 @@ function boot() {
   // nothing about who is looking at its photographs. Flag-off, initArchive
   // returns before building anything and archivePhoto is an early return, so
   // this composition costs one function call per exchange and changes nothing.
+  //
+  // `focusId` is the same coupling in the other direction, and it is here for
+  // the same reason. "Not this one" has to hide what the room can SEE, and only
+  // the surface that is on the glass knows whether that is one photograph on a
+  // card or both halves of a full-bleed diptych. Flag-off it answers null and
+  // the ground hides the frame whole, exactly as it always did.
   stage("ground", () => {
     initScrim();
     initArchive(document.getElementById("archive"));
@@ -521,7 +527,8 @@ function boot() {
       onPhoto: (img, meta) => {
         applyScrim(img, meta);
         archivePhoto(img, meta);
-      }
+      },
+      focusId: archiveFocusId
     });
   });
 

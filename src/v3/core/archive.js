@@ -729,6 +729,38 @@ export function archivePhoto(frame, meta = {}) {
 }
 
 /**
+ * WHICH ONE PHOTOGRAPH THE ROOM CAN SEE — the id on the card, or `null` when
+ * the archive is not what is on the glass.
+ *
+ * This exists for "not this one". `ground.js` hides a frame WHOLE, and its
+ * reason was that on a full-bleed diptych the room is looking at both halves
+ * and pointing at neither. That reason expired here on 2026-08-22: the card
+ * holds one photograph, so the room is looking at exactly one and pointing at
+ * it, and hiding its unseen partner would delete a picture nobody rejected.
+ *
+ * ⚠⚠ NULL IS "HIDE THE WHOLE FRAME", so every condition below has to be the one
+ * the STYLESHEET uses, not an approximation of it. The wrong answer here is not
+ * a cosmetic bug — it is either deleting a photograph the room never saw, or
+ * refusing to delete the one it just pointed at.
+ *
+ *  - flag off / not built — the surface does not exist.
+ *  - any depth above 0 — `.archive` is visibility:hidden and the FULL-BLEED
+ *    photograph is what the room is looking at, both halves of it.
+ *  - reduced motion — `.archive { display: none }`, same situation.
+ *
+ * ⚠ `data-panel-dark` is deliberately NOT here: it suppresses the ghosts, the
+ * engraved year and the Ken Burns, and leaves the card itself up.
+ *
+ * @returns {string|null}
+ */
+export function archiveFocusId() {
+  if (!built || !enabled()) return null;
+  if (document.documentElement.dataset.depth !== "0") return null;
+  if (globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return null;
+  return heldFrame?.assets?.[heldIndex]?.id ?? null;
+}
+
+/**
  * @param {HTMLElement|null} host the #archive node from index.html
  *
  * Flag-off returns before touching anything: no children, no attribute, no
@@ -800,6 +832,11 @@ export function initArchive(host) {
       (a) => a.playState === "running" && a.effect?.getComputedTiming().iterations === Infinity
     ).length
   });
+
+  /* The seam "not this one" reads, exposed so a spec — and a person standing at
+     the wall over CDP — can ask WHY a veto hid one photograph or two, rather
+     than only observing that it did. */
+  window.__archiveFocus = () => archiveFocusId();
 
   /* The amplitude lever, turnable on the kiosk over CDP without a deploy. The
      shipped archive's --arch-gain existed only as a fallback inside a calc()
