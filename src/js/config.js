@@ -1444,6 +1444,32 @@ window.CONFIG = {
     // That rollback path is not theoretical: it is the SAME path every depth
     // above 0 takes, so production exercises it on every doorbell.
     v3Archive: true,
+
+    // ── The depth census ────────────────────────────────────────────────────
+    // Asked on 2026-08-23 and unanswerable: how many times has each depth been
+    // reached in the last fortnight? Nothing knew. core/depth.js keeps one
+    // integer and one reason string, both overwritten in place, and says so in
+    // its own header ("There is no router, no view registry and no history").
+    // Nothing ships a depth change anywhere, server.js logs only [ha-api]
+    // proxy calls, and /api/routines is aggregates-only by charter. So the
+    // surface's whole behaviour left no trace, and "which depth is worth
+    // designing for" was a question that could only be answered by taste.
+    //
+    // The same trap as the HA dispatch work: 24 of 26 dashboard_command
+    // scripts had never fired, and only a measurement said so. Build the
+    // instrument before the thing it is meant to justify.
+    //
+    // On: core/census.js subscribes to onDepth, tallies entries + dwell + cause
+    // per depth, and POSTs the delta to /api/census/depth every 5 minutes.
+    // Aggregates only, on-device only, at most 30 days — it cannot become a
+    // record of who was in the kitchen at 6pm, because nothing it stores is
+    // finer-grained than a day.
+    //
+    // Revert (-> false): initCensus() is never called, so there is no
+    // subscription, no interval, no listener and no fetch. The route stays
+    // mounted and answers { days: {} } to a GET, having been written to by
+    // nobody. The off state is asserted in tests/depth-census.spec.js.
+    v3DepthCensus: false,
   },
 
   /* --------------------------------------------------------------

@@ -193,6 +193,7 @@ test.describe("security middleware", () => {
     ["post", "/api/ha/services/light/turn_on", {}],
     ["post", "/api/ha/shopping_list", { name: "csrf" }],
     ["put", "/api/routines", { routines: {} }],
+    ["post", "/api/census/depth", { day: "2099-12-31", entries: [0, 0, 0, 0], dwellMs: [0, 0, 0, 0] }],
     ["put", "/api/delight", { budgets: {} }],
     ["post", "/api/memories", { title: "csrf" }],
     ["delete", "/api/memories/anything", undefined],
@@ -720,6 +721,94 @@ test.describe("routines (Phase 8 behavioural learning)", () => {
       statuses: [400]
     });
     expect(body).toHaveProperty("error");
+  });
+});
+
+test.describe("depth census", () => {
+  /* On-device depth tallies (server/routes/census.js). Cold start degrades to
+     an empty object, a delta ADDS rather than replaces, and every malformed
+     body is a JSON 400 — never an HTML error page, and never a silent accept
+     that corrupts a number nobody is watching.
+
+     A synthetic far-future day so these never distort a real reading and never
+     get pruned out from under themselves: the window drops the OLDEST keys, and
+     this one sorts last. */
+  const DAY = "2099-12-31";
+  const delta = (over = {}) => ({
+    day: DAY,
+    entries: [1, 0, 0, 0],
+    dwellMs: [1000, 0, 0, 0],
+    reasons: { boot: 1 },
+    ...over
+  });
+
+  const readDay = async (request) => {
+    const { body } = await expectJson(request, "/api/census/depth");
+    return body.census.days?.[DAY] ?? { entries: [0, 0, 0, 0], dwellMs: [0, 0, 0, 0], reasons: {} };
+  };
+
+  test("GET /api/census/depth returns { census: { days: object } }", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/census/depth");
+    expect(typeof body.census).toBe("object");
+    expect(typeof body.census.days).toBe("object");
+    expect(Array.isArray(body.census.days)).toBe(false);
+  });
+
+  test("a POSTed delta is ADDED to what was already there", async ({ request }) => {
+    // Asserted as a difference rather than an absolute, because this file is a
+    // running total on whatever box the suite happens to be on — an absolute
+    // would pass once and fail on every later run.
+    const before = await readDay(request);
+    await expectJson(request, "/api/census/depth", { method: "post", data: delta() });
+    const after = await readDay(request);
+
+    expect(after.entries[0]).toBe(before.entries[0] + 1);
+    expect(after.dwellMs[0]).toBe(before.dwellMs[0] + 1000);
+    expect(after.reasons.boot).toBe((before.reasons.boot ?? 0) + 1);
+  });
+
+  test("an all-zero delta from a freshly-reloaded page changes nothing", async ({ request }) => {
+    const before = await readDay(request);
+    await expectJson(request, "/api/census/depth", {
+      method: "post",
+      data: delta({ entries: [0, 0, 0, 0], dwellMs: [0, 0, 0, 0], reasons: {} })
+    });
+    const after = await readDay(request);
+
+    expect(after.entries).toEqual(before.entries);
+    expect(after.dwellMs).toEqual(before.dwellMs);
+  });
+
+  for (const [what, data] of [
+    ["a missing day", { entries: [0, 0, 0, 0], dwellMs: [0, 0, 0, 0] }],
+    ["a malformed day", { ...delta(), day: "yesterday" }],
+    ["the wrong number of depths", { ...delta(), entries: [1, 0, 0] }],
+    ["a negative dwell", { ...delta(), dwellMs: [-1, 0, 0, 0] }],
+    ["a dwell longer than a day", { ...delta(), dwellMs: [86_400_001, 0, 0, 0] }],
+    ["entries that are not numbers", { ...delta(), entries: ["1", 0, 0, 0] }],
+    ["reasons as an array", { ...delta(), reasons: ["boot"] }]
+  ]) {
+    test(`POST rejects ${what} with a JSON 400`, async ({ request }) => {
+      const { body } = await expectJson(request, "/api/census/depth", {
+        method: "post",
+        data,
+        statuses: [400]
+      });
+      expect(body).toHaveProperty("error");
+    });
+  }
+
+  test("an unnameable cause is dropped, not fatal to the flush it rode in on", async ({ request }) => {
+    const before = await readDay(request);
+    await expectJson(request, "/api/census/depth", {
+      method: "post",
+      data: delta({ reasons: { "not a reason!": 3, recede: 2 } })
+    });
+    const after = await readDay(request);
+
+    expect(after.reasons["not a reason!"]).toBeUndefined();
+    expect(after.reasons.recede).toBe((before.reasons.recede ?? 0) + 2); // the rest still landed
+    expect(after.entries[0]).toBe(before.entries[0] + 1);
   });
 });
 

@@ -11,6 +11,7 @@ import { getPosition } from "../js/vendor/suncalc.js";
 import { stage, guard, bootReport } from "./core/boot.js";
 import { initSubstrate, toCauses } from "./substrate/index.js";
 import { initDepth, setDepth, onDepth, DEPTH } from "./core/depth.js";
+import { initCensus } from "./core/census.js";
 import { initPresenceLight } from "./core/presence-light.js";
 import { initVoice } from "./core/voice.js";
 import { initGround } from "./core/ground.js";
@@ -252,6 +253,13 @@ function boot() {
   stage("presence-light", () => initPresenceLight());
   stage("voice", () => initVoice({ enabled: true, lat: CITY.lat, lon: CITY.lon }));
   stage("depth-teardown", () => onDepth(onDepthChange));
+
+  /* The depth census (core/census.js). Flag-gated and default-off: with
+     v3DepthCensus unset nothing subscribes, no interval is armed and
+     /api/census/depth is never called, so the wall behaves exactly as it did.
+     Registered AFTER depth-teardown so the ledger never counts a depth the
+     surface has not finished leaving. */
+  stage("census", () => { if (flag("v3DepthCensus")) initCensus(); });
 
   /* ── The sun, early ───────────────────────────────────────────────────────
      Nothing but suncalc and the root element, so it can run this high up — and
