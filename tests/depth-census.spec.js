@@ -205,7 +205,12 @@ test.describe("wired to the wall", () => {
     // has already missed the thing it was watching for.
     page.on("request", (r) => { if (r.url().includes("/api/census")) seen.push(r.url()); });
 
-    const { pageErrors } = await bootV3(page);
+    /* ⚠ PINNED OFF EXPLICITLY, not left to the default. This test asserts the
+       ROLLBACK PATH — the state the wall falls back to if the census ever has
+       to be switched off — so it has to keep testing that whichever way the
+       default points. Written while the default was false; inheriting it would
+       have turned this into a test of nothing on the day it was flipped. */
+    const { pageErrors } = await bootV3(page, {}, { features: { v3DepthCensus: false } });
     await page.evaluate(() => { window.__setDepth(2, "spec-dwell"); window.__setDepth(0, "spec-recede"); });
 
     expect(await page.evaluate(() => typeof window.__v3Census)).toBe("undefined");

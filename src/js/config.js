@@ -1465,11 +1465,23 @@ window.CONFIG = {
     // record of who was in the kitchen at 6pm, because nothing it stores is
     // finer-grained than a day.
     //
+    // ⚠ DEFAULT-ON, and unusually it was flipped the same day it shipped. The
+    // ordinary ceremony — ship off, watch it live, flip later — cannot apply to
+    // this one: default-off means it counts NOTHING, so every day spent
+    // observing it in the off state is another day of the exact blindness it
+    // was built to end. The off state was verified live first (356d92b: kiosk
+    // on bundle v3-DCNZDwEU.js, flag false, __v3Census undefined, all 31 boot
+    // stages ok), and the on state is covered by 27 tests plus a live
+    // __v3CensusFlush() round-trip.
+    //
     // Revert (-> false): initCensus() is never called, so there is no
     // subscription, no interval, no listener and no fetch. The route stays
     // mounted and answers { days: {} } to a GET, having been written to by
-    // nobody. The off state is asserted in tests/depth-census.spec.js.
-    v3DepthCensus: false,
+    // nobody. Already-collected days survive the revert — nothing deletes the
+    // file — so flipping off pauses the count rather than discarding it. The
+    // off state is asserted in tests/depth-census.spec.js, which pins the flag
+    // false rather than inheriting whichever way this line points.
+    v3DepthCensus: true,
   },
 
   /* --------------------------------------------------------------
