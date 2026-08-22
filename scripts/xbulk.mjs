@@ -17,6 +17,15 @@
  * whether a flag is safe, and its output is EVIDENCE to be checked, never a
  * verdict to be acted on. That is `/xreview`'s job, on a stronger model.
  *
+ * -- Measured, 2026-08-23, gpt-oss-20b @ 32k ------------------------------
+ * EXACT-MATCH extraction from a log: 19/19 correct in 10s. This is the job.
+ * SEMANTIC judgement over a 67 KiB doc with inconsistent markers: 14 of 19,
+ * and it dropped an item the document stated in plain English ("F3 is closed").
+ *
+ * So the boundary is not "big vs small", it is "matching vs judging". Ask it
+ * WHICH LINES SAY X and it is reliable. Ask it WHAT COUNTS AS X and it is not.
+ * Phrase every task as the former.
+ *
  * -- Why map-reduce ---------------------------------------------------------
  * A local model's context is small (8-32k) and a real `npm test` run across 101
  * specs is far bigger. Truncating would silently drop the failures at the end,
@@ -32,6 +41,7 @@
  */
 
 import { readFileSync } from 'node:fs';
+import http from 'node:http';
 
 const argv = process.argv.slice(2);
 const arg = (n, d = null) => {
@@ -43,9 +53,12 @@ const TASK = arg('task');
 const FILE = arg('file');
 const HOST = arg('host', process.env.LMSTUDIO_HOST || 'http://127.0.0.1:1234');
 let MODEL = arg('model');
-// Characters, not tokens — deliberately conservative (~4 chars/token) so a
-// chunk plus the instructions still clears a 16k-context model with room spare.
-const CHUNK = Number(arg('chunk', '24000'));
+// Chunk size is DERIVED from the model's loaded context, not guessed — see
+// resolveChunk(). A fixed default is how this broke the first time: LM Studio
+// had loaded a 131k-capable model at 4096 tokens, and a hardcoded 24000-char
+// chunk simply 400'd. The number that matters is what the model was LOADED
+// with, which is not the same as what it supports.
+const CHUNK_OVERRIDE = arg('chunk') ? Number(arg('chunk')) : null;
 
 if (!TASK) {
   console.error('usage: xbulk --task "<what to extract>" [--file <path>] [--model <id>]');
@@ -70,34 +83,96 @@ const text = raw.replace(/\[[0-9;]*m/g, '').trim();   // strip ANSI, logs are f
 if (!text) die('no input (pipe something in, or pass --file)');
 
 // -- Server ------------------------------------------------------------------
-const api = async (path, body) => {
-  let r;
+// node:http, not fetch. Node's fetch (undici) enforces a 300s headersTimeout
+// that is not configurable from a core import, and a 20B model prefilling ~19k
+// tokens on partial GPU offload takes longer than that. The failure is
+// indistinguishable from the server being down — it surfaces as a bare
+// "fetch failed" — which sent this on a false hunt for a crashed server once
+// already. Raw http has no such timeout unless one is set, so none is.
+const api = (path, body) =>
+  new Promise((resolve) => {
+    const u = new URL(HOST + path);
+    const payload = body ? JSON.stringify(body) : null;
+    const req = http.request(
+      {
+        hostname: u.hostname,
+        port: u.port,
+        path: u.pathname,
+        method: body ? 'POST' : 'GET',
+        headers: payload
+          ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }
+          : {},
+      },
+      (res) => {
+        let b = '';
+        res.setEncoding('utf8');
+        res.on('data', (d) => { b += d; });
+        res.on('end', () => {
+          if (res.statusCode >= 400) die(`LM Studio returned ${res.statusCode}: ${b.slice(0, 500)}`);
+          try { resolve(JSON.parse(b)); } catch { die(`LM Studio sent non-JSON: ${b.slice(0, 300)}`); }
+        });
+      },
+    );
+    req.on('error', (e) =>
+      die(`cannot reach LM Studio at ${HOST}.\n  Start it with:  lms server start\n  (${e.message})`));
+    if (payload) req.write(payload);
+    req.end();
+  });
+
+// LM Studio's native API (/api/v0) reports what each model is actually LOADED
+// with; the OpenAI-compatible /v1/models does not. That distinction is the whole
+// reason this function exists.
+const inventory = async () => {
   try {
-    r = await fetch(`${HOST}${path}`, {
-      method: body ? 'POST' : 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-  } catch (e) {
-    die(`cannot reach LM Studio at ${HOST}.\n  Start it with:  lms server start\n  (${e.message})`);
-  }
-  if (!r.ok) die(`LM Studio returned ${r.status}: ${(await r.text()).slice(0, 400)}`);
-  return r.json();
+    const j = await api('/api/v0/models');
+    return (j?.data || []).filter((m) => m.state === 'loaded');
+  } catch { return []; }
 };
 
+const loaded = await inventory();
 if (!MODEL) {
-  const list = await api('/v1/models');
-  MODEL = list?.data?.[0]?.id;
-  if (!MODEL) die('LM Studio is running but has no model loaded. Load one in the app, or:  lms load <model>');
+  MODEL = loaded.find((m) => !/embed/i.test(m.id))?.id
+       || (await api('/v1/models'))?.data?.[0]?.id;
+  if (!MODEL) die('LM Studio is running but has no model loaded.\n  Load one with:  lms load <model> --context-length 32768 --gpu max');
+}
+
+const ctx = loaded.find((m) => m.id === MODEL)?.loaded_context_length ?? 4096;
+// ~2.5 chars/token is pessimistic for prose and logs (real is nearer 4), and
+// 4096 tokens are held back for the instructions and the answer. Pessimism is
+// correct here: overflowing costs a hard 400 and a wasted pass, while a chunk
+// that is slightly too small costs one extra round trip.
+const CHUNK = CHUNK_OVERRIDE ?? Math.max(4000, Math.floor((ctx - 4096) * 2.5));
+if (ctx <= 8192 && !CHUNK_OVERRIDE) {
+  console.error(`xbulk: warning — ${MODEL} is loaded with only ${ctx} tokens of context.`);
+  console.error(`  Everything still works (input is map-reduced, never truncated) but it will`);
+  console.error(`  take many more passes. Reload bigger:  lms load ${MODEL} --context-length 32768 --gpu max`);
 }
 
 const ask = async (system, user) => {
   const j = await api('/v1/chat/completions', {
     model: MODEL,
-    temperature: 0,          // distillation, not creativity
+    temperature: 0,            // distillation, not creativity
+    reasoning_effort: 'low',   // see below
+    max_tokens: 4096,          // a hard stop on the loop described below
     messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
   });
-  return (j?.choices?.[0]?.message?.content || '').trim();
+  const m = j?.choices?.[0]?.message || {};
+  // Reasoning models (gpt-oss, qwen3-thinking, deepseek-r1) put their chain of
+  // thought in `reasoning` and the answer in `content`. Left at default effort,
+  // gpt-oss-20b spent 2,987 tokens deliberating over this exact task, looped
+  // ("Also P41? none. Also P42? none."), hit the stop, and returned EMPTY
+  // content — a successful 200 with nothing in it. Hence low effort and a token
+  // ceiling. If content is still empty the reasoning is all we have, so use it
+  // rather than silently reporting nothing: an empty answer here would read as
+  // "the log contained nothing", which is the one lie this tool must not tell.
+  const content = (m.content || '').trim();
+  if (content) return content;
+  const reasoning = (m.reasoning || '').trim();
+  if (reasoning) {
+    console.error('xbulk: warning — model returned reasoning but no final answer; using the reasoning.');
+    return reasoning;
+  }
+  return '';
 };
 
 // -- The brief ---------------------------------------------------------------

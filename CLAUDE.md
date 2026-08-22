@@ -82,7 +82,7 @@ it is "what happens if this is wrong".
 | **`suite-triage` subagent** | Haiku | Running specs and reporting only the failures | Fixing the failures |
 | **`Explore` (built-in)** | — | Broad sweeps across many directories and naming conventions | Reviewing or auditing what it found |
 | **`/xreview` → Gemini CLI** | Gemini Flash (AI Studio free tier, ~1,500/day) | A cold adversarial read of the outgoing diff before push | Write access. It runs `--approval-mode plan`, read-only, and that is not negotiable |
-| **`scripts/xbulk.mjs` → LM Studio** | local ~20B, free and unlimited | Distilling mountains: test logs, `journalctl`, CDP dumps, "which files mention X" | Any judgement call. It is a filter, not a reasoner — its output is evidence, never a verdict |
+| **`scripts/xbulk.mjs` → LM Studio** | local ~20B, free and unlimited | **Matching**: "which lines say X" over test logs, `journalctl`, CDP dumps | **Judging**: "what counts as X". Measured 19/19 on the first, 14/19 on the second — it dropped an item stated in plain English |
 
 **The rule that saves the most tokens:** a subagent's tool output never enters
 this session's context — only its report does. So anything whose *output* is
