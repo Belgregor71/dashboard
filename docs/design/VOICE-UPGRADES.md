@@ -201,6 +201,10 @@ Root-cause discipline says measure before swapping. §3 ranks the measurement fi
 
 ### 2.4 Speaker identification — the biggest character unlock
 
+> **→ Full handover: `HANDOVER-SPEAKER-ID.md`.** Built out 2026-08-22 with the trace
+> confirmed end to end, the model choice argued, the two hard constraints stated and the
+> owner decisions listed. Start there, not here.
+
 `SPEAKER_UNKNOWN_LINE` sits permanently in the converse prompt. The house is therefore
 *structurally* incapable of three things it is otherwise designed for:
 
