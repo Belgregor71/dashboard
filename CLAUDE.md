@@ -81,7 +81,7 @@ it is "what happens if this is wrong".
 | **`scout` subagent** | Haiku | "Where does X live", "who calls Y", "is this flag reachable", "does the incumbent have this too" | Any verdict that leads to a deletion |
 | **`suite-triage` subagent** | Haiku | Running specs and reporting only the failures | Fixing the failures |
 | **`Explore` (built-in)** | — | Broad sweeps across many directories and naming conventions | Reviewing or auditing what it found |
-| **`/xreview` → Gemini CLI** | Gemini Flash (AI Studio free tier, ~1,500/day) | A cold adversarial read of the outgoing diff before push | Write access. It runs `--approval-mode plan`, read-only, and that is not negotiable |
+| **`/xreview` → local agent** | local ~20B, free and unlimited | A cold adversarial read of the outgoing diff before push. Measured 2/2 on planted defects, NO FINDINGS on clean code | Write access. Its only tools are read/search/list — there is no write tool to talk it into using |
 | **`scripts/xbulk.mjs` → LM Studio** | local ~20B, free and unlimited | **Matching**: "which lines say X" over test logs, `journalctl`, CDP dumps | **Judging**: "what counts as X". Measured 19/19 on the first, 14/19 on the second — it dropped an item stated in plain English |
 
 **The rule that saves the most tokens:** a subagent's tool output never enters
@@ -113,6 +113,11 @@ no network, nothing leaves the box. Oversized input is **map-reduced, not trunca
 a 101-spec test run is far bigger than a local model's context, and silently dropping
 the tail would produce a clean report that never saw the failures. Give it extraction,
 never judgement.
+
+**⚠ The Gemini path is quota-dead.** The free tier is **~20 requests/day per model**,
+not the 1,000–1,500 every source claims, and an agentic review is 10–30 requests.
+`scripts/xreview.mjs` still works if a better key ever appears; the lane runs on
+`scripts/xreview-local.mjs` instead, which needs no account at all.
 
 **⚠ Gemini auth is an API key, not a Google sign-in.** Google retired Gemini Code
 Assist for individuals on this client; OAuth now *succeeds* and then refuses the
