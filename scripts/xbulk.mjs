@@ -42,6 +42,7 @@
 
 import { readFileSync } from 'node:fs';
 import http from 'node:http';
+import { ensureLmStudio } from './lib/lmstudio.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (n, d = null) => {
@@ -129,6 +130,8 @@ const inventory = async () => {
   } catch { return []; }
 };
 
+// Starts the server and loads a model if needed — see scripts/lib/lmstudio.mjs.
+await ensureLmStudio({ host: HOST, say: (m) => console.error(`xbulk: ${m}`) });
 const loaded = await inventory();
 if (!MODEL) {
   MODEL = loaded.find((m) => !/embed/i.test(m.id))?.id

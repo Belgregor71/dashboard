@@ -41,6 +41,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve, relative, join, sep } from 'node:path';
 import http from 'node:http';
+import { ensureLmStudio } from './lib/lmstudio.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (n, d = null) => {
@@ -97,11 +98,18 @@ const api = (path, body) =>
     req.end();
   });
 
-const inv = (await api('/api/v0/models').catch(() => ({}))).data || [];
-const loaded = inv.filter((m) => m.state === 'loaded' && !/embed/i.test(m.id));
-if (!MODEL) MODEL = loaded[0]?.id;
-if (!MODEL) die('no model loaded.\n  lms load gpt-oss-20b --context-length 32768 --gpu max');
-const CTX = loaded.find((m) => m.id === MODEL)?.loaded_context_length ?? 4096;
+// Starts the server and loads a model if neither is up — see
+// scripts/lib/lmstudio.mjs. A lane that fails after every reboot until someone
+// remembers two commands is a lane that stops getting used.
+const up = await ensureLmStudio({ host: HOST, say: (m) => console.error(`  · ${m}`) });
+if (!up) {
+  die('could not bring LM Studio up.\n' +
+      '  Check it is installed, then:  lms server start\n' +
+      '  followed by:  lms load devstral-small-2505 --context-length 32768 --gpu max');
+}
+const loaded = up.models.filter((m) => m.state === 'loaded' && !/embed/i.test(m.id));
+if (!MODEL) MODEL = up.model;
+const CTX = loaded.find((m) => m.id === MODEL)?.loaded_context_length ?? up.context ?? 4096;
 if (CTX < 16384) {
   die(`${MODEL} is loaded with only ${CTX} tokens of context. A review needs room for the diff\n` +
       `  plus the files it opens. Reload:  lms load ${MODEL} --context-length 32768 --gpu max`);
