@@ -82,7 +82,7 @@ it is "what happens if this is wrong".
 | **`suite-triage` subagent** | Haiku | Running specs and reporting only the failures | Fixing the failures |
 | **`Explore` (built-in)** | — | Broad sweeps across many directories and naming conventions | Reviewing or auditing what it found |
 | **`/xreview` → local agent** | `devstral-small-2505`, free and unlimited | A cold adversarial read of the outgoing diff before push. Measured 2/2 on planted defects, silent on clean code, ~2.5 min | Write access. Its only tools are read/search/list — there is no write tool to talk it into using |
-| **`scripts/xbulk.mjs` → LM Studio** | local ~20B, free and unlimited | **Matching**: "which lines say X" over test logs, `journalctl`, CDP dumps | **Judging**: "what counts as X". Measured 19/19 on the first, 14/19 on the second — it dropped an item stated in plain English |
+| **`scripts/xbulk.mjs` → LM Studio** | `gpt-oss-20b`, free and unlimited | **Matching**: "which lines say X" over test logs, `journalctl`, CDP dumps | **Judging**: "what counts as X". Measured 19/19 on the first, 14/19 on the second — it dropped an item stated in plain English |
 
 **The rule that saves the most tokens:** a subagent's tool output never enters
 this session's context — only its report does. So anything whose *output* is
@@ -106,6 +106,13 @@ Gemini reads `AGENTS.md`, the same mirror Codex would (`.gemini/settings.json`
 sets `context.fileName`). **Regenerate the mirror after editing this file** or
 the second model reviews against stale house rules:
 `node scripts/mirror-agents.mjs`.
+
+**The two local lanes pin DIFFERENT models, and swapping is automatic.** Measured
+on identical tasks: `devstral-small-2505` reviews far better (same recall, clean
+case 135s against 1,700s) and extracts far worse (13/19 against gpt-oss's 19/19).
+The better reviewer is the worse grepper. Each script loads what it needs — a
+reload costs about a minute, a quietly wrong answer costs more. LM Studio itself
+is started on demand, so there is nothing to remember after a reboot.
 
 **The bulk lane runs on your own machine.** `scripts/xbulk.mjs` talks to LM Studio's
 OpenAI-compatible server on 127.0.0.1:1234 (`lms server start`) — no key, no quota,

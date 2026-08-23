@@ -84,14 +84,23 @@ export async function ensureLmStudio({
   const isChat = (m) => !/embed/i.test(m.id);
   let loaded = models.filter((m) => m.state === 'loaded' && isChat(m));
 
-  // A model loaded with a toy context is worse than none: it fails mid-run with
-  // an opaque 400 rather than up front, so it is reloaded rather than accepted.
-  const usable = loaded.filter((m) => (m.loaded_context_length ?? 0) >= minContext);
-  if (usable.length) return { models, model: usable[0].id, context: usable[0].loaded_context_length };
-
   const onDisk = models.filter(isChat).map((m) => m.id);
   const pick = preferred.find((p) => onDisk.includes(p)) || onDisk[0];
   if (!pick) return null;
+
+  // A model loaded with a toy context is worse than none: it fails mid-run with
+  // an opaque 400 rather than up front, so it is reloaded rather than accepted.
+  //
+  // The preference is also enforced, not merely consulted. The two lanes want
+  // DIFFERENT models — measured on the same tasks, Devstral reviews far better
+  // and extracts far worse (13/19 against gpt-oss's 19/19 on an exact-match
+  // sweep) — so accepting whatever happened to be loaded would silently run a
+  // lane on the model that is worse at its job. A reload costs about a minute;
+  // a quietly wrong answer costs more. Pass `preferred: [x]` to pin one.
+  const usable = loaded.filter(
+    (m) => (m.loaded_context_length ?? 0) >= minContext && m.id === pick,
+  );
+  if (usable.length) return { models, model: usable[0].id, context: usable[0].loaded_context_length };
 
   if (loaded.length) {
     say(`${loaded[0].id} is loaded with only ${loaded[0].loaded_context_length} tokens — reloading`);

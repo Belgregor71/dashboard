@@ -10,9 +10,14 @@
  *   node scripts/xreview-local.mjs --range HEAD~3..
  *   node scripts/xreview-local.mjs --verbose          show every tool call
  *
- * Requires a loaded model with real context:
- *   lms server start
- *   lms load gpt-oss-20b --context-length 32768 --gpu max
+ * LM Studio is started and the model loaded automatically if they are not
+ * already up (scripts/lib/lmstudio.mjs). Nothing to remember after a reboot.
+ *
+ * It pins devstral-small-2505, and scripts/xbulk.mjs pins gpt-oss-20b, because
+ * the two lanes want different models. Measured on identical tasks: Devstral
+ * reviews far better (same 2/2 recall, clean case 135s against 1,700s) and
+ * extracts far worse (13/19 against 19/19 on an exact-match sweep). The better
+ * reviewer is the worse grepper. `--model` overrides and suppresses the swap.
  *
  * -- Why an agent loop and not one big prompt -------------------------------
  * Handing a model 31 KiB of diff and asking "any bugs?" produces NO FINDINGS in
@@ -101,7 +106,11 @@ const api = (path, body) =>
 // Starts the server and loads a model if neither is up — see
 // scripts/lib/lmstudio.mjs. A lane that fails after every reboot until someone
 // remembers two commands is a lane that stops getting used.
-const up = await ensureLmStudio({ host: HOST, say: (m) => console.error(`  · ${m}`) });
+const up = await ensureLmStudio({
+  host: HOST,
+  preferred: MODEL ? [MODEL] : ['devstral-small-2505', 'gpt-oss-20b'],
+  say: (m) => console.error(`  · ${m}`),
+});
 if (!up) {
   die('could not bring LM Studio up.\n' +
       '  Check it is installed, then:  lms server start\n' +

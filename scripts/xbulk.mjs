@@ -131,7 +131,14 @@ const inventory = async () => {
 };
 
 // Starts the server and loads a model if needed — see scripts/lib/lmstudio.mjs.
-await ensureLmStudio({ host: HOST, say: (m) => console.error(`xbulk: ${m}`) });
+// gpt-oss first here, DEVSTRAL first in the reviewer. Measured on the same
+// exact-match sweep: gpt-oss 19/19, Devstral 13/19. The better reviewer is the
+// worse extractor, so each lane pins its own. An explicit --model wins.
+await ensureLmStudio({
+  host: HOST,
+  preferred: MODEL ? [MODEL] : ['gpt-oss-20b', 'devstral-small-2505'],
+  say: (m) => console.error(`xbulk: ${m}`),
+});
 const loaded = await inventory();
 if (!MODEL) {
   MODEL = loaded.find((m) => !/embed/i.test(m.id))?.id
