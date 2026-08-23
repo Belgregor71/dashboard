@@ -70,6 +70,23 @@ const cleanup = () => {
 process.on('exit', cleanup);
 process.on('SIGINT', () => { cleanup(); process.exit(130); });
 
+// -- Sweep anything a previous run could not clean up ------------------------
+// `process.on('exit')` does not fire when the run is hard-killed, and a killed
+// bench leaves BOTH a registered git worktree and a branch behind in the shared
+// repository. That is not cosmetic here: two sessions share this working tree,
+// and a stranger finding `xreview-bench-*` branches has no way to know whether
+// they are live. So each run clears the last one's wreckage before starting.
+const stale = sh('git', ['worktree', 'list', '--porcelain'], { cwd: REPO }).stdout || '';
+for (const line of stale.split('\n')) {
+  const m = line.match(/^worktree (.*xrbench-.*)$/);
+  if (m) sh('git', ['worktree', 'remove', '--force', m[1].trim()], { cwd: REPO });
+}
+sh('git', ['worktree', 'prune'], { cwd: REPO });
+for (const b of (sh('git', ['branch', '--list', 'xreview-bench-*'], { cwd: REPO }).stdout || '').split('\n')) {
+  const name = b.replace(/^[*+ ]+/, '').trim();
+  if (name) sh('git', ['branch', '-D', name], { cwd: REPO });
+}
+
 // -- Set up ------------------------------------------------------------------
 console.error(`bench: worktree ${WT}`);
 const add = sh('git', ['worktree', 'add', '-q', '-b', BRANCH, WT, 'HEAD'], { cwd: REPO });
@@ -118,6 +135,11 @@ const recall = runReviewer('HEAD~1..HEAD');
 // boolean check" have both found D1.
 const foundD1 = /isScreensaverActive/i.test(recall) && /(async|promise|truthy|await)/i.test(recall);
 const foundD2 = /(config\.js|homeAddress)/i.test(recall) && /(address|marlowe|street|public bundle|private location)/i.test(recall);
+
+// Reported the moment it is known, not held for the summary. Case 2 is the long
+// one — the clean commit took 1,700s on gpt-oss-20b — and a run killed during it
+// previously threw away a completed case 1 along with it.
+console.error(`bench: case 1 done — D1 ${foundD1 ? 'PASS' : 'FAIL'}, D2 ${foundD2 ? 'PASS' : 'FAIL'}`);
 
 // -- Case 2: PRECISION -------------------------------------------------------
 sh('git', ['reset', '-q', '--hard', 'HEAD~1'], { cwd: WT });
