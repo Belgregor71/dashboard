@@ -154,7 +154,15 @@ function readState() {
     cameraTriggerName: cameraTrigger?.name ?? null,
     cameraTriggerAt: cameraTrigger?.at ?? null,
     cameraTriggerLabel: cameraTrigger?.label ?? null,
-    cameraTriggerImage: cameraTrigger?.image ?? null
+    cameraTriggerImage: cameraTrigger?.image ?? null,
+    /* ⚠ SHAPE PARITY, and deliberately always empty. houseSnapshot's contract
+       is that collectSources() cannot tell the two readers apart, and it grew
+       `mediaRooms` on 2026-08-23 for V3's per-room media surface. This surface
+       scrapes two rendered panels and has no per-room concept to scrape, so the
+       honest answer is "no rooms" rather than a guess — the media candidates
+       then carry `media: null` here, which is exactly what they carried before
+       the field existed. tests/house-snapshot.spec.js pins the key sets equal. */
+    mediaRooms: []
   };
 }
 

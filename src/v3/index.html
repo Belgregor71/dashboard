@@ -22,6 +22,7 @@
   <link rel="stylesheet" href="./css/compose.css" />
   <link rel="stylesheet" href="./css/light.css" />
   <link rel="stylesheet" href="./css/archive.css" />
+  <link rel="stylesheet" href="./css/media.css" />
 </head>
 <body>
   <!-- The substrate. One continuously-caused atmospheric field: sun altitude and
@@ -92,6 +93,19 @@
         </div>
         <img class="now-playing__art lift" id="now-playing-art" alt="" data-blank="1" />
       </div>
+
+      <!-- The same corner, one room per row. core/media-rooms.js builds the
+           rows and owns this node entirely; it is empty in the shipped HTML
+           because a room that is not playing has no markup, not blank markup.
+
+           ⚠ MUTUALLY EXCLUSIVE WITH `.now-playing` ABOVE, by construction
+           rather than by CSS: initMediaRooms() returns false unless
+           `v3MediaRooms` is on, and initNowPlaying() returns false when it is.
+           Both are in the depth-0 layer and both take the bottom-right corner,
+           so only one may ever mount. tests/v3-media-rooms.spec.js asserts it,
+           because "by construction" stops being true the day someone widens
+           either gate. -->
+      <div class="media-rooms" id="media-rooms" data-shown="0"></div>
     </section>
 
     <!-- DEPTH 1 — GLANCE. Exactly one thing, at editorial scale. If it needs a

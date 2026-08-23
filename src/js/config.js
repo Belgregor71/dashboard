@@ -1215,6 +1215,29 @@ window.CONFIG = {
     // scripts/verify/flag-reversibility.mjs at flip time.
     v3NowPlaying: true,
 
+    // ── V3 MEDIA ROOMS ─────────────────────────────────────────────────────
+    // The band above, rebuilt as ONE ROW PER ROOM. Owner's report, 2026-08-23:
+    // "only 1 displays" and "when I'm playing Plex in the Piano Room it's
+    // currently saying Edge". Both reproduced on the live house within the
+    // hour, with two Plex streams running at once — the glass named the Apple
+    // TV and gave no sign the piano room existed.
+    //
+    // ⚠ THIS FLAG AND `v3NowPlaying` ARE MUTUALLY EXCLUSIVE and both own the
+    // bottom-right corner of depth 0. initNowPlaying() stands down when this is
+    // on; initMediaRooms() does nothing when it is off. Turning this on without
+    // that interlock would put two surfaces in one corner.
+    //
+    // Default-OFF until seen on the glass. The thing that needs looking at is
+    // not the layout — that is measured — it is the RECORD: the artwork makes
+    // one revolution per track (1.13°/sec on a five-minute song), which is the
+    // only continuous motion this wall has, and the calm law is a live-measured
+    // budget rather than an opinion. Flip after a /kiosk-metrics reading.
+    //
+    // Revert = `v3MediaRooms: false`, which restores the single-row band
+    // untouched — it is still there, still tested, and simply stops standing
+    // down.
+    v3MediaRooms: false,
+
     // ── V3 CELL CONTEXT ────────────────────────────────────────────────────
     // The eyebrow above every composed cell and above the glance line: what the
     // value underneath it IS. Owner's verdict on a photograph of the live wall,

@@ -160,9 +160,37 @@ export function commuteCandidate({ commuteActive, commuteText, now, timely } = {
  * instead of a separate glass panel. Only present when the runtime reads it
  * (gated on features.mediaCandidate), so flag-off carries no candidate.
  */
-export function nowPlayingCandidate({ nowPlayingActive, nowPlayingText, nowPlayingImage, nowPlayingTitle, nowPlayingSub } = {}) {
+/* ── The clock and the object, carried on the candidate ────────────────────
+   V3's spread renders `cell.candidate`, so this is the transport that lets a
+   composed cell draw the same record or frame the depth-0 band draws, and read
+   the same position — without the renderer having to reach back into the
+   snapshot for a second opinion about what is playing.
+
+   Matched by TITLE against houseSnapshot's per-room rows rather than by index:
+   the rows are ordered by room and the candidates are ordered by score, so
+   position in one list says nothing about position in the other.
+
+   Null when there is no matching row, which is the honest answer on a surface
+   where `mediaRooms` is empty — the cell then renders exactly as it did before,
+   which is what makes the flag-off build the one that shipped. */
+function mediaFor(rows, cell, title) {
+  if (!Array.isArray(rows) || !title) return null;
+  const row = rows.find((r) => r?.cell === cell && r?.title === title);
+  if (!row) return null;
+  return {
+    kind: row.kind ?? "video",
+    contentType: row.contentType ?? null,
+    room: row.room ?? null,
+    position: row.position ?? null,
+    duration: row.duration ?? null,
+    readingAt: row.readingAt ?? null
+  };
+}
+
+export function nowPlayingCandidate({ nowPlayingActive, nowPlayingText, nowPlayingImage, nowPlayingTitle, nowPlayingSub, mediaRooms } = {}) {
   if (!nowPlayingActive || !nowPlayingText) return null;
   return {
+    media: mediaFor(mediaRooms, "nowPlaying", nowPlayingTitle),
     id: `now-playing:${nowPlayingText}`,
     source: "nowPlaying",
     icon: "🎬",
@@ -182,9 +210,10 @@ export function nowPlayingCandidate({ nowPlayingActive, nowPlayingText, nowPlayi
  * (not HA). Carries the poster thumb so the attention thumb shows the artwork.
  * Present only when the runtime reads it (gated on features.mediaCandidate).
  */
-export function plexCandidate({ plexActive, plexText, plexSub, plexImage } = {}) {
+export function plexCandidate({ plexActive, plexText, plexSub, plexImage, mediaRooms } = {}) {
   if (!plexActive || !plexText) return null;
   return {
+    media: mediaFor(mediaRooms, "plex", plexText),
     id: `plex:${plexText}`,
     source: "plex",
     icon: "🎬",

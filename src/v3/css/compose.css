@@ -1057,6 +1057,7 @@ html, body {
 /* A 404'd artwork must not leave a broken-image glyph at 1920px. Hidden, never
    removed: the teardown's src-clearing sweep has to still find the node. */
 .subject__art.is-blank { opacity: 0; }
+
 .subject__over {
   position: absolute;
   left: var(--safe);

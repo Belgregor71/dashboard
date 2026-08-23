@@ -31,6 +31,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { compose } from "./composer.js";
+import { formatClock, progressOf } from "./media-rooms.js";
 
 /* modules/focusHero.js HERO_TIER_B_MAX. Inherited rather than chosen: the
    incumbent has been stepping the hero line down at 41 characters since Study
@@ -103,6 +104,92 @@ export function contextEnabled() {
   return Boolean(globalThis.window?.CONFIG?.features?.v3CellContext);
 }
 
+/* ── The cell's artwork ─────────────────────────────────────────────────────
+   ⚠ THE GRADIENT RAN BACKWARDS, and this is the half that made it do so. Owner's
+   report, 2026-08-23: "when moving into depth you actually get less information
+   with only the title being displayed — although bigger text". Exactly right,
+   and not a config accident: every cell here was an eyebrow and a single <p>,
+   BY CONSTRUCTION, so the artwork the candidate has carried since the Tier-1a
+   rich cards was discarded on the way in. Depth 0 had a picture and depth 2
+   threw it away.
+
+   It pays for itself twice. `cameraTriggerCandidate` has been carrying a
+   snapshot in the same `image` slot for just as long, and the spread has been
+   dropping that on the floor too — one fix, two surfaces.
+
+   Flag-gated on `v3MediaRooms` alongside the depth-0 band, deliberately as ONE
+   switch rather than two: they are one change to what depth means, and a
+   rollback that restored the band but left the cells is a state nobody
+   designed. Flag-off is NO NODE, not an empty one.
+─────────────────────────────────────────────────────────────────────────── */
+function artEnabled() {
+  return Boolean(globalThis.window?.CONFIG?.features?.v3MediaRooms);
+}
+
+/** What the clock says for a cell, or null. Elapsed and remaining both, because
+ *  depth 2 is where somebody is close enough to want the numbers — depth 0
+ *  deliberately has none. */
+export function clockLine(media) {
+  const p = progressOf(media);
+  if (!p) return null;
+  const type = media?.contentType;
+  const elapsed = formatClock(p.elapsed, type);
+  const remaining = formatClock(p.duration - p.elapsed, type);
+  if (!elapsed || !remaining) return null;
+  return { elapsed, remaining };
+}
+
+/**
+ * The artwork block for a cell, or null when the candidate has no picture.
+ *
+ * A record for music and a frame for everything else — the same two objects the
+ * depth-0 band draws, for the same reason: a 16:9 still centre-cropped into a
+ * circle reads as a rendering fault, and this repo has already shipped and
+ * reverted that once.
+ */
+export function artNode(candidate) {
+  if (!artEnabled()) return null;
+  const src = candidate?.image;
+  if (!src) return null;
+
+  const media = candidate.media ?? null;
+  const music = media?.kind === "music";
+  const wrap = document.createElement("div");
+  wrap.className = music ? "cell__disc" : "cell__frame";
+
+  const img = document.createElement("img");
+  img.alt = "";
+  img.addEventListener("error", () => { img.dataset.blank = "1"; }, { once: true });
+  img.src = src;
+
+  if (music) {
+    const plate = document.createElement("div");
+    plate.className = "cell__plate";
+    plate.appendChild(img);
+    wrap.appendChild(plate);
+    const spindle = document.createElement("div");
+    spindle.className = "cell__spindle";
+    wrap.appendChild(spindle);
+  } else {
+    const still = document.createElement("div");
+    still.className = "cell__still";
+    still.appendChild(img);
+    wrap.appendChild(still);
+  }
+
+  /* The record turns at every depth — owner's call. Same negative-delay
+     animation as the band, so the two can never disagree about how far through
+     the track is, and same absence of a timer. */
+  const p = progressOf(media);
+  if (p) {
+    wrap.dataset.timed = "1";
+    wrap.style.setProperty("--dur", `${p.duration}s`);
+    wrap.style.setProperty("--delay", `-${p.elapsed}s`);
+    wrap.style.setProperty("--prog", String(p.fraction));
+  }
+  return wrap;
+}
+
 /** The eyebrow node for a cell, or null when there is nothing to label with. */
 export function labelNode(text) {
   const label = typeof text === "string" ? text.trim() : "";
@@ -120,7 +207,9 @@ export function labelNode(text) {
    changed. That is the shape of bug this repo calls "the flag looked shipped
    and changed nothing". */
 function signatureOf(composition) {
-  const cells = composition.cells.map((c) => `${c.id}~${contextEnabled() ? (c.label ?? "") : ""}`);
+  const cells = composition.cells.map(
+    (c) => `${c.id}~${contextEnabled() ? (c.label ?? "") : ""}~${artEnabled() ? (c.candidate?.image ?? "") : ""}`
+  );
   return `${composition.template}|${cells.join("|")}`;
 }
 
@@ -129,7 +218,9 @@ function signatureOf(composition) {
 function mountedSignature(host) {
   const template = host.dataset.template;
   if (!template) return null;
-  const cells = Array.from(host.children).map((n) => `${n.dataset.cellId ?? ""}~${n.dataset.cellLabel ?? ""}`);
+  const cells = Array.from(host.children).map(
+    (n) => `${n.dataset.cellId ?? ""}~${n.dataset.cellLabel ?? ""}~${n.dataset.cellArt ?? ""}`
+  );
   return `${template}|${cells.join("|")}`;
 }
 
@@ -185,9 +276,31 @@ export function renderSpread(selection) {
     }
 
     node.appendChild(line);
+
+    /* The clock, at the depth that earns it. Depth 0 shows no numbers at all —
+       the ring and the rule carry the proportion there — so this is the first
+       surface where the house says how far through it is. */
+    const clock = clockLine(cell.candidate?.media);
+    if (clock && artEnabled()) {
+      const sub = document.createElement("p");
+      sub.className = "cell__clock measured";
+      sub.textContent = `${clock.elapsed} −${clock.remaining}`;
+      node.appendChild(sub);
+    }
+
+    /* AFTER the text, so the DOM order is eyebrow → line → clock → picture and
+       a screen reader gets the answer before the illustration. CSS places it. */
+    const art = artNode(cell.candidate);
+    if (art) {
+      node.appendChild(art);
+      node.dataset.cellArt = cell.candidate.image;
+      node.dataset.hasArt = "1";
+    }
+
     frag.appendChild(node);
   }
 
+  stripCellImages(host);
   host.replaceChildren(frag);
   host.dataset.template = composition.template;
   return composition;
@@ -195,9 +308,14 @@ export function renderSpread(selection) {
 
 /** Symmetric teardown. Called when depth 2 is left, and by the vocabulary card
  *  when it takes the lattice over. */
+function stripCellImages(host) {
+  for (const img of host.querySelectorAll("img")) img.removeAttribute("src");
+}
+
 export function clearSpread() {
   const host = lattice();
   if (!host) return;
+  stripCellImages(host);
   host.replaceChildren();
   delete host.dataset.template;
 }

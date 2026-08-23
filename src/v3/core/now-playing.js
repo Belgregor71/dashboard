@@ -253,6 +253,14 @@ export function nowPlayingState() {
  */
 export function initNowPlaying() {
   if (!flag("v3NowPlaying")) return false;
+  /* ⚠ THE INTERLOCK. core/media-rooms.js is this surface rebuilt as one row per
+     room, and it takes the SAME corner of the SAME depth layer. Two surfaces in
+     one corner is not a layout bug, it is two overlapping stacks of text on a
+     photograph — so the newer one wins and this one stands down entirely: no
+     listener, no timer, no attribute. Asserted in tests/v3-media-rooms.spec.js
+     from both directions, because an interlock that only one side honours is
+     not an interlock. */
+  if (flag("v3MediaRooms")) return false;
   if (unsubscribe) return true;
 
   const root = document.getElementById("now-playing");

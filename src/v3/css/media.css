@@ -1,0 +1,463 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   MEDIA — the rooms that are playing, at every depth.
+
+   ⚠ THIS IS ITS OWN STYLESHEET FOR ONE REASON: THE RECORD NEVER STOPS TURNING.
+   `animation: … infinite` is the only continuous loop V3 owns outside the
+   archive, and tests/v3-archive.spec.js forbids an unbound `infinite` in
+   compose.css — the sheet every surface loads, and therefore the place a
+   continuous loop gets added without anyone noticing. The archive was moved
+   out for exactly this reason and this follows it rather than weakening the
+   guardrail. The loop is cheap (one composited transform, no repaint, no
+   per-frame JS) but cheap is not the same as unnoticed.
+
+   The rotation is an INSTRUMENT, not an ornament: one revolution per track, so
+   the artwork itself is the clock. It stops when the music stops. See
+   core/media-rooms.js for why none of it needs a timer.
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* ═══ THE ROOMS THAT ARE PLAYING ════════════════════════════════════════════
+   The band above, one row per room. Same corner, same scrim, same tokens — the
+   two are mutually exclusive by flag (see core/media-rooms.js) so they can
+   never be on the glass together.
+
+   ⚠ THE INK BUDGET IS FIXED; THE ROW COUNT IS NOT THE VARIABLE THAT GROWS.
+   Two rooms means smaller artwork, never a taller surface: core/scrim.js only
+   guarantees legibility to y≈0.46 (BAND_MIN_COVERAGE), and the stack measures
+   y≈0.40 with two rows at these sizes. A third row would leave the band the
+   scrim was solved for, which is why media-rooms.js caps at two.
+─────────────────────────────────────────────────────────────────────────── */
+.media-rooms {
+  position: absolute;
+  right: var(--safe);
+  bottom: var(--safe);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--gutter);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--m-calm) var(--ease), visibility 0s linear var(--m-calm);
+}
+/* Same measured caveat as `.now-playing`: an explicit `visibility: visible`
+   here OVERRIDES the inherited `hidden` from `.depth--field`, and opacity does
+   not inherit — so at depth 1 this node still computes visible on its own. What
+   takes it off the glass at every other depth is the LAYER's opacity. Anything
+   asking "is this visible" must ask the ancestors too. */
+.media-rooms[data-shown="1"] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--m-calm) var(--ease), visibility 0s linear 0s;
+}
+
+.mroom { display: flex; align-items: center; gap: var(--gutter); }
+
+.mroom__lines {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  text-align: right;
+  min-width: 0;
+}
+
+/* The ROOM. This is the whole point of the surface — it replaced a Plex CLIENT
+   name ("Apple TV", and through the webplayer "Edge"), which is not a place
+   anything is playing. */
+.mroom__where {
+  font-size: var(--t-rail);
+  color: var(--ink-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+/* One line, always. There is no pointer on this wall and no second-glance
+   budget at depth 0, so a long title truncates rather than wrapping — the
+   artwork carries it and the full string is one depth away. 760px is ~32ch at
+   this size, which holds the longest title measured on this house. */
+.mroom__what {
+  font-size: var(--t-measured-2);
+  color: var(--ink);
+  font-weight: 300;
+  max-width: 760px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* ⚠ --ink-dim, NOT --ink-faint, and never below --t-rail. MEASURED against the
+   real photograph: --ink-faint at 26px came out at 3.10:1, under the 4.5
+   target, and tokens.css documents --t-rail as THE FLOOR of the whole system.
+   Both were wrong in the first cut for the same reason — a third line feels
+   like it wants to be quieter than the second. It does not. */
+.mroom__meta {
+  font-size: var(--t-rail);
+  color: var(--ink-dim);
+  font-weight: 300;
+  white-space: nowrap;
+}
+
+/* ── The record ─────────────────────────────────────────────────────────────
+   ONE REVOLUTION PER TRACK, so the artwork itself is the clock. A vinyl turning
+   at 33 1/3 would be decoration; at 1.13 deg/sec on a five-minute song this is
+   invisible frame-to-frame and obvious across a glance, which is the register
+   the calm law asks for. It stops when the music stops.
+
+   The whole thing is ONE COMPOSITED ANIMATION WITH A NEGATIVE DELAY equal to
+   the elapsed time — no timer, no per-frame JS, no repaint, and still correct
+   on a page that has been up for weeks. media-rooms.js writes --dur and
+   --delay; nothing here samples a clock.
+─────────────────────────────────────────────────────────────────────────── */
+.mdisc { position: relative; width: 136px; height: 136px; flex: 0 0 auto; }
+.mdisc__ring { position: absolute; inset: 0; transform: rotate(-90deg); }
+.mdisc__ring circle { fill: none; stroke-linecap: round; stroke-width: 3; }
+.mdisc__track { stroke: var(--ink); opacity: 0.16; }
+/* 402.12 = 2*pi*r at r=64. media-rooms.js DERIVES the same number rather than
+   typing it, so the ring cannot quietly disagree with the geometry. */
+.mdisc__fill {
+  stroke: var(--accent);
+  stroke-dasharray: 402.12;
+  stroke-dashoffset: 402.12;
+  opacity: 0;
+}
+.mdisc__plate {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  width: 116px;
+  height: 116px;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 6px 20px oklch(0.05 0 0 / 0.55), 0 1px 2px oklch(0.05 0 0 / 0.6);
+}
+.mdisc__plate img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mdisc__plate img[data-blank="1"] { visibility: hidden; }
+/* The spindle. Without it a rotating circle reads as a cropping accident; with
+   it the object is unmistakably a record, which is what makes the rotation
+   legible as an instrument rather than as a wobble. */
+.mdisc__spindle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px 0 0 -5.5px;
+  border-radius: 50%;
+  background: oklch(0.10 0.01 var(--atmo-hue));
+  box-shadow: 0 0 0 1.5px oklch(0.93 0.010 85 / 0.35);
+}
+
+/* Only a row with a real clock animates. A live stream reports no duration, and
+   a ring pinned at zero would be a lie about a track that has no end. */
+.mdisc[data-timed="1"] .mdisc__fill {
+  opacity: 1;
+  animation: mdisc-ring var(--dur) linear infinite;
+  animation-delay: var(--delay);
+}
+.mdisc[data-timed="1"] .mdisc__plate {
+  animation: mdisc-spin var(--dur) linear infinite;
+  animation-delay: var(--delay);
+}
+@keyframes mdisc-ring { from { stroke-dashoffset: 402.12; } to { stroke-dashoffset: 0; } }
+@keyframes mdisc-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ── The frame ──────────────────────────────────────────────────────────────
+   Video keeps its rectangle. A 16:9 still forced into a circle is the mistake
+   recorded above being made a second time — and Plex is not even self
+   consistent: an episode's thumb is a 16:9 still, a movie's is a 2:3 poster.
+   Fixed height with intrinsic width means the artwork keeps its own shape and
+   the rows still line up, because the height is what they share.
+─────────────────────────────────────────────────────────────────────────── */
+.mframe { display: flex; flex-direction: column; gap: 8px; flex: 0 0 auto; }
+.mframe__still {
+  height: 126px;
+  max-width: 260px;
+  border-radius: 6px;
+  overflow: hidden;
+  align-self: flex-end;
+  box-shadow: 0 6px 20px oklch(0.05 0 0 / 0.55), 0 1px 2px oklch(0.05 0 0 / 0.6);
+}
+.mframe__still img { height: 100%; width: auto; object-fit: cover; display: block; }
+.mframe__still img[data-blank="1"] { visibility: hidden; }
+.mframe__rule {
+  position: relative;
+  height: 3px;
+  border-radius: 2px;
+  background: oklch(0.93 0.010 85 / 0.16);
+  overflow: hidden;
+  opacity: 0;
+}
+.mframe[data-timed="1"] .mframe__rule { opacity: 1; }
+.mframe__rule i {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background: var(--accent);
+  transform-origin: left center;
+  transform: scaleX(0);
+}
+.mframe[data-timed="1"] .mframe__rule i {
+  animation: mframe-fill var(--dur) linear infinite;
+  animation-delay: var(--delay);
+}
+@keyframes mframe-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* ⚠ REDUCED MOTION KEEPS THE READING AND DROPS THE MOVEMENT. The progress is
+   information, not decoration, so it is placed statically from --prog rather
+   than removed along with the animation. tokens.css already zeroes the
+   durations in this mode, and an animation left running at 0s would sit on its
+   `from` value and report every track as just-started. */
+@media (prefers-reduced-motion: reduce) {
+  .mdisc[data-timed="1"] .mdisc__fill,
+  .mdisc[data-timed="1"] .mdisc__plate,
+  .mframe[data-timed="1"] .mframe__rule i {
+    animation: none;
+  }
+  .mdisc[data-timed="1"] .mdisc__fill {
+    stroke-dashoffset: calc(402.12 * (1 - var(--prog, 0)));
+  }
+  .mdisc[data-timed="1"] .mdisc__plate {
+    transform: rotate(calc(var(--prog, 0) * 360deg));
+  }
+  .mframe[data-timed="1"] .mframe__rule i {
+    transform: scaleX(var(--prog, 0));
+  }
+}
+
+/* ── The cell's artwork and clock ───────────────────────────────────────────
+   ⚠ THIS IS THE HALF THAT MADE THE DEPTH GRADIENT RUN BACKWARDS. Until
+   2026-08-23 a cell was an eyebrow and one <p>, so depth 0 showed artwork and
+   depth 2 — the deeper, more deliberate surface — threw it away and rendered
+   the title larger. Owner's report: "you actually get less information".
+
+   `order: -1` rather than a restructure: the cell is a column justified to the
+   bottom and the text children are direct siblings, so making it a row would
+   put the eyebrow beside the line rather than above it. The picture sits ON TOP
+   of its caption, which is what a cell of the lattice can hold without
+   disturbing anything else in it. DOM order stays eyebrow → line → clock →
+   picture, so the answer is read before the illustration.
+─────────────────────────────────────────────────────────────────────────── */
+.cell__disc,
+.cell__frame {
+  order: -1;
+  flex: 0 0 auto;
+  align-self: flex-start;
+}
+
+/* The clock, and the depth that earns it. Depth 0 shows no numbers at all —
+   the ring and the rule carry the proportion there — so this is the first
+   surface on which the house says how far through something is. */
+.cell__clock {
+  font-size: var(--t-rail);
+  color: var(--ink-dim);
+  font-weight: 300;
+  white-space: nowrap;
+  /* .measured already sets tabular-nums; stated here because a clock that
+     re-flows its own line every second is the exact reason that rule exists. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── The record, at depth 2 ─────────────────────────────────────────────────
+   Owner's call: the record turns at every level. No ring here — the numbers
+   above it are the precise reading at this depth, and a ring as well would be
+   the same fact told twice. The rotation is what carries the OBJECT.
+─────────────────────────────────────────────────────────────────────────── */
+.cell__disc { position: relative; width: 112px; height: 112px; }
+.cell__plate {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 6px 20px oklch(0.05 0 0 / 0.5), 0 1px 2px oklch(0.05 0 0 / 0.55);
+}
+.cell__plate img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cell__plate img[data-blank="1"] { visibility: hidden; }
+.cell__spindle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: oklch(0.10 0.01 var(--atmo-hue));
+  box-shadow: 0 0 0 1.5px oklch(0.93 0.010 85 / 0.35);
+}
+.cell__disc[data-timed="1"] .cell__plate {
+  animation: mdisc-spin var(--dur) linear infinite;
+  animation-delay: var(--delay);
+}
+
+/* The frame. Fixed height, intrinsic width — an episode's thumb is 16:9 and a
+   movie's is a 2:3 poster, and forcing either into the other's box is the
+   mistake this file already records being reverted once. */
+.cell__frame { max-width: 100%; }
+.cell__still {
+  height: 108px;
+  max-width: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px oklch(0.05 0 0 / 0.5), 0 1px 2px oklch(0.05 0 0 / 0.55);
+}
+.cell__still img { height: 100%; width: auto; object-fit: cover; display: block; }
+.cell__still img[data-blank="1"] { visibility: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cell__disc[data-timed="1"] .cell__plate {
+    animation: none;
+    transform: rotate(calc(var(--prog, 0) * 360deg));
+  }
+}
+
+/* ── The record, at depth 3 ─────────────────────────────────────────────────
+   The deepest rung of a gradient that used to run backwards: going deeper
+   showed a bigger title and nothing else. Here the record is the subject, at
+   editorial scale, still turning once per track — and the ring comes BACK at
+   this size, because at 460px the arc is a readable instrument rather than the
+   hairline it would be at 136px.
+─────────────────────────────────────────────────────────────────────────── */
+
+/* ⚠ THE RECORD AND THE CAPTION WERE PRINTING ON TOP OF EACH OTHER. SEEN, not
+   reasoned about: `.subject__over` is a full-width band pinned to the bottom of
+   the frame, and the record is pinned to the left and vertically centred, so at
+   depth 3 the room name and the track title were laid over the artwork. A
+   `max-width` alone does not fix it — the caption starts at the LEFT safe
+   inset, which is exactly where the record is.
+
+   So for music the caption starts where the record ends. 460px of record plus
+   one --gutter of air; it stays bottom-aligned, which keeps it inside the band
+   `.subject--media::after` provides rather than needing a second mechanism. */
+.subject--media[data-kind="music"] .subject__over {
+  left: calc(var(--safe) + 460px + var(--gutter));
+}
+
+.subject__record {
+  position: absolute;
+  left: var(--safe);
+  top: 50%;
+  width: 460px;
+  height: 460px;
+  transform: translateY(-50%);
+}
+.subject__ring { position: absolute; inset: 0; transform: rotate(-90deg); }
+.subject__ring circle { fill: none; stroke-linecap: round; stroke-width: 7; }
+.subject__ring-track { stroke: var(--ink); opacity: 0.22; }
+.subject__ring-fill { stroke: var(--accent); opacity: 0; }
+
+.subject__plate-disc {
+  position: absolute;
+  left: 18px;
+  top: 18px;
+  width: 424px;
+  height: 424px;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 18px 60px oklch(0.05 0 0 / 0.6), 0 2px 6px oklch(0.05 0 0 / 0.5);
+}
+.subject__plate-disc img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.subject__plate-disc img[data-blank="1"] { visibility: hidden; }
+
+.subject__spindle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border-radius: 50%;
+  background: oklch(0.10 0.01 var(--atmo-hue));
+  box-shadow: 0 0 0 3px oklch(0.93 0.010 85 / 0.30);
+}
+
+/* Same negative-delay animation as every other depth, so the three surfaces
+   cannot show one song at three different positions. --ring-c is written by
+   subjects/media.js from the same 2*pi*r it draws the circle with. */
+.subject__record[data-timed="1"] .subject__ring-fill {
+  opacity: 1;
+  animation: subject-ring var(--dur) linear infinite;
+  animation-delay: var(--delay);
+}
+.subject__record[data-timed="1"] .subject__plate-disc {
+  animation: mdisc-spin var(--dur) linear infinite;
+  animation-delay: var(--delay);
+}
+@keyframes subject-ring {
+  from { stroke-dashoffset: var(--ring-c, 1394.87); }
+  to   { stroke-dashoffset: 0; }
+}
+
+/* The other room, kept in view. Bottom right, under the same scrim the band
+   lives in — summoning one room's music must not make the house forget the
+   film playing next door. */
+.subject__elsewhere {
+  position: absolute;
+  right: var(--safe);
+  bottom: var(--safe);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  text-align: right;
+}
+.subject__elsewhere-line {
+  font-size: var(--t-rail);
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subject__record[data-timed="1"] .subject__ring-fill {
+    animation: none;
+    stroke-dashoffset: calc(var(--ring-c, 1394.87) * (1 - var(--prog, 0)));
+  }
+  .subject__record[data-timed="1"] .subject__plate-disc {
+    animation: none;
+    transform: rotate(calc(var(--prog, 0) * 360deg));
+  }
+}
+
+/* The quiet detail under the title: how far through, the album, the playlist.
+   At --t-rail, THE FLOOR — not in the said voice. See subjects/media.js
+   factsLine(): rendering these through column() set them at 96px each and
+   pushed the caption 193px past the band that compose.css sized for it. */
+.subject__facts {
+  font-size: var(--t-rail);
+  color: var(--ink-dim);
+  letter-spacing: 0.02em;
+  margin: 4px 0 0;
+}
+
+/* ⚠ THE CAPTION BAND HAD TO GROW, AND BY KIND. compose.css sizes
+   `.subject--media::after` to 46% and states plainly that it is "SIZED TO THE
+   TALLEST CAPTION, NOT TO TASTE" — a title and one line, ~269px, with the
+   opaque plateau ending at 298px. Depth 3 now also carries the clock (and for a
+   Sonos track the album and the playlist), and the title wraps to two lines at
+   96px, so the caption tops out at 325px for video and 427px for music.
+
+   MEASURED over a real photograph before and after. The eyebrow is the worst
+   case because it sits at the TOP of the caption, where the old band had
+   already faded: video 3.90:1, music 1.88:1 — the latter being the dimmest
+   thing V3 paints on bare photograph.
+
+   Two heights because the two pictures have different jobs. Video is a
+   full-bleed still and IS the subject, so its band stays as short as the
+   measurement allows. Music draws a 460px record and leaves the rest of the
+   frame as the wall's own ground photo, which there is no reason to protect —
+   so it can afford the taller veil its taller caption needs.
+
+   Flag-off sets no `data-kind` at all, so neither rule matches and the shipped
+   46% band is untouched. */
+.subject--media[data-kind="video"]::after { height: 56%; }
+.subject--media[data-kind="music"]::after { height: 74%; }
+
+/* ⚠ FULL --ink AT DEPTH 3, AND ONLY HERE. MEASURED against the flag-off build
+   over a real photograph: the eyebrow fell from 5.94:1 to 4.02:1 and the new
+   facts line landed at 3.09:1, both under the 4.5 target. The band was not the
+   cause — it is sized by measurement above and both lines sit inside its
+   plateau. The cause is that --scrim-opacity is solved for the GROUND photo,
+   not for the full-bleed artwork a subject paints over it, so a bright still
+   can leave --ink-dim short no matter how tall the band is.
+
+   Depth 3 is one thing filling the wall with nothing to compete with, so the
+   quiet half of the hierarchy is worth less here than being readable at four
+   metres. Scoped to [data-kind] so the flag-off subject is untouched. */
+.subject--media[data-kind] .subject__title,
+.subject--media[data-kind] .subject__facts,
+.subject--media[data-kind] .subject__elsewhere-line { color: var(--ink); }

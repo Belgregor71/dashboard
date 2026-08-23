@@ -34,6 +34,7 @@ import { initBriefingWindow, lastBriefing } from "./core/briefing-window.js";
 import { initHealth, lastHealth } from "./core/health.js";
 import { initDisplay, onPanelDark, displayState } from "./core/display.js";
 import { initNowPlaying, nowPlayingState } from "./core/now-playing.js";
+import { initMediaRooms, mediaRoomsState } from "./core/media-rooms.js";
 import { initDinner, lastDinner } from "./core/dinner.js";
 import { initMemoryRuntime } from "../js/core/memoryRuntime.js";
 import { initRoutineRuntime } from "../js/core/routineRuntime.js";
@@ -332,6 +333,17 @@ function boot() {
      registered nothing. */
   stage("now-playing", () => initNowPlaying());
 
+  /* The same corner, one row per room — and the reason both lines are here is
+     that they are MUTUALLY EXCLUSIVE, not sequential. `v3MediaRooms` off means
+     this returns false and the band above owns depth 0 exactly as it shipped;
+     on means the band stood down and this owns it. Ordered after, so that on a
+     misconfigured pair the newer surface is the one that mounts.
+
+     Same placement rule as the band for the same reason: it subscribes to
+     `ha:state-updated`, and the feed's opening bulk fill is the one event that
+     says what is ALREADY playing. */
+  stage("media-rooms", () => initMediaRooms());
+
   /* ── Stage 3 · the house's own writing ────────────────────────────────────
      73 authored memories, every one photo-anchored through Memory Studio, and
      `window.__memoryState` was **undefined** on the live wall. Not broken —
@@ -617,6 +629,7 @@ function registerHandles() {
     health: lastHealth(),
     display: displayState(),
     nowPlaying: nowPlayingState(),
+    mediaRooms: mediaRoomsState(),
     presence: window.__v3Presence?.(),
     // What HA last asked this screen to do, and whether it was honoured. A
     // REFUSAL leaves nothing on the wall to look at by definition, so without

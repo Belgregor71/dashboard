@@ -696,6 +696,104 @@ test.describe("parsePlexSessions", () => {
     const [none] = parsePlexSessions(`<Video title="X" thumb="/t"><Media id="1" /></Video>`);
     expect(none.player).toBeNull();
   });
+
+  /* ⚠ PARSED AWAY UNTIL 2026-08-23. Both fields were sitting in every payload
+     and thrown on the floor, so no Plex stream on this wall could ever show how
+     far through it was. Milliseconds in, seconds out — the wall works in
+     seconds and a factor of 1000 in a progress bar is not subtle. */
+  test("viewOffset and duration survive the parse, in seconds", async () => {
+    const { parsePlexSessions } = await import("../server/routes/plex.js");
+    const [s] = parsePlexSessions(
+      `<Video title="Practical Magic" type="movie" year="1998" thumb="/t"
+              viewOffset="2033000" duration="6250000" />`
+    );
+    expect(s.position).toBe(2033);
+    expect(s.duration).toBe(6250);
+    expect(s.year).toBe(1998);
+    /* The type is carried because it, not the length, decides whether the clock
+       reads in hours or in minutes. */
+    expect(s.type).toBe("movie");
+  });
+
+  /* ⚠ 0 IS A LEGITIMATE POSITION and "not reported" is not. A reader cannot
+     tell a film at the very beginning from a film that told us nothing if both
+     arrive as 0, and a progress ring would confidently draw the wrong one. */
+  test("an unreported position is null, not zero", async () => {
+    const { parsePlexSessions } = await import("../server/routes/plex.js");
+    const [none] = parsePlexSessions(`<Video title="X" thumb="/t" />`);
+    expect(none.position).toBeNull();
+    expect(none.duration).toBeNull();
+
+    const [start] = parsePlexSessions(`<Video title="X" thumb="/t" viewOffset="0" duration="60000" />`);
+    expect(start.position).toBe(0);
+  });
+});
+
+/* ── The client → room map ──────────────────────────────────────────────────
+   Owner's report, 2026-08-23: "when I'm playing Plex in the Piano Room it's
+   currently saying Edge". The wall was rendering a Plex CLIENT name, which is
+   not a place anything is playing.
+
+   ⚠ THE MAP IS RESOLVED SERVER-SIDE ON PURPOSE. `src/js/config.js` is tracked
+   AND shipped in the public bundle, and a machineIdentifier is a stable
+   per-device identifier for a machine in this house. Doing the lookup here
+   means the browser is handed a room name and never an identifier.
+─────────────────────────────────────────────────────────────────────────── */
+test.describe("plex room mapping", () => {
+  const MAP = "14AC104F-CB01=Lounge Room|v3y8sn5z993=Piano Room|Plex Web/Windows=Piano Room";
+
+  test("a known machineIdentifier names its room", async () => {
+    const { parseRoomMap, roomForPlayer } = await import("../server/routes/plex.js");
+    const map = parseRoomMap(MAP);
+    expect(roomForPlayer({ machineIdentifier: "14AC104F-CB01", title: "Apple TV" }, map)).toBe("Lounge Room");
+    expect(roomForPlayer({ machineIdentifier: "v3y8sn5z993", title: "Microsoft Edge" }, map)).toBe("Piano Room");
+  });
+
+  /* ⚠ A BROWSER'S IDENTIFIER IS NOT FOREVER. Plex Web stores it in the browser,
+     so clearing site data mints a new one — and because an unmapped client is
+     HIDDEN rather than guessed at, the piano room would silently stop appearing
+     on the wall with nothing anywhere to say why. This is the rule that
+     survives that reset. */
+  test("a reset browser id still finds its room by product and device", async () => {
+    const { parseRoomMap, roomForPlayer } = await import("../server/routes/plex.js");
+    const map = parseRoomMap(MAP);
+    const reminted = { machineIdentifier: "brand-new-id", product: "Plex Web", device: "Windows" };
+    expect(roomForPlayer(reminted, map)).toBe("Piano Room");
+  });
+
+  /* ⚠ NULL IS THE ANSWER, NOT THE DEVICE NAME. The eyebrow on this surface is
+     always a real room in this house, so a stream on someone's phone at work
+     must never claim to be one. The wall drops what it cannot place. */
+  test("an unknown client is null rather than named after its device", async () => {
+    const { parseRoomMap, roomForPlayer } = await import("../server/routes/plex.js");
+    const map = parseRoomMap(MAP);
+    const stranger = { machineIdentifier: "xyz", title: "Brett's iPhone", product: "Plex for iOS", device: "iPhone" };
+    expect(roomForPlayer(stranger, map)).toBeNull();
+    expect(roomForPlayer(null, map)).toBeNull();
+    expect(roomForPlayer({ machineIdentifier: "xyz" }, parseRoomMap(""))).toBeNull();
+  });
+
+  test("the room reaches the session, and the device name is still there to debug with", async () => {
+    const { parsePlexSessions, parseRoomMap } = await import("../server/routes/plex.js");
+    const [s] = parsePlexSessions(
+      `<Video title="Practical Magic" type="movie" thumb="/t">
+         <Player title="Microsoft Edge" product="Plex Web" device="Windows" machineIdentifier="v3y8sn5z993" />
+       </Video>`,
+      parseRoomMap(MAP)
+    );
+    expect(s.room).toBe("Piano Room");
+    expect(s.player).toBe("Microsoft Edge");
+  });
+
+  test("with no map configured every session is roomless, and nothing throws", async () => {
+    const { parsePlexSessions, parseRoomMap } = await import("../server/routes/plex.js");
+    const [s] = parsePlexSessions(
+      `<Video title="X" thumb="/t"><Player title="Apple TV" machineIdentifier="a" /></Video>`,
+      parseRoomMap(undefined)
+    );
+    expect(s.room).toBeNull();
+    expect(s.player).toBe("Apple TV");
+  });
 });
 
 test.describe("routines (Phase 8 behavioural learning)", () => {

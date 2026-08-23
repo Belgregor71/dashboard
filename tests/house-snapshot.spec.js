@@ -32,7 +32,9 @@ const READ_STATE_KEYS = [
   "nowPlayingActive", "nowPlayingText", "nowPlayingImage", "nowPlayingTitle", "nowPlayingSub",
   "plexActive", "plexText", "plexSub", "plexImage",
   "menuActive", "menuName",
-  "cameraTriggerName", "cameraTriggerAt", "cameraTriggerLabel", "cameraTriggerImage"
+  "cameraTriggerName", "cameraTriggerAt", "cameraTriggerLabel", "cameraTriggerImage",
+  // V3's per-room media surface. focusHero returns [] for it — see the note there.
+  "mediaRooms"
 ];
 
 const NOW = new Date("2026-08-08T18:30:00+10:00");
@@ -549,4 +551,170 @@ test("a failed refresh leaves the last known good value standing", async () => {
   globalThis.fetch = async () => ({ ok: false, status: 503, json: async () => null });
   await refreshHouseCache();
   expect(houseSnapshot({ now: NOW }).weatherCondition).toBe("Severe storm");
+});
+
+/* ═══ THE ROOMS THAT ARE PLAYING ════════════════════════════════════════════
+   Owner's report, 2026-08-23: "only 1 displays". Reproduced on the live house
+   the same hour with two Plex streams running — the wall named the Apple TV and
+   gave no sign the piano room existed.
+
+   The cause was three independent `return`s, and the fix is a SECOND reader
+   rather than a rewrite of the two above: `nowPlayingFrom` and `plexFrom` feed
+   the incumbent's hero card and the shipped, default-on attention candidates,
+   so changing them would change the flag-off build. The first test here is the
+   one that guards that.
+─────────────────────────────────────────────────────────────────────────── */
+
+/** Two Sonos zones, one in each configured group, both playing. */
+function twoRooms() {
+  return [
+    {
+      entity_id: "media_player.living_room",
+      state: "playing",
+      attributes: {
+        media_title: "High Potential",
+        media_artist: "ABC",
+        media_content_type: "tvshow",
+        group_members: ["media_player.living_room"]
+      }
+    },
+    {
+      entity_id: "media_player.piano_room",
+      state: "playing",
+      attributes: {
+        media_title: "Main Theme",
+        media_artist: "Grissini Project",
+        media_album_name: "Metal Gear Solid 4",
+        media_content_type: "music",
+        media_position: 81,
+        media_duration: 319,
+        media_position_updated_at: "2026-08-23T00:00:00.000Z",
+        group_members: ["media_player.piano_room"]
+      }
+    }
+  ];
+}
+
+test("the single-answer readers are UNCHANGED by the rooms rebuild", () => {
+  /* ⚠ THE FLAG-OFF GUARD. `nowPlayingFrom` still answers with exactly one
+     thing, because the incumbent's hero card and the nowPlaying/plex candidates
+     are default-on and shipped. If this ever returns two, the rebuild has
+     reached into the surface it was supposed to leave alone. */
+  const snap = houseSnapshot({ now: NOW, entities: twoRooms() });
+  expect(snap.nowPlayingActive).toBe(true);
+  expect(snap.nowPlayingTitle).toBe("High Potential");
+  expect(snap.mediaRooms).toHaveLength(2);
+});
+
+test("both rooms are listed, in config order, each named by its room", () => {
+  const snap = houseSnapshot({ now: NOW, entities: twoRooms() });
+  expect(snap.mediaRooms.map((r) => r.room)).toEqual(["Lounge Room", "Piano Room"]);
+  expect(snap.mediaRooms.map((r) => r.title)).toEqual(["High Potential", "Main Theme"]);
+});
+
+test("the kind decides the object the wall draws", () => {
+  const snap = houseSnapshot({ now: NOW, entities: twoRooms() });
+  // A record for music, a frame for anything else. They are not interchangeable.
+  expect(snap.mediaRooms.map((r) => r.kind)).toEqual(["video", "music"]);
+});
+
+test("a music row carries the clock and the instant it was measured", () => {
+  const snap = houseSnapshot({ now: NOW, entities: twoRooms() });
+  const piano = snap.mediaRooms.find((r) => r.room === "Piano Room");
+  expect(piano.position).toBe(81);
+  expect(piano.duration).toBe(319);
+  /* Without this the surface would need a timer. With it the whole progress
+     display is one CSS animation with a negative delay. */
+  expect(piano.readingAt).toBe(Date.parse("2026-08-23T00:00:00.000Z"));
+  expect(piano.album).toBe("Metal Gear Solid 4");
+});
+
+/* ⚠ GROUPED ZONES PLAY THE SAME TRACK AND EVERY MEMBER REPORTS IT. Without the
+   coordinator check the wall lists one song twice under two room names, which
+   is a worse failure than the one this rebuild set out to fix — it invents a
+   second thing happening in the house. */
+test("grouped Sonos zones collapse to the coordinator's room", () => {
+  const grouped = twoRooms().map((e) => ({
+    ...e,
+    attributes: {
+      ...e.attributes,
+      media_title: "Main Theme",
+      group_members: ["media_player.piano_room", "media_player.living_room"]
+    }
+  }));
+
+  const rooms = houseSnapshot({ now: NOW, entities: grouped }).mediaRooms;
+  expect(rooms).toHaveLength(1);
+  expect(rooms[0].room).toBe("Piano Room");
+});
+
+test("an ungrouped speaker reports only itself and is never treated as a follower", () => {
+  const [, piano] = twoRooms();
+  const rooms = houseSnapshot({ now: NOW, entities: [piano] }).mediaRooms;
+  expect(rooms).toHaveLength(1);
+  expect(rooms[0].room).toBe("Piano Room");
+});
+
+test("a Sonos carrying TV audio leaves its room silent without silencing the house", () => {
+  const [lounge, piano] = twoRooms();
+  lounge.attributes.source = "TV";
+  const rooms = houseSnapshot({ now: NOW, entities: [lounge, piano] }).mediaRooms;
+  /* The rule makes ONE PLAYER silent to this reader; it does not make the house
+     silent. The piano room still speaks — and it is still in second place,
+     because the order is the config's, not the survivors'. */
+  expect(rooms.map((r) => r.room)).toEqual(["Piano Room"]);
+});
+
+test("a room with no speaker playing falls through to its Plex stream", async () => {
+  __resetHouseCache();
+  const [, piano] = twoRooms();
+  const rooms = houseSnapshot({
+    now: NOW,
+    entities: [piano],
+    plex: [{ title: "Practical Magic", type: "movie", year: 1998, room: "Lounge Room",
+             thumb: "/library/1", position: 2033, duration: 6250 }]
+  }).mediaRooms;
+
+  expect(rooms.map((r) => r.room)).toEqual(["Lounge Room", "Piano Room"]);
+  const lounge = rooms[0];
+  expect(lounge.cell).toBe("plex");
+  expect(lounge.title).toBe("Practical Magic");
+  expect(lounge.meta).toBe("1998");
+  /* ⚠ CARRIED, not folded into `kind`. A film's clock reads in hours and
+     minutes and an episode's in minutes and seconds, and only the type can
+     decide that — a duration threshold gets a feature-length episode wrong. */
+  expect(lounge.contentType).toBe("movie");
+});
+
+test("a speaker beats a Plex stream in the same room", () => {
+  const [, piano] = twoRooms();
+  const rooms = houseSnapshot({
+    now: NOW,
+    entities: [piano],
+    plex: [{ title: "Practical Magic", type: "movie", room: "Piano Room", thumb: "/t" }]
+  }).mediaRooms;
+
+  /* The precedence the two single-answer readers already document, applied per
+     room instead of once globally: a media_player entity is the live state of a
+     device in THIS house. */
+  expect(rooms).toHaveLength(1);
+  expect(rooms[0].cell).toBe("nowPlaying");
+  expect(rooms[0].title).toBe("Main Theme");
+});
+
+/* ⚠ AN UNMAPPED CLIENT IS DROPPED, NEVER RENAMED. The eyebrow on this surface
+   is always a real room in this house, so a stream on someone's phone at work
+   must not claim to be one. The server resolves `room`; a null means it could
+   not place the client, and null is a real answer. */
+test("a Plex stream with no room is not shown at all", () => {
+  const rooms = houseSnapshot({
+    now: NOW,
+    entities: [],
+    plex: [{ title: "Something", type: "movie", room: null, thumb: "/t" }]
+  }).mediaRooms;
+  expect(rooms).toEqual([]);
+});
+
+test("a quiet house lists no rooms, and that is not an error", () => {
+  expect(houseSnapshot({ now: NOW, entities: [] }).mediaRooms).toEqual([]);
 });

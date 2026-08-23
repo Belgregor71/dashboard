@@ -67,6 +67,10 @@ const cache = {
   calendar: null,
   commute: null,
   plex: null,
+  /* WHEN the Plex sessions were read. A Plex payload carries a position with
+     no timestamp, so this is the only anchor a progress reading has. Separate
+     from `fetchedAt`, which advances even when the Plex leg failed. */
+  plexAt: 0,
   fetchedAt: 0
 };
 
@@ -123,7 +127,10 @@ export async function refreshHouseCache() {
   if (weather) cache.weather = weather;
   if (calendar) cache.calendar = Array.isArray(calendar) ? calendar : calendar.events ?? [];
   if (commute) cache.commute = commute;
-  if (plex) cache.plex = Array.isArray(plex.sessions) ? plex.sessions : null;
+  if (plex) {
+    cache.plex = Array.isArray(plex.sessions) ? plex.sessions : null;
+    cache.plexAt = Date.now();
+  }
   cache.fetchedAt = Date.now();
 }
 
@@ -278,6 +285,151 @@ function nowPlayingFrom(byId) {
   return null;
 }
 
+/* ═══ THE ROOMS THAT ARE PLAYING ════════════════════════════════════════════
+   Everything above answers "what is playing" with ONE thing. That was never a
+   design decision, it was three `return`s: nowPlayingFrom bails at the first
+   playing speaker, plexFrom takes sessions[0], and V3's playingFrom picks one
+   of the two. So a house with music in the piano room and a film in the lounge
+   showed one of them and gave no sign the other existed.
+
+   Owner's call, 2026-08-23: rows are ROOMS, in a fixed order (Lounge Room then
+   Piano Room), each carrying whatever is making sound in it.
+
+   ⚠ WHY THIS IS A SECOND READER RATHER THAN A REWRITE OF THE TWO ABOVE. Those
+   two feed the incumbent's hero card and the attention queue's nowPlaying/plex
+   candidates, which are default-on and shipped. Rewriting them to return
+   arrays would change the flag-OFF build, and this house's rule is that the
+   flag-off build is the one that shipped before it. The scan is a handful of
+   object lookups; the isolation is worth more than the duplication.
+
+   ⚠ GROUPED SONOS ZONES COLLAPSE. When zones are grouped they play the SAME
+   track, and every member reports it — so without this the wall would list one
+   song twice under two room names. HA puts the coordinator first in
+   `group_members`, so a zone that is not its own coordinator is a follower and
+   is skipped. An ungrouped speaker reports `[itself]` and passes.
+─────────────────────────────────────────────────────────────────────────── */
+function isGroupFollower(entity, entityId) {
+  const members = entity?.attributes?.group_members;
+  if (!Array.isArray(members) || members.length < 2) return false;
+  return members[0] !== entityId;
+}
+
+/** Milliseconds since the epoch that a position reading was taken, or null.
+ *  The whole progress display is derived from this — see core/now-playing.js on
+ *  why it means the surface needs no timer at all. */
+function readingAt(value) {
+  const at = Date.parse(String(value ?? ""));
+  return Number.isFinite(at) ? at : null;
+}
+
+function speakerRow(entity, room) {
+  const title = entity.attributes?.media_title;
+  if (!title) return null;
+  const a = entity.attributes;
+  return {
+    room,
+    cell: "nowPlaying",
+    /* Sonos reports `music` for a track and `tvshow`/`movie` for video. The
+       kind decides the OBJECT the wall draws — a record or a frame — and the
+       clock it reads in, so it is carried rather than re-derived per surface. */
+    kind: a?.media_content_type === "music" ? "music" : "video",
+    title,
+    meta: a?.media_artist || a?.media_series_title || null,
+    album: a?.media_album_name || null,
+    playlist: a?.media_playlist || null,
+    image: resolveMediaImage(a?.entity_picture) || null,
+    position: Number.isFinite(a?.media_position) ? a.media_position : null,
+    duration: Number.isFinite(a?.media_duration) ? a.media_duration : null,
+    readingAt: readingAt(a?.media_position_updated_at)
+  };
+}
+
+function plexRow(session, room, plexAt) {
+  if (!session?.title) return null;
+  /* The SHOW, not the episode — `title` for this house's library is often a
+     bare date ("2022-01-27"). Same choice plexFrom makes, and for the reason
+     recorded there. A movie has no grandparentTitle and keeps its own. */
+  const title = session.grandparentTitle || session.title;
+  const isEpisode = session.type === "episode";
+  const season = session.parentIndex;
+  const episode = session.index;
+  return {
+    room,
+    cell: "plex",
+    kind: session.type === "track" ? "music" : "video",
+    /* ⚠ `movie` is carried through, not folded into `video`. A film's clock
+       reads in hours and minutes and an episode's in minutes and seconds
+       (owner's call), and the type is the only thing that can decide that —
+       a duration threshold gets a feature-length episode wrong. */
+    contentType: session.type ?? null,
+    title,
+    meta: isEpisode && season && episode
+      ? `S${season} E${episode}`
+      : session.year
+        ? String(session.year)
+        : null,
+    album: null,
+    playlist: null,
+    image: session.thumb
+      ? `/api/plex/image?path=${encodeURIComponent(session.thumb)}`
+      : null,
+    position: Number.isFinite(session.position) ? session.position : null,
+    duration: Number.isFinite(session.duration) ? session.duration : null,
+    /* ⚠ NOT the instant playback started — the instant this snapshot was
+       FETCHED. Plex reports a position with no timestamp, so the only honest
+       anchor is when we asked. The reading re-syncs on every cache refresh and
+       the error between refreshes is only ever a pause or a seek, never
+       accumulated drift: the animation advances in real time and so does the
+       film. */
+    readingAt: plexAt || null
+  };
+}
+
+/**
+ * Every room that is making sound, in config order.
+ *
+ * Within a room a speaker beats a Plex stream — the same precedence the two
+ * readers above already document, applied per room instead of once globally.
+ * A Plex client the server could not map to a room is DROPPED, not renamed:
+ * the eyebrow on this surface is always a real room in this house, so a stream
+ * on a phone at work never claims to be one.
+ *
+ * @returns {Array<object>} possibly empty, never null
+ */
+export function mediaRoomsFrom(byId, plexSessions, plexAt = 0) {
+  const groups = CONFIG?.homeAssistant?.mediaPlayers;
+  if (!Array.isArray(groups)) return [];
+  const sessions = Array.isArray(plexSessions) ? plexSessions : [];
+  const rows = [];
+  const claimed = new Set();
+
+  for (const group of groups) {
+    const room = group?.label || null;
+    if (!room || claimed.has(room)) continue;
+
+    let row = null;
+    for (const id of group?.entityIds ?? []) {
+      const entity = byId[id];
+      if (!entity || entity.state !== "playing") continue;
+      if (isTvAudio(entity)) continue;          // a Sonos carrying TV audio is not "playing"
+      if (isGroupFollower(entity, id)) continue; // the coordinator already speaks for this track
+      row = speakerRow(entity, room);
+      if (row) break;
+    }
+
+    if (!row) {
+      const session = sessions.find((s) => s?.room === room);
+      if (session) row = plexRow(session, room, plexAt);
+    }
+
+    if (row) {
+      rows.push(row);
+      claimed.add(room);
+    }
+  }
+  return rows;
+}
+
 /* ── Plex ──────────────────────────────────────────────────────────────────
    The first active stream. `configMissing` is a real answer meaning "this house
    has no Plex configured", which is not the same as "no one is watching" — but
@@ -371,7 +523,16 @@ function cameraTriggerFrom(list, now) {
  *                                   would leak entities into every later spec in
  *                                   the file. Injecting keeps each case isolated.
  */
-export function houseSnapshot({ now = new Date(), insight = null, entities: injected = null } = {}) {
+export function houseSnapshot({
+  now = new Date(),
+  insight = null,
+  entities: injected = null,
+  /* Injected the same way entities are, and for the same reason: the Plex half
+     arrives over an HTTP cache, and a spec asserting per-room precedence must
+     be able to state what is streaming without standing up a server. Null means
+     "use the cache", which is what every caller on the wall does. */
+  plex: injectedPlex = null
+} = {}) {
   let entities = [];
   try {
     entities = injected ?? getAllEntities() ?? [];
@@ -415,6 +576,10 @@ export function houseSnapshot({ now = new Date(), insight = null, entities: inje
   const nextEvent = nextEventFrom(cache.calendar, now);
   const nowPlaying = haLive ? nowPlayingFrom(byId) : null;
   const plex = plexFrom(cache.plex);
+  const plexSessions = injectedPlex ?? cache.plex;
+  const mediaRooms = haLive || plexSessions
+    ? mediaRoomsFrom(byId, plexSessions, injectedPlex ? Date.now() : cache.plexAt)
+    : [];
   const menuName = menuFrom(cache.calendar, now);
   const cameraTrigger = haLive ? cameraTriggerFrom(list, now) : null;
 
@@ -446,6 +611,10 @@ export function houseSnapshot({ now = new Date(), insight = null, entities: inje
     plexSub: plex?.sub ?? null,
     plexImage: plex?.image ?? null,
 
+    /* Every room making sound, in config order. Additive: nothing above it
+       changed, so the flag-off surface reads exactly what it read before. */
+    mediaRooms,
+
     menuActive: Boolean(menuName),
     menuName,
 
@@ -467,5 +636,6 @@ export function __resetHouseCache() {
   cache.calendar = null;
   cache.commute = null;
   cache.plex = null;
+  cache.plexAt = 0;
   cache.fetchedAt = 0;
 }
