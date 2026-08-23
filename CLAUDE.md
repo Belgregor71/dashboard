@@ -81,7 +81,7 @@ it is "what happens if this is wrong".
 | **`scout` subagent** | Haiku | "Where does X live", "who calls Y", "is this flag reachable", "does the incumbent have this too" | Any verdict that leads to a deletion |
 | **`suite-triage` subagent** | Haiku | Running specs and reporting only the failures | Fixing the failures |
 | **`Explore` (built-in)** | — | Broad sweeps across many directories and naming conventions | Reviewing or auditing what it found |
-| **`/xreview` → local agent** | local ~20B, free and unlimited | A cold adversarial read of the outgoing diff before push. Measured 2/2 on planted defects, NO FINDINGS on clean code | Write access. Its only tools are read/search/list — there is no write tool to talk it into using |
+| **`/xreview` → local agent** | `devstral-small-2505`, free and unlimited | A cold adversarial read of the outgoing diff before push. Measured 2/2 on planted defects, silent on clean code, ~2.5 min | Write access. Its only tools are read/search/list — there is no write tool to talk it into using |
 | **`scripts/xbulk.mjs` → LM Studio** | local ~20B, free and unlimited | **Matching**: "which lines say X" over test logs, `journalctl`, CDP dumps | **Judging**: "what counts as X". Measured 19/19 on the first, 14/19 on the second — it dropped an item stated in plain English |
 
 **The rule that saves the most tokens:** a subagent's tool output never enters
