@@ -107,6 +107,13 @@ sets `context.fileName`). **Regenerate the mirror after editing this file** or
 the second model reviews against stale house rules:
 `node scripts/mirror-agents.mjs`.
 
+**⚠⚠ Unload the local model before `npm test`.** A resident 12 GB model starves
+the browser's GPU compositing and the suite has timing-sensitive browser specs —
+`v3-archive.spec.js:420` allows 500ms for a transition. With gpt-oss-20b loaded
+that spec failed **twice, reproducibly**, and passed 36/36 in isolation; with the
+GPU free the suite went **1559/1559**. `lms unload --all`, or let the 30-minute
+idle TTL do it. A red suite is not always the diff's fault.
+
 **The two local lanes pin DIFFERENT models, and swapping is automatic.** Measured
 on identical tasks: `devstral-small-2505` reviews far better (same recall, clean
 case 135s against 1,700s) and extracts far worse (13/19 against gpt-oss's 19/19).

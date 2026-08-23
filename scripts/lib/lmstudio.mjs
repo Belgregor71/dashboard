@@ -107,7 +107,13 @@ export async function ensureLmStudio({
     lms(['unload', '--all']);
   }
   say(`loading ${pick} at ${context} tokens (first run of the day takes a minute)`);
-  const r = lms(['load', pick, '--context-length', String(context), '--gpu', 'max', '-y'], 600000);
+  // --ttl matters more than it looks. A resident 12 GB model starves the
+  // browser's GPU compositing, and the Playwright suite has timing-sensitive
+  // browser specs — v3-archive.spec.js:420 allows 500ms for a transition. With
+  // a model loaded that spec failed TWICE, reproducibly; with the GPU free the
+  // suite went 1559/1559. An idle eviction means the hazard expires on its own
+  // instead of depending on someone remembering to unload before npm test.
+  const r = lms(['load', pick, '--context-length', String(context), '--gpu', 'max', '--ttl', '1800', '-y'], 600000);
   if (r.status !== 0) return null;
 
   models = await probe(host);
