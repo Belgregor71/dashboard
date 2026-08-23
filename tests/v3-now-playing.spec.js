@@ -47,6 +47,18 @@ async function bootV3(page, { flags = {} } = {}) {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
 
+  /* ⚠ PINNED OFF ON PURPOSE, and this whole file depends on it. core/media-rooms.js
+     replaces this surface and takes the same corner of the same depth layer, so
+     initNowPlaying() stands down whenever `v3MediaRooms` is on. When that flag's
+     DEFAULT flipped, every spec here started booting a page where `__v3NowPlaying`
+     is undefined — the legacy surface it exists to test never mounts.
+
+     These specs are the rollback path's guarantee: they prove the band this house
+     shipped still works, which is what makes `v3MediaRooms: false` a real revert
+     rather than a switch into an untested state. So the pin is deliberate and must
+     survive — a caller may still override it explicitly. */
+  flags = { v3MediaRooms: false, ...flags };
+
   await page.route("**/js/config.js", async (route) => {
     const res = await route.fetch();
     const body = (await res.text()) +

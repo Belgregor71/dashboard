@@ -1227,16 +1227,32 @@ window.CONFIG = {
     // on; initMediaRooms() does nothing when it is off. Turning this on without
     // that interlock would put two surfaces in one corner.
     //
-    // Default-OFF until seen on the glass. The thing that needs looking at is
-    // not the layout — that is measured — it is the RECORD: the artwork makes
-    // one revolution per track (1.13°/sec on a five-minute song), which is the
-    // only continuous motion this wall has, and the calm law is a live-measured
-    // budget rather than an opinion. Flip after a /kiosk-metrics reading.
+    // FLIPPED ON 2026-08-23, after being SEEN ON THE GLASS with the flag forced
+    // on for one page load (CDP addScriptToEvaluateOnNewDocument, nothing
+    // shipped) — the same way v3NowPlaying was verified above, and for the same
+    // reason. The wall showed both rooms at once with two Plex streams running:
+    // "LOUNGE ROOM · High Potential · S2 E14" over "PIANO ROOM · I Became a
+    // Legend… · S1 E3", each with its own progress rule, each named by its ROOM
+    // rather than by "Apple TV" and "Edge". `__v3NowPlaying()` read null in the
+    // same breath, so the interlock holds in production and not only in a spec.
+    // Geometry measured on the live panel: 96px from right and bottom, band top
+    // at y=0.402 — inside the 0.46 core/scrim.js guarantees.
+    //
+    // ⚠ THE RECORD'S COST IS BELOW THIS WALL'S MEASUREMENT NOISE, which is a
+    // weaker statement than "free" and is deliberately written that way. Two
+    // records held on the glass measured 28.0/31.0/27.3% of one core against a
+    // verified no-record baseline of 22.6/30.6/29.9%: the archive's own swing
+    // is ~8 points and swamps the difference. Three earlier attempts produced
+    // garbage — one sampled the transient of a DOM write plus two image
+    // decodes (+9%, false alarm), two more sampled a window in which the 60s
+    // recheck had already replaced the injected rows (+0.6%, measuring
+    // nothing). Any future reading must assert the disc count at each sample.
     //
     // Revert = `v3MediaRooms: false`, which restores the single-row band
-    // untouched — it is still there, still tested, and simply stops standing
-    // down.
-    v3MediaRooms: false,
+    // untouched — it is still there, still tested (tests/v3-now-playing.spec.js
+    // pins this flag off precisely so the rollback target stays proven), and
+    // simply stops standing down.
+    v3MediaRooms: true,
 
     // ── V3 CELL CONTEXT ────────────────────────────────────────────────────
     // The eyebrow above every composed cell and above the glance line: what the

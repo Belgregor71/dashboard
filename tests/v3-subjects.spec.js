@@ -850,7 +850,15 @@ test("⚠ an entity a probe pushes actually ARRIVES in the house", async ({ page
 });
 
 test("what's playing mounts the artwork at editorial scale, named by room", async ({ page }) => {
-  const { pageErrors } = await bootV3(page);
+  /* ⚠ PINNED ON, not left to the default — and the reversibility check is what
+     insisted. The eyebrow's ORDER is flag-dependent: the rooms surface reads
+     "Lounge Room · Glen Campbell" and the band it replaced read "Glen Campbell
+     · Lounge Room". Asserting either one while riding the default means the
+     spec passes today and fails the moment the flag is flipped back — which is
+     the rollback path, so a spec that only holds in one state quietly makes
+     the rollback unavailable. Pinned, this asserts the surface it names
+     regardless of what the default happens to be. */
+  const { pageErrors } = await bootV3(page, {}, { features: { v3MediaRooms: true } });
   await page.evaluate((entity) => window.__emitHaState(entity), PLAYING);
 
   const got = await show(page, "show me what's playing");
@@ -862,9 +870,17 @@ test("what's playing mounts the artwork at editorial scale, named by room", asyn
   expect(got.subject).toBe("show.media");
   expect(got.cell).toBe("nowPlaying");
   expect(got.text).toContain("Wichita Lineman");
-  // The artist AND the room — houseSnapshot joins them, and the eyebrow is the
-  // only place the wall says where the music is coming from.
-  expect(got.text).toContain("Glen Campbell · Lounge Room");
+  /* The ROOM AND the artist, room first — and the order changed deliberately
+     when v3MediaRooms flipped on 2026-08-23. It used to read "Glen Campbell ·
+     Lounge Room", because houseSnapshot joined them artist-first for a surface
+     whose subject was the track.
+
+     The subject of this wall is now the ROOM: depth 0 draws one row per room
+     with the room as its eyebrow, and a depth-3 caption that put the artist
+     first would be the only place in the system reading the other way round.
+     The room is also the half that survives truncation, which is the practical
+     argument for it leading. */
+  expect(got.text).toContain("Lounge Room · Glen Campbell");
   expect(got.images).toBe(1);
   expect(got.html).toContain("/api/image_proxy/api/media_player_proxy/");
   expect(pageErrors).toEqual([]);

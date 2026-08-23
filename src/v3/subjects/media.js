@@ -177,13 +177,9 @@ function elsewhere(rows, shown) {
 export function showMedia({ snapshot = null } = {}) {
   const house = snapshot ?? houseSnapshot();
 
-  if (flag("v3MediaRooms")) {
-    const rows = roomsFrom(house);
-    /* Nothing playing is a real answer, but it is a SPOKEN one — the fast lane
-       already says "nothing's playing" in a fifth of a second. Taking the whole
-       screen to show an empty rectangle saying the same thing is the opposite
-       of calm, so this falls through and voice.js speaks the sentence. */
-    if (!rows.length) return null;
+  const rows = flag("v3MediaRooms") ? roomsFrom(house) : [];
+
+  if (rows.length) {
 
     /* The first room in config order. The voice asked "what's playing", not
        "what is playing in the piano room" — deixis for a specific room is a
@@ -228,6 +224,21 @@ export function showMedia({ snapshot = null } = {}) {
     return { node, teardown };
   }
 
+  /* ⚠ THE FALLBACK IS NOT DEAD CODE WHEN THE FLAG IS ON, and a test caught that
+     the hard way. `mediaRoomsFrom` DROPS a Plex client the server could not map
+     to a room — correct for the ambient band, whose entire premise is that the
+     eyebrow is a real room in this house. But this surface is reached by
+     someone ASKING "show me what's playing", and answering "nothing" while a
+     stream is running is a worse failure than answering without a room name.
+     An unmapped client (a phone, a device added since PLEX_ROOM_MAP was
+     written) therefore still gets shown here, named the way it was before the
+     rebuild.
+
+     Nothing playing at all is still a real answer, and still a SPOKEN one — the
+     fast lane says "nothing's playing" in a fifth of a second, and taking the
+     whole screen to show an empty rectangle saying the same thing is the
+     opposite of calm. So a genuinely quiet house falls through to null and
+     voice.js speaks the sentence. */
   const playing = playingFrom(house);
   if (!playing) return null;
 
