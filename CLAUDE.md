@@ -97,10 +97,15 @@ not trustworthy enough to act on, fix the agent's brief, not this turn.
 **Cross-model review.** `/xreview` hands the diff to Gemini, which reads the
 files, chases callers, and returns findings — all of that reading happens in
 Gemini's context on Google's free tier, not here. It is advisory and deliberately
-**not** in `.githooks/pre-push`: that gate targets ~60s and must never depend on
-a free-tier network call, because a slow gate gets bypassed with `--no-verify`,
-which disables all six real ones. Treat its findings with the same scepticism as
-any agent report — verify before patching, and never delete on its say-so.
+**not** in `.githooks/pre-push`: that gate targets ~60s against the review's
+measured 133-163s, and a gate slow enough to annoy gets bypassed with
+`--no-verify`, which disables all six real ones. It runs as **step 2 of
+`/deploy`** instead — the deliberate ship path, which has no 60s budget to
+protect. `lms unload --all` is part of that step and is not tidiness: the model
+loads with `--ttl 1800`, so leaving it resident turns the browser specs red
+inside the very pre-push gate the next step triggers. Treat its findings with the
+same scepticism as any agent report — verify before patching, and never delete on
+its say-so.
 
 Gemini reads `AGENTS.md`, the same mirror Codex would (`.gemini/settings.json`
 sets `context.fileName`). **Regenerate the mirror after editing this file** or
