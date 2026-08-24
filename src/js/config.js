@@ -736,6 +736,47 @@ window.CONFIG = {
     // behaviour to the element. One-line revert (-> false).
     groundDiptych: true,
 
+    // GROUND FRAMING — where a landscape sits inside the crop it cannot avoid.
+    //
+    // `object-fit: cover` throws a photograph's overflow away from the CENTRE
+    // outwards, half off the top and half off the bottom. That is the right
+    // default only for a 16:9 library, because 16:9 into a 16:9 panel overflows
+    // by nothing.
+    //
+    // ⚠ THIS LIBRARY IS NOT 16:9. Measured 2026-08-24 over 681 deduped assets
+    // across fifteen month-windows spanning 2013-2023 (/api/immich/browse):
+    // portrait 339 (49.8%), 4:3 285 (41.9%), 3:2 49 (7.2%), 16:9 SIX (0.9%),
+    // wider 2. So 83.3% of every landscape here is 4:3, and the shape that
+    // loses nothing to cover is six photographs out of 681. Today's on-this-day
+    // pool agreed and was starker: 6 of its 7 landscapes were 4:3, none 16:9.
+    //
+    // A 4:3 preview is 1920x1440 on a 1080-tall panel: 360 source pixels of
+    // overflow, 180 off each end. This anchors it at 0.35 of the overflow
+    // instead — 126 off the top against 234 off the bottom, recovering 54px of
+    // exactly the band the owner's F6 report named ("heads are being cropped,
+    // tops of cocktails being left off"). Both live near the top of a frame.
+    //
+    // ⚠ IT ONLY MOVES A KNOWN LANDSCAPE. A portrait belongs in the diptych,
+    // which barely crops it at all; an UNKNOWN aspect is the ~4% of HEICs whose
+    // orientation Immich never recorded, and sliding a photograph we cannot
+    // measure is the guess `isKnownPortrait` already refuses to make. A 16:9 or
+    // wider frame has no vertical overflow and is untouched at any setting.
+    //
+    // ⚠ THE SCRIM FOLLOWS IT. core/scrim.js models cover itself to decide how
+    // much scrim the text needs; ground.js writes the anchor onto the element
+    // and the sampler reads it back, so it never solves for a band that is off
+    // the glass. One number, on the element, written in one place.
+    //
+    // ⏳ DEFAULT-OFF ON PURPOSE — 0.35 is a taste constant, not a finding. The
+    // arithmetic says how much is cut, never where the picture is. Judge it on
+    // the wall with `window.__groundBias(n)` (bounded [0, 0.5]; 0.5 is centre,
+    // i.e. the control arm) and flip only after an A/B, the way --arch-ghost's
+    // 0.22 was settled.
+    //
+    // Off: centred cover, byte-identical DOM — no inline style, no dataset
+    // mark. One-line revert (-> false).
+    groundFraming: false,
+
     // PHOTO VETO — "not this one", and the wall never shows it again.
     //
     // The ground holds a photograph for ten minutes at a time and there was no

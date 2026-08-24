@@ -39,6 +39,11 @@
    banner is pure; only the block beneath it touches the document.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* The only import this module has, and it is deliberately a PURE one: the
+   ground's vertical anchor. The sampler has to crop the photograph the same way
+   the glass does — see `coverRect`. */
+import { posYOf, CENTRE } from "./framing.js";
+
 /* WCAG 2.x asks 4.5:1 for body text. That ratio was derived for near reading;
    this is a 32" panel at 3-4 m, where distance eats contrast, so V3 targets 7:1.
    See docs/design/ and the V3 plan §6. */
@@ -290,19 +295,26 @@ export function worstRatio(cells, scrim, ink, alpha, minCoverage = BAND_MIN_COVE
 }
 
 /**
- * The source rectangle `object-fit: cover` actually shows, at the default
- * `object-position: 50% 50%`.
+ * The source rectangle `object-fit: cover` actually shows.
  *
  * ⚠ Sampling the whole source instead of this rectangle is the quiet bug in
  * this module's shape: a 3:2 photograph on a 16:9 wall has its top and bottom
  * cropped away, so the source's bottom band — the part a naive sample would
  * weight most heavily — is never on the screen at all.
+ *
+ * @param {number} [posY] the vertical anchor as a fraction of the overflow, the
+ *   same axis CSS `object-position: 50% <posY*100>%` moves. 0.5 is centre and is
+ *   what cover does unaided; core/framing.js slides a known landscape UP behind
+ *   `groundFraming`, and this argument is how the sampler follows it. Getting it
+ *   wrong is silent — the scrim would solve for a band of the picture that is
+ *   not on the glass — so ground.js writes the number onto the element and
+ *   sampleCells reads it back rather than either side assuming a default.
  */
-export function coverRect(natW, natH, boxW, boxH) {
+export function coverRect(natW, natH, boxW, boxH, posY = CENTRE) {
   const scale = Math.max(boxW / natW, boxH / natH);
   const sw = boxW / scale;
   const sh = boxH / scale;
-  return { sx: (natW - sw) / 2, sy: (natH - sh) / 2, sw, sh };
+  return { sx: (natW - sw) / 2, sy: (natH - sh) * posY, sw, sh };
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -397,7 +409,8 @@ export function sampleCells(img, boxW, boxH) {
         el.naturalWidth,
         el.naturalHeight,
         boxW / frame.length,
-        boxH
+        boxH,
+        posYOf(el)
       );
       ctx.drawImage(el, sx, sy, sw, sh, x0, 0, x1 - x0, GRID_H);
     });

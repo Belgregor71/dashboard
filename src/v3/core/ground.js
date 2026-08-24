@@ -60,6 +60,12 @@ const DISSOLVE_MS = 60 * 1000;
    cause the room can see; this one has the most visible cause there is, since
    someone in the room just said so out loud. Slow here does not read as calm,
    it reads as not listening. */
+/* ⚠ The ONLY import in this file, and it does not break the rule below: a pure
+   leaf with no imports of its own, so no cycle is possible. core/scrim.js
+   imports the same module, which is the entire point — the anchor the glass
+   uses and the anchor the legibility sampler assumes have to be ONE number. */
+import { framePosY, posYOf, setBias, CENTRE } from "./framing.js";
+
 const VETO_SETTLE_MS = 1200;
 const CLEANUP_BUFFER_MS = 2000;
 
@@ -568,6 +574,36 @@ function syncDiptychAttr() {
    flag-off call signature identical rather than merely equivalent. */
 const frameArg = (imgs) => (imgs.length > 1 ? imgs : imgs[0]);
 
+/**
+ * Anchor one photograph vertically. See core/framing.js for why this library
+ * needs it at all: 83.3% of its landscapes are 4:3, and a centred `cover` cuts
+ * 12.6% off the top of every one of them.
+ *
+ * ⚠ IT CLEARS AS WELL AS SETS, and that is not tidiness. `loadFirst` reuses the
+ * #ground element from index.html across a retry, so a biased landscape that
+ * failed to load could leave its offset on the portrait that replaces it. At
+ * CENTRE it removes both marks, which is why the flag-off DOM is byte-identical
+ * to what this module produced before the anchor existed rather than carrying a
+ * `50% 50%` that merely computes to the same thing.
+ */
+function frameImg(el, asset, isHalf) {
+  const posY = framePosY(asset?.aspect, isHalf);
+  if (posY === CENTRE) {
+    delete el.dataset.posY;
+    el.style.removeProperty("object-position");
+    return;
+  }
+  /* Both marks, always together. The style is what the eye sees; the dataset is
+     what scrim.js reads back (`posYOf`) so the sampler crops where the glass
+     crops. Writing one without the other is the silent failure this pair
+     exists to make impossible. */
+  el.dataset.posY = String(posY);
+  /* Unary plus trims the trailing zeros `toFixed` leaves behind: the browser
+     normalises "35.00%" to "35%" on read-back anyway, and emitting the form it
+     will report keeps what is written and what is inspected the same string. */
+  el.style.objectPosition = `50% ${+(posY * 100).toFixed(2)}%`;
+}
+
 /** The first frame of the session. */
 async function loadFirst(stallMs = STALL_MS) {
   if (inFlight || current) return false;
@@ -616,6 +652,7 @@ async function loadFirst(stallMs = STALL_MS) {
 
     imgs.forEach((el, i) => {
       el.decoding = "async";
+      frameImg(el, assets[i], imgs.length > 1);
       if (i > 0) host.append(el);
       el.src = thumbUrl(assets[i].id);
     });
@@ -718,7 +755,10 @@ async function dissolve(settleMs = DISSOLVE_MS, stallMs = STALL_MS) {
     // 0 — a node inserted already at its final state has nothing to transition
     // from and would cut rather than settle.
     for (const el of imgs) host.append(el);
-    imgs.forEach((el, i) => { el.src = thumbUrl(assets[i].id); });
+    imgs.forEach((el, i) => {
+      frameImg(el, assets[i], imgs.length > 1);
+      el.src = thumbUrl(assets[i].id);
+    });
     handedOff = true;
     return true;
   } catch {
@@ -896,6 +936,11 @@ export function initGround(img, opts = {}) {
     layers: host.querySelectorAll('img:not([data-half="1"])').length,
     imgs: host.querySelectorAll("img").length,
     pair: (current?.imgs?.length ?? 0) > 1,
+    /* The vertical anchor actually in force on the glass, per photograph — 0.5
+       is centre and is what every flag-off frame reports. Read on the kiosk to
+       prove the anchor moved something, and read by the specs so the assertion
+       is the number the sampler will use rather than a parsed CSS string. */
+    posY: (current?.imgs ?? []).map(posYOf),
     inFlight
   });
   // The specs drive the day boundary rather than sitting out a real one, and
@@ -906,4 +951,25 @@ export function initGround(img, opts = {}) {
   // really losing a photograph.
   window.__groundVeto = () => vetoCurrent();
   window.__groundRetry = (stallMs) => loadFirst(stallMs);
+
+  /* THE ANCHOR IS A JUDGEMENT AND THIS IS WHERE IT GETS MADE — in front of the
+     wall, the same lever `__archiveGhost` is and for the same reason. Bounded
+     in core/framing.js; 0.5 is the control arm, so an A/B never needs a deploy
+     to get back to today's behaviour.
+
+     ⚠ IT RE-FRAMES THE PHOTOGRAPH ALREADY ON THE GLASS, not merely the next
+     one. A lever that took ten minutes per step would be judged against a
+     different picture at every step, which is not an A/B at all. Re-firing
+     onPhoto is the other half: the scrim solved its opacity for the band that
+     WAS on screen, and moving the picture under a stale scrim would mis-report
+     the very legibility this anchor has to keep. */
+  window.__groundBias = (n) => {
+    const v = setBias(n);
+    if (current?.imgs?.length) {
+      const isHalf = current.imgs.length > 1;
+      current.imgs.forEach((el, i) => frameImg(el, current.assets[i], isHalf));
+      onPhoto(frameArg(current.imgs), { transitioning: false, assets: current.assets });
+    }
+    return v;
+  };
 }
