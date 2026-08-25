@@ -767,15 +767,37 @@ window.CONFIG = {
     // and the sampler reads it back, so it never solves for a band that is off
     // the glass. One number, on the element, written in one place.
     //
-    // ⏳ DEFAULT-OFF ON PURPOSE — 0.35 is a taste constant, not a finding. The
-    // arithmetic says how much is cut, never where the picture is. Judge it on
-    // the wall with `window.__groundBias(n)` (bounded [0, 0.5]; 0.5 is centre,
-    // i.e. the control arm) and flip only after an A/B, the way --arch-ghost's
-    // 0.22 was settled.
+    // ✅ DEFAULT-ON 2026-08-25, ON THE OWNER'S CALL, TAKEN IN DAYLIGHT AT THE
+    // WALL — the A/B this flag was built default-off for. Depth 0, a real 4:3
+    // from the live pool (1920x1440), centre against 0.35, back and forth.
+    //
+    // 🔑 THE PHOTOGRAPH THE WALL HAPPENED TO DRAW WAS THE ORIGINAL COMPLAINT.
+    // A food tray: at centre the rice bowl was cut through its rim and the
+    // glass beside it was sliced off at the top — "tops of cocktails being left
+    // off", verbatim, three months later. At 0.35 the bowl came back whole,
+    // rim and shadow, and the glass with it. What it cost was the bottom rim of
+    // the nearer plate. That is the trade, and it was accepted with both halves
+    // of it on the glass.
+    //
+    // ⚠⚠ THE ANCHOR BUYS PICTURE AND PAYS IN SCRIM, and the bill is written by
+    // the PHOTOGRAPH, not by this constant. Measured live, same setting:
+    //   · food tray, even luminance top to bottom   scrim 0.533 -> 0.542  (+0.009)
+    //   · city vista, bright sky along the top      scrim 0.596 -> 0.762  (+0.166)
+    // and at 0.2 that second photograph drove the scrim into SCRIM_MAX (0.85)
+    // and clamped. Pulling the frame up pushes whatever is at the TOP into the
+    // text band, and chooseAlpha darkens the WHOLE wall to keep the text legible.
+    // A fixed bias is subject-blind: it recovers a head or a bowl, and on a
+    // landscape vista it buys sky and pays for it. 0.35 is where those two
+    // stayed acceptable together. Nothing in the arithmetic above can see this
+    // — it is why the flag shipped off and was judged on the glass.
+    //
+    // The lever survives the flip: `window.__groundBias(n)`, bounded [0, 0.5],
+    // re-frames the photograph already up and re-fires the scrim. 0.5 is centre,
+    // so today's wall is one command away without a deploy.
     //
     // Off: centred cover, byte-identical DOM — no inline style, no dataset
     // mark. One-line revert (-> false).
-    groundFraming: false,
+    groundFraming: true,
 
     // PHOTO VETO — "not this one", and the wall never shows it again.
     //
