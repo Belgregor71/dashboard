@@ -112,9 +112,18 @@ const up = await ensureLmStudio({
   say: (m) => console.error(`  · ${m}`),
 });
 if (!up) {
+  // ⚠ `lms ps` FIRST, and that order is deliberate. This message used to open
+  // with `lms load`, which — if a model is in fact already resident — asks for a
+  // SECOND copy and trips LM Studio's memory guardrail ("requires approximately
+  // 22.29 GB"). That reads like a machine too small for the lane and is nothing
+  // of the sort. Look before loading.
   die('could not bring LM Studio up.\n' +
-      '  Check it is installed, then:  lms server start\n' +
-      '  followed by:  lms load devstral-small-2505 --context-length 32768 --gpu max');
+      '  FIRST check whether a model is already resident:  lms ps\n' +
+      '    (if it lists one this is a bring-up race, not a failure — just re-run)\n' +
+      '  If nothing is loaded:  lms server start\n' +
+      '  then:  lms load devstral-small-2505 --context-length 32768 --gpu max\n' +
+      '  Do NOT run that load while `lms ps` shows a model — it asks for a second\n' +
+      '  copy and fails on memory.');
 }
 const loaded = up.models.filter((m) => m.state === 'loaded' && !/embed/i.test(m.id));
 if (!MODEL) MODEL = up.model;

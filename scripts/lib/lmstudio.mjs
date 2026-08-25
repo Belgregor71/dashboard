@@ -97,13 +97,22 @@ export async function ensureLmStudio({
   // sweep) — so accepting whatever happened to be loaded would silently run a
   // lane on the model that is worse at its job. A reload costs about a minute;
   // a quietly wrong answer costs more. Pass `preferred: [x]` to pin one.
-  const usable = loaded.filter(
-    (m) => (m.loaded_context_length ?? 0) >= minContext && m.id === pick,
-  );
+  // ONE definition of "this will do", used both to accept what is already up and
+  // to decide the load worked. They were separate expressions and disagreed: the
+  // post-load check accepted ANY loaded chat model at ANY context, so a lane
+  // could return the model this function had just refused two lines earlier.
+  const accepts = (m) =>
+    m.state === 'loaded' && isChat(m) && m.id === pick
+    && (m.loaded_context_length ?? 0) >= minContext;
+
+  const usable = loaded.filter(accepts);
   if (usable.length) return { models, model: usable[0].id, context: usable[0].loaded_context_length };
 
   if (loaded.length) {
-    say(`${loaded[0].id} is loaded with only ${loaded[0].loaded_context_length} tokens — reloading`);
+    const why = loaded[0].id === pick
+      ? `only ${loaded[0].loaded_context_length} tokens`
+      : `the wrong model for this lane`;
+    say(`${loaded[0].id} is loaded with ${why} — reloading`);
     lms(['unload', '--all']);
   }
   say(`loading ${pick} at ${context} tokens (first run of the day takes a minute)`);
@@ -116,7 +125,26 @@ export async function ensureLmStudio({
   const r = lms(['load', pick, '--context-length', String(context), '--gpu', 'max', '--ttl', '1800', '-y'], 600000);
   if (r.status !== 0) return null;
 
-  models = await probe(host);
-  const now = (models || []).find((m) => m.state === 'loaded' && isChat(m));
+  /* ⚠⚠ THE MODEL IS NOT QUERYABLE THE INSTANT `lms load` RETURNS, and a single
+     probe here reported failure on a load that had entirely succeeded. Measured
+     2026-08-25: `lms load` exited 0, this probe found nothing, the caller
+     printed "could not bring LM Studio up" — and `lms ps` showed the model IDLE
+     at 14.33 GB and the full 32768 context the whole time.
+
+     🔑 THE COST WAS NOT THE WASTED RUN. The advice that failure prints is
+     "run: lms load ..." — which, with the model already resident, asks for a
+     SECOND copy. That trips LM Studio's memory guardrail ("requires
+     approximately 22.29 GB") and reads like a machine too small for the lane,
+     which is the wrong lesson entirely. A bring-up race that lies in that
+     direction costs more than one that simply retries.
+
+     Same shape and same budget as the server-start loop above — 10 x 1.5s. A
+     load that has not registered inside fifteen seconds is a real failure. */
+  let now = null;
+  for (let i = 0; i < 10 && !now; i++) {
+    models = await probe(host);
+    now = (models || []).find(accepts);
+    if (!now) await new Promise((res) => setTimeout(res, 1500));
+  }
   return now ? { models, model: now.id, context: now.loaded_context_length } : null;
 }
