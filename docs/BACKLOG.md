@@ -6,9 +6,32 @@ Where a doc and the code disagreed, the code won and the doc is flagged for corr
 
 Ordering: **security → new features → the measurement debt that gates them → cleanup.**
 
-> ## ✅ P0, **F1**–**F5**, **F7**, **F8**, **P4** and **M1** ARE CLOSED. **F6 is half done.**
-> **F4 was rebuilt on V3 2026-08-18 and owes only its GPU reading and the panel's verdict** —
-> it is flag-off until someone has looked at it in daylight.
+> ## ✅ EVERYTHING IN THIS FILE IS CLOSED EXCEPT **M2**, THE 72-HOUR SOAK (2026-08-25).
+> P0, **F1**–**F8**, **P4**, **M1**, all of **P3** and the stale-docs list are done. **M2 has
+> never been run** — a 23.6 h soak ran clean at the cutover and the 72 h one is still owed;
+> take `/kiosk-metrics` at 0 h / 24 h / 72 h.
+>
+> **2026-08-25 — F4 is closed: the panel's verdict was given.** `v3Archive` is default-on and
+> the owner has seen the archive on the wall — card, year rail, ghosts. ⚠ The sighting settled
+> something else in passing: with the archive on the glass the GROUND is a near-black backdrop
+> behind a 0.6-0.85 scrim, so **nothing about the ground can be judged after dark.**
+>
+> **2026-08-25 — F6 is closed, both halves, and the framing half was never the small
+> remainder this file filed it as.** Measured over 681 assets: **4:3 is 41.9% of the library
+> and 16:9 is SIX PHOTOGRAPHS.** The crop table below describes a library the house does not
+> own. Shipped as `groundFraming`, settled default-on by the owner in daylight at the panel.
+> 🔑🔑 **The anchor buys picture and pays in scrim** — +0.009 on one photograph, **+0.166** on
+> another at the identical setting, clamping at `SCRIM_MAX` by 0.2. The arithmetic cannot see
+> that; only the wall could. ⚠⚠ **It shipped with a defect the wall caught in under a minute:**
+> the gate read the ASSET's aspect while `object-position` acts on the RENDITION, and for the
+> ~4% of orientation-less HEICs those disagree. **A field describing a FILE and a field
+> describing WHAT THE BROWSER DREW are different facts.** Three green suites missed it because
+> every fixture's claimed shape matched its own bytes.
+>
+> **2026-08-25 — S1 is closed and nothing was owed.** `npm audit --omit=dev` returns
+> **0 vulnerabilities**; the `fast-uri` high went out with an unrelated bump. ⚠ It sat here as
+> "the cheapest item in the file, do this first" long after it stopped being true —
+> **re-run the command before believing any advisory written down here.**
 >
 > **2026-08-15 — F3 is closed, and it was not a flag chore.** Two of its three flags were
 > **dead levers**: `motionWakeGate` has 0 occurrences in the V3 bundle and is now retired
@@ -75,18 +98,21 @@ Ordering: **security → new features → the measurement debt that gates them �
 
 ## P0 — Security ✅ COMPLETE
 
-### S1 · `npm audit fix` — one live high advisory
-**~15 min. Do this first; it is the cheapest item in the file.**
+### S1 · ✅ **CLOSED 2026-08-25 — the advisory is gone; nothing was owed**
+**Nothing to do — the tree was already clean when this was finally checked.**
 
-`npm audit --omit=dev` reports **1 high**: `fast-uri` 3.1.4 (host confusion via backslash
-authority introducer, GHSA-7p8r-x3mc-p8w7), reached via `ajv@8.20.0`. This is a *new*
-advisory — the original four from the audit (C1) are all closed.
+`npm audit --omit=dev` returns **`found 0 vulnerabilities`** (verified 2026-08-25). The item
+described **1 high** — `fast-uri` 3.1.4, host confusion via backslash authority introducer,
+GHSA-7p8r-x3mc-p8w7, reached through `ajv@8.20.0` — and it is no longer present, carried out
+by an unrelated dependency bump rather than by anyone acting on this entry.
 
-Transitive and not directly reachable from our own code, so the risk is low — but the fix is
-`npm audit fix` plus a suite run, and leaving a known high in the tree costs more in review
-noise than it saves.
+⚠ **It sat here as "the cheapest item in the file, do this first" for weeks after it had
+stopped being true.** A transitive advisory can close without anyone touching it, so the
+entry describing one is stale the moment the tree moves. The check is one command and it is
+cheaper than the item: **re-run `npm audit --omit=dev` before believing any advisory written
+down here.**
 
-**Done when:** `npm audit --omit=dev` is clean and `npm test` is green.
+**Done when:** ✅ `npm audit --omit=dev` clean.
 
 ---
 
@@ -271,7 +297,7 @@ as the Phase 5 viewing:
 
 ---
 
-### F3 · ⚠ **NOT a flag chore — two of the three were DEAD LEVERS, and a real defect sat under one**
+### F3 · ✅ **DONE — and it was NOT a flag chore: two of the three were DEAD LEVERS, and a real defect sat under one**
 
 **`gamingQuiet` skipped on the owner's call (2026-08-15) — no value seen in it.** The other
 two were both picked up, and neither could change what is on the wall. Same class as F4, and
@@ -327,9 +353,19 @@ the three water binary sensors, so the dock's own error enum is invisible to eve
 
 ---
 
-### F4 · Ambient Archive — ✅ **REBUILT ON V3 2026-08-18. ⏳ Not yet seen on the wall.**
+### F4 · Ambient Archive — ✅ **DONE. Rebuilt on V3 2026-08-18, `v3Archive` DEFAULT-ON, SEEN ON THE WALL (owner, 2026-08-25).**
 
-**Built, suite +28 green, behind `v3Archive` (default-off).** The owner's call on the
+**✅ SEEN ON THE WALL — owner, 2026-08-25.** `v3Archive` is **default-on**
+(`src/js/config.js:1548`) and the archive owns depth 0 after dark: the tilted card, the
+2012-2023 year rail and the two ghosts, all confirmed on the panel. The ⏳ this entry carried
+is discharged.
+
+⚠ **One thing the sighting also settled, incidentally:** with the archive on the glass the
+ground photograph is the near-black backdrop behind a 0.6-0.85 scrim, so **anything being
+judged about the GROUND cannot be judged after dark** — which is why F6's anchor had to wait
+for daylight.
+
+**Built, suite +28 green, behind `v3Archive` (was default-off at the time of writing).** The owner's call on the
 2026-08-15 re-scope was **port it**, and not as a port: the two complaints about what
 shipped were structural, so depth 0 gets a rebuilt composition rather than the old one
 moved across.
@@ -527,7 +563,7 @@ Two sibling phrases already fall through and are safe today: `"will it rain on t
 
 ---
 
-### F6 · ⚠ **HALF DONE 2026-08-15 — the dominant cause was a wrong `aspect`, not a blind crop** (`d710e99`)
+### F6 · ✅ **DONE — both halves. The dominant cause was a wrong `aspect`, not a blind crop** (`d710e99`, `fd75d79`)
 
 **The framing arithmetic below is correct and was not the main event.** Measured on the live
 library before any code was changed, by fetching every preview in the day's on-this-day pool
@@ -569,7 +605,7 @@ diptych half and crop them harder than doing nothing.
 ✅ **Seen on the glass 2026-08-15**: a real diptych, both halves whole, and both proven to be
 orientation-6 assets the old expression called landscape. Live route now serves 62/100 portrait.
 
-#### ▸ What is LEFT of F6 — the framing half, now the smaller one
+#### ▸ ✅ The framing half — CLOSED 2026-08-25 (`0b2e318`, `90a0016`, `fd75d79`)
 
 The centred blind crop is still real for what stays full-bleed, and the numbers below still
 stand. ⚠ **But size it before building it: only 34 of 202 assets (16.8%) have any detected
@@ -598,9 +634,47 @@ and says nothing about how much is cut — a 4:3 photo passes that gate and stil
 quarter of its height.
 
 ⚠ **The 3:4 row is now mostly handled** — that is what `d710e99` bought: a portrait the library
-knows about goes into a diptych half and keeps ~84% instead of 42%. **The 4:3 row is what is
+knows about goes into a diptych half and keeps ~84% instead of 42%. **The 4:3 row was what was
 left**, and it is the common one. Same family as the radar defect closed in F2: a centred blind
 crop that looks plausible until someone looks at it.
+
+**⚠⚠ AND THE TABLE ABOVE UNDERSTATES IT BADLY. The 16:9 row describes SIX PHOTOGRAPHS.**
+Measured 2026-08-24 over 681 deduped assets from `/api/immich/browse`, fifteen month-windows
+spanning 2013-2023: portrait 339 (49.8%), **4:3 285 (41.9%)**, 3:2 49 (7.2%), **16:9 6 (0.9%)**,
+wider 2. So 83.3% of every landscape in this library is 4:3, and the one shape a centred
+`cover` loses nothing on effectively does not occur here. This was never the rare remainder it
+was filed as.
+
+**Shipped as `groundFraming`** — a vertical anchor at 0.35 of the overflow for a landscape that
+actually overflows (126px off the top against 234 off the bottom on a 4:3, recovering 54px).
+Portraits, unknown aspects and 16:9-or-wider are refused and stay centred.
+
+🔑 **The face-driven `object-position` this section proposed was sized and DROPPED**, on the
+numbers already recorded above: only 16.8% of assets have any detected face, boxes are one
+request per asset, and *"the tops of cocktails"* is not a face. It would have needed a
+subject-blind fallback for 83% of the library anyway — which is what shipped, on its own.
+
+🔑🔑 **What the arithmetic could not see, and only the wall said: THE ANCHOR BUYS PICTURE AND
+PAYS IN SCRIM.** Measured live, same setting, two photographs:
+**food tray 0.533 → 0.542 (+0.009)** against **city vista 0.596 → 0.762 (+0.166)** — and at 0.2
+that vista drove the scrim into `SCRIM_MAX` 0.85 and clamped. Pulling the frame up pushes whatever sits at the top into the
+text band and `chooseAlpha` darkens the whole wall to keep text legible. A fixed bias is
+subject-blind in both directions.
+
+**Settled default-on by the owner in daylight, at the panel** (2026-08-25, depth 0, centre
+against 0.35 on a real 4:3 from the live pool). The photograph the wall happened to draw was a
+food tray: at centre the rice bowl was cut through its rim and the glass beside it sliced off
+at the top — *"tops of cocktails being left off"*, verbatim, three months on. At 0.35 both came
+back whole, at the cost of the near plate's bottom rim.
+
+⚠⚠ **IT SHIPPED WITH A DEFECT AND THE WALL CAUGHT IT IN UNDER A MINUTE** (`fd75d79`). The gate
+read the ASSET's aspect; `object-position` acts on the RENDITION. For the ~4% of HEICs whose
+orientation Immich never recorded those disagree — asset `dd8e00f6` reported 1.333 while the
+browser drew 0.75 — so the anchor slid a photograph already losing 58% even further up, on
+precisely the assets the first half of F6 deliberately left centred. **A field describing a
+FILE and a field describing WHAT THE BROWSER DREW are different facts.** Three green suites and
+a passing reversibility check all missed it because every fixture's claimed shape matched its
+own bytes; the regression test is the disagreement.
 
 ---
 
@@ -1078,8 +1152,10 @@ skill whose whole job is to be trusted. Fixed; both referenced scripts now resol
   `isScreenshot()` at `immichClient.js:96`, its application at `:167`, and
   `IMMICH_EXCLUDE_SCREENSHOTS=1` in the G11's `.env` re-confirmed first), with the `photoVeto`
   caveat recorded. The 5.1 row now carries the live evidence instead of the ⏳.
-- `docs/design/HANDOVER-AMBIENT-ARCHIVE.md:3` — "flag-off" is now only half true
-  (`archiveFitToPrint` is on).
+- ✅ `docs/design/HANDOVER-AMBIENT-ARCHIVE.md:3` — **done 2026-08-25.** "flag-off, not yet seen
+  on the panel" was false in both halves by then: `v3Archive` and `archiveFitToPrint` are both
+  default-on and the archive has been seen on the wall. The banner now says so rather than
+  describing the state it was written in.
 - ✅ `tests/local-voice.spec.js` — **done 2026-08-15.** "Handled by the incumbent" now says
   which surface it means: the rollback one, not the wall. The list is kept, not dropped — a
   rollback surface that has gone mute is a rollback nobody can use.

@@ -1,6 +1,8 @@
 # Handover — the Ambient Archive screensaver (calm law v3)
 
-> **BUILT 2026-08-01, flag-off, not yet seen on the panel.**
+> **BUILT 2026-08-01. LIVE AND SEEN ON THE PANEL (owner, 2026-08-25).**
+> `v3Archive` and `archiveFitToPrint` are both **default-on**; the flag-off framing this
+> file was written under no longer describes the wall.
 > `docs/design/AMBIENT-ARCHIVE.md` is now the implementation authority — read that for
 > what shipped and what changed from the reference. This file stays as the record of the
 > two owner decisions, the traps, and the reasoning behind the shape.
