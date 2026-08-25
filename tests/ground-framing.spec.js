@@ -216,7 +216,7 @@ const POOL = [
   landscape43("l2", "2013-08-24T11:00:00Z")
 ];
 
-async function bootV3(page, { groundFraming = true } = {}) {
+async function bootV3(page, { groundFraming = true, pool = POOL, png = FOUR_THREE } = {}) {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
 
@@ -232,10 +232,10 @@ async function bootV3(page, { groundFraming = true } = {}) {
     });
   });
   await page.route("**/api/immich/on-this-day", (route) =>
-    route.fulfill({ contentType: "application/json", body: JSON.stringify({ assets: POOL }) })
+    route.fulfill({ contentType: "application/json", body: JSON.stringify({ assets: pool }) })
   );
   await page.route("**/api/immich/asset/*/thumb", (route) =>
-    route.fulfill({ contentType: "image/png", body: FOUR_THREE })
+    route.fulfill({ contentType: "image/png", body: png })
   );
 
   await page.goto("/v3/");
@@ -287,6 +287,48 @@ test("flag on: a 4:3 landscape is anchored, and both marks are written together"
   expect(x).toBe("50%");
   expect(parseFloat(y)).toBeCloseTo(DEFAULT_BIAS * 100, 6);
   expect(el.computed).toBe(el.inline);
+  expect(pageErrors).toEqual([]);
+});
+
+/* ⚠⚠ THE ASSET LIES AND THE RENDITION DOES NOT — the defect this shipped with,
+   caught on the wall within a minute of the flag going default-on.
+
+   Immich's top-level width/height are post-rotation for almost everything, which
+   is what d710e99 fixed. For the ~4% of HEICs whose `orientation` it never
+   recorded they are NOT: it reports landscape in every field it has and still
+   delivers a rotated PORTRAIT preview. Seen live on 2026-08-25 — server
+   `aspect: 1.333`, rendered 0.75 — and the anchor slid a photograph that already
+   loses 58% to `cover` even further up. Strictly worse than doing nothing, on
+   precisely the assets F6 identified as unfixable server-side.
+
+   The fixture is the defect: the pool says 4/3, the bytes are 3:4. A spec that
+   trusted the pool's own number could not tell the two apart. */
+test("an asset that CLAIMS landscape but renders portrait is left alone", async ({ page }) => {
+  const PORTRAIT = bandedPng(300, 400, 0x11, 0xee);
+  const lying = [
+    { ...landscape43("liar-1", "2013-08-24T06:00:00Z") },
+    { ...landscape43("liar-2", "2013-08-24T11:00:00Z") }
+  ];
+
+  const pageErrors = await bootV3(page, { pool: lying, png: PORTRAIT });
+  const el = await page.evaluate(() => {
+    const img = document.querySelector(".photo img");
+    return {
+      claimed: 4 / 3,
+      rendered: +(img.naturalWidth / img.naturalHeight).toFixed(3),
+      inline: img.style.objectPosition || null,
+      dataset: img.dataset.posY ?? null,
+      posY: window.__ground().posY
+    };
+  });
+
+  // The premise: the fixture really does disagree with itself.
+  expect(el.rendered).toBe(0.75);
+
+  // The assertion: the RENDITION wins, so this is a portrait and stays centred.
+  expect(el.inline).toBe(null);
+  expect(el.dataset).toBe(null);
+  expect(el.posY).toEqual([CENTRE]);
   expect(pageErrors).toEqual([]);
 });
 

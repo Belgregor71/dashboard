@@ -87,10 +87,14 @@ const flagOn = () => Boolean(globalThis.window?.CONFIG?.features?.groundFraming)
  * decide whether to write anything at all, which is what keeps the flag-off DOM
  * identical rather than merely equivalent.
  *
- * @param {number|null|undefined} aspect  DISPLAY aspect (post-rotation), i.e.
- *   `slim()`'s `aspect` off Immich's top-level width/height — NOT the exif pair,
- *   which is pre-rotation and called 31.7% of this library's portraits
- *   landscapes until d710e99. See services/immichClient.js `displayAspect`.
+ * @param {number|null|undefined} aspect  THE RENDITION'S aspect —
+ *   `naturalWidth / naturalHeight` off the decoded `<img>`, and nothing else.
+ *   ⚠⚠ NOT `slim()`'s `aspect`: that is what Immich SAYS, and for the ~4% of
+ *   HEICs whose orientation it never recorded it says landscape while delivering
+ *   a rotated portrait. Shipping this gate on the asset field put an anchor on a
+ *   portrait on the live wall (2026-08-25). `object-position` acts on the
+ *   rendition, so the gate reads the rendition. Same rule, same reason, as
+ *   services/archiveModel.js:110.
  * @param {boolean} [isHalf]  true for a diptych half, whose box is 952 wide
  *   rather than 1920 — a different overflow entirely, and not one this anchor
  *   was measured against.

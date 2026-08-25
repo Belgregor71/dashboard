@@ -575,22 +575,51 @@ function syncDiptychAttr() {
 const frameArg = (imgs) => (imgs.length > 1 ? imgs : imgs[0]);
 
 /**
+ * Strip any anchor from an element, leaving exactly the DOM this module
+ * produced before the anchor existed.
+ *
+ * ⚠ CALLED BEFORE EVERY `src`, and that is not tidiness. `loadFirst` reuses the
+ * #ground element from index.html across a retry, so an anchored landscape that
+ * failed to load could otherwise leave its offset sitting on the portrait that
+ * replaces it.
+ */
+function clearFrame(el) {
+  delete el.dataset.posY;
+  el.style.removeProperty("object-position");
+}
+
+/**
  * Anchor one photograph vertically. See core/framing.js for why this library
  * needs it at all: 83.3% of its landscapes are 4:3, and a centred `cover` cuts
  * 12.6% off the top of every one of them.
  *
- * ⚠ IT CLEARS AS WELL AS SETS, and that is not tidiness. `loadFirst` reuses the
- * #ground element from index.html across a retry, so a biased landscape that
- * failed to load could leave its offset on the portrait that replaces it. At
- * CENTRE it removes both marks, which is why the flag-off DOM is byte-identical
- * to what this module produced before the anchor existed rather than carrying a
- * `50% 50%` that merely computes to the same thing.
+ * ⚠⚠ THE ASPECT COMES OFF THE DECODED RENDITION, NEVER OFF THE ASSET. This was
+ * shipped wrong and caught on the wall within a minute of the flag going
+ * default-on: `slim()`'s `aspect` is what Immich SAYS, and for the ~4% of HEICs
+ * whose orientation it never recorded it says landscape while still delivering
+ * a rotated PORTRAIT preview. Seen live — server `aspect: 1.333`, rendered
+ * `naturalWidth/Height` 0.75 — and the anchor duly slid a photograph that
+ * already loses 58% even further up, which is strictly worse than leaving it
+ * alone. `object-position` acts on the RENDITION, so the gate has to read the
+ * rendition too.
+ *
+ * 🔑 THE REPO SAID THIS ALREADY, TWICE. services/archiveModel.js:110 warns it in
+ * its own JSDoc, and F6's first half (d710e99) fixed the same class of error one
+ * module across. The rule is not "prefer naturalWidth" — it is that a field
+ * describing a file and a field describing what the browser drew are different
+ * facts, and only the second one can be reasoned about geometrically.
+ *
+ * ⚠ THEREFORE CALLED FROM `onload`, never before `src`: naturalWidth is 0 until
+ * the image decodes. It lands before the frame is ever visible — the latch sets
+ * `data-shown` only once every half has loaded — so there is no jump to see.
  */
-function frameImg(el, asset, isHalf) {
-  const posY = framePosY(asset?.aspect, isHalf);
+function frameImg(el, isHalf) {
+  const natural = el.naturalWidth > 0 && el.naturalHeight > 0
+    ? el.naturalWidth / el.naturalHeight
+    : null;
+  const posY = framePosY(natural, isHalf);
   if (posY === CENTRE) {
-    delete el.dataset.posY;
-    el.style.removeProperty("object-position");
+    clearFrame(el);
     return;
   }
   /* Both marks, always together. The style is what the eye sees; the dataset is
@@ -644,15 +673,17 @@ async function loadFirst(stallMs = STALL_MS) {
       onPhoto(frameArg(imgs), { transitioning: false, assets });
     };
 
+    const isHalf = imgs.length > 1;
     for (const el of imgs) {
-      el.onload = shot.half(settle);
+      const latch = shot.half(settle);
+      el.onload = () => { frameImg(el, isHalf); latch(); };
       el.onerror = shot.take(fail);
     }
     shot.arm(fail, stallMs);
 
     imgs.forEach((el, i) => {
       el.decoding = "async";
-      frameImg(el, assets[i], imgs.length > 1);
+      clearFrame(el);
       if (i > 0) host.append(el);
       el.src = thumbUrl(assets[i].id);
     });
@@ -745,8 +776,10 @@ async function dissolve(settleMs = DISSOLVE_MS, stallMs = STALL_MS) {
       syncDiptychAttr();
       inFlight = false;
     };
+    const isHalf = imgs.length > 1;
     for (const el of imgs) {
-      el.onload = shot.half(settle);
+      const latch = shot.half(settle);
+      el.onload = () => { frameImg(el, isHalf); latch(); };
       el.onerror = shot.take(fail);
     }
     shot.arm(fail, stallMs);
@@ -756,7 +789,7 @@ async function dissolve(settleMs = DISSOLVE_MS, stallMs = STALL_MS) {
     // from and would cut rather than settle.
     for (const el of imgs) host.append(el);
     imgs.forEach((el, i) => {
-      frameImg(el, assets[i], imgs.length > 1);
+      clearFrame(el);
       el.src = thumbUrl(assets[i].id);
     });
     handedOff = true;
@@ -967,7 +1000,7 @@ export function initGround(img, opts = {}) {
     const v = setBias(n);
     if (current?.imgs?.length) {
       const isHalf = current.imgs.length > 1;
-      current.imgs.forEach((el, i) => frameImg(el, current.assets[i], isHalf));
+      current.imgs.forEach((el) => frameImg(el, isHalf));
       onPhoto(frameArg(current.imgs), { transitioning: false, assets: current.assets });
     }
     return v;
