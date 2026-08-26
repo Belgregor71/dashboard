@@ -356,9 +356,42 @@
     .hero__layer, .dot, .wave i { animation: none !important; }
     .hero__layer.golden { opacity: 1; }
   }
+  /* Superseded banner — added 2026-08-26; the law this study was written under
+     was repealed 2026-08-01 (DESIGN_SYSTEM.md §0.1). Study kept as the record. */
+  .superseded { background: var(--surface-2); border-bottom: 1px solid var(--line); padding: 20px 0; }
+  .superseded__inner { display: flex; gap: 20px; align-items: stretch; }
+  .superseded__rule { flex: 0 0 3px; background: var(--gold); border-radius: 2px; }
+  .superseded .eyebrow { color: var(--gold); margin: 0 0 8px; }
+  .superseded p { margin: 0; color: var(--ink-dim); font-size: 0.94rem; line-height: 1.62; }
+  .superseded p + p { margin-top: 8px; }
+  .superseded s { color: var(--ink-faint); }
+  .superseded strong { color: var(--ink); font-weight: 600; }
+  .superseded code { font-family: var(--font-mono); font-size: 0.88em; }
+
 </style>
 </head>
 <body>
+
+<!-- ======================= SUPERSEDED NOTICE ======================= -->
+<aside class="superseded">
+  <div class="wrap superseded__inner">
+    <div class="superseded__rule" aria-hidden="true"></div>
+    <div>
+      <p class="eyebrow">Superseded · 2026-08-01</p>
+      <p><s>0% GPU at idle is the hard floor</s> — <strong>this study is a frozen record of
+      the design language as it shipped under the <em>old</em> law; it is not being
+      rewritten.</strong> The figure under “Atmosphere over decoration” and the
+      “everything else — 0% GPU” row of the motion budget describe the bar the Pi 4 was
+      held to, and are left as they stand.</p>
+      <p>New work follows <code>DESIGN_SYSTEM.md</code> §0 law 1 — <em>never move for a
+      reason the room can’t see</em> — and the §5.4 budget: quiescent ambient ≤ 8%,
+      live ambient ≤ 25% sustained, peak episode ≤ 35%. Motion may now be continuous and
+      may live on the resting surface, provided it reports a cause outside the screen.
+      “0% at rest” was not relaxed but <strong>repealed</strong>: it is measurably false
+      in daylight (<code>docs/audit/HOST-BASELINES.md</code>, Correction 3).</p>
+    </div>
+  </div>
+</aside>
 
 <!-- ============================ HERO ============================ -->
 <header class="hero">

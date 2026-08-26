@@ -1,6 +1,52 @@
 # Handover — two docs still gate on a law repealed 25 days ago
 
-> **Status: not started, fully unblocked. Docs-only change — no code, no flag, no deploy.**
+> # ✅ DONE — 2026-08-26. Docs-only; nothing deployed.
+>
+> **Kept as the record of the diagnosis, not as work to pick up.** Both fixes shipped, plus a
+> third instance this document’s own grep could not see.
+>
+> **FIX 1** (`DESIGN_ROLLOUT.md`) — done as suggested. The `Verify` gate now reads *quiescent
+> ambient ≤ 8% (`DESIGN_SYSTEM.md` §5.4)* with the `(Was …; revised 2026-08-01)` annotation, and
+> “the invariant the 0% gate depends on” became “the invariant the **quiescent-ambient** gate
+> depends on”. The reason clause was kept verbatim — only the number moved.
+>
+> ⚠ **§3 misattributes that line, and overstates the urgency.** The gate is in **WP-D**’s
+> `Verify` row, not WP-A’s — WP-A is *“Drop the ABC news ticker”* and never touched the ground.
+> More to the point, **every WP in this file is ✅ SHIPPED except WP-E**, and WP-D shipped
+> 2026-07-13 (`15b4793`): nobody was ever going to run it and fail the bar, so it was a stale
+> *record*, not the live ship gate §3 describes. The edit still stands — WP-D’s row is the
+> reference for the two follow-ups it explicitly defers (the weather-based living accent and the
+> day-boundary photo cross-dissolve), which **are** unshipped and would be verified against it.
+> Right fix, wrong reason.
+>
+> **FIX 2** (`homeos-design-language.html`) — **owner chose the marker**, on the evidence that
+> `d64d25c` added it as one of “the six HomeOS design studies … as standalone HTML” and nothing
+> in the repo links to it: a period study, not live guidance. A `.superseded` banner now sits
+> above the hero in the voice of `design_handoff_homeos_home/README.md:22`, built from the
+> study’s own tokens and `.wrap`/`.eyebrow`, verified rendering in **both** themes with zero
+> page errors. **:519 and :554 keep their 0% figures** — the banner names both by their exact
+> wording, so the record of the old law survives inside the document that asserts it.
+>
+> ⚠ **A THIRD instance, and §6 predicted its shape exactly.** `DESIGN_ROLLOUT.md:125-126`
+> — WP-D’s shipped-record, *“gpu-process 0% over 25s in Mode 0 … AND 0% awake-idle”* — is
+> **not matched by §5’s grep**: the string is `0% awake-idle`, which has neither “rest” nor
+> “idle” in the guarded position. Found by grepping the **number** (`grep -n "0%" | grep -v
+> "100%"`), which is what §6 says to do and what §5 did not encode. It is the same file §3
+> was already fixing, mentioning the rule a **third** time, 11 lines above the second.
+> Annotated rather than rewritten (it is a measurement, so §4’s precedent applies) — but WP-D
+> shipped 2026-07-13, *before* `560a32d` fixed `gpucpu.sh`, so those zeroes mean **“below
+> ~25% of a core”**, not zero. Un-annotated it read as evidence the repealed law was once met.
+>
+> ⚠ **§5’s grep is therefore still incomplete.** If this drift is ever automated into the
+> pre-push gate, gate on the **number**, not on either phrase.
+>
+> Not touched, as instructed: the exempt handoff bundle (`git diff` names 2 files, neither in
+> it), the seven correct instances in §2, `homeos-ambient-clock.html:176` per §4, and
+> `docs/vision/phase-7-dissolve.md:13`, which already carries its own correction.
+
+> **Status at the time of writing: not started, fully unblocked. Docs-only change — no code,
+> no flag, no deploy.** *(Superseded by the banner above — everything below is the handover as
+> it was handed over, left unedited so the diagnosis and the fix can be read against each other.)*
 > The diagnosis below is finished and verified against the files; what is left is two edits,
 > one grep, and a decision about whether to file it in `BACKLOG.md`.
 

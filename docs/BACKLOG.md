@@ -1156,6 +1156,20 @@ skill whose whole job is to be trusted. Fixed; both referenced scripts now resol
   on the panel" was false in both halves by then: `v3Archive` and `archiveFitToPrint` are both
   default-on and the archive has been seen on the wall. The banner now says so rather than
   describing the state it was written in.
+- ✅ `docs/design/DESIGN_ROLLOUT.md` + `docs/design/homeos-design-language.html` — **done
+  2026-08-26.** The 2026-08-01 repeal of *“0% GPU at rest”* updated seven documents and missed
+  these two; `DESIGN_ROLLOUT.md` still carried the old number as a `Verify` **gate**. Re-gated
+  on the §5.4 quiescent row (≤ 8%); the study got a superseded banner and **keeps** its 0%
+  figures as the record. Diagnosis + the corrections to it:
+  `docs/design/HANDOVER-GPU-LAW-DOC-DRIFT.md`.
+
+  ⚠ **A third instance sat 11 lines from the second, in the file that was already being
+  fixed, and the handover’s own grep could not see it** — `0% awake-idle` has neither “rest”
+  nor “idle” where the pattern looks. Grepping the **number** (`grep -n "0%" | grep -v "100%"`)
+  found it. ⚠ **No automated catcher exists for this class of drift.** If one is ever added to
+  `.githooks/pre-push`, gate on the number, not the phrase — the phrase is what let this
+  survive twice.
+
 - ✅ `tests/local-voice.spec.js` — **done 2026-08-15.** "Handled by the incumbent" now says
   which surface it means: the rollback one, not the wall. The list is kept, not dropped — a
   rollback surface that has gone mute is a rollback nobody can use.
