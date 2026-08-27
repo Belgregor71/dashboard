@@ -60,8 +60,9 @@ const SYSTEM_PROMPTS = {
 
 /* The type list, derived rather than restated so it cannot drift from the
    prompts above. `insight` was never in here; a caller sent it anyway and the
-   fallback on the route below turned that into a morning briefing nobody asked
-   for. tests/ai-brief-callers.spec.js holds every caller to this list. */
+   old fallback on the route below turned that into a morning briefing nobody
+   asked for. Guarded on both sides now: the route 400s an unknown type, and
+   tests/ai-brief-callers.spec.js holds every caller to this list. */
 export const SYSTEM_PROMPTS_TYPES = Object.keys(SYSTEM_PROMPTS);
 
 function buildPrompt({ type, time, weather, events, bins, commute, fuel, news, home }) {
@@ -133,8 +134,29 @@ async function generateWithOllama(type, system, prompt) {
 }
 
 router.post("/api/ai/brief", loopbackOnly("The briefing endpoint"), async (req, res) => {
-  const body   = req.body ?? {};
-  const type   = SYSTEM_PROMPTS[body.type] ? body.type : "morning";
+  const body = req.body ?? {};
+
+  /* An unrecognised type is a 400, not a briefing.
+     This used to read `SYSTEM_PROMPTS[body.type] ? body.type : "morning"`, which
+     made a wrong type indistinguishable from no type — so attentionEngine's
+     `{ type: "insight" }` (never a key here) was silently served the full
+     MORNING BRIEFING prompt, and its `text` field, which buildPrompt does not
+     read, vanished. What reached the wall was a model refusal:
+     "I need the actual time, day of the week, and season to give you a proper
+     briefing." Nobody had asked for a briefing; this line is where the word
+     came from. Failing loudly is the whole fix — a caller that names a type
+     we do not have has a bug, and it should hear about it on the first call.
+
+     Omitting `type` entirely still means "morning". That is the route's
+     documented default and a different statement from naming one wrongly. */
+  if (body.type != null && !SYSTEM_PROMPTS[body.type]) {
+    return res.status(400).json({
+      summary: null,
+      error: `Unknown brief type "${body.type}". Expected one of: ${SYSTEM_PROMPTS_TYPES.join(", ")}.`,
+    });
+  }
+
+  const type   = body.type ?? "morning";
   const system = SYSTEM_PROMPTS[type];
   const prompt = buildPrompt(body);
 

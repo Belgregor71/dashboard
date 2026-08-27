@@ -1273,6 +1273,35 @@ test.describe("ai + tts", () => {
     expect(body).toHaveProperty("summary");
   });
 
+  /* An unknown type is a 400 — it used to be a full morning briefing. The route
+     read `SYSTEM_PROMPTS[body.type] ? body.type : "morning"`, so a caller naming
+     a type that does not exist was indistinguishable from one naming none, and
+     `{ type: "insight" }` put a model refusal on the wall that opened "I need
+     the actual time, day of the week, and season to give you a proper briefing"
+     — with nobody having asked for a briefing. */
+  test("POST /api/ai/brief rejects an unknown type instead of briefing", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/ai/brief", {
+      method: "post",
+      data: { type: "insight", text: "Bins go out tonight" },
+      statuses: [400]
+    });
+    expect(body).toHaveProperty("error");
+    expect(body.summary).toBeNull();
+    // The message must name the real options, or the next caller guesses again.
+    expect(body.error).toContain("concierge");
+  });
+
+  // Naming no type at all is a different statement from naming a wrong one, and
+  // keeps its documented "morning" default — the three real callers all send one.
+  test("POST /api/ai/brief still defaults to morning when no type is given", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/ai/brief", {
+      method: "post",
+      data: { time: "Thursday afternoon, 4:26 pm, winter in Brisbane" },
+      statuses: [200, 502]
+    });
+    expect(body).toHaveProperty("summary");
+  });
+
   // Phase 4 voice lanes (docs/vision/phase-4-voice.md). Assist proxies text to
   // HA's conversation API (502 when HA is down/misconfigured); converse is the
   // Claude house-voice (502 with reply:null when both AI upstreams are out,
