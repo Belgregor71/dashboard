@@ -27,9 +27,10 @@ import { phrase, shouldSpeak } from "../core/personality.js";
 // mode sets the floor + depth via selectForMode; the pure ranking core lives
 // in attentionRank.js so it stays node-testable.
 //
-// This absorbs insightEngine.js's job (briefing refresh + AI phrasing + the
-// cooldown store) for the flag-on path; insightEngine stays as the flag-off
-// path until a later cleanup.
+// This absorbs insightEngine.js's job (briefing refresh + the cooldown store)
+// for the flag-on path; insightEngine stays as the flag-off path until a later
+// cleanup. It does NOT rephrase: the deterministic template IS the house voice
+// (docs/design/VOICE.md), the same conclusion insightEngine.js reached.
 
 const REFRESH_MS = 5 * 60 * 1000;
 const QUIET_START_HOUR = 21;
@@ -38,7 +39,6 @@ const COOLDOWN_KEY = "dashboard:insight-cooldowns";
 const FUEL_HISTORY_KEY = "dashboard:fuel-history";
 
 let insightCandidates = []; // from the async briefing refresh
-let phrasedById = {};       // id → AI-phrased display text (template is fallback)
 let injected = [];          // debug-injected candidates (__forceCandidate)
 let currentHeroId = null;
 
@@ -101,26 +101,23 @@ function personalityEnabled() {
   }
 }
 
-async function aiPhrase(templateText) {
-  const res = await fetch("/api/ai/brief", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ type: "insight", text: templateText }),
-    signal: AbortSignal.timeout(8_000)
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-  const summary = data?.summary?.trim();
-  // Guard against model failure modes: empty, rambling, or fact-free output
-  // is worse than the template.
-  if (!summary || summary.length > 140) return null;
-  return summary;
-}
+/* There was an aiPhrase() here that POSTed { type: "insight" } to
+   /api/ai/brief. `insight` was never one of that route's SYSTEM_PROMPTS, so the
+   route's `SYSTEM_PROMPTS[body.type] ? body.type : "morning"` fallback silently
+   served the full MORNING BRIEFING prompt; buildPrompt then ignored `text`
+   (it reads only time/weather/events/…), leaving the model a system prompt
+   swearing the Time line is fact on four axes and a user turn reading exactly
+   "Time: unknown". It answered the only way it could — "I need the actual time,
+   day of the week and season to give you a proper briefing" — and that reached
+   the wall, unasked, twice over: refresh() phrased only the top insight, but
+   phrasedById persisted, so each new top candidate added another refusal.
+   The length<=140 guard passed them all; a refusal is short.
+   insightEngine.js:13 had already retired this pass for being a near-identity
+   transform that only cost latency. It stays retired here too. */
 
 async function refresh() {
   if (inQuietHours()) {
     insightCandidates = [];
-    phrasedById = {};
     return;
   }
 
@@ -161,40 +158,21 @@ async function refresh() {
     insightCandidates = [...insightCandidates, ...collectDelight(now)].sort((a, b) => b.score - a.score);
   }
 
-  // AI-phrase only the top insight (matches the old single-line behaviour);
-  // the deterministic template is always the fallback.
-  const top = insightCandidates[0];
-  if (top && !phrasedById[top.id]) {
-    const phrased = await aiPhrase(top.text).catch(() => null);
-    if (phrased) {
-      phrasedById[top.id] = phrased;
-      console.log(`[attention] ${top.id}: ${phrased}`);
-    }
-  }
-
-  // Drop phrasings for candidates that are no longer live.
-  const liveIds = new Set(insightCandidates.map((c) => c.id));
-  for (const id of Object.keys(phrasedById)) {
-    if (!liveIds.has(id)) delete phrasedById[id];
-  }
 }
 
 /**
  * The synchronous read for focusHero's tick. Merges the cached insight
- * candidates (with any AI phrasing) + the live source candidates + any
- * debug-injected candidates, ranks them, and applies the presence mode.
+ * candidates + the live source candidates + any debug-injected candidates,
+ * ranks them, and applies the presence mode.
  * Claims the insight cooldown when the hero changes.
  */
 export function getSelection({ sources = [], now = new Date(), mode = "glance", weights = null } = {}) {
-  const phrased = insightCandidates.map((c) =>
-    phrasedById[c.id] ? { ...c, text: phrasedById[c.id] } : c
-  );
   const intent = intentEnabled() ? getContext().intent : null;
 
   // Phase 10: route every candidate's copy through the one temperament voice, and
   // let the centralised silence thresholds drop a line the house would stay quiet
   // about. Flag-off → the list is untouched (byte-identical ranking + selection).
-  let candidates = [...phrased, ...sources, ...injected];
+  let candidates = [...insightCandidates, ...sources, ...injected];
   if (personalityEnabled()) {
     candidates = candidates
       .filter((c) => shouldSpeak(c, intent))

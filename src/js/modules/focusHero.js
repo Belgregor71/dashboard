@@ -8,6 +8,11 @@ import { getLastCameraTrigger } from "./cameraTiles.js";
 import { getMode } from "../core/presence.js";
 import { on } from "../core/eventBus.js";
 import { attentionWeights } from "../core/routineRuntime.js";
+// The concierge shares /api/ai/brief's TIME_GROUNDING, which states the Time
+// line carries weekday, part of day, clock AND season as fact. Import the
+// briefing's own line rather than rebuilding it — this caller was short two
+// axes for exactly as long as it had its own copy.
+import { timeLine } from "./aiBriefing.js";
 
 const TICK_MS = 30_000;
 const CONCIERGE_MIN_INTERVAL_MS = 20 * 60 * 1000;
@@ -194,7 +199,14 @@ async function maybeFetchConcierge(weatherCondition) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         type: "concierge",
-        time: new Date().toLocaleString("en-AU", { weekday: "long", hour: "numeric", minute: "2-digit", hour12: true }),
+        // All FOUR axes TIME_GROUNDING promises. This used to send weekday +
+        // clock only ("Thursday 4:26 pm"); the system prompt swore the season
+        // was stated as fact and the concierge prompt tells the model to "riff
+        // on the time of day and the given season alone" when weather is
+        // missing — so on a weatherless tick it had been asked to use two
+        // facts it was never given. The sibling insight lane hit the harsher
+        // form of the same mismatch and put a refusal on the wall.
+        time: timeLine(),
         weather
       }),
       signal: AbortSignal.timeout(8_000)

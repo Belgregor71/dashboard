@@ -132,16 +132,29 @@ export function dayPart(date = new Date()) {
   return "night";
 }
 
-export function buildBriefPayload(ctx) {
-  const when    = ctx.generatedAt;
+/* THE Time line — the single definition of the four axes TIME_GROUNDING
+   (server/routes/ai.js) swears the model is being told as fact: weekday, part
+   of the day, clock, season.
+
+   It is exported because it has two callers. The concierge in focusHero.js
+   used to build its own, and built it short — weekday + clock only, "Thursday
+   4:26 pm" — so a prompt promising four facts delivered two, and the concierge
+   prompt's "riff on the time of day and the given season alone" pointed at a
+   season that was never sent. Both grounding commits (61aeaf8 season, b02def1
+   daypart) updated this payload and neither touched that caller. One function
+   is the fix: the two lines can no longer drift apart. */
+export function timeLine(when = new Date()) {
   const weekday = when.toLocaleDateString("en-AU", { weekday: "long" });
   const clock   = when.toLocaleTimeString("en-AU", {
     hour: "numeric", minute: "2-digit", hour12: true,
   });
-  const time = `${weekday} ${dayPart(when)}, ${clock}, ${southernSeason(when)} in Brisbane`;
+  return `${weekday} ${dayPart(when)}, ${clock}, ${southernSeason(when)} in Brisbane`;
+}
+
+export function buildBriefPayload(ctx) {
   return {
     type:    ctx.type,
-    time,
+    time:    timeLine(ctx.generatedAt),
     weather: weatherText(ctx),
     events:  eventsText(ctx),
     bins:    binsText(ctx),

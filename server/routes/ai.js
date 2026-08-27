@@ -58,6 +58,12 @@ const SYSTEM_PROMPTS = {
   ].join(" "),
 };
 
+/* The type list, derived rather than restated so it cannot drift from the
+   prompts above. `insight` was never in here; a caller sent it anyway and the
+   fallback on the route below turned that into a morning briefing nobody asked
+   for. tests/ai-brief-callers.spec.js holds every caller to this list. */
+export const SYSTEM_PROMPTS_TYPES = Object.keys(SYSTEM_PROMPTS);
+
 function buildPrompt({ type, time, weather, events, bins, commute, fuel, news, home }) {
   const lines = [`Time: ${time ?? "unknown"}`];
   if (weather) lines.push(`Weather: ${weather}`);

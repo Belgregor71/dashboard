@@ -9,8 +9,10 @@
 
    It does not author, rewrite, trim, join or punctuate a single word. Every
    `text` it places is the candidate's own, already phrased upstream by
-   attentionEngine — AI when `/api/ai/brief` answers, `personality.phrase()` when
-   it does not. That is step 2.3, and it is already true rather than newly built:
+   attentionEngine — the deterministic template, then `personality.phrase()`.
+   (There was an AI rewrite pass here until it put a model refusal on the wall;
+   see the tombstone in attentionEngine.js.) That is step 2.3, and it is already
+   true rather than newly built:
    the honest work of 2.3 is making sure the composer does not quietly become a
    second author. So there is no fetch here, no template string interpolating a
    candidate's fields, and no fallback copy. If a candidate has nothing to say it
@@ -91,10 +93,9 @@ export function compose(selection) {
          rule at the top of this file survives intact, and a candidate with no
          `sub` still renders exactly as it does today.
 
-         ⚠ `text` STAYS the line. attentionEngine rewrites `text` — AI phrasing
-         (`phrasedById`) then `personality.phrase()` — and leaves `title`
-         untouched, so rendering the title instead would silently throw the
-         house's own voice away. */
+         ⚠ `text` STAYS the line. attentionEngine rewrites `text` via
+         `personality.phrase()` and leaves `title` untouched, so rendering the
+         title instead would silently throw the house's own voice away. */
       label: candidate.sub ?? null,
       id: candidate.id,
       candidate
