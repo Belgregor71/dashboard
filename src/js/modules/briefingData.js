@@ -12,6 +12,14 @@ import { sleepSummary } from "../services/sleepSummary.js";
 // and the AI prompt both render from this one context object, so what's
 // displayed and what the model was told can never drift apart.
 
+/* Read per-call off `window.CONFIG`, never at module load: ES imports hoist
+   above the point where /js/config.js assigns `window.CONFIG`, so a
+   module-level read freezes to undefined. Same helper, same reason, as
+   services/houseSnapshot.js. */
+function flag(name) {
+  return Boolean(globalThis.window?.CONFIG?.features?.[name]);
+}
+
 const CONTEXT_TTL_MS = 5 * 60 * 1000;
 let cached = null; // { type, at, context }
 let nowcastOverride = null; // __nowcastProbe seed for kiosk verification
@@ -250,7 +258,7 @@ export async function gatherBriefingContext(type) {
   const day         = now.getDay();
   const wantCommute = type === "morning" && day >= 1 && day <= 5;
 
-  const [weatherRes, forecastRes, calRes, binsRes, fuelRes, newsRes, nowcastRes, gregRes, brettRes] =
+  const [weatherRes, forecastRes, calRes, binsRes, fuelRes, newsRes, nowcastRes, gregRes, brettRes, choresRes] =
     await Promise.allSettled([
       getJson("/api/weather/now"),
       getJson("/api/weather/forecast"),
@@ -261,6 +269,9 @@ export async function gatherBriefingContext(type) {
       getJson("/api/weather/nowcast"),
       wantCommute ? fetchLeg("greg")  : Promise.resolve(null),
       wantCommute ? fetchLeg("brett") : Promise.resolve(null),
+      // Flag-off is NO FETCH, not a discarded one: the off state has to be the
+      // network behaviour it had before this existed, not merely the same words.
+      flag("choreRoster") ? getJson("/api/chores") : Promise.resolve(null),
     ]);
 
   const val = (r) => (r.status === "fulfilled" ? r.value : null);
@@ -304,6 +315,11 @@ export async function gatherBriefingContext(type) {
           words:      binsData.words ?? [],
         }
       : null,
+    /* The roster, whole, exactly as the route sent it. No reshaping here: the
+       briefing, the fast lane and the digest all read the same server answer,
+       and a per-caller normalisation is how three surfaces start disagreeing
+       about whose night it is. */
+    chores: val(choresRes),
     fuel: cheapest
       ? { price: cheapest.price, name: cheapest.name, distanceKm: cheapest.distanceKm }
       : null,

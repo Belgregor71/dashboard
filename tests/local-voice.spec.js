@@ -474,8 +474,22 @@ test.describe("vocabulary — the house only offers what it can actually answer"
   });
 
   test("every candidate is a phrase the matcher can resolve", () => {
-    const lost = ALL_CANDIDATES.filter((u) => !matchIntent(u) && u !== "brief me");
-    expect(lost, `candidates the matcher cannot resolve: ${lost.join(", ")}`).toEqual([]);
+    /* ⚠ FLAG-GATED ROWS ARE ARMED HERE, and that is not a weakening of the
+       assertion. This test is about PHRASING drift — a candidate whose wording
+       the matcher no longer knows — and a row that is merely OFF is a different
+       statement, one this test would otherwise report as a lost phrase every
+       time a flag ships default-off. The off state is not going unwatched:
+       vocabularyFor's truth filter drops an unclaimed phrase from the card, and
+       tests/chore-roster.spec.js pins both directions of it. */
+    const prior = globalThis.window;
+    try {
+      globalThis.window = { CONFIG: { features: { choreRoster: true } } };
+      const lost = ALL_CANDIDATES.filter((u) => !matchIntent(u) && u !== "brief me");
+      expect(lost, `candidates the matcher cannot resolve: ${lost.join(", ")}`).toEqual([]);
+    } finally {
+      if (prior === undefined) delete globalThis.window;
+      else globalThis.window = prior;
+    }
   });
 });
 

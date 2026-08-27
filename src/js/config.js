@@ -1584,6 +1584,30 @@ window.CONFIG = {
     // off state is asserted in tests/depth-census.spec.js, which pins the flag
     // false rather than inheriting whichever way this line points.
     v3DepthCensus: true,
+
+    // ── The chore roster ────────────────────────────────────────────────────
+    // Who feeds the dogs tonight, and whose turn the bins are. Owner's rules,
+    // 2026-08-27: the dogs alternate by NIGHT starting with Brett; the bins
+    // alternate by COLOUR — Brett takes red + green, Greg takes red + yellow.
+    //
+    // The roster itself is server-side (server/services/choreRoster.js) and
+    // this flag gates only who READS it: the briefing's prompt line, the fast
+    // lane's "whose turn is it" sentence, and the digest line the conversational
+    // voice sees. One roster, three surfaces — a client-side copy of the date
+    // math would be a fourth answer waiting to disagree with the other three.
+    //
+    // ⚠ THE FAST LANE'S ROW IS GATED AT THE MATCHER, not at the answerer. With
+    // the flag off "whose turn is it to feed the dogs" is claimed by nothing and
+    // falls through to the model exactly as it did before this existed; with it
+    // on, the row sits ABOVE house.bins, which matches a bare `bins` and would
+    // otherwise swallow "who's on the bins" and answer with the colours.
+    //
+    // Revert (-> false): briefingData stops fetching /api/chores so the payload
+    // carries no `chores` and the prompt has no Chores line; the intent row is
+    // skipped; voiceSnapshot stops fetching and the digest key never appears.
+    // The route stays mounted and answers a GET nobody makes. Both states are
+    // asserted in tests/chore-roster.spec.js.
+    choreRoster: false,
   },
 
   /* --------------------------------------------------------------

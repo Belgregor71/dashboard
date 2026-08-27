@@ -87,7 +87,16 @@ test.describe("PRIVACY GUARD — sleep is health data and must never leave the b
   // is POSTed to /api/ai/brief which forwards to Anthropic. The payload is built
   // from an explicit named allowlist rather than a ctx spread, which is what makes
   // that safe. This test pins the allowlist: adding a `sleep:` line here fails.
-  const ALLOWED_KEYS = ["type", "time", "weather", "events", "bins", "commute", "fuel", "news", "home"];
+  /* ⚠ ADDING A KEY HERE IS A DISCLOSURE DECISION, not a test fix. Everything in
+     this list is POSTed to /api/ai/brief and forwarded to Anthropic.
+
+     `chores` (2026-08-27) was reviewed on that footing and carries two first
+     names and a bin colour — "Brett feeds the dogs tonight". First names
+     already leave the box in `home` ("Greg is home, Brett is away"), so this
+     opens no new class of data; it does not carry an address, a device, a
+     health reading or anything the roster's route does not already publish on
+     the LAN. */
+  const ALLOWED_KEYS = ["type", "time", "weather", "events", "bins", "chores", "commute", "fuel", "news", "home"];
 
   const ctx = () => ({
     type: "morning",

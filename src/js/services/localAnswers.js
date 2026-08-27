@@ -257,6 +257,37 @@ const ANSWERERS = {
     return { speech: `${b.label}: ${speakList((b.bins ?? []).map((x) => names[x] ?? x))}.`, refs: ["bins"] };
   },
 
+  /* ── The chore roster ──────────────────────────────────────────────────
+     Two chores with two different rules, so two sentences at most and each
+     one names WHO. Everything it says comes from /api/chores via the
+     snapshot: nothing is re-derived from the clock here, because a second
+     copy of the alternation is a second answer waiting to disagree with the
+     briefing and the digest.
+
+     ⚠ IT SPEAKS COLOURS, not the council's words. "Red and green night is
+     Brett's" is how the household states the rule, and house.bins above
+     answers the different question — WHICH bins — in the council's words. */
+  "house.chores": (s, slots) => {
+    const c = s.chores;
+    if (!c?.configured) return null;
+
+    // The dog roster is per NIGHT, so a named day picks the night. The matcher
+    // has already refused any day past tomorrow.
+    const offset = slots?.day?.offset === 1 ? 1 : 0;
+    const feeder = offset === 1 ? c.dogs?.tomorrow : c.dogs?.tonight;
+    const dogs = feeder
+      ? `${feeder} feeds the dogs ${offset === 1 ? "tomorrow night" : "tonight"}.`
+      : null;
+    const bins = binChoreSpeech(c.bins, slots?.day ?? null);
+
+    if (slots?.chore === "dogs") return dogs ? { speech: dogs, refs: [] } : null;
+    if (slots?.chore === "bins") return bins ? { speech: bins, refs: ["bins"] } : null;
+
+    const both = [dogs, bins].filter(Boolean);
+    if (!both.length) return null;
+    return { speech: both.join(" "), refs: bins ? ["bins"] : [] };
+  },
+
   "house.media": (s) => {
     if (!Array.isArray(s.media)) return null;   // no players known != nothing playing
     const m = s.media[0];
@@ -466,6 +497,32 @@ const ANSWERERS = {
   // this whole lane exists to avoid.
   "meta.vocabulary": () => ({ speech: "Here's some of what you can ask me.", refs: [], showVocabulary: true })
 };
+
+/* The bin half of the roster, or null.
+   Null is the answer whenever the roster cannot name a person — a schedule
+   that degraded to red-only names nobody, and "someone takes them out" is not
+   worth a sentence. The turn then falls through to a lane that can hedge.
+
+   ⚠ A NAMED DAY IS ONLY ANSWERABLE WHEN IT IS THE OUT-NIGHT. "Are the bins
+   mine tomorrow?" asked three days early has one honest answer and it is not
+   the next collection's. Declining is the same rule the calendar's day gate
+   applies, one chore over. */
+function binChoreSpeech(bins, day) {
+  const next = bins?.configured ? bins.next : null;
+  if (!next?.person || !next.eve) return null;
+  if (day && day.offset !== next.eve.inDays) return null;
+
+  const colours = speakList(next.colours);
+  if (!colours) return null;
+  const named = colours.charAt(0).toUpperCase() + colours.slice(1);
+
+  // Negative means the truck comes today and the night before has passed.
+  if (next.eve.inDays < 0) return `${named} are due this morning — that's ${next.person}.`;
+  const when = next.eve.inDays === 0 ? "tonight"
+    : next.eve.inDays === 1 ? "tomorrow night"
+    : `${next.eve.weekday} night`;
+  return `${named} go out ${when} — that's ${next.person}.`;
+}
 
 function todays(events) {
   return onDay(events, 0);

@@ -45,6 +45,16 @@ const CANDIDATES = [
   { utterance: "am I free", weight: 1 },
   { utterance: "who's home", weight: 2 },
   { utterance: "what bins go out", weight: 3, when: (s) => s.bins?.due === true },
+  /* The roster teaches worse than anything else here if it is not taught: a
+     chore rota nobody knows they can ask about is answered by asking the other
+     person, which is what the house is for. Offered from mid-afternoon, when
+     the night's jobs are the ones still ahead.
+
+     No flag test here on purpose — with the roster off, matchIntent claims the
+     phrase for nothing and the truth filter below drops it, which is the same
+     gate every other candidate passes through. */
+  { utterance: "whose turn is it to feed the dogs", weight: 3,
+    when: (s, d) => Boolean(s.chores?.configured) && d.hour >= 15 },
   { utterance: "what's playing", weight: 2, when: (s) => (s.media?.length ?? 0) > 0 },
   { utterance: "how did I sleep", weight: 3, when: (s, d) => d.hour < 11 },
   { utterance: "how's the traffic", weight: 2, when: (s, d) => d.hour >= 6 && d.hour < 10 },

@@ -36,6 +36,7 @@ const SYSTEM_PROMPTS = {
     "Those examples are style references ONLY — their content (bins, UV, events) must not leak into your answer.",
     "Use only the real details given below. Mention the practical stuff first — weather warnings, bins, calendar events, unusual traffic — then, if there's room, one dry aside about a news headline or the fuel price.",
     "If a topic has no line in the data below (no Bins line, no Traffic line, etc.), it does not exist today — do not mention it at all.",
+    "The Chores line, when present, states whose turn it is — say the name as given, never swap it, and never invent a chore that has no line.",
   ].join(" "),
   evening: [
     "You are the voice of an Australian family's home, speaking on their wall dashboard.",
@@ -47,6 +48,7 @@ const SYSTEM_PROMPTS = {
     "Those examples are style references ONLY — their content (bins, weather, events) must not leak into your answer.",
     "Use only the real details given below. Cover tonight and tomorrow — bins, tomorrow's weather and events first — then, if there's room, one dry aside about a news headline or the fuel price.",
     "If a topic has no line in the data below (no Bins line, no Traffic line, etc.), it does not exist today — do not mention it at all.",
+    "The Chores line, when present, states whose turn it is — say the name as given, never swap it, and never invent a chore that has no line.",
   ].join(" "),
   concierge: [
     "You are an ambient one-line observation on a wall dashboard. Output ONLY one short sentence, 12 words maximum, about the weather or time of day.",
@@ -65,11 +67,12 @@ const SYSTEM_PROMPTS = {
    tests/ai-brief-callers.spec.js holds every caller to this list. */
 export const SYSTEM_PROMPTS_TYPES = Object.keys(SYSTEM_PROMPTS);
 
-function buildPrompt({ type, time, weather, events, bins, commute, fuel, news, home }) {
+function buildPrompt({ type, time, weather, events, bins, chores, commute, fuel, news, home }) {
   const lines = [`Time: ${time ?? "unknown"}`];
   if (weather) lines.push(`Weather: ${weather}`);
   if (events)  lines.push(`Calendar: ${events}`);
   if (bins)    lines.push(`Bins: ${bins}`);
+  if (chores)  lines.push(`Chores: ${chores}`);
   if (commute) lines.push(`Traffic: ${commute}`);
   if (fuel)    lines.push(`Fuel: ${fuel}`);
   if (news)    lines.push(`News headlines: ${news}`);

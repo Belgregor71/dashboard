@@ -129,7 +129,12 @@ export function todayLine(now = new Date()) {
    deliberate. Being told what it cannot see is what stops the house filling
    the gap with a fluent invention; it is the difference between "the shopping
    list is empty" and "I can't see the shopping list from here". */
-export const MAX_DIGEST_ENTRIES = 16;
+/* 17 = every key houseDigest() can produce at full visibility, counted rather
+   than guessed: a cap BELOW that number does not shorten the prompt, it
+   silently drops whichever key sorts last (cameras) on exactly the turns where
+   the house can see the most. Recount it when a key is added — the chore
+   roster is the one that made this 16. */
+export const MAX_DIGEST_ENTRIES = 17;
 export const MAX_DIGEST_VALUE_CHARS = 240;
 
 export function houseContext(digest) {

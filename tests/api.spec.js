@@ -585,6 +585,40 @@ test.describe("feeds", () => {
     expect(body.eve && body.lastChance).toBe(false);
   });
 
+  /* The chore roster. Deliberately answers whose turn it is even when nothing
+     is DUE — /api/bins is a reminder and goes quiet outside its window, which
+     is right for a nag and wrong for a roster. So this asserts the roster is
+     present regardless of the window, which is the difference between the two
+     routes and the reason the second one exists. */
+  test("GET /api/chores", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/chores");
+    expect(body.configured).toBe(true);
+
+    // The dogs are date math against a fixed anchor, so they are answerable on
+    // any box on any day — a name here is not a live-data assumption.
+    expect(typeof body.dogs.tonight).toBe("string");
+    expect(typeof body.dogs.tomorrow).toBe("string");
+    expect(body.dogs.tonight).not.toBe(body.dogs.tomorrow);
+    expect(Array.isArray(body.rules)).toBe(true);
+
+    expect(typeof body.bins.configured).toBe("boolean");
+    if (!body.bins.configured) return;
+    expect(["calendar", "fallback"]).toContain(body.bins.source);
+    expect(body.bins.eve && body.bins.lastChance).toBe(false);
+
+    // HA is stubbed to a dead port under test, so `next` comes from the
+    // date-math fallback — present when a collection day is configured, and
+    // legitimately null when neither source can name one.
+    if (!body.bins.next) return;
+    expect(body.bins.next.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(Array.isArray(body.bins.next.colours)).toBe(true);
+    // ⚠ THE BINS GO OUT THE NIGHT BEFORE THE TRUCK. Every sentence the house
+    // says about a bin night is about the eve, so the two must differ by one.
+    expect(body.bins.next.eve.inDays).toBe(body.bins.next.inDays - 1);
+    // Either a name or an honest null — never a guess.
+    expect(body.bins.next.person === null || typeof body.bins.next.person === "string").toBe(true);
+  });
+
   test("GET /api/nrl/broncos", async ({ request }) => {
     const { body } = await expectJson(request, "/api/nrl/broncos", { statuses: [200, 500, 502] });
     expect(typeof body).toBe("object");

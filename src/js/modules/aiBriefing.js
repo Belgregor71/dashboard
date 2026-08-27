@@ -82,6 +82,23 @@ function binsText(ctx) {
   return `${when}: ${ctx.bins.colours.join(" + ")}`;
 }
 
+/* WHO, not WHAT. The Bins line above already states which bins and when, so
+   restating the colours here would hand the model two ways to say one thing —
+   and it takes both. This line adds names to tonight and nothing else.
+
+   The bins clause exists only when the bins do, for the same reason binsText
+   goes quiet after the truck: a name attached to a chore that is no longer
+   possible this morning is a nag, not a roster. The dogs have no such window —
+   tonight is always still ahead of the house. */
+function choresText(ctx) {
+  const c = ctx.chores;
+  if (!c?.configured) return null;
+  const parts = [];
+  if (c.dogs?.tonight) parts.push(`${c.dogs.tonight} feeds the dogs tonight`);
+  if (ctx.bins?.due && c.bins?.next?.person) parts.push(`the bins are ${c.bins.next.person}'s turn`);
+  return parts.length ? parts.join(", ") : null;
+}
+
 function commuteText(ctx) {
   if (!ctx.commute) return null;
   const parts = [];
@@ -158,6 +175,7 @@ export function buildBriefPayload(ctx) {
     weather: weatherText(ctx),
     events:  eventsText(ctx),
     bins:    binsText(ctx),
+    chores:  choresText(ctx),
     commute: commuteText(ctx),
     fuel:    fuelText(ctx),
     news:    ctx.news.length ? ctx.news.join(" | ") : null,

@@ -38,6 +38,7 @@ const cache = {
   nowcast: null,
   calendar: null,
   bins: null,
+  chores: null,
   commute: null,
   fuel: null,
   fetchedAt: 0
@@ -59,6 +60,14 @@ async function getJson(url) {
   }
 }
 
+/* Read per call off `window.CONFIG`, never at module load — this module is
+   pure enough to be node-tested, and with no window the flag reads as off,
+   which is the historical behaviour the specs see. Same helper, same reason,
+   as localIntents' featureOn. */
+function flag(name) {
+  return Boolean(globalThis.window?.CONFIG?.features?.[name]);
+}
+
 /** Refresh the HTTP-backed half. Called on an init-once interval.
  *
  * ⚠ `commute` and `fuel` WERE DECLARED IN THE CACHE ABOVE AND NEVER FETCHED,
@@ -75,14 +84,17 @@ async function getJson(url) {
  * `/api/fuel` has held a 2-hour cache since it was written.
  */
 export async function refreshVoiceCache() {
-  const [weather, forecast, nowcast, calendar, bins, commute, fuel] = await Promise.all([
+  const [weather, forecast, nowcast, calendar, bins, commute, fuel, chores] = await Promise.all([
     getJson("/api/weather/now"),
     getJson("/api/weather/forecast"),
     getJson("/api/weather/nowcast"),
     getJson("/api/calendar/all"),
     getJson("/api/bins"),
     getJson("/api/commute/all"),
-    getJson("/api/fuel")
+    getJson("/api/fuel"),
+    // Flag-off is NO FETCH, not a discarded one — the off state has to be the
+    // network behaviour the lane had before the roster existed.
+    flag("choreRoster") ? getJson("/api/chores") : Promise.resolve(null)
   ]);
   if (weather) cache.weather = weather;
   if (forecast) cache.forecast = forecast;
@@ -91,6 +103,7 @@ export async function refreshVoiceCache() {
   if (bins) cache.bins = bins;
   if (commute) cache.commute = commute;
   if (fuel) cache.fuel = fuel;
+  if (chores) cache.chores = chores;
   cache.fetchedAt = Date.now();
 }
 
@@ -277,6 +290,7 @@ export function voiceSnapshot({ lat, lon } = {}) {
        hold, and because it must roll over at midnight without a refetch. */
     menu: menuFrom(cache.calendar, new Date()),
     bins: cache.bins,
+    chores: cache.chores,
     commute: cache.commute,
     fuel: cache.fuel,
     people: peopleFrom(list),
@@ -538,6 +552,32 @@ export function houseDigest(snap) {
   //    a settled fact, not a blind spot, so it earns neither key.
   if (s.bins?.configured) {
     known.bins = s.bins.due ? `${s.bins.label}: ${(s.bins.bins ?? []).join(", ")}` : "no bins due tonight";
+  }
+
+  /* ── The chore roster. Facts first, RULE last, and that ordering is load-
+     bearing: voiceShape truncates each digest value at MAX_DIGEST_VALUE_CHARS,
+     so whatever sits at the end is what a long line loses. Tonight's name is
+     the thing a truncation must never eat.
+
+     The rule is here at all because the fast lane refuses any night past
+     tomorrow — a model asked "who's on Saturday" and given only tonight's name
+     has to guess, and given the alternation it can count. The sentences come
+     from the route (server/services/choreRoster.js rosterRules), never from a
+     phrasing written out here, so there is one roster and not two. */
+  if (s.chores?.configured) {
+    const parts = [];
+    if (s.chores.dogs?.tonight) {
+      parts.push(
+        `dogs are ${s.chores.dogs.tonight}'s tonight`
+        + (s.chores.dogs.tomorrow ? `, ${s.chores.dogs.tomorrow}'s tomorrow` : "")
+      );
+    }
+    const next = s.chores.bins?.next;
+    if (next?.person && next.eve) {
+      parts.push(`next bins out ${next.eve.weekday} night (${next.colours.join(" + ")}, ${next.person})`);
+    }
+    if (Array.isArray(s.chores.rules)) parts.push(...s.chores.rules);
+    if (parts.length) known.chores = parts.join("; ");
   }
 
   // ── People. An empty roster means Home Assistant is not talking; it does

@@ -88,6 +88,20 @@ const INTENTS = [
   { id: "weather.today", re: /\b((high|top|max|low|min).*(today)|how (hot|cold|warm).*(today|get)|how (hot|cold|warm) will it|today.s (high|top|max))\b/ },
   { id: "weather.now", re: /\b(weather|temperature|how.s (it )?outside|outside like|how (hot|cold|warm) is it|what.s it like)\b/ },
 
+  // ── The chore roster ────────────────────────────────────────────────────
+  /* ⚠ ABOVE BOTH THE LISTS AND THE BINS, and each placement is load-bearing.
+     `list.todo` matches a bare "to do", so "whose turn is it to do the bins"
+     was a to-do-list question until this row sat above it. `house.bins`
+     matches a bare "bins", so "who's on the bins" was answered with the
+     colours and no name in it at all — the question asked and the question
+     answered differing by the only word that mattered.
+
+     It does not steal in the other direction because a duty word alone is not
+     enough: "who" has to be within a few words of a NAMED CHORE, or the
+     utterance has to say "turn" outright. "What's on my to-do list" and "who's
+     home" name neither and are untouched. */
+  { id: "house.chores", flag: "choreRoster", re: /\b(who|who.s|whose)\b.{0,24}\b(dogs?|feed(s|ing)?|bins?|rubbish|recycling|wheelie|chores?|roster)\b|\b(whose|my|your) turn\b|\bchore (roster|list)\b|\bam i (on|feeding|doing) the (bins?|dogs?)\b/ },
+
   // ── Lists ───────────────────────────────────────────────────────────────
   // ABOVE the calendar, deliberately. "what's on the shopping list" and
   // "what's on today" both begin "what's on", and the calendar's pattern is the
@@ -441,6 +455,14 @@ const DAY_INTENTS = {
   "cal.next": () => false,            // "what's next" has no day to take
   "show.day": (d) => d.offset === 0,  // the subject draws today, and only today
 
+  /* The dog roster is a NIGHT roster, so "whose turn tomorrow" is a real
+     question with a real answer and it must not be answered with tonight's
+     name — the F7 defect exactly, one chore over. The route sends tonight and
+     tomorrow and no further, so anything beyond declines and falls through to
+     the model, which is told the alternation RULE in the digest and can work
+     Saturday out from it. */
+  "house.chores": (d) => d.offset === 0 || d.offset === 1,
+
   "weather.now": () => true,
   "weather.today": () => true,
   "weather.tomorrow": (d) => d.offset === 1,
@@ -522,6 +544,19 @@ const PHOTO_VETO_RE =
 const PHOTO_RESTORE_RE =
   /\b(bring (that|it|the photo|the picture) back|put (that|it) back|undo( that)?|i did ?n.t mean (that|it)|bring back (that|the last) (one|photo|picture))\b/;
 
+/* Which chore was asked about, or null for "both / didn't say". Bins first:
+   "who takes the bins out and feeds the dogs" is not a sentence anyone says,
+   but "whose turn is it to put the bins out" IS, and it must not be read as a
+   dog question because of the word "out". */
+const CHORE_SLOTS = [
+  { chore: "bins", re: /\b(bins?|rubbish|recycling|garbage|trash|wheelie)\b/ },
+  { chore: "dogs", re: /\b(dogs?|feed(s|ing)?|pups?|puppy)\b/ }
+];
+
+function matchChore(text) {
+  return CHORE_SLOTS.find((c) => c.re.test(text))?.chore ?? null;
+}
+
 export function matchIntent(raw) {
   const text = normalise(raw);
   if (!text) return null;
@@ -547,6 +582,10 @@ export function matchIntent(raw) {
     if (re.test(text)) {
       const slots = {};
       if (id === "camera.last" && bareCam) slots.camera = bareCam;
+      if (id === "house.chores") {
+        const chore = matchChore(text);
+        if (chore) slots.chore = chore;
+      }
       if (id === "house.who") {
         const m = text.match(/\bis (\w+) home\b/);
         if (m && !["anyone", "anybody", "everyone"].includes(m[1])) slots.person = m[1];
