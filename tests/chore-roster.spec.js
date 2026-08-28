@@ -393,11 +393,20 @@ test.describe("the voice", () => {
      tonight's name is fast, confident and wrong — the failure mode that costs
      the lane the trust it runs on. The dog roster is per night, so tomorrow is
      a real question with a real answer; anything past tomorrow declines. */
+  /* ⚠ A HARDCODED WEEKDAY NAME IS A DATE-DEPENDENT ASSERTION. This line read
+     "on saturday", which was two nights out on the Thursday it was written and
+     IS TOMORROW every Friday — a night the roster answers by design. So the
+     assertion inverted itself on a day of the week rather than on a code
+     change, and it went red on the flag flip having never been about the flag.
+     The claim is "further out than tomorrow"; let the clock name that day. */
+  const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+  const inDays = (n) => WEEKDAYS[(new Date().getDay() + n) % 7];
+
   test("a named day picks the night, and past tomorrow it declines", () => {
     withFlag(true, () => {
       expect(say("who feeds the dogs tomorrow")).toBe("Greg feeds the dogs tomorrow night.");
       expect(say("whose turn is it tomorrow")).toBe("Greg feeds the dogs tomorrow night.");
-      expect(matchIntent("who feeds the dogs on saturday")).toBeNull();
+      expect(matchIntent(`who feeds the dogs on ${inDays(3)}`)).toBeNull();
       expect(matchIntent("whose turn is it next week")).toBeNull();
     });
   });

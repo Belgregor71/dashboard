@@ -166,9 +166,21 @@ test("the rail only ever offers something the lane can actually answer", async (
   // Every upstream is dead in this harness, so the rail must be either empty or
   // offering one of the few phrases that need no network. Suggesting anything
   // else would teach the room that the rail is decorative.
+  //
+  // The chore phrase joined this list when `choreRoster` went default-on: the
+  // roster is answered by /api/chores on this very server — date math when the
+  // council feed is unreachable — so it is answerable with every upstream dead,
+  // which is exactly the bar this test sets. It is offered only from
+  // mid-afternoon (a night job), and the null branch covers a morning run.
   const rail = await page.evaluate(() => window.__v3().rail);
   if (rail !== null) {
-    expect(["what time is it", "show me the driveway", "show me the front door", "brief me"]).toContain(rail);
+    expect([
+      "what time is it",
+      "show me the driveway",
+      "show me the front door",
+      "brief me",
+      "whose turn is it to feed the dogs"
+    ]).toContain(rail);
   }
 });
 

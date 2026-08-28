@@ -1602,12 +1602,17 @@ window.CONFIG = {
     // on, the row sits ABOVE house.bins, which matches a bare `bins` and would
     // otherwise swallow "who's on the bins" and answer with the colours.
     //
+    // Flipped default-on 2026-08-28 after the flag-off live check on the kiosk:
+    // /api/chores answered from source:"calendar" (the real council feed, not
+    // the date-math fallback), and a page load fetched /api/bins + /api/fuel and
+    // never /api/chores — the gate measured rather than argued.
+    //
     // Revert (-> false): briefingData stops fetching /api/chores so the payload
     // carries no `chores` and the prompt has no Chores line; the intent row is
     // skipped; voiceSnapshot stops fetching and the digest key never appears.
     // The route stays mounted and answers a GET nobody makes. Both states are
     // asserted in tests/chore-roster.spec.js.
-    choreRoster: false,
+    choreRoster: true,
   },
 
   /* --------------------------------------------------------------
