@@ -1010,6 +1010,34 @@ test.describe("feature census", () => {
     expect(body.census.seen[KEY]).toMatchObject({ first: expect.any(String), last: DAY });
   });
 
+  test("the report carries the AGE of the census, not just its verdict", async ({ request }) => {
+    await expectJson(request, "/api/census/features", { method: "post", data: delta() });
+    const { body } = await expectJson(request, "/api/census/features");
+    /* ⚠ Without these four fields "dead" is unreadable, and the live wall proved
+       it: nine minutes after the flag flip the report said `dead: 71` of a
+       73-key roster, because nothing recorded when counting began. `notYetSeen`
+       is the honest observation; `dead` is the verdict, withheld until the
+       census has watched for `deadDays`. */
+    expect(body.census.since).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(body.report.since).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(typeof body.report.observedDays).toBe("number");
+    expect(typeof body.report.deadReady).toBe("boolean");
+    expect(Array.isArray(body.report.notYetSeen)).toBe(true);
+    // A census too young to judge says so instead of indicting the surface.
+    if (!body.report.deadReady) expect(body.report.dead).toEqual([]);
+  });
+
+  test("deadDays is clamped rather than trusted", async ({ request }) => {
+    // Posted first so this holds on a cold box too, not only after the tests
+    // above happen to have written the file.
+    await expectJson(request, "/api/census/features", { method: "post", data: delta() });
+    const { body } = await expectJson(request, "/api/census/features?deadDays=abc");
+    expect(body.report.deadDays).toBe(7);
+    // 0 is the deliberate escape hatch: judge now, I know what this file is.
+    const { body: b2 } = await expectJson(request, "/api/census/features?deadDays=0");
+    expect(b2.report).toMatchObject({ deadDays: 0, deadReady: true });
+  });
+
   test("silentDays is clamped rather than trusted", async ({ request }) => {
     const { body } = await expectJson(request, "/api/census/features?silentDays=abc");
     expect(body.report.silentDays).toBe(14);

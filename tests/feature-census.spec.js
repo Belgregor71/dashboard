@@ -4,8 +4,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { makeFeatureLedger, featureKey, localDay } from "../src/v3/core/feature-census.js";
 import {
-  mergeFeatureDelta, buildReport, baseOf, dayBefore, emptyCensus,
-  readCounts, readRoster, MAX_DAYS, MAX_KEYS, MAX_ROSTER, DEFAULT_SILENT_DAYS
+  mergeFeatureDelta, buildReport, baseOf, dayBefore, emptyCensus, censusSince, daysBetween,
+  readCounts, readRoster, MAX_DAYS, MAX_KEYS, MAX_ROSTER, DEFAULT_SILENT_DAYS, DEFAULT_DEAD_DAYS
 } from "../server/routes/censusFeatures.js";
 import { SOURCE_NAMES, SOURCES } from "../src/js/services/candidateSources.js";
 import { INTENT_IDS } from "../src/js/services/localIntents.js";
@@ -209,10 +209,14 @@ test.describe("the report — three findings that look identical from the kitche
      month ago and stopped, commute is offered every tick and never reaches the
      glass, and plex is simply fine. */
   function house() {
+    /* ⚠ Seeded oldest-first, which is the order a real file is written in, and
+       it matters: `since` is written once on the FIRST flush, so a fixture that
+       opened with today's date would describe a census one minute old and every
+       "dead" verdict below would be withheld — correctly. */
     let c = mergeFeatureDelta(emptyCensus(), {
-      day: DAY, counts: {}, roster: ["attn:bom", "attn:commute", "attn:plex", "subject:show.year"]
+      day: dayBefore(DAY, 30), counts: { "subject:show.year:shown": 3 },
+      roster: ["attn:bom", "attn:commute", "attn:plex", "subject:show.year"]
     });
-    c = mergeFeatureDelta(c, { day: dayBefore(DAY, 30), counts: { "subject:show.year:shown": 3 }, roster: [] });
     c = mergeFeatureDelta(c, { day: DAY, counts: { "attn:commute:offered": 288, "attn:commute:hero": 12 }, roster: [] });
     c = mergeFeatureDelta(c, { day: DAY, counts: { "attn:plex:offered": 40, "attn:plex:shown": 2 }, roster: [] });
     return c;
@@ -249,11 +253,113 @@ test.describe("the report — three findings that look identical from the kitche
     expect(r.offeredNeverShown.map((o) => o.key)).not.toContain("attn:plex");
   });
 
+  test("a month-old fixture is old enough to be judged", () => {
+    // The guard below is only meaningful if the fixture clears it — otherwise
+    // every "dead" test above would be passing for the wrong reason.
+    const r = buildReport(house(), { today: DAY });
+    expect(r).toMatchObject({ since: dayBefore(DAY, 30), observedDays: 30, deadReady: true });
+  });
+
   test("an empty census reports nothing rather than everything", () => {
     const r = buildReport(emptyCensus(), { today: DAY });
     // Day one. With no roster and no observations the honest answer is silence,
     // not a report that indicts the whole surface.
     expect(r).toMatchObject({ dead: [], silent: [], offeredNeverShown: [], alive: 0, rosterSize: 0 });
+  });
+});
+
+test.describe("⚠ the age guard — a counter cannot report on a window it has not watched", () => {
+  /* THIS IS THE DEFECT THIS BLOCK EXISTS FOR, and it shipped for one day.
+     Minutes after the flag flip the live wall answered:
+
+         rosterSize: 73   observedKeys: 2   alive: 2   dead: 71   silent: 0
+
+     `dead` was "in the roster and never observed", with nothing anywhere in the
+     stored shape recording WHEN counting began — so the report could not tell
+     "dead for a month" from "we have been watching for nine minutes". The
+     instrument committed its own headline failure, and the damage is not the
+     number: a reader who sees 71 dead on day one either panics or learns to
+     ignore the report, and being ignored is the unread-telemetry end the
+     computed report exists to prevent. */
+
+  /** A wall that has just started counting: three roster keys, one of which
+   *  fired today. The other two are NEW, not dead — nobody can know yet. */
+  function freshWall(day = DAY) {
+    return mergeFeatureDelta(emptyCensus(), {
+      day,
+      counts: { "attn:plex:offered": 4, "attn:plex:shown": 1 },
+      roster: ["attn:plex", "attn:bom", "alert:doorbell"]
+    });
+  }
+
+  test("day one indicts nothing — the wrong answer here is `dead: 2`", () => {
+    const r = buildReport(freshWall(), { today: DAY });
+    expect(r.dead).toEqual([]);
+    expect(r.deadReady).toBe(false);
+    expect(r.since).toBe(DAY);
+    expect(r.observedDays).toBe(0);
+  });
+
+  test("⚠ withholding the VERDICT must not discard the OBSERVATION", () => {
+    // The fix is a demotion, not a deletion. `notYetSeen` is the honest claim —
+    // these produced nothing since counting began — and it is what makes the
+    // day-one report readable instead of alarming. A guard that simply emptied
+    // the list would make the census silent about its own roster for a week.
+    const r = buildReport(freshWall(), { today: DAY });
+    expect(r.notYetSeen).toEqual(["alert:doorbell", "attn:bom"]);
+    expect(r.observedKeys).toBe(2);
+  });
+
+  test("the same census, a week later, does say it", () => {
+    const r = buildReport(freshWall(), { today: dayBefore(DAY, -DEFAULT_DEAD_DAYS) });
+    expect(r.deadReady).toBe(true);
+    expect(r.dead).toEqual(["alert:doorbell", "attn:bom"]);
+    // And once earned, the two lists are the same list.
+    expect(r.dead).toEqual(r.notYetSeen);
+  });
+
+  test("the line is at deadDays, and the day before it is still silence", () => {
+    const onTheDay = buildReport(freshWall(), { today: dayBefore(DAY, -7), deadDays: 7 });
+    const dayBeforeThat = buildReport(freshWall(), { today: dayBefore(DAY, -6), deadDays: 7 });
+    expect(onTheDay.deadReady).toBe(true);
+    expect(dayBeforeThat.deadReady).toBe(false);
+    // deadDays: 0 is the escape hatch for a reader who knows what they have.
+    expect(buildReport(freshWall(), { today: DAY, deadDays: 0 }).dead).toHaveLength(2);
+  });
+
+  test("⚠ a client with a wrong clock cannot rewind `since` and re-open the guard", () => {
+    // A laptop tab with a bad date, or a keepalive flush landing after midnight
+    // on a machine set to January. If `since` moved backward the way `seen.first`
+    // does, one such flush would hand back the full day-one indictment — the
+    // defect returning through a side door.
+    let c = freshWall();
+    c = mergeFeatureDelta(c, { day: dayBefore(DAY, 90), counts: { "attn:plex:offered": 1 }, roster: [] });
+    expect(c.since).toBe(DAY);
+    expect(buildReport(c, { today: DAY }).deadReady).toBe(false);
+    // ...while `seen.first` is still allowed to move back. Different jobs.
+    expect(c.seen["attn:plex:offered"].first).toBe(dayBefore(DAY, 90));
+  });
+
+  test("a file written before `since` existed backfills instead of starting over", () => {
+    // The live census had been counting for days when this field was added. If
+    // an absent `since` read as "today", a fortnight of real observation would
+    // be thrown away and every verdict withheld for another week.
+    const { since, ...legacy } = freshWall(dayBefore(DAY, 20));
+    expect(since).toBeTruthy();          // the fixture really did drop the field
+    expect(censusSince(legacy)).toBe(dayBefore(DAY, 20));
+    const r = buildReport(legacy, { today: DAY });
+    expect(r.observedDays).toBe(20);
+    expect(r.deadReady).toBe(true);
+    // ...and the next flush pins it, so the derivation happens once.
+    expect(mergeFeatureDelta(legacy, { day: DAY, counts: {}, roster: [] }).since).toBe(dayBefore(DAY, 20));
+  });
+
+  test("the guard counts days across a month boundary, and never counts backwards", () => {
+    expect(daysBetween("2026-08-29", "2026-09-05")).toBe(7);
+    expect(daysBetween("2026-02-26", "2026-03-01")).toBe(3);
+    // A server whose clock is behind the census must report 0 days observed,
+    // not a negative one that would satisfy `>= deadDays` on a sign flip.
+    expect(daysBetween("2026-08-29", "2026-08-01")).toBe(0);
   });
 });
 

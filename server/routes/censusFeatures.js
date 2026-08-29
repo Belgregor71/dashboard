@@ -22,7 +22,7 @@ import { fileURLToPath } from "url";
    ── The shape, and why it is not the depth census's shape ───────────────────
 
    Aggregates only, on-device only, POST-of-deltas, bounded by construction —
-   all the same. Three additions, each earned:
+   all the same. Four additions, each earned:
 
    1. `seen` — a sticky per-key { first, last, total } held OUTSIDE the 30-day
       window. The 30 days are for "how often lately"; `seen` is for "when did
@@ -40,6 +40,12 @@ import { fileURLToPath } from "url";
       of the item is that ONE curl from anywhere on the LAN answers the
       question; handing back raw counts and a suggestion to diff them by hand is
       how this ends up as unread telemetry, which is what it is replacing.
+
+   4. `since` — the day counting began, sticky and held outside the day window.
+      ⚠ WITHOUT THIS THE REPORT CANNOT SAY "DEAD" HONESTLY EITHER. The roster
+      separates "never fired" from "no such thing"; `since` separates "dead for
+      a month" from "we have been watching for nine minutes". It was missing on
+      day one and the wall duly reported 71 dead of 73 — see DEFAULT_DEAD_DAYS.
 
    ── ⚠ Keys are code literals, and that is load-bearing ──────────────────────
 
@@ -60,6 +66,24 @@ export const MAX_DAYS = 30;
 export const MAX_KEYS = 256;      // observed on the live surface: ~124
 export const MAX_ROSTER = 128;    // observed: ~73
 export const DEFAULT_SILENT_DAYS = 14;
+
+/* ⚠⚠ THE AGE GUARD — and this instrument shipped for one day without it.
+   Minutes after the flag flip the live wall reported `dead: 71` of a 73-key
+   roster, because "dead" was computed as "in the roster and never observed"
+   with no record of WHEN counting began. It could not tell "dead for a month"
+   from "we have been watching for nine minutes" — this file's own headline
+   failure, committed inside this file.
+
+   The cost is worse than a wrong number. A reader who curls this on day one
+   sees an indictment of the whole surface, and the only two outcomes are panic
+   or learning to ignore the report — and "learning to ignore it" is exactly the
+   unread-telemetry end the computed report exists to prevent.
+
+   Seven days because many keys are event-shaped and honestly take days:
+   `alert:doorbell` needs a caller, `attn:commute` a weekday 07:40, every
+   `intent:*` needs someone to speak. A fair verdict needs a window measured in
+   days. */
+export const DEFAULT_DEAD_DAYS = 7;
 
 /* One flush cannot honestly represent more than this. Not security — the
    cross-origin guard and the /api rate limiter in middleware/security.js are
@@ -114,7 +138,43 @@ export function readRoster(value) {
 }
 
 export function emptyCensus() {
-  return { days: {}, seen: {}, roster: [] };
+  return { days: {}, seen: {}, roster: [], since: null };
+}
+
+/** The earliest of a set of day strings, ignoring anything that is not one.
+ *  Nothing here parses a date: ISO day strings sort lexicographically, which is
+ *  the same reason `days` is pruned by sorted key. */
+export function earliestDay(candidates) {
+  let out = null;
+  for (const day of candidates) {
+    if (typeof day !== "string" || !DAY_RE.test(day)) continue;
+    if (out === null || day < out) out = day;
+  }
+  return out;
+}
+
+/** Whole days from `from` to `to`, floored at 0 so a client clock running
+ *  ahead of the server cannot manufacture a negative observation window. */
+export function daysBetween(from, to) {
+  const at = (s) => { const [y, m, d] = s.split("-").map(Number); return Date.UTC(y, m - 1, d); };
+  return Math.max(0, Math.round((at(to) - at(from)) / 86_400_000));
+}
+
+/** The day counting began. The stored field when there is one, DERIVED from the
+ *  oldest thing in the file when there is not — a census written before `since`
+ *  existed must not read as having started today, which would withhold every
+ *  verdict for another week on a file that has already counted for a fortnight.
+ *
+ *  ⚠ A STORED `since` WINS OUTRIGHT — it is not merged with the derivation.
+ *  Taking the earlier of the two would hand a page with a wrong clock exactly
+ *  what pinning the stored field denies it: one flush dated last January, and
+ *  the age guard re-opens on the read side while the file still says today. */
+export function censusSince(census) {
+  if (typeof census?.since === "string" && DAY_RE.test(census.since)) return census.since;
+  return earliestDay([
+    ...Object.keys(census?.days ?? {}),
+    ...Object.values(census?.seen ?? {}).map((entry) => entry?.first)
+  ]);
 }
 
 /**
@@ -170,7 +230,21 @@ export function mergeFeatureDelta(census, delta, at = new Date().toISOString()) 
     .sort()
     .slice(0, MAX_ROSTER);
 
-  return { days, seen, roster, updated: at };
+  /* `since` — written ONCE and never moved again. It is held outside the day
+     window for the same reason `seen` is: `Object.keys(days)` is a lossy proxy
+     for "when did we start" — it ages out at 30 days, and a day on which
+     nothing fired writes no key at all.
+
+     ⚠ Unlike `seen.first`, this does NOT move backward when a client claims an
+     older day. `first` moving back costs one wrong date on one key; `since`
+     moving back re-opens the age guard, and a page with a wrong clock would
+     hand back the very verdict this guard exists to withhold. A file written
+     before the field existed backfills from its own oldest content instead, so
+     a census that has honestly been counting a fortnight is not made to start
+     over. */
+  const since = censusSince(census) ?? delta.day;
+
+  return { days, seen, roster, since, updated: at };
 }
 
 /** `2026-08-29` minus n days, as the same local-ish ISO day string. Day strings
@@ -191,20 +265,36 @@ export function dayBefore(day, n) {
  *
  *   dead              in the roster, NEVER observed. Either it has been broken
  *                     since before the census, or it cannot fire at all — the
- *                     `bomWarning` / `robotCandidate` class.
+ *                     `bomWarning` / `robotCandidate` class. ⚠ WITHHELD until
+ *                     the census has run for `deadDays` days; until then those
+ *                     same keys appear under `notYetSeen`, which claims only
+ *                     what has actually been observed.
  *   silent            it worked once and has not been seen lately. A REGRESSION,
  *                     and the one the sticky `seen` map exists for.
  *   offeredNeverShown an attention source produced a candidate every tick and
  *                     never once reached the glass. Alive, and pointless.
  */
-export function buildReport(census, { today, silentDays = DEFAULT_SILENT_DAYS } = {}) {
+export function buildReport(
+  census,
+  { today, silentDays = DEFAULT_SILENT_DAYS, deadDays = DEFAULT_DEAD_DAYS } = {}
+) {
   const seen = census?.seen ?? {};
   const roster = census?.roster ?? [];
   const cutoff = dayBefore(today, silentDays);
 
   const observedBases = new Set(Object.keys(seen).map(baseOf));
 
-  const dead = roster.filter((base) => !observedBases.has(base)).sort();
+  /* ⚠ TWO LISTS, AND THEY ARE NOT THE SAME CLAIM. `notYetSeen` is the
+     OBSERVATION and is always honest — these roster keys have produced nothing
+     since counting began. `dead` is that observation promoted to a VERDICT,
+     and it stays empty until the window is long enough to have earned one. On
+     the seventh day they are identical; before it, the difference is the whole
+     fix. */
+  const notYetSeen = roster.filter((base) => !observedBases.has(base)).sort();
+
+  const since = censusSince(census);
+  const observedDays = since === null ? 0 : daysBetween(since, today);
+  const deadReady = observedDays >= deadDays;
 
   /* Reported per BASE rather than per key: "attn:bom has not been seen since
      the 4th" is the sentence someone acts on, and three lines saying it about
@@ -236,11 +326,16 @@ export function buildReport(census, { today, silentDays = DEFAULT_SILENT_DAYS } 
 
   return {
     today,
+    since,
+    observedDays,
+    deadDays,
+    deadReady,
     silentDays,
     rosterSize: roster.length,
     observedKeys: Object.keys(seen).length,
     alive: [...lastByBase.entries()].filter(([, last]) => last >= cutoff).length,
-    dead,
+    dead: deadReady ? notYetSeen : [],
+    notYetSeen,
     silent,
     offeredNeverShown
   };
@@ -268,11 +363,20 @@ function todayLocal(date = new Date()) {
   return `${y}-${m}-${d}`;
 }
 
+/** A day count off the query string, clamped rather than trusted: a NaN or a
+ *  negative from a URL must not quietly redefine what the report means. 0 is
+ *  allowed on purpose — it is the escape hatch for a reader who knows the
+ *  census is old and wants the verdict now. */
+function clampDays(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 && n <= MAX_DAYS ? Math.round(n) : fallback;
+}
+
 router.get("/api/census/features", async (req, res) => {
   const census = await loadCensus();
-  const raw = Number(req.query.silentDays);
-  const silentDays = Number.isFinite(raw) && raw >= 0 && raw <= MAX_DAYS ? Math.round(raw) : DEFAULT_SILENT_DAYS;
-  res.json({ census, report: buildReport(census, { today: todayLocal(), silentDays }) });
+  const silentDays = clampDays(req.query.silentDays, DEFAULT_SILENT_DAYS);
+  const deadDays = clampDays(req.query.deadDays, DEFAULT_DEAD_DAYS);
+  res.json({ census, report: buildReport(census, { today: todayLocal(), silentDays, deadDays }) });
 });
 
 router.post("/api/census/features", async (req, res) => {
