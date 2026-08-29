@@ -34,7 +34,8 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { on } from "../../js/core/eventBus.js";
-import { routeAlert } from "../../js/services/alertRouter.js";
+import { routeAlert, locationFor } from "../../js/services/alertRouter.js";
+import { record } from "./feature-census.js";
 import { ALERT_TTS_RATE } from "../../js/config/alertLines.js";
 import { speak } from "../../js/core/tts.js";
 import { setPhase, trackSpeech } from "./presence-light.js";
@@ -65,6 +66,19 @@ let last = null;
  */
 export async function raiseAlert(entity, { now = Date.now() } = {}) {
   const alert = routeAlert(entity, { now, cooldowns, minFreshMs: ALERT_FRESH_MS });
+
+  /* Feature census (docs/AUGUST-IMPROVEMENTS.md §1). A no-op until
+     initFeatureCensus() has run.
+
+     ⚠ Counted only for entities that ARE an alert trigger. `routeAlert` returns
+     null for four different things — not a trigger entity, not an active state,
+     older than the freshness window, inside the cooldown — and only the last
+     three are a door that did not open the screen. An ordinary light switch
+     returning null is not a dropped alert, and counting it as one would bury
+     the doorbell under thousands of rows of every other entity in the house. */
+  const seat = locationFor(entity?.entity_id);
+  if (seat) record("alert", seat.prefix, alert ? "routed" : "dropped");
+
   if (!alert) return null;
 
   const { location, personName, line } = alert;

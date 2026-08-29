@@ -39,6 +39,7 @@ import { showYear } from "./memories.js";
 import { showMedia } from "./media.js";
 import { showBriefing } from "./briefing.js";
 import { showStatus } from "./status.js";
+import { record } from "../core/feature-census.js";
 
 let mount = null;
 let active = null;      // { id, teardown }
@@ -221,7 +222,14 @@ export async function showSubject(intent, snapshot) {
   clearSubject();
 
   const build = REGISTRY[intent?.id];
-  if (!build) return false;
+  /* Feature census (docs/AUGUST-IMPROVEMENTS.md §1). A no-op until
+     initFeatureCensus() has run. `unknown` is the intent lane and the subject
+     registry disagreeing about what exists — the id was matched, and there is
+     nothing here to show for it. */
+  if (!build) {
+    if (intent?.id) record("subject", intent.id, "unknown");
+    return false;
+  }
 
   let built = null;
   try {
@@ -234,19 +242,39 @@ export async function showSubject(intent, snapshot) {
 
   if (!built?.node || !built?.teardown) {
     clearSubject();
+    /* ⚠ `empty` is the outcome worth watching and the reason this is counted
+       per-outcome rather than as one "it ran" tally. A subject that is asked
+       for and returns nothing EVERY time is exactly as dead as one that is
+       never asked for — and it looks busy from here. `showList` returns null
+       whenever HA is down, `showSky` whenever the radar meta is empty. */
+    record("subject", intent.id, "empty");
     return false;
   }
 
   const m = ensureMount();
   if (!m) {
     try { built.teardown(); } catch { /* nothing mounted it; still clean up */ }
+    record("subject", intent.id, "empty");
     return false;
   }
 
   m.replaceChildren(built.node);
   active = { id: intent.id, teardown: built.teardown };
+  record("subject", intent.id, "shown");
 
   return { speech: built.speech ?? null, refs: built.refs ?? [] };
+}
+
+/** Every id the registry can build, for the feature census roster.
+ *
+ *  ⚠ Derived from the REGISTRY's OWN KEYS rather than written out again: object
+ *  keys are string literals and survive minification, where a function name does
+ *  not (`grep -c bomCandidate dist/assets/v3-*.js` is 0). A subject added to the
+ *  registry is therefore in the roster the same moment, with nothing to keep in
+ *  step by hand. See src/v3/core/feature-census.js.
+ */
+export function subjectRoster() {
+  return Object.keys(REGISTRY);
 }
 
 /** Which subject is mounted, for the debug hook and the tests. */

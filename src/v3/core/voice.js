@@ -19,6 +19,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { matchIntent } from "../../js/services/localIntents.js";
+import { record } from "./feature-census.js";
 import { answer } from "../../js/services/localAnswers.js";
 import { prepareGoodnight } from "../../js/services/goodnight.js";
 import { voiceSnapshot, houseDigest, couldBeAssist, rememberReply } from "../../js/services/voiceSnapshot.js";
@@ -440,6 +441,13 @@ export async function submit(text, { source = "unknown" } = {}) {
     // ── Lane 1: local ───────────────────────────────────────────────────────
     const intent = matchIntent(clean);
     if (intent) {
+      /* Feature census (docs/AUGUST-IMPROVEMENTS.md §1). A no-op until
+         initFeatureCensus() has run. Recorded on the MATCH rather than on the
+         reply, because the two failures are different: an id that never matches
+         is a regex nobody's phrasing reaches, and an id that matches but never
+         answers is a lane that goes quiet — and only the first one is invisible
+         from every other instrument in the repo. */
+      record("intent", intent.id, "matched");
       const snap = voiceSnapshot(coords);
 
       /* The photograph veto. Handled before the answerers because it ACTS: the

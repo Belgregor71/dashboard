@@ -76,6 +76,7 @@ import { collectSources } from "../../js/services/candidateSources.js";
 import { initAttentionEngine, getSelection } from "../../js/services/attentionEngine.js";
 import { houseSnapshot } from "../../js/services/houseSnapshot.js";
 import { MODE } from "../../js/services/attentionRank.js";
+import { record } from "./feature-census.js";
 import { DEPTH, deepen, sustain, setDepth, getDepth, getReason, onDepth } from "./depth.js";
 import { initPresence, onPresence, isPresent, isDwelling } from "./presence.js";
 import { renderSpread, spreadMounted, setSaidText, contextEnabled } from "./spread.js";
@@ -311,6 +312,34 @@ export function tickAttention(now = new Date()) {
     sourceCount: sources.length,
     at: now.toISOString()
   };
+
+  /* ── The feature census ───────────────────────────────────────────────────
+     docs/AUGUST-IMPROVEMENTS.md §1. Read off the tick's OWN result rather than
+     computed again, so this can change nothing about what the wall does: by the
+     time it runs, every decision above is already made and written to `last`.
+
+     A no-op until initFeatureCensus() has run — the flag lives in main.js.
+
+     Three outcomes, and they are three different diagnoses that look identical
+     from the floor of the kitchen:
+
+       offered  the adapter produced a candidate at all. ZERO for a fortnight is
+                the `bomWarning` case — dead upstream, and the wall could not say
+                a storm was coming for weeks without anyone finding out.
+       hero     it won the selection.
+       shown    it actually reached the glass. `hero` without `shown` means the
+                depth gate is eating it, which is a different bug from losing.
+  ─────────────────────────────────────────────────────────────────────────── */
+  for (const c of last.queue) record("attn", c.source, "offered");
+  if (last.hero) record("attn", last.hero.source, "hero");
+  /* `acted` is an id and the census counts by SOURCE, so the source is taken
+     from whichever candidate that id belongs to — the hero, or the spread's
+     dominant cell, which is the only other thing that sets it. */
+  if (acted) {
+    const shown = sel.queue.find((c) => c.id === acted);
+    if (shown) record("attn", shown.source, "shown");
+  }
+
   return last;
 }
 

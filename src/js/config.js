@@ -1585,6 +1585,48 @@ window.CONFIG = {
     // false rather than inheriting whichever way this line points.
     v3DepthCensus: true,
 
+    // The FEATURE census (src/v3/core/feature-census.js,
+    // server/routes/censusFeatures.js). docs/AUGUST-IMPROVEMENTS.md §1, and the
+    // sibling of v3DepthCensus above: that one answers "which depth does this
+    // house live at", this one answers "what has been silently dead for a
+    // month".
+    //
+    // On: four observers already sitting at chokepoints — the attention tick,
+    // showSubject(), matchIntent() and routeAlert() — record `<ns>:<name>:
+    // <outcome>` into a ledger that POSTs its delta to /api/census/features
+    // every 5 minutes. Aggregates only, on-device only, at most 30 days of
+    // counts plus a sticky per-key first/last so a regression is still legible
+    // after its last firing has aged out. Nothing it stores is finer-grained
+    // than a day.
+    //
+    // WHY IT EXISTS: eight features have shipped, gone dead, and stayed dead
+    // for weeks — bomWarning empty since the cutover so the wall could not say
+    // a storm was coming, robotCandidate never read, __intent undefined on the
+    // glass, 24 of 26 HA dispatch scripts never fired. A green suite was
+    // compatible with every one of them, and so was the eight-feed watchdog: a
+    // test proves a path CAN run, a watchdog proves a FEED is fresh, and
+    // neither proves anything about the wall.
+    //
+    // ⚠ FLAG-OFF IS BEHAVIOURALLY IDENTICAL, NOT BYTE-IDENTICAL — unlike the
+    // depth census, which subscribes or does not. The four record() calls are
+    // in the bundle either way and return immediately on a null ledger, the
+    // same shape v3HouseIntent's note describes. Off means: no ledger, no
+    // interval, no pagehide listener, no __v3Features handle, and no request.
+    //
+    // Revert (-> false): one line. The route stays mounted and answers
+    // { days: {}, seen: {}, roster: [] } to a GET, having been written to by
+    // nobody. Already-collected days survive — nothing deletes the file — so
+    // flipping off pauses the count rather than discarding it. The off state is
+    // asserted in tests/feature-census.spec.js, which pins the flag false
+    // rather than inheriting whichever way this line points.
+    //
+    // ⏳ Shipped OFF pending live verification on the G11. Note the precedent
+    // directly above when that flip is considered: a census that is off counts
+    // NOTHING, so every day in the off state is another day of the blindness it
+    // was built to end — which is the argument that took v3DepthCensus on the
+    // same day it shipped.
+    v3FeatureCensus: false,
+
     // ── The chore roster ────────────────────────────────────────────────────
     // Who feeds the dogs tonight, and whose turn the bins are. Owner's rules,
     // 2026-08-27: the dogs alternate by NIGHT starting with Brett; the bins

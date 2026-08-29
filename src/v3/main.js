@@ -12,12 +12,16 @@ import { stage, guard, bootReport } from "./core/boot.js";
 import { initSubstrate, toCauses } from "./substrate/index.js";
 import { initDepth, setDepth, onDepth, DEPTH } from "./core/depth.js";
 import { initCensus } from "./core/census.js";
+import { initFeatureCensus } from "./core/feature-census.js";
+import { SOURCE_NAMES } from "../js/services/candidateSources.js";
+import { INTENT_IDS } from "../js/services/localIntents.js";
+import { LOCATIONS } from "../js/services/alertRouter.js";
 import { initPresenceLight } from "./core/presence-light.js";
 import { initVoice } from "./core/voice.js";
 import { initGround } from "./core/ground.js";
 import { initScrim, applyScrim, resampleScrim } from "./core/scrim.js";
 import { initArchive, archivePhoto, archiveFocusId } from "./core/archive.js";
-import { clearSubject, activeSubject, showSubject } from "./subjects/index.js";
+import { clearSubject, activeSubject, showSubject, subjectRoster } from "./subjects/index.js";
 import { clearVocabularyCard, vocabularyCardMounted } from "./core/vocabulary-card.js";
 import { clearSpread, spreadMounted } from "./core/spread.js";
 import { railPhrase } from "../js/services/vocabulary.js";
@@ -261,6 +265,55 @@ function boot() {
      Registered AFTER depth-teardown so the ledger never counts a depth the
      surface has not finished leaving. */
   stage("census", () => { if (flag("v3DepthCensus")) initCensus(); });
+
+  /* ── The feature census (core/feature-census.js) ──────────────────────────
+     docs/AUGUST-IMPROVEMENTS.md §1. The depth census above answers "where does
+     this house live"; this one answers "what has been silently dead for a
+     month" — the question that has now cost eight shipped features, every one
+     of them with a green suite and a healthy watchdog beside it.
+
+     ⚠ THE ROSTER IS ASSEMBLED HERE, NOT IN THE CENSUS MODULE. Four V3 modules
+     import feature-census.js to call record(); if it imported them back for
+     their key spaces that is a cycle at boot in the one file four others
+     depend on. So the census is a leaf and this is where the four key spaces
+     meet.
+
+     ⚠ THREE OF THE FOUR ARE DERIVED FROM THE CODE ITSELF — `subjectRoster()`
+     is the registry's own keys, INTENT_IDS the intent table's own ids,
+     LOCATIONS the alert table's own prefixes — so adding a subject, an intent
+     or a camera puts it in the roster the same moment, with nothing to keep in
+     step by hand. Only SOURCE_NAMES is written out, because an adapter that
+     returned nothing has no candidate to read a name off and `fn.name` is
+     renamed by the minifier. feature-census.spec.js pins all four against the
+     source files so a short roster is a red test rather than a quiet omission.
+
+     ⚠ `photo.veto` / `photo.restore` are named here and NOT taken from
+     INTENT_IDS. That list is the ANSWERABLE set — local-voice.spec.js asserts
+     every id in it has an answerer in localAnswers.js — and these two act
+     instead of answering, so adding them there would go red for the right
+     reason. They are still intents the lane produces, so the census wants them.
+
+     Default OFF. ⚠ Flag-off is BEHAVIOURALLY identical, not byte-identical:
+     the four record() calls are in the bundle either way and return on a null
+     ledger. Nothing subscribes, no interval is armed, no handle is registered
+     and /api/census/features is never called. */
+  stage("feature-census", () => {
+    if (!flag("v3FeatureCensus")) return;
+    initFeatureCensus({
+      roster: [
+        ...SOURCE_NAMES.map((s) => `attn:${s}`),
+        // The announce() lane — candidates the house injects rather than
+        // collects. Their `source` literals live in the V3 modules that raise
+        // them, so they are named here beside the collected ones.
+        ...["arrival", "health", "memory", "delight", "predictive", "holidays"].map((s) => `attn:${s}`),
+        ...subjectRoster().map((id) => `subject:${id}`),
+        ...INTENT_IDS.map((id) => `intent:${id}`),
+        "intent:photo.veto",
+        "intent:photo.restore",
+        ...LOCATIONS.map((l) => `alert:${l.prefix}`)
+      ]
+    });
+  });
 
   /* ── The sun, early ───────────────────────────────────────────────────────
      Nothing but suncalc and the root element, so it can run this high up — and

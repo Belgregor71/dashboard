@@ -445,6 +445,39 @@ export const SOURCES = [
   tonightsMenuCandidate
 ];
 
+/* The `source` LITERAL each adapter above emits, in the same order.
+   docs/AUGUST-IMPROVEMENTS.md §1 — the feature census needs to name an adapter
+   that returned nothing, and an adapter that returned nothing has no candidate
+   to read a name off.
+
+   ⚠⚠ THIS EXISTS BECAUSE `SOURCES[i].name` IS A LIE ON THE WALL. The array
+   above holds named function references, so `fn.name` looks like free identity
+   derived from the code itself. Measured against the shipped bundle:
+
+       $ grep -c "bomCandidate" dist/assets/v3-*.js
+       0
+
+   Minification renames every one of them, so a census keyed on `fn.name` would
+   be right in dev, right in every spec, and garbage on the glass — the exact
+   failure this instrument exists to catch, reproduced inside the instrument.
+   String literals survive; function names do not.
+
+   ⚠ Hand-written, and therefore the one part of the roster that can rot.
+   `tests/feature-census.spec.js` reads this file and asserts these are exactly
+   the `source:` literals it contains, in count and in value — so adding an
+   adapter without naming it here is a red test, not a quietly short report. */
+export const SOURCE_NAMES = [
+  "bom",
+  "weather",
+  "nextEvent",
+  "commute",
+  "cameraTrigger",
+  "robot",
+  "nowPlaying",
+  "plex",
+  "tonightsMenu"
+];
+
 /** Run every source adapter over the runtime-read state; drop nulls. */
 export function collectSources(state = {}) {
   /* `now` is injected ONCE here rather than read inside each adapter: the

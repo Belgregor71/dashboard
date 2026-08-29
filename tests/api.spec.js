@@ -194,6 +194,7 @@ test.describe("security middleware", () => {
     ["post", "/api/ha/shopping_list", { name: "csrf" }],
     ["put", "/api/routines", { routines: {} }],
     ["post", "/api/census/depth", { day: "2099-12-31", entries: [0, 0, 0, 0], dwellMs: [0, 0, 0, 0] }],
+    ["post", "/api/census/features", { day: "2099-12-31", counts: {} }],
     ["put", "/api/delight", { budgets: {} }],
     ["post", "/api/memories", { title: "csrf" }],
     ["delete", "/api/memories/anything", undefined],
@@ -941,6 +942,104 @@ test.describe("depth census", () => {
     expect(after.reasons["not a reason!"]).toBeUndefined();
     expect(after.reasons.recede).toBe((before.reasons.recede ?? 0) + 2); // the rest still landed
     expect(after.entries[0]).toBe(before.entries[0] + 1);
+  });
+});
+
+test.describe("feature census", () => {
+  /* Which named features are still alive on the wall
+     (server/routes/censusFeatures.js, docs/AUGUST-IMPROVEMENTS.md §1). Same
+     contract discipline as the depth census above: cold start degrades to an
+     empty object, a delta ADDS rather than replaces, and every malformed body
+     is a JSON 400 — never an HTML error page, and never a silent accept.
+
+     A synthetic far-future day for the same two reasons: it never distorts a
+     real reading, and the window prunes the OLDEST keys so this one sorts last
+     and cannot be dropped out from under itself. */
+  const DAY = "2099-12-31";
+  const KEY = "attn:spec_contract:offered";
+  const delta = (over = {}) => ({ day: DAY, counts: { [KEY]: 1 }, ...over });
+
+  const readDay = async (request) => {
+    const { body } = await expectJson(request, "/api/census/features");
+    return body.census.days?.[DAY] ?? {};
+  };
+
+  test("GET returns { census: { days, seen, roster }, report }", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/census/features");
+    expect(typeof body.census.days).toBe("object");
+    expect(typeof body.census.seen).toBe("object");
+    expect(Array.isArray(body.census.roster)).toBe(true);
+    // The report is the whole point of the route — raw counts and a suggestion
+    // to diff them by hand is what this is replacing.
+    expect(Array.isArray(body.report.dead)).toBe(true);
+    expect(Array.isArray(body.report.silent)).toBe(true);
+    expect(Array.isArray(body.report.offeredNeverShown)).toBe(true);
+    expect(typeof body.report.today).toBe("string");
+  });
+
+  test("a POSTed delta is ADDED to what was already there", async ({ request }) => {
+    // A difference rather than an absolute: this file is a running total on
+    // whatever box the suite happens to be on, so an absolute would pass once
+    // and fail on every later run.
+    const before = await readDay(request);
+    await expectJson(request, "/api/census/features", { method: "post", data: delta() });
+    const after = await readDay(request);
+    expect(after[KEY]).toBe((before[KEY] ?? 0) + 1);
+  });
+
+  test("an empty delta from a freshly-reloaded page changes nothing", async ({ request }) => {
+    const before = await readDay(request);
+    await expectJson(request, "/api/census/features", { method: "post", data: delta({ counts: {} }) });
+    expect(await readDay(request)).toEqual(before);
+  });
+
+  test("the roster is remembered, and a later flush cannot shrink it", async ({ request }) => {
+    await expectJson(request, "/api/census/features", {
+      method: "post", data: delta({ counts: {}, roster: ["attn:spec_contract"] })
+    });
+    await expectJson(request, "/api/census/features", { method: "post", data: delta({ counts: {} }) });
+    const { body } = await expectJson(request, "/api/census/features");
+    // ⚠ Without a remembered roster the report can never say "dead" — a key
+    // that fires zero times and a key that does not exist are the same file.
+    expect(body.census.roster).toContain("attn:spec_contract");
+  });
+
+  test("`seen` records a first and last day outside the 30-day window", async ({ request }) => {
+    await expectJson(request, "/api/census/features", { method: "post", data: delta() });
+    const { body } = await expectJson(request, "/api/census/features");
+    expect(body.census.seen[KEY]).toMatchObject({ first: expect.any(String), last: DAY });
+  });
+
+  test("silentDays is clamped rather than trusted", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/census/features?silentDays=abc");
+    expect(body.report.silentDays).toBe(14);
+    const { body: b2 } = await expectJson(request, "/api/census/features?silentDays=7");
+    expect(b2.report.silentDays).toBe(7);
+  });
+
+  for (const [what, data] of [
+    ["a missing day", { counts: {} }],
+    ["a malformed day", { ...delta(), day: "yesterday" }],
+    ["counts as an array", { ...delta(), counts: [1, 2] }],
+    ["a roster that is not an array", { ...delta(), roster: "attn:bom" }]
+  ]) {
+    test(`POST rejects ${what} with a JSON 400`, async ({ request }) => {
+      const { body } = await expectJson(request, "/api/census/features", { method: "post", data, statuses: [400] });
+      expect(body).toHaveProperty("error");
+    });
+  }
+
+  test("an unnameable key is dropped, not fatal to the flush it rode in on", async ({ request }) => {
+    const before = await readDay(request);
+    await expectJson(request, "/api/census/features", {
+      method: "post",
+      data: delta({ counts: { "not a key!": 3, [KEY]: 2, "attn:x:offered": "2" } })
+    });
+    const after = await readDay(request);
+
+    expect(after["not a key!"]).toBeUndefined();
+    expect(after["attn:x:offered"]).toBeUndefined();   // a string is not a count
+    expect(after[KEY]).toBe((before[KEY] ?? 0) + 2);   // the rest still landed
   });
 });
 
