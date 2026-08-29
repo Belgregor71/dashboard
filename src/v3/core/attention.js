@@ -332,11 +332,21 @@ export function tickAttention(now = new Date()) {
   ─────────────────────────────────────────────────────────────────────────── */
   for (const c of last.queue) record("attn", c.source, "offered");
   if (last.hero) record("attn", last.hero.source, "hero");
-  /* `acted` is an id and the census counts by SOURCE, so the source is taken
-     from whichever candidate that id belongs to — the hero, or the spread's
-     dominant cell, which is the only other thing that sets it. */
-  if (acted) {
-    const shown = sel.queue.find((c) => c.id === acted);
+  /* ⚠ EVERY CELL OF A SPREAD IS ON THE GLASS, not just the dominant one, and
+     reading `shown` off `acted` alone made a visible card look invisible.
+     Measured on the live wall 2026-08-29: `tonights-menu` was mounted 996×234
+     as the second cell of a `pair-note` — plainly there, in front of the room —
+     while the census held `attn:tonightsMenu` at offered 143 / shown 0 and the
+     report called it "alive, and pointless". `acted` is ONE id (cells[0], or
+     the hero); spread.js mounts `composition.cells` in full, so that is the
+     list this has to be read off.
+
+     The census counts by SOURCE, so each id is resolved back to its candidate.
+     The two branches are mutually exclusive above — a tick either composes a
+     spread or renders the glance, never both — so nothing is double-counted. */
+  const onGlass = composition ? composition.cells.map((cell) => cell.id) : acted ? [acted] : [];
+  for (const id of onGlass) {
+    const shown = sel.queue.find((c) => c.id === id);
     if (shown) record("attn", shown.source, "shown");
   }
 

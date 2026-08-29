@@ -508,6 +508,43 @@ test.describe("wired to the wall", () => {
     expect(pageErrors).toEqual([]);
   });
 
+  test("⚠ every cell of a spread reached the glass, not just the dominant one", async ({ page }) => {
+    /* THE LIVE WALL, 2026-08-29 15:38, is the fixture. `plex` (41) and
+       `tonightsMenu` (40) are both `stackOnly`, so neither is ever the hero;
+       dwelling lays them out as a two-cell `pair-note` and BOTH are mounted —
+       measured 996×626 and 996×234, one above the other, in front of the room.
+
+       `acted` is a single id (the dominant cell, or the hero), so reading
+       `shown` off it counted the top card and silently dropped the one under
+       it. The wall reported `attn:tonightsMenu` offered 143 / shown 0 for an
+       afternoon, and `offeredNeverShown` duly called a visible card "alive, and
+       pointless" — the report making a claim its own data could not support,
+       which is the third time this instrument has done it. */
+    await bootV3(page, {}, { features: { v3FeatureCensus: true } });
+
+    const tick = await page.evaluate(() => {
+      window.__forceCandidate([
+        { id: "plex:View from the Top", source: "plex", text: "View from the Top", score: 41, stackOnly: true, cooldownMs: 0 },
+        { id: "tonights-menu:Orzo Bake", source: "tonightsMenu", text: "Orzo Bake for dinner", score: 40, stackOnly: true, cooldownMs: 0 }
+      ]);
+      window.__v3Presence("dwell");
+      return window.__v3Tick();
+    });
+
+    // The precondition, or this passes for the wrong reason on an empty lattice.
+    expect(tick.template).toBe("pair-note");
+    expect(tick.acted).toBe("plex:View from the Top");
+
+    const counts = await page.evaluate(() => window.__v3Features().counts);
+    expect(counts["attn:plex:shown"]).toBe(1);
+    // ⚠ THE DEFECT: this was undefined while the card was 234px tall on the wall.
+    expect(counts["attn:tonightsMenu:shown"]).toBe(1);
+    // Neither is the hero — a stackOnly candidate cannot be, at any score — so
+    // "never hero" stays true and only "never shown" was ever the wrong claim.
+    expect(counts["attn:plex:hero"]).toBeUndefined();
+    expect(counts["attn:tonightsMenu:hero"]).toBeUndefined();
+  });
+
   test("an intent matched by the voice lane is counted under its own id", async ({ page }) => {
     const posted = [];
     await bootV3(page, {}, { features: { v3FeatureCensus: true, voiceSession: false } });
