@@ -1620,12 +1620,18 @@ window.CONFIG = {
     // asserted in tests/feature-census.spec.js, which pins the flag false
     // rather than inheriting whichever way this line points.
     //
-    // ⏳ Shipped OFF pending live verification on the G11. Note the precedent
-    // directly above when that flip is considered: a census that is off counts
-    // NOTHING, so every day in the off state is another day of the blindness it
-    // was built to end — which is the argument that took v3DepthCensus on the
-    // same day it shipped.
-    v3FeatureCensus: false,
+    // ✅ ON 2026-08-29, the day it shipped, on the precedent directly above: a
+    // census that is off counts NOTHING, so every day in the off state is
+    // another day of the blindness it was built to end. Waiting would have cost
+    // exactly the thing it exists to prevent.
+    //
+    // Verified flag-OFF live on the G11 first (4c34c87): the kiosk's bundle hash
+    // matched the local build, `typeof window.__v3Features` was "undefined" on
+    // the glass — the spec's own off-state assertion, confirmed as a browser
+    // fact rather than a fixture fact — no page errors, and GET
+    // /api/census/features answered the honest day-one shape, rosterSize 0 and
+    // dead [], having been written to by nobody.
+    v3FeatureCensus: true,
 
     // ── The chore roster ────────────────────────────────────────────────────
     // Who feeds the dogs tonight, and whose turn the bins are. Owner's rules,
