@@ -21,6 +21,22 @@
    Plus a tally by CAUSE, which is the half that says what to build: "recede"
    dominating means the wall is timing out rather than being read.
 
+   ── Causes are attributed PER DEPTH, and the direction is not dwell's ───────
+
+   The first week of data (Aug 24-29) could say the wall spends 9.2% of its life
+   at the spread and 1.5% at the glance, and could say `attention:spread` fired
+   220 times, but could NOT say those were the same events: the cause tally was
+   one flat map for the whole day. `attention:spread` (220) matching depth 2's
+   entries (219) was circumstantial, and reading it as attribution was a guess
+   dressed as a measurement. So the tally is now four maps, one per depth.
+
+   ⚠ A CAUSE IS CREDITED TO THE DEPTH BEING ENTERED. Dwell goes the other way —
+   to the depth being LEFT — and the asymmetry is deliberate, not an oversight
+   to be tidied up. "attention:spread" explains why the surface ARRIVED at the
+   spread; it says nothing about the field it came from. Time, meanwhile, was
+   spent where the surface WAS. Make both point the same way and one of them
+   becomes a lie.
+
    ── Dwell is attributed at FLUSH time, not at transition time ───────────────
 
    A period that spans midnight is split at the next flush rather than exactly
@@ -45,9 +61,30 @@ const DEFAULT_FLUSH_MS = 5 * 60_000;
 /* Mirrors MAX_REASONS in server/routes/census.js. Both ends cap, because the
    server's cap protects the file and this one protects the flush: a client that
    invented labels forever would send a growing body every five minutes and have
-   most of it dropped on arrival. */
+   most of it dropped on arrival.
+
+   ⚠ ONE cap on the UNION of names, not one per depth. A cause seen at three
+   depths is one name, not three, so the ceiling still means what it always
+   meant — at most 64 named causes — and splitting the tally four ways did not
+   quietly quadruple the ceiling along with it. */
 const MAX_REASONS = 64;
 const OVERFLOW_REASON = "other";
+
+/** Four cause maps, one per depth. Null-prototype so a cause that happens to be
+ *  called "constructor" is counted rather than colliding with the prototype. */
+function emptyByDepth() {
+  return Array.from({ length: DEPTHS }, () => Object.create(null));
+}
+
+/** The old flat total, derived rather than stored — so it can never disagree
+ *  with the attribution it is a sum of. Only the debug handle needs it. */
+function flatten(maps) {
+  const out = {};
+  for (const map of maps) {
+    for (const [key, n] of Object.entries(map)) out[key] = (out[key] ?? 0) + n;
+  }
+  return out;
+}
 
 /** Local date, not UTC. `toISOString()` would roll this house's day over at
  *  10am Brisbane time and put a whole morning onto the previous date. */
@@ -68,20 +105,25 @@ export function makeLedger(startDepth = DEPTH.FIELD, now = 0) {
   let mark = now;
   let entries = Array(DEPTHS).fill(0);
   let dwellMs = Array(DEPTHS).fill(0);
-  let reasons = Object.create(null);
+  let byDepth = emptyByDepth();
+  /* The union of names seen since the last drain. Kept alongside rather than
+     recomputed, because the cap has to be checked on every transition and the
+     four maps would have to be walked to answer it. */
+  let names = new Set();
 
-  function countReason(reason) {
-    const key = typeof reason === "string" && reason ? reason : "unknown";
-    if (reasons[key] === undefined && Object.keys(reasons).length >= MAX_REASONS) {
-      reasons[OVERFLOW_REASON] = (reasons[OVERFLOW_REASON] ?? 0) + 1;
-      return;
-    }
-    reasons[key] = (reasons[key] ?? 0) + 1;
+  /* `target` is the depth being ENTERED — see the header on why this is the
+     opposite direction to dwell. Overflow is attributed too: a cause dropped
+     into "other" still says which depth it drove the surface to. */
+  function countReason(target, reason) {
+    let key = typeof reason === "string" && reason ? reason : "unknown";
+    if (!names.has(key) && names.size >= MAX_REASONS) key = OVERFLOW_REASON;
+    names.add(key);
+    byDepth[target][key] = (byDepth[target][key] ?? 0) + 1;
   }
 
   // Boot is an entry, so that entries and dwell periods stay one-to-one.
   entries[depth] += 1;
-  countReason("boot");
+  countReason(depth, "boot");
 
   /** Fold everything up to `now` into the current depth without moving. */
   function settle(at) {
@@ -101,7 +143,7 @@ export function makeLedger(startDepth = DEPTH.FIELD, now = 0) {
       settle(at);
       depth = next;
       entries[next] += 1;
-      countReason(reason);
+      countReason(next, reason);
     },
 
     /* Everything counted since the last drain, shaped as the route's delta
@@ -109,10 +151,13 @@ export function makeLedger(startDepth = DEPTH.FIELD, now = 0) {
        the caller then holds the only copy and can hand it back. */
     drain(at, date = new Date()) {
       settle(at);
-      const delta = { day: localDay(date), entries, dwellMs, reasons: { ...reasons } };
+      /* The maps are handed over, not copied: the ledger drops its reference in
+         the next line, so there is exactly one owner either way. */
+      const delta = { day: localDay(date), entries, dwellMs, byDepth };
       entries = Array(DEPTHS).fill(0);
       dwellMs = Array(DEPTHS).fill(0);
-      reasons = Object.create(null);
+      byDepth = emptyByDepth();
+      names = new Set();
       return delta;
     },
 
@@ -122,10 +167,11 @@ export function makeLedger(startDepth = DEPTH.FIELD, now = 0) {
       for (let d = 0; d < DEPTHS; d += 1) {
         entries[d] += delta.entries[d];
         dwellMs[d] += delta.dwellMs[d];
-      }
-      for (const [key, n] of Object.entries(delta.reasons)) {
-        if (reasons[key] === undefined && Object.keys(reasons).length >= MAX_REASONS) continue;
-        reasons[key] = (reasons[key] ?? 0) + n;
+        for (const [key, n] of Object.entries(delta.byDepth[d])) {
+          if (!names.has(key) && names.size >= MAX_REASONS) continue;
+          names.add(key);
+          byDepth[d][key] = (byDepth[d][key] ?? 0) + n;
+        }
       }
     },
 
@@ -134,7 +180,10 @@ export function makeLedger(startDepth = DEPTH.FIELD, now = 0) {
       const view = dwellMs.slice();
       const elapsed = at - mark;
       if (elapsed > 0) view[depth] += elapsed;
-      return { depth, entries: entries.slice(), dwellMs: view, reasons: { ...reasons } };
+      const attributed = byDepth.map((map) => ({ ...map }));
+      /* `reasons` is kept in the peek — derived, not stored — so the debug
+         handle still answers the flat question a human asks first. */
+      return { depth, entries: entries.slice(), dwellMs: view, byDepth: attributed, reasons: flatten(attributed) };
     }
   };
 }

@@ -32,6 +32,26 @@ import { fileURLToPath } from "url";
    sends only what it has counted SINCE ITS LAST FLUSH, and the addition happens
    here. A client that reloads, crashes or double-flushes can lose a few
    minutes; it can never zero the history.
+
+   ── Causes are attributed per depth, and BOTH SHAPES ARRIVE ─────────────────
+
+   A day now holds `byDepth` — four cause maps, one per depth — alongside the
+   flat `reasons` total, which is kept because it is the whole of the history
+   collected before attribution existed (2026-08-23 onward) and dropping it
+   would make the first week incomparable with every week after it.
+
+   ⚠ THE FLAT TOTAL IS DERIVED FROM byDepth, NEVER ADDED TO IT. A client that
+   sent both would otherwise have every cause counted twice, in silence, and a
+   doubled counter looks exactly like a busy house. So: `byDepth` present means
+   `reasons` in the body is IGNORED, not merged. There is one number per cause
+   on the wire and one place it lands.
+
+   ⚠ The kiosk keeps running the bundle it loaded until something reloads it, so
+   for a while after this ships the live page is still POSTing flat `reasons`
+   with no attribution — that path is not dead code, it is the deploy window.
+   The day that straddles it holds `sum(byDepth) < reasons`, which is the honest
+   record of a day only partly attributed. Only `byDepth` being ABSENT means
+   "attribution was not running"; four empty maps mean "nothing happened".
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const __filename = fileURLToPath(import.meta.url);
@@ -60,8 +80,19 @@ export function emptyDay() {
   return {
     entries: Array(DEPTHS).fill(0),
     dwellMs: Array(DEPTHS).fill(0),
-    reasons: {}
+    reasons: {},
+    byDepth: Array.from({ length: DEPTHS }, () => ({}))
   };
+}
+
+/** A stored day from before attribution — or one a hand edit has bent out of
+ *  shape — reads as four empty maps rather than throwing the flush away. */
+function readStoredByDepth(value) {
+  const ok = Array.isArray(value) && value.length === DEPTHS;
+  return Array.from({ length: DEPTHS }, (_, d) => {
+    const map = ok ? value[d] : null;
+    return map && typeof map === "object" && !Array.isArray(map) ? { ...map } : {};
+  });
 }
 
 /* Strict about type, not just about value. `Number("1")` is 1, so a coercing
@@ -83,15 +114,39 @@ function readCounts(value, cap) {
    text — but they arrive over HTTP, so they are treated as untrusted anyway.
    Anything unnameable is dropped rather than rejecting the whole delta: losing
    one label is a much smaller loss than losing the flush it rode in on. */
-function readReasons(value) {
+function readReasons(value, seen = new Set()) {
   if (value == null) return {};
   if (typeof value !== "object" || Array.isArray(value)) return null;
   const out = {};
   for (const [key, raw] of Object.entries(value)) {
     if (!REASON_RE.test(key)) continue;
     if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0 || raw > MAX_ENTRY_DELTA) continue;
+    // `seen` is shared across the four maps of a byDepth body, so the cap lands
+    // on the union of names. Left to default it is per-map, which is what the
+    // single flat map of a legacy delta wants.
+    if (!seen.has(key) && seen.size >= MAX_REASONS) continue;
+    seen.add(key);
     out[key] = Math.round(raw);
-    if (Object.keys(out).length >= MAX_REASONS) break;
+  }
+  return out;
+}
+
+/* Three outcomes, and they are not the same: absent (a client from before
+   attribution — merge its flat total and record no attribution), malformed
+   (reject the delta, the way a malformed entries array is rejected), or four
+   maps of counts. Folding the first two together is how a real client bug
+   becomes a permanent silent gap in the file. */
+export const MALFORMED = Symbol("malformed byDepth");
+
+export function readByDepth(value) {
+  if (value == null) return null;
+  if (!Array.isArray(value) || value.length !== DEPTHS) return MALFORMED;
+  const seen = new Set();
+  const out = [];
+  for (const map of value) {
+    const one = readReasons(map, seen);
+    if (one === null) return MALFORMED;
+    out.push(one);
   }
   return out;
 }
@@ -110,15 +165,32 @@ export function mergeDelta(census, delta) {
   }
 
   const reasons = { ...day.reasons };
-  for (const [key, n] of Object.entries(delta.reasons)) {
-    // A day already at the cap keeps the causes it has rather than trading one
-    // established count for a newcomer — otherwise a burst of novel labels
-    // would evict the very history this file exists to hold.
-    if (reasons[key] === undefined && Object.keys(reasons).length >= MAX_REASONS) continue;
-    reasons[key] = (reasons[key] ?? 0) + n;
+  const byDepth = readStoredByDepth(day.byDepth);
+
+  // A day already at the cap keeps the causes it has rather than trading one
+  // established count for a newcomer — otherwise a burst of novel labels would
+  // evict the very history this file exists to hold. Checked against the flat
+  // total, which is the union of every name the day has at any depth.
+  const admit = (key) => reasons[key] !== undefined || Object.keys(reasons).length < MAX_REASONS;
+
+  if (delta.byDepth) {
+    for (let d = 0; d < DEPTHS; d += 1) {
+      for (const [key, n] of Object.entries(delta.byDepth[d])) {
+        if (!admit(key)) continue;
+        byDepth[d][key] = (byDepth[d][key] ?? 0) + n;
+        reasons[key] = (reasons[key] ?? 0) + n;   // derived, never independently sent
+      }
+    }
+  } else {
+    // The deploy window: a page still running the pre-attribution bundle. Its
+    // causes are real and are kept; only where they happened is unknown.
+    for (const [key, n] of Object.entries(delta.reasons ?? {})) {
+      if (!admit(key)) continue;
+      reasons[key] = (reasons[key] ?? 0) + n;
+    }
   }
 
-  days[delta.day] = { entries, dwellMs, reasons };
+  days[delta.day] = { entries, dwellMs, reasons, byDepth };
 
   // Prune by key, which sorts chronologically because the keys are ISO dates.
   // Oldest goes first, so a box that has been running for months holds a
@@ -161,12 +233,21 @@ router.post("/api/census/depth", async (req, res) => {
     return res.status(400).json({ error: `expected entries and dwellMs as ${DEPTHS} non-negative numbers` });
   }
 
-  const reasons = readReasons(body.reasons);
+  const byDepth = readByDepth(body.byDepth);
+  if (byDepth === MALFORMED) {
+    return res.status(400).json({ error: `expected byDepth as ${DEPTHS} objects of reason counts` });
+  }
+
+  /* ⚠ Not read when byDepth is present: the merge derives the flat total from
+     the attribution, and adding both would double every cause in silence. The
+     ENFORCEMENT is mergeDelta's branch, which is where the spec aims; this line
+     is belt-and-braces, so do not read its removal as the defect being fixed. */
+  const reasons = byDepth ? {} : readReasons(body.reasons);
   if (!reasons) return res.status(400).json({ error: "expected reasons as an object" });
 
   const task = writeQueue.then(async () => {
     const census = await loadCensus();
-    const next = mergeDelta(census, { day, entries, dwellMs, reasons });
+    const next = mergeDelta(census, { day, entries, dwellMs, reasons, byDepth });
     await mkdir(CENSUS_DIR, { recursive: true });
     await writeFile(CENSUS_FILE, JSON.stringify(next), "utf8");
     return next;

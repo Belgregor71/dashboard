@@ -877,7 +877,17 @@ test.describe("depth census", () => {
 
   const readDay = async (request) => {
     const { body } = await expectJson(request, "/api/census/depth");
-    return body.census.days?.[DAY] ?? { entries: [0, 0, 0, 0], dwellMs: [0, 0, 0, 0], reasons: {} };
+    return body.census.days?.[DAY]
+      ?? { entries: [0, 0, 0, 0], dwellMs: [0, 0, 0, 0], reasons: {}, byDepth: [{}, {}, {}, {}] };
+  };
+
+  /** Sum the four cause maps of a stored day back into a flat total. */
+  const flat = (maps = []) => {
+    const out = {};
+    for (const map of maps) {
+      for (const [key, n] of Object.entries(map ?? {})) out[key] = (out[key] ?? 0) + n;
+    }
+    return out;
   };
 
   test("GET /api/census/depth returns { census: { days: object } }", async ({ request }) => {
@@ -919,7 +929,10 @@ test.describe("depth census", () => {
     ["a negative dwell", { ...delta(), dwellMs: [-1, 0, 0, 0] }],
     ["a dwell longer than a day", { ...delta(), dwellMs: [86_400_001, 0, 0, 0] }],
     ["entries that are not numbers", { ...delta(), entries: ["1", 0, 0, 0] }],
-    ["reasons as an array", { ...delta(), reasons: ["boot"] }]
+    ["reasons as an array", { ...delta(), reasons: ["boot"] }],
+    ["byDepth as an object", { ...delta(), byDepth: { 0: { boot: 1 } } }],
+    ["byDepth with the wrong number of depths", { ...delta(), byDepth: [{}, {}, {}] }],
+    ["byDepth holding an array", { ...delta(), byDepth: [["boot"], {}, {}, {}] }]
   ]) {
     test(`POST rejects ${what} with a JSON 400`, async ({ request }) => {
       const { body } = await expectJson(request, "/api/census/depth", {
@@ -942,6 +955,47 @@ test.describe("depth census", () => {
     expect(after.reasons["not a reason!"]).toBeUndefined();
     expect(after.reasons.recede).toBe((before.reasons.recede ?? 0) + 2); // the rest still landed
     expect(after.entries[0]).toBe(before.entries[0] + 1);
+  });
+
+  test("a byDepth delta lands per depth and sums into the flat total", async ({ request }) => {
+    const before = await readDay(request);
+    await expectJson(request, "/api/census/depth", {
+      method: "post",
+      data: delta({ reasons: undefined, byDepth: [{ recede: 1 }, {}, { "attention:spread": 3 }, {}] })
+    });
+    const after = await readDay(request);
+
+    expect(after.byDepth[2]["attention:spread"]).toBe((before.byDepth?.[2]?.["attention:spread"] ?? 0) + 3);
+    expect(after.byDepth[0].recede).toBe((before.byDepth?.[0]?.recede ?? 0) + 1);
+    // The flat total is derived, so it moves by the same amount.
+    expect(after.reasons["attention:spread"]).toBe((before.reasons["attention:spread"] ?? 0) + 3);
+  });
+
+  test("a body carrying BOTH shapes is counted once, not twice", async ({ request }) => {
+    /* byDepth WINS and the flat field is ignored. A server that added both
+       would double every cause in silence, and a doubled counter reads exactly
+       like a busy house — there is no wrong pixel to catch it. */
+    const before = await readDay(request);
+    await expectJson(request, "/api/census/depth", {
+      method: "post",
+      data: delta({ reasons: { recede: 5 }, byDepth: [{ recede: 5 }, {}, {}, {}] })
+    });
+    const after = await readDay(request);
+
+    expect(after.reasons.recede).toBe((before.reasons.recede ?? 0) + 5); // not + 10
+    expect(after.byDepth[0].recede).toBe((before.byDepth?.[0]?.recede ?? 0) + 5);
+  });
+
+  test("a delta with no byDepth is still accepted — that path is the deploy window", async ({ request }) => {
+    // The kiosk keeps POSTing the bundle it loaded until something reloads it.
+    const before = await readDay(request);
+    await expectJson(request, "/api/census/depth", { method: "post", data: delta({ reasons: { recede: 2 } }) });
+    const after = await readDay(request);
+
+    expect(after.reasons.recede).toBe((before.reasons.recede ?? 0) + 2);
+    // Unattributed: the flat total moved and the attribution did not, which is
+    // the honest record of a cause whose depth was never sent.
+    expect(flat(after.byDepth).recede ?? 0).toBe(flat(before.byDepth).recede ?? 0);
   });
 });
 
