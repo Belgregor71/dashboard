@@ -36,6 +36,7 @@ import { presenceMode, lastMotionAtMs } from "./presence.js";
 /* Last known base category. Held here rather than re-derived because the
    weather fetch is a 10-minute poll and the store must answer between them. */
 let condition = null;
+let conditionCode = null;
 let unsubscribe = null;
 
 /** Write the whole context slice from the house as it stands right now. */
@@ -48,7 +49,8 @@ export function pushContext() {
        modules doing their own suncalc is two answers to what time of day it is,
        and the disagreement is invisible until something acts on the wrong one. */
     isNight: document.documentElement.dataset.night === "1",
-    condition
+    condition,
+    conditionCode
   });
   return getContext();
 }
@@ -64,7 +66,10 @@ export function pushContext() {
  * report of clear skies, and getBaseCategory(null) would say "clear".
  */
 export function feedWeatherCode(code) {
-  if (code != null) condition = getBaseCategory(code);
+  if (code != null) {
+    condition = getBaseCategory(code);
+    conditionCode = Number(code);
+  }
   return pushContext();
 }
 
@@ -96,4 +101,5 @@ export function initContextFeed() {
 export function __resetContextFeed() {
   if (unsubscribe) { unsubscribe(); unsubscribe = null; }
   condition = null;
+  conditionCode = null;
 }

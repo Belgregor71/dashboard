@@ -55,6 +55,24 @@ export function getBaseCategory(code) {
   return "cloudy";
 }
 
+// Does this code mean rain is actually FALLING — the evidence a once-a-year
+// announcement is allowed to rest on? Deliberately NARROWER than the "rain"
+// above: the drizzle family (51-57) folds into `condition: "rain"` for the
+// atmosphere, which is right — a drizzle should LOOK like light rain on the
+// wall — but looking like rain is not evidence that it rained.
+//
+// 2026-08-29: Open-Meteo reported code 51 "Light drizzle" over Brisbane under a
+// clear sky (47% cloud, 7% rain chance, UV 5.1) and the house announced "First
+// rain in ages" on a sunny afternoon, spending a once-a-year moment on nothing.
+// A model-emitted drizzle code has no observation behind it. 61-67 (rain),
+// 80-82 (showers) and 95-99 (storms) do.
+export function isRealRainCode(code) {
+  if (code == null) return false;
+  const n = Number(code);
+  if (!Number.isFinite(n)) return false;
+  return (n >= 61 && n <= 67) || (n >= 80 && n <= 82) || (n >= 95 && n <= 99);
+}
+
 // Precip intensity tier for the living-window effects (atmoFx planner reads it
 // off the contextStore weather slice). Pure over the WMO code, like
 // categoryForWeatherCode above: last digit within each precip family encodes

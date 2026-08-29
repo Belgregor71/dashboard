@@ -16,6 +16,7 @@ import {
   budgetKeyFor
 } from "../services/delight.js";
 import { detectOccasion } from "../services/occasions.js";
+import { isRealRainCode } from "../weatherPrompts.js";
 import { isGamingQuiet } from "../services/quietMode.js";
 
 // The personality runtime — Phase 10 (docs/vision/phase-10-temperament.md). The
@@ -107,11 +108,18 @@ function detectBootSignals(now) {
 }
 
 // First-rain-after-dry: a per-day dry counter driven off the shared weather
-// condition. Approximate by design (day-granular, not hourly) — the moment is
+// reading. Approximate by design (day-granular, not hourly) — the moment is
 // rare and the budget makes an over-count harmless.
+//
+// Reads the RAW WMO code, not the collapsed `condition`. Those are not the same
+// question: `condition` says what the sky should LOOK like, and it folds drizzle
+// in with rain on purpose. This trigger asks whether rain FELL, which is the
+// only claim "First rain in ages" is allowed to make — see isRealRainCode for
+// the sunny afternoon that taught us the difference. No code yet (cold start, or
+// an upstream that is down) reads as not-raining: the streak keeps counting and
+// the moment simply waits, which is the honest direction to fail in.
 function updateDryStreak(now) {
-  const cond = getContext().condition;
-  const raining = cond === "rain" || cond === "storm";
+  const raining = isRealRainCode(getContext().conditionCode);
   const today = dateKey(now);
   let st = readJson(DRY_KEY, { day: null, dryDays: 0 });
   if (st.day !== today) {

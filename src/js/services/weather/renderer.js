@@ -464,7 +464,10 @@ function renderCurrent(data) {
   const weatherChanged =
     !prevWeather ||
     Object.keys(weather).some(key => prevWeather[key] !== weather[key]);
-  setContext(weatherChanged ? { condition: category, weather } : { condition: category });
+  const conditionCode = current.weathercode == null ? null : Number(current.weathercode);
+  setContext(weatherChanged
+    ? { condition: category, conditionCode, weather }
+    : { condition: category, conditionCode });
 
   const isDay = isDaytime(data);
   const animFile = weatherAnimation(current.weathercode, isDay);

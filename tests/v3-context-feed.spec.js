@@ -109,8 +109,82 @@ test("a storm reaches the store as a storm", async ({ page }) => {
   await page.clock.setFixedTime(MIDDAY);
   await bootV3(page, { "/api/weather/now": weatherNow(95, "storm") });
 
-  // The value personalityRuntime's dry-streak counter reads to know it rained.
   await expect.poll(async () => (await context(page)).condition).toBe("storm");
+});
+
+/* ═══ THE SUNNY AFTERNOON THE HOUSE ANNOUNCED RAIN ═══════════════════════════
+
+   2026-08-29: the wall said "First rain in ages — the garden's having an
+   absolute moment out there" under a clear sky. Nothing was broken. Open-Meteo
+   reported WMO 51, "Light drizzle" (47% cloud, 7% rain chance, UV 5.1);
+   getBaseCategory folds the drizzle family into "rain" — correctly, because the
+   ambient layer should DRAW a drizzle as light rain — and the dry-streak counter
+   read that collapsed word as proof it had rained. 13 genuine dry days behind
+   it, so the once-a-year moment fired and its budget was spent on nothing.
+
+   The store now carries the raw WMO code beside the collapsed one, and the
+   moment reads the code. The three tests below are one claim in three parts:
+   the collapse still happens (the atmosphere is untouched), the raw code
+   survives it, and the moment can tell the two apart.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Seed the dry spell the moment needs. The day key is computed IN THE PAGE from
+   its own clock, not written here as a literal: the runtime stamps it with the
+   browser's local date, and a literal would be a second opinion about what day
+   it is — right until the pinned instant or the zone moved. */
+async function seedDryStreak(page, dryDays) {
+  await page.addInitScript((days) => {
+    const d = new Date();
+    try {
+      localStorage.setItem("dashboard:dry-streak", JSON.stringify({
+        day: `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`,
+        dryDays: days
+      }));
+    } catch { /* storage blocked — the assertions below will say so */ }
+  }, dryDays);
+}
+
+const pendingDelight = (page) => page.evaluate(() => window.__personality?.().pending ?? null);
+
+test("a drizzle code still LOOKS like rain, and still carries its own number", async ({ page }) => {
+  await page.clock.setFixedTime(MIDDAY);
+  await bootV3(page, { "/api/weather/now": weatherNow(51, "rain") });
+
+  await expect.poll(async () => (await context(page)).conditionCode).toBe(51);
+  /* Deliberately unchanged: the substrate's drizzle is still a rain sky. The
+     fix adds a reading, it does not re-cut the five-word vocabulary. */
+  expect((await context(page)).condition).toBe("rain");
+});
+
+test("thirteen days dry, then real rain — the house says so", async ({ page }) => {
+  await page.clock.install({ time: MIDDAY });
+  await seedDryStreak(page, 13);
+  // 61 = slight rain: rain that is actually falling.
+  await bootV3(page, { "/api/weather/now": weatherNow(61, "rain") });
+
+  /* Wait for the signal to LAND before advancing the clock. The boot evaluation
+     races the weather fetch, so the tick after it is the one that matters — and
+     a tick is only evidence if the value it reads is already there. */
+  await expect.poll(async () => (await context(page)).conditionCode).toBe(61);
+  await page.clock.fastForward("05:30"); // past the 5-minute delight tick
+
+  await expect.poll(() => pendingDelight(page)).toBe("delight:first-rain-after-dry");
+});
+
+test("thirteen days dry, then a drizzle CODE — the house keeps its mouth shut", async ({ page }) => {
+  await page.clock.install({ time: MIDDAY });
+  await seedDryStreak(page, 13);
+  await bootV3(page, { "/api/weather/now": weatherNow(51, "rain") });
+
+  await expect.poll(async () => (await context(page)).conditionCode).toBe(51);
+  await page.clock.fastForward("05:30"); // the same tick that fires above
+
+  /* Not a vacuous null: the test above proves this exact sequence DOES fire on
+     a real rain code, so the only difference left is the one being asserted. */
+  expect(
+    await pendingDelight(page),
+    "the wall announced the first rain in ages over a model-emitted drizzle"
+  ).toBeNull();
 });
 
 test("Phase 10's delight registry is armed on this surface", async ({ page }) => {

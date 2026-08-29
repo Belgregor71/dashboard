@@ -16,6 +16,11 @@ const state = {
   lastMotionAt: 0,      // epoch ms of the last kitchen motion signal
   isNight: false,       // sunset→sunrise (mirrors screensaver's suncalc view)
   condition: null,      // base weather category (clear|cloudy|rain|storm|fog)
+  // The RAW WMO code behind `condition`, kept because the collapse above is
+  // lossy in a way one reader cannot afford: drizzle (51-57) and real rain
+  // (61+) both arrive as "rain". Written by the same writers as `condition`;
+  // null until the first weather reading, and null on an upstream failure.
+  conditionCode: null,
   // Living-window weather slice — richer than `condition` so the atmoFx
   // planner can scale effects: { category, intensity: light|moderate|heavy|null,
   // thunder: boolean, windKph: number|null, tempC: number|null }. Written by

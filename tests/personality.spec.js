@@ -6,6 +6,7 @@ import {
   celebrate,
   CELEBRATION_SCORE
 } from "../src/js/core/personality.js";
+import { isRealRainCode } from "../src/js/weatherPrompts.js";
 import {
   DELIGHT_TRIGGERS,
   pickDelight,
@@ -223,6 +224,26 @@ test.describe("delight registry — detection + hard budgets", () => {
     expect(pickDelight(wet, {}, MORNING).id).toBe("first-rain-after-dry");
     // Rain after only a couple of dry days is just rain.
     expect(pickDelight({ rainNow: true, dryStreakDays: 3, dryBreakKey: "2026-7-12" }, {}, MORNING)).toBeNull();
+  });
+
+  /* What `rainNow` is ALLOWED to be built from. 2026-08-29: the runtime derived
+     it from the collapsed `condition`, which folds drizzle in with rain for the
+     ambient layer's benefit, and the wall announced the first rain in ages over
+     a model-emitted WMO 51 on a sunny afternoon. The wiring is proved in
+     tests/v3-context-feed.spec.js; this is the line itself. */
+  test("a drizzle code is not evidence that it rained", () => {
+    // The drizzle family, including freezing drizzle — modelled, not observed.
+    for (const code of [51, 53, 55, 56, 57]) {
+      expect(isRealRainCode(code), `WMO ${code} counted as real rain`).toBe(false);
+    }
+    // Rain, showers, thunderstorms. Rain that is actually falling.
+    for (const code of [61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99]) {
+      expect(isRealRainCode(code), `WMO ${code} did not count as real rain`).toBe(true);
+    }
+    // A dry sky, and the two shapes of "we do not know yet".
+    for (const code of [0, 1, 3, 45, 71, null, undefined, "rain"]) {
+      expect(isRealRainCode(code), `${code} counted as real rain`).toBe(false);
+    }
   });
 
   test("an ordinary morning fires nothing", () => {
