@@ -11,6 +11,23 @@ Ordering: **security → new features → the measurement debt that gates them �
 > never been run** — a 23.6 h soak ran clean at the cutover and the 72 h one is still owed;
 > take `/kiosk-metrics` at 0 h / 24 h / 72 h.
 >
+> **2026-08-30 — the honesty hole below is now CLOSED for the lists, and only for them.**
+> The list write lane ships flag-off (`voiceListWrites` + `VOICE_LIST_WRITES=1`): it writes
+> through `todo.*`, **re-reads the list, and speaks from the re-read**, so a write that
+> returns and does not show up is reported out loud as a failure. `server/services/listWrites.js`
+> is the pure judge and `tests/list-writes.spec.js` names each wrong answer it must not give.
+> ⚠ **`runToolCall`'s optimistic `"done"` for lights and switches is UNCHANGED** — this route
+> is the template for that fix, not the fix. ⚠ The **calendar** half of AUGUST-IMPROVEMENTS §3
+> is blocked upstream: this house has no calendar entity declaring `CREATE_EVENT`, so it needs
+> HA's Local Calendar integration before any lane can create an event.
+>
+> ⚠⚠ **Found on the way past and fixed: every to-do list on the wall was rendering EMPTY.**
+> `extractTodoItems` did not know the `service_response` shape HA actually returns and
+> flattened it to `[]` — so `todo.both`, `todo.greg` and `todo.brett` read as empty
+> regardless of their contents, for as long as that path has existed. The shopping list was
+> unaffected (it reads through the legacy REST route). The extractor now returns **`null`**
+> for a shape it cannot parse, so a failure and an empty list stop looking alike.
+>
 > **2026-08-25 — F4 is closed: the panel's verdict was given.** `v3Archive` is default-on and
 > the owner has seen the archive on the wall — card, year rail, ghosts. ⚠ The sighting settled
 > something else in passing: with the archive on the glass the GROUND is a near-black backdrop

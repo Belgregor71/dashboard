@@ -199,7 +199,15 @@ test.describe("security middleware", () => {
     ["post", "/api/memories", { title: "csrf" }],
     ["delete", "/api/memories/anything", undefined],
     ["post", "/api/recipe", { title: "csrf" }],
-    ["delete", "/api/recipe/anything", undefined]
+    ["delete", "/api/recipe/anything", undefined],
+    // The list write lane. These reach the HOUSEHOLD's state rather than the
+    // dashboard's, so a foreign origin landing one of them puts a real item on
+    // a real list — the only rows in this table with that reach besides the
+    // two HA proxies at the top.
+    ["post", "/api/lists/shopping/items", { item: "csrf" }],
+    ["post", "/api/lists/shopping/items/complete", { item: "csrf" }],
+    ["delete", "/api/lists/shopping/items", { item: "csrf" }],
+    ["post", "/api/lists/undo", {}]
   ];
 
   for (const [method, path, data] of CROSS_ORIGIN_WRITES) {
@@ -1393,6 +1401,50 @@ test.describe("home assistant", () => {
   test("GET /api/ha/snapshot", async ({ request }) => {
     const { status, body } = await expectJson(request, "/api/ha/snapshot", { statuses: [200, 502] });
     if (status === 502) expect(body.error.code).toBe("HA_UNAVAILABLE");
+  });
+});
+
+/* The list write lane (docs/AUGUST-IMPROVEMENTS.md §3) — the only routes in the
+   tree that change the HOUSEHOLD's state rather than the dashboard's.
+
+   ⚠ WHAT THIS ASSERTS IS THE SHIPPED STATE: VOICE_LIST_WRITES is unset here, as
+   it is in the repo and on any box nobody has deliberately armed, and the whole
+   lane answers 403. That is the contract worth pinning — a router mounted
+   unconditionally is only safe if the guard is, and a test that armed the env
+   first would prove the writes work while proving nothing about the default
+   every other machine runs. */
+test.describe("list writes", () => {
+  const WRITES = [
+    ["post", "/api/lists/shopping/items", { item: "contract test" }],
+    ["post", "/api/lists/household/items", { item: "contract test" }],
+    ["post", "/api/lists/shopping/items/complete", { item: "contract test" }],
+    ["delete", "/api/lists/shopping/items", { item: "contract test" }],
+    ["post", "/api/lists/undo", {}]
+  ];
+
+  test("GET /api/lists reports the lane disabled and names both lists", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/lists");
+    expect(body.enabled).toBe(false);
+    expect(Object.keys(body.lists).sort()).toEqual(["household", "shopping"]);
+    // The labels are what the wall says out loud, so they belong to the server
+    // rather than to a string in the browser that could drift from the entity.
+    expect(body.lists.shopping.label).toBe("shopping list");
+  });
+
+  for (const [method, path, data] of WRITES) {
+    test(`${method.toUpperCase()} ${path} is inert until the box arms it`, async ({ request }) => {
+      const res = await request[method](path, { data });
+      expect(res.status(), `${path} was reachable with VOICE_LIST_WRITES unset`).toBe(403);
+      expect((await res.json()).error).toContain("not enabled");
+    });
+  }
+
+  test("an unknown list is refused before anything is written", async ({ request }) => {
+    // Belt and braces with the 403 above: whichever guard runs first, an entity
+    // id in the path must never resolve to a list. The two personal lists in
+    // this house are the reason (todo.greg, todo.brett).
+    const res = await request.post("/api/lists/todo.greg/items", { data: { item: "contract test" } });
+    expect([400, 403]).toContain(res.status());
   });
 });
 

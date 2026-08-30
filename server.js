@@ -44,6 +44,7 @@ import memoriesRoutes from "./server/routes/memories.js";
 import immichRoutes from "./server/routes/immich.js";
 import delightRoutes from "./server/routes/delight.js";
 import recipeRoutes from "./server/routes/recipe.js";
+import listsRoutes from "./server/routes/lists.js";
 import vaultRoutes from "./server/routes/vault.js";
 import { startVaultIndex } from "./server/services/vaultIndex.js";
 
@@ -146,6 +147,12 @@ app.use(memoriesRoutes);
 app.use(immichRoutes);
 app.use(delightRoutes);
 app.use(recipeRoutes);
+
+// The list write lane (docs/AUGUST-IMPROVEMENTS.md §3). Mounted unconditionally
+// because it is inert without VOICE_LIST_WRITES=1 — every route answers 403 —
+// and a router that only exists when armed is a router no contract test can see
+// in the state it ships in.
+app.use(listsRoutes);
 
 // House knowledge base (docs/design/VAULT.md). Default-off: with VAULT_ENABLED
 // unset the router is never mounted, the index is never built, and the

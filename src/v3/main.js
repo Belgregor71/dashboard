@@ -14,7 +14,7 @@ import { initDepth, setDepth, onDepth, DEPTH } from "./core/depth.js";
 import { initCensus } from "./core/census.js";
 import { initFeatureCensus } from "./core/feature-census.js";
 import { SOURCE_NAMES } from "../js/services/candidateSources.js";
-import { INTENT_IDS } from "../js/services/localIntents.js";
+import { INTENT_IDS, ACTING_INTENT_IDS } from "../js/services/localIntents.js";
 import { LOCATIONS } from "../js/services/alertRouter.js";
 import { initPresenceLight } from "./core/presence-light.js";
 import { initVoice } from "./core/voice.js";
@@ -287,11 +287,13 @@ function boot() {
      renamed by the minifier. feature-census.spec.js pins all four against the
      source files so a short roster is a red test rather than a quiet omission.
 
-     ⚠ `photo.veto` / `photo.restore` are named here and NOT taken from
-     INTENT_IDS. That list is the ANSWERABLE set — local-voice.spec.js asserts
-     every id in it has an answerer in localAnswers.js — and these two act
-     instead of answering, so adding them there would go red for the right
-     reason. They are still intents the lane produces, so the census wants them.
+     ⚠ ACTING_INTENT_IDS is a SECOND roster from the same module, not an
+     oversight. INTENT_IDS is the ANSWERABLE set — local-voice.spec.js asserts
+     every id in it has an answerer in localAnswers.js — and the veto and the
+     list writes ACT instead of answering, so adding them there would go red for
+     the right reason. They are still intents the lane produces, so the census
+     wants them, and taking both from localIntents.js is what stops this roster
+     going quietly short the way the warning above describes.
 
      Default OFF. ⚠ Flag-off is BEHAVIOURALLY identical, not byte-identical:
      the four record() calls are in the bundle either way and return on a null
@@ -308,8 +310,7 @@ function boot() {
         ...["arrival", "health", "memory", "delight", "predictive", "holidays"].map((s) => `attn:${s}`),
         ...subjectRoster().map((id) => `subject:${id}`),
         ...INTENT_IDS.map((id) => `intent:${id}`),
-        "intent:photo.veto",
-        "intent:photo.restore",
+        ...ACTING_INTENT_IDS.map((id) => `intent:${id}`),
         ...LOCATIONS.map((l) => `alert:${l.prefix}`)
       ]
     });

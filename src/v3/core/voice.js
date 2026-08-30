@@ -377,6 +377,111 @@ async function handlePhotoVeto(id) {
     : "Righto — you won't see that one again.";
 }
 
+/* ── The list write lane ────────────────────────────────────────────────────
+   docs/AUGUST-IMPROVEMENTS.md §3. The first thing this wall can change that is
+   not its own state, and the first write in the repo that checks.
+
+   ⚠⚠ EVERY LINE BELOW IS BUILT FROM THE SERVER'S RE-READ, never from the
+   request having succeeded. `state` is what the list said after the write, and
+   the word "added" is reachable from `confirmed` alone. That distinction is the
+   whole feature: the house has already told this room that a light was on while
+   it was off, because `runToolCall` treats a service call that did not throw as
+   a thing that happened (docs/BACKLOG.md:722-729).
+
+   ⚠ SILENCE IS A LEGITIMATE ANSWER, and which failures are silent is decided by
+   whether the room NAMED a list. "Take bread off the shopping list" is
+   unmistakably about the list, so every outcome including the failures is said
+   out loud. "We got the milk" might be about anything, so when the list has no
+   milk on it this returns null and the turn falls through to the next lane
+   exactly as if nothing had matched — the same courtesy `handlePhotoVeto` pays
+   a wall with no photograph on it. */
+
+const listWritesEnabled = () => Boolean(globalThis.window?.CONFIG?.features?.voiceListWrites);
+
+/* The two writable lists, and the depth-3 subject that renders each. Kept in
+   step with WRITABLE_LISTS in server/services/listWrites.js — the server is the
+   authority and refuses anything else, so a drift here costs a 400, not a write
+   to the wrong list. */
+const LIST_SUBJECT = { shopping: "shopping", household: "todo" };
+
+async function sendJson(url, method, body) {
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body)
+    });
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+const LIST_REQUEST = {
+  "list.add": (list) => [`/api/lists/${list}/items`, "POST"],
+  "list.complete": (list) => [`/api/lists/${list}/items/complete`, "POST"],
+  "list.remove": (list) => [`/api/lists/${list}/items`, "DELETE"],
+  "list.undo": () => ["/api/lists/undo", "POST"]
+};
+
+const countPhrase = (n, noun) => (n === 1 ? `1 ${noun}` : `${n} ${noun}s`);
+
+/**
+ * Speak what the list says, not what the write claimed.
+ *
+ * @param {{id: string, slots: object}} intent
+ * @param {object} snap  the voice snapshot, used only to render the subject
+ * @returns {Promise<string|null>} the line to speak, or null to fall through
+ */
+async function handleListWrite(intent, snap) {
+  if (!listWritesEnabled()) return null;
+
+  const { list = "shopping", item = "", named = false } = intent.slots ?? {};
+  const [url, method] = LIST_REQUEST[intent.id](list);
+  const res = await sendJson(url, method, intent.id === "list.undo" ? undefined : { item });
+
+  // No response at all, or the lane is not armed on this box (403). Both mean
+  // the house cannot act, and neither is a reason to invent a sentence.
+  if (!res || !res.state) return null;
+
+  const label = res.label ?? "list";
+  const count = typeof res.count === "number" ? res.count : null;
+
+  if (res.state === "confirmed") {
+    /* The strongest confirmation this surface can give is the list itself, and
+       the items it shows are the ones the server just read back — not the
+       browser's entity cache, which has not heard about the change yet and
+       would put a stale list on the glass under a sentence saying otherwise. */
+    const which = LIST_SUBJECT[list] ?? "shopping";
+    const key = which === "todo" ? "tasks" : "shopping";
+    const shown = await showSubject(
+      { id: "show.list", slots: { list: which } },
+      { ...snap, todos: { ...(snap?.todos ?? {}), [key]: res.items ?? [] } }
+    );
+    if (shown) deepen(DEPTH.SUBJECT, `voice-${intent.id}`);
+
+    if (intent.id === "list.undo") return `Back it goes — ${countPhrase(count ?? 0, "thing")} on the ${label}.`;
+    if (intent.id === "list.add") return `${res.item} is on the ${label} — ${countPhrase(count ?? 0, "thing")} now.`;
+    return count === 0
+      ? `${res.item} is off the ${label} — nothing left on it.`
+      : `${res.item} is off the ${label} — ${countPhrase(count, "thing")} left.`;
+  }
+
+  // Everything below is a failure, and an unnamed list means it may not have
+  // been a list sentence at all.
+  if (!named) return null;
+
+  if (res.state === "no-such-item") return `There's no ${item} on the ${label}.`;
+  if (res.state === "ambiguous") return `More than one thing matches ${item}.`;
+  if (res.state === "nothing-to-undo") return null;
+  if (res.state === "not-on-list") {
+    return count === 0
+      ? `That didn't take — the ${label} is still empty.`
+      : `That didn't take — the ${label} still has ${countPhrase(count ?? 0, "thing")}.`;
+  }
+  return `I can't reach the ${label} right now.`;
+}
+
 /* ── Goodnight ──────────────────────────────────────────────────────────────
    The second `action.*` the house can be told to DO, and the one the cutover
    dropped. `localIntents.js` has matched "goodnight" since long before V3, and
@@ -459,8 +564,28 @@ export async function submit(text, { source = "unknown" } = {}) {
          to a wall with no picture on it is far more likely to be about
          something else, and pretending otherwise would answer the wrong
          question with a confident sentence. */
-      if (intent.id === "photo.veto" || intent.id === "photo.restore") {
-        const spoken = await handlePhotoVeto(intent.id);
+      if (intent.id.startsWith("list.")) {
+        const spoken = await handleListWrite(intent, snap);
+        if (spoken) {
+          setPhase("speaking");
+          await say(spoken);
+          rememberReply(spoken);
+          consecutiveFailures = 0;
+          endTurn(clean, spoken);
+          return { handled: true, lane: "local" };
+        }
+      } else if (intent.id === "photo.veto" || intent.id === "photo.restore") {
+        /* ⚠ A bare "undo that" names no object, and the thing it means is
+           whichever local change happened last — which may be a list write and
+           may be a vetoed photograph. The matcher cannot know; only this lane
+           has seen both. So an unscoped restore tries the list first and falls
+           back to the photographs, and "bring back that photo" (scope "photo")
+           skips the list entirely. */
+        let spoken = null;
+        if (intent.id === "photo.restore" && intent.slots?.scope !== "photo") {
+          spoken = await handleListWrite({ id: "list.undo", slots: { list: "shopping" } }, snap);
+        }
+        if (!spoken) spoken = await handlePhotoVeto(intent.id);
         if (spoken) {
           setPhase("speaking");
           await say(spoken);

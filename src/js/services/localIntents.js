@@ -544,6 +544,105 @@ const PHOTO_VETO_RE =
 const PHOTO_RESTORE_RE =
   /\b(bring (that|it|the photo|the picture) back|put (that|it) back|undo( that)?|i did ?n.t mean (that|it)|bring back (that|the last) (one|photo|picture))\b/;
 
+/* ── The list write lane ────────────────────────────────────────────────────
+   docs/AUGUST-IMPROVEMENTS.md §3. The same principled exception the photograph
+   veto above claims, for the same reason and with one difference worth stating.
+
+   Assist genuinely does own the lists, and these phrasings are ones it can
+   often handle — so this is not "Assist cannot", it is "Assist cannot be
+   CHECKED". It answers from the service call returning, which is how this house
+   came to be told a light was on while it was off. The local lane writes and
+   then RE-READS, so what the wall says is what the list says.
+
+   ⚠ EVERY PATTERN HERE NAMES A LIST, and that is the bound that makes stealing
+   these utterances from Assist safe. "add oat milk" on its own still goes to
+   Assist; only "…to the shopping list" comes here. The one exception is the
+   cross-off family, which cannot name a list and stay natural — and it is safe
+   for a different reason: the server answers `no-such-item` for anything that
+   is not actually on the list, and the handler then falls through to the next
+   lane exactly as if this had never matched.
+
+   ⚠ ORDER. LIST_UNDO_RE must be tested BEFORE PHOTO_RESTORE_RE, which matches a
+   bare "put that back" and would otherwise swallow "put it back on the list".
+   The three write verbs are tested AFTER the photograph patterns, because
+   "delete this photo" is a photograph and must stay one. */
+
+const LIST_NOUN = "(?:shopping|grocery|groceries|house|household|to ?do|task)";
+const LIST_TAIL = `(?:the |my |our )?(?:${LIST_NOUN} )?lists?`;
+const POLITE = "(?:please )?(?:can |could |would )?(?:you )?(?:please )?";
+
+/* Which of the two writable lists was meant. Bare "the list" is the shopping
+   list: it is the one this house says out loud, and the server refuses anything
+   that is not one of the two regardless of what is decided here. */
+const HOUSEHOLD_LIST_RE = /\b(?:house|household|both|to ?do|task)s? list\b/;
+const listTarget = (text) => (HOUSEHOLD_LIST_RE.test(text) ? "household" : "shopping");
+
+const LIST_UNDO_RE = new RegExp(`\\b(?:put|pop|stick) (?:it|that|them) back on ${LIST_TAIL}\\b`);
+
+const LIST_WRITE_PATTERNS = [
+  {
+    id: "list.add",
+    re: new RegExp(`^${POLITE}(?:add|put|stick|chuck|pop) (.+?) (?:to|on|onto) ${LIST_TAIL}\\b`)
+  },
+  {
+    id: "list.remove",
+    re: new RegExp(`^${POLITE}(?:take|remove|delete|get rid of) (.+?) (?:off|from) ${LIST_TAIL}\\b`)
+  },
+  // "cross off the bread" and "cross the bread off" are the same sentence with
+  // the particle moved, and people say both.
+  {
+    id: "list.complete",
+    re: new RegExp(`^${POLITE}(?:cross|tick|check|scratch|knock) off (.+?)(?: (?:off|from) ${LIST_TAIL})?$`)
+  },
+  {
+    id: "list.complete",
+    re: new RegExp(`^${POLITE}(?:cross|tick|check|scratch|knock) (.+?) off(?: ${LIST_TAIL})?$`)
+  },
+  /* ⚠ "the" or "some" is required, and it is the whole bound on this pattern.
+     "we got the milk" is a list sentence; "we got a new car" is not, and the
+     article is what separates them. Anything that slips through is caught by
+     the readback answering `no-such-item`, which falls through rather than
+     replying — so the cost of a false match is one local round trip. */
+  {
+    id: "list.complete",
+    re: /^(?:we|i)(?:'ve| have| ve)? (?:got|bought|picked up) (?:the|some) (.+?)$/
+  }
+];
+
+/* The word the room used, tidied. Trailing "please", a leading article, and the
+   filler that survives whisper are all noise around the thing itself. */
+function cleanItem(raw) {
+  return String(raw ?? "")
+    .replace(/\b(?:please|thanks|thank you)\b\s*$/, "")
+    .replace(/^(?:a|an|the|some|any) /, "")
+    .trim();
+}
+
+function matchListWrite(text) {
+  if (!featureOn("voiceListWrites")) return null;
+
+  for (const { id, re } of LIST_WRITE_PATTERNS) {
+    const m = text.match(re);
+    if (!m) continue;
+    const item = cleanItem(m[1]);
+    // A verb with nothing after it is not a list instruction. "take that off
+    // the list" names nothing the server could find, and guessing which item
+    // was meant is exactly the move that makes a spoken write untrustworthy.
+    if (!item || /^(?:it|that|this|them|those|these|one)$/.test(item)) continue;
+    /* Did the room actually say "list"? The caller uses this to decide whether
+       a failure is spoken or swallowed: an utterance that named a list deserves
+       an honest "there's no bread on it", and one that did not is far more
+       likely to have been about something else entirely. */
+    return { id, slots: { list: listTarget(text), item, named: /\blists?\b/.test(text) } };
+  }
+  return null;
+}
+
+/* Which undo was meant. "bring back that photo" names a photograph; a bare
+   "undo that" names whichever local change happened last, and the caller is the
+   only thing that knows what that was. */
+const restoreScope = (text) => (/\b(photo|picture|image)\b/.test(text) ? "photo" : "last");
+
 /* Which chore was asked about, or null for "both / didn't say". Bins first:
    "who takes the bins out and feeds the dogs" is not a sentence anyone says,
    but "whose turn is it to put the bins out" IS, and it must not be read as a
@@ -560,8 +659,15 @@ function matchChore(text) {
 export function matchIntent(raw) {
   const text = normalise(raw);
   if (!text) return null;
-  if (PHOTO_RESTORE_RE.test(text)) return { id: "photo.restore" };
+  // Before PHOTO_RESTORE_RE, which matches a bare "put that back".
+  if (featureOn("voiceListWrites") && LIST_UNDO_RE.test(text)) {
+    return { id: "list.undo", slots: { list: listTarget(text), named: true } };
+  }
+  if (PHOTO_RESTORE_RE.test(text)) return { id: "photo.restore", slots: { scope: restoreScope(text) } };
   if (PHOTO_VETO_RE.test(text)) return { id: "photo.veto" };
+  // After the photograph patterns: "delete this photo" is a photograph.
+  const listWrite = matchListWrite(text);
+  if (listWrite) return listWrite;
   if (MUTATION_RE.test(text)) return null;
 
   // "show me the driveway" and friends resolve first when a camera is named,
@@ -618,4 +724,22 @@ export const INTENT_IDS = Object.freeze([
     ...SURFACES.map((s) => s.id),
     "show.camera"
   ])
+]);
+
+/**
+ * The ids that ACT rather than answer — deliberately absent from INTENT_IDS,
+ * which is the answerable set that local-voice.spec.js pairs with an answerer
+ * in localAnswers.js. These have no answerer and never will; they change
+ * something and report what they found afterwards.
+ *
+ * Exported because three places need the same list — V3's feature-census roster
+ * and two assertions in feature-census.spec.js — and the census spec's own
+ * warning applies to itself: a roster maintained by hand in several files is
+ * one that goes quietly short.
+ */
+export const ACTING_INTENT_IDS = Object.freeze([
+  "photo.veto",
+  "photo.restore",
+  ...new Set(LIST_WRITE_PATTERNS.map((p) => p.id)),
+  "list.undo"
 ]);

@@ -8,7 +8,7 @@ import {
   readCounts, readRoster, MAX_DAYS, MAX_KEYS, MAX_ROSTER, DEFAULT_SILENT_DAYS, DEFAULT_DEAD_DAYS
 } from "../server/routes/censusFeatures.js";
 import { SOURCE_NAMES, SOURCES } from "../src/js/services/candidateSources.js";
-import { INTENT_IDS } from "../src/js/services/localIntents.js";
+import { INTENT_IDS, ACTING_INTENT_IDS } from "../src/js/services/localIntents.js";
 import { LOCATIONS } from "../src/js/services/alertRouter.js";
 import { bootV3 } from "./fixtures/v3boot.js";
 
@@ -380,12 +380,12 @@ test.describe("⚠ the roster cannot go quietly short", () => {
   test("the intent roster covers every id the lane can produce", () => {
     const found = [...src("src/js/services/localIntents.js").matchAll(/id:\s*"([^"]+)"/g)].map((m) => m[1]);
     /* ⚠ INTENT_IDS is the ANSWERABLE set — local-voice.spec.js asserts every id
-       in it has an answerer — and photo.veto/photo.restore ACT instead of
-       answering, so they are deliberately absent from it and named separately in
-       main.js's roster. This asserts the union is complete, which is what the
-       census needs, without pulling those two into a list that would go red for
-       an unrelated and correct reason. */
-    const declared = new Set([...INTENT_IDS, "photo.veto", "photo.restore"]);
+       in it has an answerer — and the acting ids (the photograph veto, the list
+       writes) ACT instead of answering, so they are deliberately absent from it
+       and exported separately as ACTING_INTENT_IDS. This asserts the UNION is
+       complete, which is what the census needs, without pulling the acting ones
+       into a list that would go red for an unrelated and correct reason. */
+    const declared = new Set([...INTENT_IDS, ...ACTING_INTENT_IDS]);
     expect([...new Set(found)].filter((id) => !declared.has(id))).toEqual([]);
   });
 
@@ -438,7 +438,7 @@ test.describe("⚠⚠ the instrument must not reproduce the bug it catches", () 
     const names = [
       ...SOURCE_NAMES,
       ...INTENT_IDS,
-      "photo.veto", "photo.restore",
+      ...ACTING_INTENT_IDS,
       ...LOCATIONS.map((l) => l.prefix)
     ];
     const missing = names.filter((n) => !bundle.includes(`"${n}"`));

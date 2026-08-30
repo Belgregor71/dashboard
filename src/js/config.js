@@ -833,6 +833,29 @@ window.CONFIG = {
     // One-line revert (-> false).
     photoVeto: true,
 
+    // The list write lane (docs/AUGUST-IMPROVEMENTS.md §3) — "add oat milk to
+    // the shopping list", "we got the milk", "take bread off the list", and the
+    // undo the destructive two require.
+    //
+    // Why it exists: every write endpoint in this repo is about the dashboard's
+    // own state, and not one is about the household's. You stand in front of a
+    // wall that knows the shopping list and take out your phone to add to it.
+    //
+    // ⚠ TWO KEYS. This flag decides whether the phrasing is matched; the box's
+    // VOICE_LIST_WRITES=1 decides whether the house can actually be changed.
+    // With this off the regexes never run and the utterance falls through to HA
+    // Assist exactly as it does today — the rollback is asserted on the POST
+    // never happening, the same way photoVeto's is.
+    //
+    // ⚠ THE WALL ONLY CLAIMS WHAT THE SERVER RE-READ. Every spoken line is
+    // built from the readback's `state`, and the word "added" appears on
+    // `confirmed` alone. A write that reports success and does not show up on
+    // the list is said out loud to have failed — which is the honesty the
+    // floodlight lane still lacks (docs/BACKLOG.md:722-729).
+    //
+    // Default-off pending the live round trip on the glass. One-line revert.
+    voiceListWrites: false,
+
     // Living-window Phase 1 (plan: review-the-design-scheme) — rain on glass.
     // A shared episode runtime (services/atmoFx/) draws bounded droplet/streak
     // "moments" on a front canvas, then hides it: the GPU-0% ambient baseline

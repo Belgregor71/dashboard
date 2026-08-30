@@ -94,6 +94,41 @@ GET/POST/PATCH/DELETE and the fast lane never calls them. A narrow write lane fo
 one-off calendar events (*"we're out Thursday"*), **confirmed by readback rather than by
 optimism** — which is also the fix for the Assist honesty problem.
 
+### ▶ Built 2026-08-30 — the LISTS half, flag-off, pending the glass
+
+`voiceListWrites` (browser) + `VOICE_LIST_WRITES=1` (box), two keys, both default off.
+*"Add oat milk to the shopping list"*, *"we got the milk"*, *"take bread off the list"* and
+an undo, matched before `MUTATION_RE` the way the photograph veto is. `server/routes/lists.js`
+writes through `todo.add_item`/`update_item`/`remove_item`, **re-reads the list, and builds
+the spoken line from the re-read** — `not-on-list` (the write returned and the item is not
+there) is a distinct, spoken failure, and so is `unknown` (we could not find out). The wall
+also renders the list the server read back, so the confirmation is visible as well as heard.
+
+Three corrections to the shape proposed above, each measured rather than reasoned:
+
+- **The legacy `/api/ha/shopping_list` endpoints are not the right lane.** They work — the
+  `shopping_list` integration is installed — but they reach only the shopping list, and the
+  house's second writable list is `todo.both`. One mechanism (`todo.*`) covers both.
+- **`SAFE_SERVICES` was deliberately NOT widened.** Adding `todo.add_item` there would hand
+  every todo entity in the house to the generic `/api/ha/services` proxy *and* the Claude
+  tool lane, including `todo.greg` and `todo.brett` — the two private lists this lane
+  excludes on purpose. It carries its own narrower allowlist instead.
+- ⚠ **A defect found on the way past, and fixed here:** `extractTodoItems`
+  (`services/homeAssistant/client.js`) did not know the `service_response` spelling HA
+  actually answers with, and returned `[]` for it — so **every to-do list on the wall
+  (`todo.both`, `todo.greg`, `todo.brett`) has been rendering as empty regardless of what
+  was on it.** The shopping list was unaffected: it reads through the legacy REST path. This
+  is §1's thesis arriving on schedule — green suite, live watchdog, silently dead.
+
+### ⛔ The CALENDAR half is blocked on Home Assistant, not on code
+
+Probed live 2026-08-30: the only `calendar.*` entities in this house are
+`calendar.brisbane_city_council` and `calendar.radarr`, **neither of which declares
+`CREATE_EVENT`**. Google and Apple reach the wall as read-only iCal share URLs and there is
+no CalDAV or Google-API client in the tree, so *"we're out Thursday"* has nowhere to go.
+Adding HA's **Local Calendar** integration (a UI action in HA) unblocks it; the intent seam
+and the readback are already built and are what it would reuse.
+
 ---
 
 ## 4 · The house has no memory of ITSELF
