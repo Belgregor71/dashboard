@@ -12,6 +12,18 @@ import { isHidden } from "./photoVeto.js";
 //
 // Everything is fail-soft: a sleeping/absent Synology returns []/null, never an
 // error the kiosk has to render. Confirmed against the live v3.0.2 instance.
+//
+// ⚠ FAIL-SOFT HID A REAL DIFFERENCE, AND IT BLANKED THE WALL. Returning [] for
+// both "Immich has nothing for this question" and "the fetch failed" is right
+// for a renderer — it draws nothing either way — and wrong for a CACHE, which
+// must keep the first and never keep the second. On 2026-08-30 one cold-start
+// failure after a service restart was memoised for on-this-day's full HOUR, and
+// the photo ground stayed empty while every health check read 200 OK.
+//
+// So each search has TWO views of one implementation:
+//   searchRandom(n)        → Array          the old shape, every caller unchanged
+//   searchRandomResult(n)  → { ok, assets } for the routes that memoise
+// `ok:false` means the fetch failed. `ok:true` with an empty list is an answer.
 
 const TIMEOUT_MS = 6000;
 const DAY_MS = 86_400_000;
@@ -271,10 +283,17 @@ export function slim(a) {
   };
 }
 
-/** Random still images. Over-fetches then filters, since videos/trashed slip in. */
+/** Random still images, as a bare array — the long-standing shape. */
 export async function searchRandom(count = 12) {
+  return (await searchRandomResult(count)).assets;
+}
+
+/** Random still images. Over-fetches then filters, since videos/trashed slip in. */
+export async function searchRandomResult(count = 12) {
   const cfg = config();
-  if (!cfg) return [];
+  // Unconfigured is not an answer about the library, so it must not be cached
+  // as one — a box that gains its key later would otherwise serve [] until TTL.
+  if (!cfg) return { ok: false, assets: [] };
   try {
     // withExif ONLY when the screenshot filter is on: isScreenshot needs the
     // pixel dimensions, and without them it is inert. Requested conditionally so
@@ -292,12 +311,14 @@ export async function searchRandom(count = 12) {
       { method: "POST", headers: headers(cfg.key), body: JSON.stringify(body) },
       TIMEOUT_MS
     );
-    if (!res.ok) return [];
+    if (!res.ok) return { ok: false, assets: [] };
     const arr = await res.json();
     const items = Array.isArray(arr) ? arr : (arr?.assets?.items ?? []);
-    return items.filter(usableImage).slice(0, count).map(slim);
+    // ok:true even when the filter removes everything — Immich answered, and
+    // "the draw held no usable stills" is a real answer worth not re-asking.
+    return { ok: true, assets: items.filter(usableImage).slice(0, count).map(slim) };
   } catch {
-    return [];
+    return { ok: false, assets: [] };
   }
 }
 
@@ -307,6 +328,8 @@ export async function searchRandom(count = 12) {
 // Daily Memories set so neighbouring-date candidates are actually fetched. The
 // exact month/day match + nearest-day widening is done by the pure frontend
 // filters (photoMemory.js) on localDateTime. withExif carries location along.
+// Returns { ok, items } — one year's fetch can fail while its neighbours answer,
+// and memoriesFeed needs to know that happened. See the header.
 async function windowForYear(cfg, year, month, day, halfWindowDays = 1) {
   const after = new Date(year, month, day - halfWindowDays);
   const before = new Date(year, month, day + halfWindowDays + 1);
@@ -329,11 +352,11 @@ async function windowForYear(cfg, year, month, day, halfWindowDays = 1) {
       },
       TIMEOUT_MS
     );
-    if (!res.ok) return [];
+    if (!res.ok) return { ok: false, items: [] };
     const data = await res.json();
-    return (data?.assets?.items ?? []).filter(usableImage).map(slim);
+    return { ok: true, items: (data?.assets?.items ?? []).filter(usableImage).map(slim) };
   } catch {
-    return [];
+    return { ok: false, items: [] };
   }
 }
 
@@ -343,9 +366,14 @@ async function windowForYear(cfg, year, month, day, halfWindowDays = 1) {
  * each day; the caller (pure photoMemory.js) makes the exact match + widening.
  * Empty when unconfigured/down.
  */
-export async function memoriesFeed(now = new Date(), { yearsBack = 15, halfWindowDays = 1 } = {}) {
+export async function memoriesFeed(now = new Date(), opts = {}) {
+  return (await memoriesFeedResult(now, opts)).assets;
+}
+
+/** memoriesFeed, plus whether every year's fetch actually succeeded. */
+export async function memoriesFeedResult(now = new Date(), { yearsBack = 15, halfWindowDays = 1 } = {}) {
   const cfg = config();
-  if (!cfg) return [];
+  if (!cfg) return { ok: false, assets: [] };
   const month = now.getMonth();
   const day = now.getDate();
   const thisYear = now.getFullYear();
@@ -357,20 +385,29 @@ export async function memoriesFeed(now = new Date(), { yearsBack = 15, halfWindo
   // Dedupe by id (a window can overlap another's edge).
   const seen = new Set();
   const out = [];
-  for (const list of perYear) {
-    for (const a of list) {
+  for (const { items } of perYear) {
+    for (const a of items) {
       if (seen.has(a.id)) continue;
       seen.add(a.id);
       out.push(a);
     }
   }
-  return out;
+  /* ⚠ ANY year failing makes the whole feed uncacheable, not just an empty one.
+     A partial day — nine years answered, six timed out — is a plausible-looking
+     result that would be pinned for an hour, and "some of your photos" is a
+     harder failure to notice than none of them. */
+  return { ok: perYear.every((r) => r.ok), assets: out };
 }
 
 // The classic on-this-day feed (±1 day) — kept as a thin wrapper so the existing
 // /api/immich/on-this-day route and its callers are unchanged.
 export function onThisDay(now = new Date(), opts = {}) {
   return memoriesFeed(now, { ...opts, halfWindowDays: 1 });
+}
+
+/** onThisDay, plus whether every year's fetch actually succeeded. */
+export function onThisDayResult(now = new Date(), opts = {}) {
+  return memoriesFeedResult(now, { ...opts, halfWindowDays: 1 });
 }
 
 /**
@@ -383,8 +420,13 @@ export function onThisDay(now = new Date(), opts = {}) {
  * @returns {Promise<Array<{id:string, localDateTime:string|null}>>}
  */
 export async function searchTaken(afterISO, beforeISO, size = 250) {
+  return (await searchTakenResult(afterISO, beforeISO, size)).assets;
+}
+
+/** searchTaken, plus whether the fetch actually succeeded. */
+export async function searchTakenResult(afterISO, beforeISO, size = 250) {
   const cfg = config();
-  if (!cfg) return [];
+  if (!cfg) return { ok: false, assets: [] };
   try {
     const res = await fetchWithTimeout(
       `${cfg.base}/api/search/metadata`,
@@ -395,14 +437,14 @@ export async function searchTaken(afterISO, beforeISO, size = 250) {
       },
       TIMEOUT_MS
     );
-    if (!res.ok) return [];
+    if (!res.ok) return { ok: false, assets: [] };
     const data = await res.json();
     const items = (data?.assets?.items ?? []).filter(usableImage).map(slim);
     // Newest first — the way a person scans a month.
     items.sort((a, b) => String(b.localDateTime || "").localeCompare(String(a.localDateTime || "")));
-    return items;
+    return { ok: true, assets: items };
   } catch {
-    return [];
+    return { ok: false, assets: [] };
   }
 }
 

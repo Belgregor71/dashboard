@@ -2,7 +2,7 @@ import express from "express";
 import { readFile, writeFile, mkdir, readdir, stat, unlink } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import { isConfigured, searchRandom, onThisDay, searchTaken, fetchRendition } from "../services/immichClient.js";
+import { isConfigured, searchRandomResult, onThisDayResult, searchTakenResult, fetchRendition } from "../services/immichClient.js";
 import { getDailySet, getMapTile, hasMapKey, initDailyMemories } from "../services/dailyMemories.js";
 import { clipPathFor, hasClip, hasSkip } from "../services/liveMotion.js";
 import { hiddenIds, hide, undo } from "../services/photoVeto.js";
@@ -32,12 +32,52 @@ const router = express.Router();
 const mem = new Map(); // key → { at, value }
 function memGet(key, ttl) {
   const e = mem.get(key);
+  // `e.value` may legitimately be [] — a date the library has no photo for is a
+  // real, day-stable answer. The miss signal is the ENTRY being absent or
+  // stale, never the value being empty; see `memoised`.
   return e && Date.now() - e.at < ttl ? e.value : null;
 }
 function memSet(key, value) {
   mem.set(key, { at: Date.now(), value });
   return value;
 }
+
+/**
+ * Read through the memo, and STORE ONLY AN ANSWER.
+ *
+ * ⚠⚠ THIS IS THE FIX FOR THE DAY THE WALL WENT BLANK (2026-08-30). The memo
+ * used to keep whatever the client returned, and the client returned [] for
+ * both "Immich has nothing" and "the fetch failed". One cold-start failure
+ * after a service restart was therefore stored with a SUCCESS's TTL — ten
+ * minutes for the random feed, a full HOUR for on-this-day — and the photo
+ * ground stayed empty that whole time while `/api/immich/on-this-day` answered
+ * a healthy `200 {"assets":[]}` and nothing was logged.
+ *
+ * ⚠ Not-caching-empties is the WRONG fix and was rejected. on-this-day fans out
+ * one metadata query PER YEAR (fifteen of them), so a date the library really
+ * has no photo for would re-run fifteen queries on every single request,
+ * forever. The distinction that matters is failure-vs-empty, not empty-vs-not,
+ * which is why the client now reports `ok`.
+ *
+ * A failure is not cached at all rather than cached briefly: the next caller is
+ * the retry, and the ground asks often enough that a short TTL would only
+ * postpone the same blank wall.
+ *
+ * @param {() => Promise<{ok: boolean, assets: Array}>} fetcher
+ */
+async function memoised(key, ttl, fetcher) {
+  const cached = memGet(key, ttl);
+  if (cached) return cached;
+  const { ok, assets } = await fetcher();
+  return ok ? memSet(key, assets) : assets;
+}
+
+/* Exported for the spec: the whole defect lives in the decision above, and it
+   is unreachable from a test that has to stand up a fake Immich to get at it.
+   `__memoTestOnly` lets a spec drive a sequence of outcomes through the real
+   memo — the shape of the bug was a SECOND call reading a first call's
+   failure, which one-shot testing cannot see. */
+export const __memoTestOnly = { memoised, clear: () => mem.clear() };
 
 // ── bounded disk cache for downscaled renditions ───────────────
 // Counts FILES, sized for ~47 KB jpegs. The `daily/` and `clips/` subdirectories
@@ -75,10 +115,8 @@ router.get("/api/immich/on-this-day", async (_req, res) => {
   if (!isConfigured()) return res.json({ assets: [] });
   warmRoster(); // background, never awaited — see photoNames.js
   const key = `otd:${new Date().toDateString()}`;
-  const cached = memGet(key, ON_THIS_DAY_TTL_MS);
-  if (cached) return res.json({ assets: enrich(cached) });
-  const assets = await onThisDay(new Date());
-  res.json({ assets: enrich(memSet(key, assets)) });
+  const assets = await memoised(key, ON_THIS_DAY_TTL_MS, () => onThisDayResult(new Date()));
+  res.json({ assets: enrich(assets) });
 });
 
 /* ── The veto ───────────────────────────────────────────────────────────────
@@ -130,10 +168,8 @@ router.get("/api/immich/random", async (req, res) => {
   warmRoster();
   const count = Math.min(Math.max(parseInt(req.query.count, 10) || 12, 1), 60);
   const key = `rnd:${count}`;
-  const cached = memGet(key, RANDOM_TTL_MS);
-  if (cached) return res.json({ assets: enrich(cached) });
-  const assets = await searchRandom(count);
-  res.json({ assets: enrich(memSet(key, assets)) });
+  const assets = await memoised(key, RANDOM_TTL_MS, () => searchRandomResult(count));
+  res.json({ assets: enrich(assets) });
 });
 
 // Browse assets by taken-date window — the authoring portal's month view. Params
@@ -149,10 +185,8 @@ router.get("/api/immich/browse", async (req, res) => {
   if (!isConfigured()) return res.json({ assets: [] });
 
   const key = `browse:${after}:${before}`;
-  const cached = memGet(key, BROWSE_TTL_MS);
-  if (cached) return res.json({ assets: cached });
-  const assets = await searchTaken(after, before, 250);
-  res.json({ assets: memSet(key, assets) });
+  const assets = await memoised(key, BROWSE_TTL_MS, () => searchTakenResult(after, before, 250));
+  res.json({ assets });
 });
 
 // The frozen Daily Memories set for today (features.dailyMemories). Builds on
