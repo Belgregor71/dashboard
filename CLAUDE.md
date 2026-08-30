@@ -81,7 +81,7 @@ it is "what happens if this is wrong".
 | **`scout` subagent** | Haiku | "Where does X live", "who calls Y", "is this flag reachable", "does the incumbent have this too" | Any verdict that leads to a deletion |
 | **`suite-triage` subagent** | Haiku | Running specs and reporting only the failures | Fixing the failures |
 | **`Explore` (built-in)** | — | Broad sweeps across many directories and naming conventions | Reviewing or auditing what it found |
-| **`/xreview` → local agent** | `devstral-small-2505`, free and unlimited | A cold adversarial read of the outgoing diff before push. Measured 2/2 on planted defects, silent on clean code, ~2.5 min | Write access. Its only tools are read/search/list — there is no write tool to talk it into using |
+| **`/xreview` → local agent** | ⚠ **DISABLED** — `devstral-small-2505` | ~~A cold adversarial read of the outgoing diff~~ **Nothing.** 7/7 runs returned 0 tool calls; it never opened a file. Removed from `/deploy` 2026-08-30 | Any weight at all. A 0-tool-call run is not a review, it is speculation over diff text |
 | **`scripts/xbulk.mjs` → LM Studio** | `gpt-oss-20b`, free and unlimited | **Matching**: "which lines say X" over test logs, `journalctl`, CDP dumps | **Judging**: "what counts as X". Measured 19/19 on the first, 14/19 on the second — it dropped an item stated in plain English |
 
 **The rule that saves the most tokens:** a subagent's tool output never enters
@@ -94,25 +94,46 @@ Corollary: **do not re-read what a subagent already reported.** Re-opening the
 files to "check its work" spends exactly what delegating saved. If the report is
 not trustworthy enough to act on, fix the agent's brief, not this turn.
 
-**Cross-model review.** `/xreview` hands the diff to Gemini, which reads the
-files, chases callers, and returns findings — all of that reading happens in
-Gemini's context on Google's free tier, not here. It is advisory and deliberately
-**not** in `.githooks/pre-push`: that gate targets ~60s against the review's
-measured 133-163s, and a gate slow enough to annoy gets bypassed with
-`--no-verify`, which disables all six real ones. It runs as **step 2 of
-`/deploy`** instead — the deliberate ship path, which has no 60s budget to
-protect. `lms unload --all` is part of that step and is not tidiness: the model
-loads with `--ttl 1800`, so leaving it resident turns the browser specs red
-inside the very pre-push gate the next step triggers. Treat its findings with the
-same scepticism as any agent report — verify before patching, and never delete on
-its say-so.
+**⚠⚠⚠ Cross-model review is DISABLED. Do not run `/xreview`, and do not add it
+back to a workflow without re-measuring.** Removed from step 2 of `/deploy` on
+2026-08-30 after **seven consecutive runs returned 0 tool calls** — the model
+never opened a single file, so nothing it produced was a read of the code. What
+it emitted was plausible-sounding findings generated from the diff text alone:
+once a list of the spec file's own `test()` names each rewritten as a defect,
+twice a change's deliberate design decisions restated as bugs (it reported that
+a function "does not distinguish between an empty result and a failure" when
+that distinction was the entire commit), and once the same finding looped a
+dozen times until it was cut off mid-word.
 
-Gemini reads `AGENTS.md`, the same mirror Codex would (`.gemini/settings.json`
-sets `context.fileName`). **Regenerate the mirror after editing this file** or
-the second model reviews against stale house rules:
-`node scripts/mirror-agents.mjs`.
+🔑 **The tell is the tool-call count in the header line, not the diff size.**
+Two runs at 45.1 KiB and 17.7 KiB both did zero. If a run ever is revived, read
+that number first and discard the output entirely when it is 0.
 
-**⚠⚠ Unload the local model before `npm test`.** A resident 12 GB model starves
+It cost 300-460s per deploy plus the time spent disproving each finding, against
+a measured yield of nothing. The harness is kept — `scripts/xreview-local.mjs`,
+the LM Studio lane and the read-only tool surface are sound — for when a better
+local model lands.
+
+**What replaces it: inject the defect.** No automatic substitute, which is the
+honest position rather than a worse reviewer. The pre-push gates catch six
+classes of breakage mechanically; the seventh — a change that is internally
+consistent, passes its own tests, and is wrong — is caught here the way it has
+actually been caught: **take each new test, inject the specific wrong answer it
+names, and confirm the suite goes red.** That has twice exposed tests that were
+green against a real defect because they never reached the code enforcing the
+rule (the guard lived in a different function than the test assumed), and once a
+cap test that could not tell a per-map cap from a union cap because it sent every
+value to one key. It costs seconds and it has a hit rate.
+
+`AGENTS.md` is the agent-facing mirror of this file, read by Gemini and Codex
+(`.gemini/settings.json` sets `context.fileName`). **Regenerate it after editing
+this file** — `node scripts/mirror-agents.mjs` — or any second model works from
+stale house rules. Still required even with the review lane off: the mirror is
+what `.agents/skills/` cites by section name.
+
+**⚠⚠ Unload the local model before `npm test`.** Nothing in `/deploy` loads one
+any more, but `scripts/xbulk.mjs` does and so does another session's work — so
+`lms ps` before a suite run is still worth the second. A resident 12 GB model starves
 the browser's GPU compositing and the suite has timing-sensitive browser specs —
 `v3-archive.spec.js:420` allows 500ms for a transition. With gpt-oss-20b loaded
 that spec failed **twice, reproducibly**, and passed 36/36 in isolation; with the
@@ -133,10 +154,11 @@ a 101-spec test run is far bigger than a local model's context, and silently dro
 the tail would produce a clean report that never saw the failures. Give it extraction,
 never judgement.
 
-**⚠ The Gemini path is quota-dead.** The free tier is **~20 requests/day per model**,
-not the 1,000–1,500 every source claims, and an agentic review is 10–30 requests.
-`scripts/xreview.mjs` still works if a better key ever appears; the lane runs on
-`scripts/xreview-local.mjs` instead, which needs no account at all.
+**⚠ The Gemini path is quota-dead** — and now moot, since the review lane it fed
+is disabled. The free tier is **~20 requests/day per model**, not the 1,000–1,500
+every source claims, and an agentic review is 10–30 requests. `scripts/xreview.mjs`
+and `scripts/xreview-local.mjs` are both kept against a better model arriving;
+neither is wired into anything.
 
 **⚠ Gemini auth is an API key, not a Google sign-in.** Google retired Gemini Code
 Assist for individuals on this client; OAuth now *succeeds* and then refuses the
