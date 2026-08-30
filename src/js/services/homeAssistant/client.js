@@ -47,13 +47,32 @@ function scheduleReconnect() {
   }, delay);
 }
 
+/* ⚠⚠ THE SHAPE THIS ACTUALLY RECEIVES IS `service_response`, and it was the one
+   spelling missing from the list below. Measured against the live house
+   2026-08-30, `GET /api/ha/todo/todo.both/items` returns
+
+     { "changed_states": [], "service_response": { "todo.both": { "items": [...] } } }
+
+   which matched none of the four guesses, so every to-do read fell through to
+   the `return []` — and `[]` is what `onTodoItems` writes into the entity
+   cache. The wall has been saying "the shopping list is empty" and "nothing on
+   your list" with total confidence, for every list, regardless of what was on
+   them. `lists.js`'s own header warns about exactly this failure; the guard it
+   describes was in place and the value reaching it was already flattened.
+
+   ⚠ SO THE FALLBACK IS NOW `null`, NOT `[]`. A shape we cannot read is not a
+   list with nothing on it, and the two must not arrive at the reader looking
+   alike — the same distinction `23b789b` had to restore for the photo archive.
+   `onTodoItems` ignores a non-array, which leaves the last known good list
+   standing instead of blanking it. */
 function extractTodoItems(result, entityId) {
   if (Array.isArray(result)) return result;
-  const directItems = result?.items ?? result?.response?.items ?? result?.[0]?.items;
-  if (Array.isArray(directItems)) return directItems;
-  const keyedItems = result?.response?.[entityId]?.items ?? result?.[entityId]?.items;
+  const keyed = result?.service_response ?? result?.response ?? result;
+  const keyedItems = keyed?.[entityId]?.items;
   if (Array.isArray(keyedItems)) return keyedItems;
-  return [];
+  const directItems = keyed?.items ?? result?.items ?? result?.[0]?.items;
+  if (Array.isArray(directItems)) return directItems;
+  return null;
 }
 
 async function requestJson(path, options = {}) {
