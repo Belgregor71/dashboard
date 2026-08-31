@@ -245,7 +245,7 @@ def read_frame(proc):
     arecord — so this loop is not just bufsize bookkeeping, it removes a
     spurious restart. Only a genuine EOF (empty read) ends the stream.
     """
-    global _last_frame_at
+    global _last_frame_at, _last_quiet_at
     want = FRAME * 2  # int16 -> 2 bytes/sample
     buf = b""
     while len(buf) < want:
@@ -258,7 +258,14 @@ def read_frame(proc):
         # it. Both callers of read_frame go through here, so the wake loop and
         # capture_utterance keep one clock between them.
         _last_frame_at = time.monotonic()
-    return np.frombuffer(buf, dtype=np.int16)
+    frame = np.frombuffer(buf, dtype=np.int16)
+    # The SECOND clock, and the one 2026-08-30 needed. See the watchdog below:
+    # a frame quiet enough to be a real room stamps it, so "pinned" means no
+    # such frame has arrived in a long time. One numpy op per 80 ms against the
+    # wake model's 4.23 ms — it rounds to nothing.
+    if rms(frame) < PINNED_RMS:
+        _last_quiet_at = time.monotonic()
+    return frame
 
 
 # ── The capture watchdog ─────────────────────────────────────────────────────
@@ -286,17 +293,78 @@ def read_frame(proc):
 # 45 s leaves headroom above it and still recovers ~20x faster than a person.
 FRAME_STALL_S = float(os.environ.get("FRAME_STALL_S", "45"))
 
+# ── ⚠⚠⚠ AND IT WENT DEAF AGAIN ON 2026-08-30, PAST THIS EXACT WATCHDOG ───────
+# Last heard 08:46; found 34 hours later, still `active`, NRestarts=0, arecord
+# alive and holding the mic, ALSA `state: RUNNING`, mixer still 77% unmuted with
+# AGC off, journal silent. `/api/voice/ambient` again knew and nothing else did:
+#
+#     floorDb -4.7   medianDb -4.6   peakDb -4.3   lastDb -4.6
+#
+# A 0.4 dB spread across a five-minute window, pinned near clipping, where this
+# kitchen floors at about -31 and real speech peaks at rms 2400-5600.
+#
+# ⚠ THE WATCHDOG ABOVE FIRED ZERO TIMES, AND COULD NOT HAVE FIRED. It watches
+# for the ABSENCE of frames — `_last_frame_at` going stale. Frames were arriving
+# perfectly on schedule; they were garbage. The clock never went stale, so the
+# thread never woke to anything.
+#
+# The 2026-08-15 note named BOTH failure modes in one sentence — "a stream that
+# keeps flowing but delivers garbage, or one that simply stops without closing"
+# — and the fix only built the second. This is the first one, arriving fifteen
+# days later.
+#
+# ⚠ THE DISCRIMINATOR IS THE QUIET FRAME, NOT THE LOUD ONE. "Loud" is a real
+# room: someone shouting, the TV up, the house itself talking. What no real room
+# does is go a minute and a half without a single 80 ms frame dropping below
+# -8.7 dBFS — speech has gaps, and the gaps are the tell. So this measures how
+# long since the input was quiet enough to be REAL, not how loud it has been.
+#
+# ⚠ A FALSE POSITIVE COSTS ABOUT A SECOND and the true negative cost 34 hours,
+# so the trade is deliberately lopsided. Firing wrongly kills arecord and the
+# existing EOF path rebuilds the stream before anyone could say a wake word.
+# Sustained clipping for 90 s is not a state worth protecting anyway.
+PINNED_RMS = float(os.environ.get("PINNED_RMS", "12000"))       # about -8.7 dBFS
+PINNED_STALL_S = float(os.environ.get("PINNED_STALL_S", "90"))
+
 _last_frame_at = time.monotonic()
+_last_quiet_at = time.monotonic()
 _capture = {"proc": None}
 
 
 def start_capture():
     """Open the mic and hand the watchdog the process to shoot if it stalls."""
-    global _last_frame_at
+    global _last_frame_at, _last_quiet_at
     proc = arecord_stream()
     _capture["proc"] = proc
-    _last_frame_at = time.monotonic()   # a fresh stream starts with a clean clock
+    # A fresh stream starts with a clean clock — BOTH of them. Leaving the quiet
+    # clock stale here would make the new stream inherit the old one's verdict
+    # and be shot on the watchdog's next pass, forever.
+    _last_frame_at = _last_quiet_at = time.monotonic()
     return proc
+
+
+def _stall_reason(now):
+    """Which fault the two clocks currently show, or None.
+
+    ⚠ PURE ON PURPOSE — no sleep, no kill, no I/O. The thread below is a
+    `while True` around a 3 s sleep and cannot be asserted against; this can,
+    and capture_selftest.py does. A watchdog that is never exercised is the
+    thing it exists to prevent.
+
+    Two faults, one remedy: both end as EOF on the pipe, which the reader
+    already handles well. This never invents a second recovery path.
+    """
+    idle = now - _last_frame_at
+    pinned = now - _last_quiet_at
+    if idle >= FRAME_STALL_S:
+        return f"mic delivered nothing for {idle:.0f}s"
+    if pinned >= PINNED_STALL_S:
+        # ⚠ NOT "it is loud". It is that nothing QUIET has arrived — no frame
+        # under about -8.7 dBFS in a minute and a half, which a room with
+        # anyone in it cannot manage. See the block comment above.
+        return (f"mic pinned above {PINNED_RMS:.0f} rms for {pinned:.0f}s "
+                f"with no quiet frame — saturated, not listening")
+    return None
 
 
 def _capture_watchdog():
@@ -305,19 +373,20 @@ def _capture_watchdog():
     # the whole body — so the read below would raise UnboundLocalError on the
     # very first pass and the watchdog would die silently in its own thread,
     # leaving exactly the unsupervised capture it exists to supervise.
-    global _last_frame_at
+    global _last_frame_at, _last_quiet_at
     while True:
         time.sleep(3)
-        idle = time.monotonic() - _last_frame_at
-        if idle < FRAME_STALL_S:
+        why = _stall_reason(time.monotonic())
+        if why is None:
             continue
+
         proc = _capture.get("proc")
-        log(f"⚠ mic delivered nothing for {idle:.0f}s — killing arecord so the "
-            f"reader sees EOF and restarts it")
+        log(f"⚠ {why} — killing arecord so the reader sees EOF and restarts it")
         # Stamped BEFORE the kill: read_frame is blocked and cannot stamp it
         # itself, and without this the next pass would fire again while the
-        # main loop is still rebuilding the stream.
-        _last_frame_at = time.monotonic()
+        # main loop is still rebuilding the stream. BOTH clocks, for the same
+        # reason — the pinned one is just as stale as the idle one.
+        _last_frame_at = _last_quiet_at = time.monotonic()
         try:
             if proc:
                 proc.kill()
@@ -1086,7 +1155,8 @@ def main():
 
     proc = start_capture()
     threading.Thread(target=_capture_watchdog, daemon=True).start()
-    log(f"capture watchdog on → restart the mic after {FRAME_STALL_S:.0f}s of silence on the pipe")
+    log(f"capture watchdog on → restart the mic after {FRAME_STALL_S:.0f}s of silence "
+        f"on the pipe, or {PINNED_STALL_S:.0f}s pinned above {PINNED_RMS:.0f} rms")
     run = []
     held = 0          # consecutive above-barge-threshold frames while speaking
     barge_peak = 0.0  # best wake score heard during the reply now playing

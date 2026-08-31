@@ -422,6 +422,114 @@ def _():
     assert len(said) == 1, f"logged {len(said)} times, not once — the journal floods"
 
 
+# ── The capture watchdog ─────────────────────────────────────────────────────
+# ⚠⚠⚠ THE HOUSE HAS NOW GONE DEAF TWICE, and the second time walked straight
+# past the watchdog built for the first. 2026-08-15: arecord stopped delivering.
+# 2026-08-30: arecord kept delivering a SATURATED signal, pinned at -4.6 dBFS
+# with a 0.4 dB spread across five minutes, and the house was deaf for 34 hours
+# with the service `active`, NRestarts=0 and the journal silent.
+#
+# The first watchdog watched for the ABSENCE of frames, so the second fault was
+# invisible to it by construction. These cases exist so a third variety has to
+# get past a test rather than past a comment.
+
+
+def _clocks(va, *, frames_ago, quiet_ago):
+    """Put the two clocks a chosen age behind a fixed 'now'."""
+    now = 5_000_000.0
+    va._last_frame_at = now - frames_ago
+    va._last_quiet_at = now - quiet_ago
+    return now
+
+
+@case("a healthy mic trips nothing")
+def _():
+    va = load()
+    now = _clocks(va, frames_ago=0.5, quiet_ago=0.5)
+    assert va._stall_reason(now) is None, "shot a working microphone"
+
+
+@case("⚠ 2026-08-15 — frames STOP arriving")
+def _():
+    va = load()
+    now = _clocks(va, frames_ago=va.FRAME_STALL_S + 1, quiet_ago=va.FRAME_STALL_S + 1)
+    why = va._stall_reason(now)
+    assert why and "delivered nothing" in why, f"missed a dead pipe: {why!r}"
+
+
+@case("⚠⚠⚠ 2026-08-30 — frames KEEP arriving, pinned near clipping")
+def _():
+    va = load()
+    # The exact shape of the fault: the pipe is perfectly healthy, so the idle
+    # clock is fresh. Only the quiet clock is stale. The old watchdog saw a
+    # fresh idle clock and went back to sleep for 34 hours.
+    now = _clocks(va, frames_ago=0.1, quiet_ago=va.PINNED_STALL_S + 1)
+    why = va._stall_reason(now)
+    assert why is not None, "THE 2026-08-30 DEAFNESS IS STILL INVISIBLE"
+    assert "pinned" in why and "saturated" in why, f"wrong diagnosis: {why!r}"
+
+
+@case("⚠ a LOUD but living room is not shot — the false positive that would matter")
+def _():
+    va = load()
+    # 89 s of unbroken clipping is still under the bar; the room gets the
+    # benefit of the doubt right up to the threshold.
+    now = _clocks(va, frames_ago=0.1, quiet_ago=va.PINNED_STALL_S - 1)
+    assert va._stall_reason(now) is None, "shot a room that was merely loud"
+
+
+@case("the pinned clock is stamped only by a QUIET frame")
+def _():
+    va = load()
+    clock = Clock()
+    va.time = clock
+    rate, frame = va.RATE, va.FRAME
+
+    # A frame quiet enough to be a real room stamps the clock.
+    va._last_quiet_at = 0.0
+    proc = types.SimpleNamespace(stdout=FakeMic([(200, 0.0)], clock, rate, frame))
+    va.read_frame(proc)
+    assert va._last_quiet_at > 0.0, "a quiet frame did not stamp the clock"
+
+    # A pinned frame must NOT — that is the whole detector.
+    va._last_quiet_at = 0.0
+    loud = int(va.PINNED_RMS) + 5000
+    proc = types.SimpleNamespace(stdout=FakeMic([(loud, 0.0)], clock, rate, frame))
+    va.read_frame(proc)
+    assert va._last_quiet_at == 0.0,         "a saturated frame stamped the quiet clock — the detector is blind"
+
+
+@case("⚠⚠ LOUD MUSIC with gaps survives eleven minutes — the false positive that would matter")
+def _():
+    va = load()
+    clock = Clock()
+    va.time = clock
+    rate, frame = va.RATE, va.FRAME
+
+    # The real risk is not speech — speech peaks at rms 2400-5600 here, well
+    # under PINNED_RMS, so it can never trip this. It is sustained CLIPPING with
+    # occasional gaps: the kitchen media loud enough to saturate. So the fixture
+    # holds 80 s above the threshold, drops one quiet frame, and repeats — which
+    # walks the clock to within 10 s of firing, eight times over.
+    loud = int(va.PINNED_RMS) + 8000
+    burst = int(80 / (frame / rate))
+    script = []
+    for _cycle in range(8):
+        script += [(loud, 0.0)] * burst
+        script += [(300, 0.0)]
+    proc = types.SimpleNamespace(stdout=FakeMic(script, clock, rate, frame))
+    va._last_frame_at = va._last_quiet_at = clock.monotonic()
+
+    worst = 0.0
+    while va.read_frame(proc) is not None:
+        worst = max(worst, clock.monotonic() - va._last_quiet_at)
+        assert va._stall_reason(clock.monotonic()) is None,             f"shot a loud room after {worst:.0f}s without a quiet frame"
+
+    # ⚠ The guard on the fixture itself: if the gap arrived so often that the
+    # clock never aged, this case would pass while testing nothing at all.
+    assert worst > 60, f"the fixture never stressed the detector (worst {worst:.0f}s)"
+
+
 if __name__ == "__main__":
     bad = 0
     for name, fn in CASES:
