@@ -8,6 +8,8 @@ import {
   fetchWeatherRaw,
   normalizeNowcast
 } from "../services/weatherService.js";
+import { history as weatherRecord, houseDay } from "../services/weatherHistory.js";
+import { buildClaims, MIN_DAYS } from "../services/lately.js";
 
 const router = express.Router();
 
@@ -72,6 +74,32 @@ router.get("/api/weather/nowcast", async (_req, res) => {
   } catch (error) {
     console.error("Weather nowcast upstream error:", error?.message || error);
     res.status(502).json({ nowcast: null });
+  }
+});
+
+/* What the house actually remembers about the sky, and what that record will
+   support it saying (AUGUST-IMPROVEMENTS.md §4).
+
+   ⚠ The verdict is computed HERE rather than handed back as raw rows, for the
+   same reason routes/censusFeatures.js computes its report on GET: one curl
+   from anywhere on the LAN has to answer the question, and handing back a list
+   with a suggestion to compare it by hand is how an instrument becomes unread
+   telemetry. `claims.ready` is false and `records` empty until the record is
+   MIN_DAYS deep — that refusal IS the answer on a fresh box, not a failure.
+
+   Never 502s: an unreadable record is an empty one. The house has no past yet,
+   which is a fact about the house and not an error. */
+router.get("/api/weather/lately", async (_req, res) => {
+  try {
+    const record = await weatherRecord();
+    res.json({
+      minDays: MIN_DAYS,
+      claims: buildClaims(record, { today: houseDay() }),
+      history: record
+    });
+  } catch (error) {
+    console.error("Weather lately read error:", error?.message || error);
+    res.json({ minDays: MIN_DAYS, claims: buildClaims([], { today: houseDay() }), history: [] });
   }
 });
 

@@ -148,6 +148,109 @@ asked, what surfaced, what fired. Bounded, on-device, same discipline as `data/r
 and `data/census/`. It is the substrate for #1 **and** for most of what makes year two feel
 different from year one. The wall is superb at **now** and has no access to **lately**.
 
+### ▶ Researched 2026-08-31 — NOT BUILT. The shape above is wrong in three ways.
+
+Parked here rather than scheduled: `docs/BACKLOG.md` is the delivery authority and this is not
+on it. What follows corrects the item, so that whoever picks it up does not start from the
+paragraph above.
+
+**The headline: the substrate already exists, and it is broken in a way that would make every
+claim built on it false.** `server/services/weatherHistory.js` writes one line a day and
+carries its own banner — *"⚠ THIS DOES NOTHING TODAY. It is planted, not harvested."* Its
+reader `history()` has **zero callers** outside `tests/memory.spec.js:184`. So §4 is not
+"start counting". It is **"the counting that exists is wrong, and nothing reads it"** — §1's
+thesis arriving again, on a file that was written to anticipate it.
+
+That reframing matters because keeping count is not a nice-to-have here.
+`docs/design/CHARACTER.md:61-64` names it *"its most distinctive habit and the one that makes it
+worth having"*, and `:91` gives the line it is supposed to produce — *"The bin went out at
+8:41, which is the latest all month"*, offered there as the case where the house is *"funny
+and useful in the same breath"*. **That sentence is unbuildable today**, and every sentence of
+that form would be invented.
+
+#### 1 · There IS history, and more than expected
+
+Live kiosk, measured 2026-08-31: **122 lines, 16 distinct days, 2026-08-16 → 08-31, no gaps.**
+The writer is good code — Brisbane day keys, per-line `try/catch`, last-wins-per-day, cold
+start to `[]`, `MAX_DAYS = 1100`, deliberately not backfilled. There is real history to harvest.
+
+#### 2 · ⚠⚠⚠ Three defects make a harvest WRONG, not merely absent
+
+A harvest over this data produces confident false claims — the failure `CHARACTER.md:105`
+calls the rule that *"outranks everything else on this page"*.
+
+- **`high`/`low` are a FORECAST, sampled at an arbitrary moment.** `weatherService.js:129-131`
+  reads `daily.temperature_2m_max[0]` — today's *prediction*. `recordDay` writes once per
+  **process lifetime** (the `lastWritten` guard, `weatherHistory.js:43`), so the stored value
+  is whatever the last service restart of that day happened to predict. **12 of 16 days carry
+  more than one distinct reading:**
+
+  ```
+  2026-08-20   8 distinct readings   high 20.2 → 21.4   low 11.7 → 12.4
+  2026-08-23   5 distinct readings   high 21.5 → 22.2   low 10.7 → 11.5
+  ```
+
+  A 0.7–1.2 °C sampling error across a window whose nights span ~10.7–12.9 °C is **large
+  enough to flip a superlative**. `now.temp_c` (`weatherService.js:115`) *is* a real
+  observation, is already fetched on the same call, and is thrown away.
+
+- **`condition` is one instantaneous sample.** 2026-08-20 recorded `Clear`, `Mostly clear`,
+  `Partly cloudy` and `Cloudy`; last-wins kept `Partly cloudy`. As a *daily* descriptor that
+  is close to meaningless.
+
+- **The BOM fallback records nothing.** `tryBomFallback()` returns without calling `recordDay`,
+  so a day Open-Meteo is down is silently missing — and a missing day is indistinguishable
+  from a day nothing happened, which is fatal to "since we started counting".
+
+Also: **`MAX_DAYS` is read-side only.** Nothing prunes or compacts. 122 lines for 16 days is
+~7.6 service restarts a day — deploys.
+
+#### 3 · 🔑 Four of the five signals are BROWSER facts, so this is TWO writers
+
+`arrival.js`, `presence.js` and `attention.js` all live in `src/v3/core/`. The only thing that
+reaches the server is day-granular counters via `/api/census/features` — no timestamp, no
+candidate text, no id. "One append-only daily record" understates the job.
+
+Server-side at full fidelity today: weather (`getWeatherNormalized`), coarse occupancy
+(`healthService.occupancyFrom`), and **every HA state change**
+(`haWs.getHaWsManager().on("event")`). The richest client tap, if a second writer is ever
+built, is `lastSelection()` (`v3/core/attention.js:357`) — it already carries what won, what
+lost, what the bar was, and whether it reached the glass.
+
+#### 4 · ⛔ The example lines above straddle a line this repo already drew
+
+`unresolved.js:36-45` states it as an absolute, and it is enforced in three places
+(`phase-8-learn.md:81`, `routineRuntime.js:148`, and `personality.js:39-48` stripping
+"I noticed…"):
+
+- ✅ observations about the **HOUSE** and its devices — the house witnessed these
+- ⛔ inferences about the **RESIDENTS'** habits — *"that is what phase-8 bans, and it stays
+  banned… answered only when asked"*
+
+*"Third Tuesday running you were out past nine"* and *"you ask about the commute every weekday
+at 7:40"* are both the banned class. *"Warmest August night since we started counting"* is
+fine — weather is the one thing the house experiences directly (`CHARACTER.md:54`).
+
+**The correction is the split, not the ban:** weather and house facts may reach the glass;
+resident inferences are answer-only, via a `latelyContext()` sitting beside `unresolvedContext`
+at `voice.js:167`.
+
+#### 5 · The shape, if it is ever built
+
+Sequenced so the read side is proven before a second writer exists.
+
+1. **Fix the plant.** Fold observed `now.temp_c` into per-day extremes; conditions as a set;
+   record on the BOM path; add the `compact()` the file has never had. ⚠ **The trap: seed the
+   accumulator from today's row on restart.** A reset writes a *narrower* range and last-wins
+   prefers it, so the bug would look like a working day and read as a quieter one.
+2. **A pure claim builder** that returns `null` below a coverage floor and keeps a sticky
+   `since` — the `censusFeatures.js` lesson, where shipping without `since` made the wall
+   report `dead: 71` of 73 on day one.
+3. **PULL first.** The answer lane is the payoff. **PUSH stays flag-off**, because "warmest in
+   six weeks" cannot be seen working until the record is six weeks deep.
+4. **The client ledger, deferred** — the census machine pointed at the day, POSTing deltas,
+   never a blob.
+
 ---
 
 ## 5 · Nothing survives the empty room

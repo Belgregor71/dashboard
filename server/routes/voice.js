@@ -10,6 +10,7 @@ import {
   buildConverseSystem,
   houseContext,
   unresolvedContext,
+  latelyContext,
   takeSentences,
   todayLine,
   GRIEF_LINE,
@@ -21,6 +22,8 @@ import { toolDefs, entityRoster, planCall } from "../services/voiceTools.js";
 import { houseCharacter, characterEnabled } from "../services/character.js";
 import { recordExchange } from "../services/conversationLog.js";
 import { openItems, resolvedItems } from "../services/unresolved.js";
+import { history as weatherRecord, houseDay } from "../services/weatherHistory.js";
+import { buildClaims } from "../services/lately.js";
 import { VOICE_REGISTER } from "./ai.js";
 
 // Phase 4 "Give it a voice" — the server half of the Mode 3 conversation lanes
@@ -136,7 +139,7 @@ function armedTools() {
    is byte-identical to the pre-character prompt — is not observable from
    outside the route, and a rollback path nothing can assert is a rollback path
    nobody should trust. */
-export function converseSystem(text, tools, digest = null) {
+export function converseSystem(text, tools, digest = null, claims = null) {
   const context =
     process.env.VAULT_ENABLED === "1" ? buildContext(searchVault(text)) : "";
   // todayLine() is appended per request, not baked into the base — the
@@ -166,6 +169,16 @@ export function converseSystem(text, tools, digest = null) {
        server's own observation, not the page's. */
     const wondering = unresolvedContext(openItems(), resolvedItems());
     if (wondering) lines.push(wondering);
+
+    /* What the record says about the sky (AUGUST-IMPROVEMENTS.md §4).
+       ⚠ PASSED IN, not read here, because the record lives on disk and this
+       function is synchronous and exported for the byte-identical prompt test.
+       An async read here would either change that signature or need a timer to
+       hide behind, and `digest` already established the shape: the caller does
+       the IO, this decides the wording. Null (the default, and every existing
+       caller) contributes nothing. */
+    const lately = latelyContext(claims);
+    if (lately) lines.push(lately);
   }
 
   return buildConverseSystem(lines, context);
@@ -358,11 +371,19 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
   // can never disagree — naming a light the model has no tool for is how you get
   // a confident lie about it.
   const tools = armedTools();
+  /* The weather record, read once per turn. Never fatal: a house that cannot
+     read its own past still has to answer the question in front of it, so a
+     failed read degrades to no claims rather than to no reply. */
+  let claims = null;
+  try {
+    claims = buildClaims(await weatherRecord(), { today: houseDay() });
+  } catch { /* no record yet, or unreadable — the house simply has no past */ }
+
   // Retrieved once and shared by both legs, so the Ollama fallback answers from
   // the same notes rather than reverting to "I don't know".
   // `house` is the client's houseDigest() — the page already holds the snapshot
   // at submit() time, so grounding the model costs tokens and not a millisecond.
-  const system = converseSystem(text, tools, req.body?.house);
+  const system = converseSystem(text, tools, req.body?.house, claims);
 
   /* Episodic memory, recorded HERE rather than from the page.
      Only this lane is worth remembering: local and Assist turns are the

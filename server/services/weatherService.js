@@ -299,6 +299,14 @@ async function tryBomFallback({ validateNow, validateForecast }) {
     reportSuccess("weather");
     console.warn(`[Weather] Open-Meteo unavailable — serving BOM via Home Assistant (${bom.entityId})`);
 
+    /* ⚠ Record on THIS path too. Until 2026-08-31 only the Open-Meteo leg
+       wrote a line, so every day Open-Meteo was down left NO ROW — and a
+       missing day is indistinguishable from a day nothing happened, which is
+       exactly the ambiguity that makes "since we started counting" a lie.
+       normalizeBomNow returns the same `{ now, day }` shape, so this is the
+       same call. Floated, never awaited — see the Open-Meteo leg. */
+    recordDay(now).catch(() => {});
+
     return { now, forecast: forecastResult.ok ? forecast : weatherFallbackForecast() };
   } catch (error) {
     console.error("[Weather] BOM fallback failed:", error?.message || error);
@@ -329,17 +337,22 @@ export async function getWeatherNormalized({ lat, lon, validateNow, validateFore
       return { now, forecast: weatherFallbackForecast() };
     }
 
-    /* One line a day, so the house eventually has a past to compare against
-       (weatherHistory.js — it retains nothing today, which is why every
-       "coldest morning in weeks" would currently be invented).
+    /* The day's record (weatherHistory.js), read back by services/lately.js so
+       "coldest morning in three weeks" is a measurement rather than an
+       invention.
 
        `now` here is normalizeWeatherNow's whole object — `{now, day}` — which
-       is already the shape recordDay reads (the day's high/low, and the
-       current condition label).
+       is the shape recordDay reads: the day's forecast high/low, the current
+       condition label, and `now.temp_c`, the actual reading.
+
+       ⚠ CALLED ON EVERY REFRESH ON PURPOSE, and that is a change. recordDay
+       used to write once per process and store a FORECAST; it now folds
+       `now.temp_c` into the day's observed extremes, so the frequency of this
+       call is what makes the record true. It appends only when an extreme
+       actually moves, so the file does not grow with the traffic.
 
        ⚠ Floated, never awaited: the caller is serving a forecast to the wall
-       and must not wait on a disk write. recordDay() never throws and is
-       idempotent per day, so calling it on every refresh is correct. */
+       and must not wait on a disk write. recordDay() never throws. */
     recordDay(now).catch(() => {});
 
     return { now, forecast };

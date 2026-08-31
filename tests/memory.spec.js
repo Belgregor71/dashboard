@@ -9,7 +9,20 @@ import {
   MAX_ENTRIES_PER_DAY,
   RAW_RETENTION_DAYS
 } from "../server/services/conversationLog.js";
-import { parseHistory, recordDay, MAX_DAYS } from "../server/services/weatherHistory.js";
+import {
+  parseHistory,
+  recordDay,
+  compact,
+  foldReading,
+  materialOf,
+  __seedFrom,
+  __resetHistory,
+  MAX_DAYS,
+  MAX_CONDITIONS
+} from "../server/services/weatherHistory.js";
+import { readFile, writeFile, rm, mkdtemp } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CONVERSATION MEMORY — the pure half.
@@ -176,13 +189,41 @@ test.describe("the retention promise", () => {
 /* ═══════════════════════════════════════════════════════════════════════════
    WEATHER HISTORY — one line a day, so the house eventually has a past.
 
-   ⚠ This feature does nothing today, on purpose. Audited 2026-08-16: the
-   dashboard retains no weather reading of any age, so every "coldest morning
-   in weeks" the house could say would be invented. These tests pin the
-   properties that make the file trustworthy once it has some depth.
+   Audited 2026-08-16: the dashboard retained no weather reading of any age, so
+   every "coldest morning in weeks" the house could say would have been
+   invented. services/lately.js is the reader (AUGUST-IMPROVEMENTS.md §4).
+
+   ⚠⚠ EVERY TEST THAT TOUCHES DISK REDIRECTS THE STORE FIRST. recordDay() now
+   reads the file on its first call of a day (to seed the accumulator) and
+   compacts it — so a spec left pointing at the default would rewrite the
+   developer's real record, and two parallel workers would collide on it.
    ═══════════════════════════════════════════════════════════════════════════ */
 test.describe("weatherHistory — the record the house keeps of its own sky", () => {
   const day = (d, high, low) => JSON.stringify({ day: d, high, low, condition: "Clear" });
+
+  /** A normalizeWeatherNow-shaped reading: an observed temperature now, and
+   *  the day's FORECAST extremes, which are deliberately different numbers. */
+  const reading = (tempC, { high = 99, low = -99, condition = "Clear" } = {}) =>
+    ({ now: { temp_c: tempC, condition: { label: condition } }, day: { high_c: high, low_c: low } });
+
+  const AT = new Date("2026-08-20T03:00:00Z");     // 13:00 Brisbane
+  const DAY = "2026-08-20";
+
+  let dir = null;
+  let file = null;
+
+  test.beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "wh-"));
+    file = join(dir, "weather-history.jsonl");
+    __resetHistory({ file });
+  });
+
+  test.afterEach(async () => {
+    __resetHistory({ file: null });
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  const rows = async () => parseHistory(await readFile(file, "utf8"));
 
   test("parses days, newest first", () => {
     const out = parseHistory([day("2026-08-14", 22, 9), day("2026-08-15", 24, 11)].join("\n"));
@@ -220,8 +261,170 @@ test.describe("weatherHistory — the record the house keeps of its own sky", ()
   // A day with neither a high nor a low is not worth a row: every later
   // "coldest since" query would filter it out anyway, and a sparse file of
   // real days beats a dense one of half-days.
-  test("a reading with no high and no low is not recorded", async () => {
-    expect(await recordDay({ now: { condition: { label: "Clear" } }, day: {} })).toBe(false);
-    expect(await recordDay(null)).toBe(false);
+  test("a reading with no high, no low and no observation is not recorded", async () => {
+    expect(await recordDay({ now: { condition: { label: "Clear" } }, day: {} }, AT)).toBe(false);
+    expect(await recordDay(null, AT)).toBe(false);
+  });
+
+  /* ── The fold: pure, and the half that makes the record true ────────────── */
+
+  test("observed extremes RATCHET — the max only rises, the min only falls", () => {
+    let s = foldReading(null, reading(18), DAY);
+    s = foldReading(s, reading(25), DAY);
+    s = foldReading(s, reading(11), DAY);
+    s = foldReading(s, reading(20), DAY);
+    expect(s.obsHigh).toBe(25);
+    expect(s.obsLow).toBe(11);
+    expect(s.n).toBe(4);
+  });
+
+  /* THE WRONG ANSWER: storing the observation over the forecast, or vice
+     versa. They are different claims and both are kept — lately.js reads only
+     the observed pair, and renaming these would reinterpret every row written
+     before 2026-08-31. */
+  test("the forecast is kept alongside the observation, not instead of it", () => {
+    const s = foldReading(null, reading(19, { high: 24, low: 9 }), DAY);
+    expect(s.obsHigh).toBe(19);
+    expect(s.high).toBe(24);
+    expect(s.low).toBe(9);
+  });
+
+  test("a reading with no observed temperature still records the forecast", () => {
+    const s = foldReading(null, { now: { condition: { label: "Clear" } }, day: { high_c: 24, low_c: 9 } }, DAY);
+    expect(s.obsHigh).toBeNull();
+    expect(s.n).toBe(0);
+    expect(s.high).toBe(24);
+  });
+
+  /* 2026-08-20 was recorded as "Partly cloudy" when it had also been Clear,
+     Mostly clear and Cloudy. One sample is not a description of a day. */
+  test("conditions accumulate for the day, deduped and capped", () => {
+    let s = foldReading(null, reading(18, { condition: "Clear" }), DAY);
+    s = foldReading(s, reading(19, { condition: "Cloudy" }), DAY);
+    s = foldReading(s, reading(20, { condition: "Clear" }), DAY);
+    expect(s.conditions).toEqual(["Clear", "Cloudy"]);
+    expect(s.condition).toBe("Clear");
+
+    for (let i = 0; i < 30; i++) s = foldReading(s, reading(18, { condition: `C${i}` }), DAY);
+    expect(s.conditions.length).toBeLessThanOrEqual(MAX_CONDITIONS);
+  });
+
+  test("a new day starts a fresh accumulator rather than carrying yesterday's", () => {
+    const y = foldReading(null, reading(30), "2026-08-19");
+    const t = foldReading(y, reading(15), DAY);
+    expect(t.day).toBe(DAY);
+    expect(t.obsHigh).toBe(15);
+  });
+
+  /* THE WRONG ANSWER: letting the sample count decide. `n` moves on every
+     refresh, so a material check that included it would append a line per
+     request and the file would grow with the traffic instead of the weather. */
+  test("the sample count is NOT material — only the weather is", () => {
+    const a = foldReading(null, reading(18), DAY);
+    const b = foldReading(a, reading(18), DAY);
+    expect(b.n).toBe(a.n + 1);
+    expect(materialOf(b)).toBe(materialOf(a));
+  });
+
+  /* ── The disk lane ─────────────────────────────────────────────────────── */
+
+  test("appends only when the weather actually moves", async () => {
+    expect(await recordDay(reading(18), AT)).toBe(true);
+    expect(await recordDay(reading(18), AT)).toBe(false);   // nothing new
+    expect(await recordDay(reading(25), AT)).toBe(true);    // a new high
+    expect(await recordDay(reading(24), AT)).toBe(false);   // inside the range
+    expect(await recordDay(reading(9), AT)).toBe(true);     // a new low
+
+    const out = await rows();
+    expect(out).toHaveLength(1);
+    expect(out[0].obsHigh).toBe(25);
+    expect(out[0].obsLow).toBe(9);
+  });
+
+  /* ⚠⚠⚠ THE TRAP THIS FILE EXISTS TO SURVIVE, and the reason the seeding code
+     is there at all.
+
+     The kiosk restarts ~7.6 times a day (every deploy). A process that starts
+     its accumulator from empty re-folds only the REST of the day and appends a
+     NARROWER range — and parseHistory's last-wins rule then prefers that
+     narrower line over the wide one already on disk.
+
+     The failure does not look like a failure. It looks like a genuinely milder
+     day, it is written by working code, and every later superlative is
+     computed against it. Delete the seed read in recordDay() and this is the
+     test that goes red. */
+  test("a RESTART mid-day does not narrow the day's range", async () => {
+    await recordDay(reading(25), AT);
+    await recordDay(reading(9), AT);
+    expect((await rows())[0]).toMatchObject({ obsHigh: 25, obsLow: 9 });
+
+    __resetHistory({ file });                 // the process restarts; the file remains
+    await recordDay(reading(18), AT);         // a mild afternoon reading
+
+    const out = await rows();
+    expect(out).toHaveLength(1);
+    expect(out[0].obsHigh).toBe(25);
+    expect(out[0].obsLow).toBe(9);
+  });
+
+  test("a restart still WIDENS the range when the day earns it", async () => {
+    await recordDay(reading(20), AT);
+    __resetHistory({ file });
+    await recordDay(reading(31), AT);
+    expect((await rows())[0].obsHigh).toBe(31);
+  });
+
+  /* A row written before the observed fields existed must not have them
+     invented — the 16 days already on the kiosk are exactly this shape. */
+  test("seeding an old-format row starts the observations at null", () => {
+    const seeded = __seedFrom({ day: DAY, high: 21, low: 12, condition: "Clear" }, DAY);
+    expect(seeded.obsHigh).toBeNull();
+    expect(seeded.obsLow).toBeNull();
+    expect(seeded.high).toBe(21);
+  });
+
+  test("seeding refuses a row from a different day", () => {
+    expect(__seedFrom({ day: "2026-08-19", obsHigh: 30 }, DAY)).toBeNull();
+    expect(__seedFrom(null, DAY)).toBeNull();
+  });
+
+  /* ── compact(): the prune this file never had ───────────────────────────── */
+
+  test("compact collapses a day to its winning line and loses nothing", async () => {
+    await writeFile(file, [
+      day("2026-08-18", 20, 10),
+      day("2026-08-19", 21, 11),
+      day("2026-08-19", 22, 12),
+      day("2026-08-19", 23, 13)
+    ].join("\n") + "\n", "utf8");
+
+    const before = await rows();
+    const removed = await compact();
+    const after = await rows();
+
+    expect(removed).toBe(2);
+    expect(after).toEqual(before);                       // reading is unchanged
+    const lines = (await readFile(file, "utf8")).split("\n").filter(Boolean);
+    expect(lines).toHaveLength(2);
+  });
+
+  test("compact is a no-op on an already-compact file", async () => {
+    await writeFile(file, day("2026-08-18", 20, 10) + "\n", "utf8");
+    expect(await compact()).toBe(0);
+  });
+
+  test("compact on a missing file is 0, not a throw", async () => {
+    expect(await compact()).toBe(0);
+  });
+
+  test("compact enforces MAX_DAYS, which reading alone never did", async () => {
+    const lines = Array.from({ length: MAX_DAYS + 50 }, (_, i) => {
+      const d = new Date(Date.UTC(2020, 0, 1 + i)).toISOString().slice(0, 10);
+      return day(d, 20, 10);
+    });
+    await writeFile(file, lines.join("\n") + "\n", "utf8");
+    await compact();
+    const kept = (await readFile(file, "utf8")).split("\n").filter(Boolean);
+    expect(kept.length).toBe(MAX_DAYS);
   });
 });

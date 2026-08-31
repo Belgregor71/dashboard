@@ -214,6 +214,81 @@ export function unresolvedContext(open, recentlyResolved = []) {
   return out.join("\n");
 }
 
+/* ── What the house has on record about the sky ─────────────────────────────
+   docs/AUGUST-IMPROVEMENTS.md §4. buildClaims() output (services/lately.js)
+   becoming prompt lines, the sibling of unresolvedContext above.
+
+   ⚠ ANSWERED, NEVER ANNOUNCED — and here that is a rule about SUBJECT, not
+   just about tone. services/unresolved.js:36-45 draws the line this follows:
+
+     ✅ observations about the HOUSE and the sky — the house witnessed these
+     ⛔ inferences about the RESIDENTS' habits — banned by
+        docs/vision/phase-8-learn.md:81, enforced by personality.js:39-48
+        stripping "I noticed…", and answered only when asked.
+
+   Weather is the one thing the house experiences directly (CHARACTER.md:54),
+   so a superlative about it is a witnessed fact rather than a conclusion about
+   a person. It still does not get volunteered: a house that opens with a
+   temperature record every morning is a weather station, and the counting
+   habit is only bearable because it is offered "as an observation, never as a
+   scoreboard" (CHARACTER.md:64).
+
+   ⚠ THE NUMBERS ARE HANDED OVER, NEVER THE COMPARISON TO MAKE. The model is
+   given what the record says and told the window it covers, because a model
+   asked to work out a superlative from a list will produce one whether or not
+   the list supports it. buildClaims has already refused everything the data
+   cannot carry; this only phrases what survived.
+
+   Volatile: goes AFTER the cache breakpoint with the rest of the live state.
+─────────────────────────────────────────────────────────────────────────── */
+export function latelyContext(claims) {
+  if (!claims?.ready) return "";
+
+  const out = [];
+  const today = claims.today;
+  if (today && (typeof today.obsLow === "number" || typeof today.obsHigh === "number")) {
+    const bits = [];
+    if (typeof today.obsLow === "number") bits.push(`low ${today.obsLow}°`);
+    if (typeof today.obsHigh === "number") bits.push(`high ${today.obsHigh}° so far`);
+    out.push(`Today, measured: ${bits.join(", ")}.`);
+  }
+
+  const held = (claims.todayHolds ?? [])
+    .map((key) => claims.records?.[key])
+    .filter(Boolean);
+  if (held.length) {
+    out.push(`Today is on record as the ${held.map((r) => r.noun).join(" and the ")} ${held[0].scope}.`);
+  }
+
+  /* ⚠ A TIED VALUE KEEPS ITS NUMBER AND LOSES ITS SUPERLATIVE. Dropping the
+     row entirely would make the house answer "I can't see that" to a question
+     it holds the answer to; printing it unqualified would let the model call a
+     0.1° rounding difference a record. Both halves are stated instead. */
+  const others = Object.values(claims.records ?? {})
+    .filter((r) => r.day !== claims.today?.day)
+    .slice(0, 4)
+    .map((r) => `- ${r.noun} ${r.scope}: ${r.value}° on ${r.day}` +
+      (r.clear ? "" : " — matched by another day, so do not call this a record"));
+  if (others.length) {
+    out.push("What the record holds:", ...others);
+  }
+
+  if (!out.length) return "";
+
+  /* The window is stated so the model cannot borrow a longer one. "Coldest
+     morning in eleven days" is a much smaller claim than "coldest all winter",
+     and the difference between them is the only thing that makes this
+     truthful. */
+  out.push(
+    `This record covers ${claims.observedDays} day(s), ${claims.since} to ${claims.until}` +
+    `${claims.continuous ? "" : `, with ${claims.gapDays} day(s) missing`}. ` +
+    "Never claim a longer stretch than that, and never compare against a day that is not listed. " +
+    "Mention any of it only if asked something it answers — do not volunteer it, and offer a count " +
+    "as an observation, not as a scoreboard."
+  );
+  return out.join("\n");
+}
+
 /* ── Sentence chunking, for speaking before the model has finished ──────────
    A reply cannot be synthesised until it exists, so the old turn was
    strictly serial: the whole answer, then the whole WAV, then audio. Kokoro is

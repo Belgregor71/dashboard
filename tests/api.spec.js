@@ -476,6 +476,35 @@ test.describe("weather", () => {
     }
   });
 
+  /* AUGUST-IMPROVEMENTS.md §4 — what the house remembers about its own sky.
+     ⚠ NEVER 502s, unlike every other route in this describe: an unreadable or
+     absent record is an EMPTY one. A box that has not started counting yet has
+     no past, which is a fact about the box and not an upstream failure — and
+     the refusal to claim anything is the answer, not an error. */
+  test("GET /api/weather/lately answers even with no record at all", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/weather/lately");
+    expect(typeof body.minDays).toBe("number");
+    expect(Array.isArray(body.history)).toBe(true);
+    expect(body.claims).toBeTruthy();
+    expect(typeof body.claims.ready).toBe("boolean");
+    expect(typeof body.claims.observedDays).toBe("number");
+    expect(body.claims.records).toBeTruthy();
+    expect(Array.isArray(body.claims.todayHolds)).toBe(true);
+
+    /* The guard that matters, asserted as an INVARIANT rather than against
+       whatever this box happens to hold: no verdict below the floor, ever. A
+       fixture would pass here and miss the case the suite actually runs in. */
+    if (body.claims.observedDays < body.minDays) {
+      expect(body.claims.ready).toBe(false);
+      expect(Object.keys(body.claims.records)).toHaveLength(0);
+      expect(body.claims.todayHolds).toHaveLength(0);
+    }
+    // A claim is never made about a day the record does not contain.
+    for (const rec of Object.values(body.claims.records)) {
+      expect(body.history.some((r) => r.day === rec.day)).toBe(true);
+    }
+  });
+
   test("GET /api/weather/radar/meta", async ({ request }) => {
     const { status, body } = await expectJson(request, "/api/weather/radar/meta", { statuses: [200, 502] });
     if (status === 200) {
