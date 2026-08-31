@@ -148,11 +148,11 @@ asked, what surfaced, what fired. Bounded, on-device, same discipline as `data/r
 and `data/census/`. It is the substrate for #1 **and** for most of what makes year two feel
 different from year one. The wall is superb at **now** and has no access to **lately**.
 
-### ▶ Researched 2026-08-31 — NOT BUILT. The shape above is wrong in three ways.
+### ▶ Built 2026-09-01 — the WEATHER half, live. The shape above was wrong in three ways.
 
-Parked here rather than scheduled: `docs/BACKLOG.md` is the delivery authority and this is not
-on it. What follows corrects the item, so that whoever picks it up does not start from the
-paragraph above.
+`a2a7beb`. Researched 2026-08-31, shipped the next morning once the measurements below
+changed what the item was. **The other four signals are NOT built** — see §4.6 at the end of
+this section for why they are a second writer, and what the shape above understated.
 
 **The headline: the substrate already exists, and it is broken in a way that would make every
 claim built on it false.** `server/services/weatherHistory.js` writes one line a day and
@@ -250,6 +250,32 @@ Sequenced so the read side is proven before a second writer exists.
    six weeks" cannot be seen working until the record is six weeks deep.
 4. **The client ledger, deferred** — the census machine pointed at the day, POSTing deltas,
    never a blob.
+
+#### 6 · ▶ What shipped, and what is still owed
+
+Steps 1-3 above are built and live (`a2a7beb`, deployed 2026-09-01 06:00). New:
+`server/services/lately.js` (pure claim builder), `latelyContext()` beside
+`unresolvedContext()` in `voiceShape.js`, and `GET /api/weather/lately`, which computes the
+verdict on read the way `/api/census/features` does. `weatherHistory.js` now folds observed
+extremes, records on the BOM path, and compacts — **first run on the kiosk collapsed 123 lines
+to 18.**
+
+⚠ **No new feature flag, deliberately.** The PUSH-to-glass lane is not built, and a flag with
+no code behind it is precisely the dead lever §1 is about. The answer lane rides
+`VOICE_HOUSE_CONTEXT`.
+
+⏳ **The record honestly starts at deploy.** The 16 pre-existing days are forecast-only, so the
+reader is correctly silent on them — `observedDays: 1` on day one. `ready` flips around
+**2026-09-08**; that is the first moment any of this can be heard, and the first real check
+that a shipped superlative is true.
+
+⛔ **Still not built, and it is the larger half:** who was home, what was asked, what surfaced,
+what fired. All four are BROWSER facts — `arrival.js`, `presence.js` and `attention.js` all
+live in `src/v3/core/`, and only day-granular counters reach the server. "One append-only
+daily record" understates it: that half is a **second writer**, and the read side above should
+be proven against real data first. Richest client tap when it happens: `lastSelection()`
+(`v3/core/attention.js:357`) — it already carries what won, what lost, the bar, and whether it
+reached the glass.
 
 ---
 
