@@ -108,14 +108,21 @@ function blankPerson() {
   return { home: 0, away: 0, unknown: 0, arrivals: 0, departures: 0 };
 }
 
+function dayRow(store, day) {
+  if (!store.days[day]) store.days[day] = { samples: 0, blind: 0, people: {} };
+  return store.days[day];
+}
+
 /* ⚠ `since` IS WRITE-ONCE AND IS NEVER MOVED. routes/censusFeatures.js pays for
    this one directly: a stored `since` wins outright there, because taking the
    earlier of stored-and-derived hands a box with a wrong clock the power to
-   re-open an age guard with a single flush dated last January. */
-function dayRow(store, day) {
-  if (!store.days[day]) store.days[day] = { samples: 0, people: {} };
+   re-open an age guard with a single flush dated last January.
+
+   ⚠⚠ AND IT IS SET ONLY BY A REAL OBSERVATION. A day that exists solely because
+   HA was down is not the day counting began — pinning `since` to it would date
+   the record from an outage. */
+function observed(store, day) {
   if (!store.since) store.since = day;
-  return store.days[day];
 }
 
 function personRow(row, id) {
@@ -143,9 +150,31 @@ function prune(store) {
  */
 export function foldSample(store, states, day) {
   const row = dayRow(store, day);
-  row.samples += 1;
 
-  for (const entity of Array.isArray(states) ? states : []) {
+  /* ⚠⚠⚠ A SAMPLE THAT SAW NOBODY IS NOT A SAMPLE OF AN EMPTY HOUSE. Found on
+     the live G11 within two minutes of this shipping: Home Assistant was down,
+     every call 504ing and the websocket `disconnected`, so getStates() returned
+     [] — and the first version of this function counted that as a sample,
+     writing {samples: 1, people: {}}.
+
+     `samples` is the DENOMINATOR services/houseLately.js reads to decide how
+     well a day was observed. An hour of HA outage would write samples: 12 with
+     nobody in it, and the day would read as well-observed and empty. That is
+     precisely the sleeping-wall trap houseLately.js's header is about,
+     reproduced inside the writer built to avoid it.
+
+     So a blind round is counted as BLIND, which makes the outage legible, and
+     it does not touch `samples`, `since`, or anybody's counters. */
+  const present = (Array.isArray(states) ? states : []).filter((e) => personIdOf(e?.entity_id));
+  if (!present.length) {
+    row.blind = (row.blind ?? 0) + 1;
+    return store;
+  }
+
+  row.samples += 1;
+  observed(store, day);
+
+  for (const entity of present) {
     const id = personIdOf(entity?.entity_id);
     if (!id) continue;
     const person = personRow(row, id);
@@ -181,6 +210,8 @@ export function foldTransition(store, { entityId, from, to }, day) {
 
   const person = personRow(dayRow(store, day), id);
   if (!person) return store;
+  // A real edge IS an observation, so it may date the record.
+  observed(store, day);
   if (to === "home") person.arrivals += 1;
   else person.departures += 1;
   return store;

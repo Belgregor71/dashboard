@@ -412,6 +412,47 @@ test.describe("occupancyDays — the writer", () => {
     expect(Object.keys(row.people)).toHaveLength(2); // the sensor is not a person
   });
 
+  test("⚠⚠⚠ HOME ASSISTANT DOWN: a round that saw NOBODY is not a sample of an empty house", () => {
+    /* FOUND ON THE LIVE G11, two minutes after this shipped. HA was down —
+       every call 504ing, the websocket `disconnected` — so getStates() returned
+       [], and the first version of foldSample counted it, writing
+       {samples: 1, people: {}}.
+
+       `samples` is the denominator houseLately.js reads to decide how well a
+       day was observed. An hour of outage writes samples: 12 with nobody in it,
+       and the day then reads as WELL OBSERVED AND EMPTY — the sleeping-wall
+       trap this whole lane exists to avoid, reproduced inside the writer built
+       to avoid it. A blind round is counted as blind and nothing else. */
+    const store = emptyStore();
+    for (let i = 0; i < 12; i++) foldSample(store, [], "2026-09-01");         // HA down
+    foldSample(store, [{ entity_id: "sensor.kitchen_temperature", state: "21" }], "2026-09-01");
+
+    const row = store.days["2026-09-01"];
+    expect(row.samples).toBe(0);
+    expect(row.blind).toBe(13);
+    expect(row.people).toEqual({});
+    // ...and an outage must not date the record either.
+    expect(store.since).toBeNull();
+  });
+
+  test("a blind day never becomes an observed day in the reader", () => {
+    const days = daysEnding(TODAY, MIN_DAYS);
+    const store = { days: {}, since: days[0] };
+    for (const day of days) {
+      store.days[day] = {
+        samples: 288,
+        blind: 0,
+        people: { greg_dee: { home: 288, away: 0, arrivals: 0, departures: 0 } }
+      };
+    }
+    // One day HA was down all day: rounds ran, nobody was ever visible.
+    store.days[days[2]] = { samples: 0, blind: 288, people: {} };
+
+    const claims = occupancyClaims(store, { today: TODAY });
+    expect(claims.observedDays).toBe(MIN_DAYS - 1);
+    expect(claims.ready).toBe(false); // and that drops it back under the floor
+  });
+
   test("an unavailable tracker is UNKNOWN, never away", () => {
     /* healthService.occupancyFrom's reasoning, and it matters: recording an
        integration outage as "away" turns a broken tracker into a claim about

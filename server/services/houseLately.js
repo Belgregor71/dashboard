@@ -371,7 +371,14 @@ export function recordDay(byDay, { minEvents = MIN_EVENTS, scope = null } = {}) 
 export function occupancyClaims(occupancy, { today, minDays = MIN_DAYS } = {}) {
   const days = occupancy?.days && typeof occupancy.days === "object" ? occupancy.days : {};
   const keys = Object.keys(days).filter(isDay).sort();
-  const past = keys.filter((d) => d < today);
+
+  /* ⚠⚠ A DAY WITH NO REAL SAMPLES IS NOT AN OBSERVED DAY, however many rounds
+     the sampler ran. occupancyDays.js counts a round where Home Assistant
+     answered with nobody as `blind` rather than as a sample — measured live,
+     HA went down and the store held {samples: 1, people: {}} — and a reader
+     that counted the ROW rather than its samples would put that day straight
+     back into the window as a day the whole household was out. */
+  const past = keys.filter((d) => d < today && count(days[d]?.samples) > 0);
 
   const empty = { ready: false, since: null, until: null, observedDays: past.length, people: [], today: null };
   if (!past.length) return empty;
@@ -412,6 +419,7 @@ function summariseDay(row) {
   const people = row?.people && typeof row.people === "object" ? row.people : {};
   return {
     samples: count(row?.samples),
+    blind: count(row?.blind),
     people: Object.fromEntries(
       Object.keys(people).sort().map((id) => [
         id,
