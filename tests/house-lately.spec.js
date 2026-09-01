@@ -23,7 +23,8 @@ import {
   startOccupancyDays,
   __resetOccupancy,
   MAX_DAYS,
-  MAX_PEOPLE
+  MAX_PEOPLE,
+  MIN_SPELL_MS
 } from "../server/services/occupancyDays.js";
 import { houseLatelyContext } from "../server/services/voiceShape.js";
 
@@ -482,18 +483,120 @@ test.describe("occupancyDays — the writer", () => {
 
   test("transitions count only real edges", () => {
     const store = emptyStore();
-    const at = (from, to) =>
-      foldTransition(store, { entityId: "person.greg_dee", from, to }, "2026-09-01");
+    const T0 = Date.parse("2026-09-01T08:00:00Z");
+    const HOUR = 3600_000;
+    // Witness the spell first — an edge with nothing behind it is not a journey.
+    const witness = (state, t) =>
+      foldSample(store, [{ entity_id: "person.greg_dee", state }], "2026-09-01", t);
+    const at = (from, to, t) =>
+      foldTransition(store, { entityId: "person.greg_dee", from, to }, "2026-09-01", t);
 
-    at("not_home", "home");   // an arrival
-    at("home", "not_home");   // a departure
-    at("home", "home");       // an attribute-only re-emit
-    at("unavailable", "home"); // ⚠ an HA restart, not a journey
-    at("home", "unknown");    // a tracker dropping out
+    witness("not_home", T0);
+    at("not_home", "home", T0 + HOUR);        // an arrival, an hour out
+    witness("home", T0 + HOUR);
+    at("home", "not_home", T0 + 2 * HOUR);    // a departure, an hour in
+    at("home", "home", T0 + 3 * HOUR);        // an attribute-only re-emit
+    at("unavailable", "home", T0 + 4 * HOUR); // ⚠ an HA restart, not a journey
+    at("home", "unknown", T0 + 5 * HOUR);     // a tracker dropping out
 
     const person = store.days["2026-09-01"].people.greg_dee;
     expect(person.arrivals).toBe(1);
     expect(person.departures).toBe(1);
+  });
+
+  test("⚠⚠⚠ HA RESTORING STATE IS NOT A HOMECOMING — the edge is well-formed and never happened", () => {
+    /* FOUND ON THE LIVE G11. HA came back from a 19-minute outage and BOTH
+       people flipped to `home` in the same instant, each from their own iPhone
+       tracker. The edge HA emitted was a textbook `not_home -> home`, so the
+       from/to guard could not see it: THERE IS NOTHING WRONG WITH THE EDGE.
+
+       The spell before it is the evidence. We had witnessed both of them HOME
+       before the outage and were blind through it, so an edge claiming they
+       were out is HA telling us about a gap we could not see. */
+    const store = emptyStore();
+    const T0 = Date.parse("2026-09-01T07:00:00Z");
+    for (const id of ["greg_dee", "brett"]) {
+      foldSample(store, [{ entity_id: `person.${id}`, state: "home" }], "2026-09-01", T0);
+    }
+    // ...19 minutes of blind rounds, HA down, nothing witnessed...
+    for (let i = 0; i < 4; i++) foldSample(store, [], "2026-09-01", T0 + i * 300_000);
+    // ...then HA restores both trackers at the same instant.
+    for (const id of ["greg_dee", "brett"]) {
+      foldTransition(
+        store, { entityId: `person.${id}`, from: "not_home", to: "home" }, "2026-09-01", T0 + 19 * 60_000
+      );
+    }
+
+    expect(store.days["2026-09-01"].people.greg_dee.arrivals).toBe(0);
+    expect(store.days["2026-09-01"].people.brett.arrivals).toBe(0);
+  });
+
+  test("a spell shorter than MIN_SPELL_MS is a flap, not a journey", () => {
+    /* iphonedetect produced 27 false arrivals in five days by flapping person
+       entities away and back within seconds. arrival.js:44 guards the glass
+       against it; this guards the count, with the same number. */
+    const store = emptyStore();
+    const T0 = Date.parse("2026-09-01T08:00:00Z");
+    foldSample(store, [{ entity_id: "person.greg_dee", state: "not_home" }], "2026-09-01", T0);
+    foldTransition(store, { entityId: "person.greg_dee", from: "not_home", to: "home" },
+      "2026-09-01", T0 + MIN_SPELL_MS - 1);
+    expect(store.days["2026-09-01"]?.people?.greg_dee?.arrivals ?? 0).toBe(0);
+
+    // One millisecond later it is a journey.
+    const ok = emptyStore();
+    foldSample(ok, [{ entity_id: "person.greg_dee", state: "not_home" }], "2026-09-01", T0);
+    foldTransition(ok, { entityId: "person.greg_dee", from: "not_home", to: "home" },
+      "2026-09-01", T0 + MIN_SPELL_MS);
+    expect(ok.days["2026-09-01"].people.greg_dee.arrivals).toBe(1);
+  });
+
+  test("🔑 the witness survives a restart, so a redeploy does not eat a real arrival", async () => {
+    /* The in-memory version of this guard would have been worse than the bug:
+       this box redeploys ~7.6 times a day, and a witness that reset on boot
+       would refuse every genuine arrival that happened to follow one.
+
+       ⚠ THIS GOES THROUGH loadStore() ON PURPOSE. The first version of this
+       test round-tripped the store with JSON.stringify in the test body, and
+       injecting the defect into loadStore left it GREEN — because it never
+       reached loadStore, which is the function that actually enforces the rule. */
+    const dir = await mkdtemp(path.join(tmpdir(), "occ-witness-"));
+    const file = path.join(dir, "occupancy-days.json");
+    __resetOccupancy({ file });
+    try {
+      const T0 = Date.parse("2026-09-01T08:00:00Z");
+      const before = emptyStore();
+      foldSample(before, [{ entity_id: "person.greg_dee", state: "not_home" }], "2026-09-01", T0);
+      await writeFile(file, JSON.stringify(before), "utf8");
+
+      // The deploy: a fresh process reads the store off disk.
+      const after = await loadStore();
+      expect(after.witness.greg_dee.state).toBe("not_home");
+      expect(after.witness.greg_dee.at).toBe(T0);
+
+      foldTransition(after, { entityId: "person.greg_dee", from: "not_home", to: "home" },
+        "2026-09-01", T0 + 3600_000);
+      expect(after.days["2026-09-01"].people.greg_dee.arrivals).toBe(1);
+    } finally {
+      __resetOccupancy();
+    }
+  });
+
+  test("an unverifiable edge advances the witness rather than wedging the guard shut", () => {
+    /* If a refused edge left the witness stale, the FIRST unverifiable edge
+       would silently disable arrival counting for good. */
+    const store = emptyStore();
+    const T0 = Date.parse("2026-09-01T08:00:00Z");
+    // Nothing witnessed yet: HA restores `home` out of nowhere. Refused...
+    foldTransition(store, { entityId: "person.greg_dee", from: "not_home", to: "home" }, "2026-09-01", T0);
+    expect(store.days["2026-09-01"]?.people?.greg_dee?.arrivals ?? 0).toBe(0);
+    expect(store.witness.greg_dee.state).toBe("home");
+    // ...but the house keeps working: a real departure and return still count.
+    foldTransition(store, { entityId: "person.greg_dee", from: "home", to: "not_home" },
+      "2026-09-01", T0 + 3600_000);
+    foldTransition(store, { entityId: "person.greg_dee", from: "not_home", to: "home" },
+      "2026-09-01", T0 + 7200_000);
+    expect(store.days["2026-09-01"].people.greg_dee.departures).toBe(1);
+    expect(store.days["2026-09-01"].people.greg_dee.arrivals).toBe(1);
   });
 
   test("⚠ an HA restart does not fill the house with arrivals", () => {
@@ -602,10 +705,19 @@ test.describe("occupancyDays — the writer", () => {
           new_state: { entity_id: "person.brett", state: "home" }
         }
       });
+      /* ⚠ ASSERTED ON THE WITNESS, NOT ON `arrivals` — and the difference is
+         the point. This edge lands seconds after the boot sample witnessed
+         brett as `not_home`, so foldTransition correctly REFUSES it as a flap
+         (MIN_SPELL_MS). The witness advances either way, which is what proves
+         the handler is genuinely wired to the manager; asserting arrivals: 1
+         here would only pass by disabling the guard that exists because HA
+         restoring state looked exactly like a homecoming on the live box. */
       await expect.poll(async () => {
-        try { return JSON.parse(await readFile(file, "utf8")).days[day].people.brett.arrivals; }
-        catch { return 0; }
-      }, { timeout: 5000 }).toBe(1);
+        try { return JSON.parse(await readFile(file, "utf8")).witness?.brett?.state; }
+        catch { return null; }
+      }, { timeout: 5000 }).toBe("home");
+      const settled = JSON.parse(await readFile(file, "utf8"));
+      expect(settled.days[day].people.brett.arrivals).toBe(0);
     } finally {
       __resetOccupancy();
     }

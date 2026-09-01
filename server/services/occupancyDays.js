@@ -73,6 +73,13 @@ export const MAX_DAYS = 60;
    to grow this file without bound. */
 export const MAX_PEOPLE = 8;
 
+/* How long a spell has to last before the edge that ends it is a journey rather
+   than a flap. This is arrival.js:44's MIN_AWAY_MS, taken deliberately rather
+   than chosen: both surfaces should agree about what counts as having been out,
+   and that number is already the answer to the 27 false arrivals iphonedetect
+   produced in five days. See foldTransition. */
+export const MIN_SPELL_MS = 10 * 60 * 1000;
+
 export const PERSON_RE = /^person\.([a-z0-9_]+)$/;
 
 /* A test-only redirect, NOT an env var — the same choice unresolved.js makes
@@ -87,7 +94,19 @@ let manager = null;
 let writeQueue = Promise.resolve();
 
 export function emptyStore() {
-  return { days: {}, since: null, updated: null };
+  return { days: {}, witness: {}, since: null, updated: null };
+}
+
+/** What we have actually SEEN this person be, and since when. Not data — a
+ *  guard, read only by foldTransition. Persisted so a redeploy does not reset
+ *  it; bounded by MAX_PEOPLE like everything else keyed on a person. */
+function noteWitness(store, id, state, now) {
+  if (state !== "home" && state !== "not_home") return;
+  store.witness ??= {};
+  const prior = store.witness[id];
+  if (prior?.state === state) return;                                  // still the same spell
+  if (!prior && Object.keys(store.witness).length >= MAX_PEOPLE) return;
+  store.witness[id] = { state, at: now };
 }
 
 /** Brisbane, the way weatherHistory.js and conversationLog.js both do it. The
@@ -148,7 +167,7 @@ function prune(store) {
  * @param {Array}  states   HA states, or anything shaped like them
  * @param {string} day      the day key to credit
  */
-export function foldSample(store, states, day) {
+export function foldSample(store, states, day, now = Date.now()) {
   const row = dayRow(store, day);
 
   /* ⚠⚠⚠ A SAMPLE THAT SAW NOBODY IS NOT A SAMPLE OF AN EMPTY HOUSE. Found on
@@ -186,6 +205,13 @@ export function foldSample(store, states, day) {
     if (entity.state === "home") person.home += 1;
     else if (entity.state === "not_home") person.away += 1;
     else person.unknown += 1;
+
+    /* 🔑 THE SAMPLER IS WHAT MAKES THE ARRIVAL GUARD WORK. Sampling every five
+       minutes means a genuine away spell is witnessed within one interval of
+       starting, so the edge that ends it hours later has a real spell behind
+       it. An unknown/unavailable tracker witnesses NOTHING — it is precisely
+       the case we cannot testify about. */
+    noteWitness(store, id, entity.state, now);
   }
 
   return store;
@@ -199,14 +225,48 @@ export function foldSample(store, states, day) {
  * measured on the live box, all 698 entities carried the same `last_changed`
  * half an hour after one. Counting those as arrivals would report the house
  * filling up every time HA bounced.
+ *
+ * ⚠⚠⚠ AND THAT GUARD WAS NOT ENOUGH — measured on the live box the same
+ * afternoon. Home Assistant came back from a 19-minute outage and BOTH people
+ * flipped to `home` in the same instant, each sourced from their own iPhone
+ * tracker. The edge HA emitted was `not_home -> home`: a perfectly well-formed
+ * journey that never happened. It is HA restoring device_tracker state, and the
+ * from/to check above cannot see it because THERE IS NOTHING WRONG WITH THE EDGE.
+ *
+ * 🔑 SO THE EDGE IS NOT THE EVIDENCE — THE SPELL BEFORE IT IS. An arrival is
+ * only real if this process WITNESSED the person away first, and for long
+ * enough. Two guards, and they are the same distinction the rest of this repo
+ * draws between what the house saw and what it concluded:
+ *
+ *   1. The edge's `from` must match what we last witnessed ourselves. HA saying
+ *      "they were out" while our own last observation says "home" is HA telling
+ *      us about a gap we were blind for, not about a journey.
+ *   2. That spell must have lasted MIN_SPELL_MS. This is arrival.js:44's
+ *      MIN_AWAY_MS, the same value for the same reason — iphonedetect flapped
+ *      person entities away and back within seconds and produced 27 false
+ *      arrivals in five days.
+ *
+ * The witness map is PERSISTED rather than held in memory, which also fixes
+ * something the in-memory version would have broken: this box redeploys ~7.6
+ * times a day, and a witness that reset on restart would refuse every genuine
+ * arrival that followed one.
  */
-export function foldTransition(store, { entityId, from, to }, day) {
+export function foldTransition(store, { entityId, from, to }, day, now = Date.now()) {
   const id = personIdOf(entityId);
   if (!id) return store;
   if (from === to) return store;
   if (to !== "home" && to !== "not_home") return store;
   // An entity coming back from unknown/unavailable is a recovery, not a journey.
   if (from !== "home" && from !== "not_home") return store;
+
+  const seen = store.witness?.[id];
+  /* Whether or not it counts, this IS now what we have seen — so the witness
+     advances either way. Otherwise one unverifiable edge would wedge the guard
+     shut against every real journey after it. */
+  noteWitness(store, id, to, now);
+
+  if (!seen || seen.state !== from) return store;      // guard 1: we never saw the spell
+  if (now - seen.at < MIN_SPELL_MS) return store;      // guard 2: too brief to be a journey
 
   const person = personRow(dayRow(store, day), id);
   if (!person) return store;
@@ -223,6 +283,10 @@ export async function loadStore() {
     const parsed = JSON.parse(raw);
     return {
       days: parsed?.days && typeof parsed.days === "object" ? parsed.days : {},
+      // ⚠ Carried across the restart ON PURPOSE — see foldTransition. A witness
+      // that reset here would refuse every real arrival after every deploy, and
+      // this box deploys ~7.6 times a day.
+      witness: parsed?.witness && typeof parsed.witness === "object" ? parsed.witness : {},
       since: typeof parsed?.since === "string" ? parsed.since : null,
       updated: typeof parsed?.updated === "string" ? parsed.updated : null
     };
