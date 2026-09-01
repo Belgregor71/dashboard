@@ -269,13 +269,123 @@ reader is correctly silent on them — `observedDays: 1` on day one. `ready` fli
 **2026-09-08**; that is the first moment any of this can be heard, and the first real check
 that a shipped superlative is true.
 
-⛔ **Still not built, and it is the larger half:** who was home, what was asked, what surfaced,
-what fired. All four are BROWSER facts — `arrival.js`, `presence.js` and `attention.js` all
-live in `src/v3/core/`, and only day-granular counters reach the server. "One append-only
-daily record" understates it: that half is a **second writer**, and the read side above should
-be proven against real data first. Richest client tap when it happens: `lastSelection()`
-(`v3/core/attention.js:357`) — it already carries what won, what lost, the bar, and whether it
-reached the glass.
+▶ **The larger half is BUILT** — see the section immediately below. The prediction in this
+paragraph, kept because it was wrong in a useful way: all four were called BROWSER facts
+needing a second writer. Three of them were already being counted server-side and had no
+reader at all.
+
+### ▶ Built 2026-09-01 — the LARGER half. The prediction above was wrong about where it lived.
+
+`3a33054`. §4.6 said the other four signals were browser facts needing a second writer, and
+that the read side should be proven against real data first. Measuring first — again — changed
+what the item was.
+
+#### 1 · 🔑 Three of the four were ALREADY being counted, and nothing read them
+
+`data/census/features.json` on the live G11, measured 2026-09-01:
+
+```
+since: 2026-08-29   days: 08-29 08-30 08-31 09-01   seen keys: 38   roster: 77
+alert:doorbell:routed     5 · 31 · 19 · 2   (the doorbell really did ring)
+attn:tonightsMenu:offered {first: 08-29, last: 09-01, total: 7653}
+intent:photo.veto:matched · intent:show.media:matched
+```
+
+- **what surfaced** → `attn:<source>:{offered,hero,shown}` and `subject:<id>:shown`
+- **what was asked** → `intent:<id>:matched`
+- **what fired** → `alert:<prefix>:{routed,dropped}`
+
+Day-granular, with a sticky per-key `{first,last,total}` held **outside** the 30-day window —
+which is exactly the "when did this last happen" field a *lately* claim needs. Its only reader
+was `buildReport()` in `routes/censusFeatures.js`, which asks an **engineering** question:
+which levers are dead. Nobody had ever asked it a **house** question.
+
+So this is §1's thesis arriving a third time, on data already on disk: *the counting exists
+and nothing reads it.* **The larger half is mostly a READER** — which is also the order §4.5
+asked for (*"PULL first… the client ledger, deferred"*), reached from the other direction.
+
+#### 2 · ⚠⚠⚠ The trap this data has and the weather record does not
+
+**A sleeping wall looks exactly like a quiet house.**
+
+`lately.js` counts gaps because a day the box was off writes no row. Here it is worse than a
+missing row: the feature census writes **nothing** on a day the kiosk was down, the flag was
+off, or the screen never woke — and "no doorbell key today" is byte-identical to "nobody came
+to the door". The difference between those two sentences is the entire product.
+
+So nothing is computed over that file alone. Every claim runs over **covered days**, and
+coverage comes from the *other* census — `data/census/depth.json`'s `dwellMs`, which sums to
+wall-clock awake time per day:
+
+```
+2026-08-24   80297193 + 797606 + 3534628 + 1830013  =  86.4 M ms   (24 h to 3 s.f.)
+```
+
+A day under `MIN_AWAKE_MS` (8 h) is a **gap**, not a quiet day. Injecting the missing gate
+turns two tests red.
+
+⚠ **The two censuses start on different days** — depth 08-23, features 08-29 — so the window
+is their **intersection**. Without it the house would say "nothing at the door in nine days"
+on a counter four days old.
+
+⚠⚠ **Never-fired is not quiet.** A base absent from `seen` is a counter that has never worked
+(`notYetSeen`/`dead`). Three guards before the house may call something quiet: in the roster,
+carries a `seen.last`, and that last firing is **inside the window**.
+
+#### 3 · ⚠ HA's `last_changed` is not durable memory
+
+The obvious free win — *"the driveway camera has not changed state in 19 days"* straight off
+the state cache — does not exist. All **698** entities on the live box read `last_changed`
+**0.02 d** old; HA had restarted half an hour earlier and reset every one. `last_changed` is
+capped by HA's uptime, and a claim built on it is silently capped too. That signal needs its
+own accumulator over a watched list (the `motionCoverage.js:57` precedent) and is **deferred**.
+
+#### 4 · The two genuinely uncounted signals, both small
+
+- **What the house SAID out loud.** `tts.js:123`'s `speak()` is the one chokepoint every
+  spoken line passes through and nothing counted it. Four V3 callers, four one-line taps:
+  `record("spoke", <lane>, "said")`. Verified in the **built** bundle as `"spoke","<lane>",
+  "said"` — asserted as the whole minified call, because `"voice"` and `"alert"` appear
+  everywhere and a bare `includes()` would pass with every tap deleted.
+- **Who was home.** `server/services/occupancyDays.js`, a `person.*` sampler on `haWs`.
+  Server-side, not in the client ledger, because the hours worth counting are the ones the
+  screen is asleep for.
+
+  🔑🔑 **It counts SAMPLES, never DURATIONS**, and that is deliberate. "Minutes home" is
+  `weatherHistory.js`'s restart-narrowing bug wearing a different name — an accumulator that
+  resets on restart writes a narrower day, and it does not look like a bug, it looks like a
+  quieter one. The kiosk restarts ~7.6×/day. A counter loses at most one sample and the whole
+  class of bug is gone by construction rather than by remembering to seed.
+
+#### 5 · ⛔ Answer-only, and the ban is in the prompt
+
+Half of this is an inference about the **residents** — what they asked, when they were home —
+which `phase-8-learn.md:81` bans from ever being volunteered. `houseLatelyContext()` says so
+in the prompt text rather than trusting tone, and `GET /api/house/lately` is **loopback-gated**
+like `/api/house/unresolved`, one notch harder: that one names cameras, this one names people.
+`data/occupancy-days.json` is gitignored — this repo is public.
+
+⚠ **No new feature flag**, the same call the weather half made and for the same reason: the
+push-to-glass lane is not built, and a flag with no code behind it is the dead lever §1 is
+about. The taps ride `v3FeatureCensus`; the answer lane rides `VOICE_HOUSE_CONTEXT`.
+
+#### 6 · ▶ What shipped, and what is still owed
+
+New: `server/services/houseLately.js` (pure claim builder, five groups derived from the
+client's own roster), `server/services/occupancyDays.js`, `houseLatelyContext()` beside
+`latelyContext()`, `GET /api/house/lately`. 40 unit tests, one route contract, one bundle
+assertion — **every one written against a specific wrong answer, then verified by injecting
+it: 7 injections, 7 red runs.**
+
+⏳ **`quiet`/`busiest` read real data immediately** (4 banked feature-census days, 10 depth
+days) and are correctly **silent** at 3 observed days of 7 — the honest day-one answer.
+`spoke` and `occupancy` start counting at deploy and are silent until roughly **2026-09-08**,
+the same morning the weather half's `ready` flips. That is the first moment any of §4 can be
+checked as true.
+
+⛔ **Still not built:** device quiet (§4.3 above), the push-to-glass lane, and verbatim
+question text — `voice.js:516` refuses to log transcripts on purpose and that boundary is
+unchanged.
 
 ---
 

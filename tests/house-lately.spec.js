@@ -517,6 +517,58 @@ test.describe("occupancyDays — the writer", () => {
     __resetOccupancy();
     expect(startOccupancyDays({ manager: null })).toBeNull();
   });
+
+  test("🔑 END TO END: given a manager it samples on start and the file appears", async () => {
+    /* The test the unit tests above cannot be a substitute for. Every piece of
+       arithmetic here is proven pure, and a writer that is never actually
+       CALLED produces exactly the same green suite — which is the failure this
+       whole lane exists to catch (a feature live, green and dead at once).
+       So: a fake manager, a real interval, a real file. */
+    const dir = await mkdtemp(path.join(tmpdir(), "occ-live-"));
+    const file = path.join(dir, "occupancy-days.json");
+    __resetOccupancy({ file });
+
+    const handlers = {};
+    const manager = {
+      getStates: () => [
+        { entity_id: "person.greg_dee", state: "home" },
+        { entity_id: "person.brett", state: "not_home" }
+      ],
+      on: (event, fn) => { handlers[event] = fn; }
+    };
+
+    try {
+      expect(startOccupancyDays({ manager, sampleMs: 60_000 })).toBeTruthy();
+      await expect.poll(async () => {
+        try { return Object.keys(JSON.parse(await readFile(file, "utf8")).days).length; }
+        catch { return 0; }
+      }, { timeout: 5000 }).toBeGreaterThan(0);
+
+      const written = JSON.parse(await readFile(file, "utf8"));
+      const day = Object.keys(written.days)[0];
+      expect(written.days[day].samples).toBeGreaterThanOrEqual(1);
+      expect(written.days[day].people.greg_dee.home).toBeGreaterThanOrEqual(1);
+      expect(written.days[day].people.brett.away).toBeGreaterThanOrEqual(1);
+      expect(written.since).toBe(day);
+
+      // And the transition lane is really subscribed, not just declared.
+      expect(typeof handlers.event).toBe("function");
+      handlers.event({
+        eventType: "state_changed",
+        data: {
+          entity_id: "person.brett",
+          old_state: { state: "not_home" },
+          new_state: { entity_id: "person.brett", state: "home" }
+        }
+      });
+      await expect.poll(async () => {
+        try { return JSON.parse(await readFile(file, "utf8")).days[day].people.brett.arrivals; }
+        catch { return 0; }
+      }, { timeout: 5000 }).toBe(1);
+    } finally {
+      __resetOccupancy();
+    }
+  });
 });
 
 /* ───────────────────────────────────────────────────────────────────────────
