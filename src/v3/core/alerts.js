@@ -121,6 +121,7 @@ export async function raiseAlert(entity, { now = Date.now() } = {}) {
      announcement is the part that reaches someone in the next room. */
   if (line) {
     setPhase("speaking");
+    record("spoke", "alert", "said");
     speak(line, { rate: ALERT_TTS_RATE, onAudio: (audio) => trackSpeech(audio) })
       .then(() => setPhase("idle"), () => setPhase("idle"));
   }

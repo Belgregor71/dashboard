@@ -11,6 +11,7 @@ import { applySecurity } from "./server/middleware/security.js";
 import { readHaConfig } from "./server/ha/haConfig.js";
 import { getHaWsManager } from "./server/ha/haWs.js";
 import { startHealthService } from "./server/services/healthService.js";
+import { startOccupancyDays } from "./server/services/occupancyDays.js";
 import { startRecoveryService } from "./server/services/recoveryService.js";
 import { startTtsWarmer } from "./server/services/ttsWarmer.js";
 import { startMemoryConsolidator } from "./server/services/conversationLog.js";
@@ -117,6 +118,11 @@ const { enabled: haEnabledForHealth } = readHaConfig({ requireConfig: false });
 startHealthService({ manager: haEnabledForHealth ? getHaWsManager() : null });
 // Self-heal layer: re-arms detection switches, repairs the eufy push lane.
 startRecoveryService({ manager: haEnabledForHealth ? getHaWsManager() : null });
+/* Who was home, day by day (AUGUST-IMPROVEMENTS §4.6). Server-side rather than
+   in the client ledger because the hours worth counting are the ones the screen
+   is asleep for. Inert without HA — a box with no person entities writes nothing
+   rather than writing zeroes, and a day of zeroes reads as an empty house. */
+startOccupancyDays({ manager: haEnabledForHealth ? getHaWsManager() : null });
 
 // Feature routes
 app.use(systemRoutes);

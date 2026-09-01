@@ -289,6 +289,79 @@ export function latelyContext(claims) {
   return out.join("\n");
 }
 
+/* ── What the house has been like lately ────────────────────────────────────
+   docs/AUGUST-IMPROVEMENTS.md §4.6, the sibling of latelyContext above. That
+   one phrases the weather record; this one phrases the counting the wall has
+   been doing about ITSELF — what came to the door, what was asked of it, what
+   reached the glass, what it said out loud, and who was home.
+
+   ⛔⛔ THE SPLIT IS SHARPER HERE, NOT SOFTER. latelyContext gets to speak about
+   the sky, which CHARACTER.md:54 calls the one thing the house experiences
+   directly. Half of what is below is an inference about the RESIDENTS — what
+   they asked, when they were home — and docs/vision/phase-8-learn.md:81 bans
+   that from ever being volunteered. So every line here is ANSWER-ONLY, and the
+   instruction at the bottom says so IN THE PROMPT rather than trusting the
+   model to infer it from tone.
+
+   ⚠ THE NUMBERS ARE HANDED OVER, NEVER THE COMPARISON TO MAKE — the same rule
+   latelyContext states, for the same reason: a model asked to work out a
+   superlative from a list will produce one whether or not the list supports it.
+   buildHouseClaims has already refused everything the record cannot carry —
+   days the wall was asleep, counters that have never fired, leads too thin to
+   be records. This only phrases what survived.
+
+   Volatile: goes AFTER the cache breakpoint with the rest of the live state.
+─────────────────────────────────────────────────────────────────────────── */
+export function houseLatelyContext(claims) {
+  if (!claims?.ready) return "";
+
+  const out = [];
+
+  for (const group of Object.values(claims.groups ?? {})) {
+    if (!group || (!group.total && !group.today)) continue;
+    const bits = [`- ${group.label}: ${group.total} ${group.scope}, ${group.today} today`];
+
+    /* ⚠ A TIED OR THIN RECORD KEEPS ITS NUMBER AND LOSES ITS SUPERLATIVE — the
+       same halving latelyContext does for a 0.1° lead. Dropping the row would
+       make the house answer "I cannot see that" to something it holds. */
+    if (group.busiest) {
+      bits.push(
+        `  busiest day ${group.busiest.day} with ${group.busiest.value}` +
+        (group.busiest.clear ? "" : " — too close to call a record, do not use the word")
+      );
+    }
+    for (const q of group.quiet ?? []) {
+      bits.push(`  nothing from ${q.name} for ${q.daysSince} day(s); last was ${q.lastDay}`);
+    }
+    out.push(bits.join("\n"));
+  }
+
+  if (out.length) out.unshift("What the house has counted about itself:");
+
+  const people = claims.occupancy?.ready ? (claims.occupancy.people ?? []) : [];
+  if (people.length) {
+    out.push(
+      `Who was home, over ${claims.occupancy.observedDays} day(s) ` +
+      `(${claims.occupancy.since} to ${claims.occupancy.until}):`,
+      ...people.map((p) => `- ${p.name}: home on ${p.homeDays}, out all day on ${p.awayDays}`)
+    );
+  }
+
+  if (!out.length) return "";
+
+  /* The window, stated, for the reason latelyContext states it: "the quietest
+     week since we started counting" is a much smaller claim than "the quietest
+     week ever", and the difference between them is the whole of the honesty. */
+  out.push(
+    `This covers ${claims.observedDays} day(s) the wall was actually awake, ${claims.since} to ` +
+    `${claims.until}${claims.continuous ? "" : `, with ${claims.gapDays} day(s) missing`}. ` +
+    "Days the screen was off are not counted at all, so never say nothing happened on one. " +
+    "⛔ NEVER VOLUNTEER ANY OF THIS. What the household asked, and when they were home, is " +
+    "answered only when they ask for it — never offered, and never as a scoreboard."
+  );
+  return out.join("\n");
+}
+
 /* ── Sentence chunking, for speaking before the model has finished ──────────
    A reply cannot be synthesised until it exists, so the old turn was
    strictly serial: the whole answer, then the whole WAV, then audio. Kokoro is

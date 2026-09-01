@@ -36,6 +36,7 @@ import { getAllEntities } from "../../js/services/homeAssistant/state.js";
 import { speak } from "../../js/core/tts.js";
 import { setPhase, trackSpeech } from "./presence-light.js";
 import { announce } from "./attention.js";
+import { record } from "./feature-census.js";
 
 /* Below this, they never really left — see the header. Ten minutes is the
    incumbent's own re-greet cooldown, reused rather than chosen so both surfaces
@@ -138,6 +139,7 @@ function onStateUpdated(entity) {
   });
 
   setPhase("speaking");
+  record("spoke", "arrival", "said");
   speak(text, { onAudio: (audio) => trackSpeech(audio) })
     .then(() => setPhase("idle"), () => setPhase("idle"));
 

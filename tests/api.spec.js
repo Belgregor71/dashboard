@@ -505,6 +505,52 @@ test.describe("weather", () => {
     }
   });
 
+  /* AUGUST-IMPROVEMENTS.md §4.6 — what the house remembers about ITSELF.
+     The sibling of /api/weather/lately above, and it shares that route's one
+     unusual property: it NEVER 502s. Three files feed it and none of them need
+     exist yet; a box that has not started counting has no past, which is a fact
+     about the box rather than an upstream failure.
+
+     ⛔ Loopback-gated, harder than the unresolved list is: that one names
+     cameras, this one names residents and counts what they asked. The suite
+     runs on loopback, so a 403 here would mean the guard is wrong, not tight. */
+  test("GET /api/house/lately answers even with nothing counted at all", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/house/lately");
+    expect(typeof body.minDays).toBe("number");
+    expect(body.claims).toBeTruthy();
+    expect(typeof body.claims.ready).toBe("boolean");
+    expect(typeof body.claims.observedDays).toBe("number");
+    expect(body.claims.groups).toBeTruthy();
+    expect(body.claims.occupancy).toBeTruthy();
+
+    /* The invariant, asserted against whatever this box actually holds rather
+       than a fixture — no verdict below the floor, ever. On a dev machine the
+       census is usually empty and on the kiosk it is not, and both must pass. */
+    if (body.claims.observedDays < body.minDays) {
+      expect(body.claims.ready).toBe(false);
+      expect(Object.keys(body.claims.groups)).toHaveLength(0);
+    }
+    if (body.claims.occupancy.observedDays < body.minDays) {
+      expect(body.claims.occupancy.ready).toBe(false);
+      expect(body.claims.occupancy.people).toHaveLength(0);
+    }
+
+    /* ⚠⚠ NO CLAIM MAY NAME A DAY OUTSIDE THE OBSERVED WINDOW. This is the
+       route-level form of the trap the module exists for: a day the wall was
+       asleep is not in the window, and a busiest-day or last-seen pointing at
+       one would be a claim about a day nothing was watching. */
+    for (const group of Object.values(body.claims.groups)) {
+      if (group.busiest) {
+        expect(group.busiest.day >= body.claims.since).toBe(true);
+        expect(group.busiest.day <= body.claims.until).toBe(true);
+      }
+      for (const quiet of group.quiet ?? []) {
+        expect(quiet.lastDay >= body.claims.since).toBe(true);
+        expect(quiet.daysSince).toBeGreaterThanOrEqual(2);
+      }
+    }
+  });
+
   test("GET /api/weather/radar/meta", async ({ request }) => {
     const { status, body } = await expectJson(request, "/api/weather/radar/meta", { statuses: [200, 502] });
     if (status === 200) {

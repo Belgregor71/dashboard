@@ -39,6 +39,7 @@ import { DEPTH, setDepth } from "./depth.js";
 import { isPresent, onPresence } from "./presence.js";
 import { setPhase, trackSpeech } from "./presence-light.js";
 import { speak } from "../../js/core/tts.js";
+import { record } from "./feature-census.js";
 
 /* Its own record, deliberately. Both surfaces are served from the same origin,
    so a shared key would let the incumbent's 5:35 briefing mark V3's as done —
@@ -111,6 +112,7 @@ export async function checkBriefingWindow({ now = new Date(), force = false } = 
        pointer at something that must already be there to point at. */
     if (shown.speech) {
       setPhase("speaking");
+      record("spoke", "briefing", "said");
       speak(shown.speech, { onAudio: (audio) => trackSpeech(audio) })
         .then(() => setPhase("idle"), () => setPhase("idle"));
     }

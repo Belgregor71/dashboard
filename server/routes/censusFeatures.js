@@ -350,6 +350,12 @@ async function loadCensus() {
   }
 }
 
+/* The same read, for a reader that is not this route. services/houseLately.js
+   asks this file a HOUSE question rather than the engineering one buildReport
+   asks, and it should not learn the path or the cold-start shape a second time —
+   two definitions of "empty census" is how one of them quietly stops matching. */
+export const readFeatureCensus = loadCensus;
+
 /* Read-modify-write, serialised. The kiosk flushes every five minutes and would
    never collide with itself, but the suite fires these back to back in parallel
    workers, and two interleaved reads would silently drop one flush — the exact

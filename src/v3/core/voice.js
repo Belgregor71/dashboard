@@ -170,6 +170,7 @@ function hideHeard() {
 function say(text, refs, opts = {}) {
   setSaidText(el.glanceSaid, text);
   lightRefs(refs);
+  record("spoke", "voice", "said");
   // The sweep is driven by real playback position, so it arrives at the last
   // word rather than at a guess about it.
   return speak(text, { ...opts, onAudio: (audio) => trackSpeech(audio) })

@@ -57,6 +57,10 @@ data/conversations/
 # and this repo is public.
 data/unresolved.json
 data/weather-history.jsonl
+# Who was home, day by day (services/occupancyDays.js). It NAMES RESIDENTS and
+# this repo is public — the same reason data/unresolved.json above is ignored,
+# one notch stronger.
+data/occupancy-days.json
 
 # Playwright MCP tool artifacts
 .playwright-mcp/

@@ -209,6 +209,12 @@ async function loadCensus() {
   }
 }
 
+/* Exported for services/houseLately.js, which uses this census as the DENOMINATOR
+   for the other one: dwellMs says how long the wall was actually awake on a given
+   day, and without it a day the kiosk was down is indistinguishable from a day
+   nothing happened. See that file's header. */
+export const readDepthCensus = loadCensus;
+
 /* Read-modify-write, serialised. The kiosk flushes every five minutes and would
    never collide with itself, but the suite fires these back to back in parallel
    workers, and two interleaved reads would silently drop one flush — the exact

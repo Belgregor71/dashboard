@@ -443,6 +443,14 @@ test.describe("⚠⚠ the instrument must not reproduce the bug it catches", () 
     ];
     const missing = names.filter((n) => !bundle.includes(`"${n}"`));
     expect(missing, "roster names absent from the built bundle").toEqual([]);
+
+    /* AUGUST-IMPROVEMENTS §4.6 - what the house SAID OUT LOUD. Asserted as the
+       whole minified call rather than the lane name alone: "voice" and "alert"
+       are everywhere in this bundle, so a bare includes() would pass even if
+       every tap had been deleted. This is the one shape that cannot. */
+    const spoken = ["alert", "arrival", "briefing", "voice"]
+      .filter((lane) => !bundle.includes(`"spoke","${lane}","said"`));
+    expect(spoken, "speak() taps absent from the built bundle").toEqual([]);
   });
 });
 

@@ -11,6 +11,7 @@ import {
   houseContext,
   unresolvedContext,
   latelyContext,
+  houseLatelyContext,
   takeSentences,
   todayLine,
   GRIEF_LINE,
@@ -24,6 +25,10 @@ import { recordExchange } from "../services/conversationLog.js";
 import { openItems, resolvedItems } from "../services/unresolved.js";
 import { history as weatherRecord, houseDay } from "../services/weatherHistory.js";
 import { buildClaims } from "../services/lately.js";
+import { buildHouseClaims } from "../services/houseLately.js";
+import { occupancyDays } from "../services/occupancyDays.js";
+import { readFeatureCensus } from "./censusFeatures.js";
+import { readDepthCensus } from "./census.js";
 import { VOICE_REGISTER } from "./ai.js";
 
 // Phase 4 "Give it a voice" — the server half of the Mode 3 conversation lanes
@@ -139,7 +144,7 @@ function armedTools() {
    is byte-identical to the pre-character prompt — is not observable from
    outside the route, and a rollback path nothing can assert is a rollback path
    nobody should trust. */
-export function converseSystem(text, tools, digest = null, claims = null) {
+export function converseSystem(text, tools, digest = null, claims = null, houseClaims = null) {
   const context =
     process.env.VAULT_ENABLED === "1" ? buildContext(searchVault(text)) : "";
   // todayLine() is appended per request, not baked into the base — the
@@ -179,6 +184,13 @@ export function converseSystem(text, tools, digest = null, claims = null) {
        caller) contributes nothing. */
     const lately = latelyContext(claims);
     if (lately) lines.push(lately);
+
+    /* The other half of the record: what the house has counted about ITSELF
+       (AUGUST-IMPROVEMENTS §4.6). Same shape and same reason as `claims` above
+       — read by the caller, decided here, defaulting to null so every existing
+       caller and the byte-identical prompt test are untouched. */
+    const houseLately = houseLatelyContext(houseClaims);
+    if (houseLately) lines.push(houseLately);
   }
 
   return buildConverseSystem(lines, context);
@@ -383,7 +395,19 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
   // the same notes rather than reverting to "I don't know".
   // `house` is the client's houseDigest() — the page already holds the snapshot
   // at submit() time, so grounding the model costs tokens and not a millisecond.
-  const system = converseSystem(text, tools, req.body?.house, claims);
+  /* What the house has been like lately — the sibling read, and non-fatal in
+     exactly the same way. Three files, none of which need exist yet. */
+  let houseClaims = null;
+  try {
+    const [features, depth, occupancy] = await Promise.all([
+      readFeatureCensus(),
+      readDepthCensus(),
+      occupancyDays()
+    ]);
+    houseClaims = buildHouseClaims({ features, depth, occupancy }, { today: houseDay() });
+  } catch { /* nothing counted yet, or unreadable — the house simply has no past */ }
+
+  const system = converseSystem(text, tools, req.body?.house, claims, houseClaims);
 
   /* Episodic memory, recorded HERE rather than from the page.
      Only this lane is worth remembering: local and Assist turns are the

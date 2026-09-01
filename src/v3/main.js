@@ -311,7 +311,14 @@ function boot() {
         ...subjectRoster().map((id) => `subject:${id}`),
         ...INTENT_IDS.map((id) => `intent:${id}`),
         ...ACTING_INTENT_IDS.map((id) => `intent:${id}`),
-        ...LOCATIONS.map((l) => `alert:${l.prefix}`)
+        ...LOCATIONS.map((l) => `alert:${l.prefix}`),
+        /* What the house SAID OUT LOUD — AUGUST-IMPROVEMENTS §4.6's "what
+           fired", and the one of its four signals nothing was counting.
+           tts.js's speak() is the single chokepoint every spoken line goes
+           through, and these are its four V3 callers. Literals, not the module
+           names, for the reason this whole roster is assembled from literals:
+           `grep -c bomCandidate dist/assets/v3-*.js` is 0. */
+        ...["alert", "arrival", "briefing", "voice"].map((lane) => `spoke:${lane}`)
       ]
     });
   });
