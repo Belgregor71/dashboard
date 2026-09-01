@@ -812,6 +812,30 @@ test.describe("occupancyClaims", () => {
     expect(claims.people).toEqual([]);
   });
 
+  test("⚠ ON DAY ONE IT STILL KNOWS ABOUT TODAY — the floor governs the RECORD, not the room", () => {
+    /* Measured live on the sampler's first day: `past` was empty, so the early
+       return fired with `today: null` while the store held 22 real samples of
+       both people home. The one thing it could honestly answer, discarded. */
+    const s = { days: {}, since: TODAY };
+    s.days[TODAY] = {
+      samples: 22, blind: 9,
+      people: {
+        greg_dee: { home: 22, away: 0, arrivals: 0, departures: 0 },
+        brett: { home: 22, away: 0, arrivals: 0, departures: 0 }
+      }
+    };
+    const claims = occupancyClaims(s, { today: TODAY });
+
+    expect(claims.ready).toBe(false);      // no record yet, and it says so
+    expect(claims.observedDays).toBe(0);
+    expect(claims.people).toEqual([]);
+    expect(claims.today).not.toBeNull();   // ...but today is not the record
+    expect(claims.today.samples).toBe(22);
+    expect(claims.today.blind).toBe(9);
+    expect(claims.today.people.greg_dee.home).toBe(22);
+    expect(claims.today.people.brett.home).toBe(22);
+  });
+
   test("counts days home and days out, and never today", () => {
     const s = store(daysEnding(TODAY, MIN_DAYS));
     const away = Object.keys(s.days)[0];

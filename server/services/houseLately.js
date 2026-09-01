@@ -416,7 +416,19 @@ export function occupancyClaims(occupancy, { today, minDays = MIN_DAYS } = {}) {
      back into the window as a day the whole household was out. */
   const past = keys.filter((d) => d < today && count(days[d]?.samples) > 0);
 
-  const empty = { ready: false, since: null, until: null, observedDays: past.length, people: [], today: null };
+  /* ⚠ COMPUTED BEFORE THE EARLY RETURN, because today is known long before the
+     window is. On the sampler's first day `past` is empty and this function
+     used to return `today: null` while the store held a full day of real
+     samples — throwing away the one thing it could honestly answer. The floor
+     governs the RECORD, not what is in front of the house right now, and
+     buildHouseClaims already draws that line the same way on its own early
+     return. */
+  const todayRow = isDay(today) && days[today] ? summariseDay(days[today]) : null;
+
+  const empty = {
+    ready: false, since: null, until: null,
+    observedDays: past.length, people: [], today: todayRow
+  };
   if (!past.length) return empty;
 
   const since = past[0];
@@ -424,8 +436,7 @@ export function occupancyClaims(occupancy, { today, minDays = MIN_DAYS } = {}) {
   const names = new Set();
   for (const day of keys) for (const id of Object.keys(days[day]?.people ?? {})) names.add(id);
 
-  const todayRow = isDay(today) && days[today] ? summariseDay(days[today]) : null;
-  const shaped = { ...empty, since, until, observedDays: past.length, today: todayRow };
+  const shaped = { ...empty, since, until, observedDays: past.length };
   if (past.length < minDays) return shaped;
 
   /* Samples, never durations — see occupancyDays.js's header. A day is "home"
