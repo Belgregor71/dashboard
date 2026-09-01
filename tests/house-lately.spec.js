@@ -334,6 +334,72 @@ test.describe("groups", () => {
     expect(claims.groups.door.total).toBe(0);
   });
 
+  test("⚠⚠⚠ A YOUNGER COUNTER GETS A YOUNGER WINDOW — the census-wide phrase is not free", () => {
+    /* The `spoke:*` taps shipped six days after the feature census started.
+       Computed over the census-wide window the spoken group carried
+       `overDays: 7` and "since we started counting" against a counter four days
+       old — three of those days were structurally incapable of holding an
+       event. The COUNT is true and the WINDOW around it is false, and the
+       window is the half that turns a number into a superlative. */
+    const counts = Object.fromEntries(WEEK.map((d) => [d, { "alert:doorbell:routed": 4 }]));
+    // The spoken lane only starts on the last three days of the window.
+    const late = WEEK.slice(-3);
+    for (const d of late) counts[d]["spoke:voice:said"] = 5;
+
+    const claims = buildHouseClaims(
+      {
+        features: featuresOf(WEEK, counts, { roster: ["alert:doorbell", "spoke:voice"] }),
+        depth: depthOf(WEEK)
+      },
+      { today: TODAY }
+    );
+
+    expect(claims.ready).toBe(true);
+    // The old lane still speaks over the whole record...
+    expect(claims.groups.door.observedDays).toBe(WEEK.length);
+    expect(claims.groups.door.scope).toBe("since we started counting");
+    // ...and the young one is honest about being young.
+    expect(claims.groups.spoke.since).toBe(late[0]);
+    expect(claims.groups.spoke.observedDays).toBe(3);
+    expect(claims.groups.spoke.scope).toBe("in 3 days on record");
+    expect(claims.groups.spoke.scope).not.toContain("since we started counting");
+    // Its total counts only its own days — 3 × 5, never 7 × 5.
+    expect(claims.groups.spoke.total).toBe(15);
+    // And under the floor it earns no superlative at all.
+    expect(claims.groups.spoke.busiest).toBeNull();
+  });
+
+  test("a group that has counted the whole time keeps the census-wide phrase", () => {
+    const counts = Object.fromEntries(WEEK.map((d) => [d, { "alert:doorbell:routed": 4 }]));
+    counts[WEEK[1]]["alert:doorbell:routed"] = 30;
+    const claims = buildHouseClaims(
+      { features: featuresOf(WEEK, counts), depth: depthOf(WEEK) },
+      { today: TODAY }
+    );
+    expect(claims.groups.door.since).toBe(WEEK[0]);
+    expect(claims.groups.door.observedDays).toBe(WEEK.length);
+    expect(claims.groups.door.busiest.scope).toBe("since we started counting");
+    expect(claims.groups.door.busiest.day).toBe(WEEK[1]);
+  });
+
+  test("a group nothing has ever been observed for reports zeroes, not a window", () => {
+    const counts = Object.fromEntries(WEEK.map((d) => [d, { "alert:doorbell:routed": 4 }]));
+    const claims = buildHouseClaims(
+      {
+        features: featuresOf(WEEK, counts, { roster: ["alert:doorbell", "spoke:voice"] }),
+        depth: depthOf(WEEK)
+      },
+      { today: TODAY }
+    );
+    expect(claims.groups.spoke.total).toBe(0);
+    expect(claims.groups.spoke.since).toBeNull();
+    expect(claims.groups.spoke.observedDays).toBe(0);
+    expect(claims.groups.spoke.scope).toBeNull();
+    expect(claims.groups.spoke.busiest).toBeNull();
+    // ...and it contributes nothing to the prompt rather than a row of zeroes.
+    expect(houseLatelyContext(claims)).not.toContain("speaking out loud");
+  });
+
   test("humanise strips the namespace and the underscores", () => {
     expect(humanise("alert:side_gate")).toBe("side gate");
     expect(humanise("intent:cal.next")).toBe("cal.next");

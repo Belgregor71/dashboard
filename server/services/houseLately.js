@@ -251,7 +251,7 @@ export function buildHouseClaims(inputs, opts = {}) {
   const groups = {};
   for (const { group, ns, outcome, label } of GROUPS) {
     groups[group] = groupClaims(features, basesIn(features, ns), {
-      observed, outcome, label, today, scope, minEvents, quietMinDays, maxPerGroup
+      observed, outcome, label, today, scope, minDays, minEvents, quietMinDays, maxPerGroup
     });
   }
 
@@ -268,12 +268,41 @@ function basesIn(features, ns) {
 }
 
 function groupClaims(features, bases, o) {
-  const { observed, outcome, label, today, scope, minEvents, quietMinDays, maxPerGroup } = o;
+  const { observed, outcome, label, today, scope, minDays, minEvents, quietMinDays, maxPerGroup } = o;
   const seen = features?.seen && typeof features.seen === "object" ? features.seen : {};
-  const windowStart = observed[0].day;
+
+  /* ⚠⚠⚠ EVERY GROUP KEEPS ITS OWN WINDOW, because the counters were not all
+     born on the same day.
+
+     The `spoke:*` taps shipped 2026-09-01, six days after the feature census
+     started. Computed over the census-wide window, the spoken group would have
+     carried `overDays: 7` and "since we started counting" against a counter
+     that had existed for four days — three of those days were structurally
+     incapable of holding a single event. The COUNT would have been true and the
+     WINDOW around it false, which is the more dangerous half: it is the window
+     that turns a number into a superlative.
+
+     This is the same correction already made between the two censuses, applied
+     one level down. `seen[key].first` is the census's own record of when a key
+     was first observed, held outside the 30-day window for exactly this kind of
+     question. */
+  const firsts = bases
+    .map((b) => seen[`${b}:${outcome}`]?.first)
+    .filter(isDay);
+  const groupSince = firsts.length ? firsts.reduce((a, b) => (a < b ? a : b)) : null;
+  const days = groupSince ? observed.filter((c) => c.day >= groupSince) : [];
+  const windowStart = days.length ? days[0].day : null;
+
+  /* Its own scope string too. Only a group that has been counting for the whole
+     census-wide window may borrow the census-wide phrase. */
+  const groupScope = !days.length
+    ? null
+    : days.length === observed.length
+      ? scope
+      : `in ${days.length} days on record`;
 
   const perBase = bases.map((b) => {
-    const perDay = observed.map((c) => ({ day: c.day, n: countFor(features, c.day, b, outcome) }));
+    const perDay = days.map((c) => ({ day: c.day, n: countFor(features, c.day, b, outcome) }));
     return {
       base: b,
       name: humanise(b),
@@ -288,12 +317,17 @@ function groupClaims(features, bases, o) {
 
   /* The busiest single day for the group as a whole. Per-base records are
      mostly noise at these counts; "the day the most came to the door" is the
-     one a person would actually ask about. */
-  const byDay = observed.map((c) => ({
+     one a person would actually ask about.
+
+     ⚠ AND THE FLOOR APPLIES PER GROUP. A group whose counter is younger than
+     minDays gets no superlative at all — the same refusal buildHouseClaims
+     makes for the record as a whole, for the same reason. Its totals are still
+     reported: they are true, they are simply not a record yet. */
+  const byDay = days.map((c) => ({
     day: c.day,
     n: perBase.reduce((sum, b) => sum + (b.perDay.find((d) => d.day === c.day)?.n ?? 0), 0)
   }));
-  const busiest = recordDay(byDay, { minEvents, scope });
+  const busiest = days.length >= minDays ? recordDay(byDay, { minEvents, scope: groupScope }) : null;
 
   /* ⚠⚠ QUIET IS THE CLAIM MOST LIKELY TO BE A LIE, so it carries three guards:
      the base is in the roster (it CAN fire), `seen.last` exists (it HAS fired,
@@ -301,7 +335,7 @@ function groupClaims(features, bases, o) {
      inside the window (otherwise the days in between were never observed and
      "in N days" is a number about a file, not about the house). */
   const quiet = perBase
-    .filter((b) => b.lastDay && b.lastDay >= windowStart && b.lastDay < today)
+    .filter((b) => b.lastDay && windowStart && b.lastDay >= windowStart && b.lastDay < today)
     .map((b) => ({
       base: b.base,
       name: b.name,
@@ -317,7 +351,9 @@ function groupClaims(features, bases, o) {
     label,
     total,
     today: perBase.reduce((sum, b) => sum + b.today, 0),
-    scope,
+    scope: groupScope,
+    since: groupSince,
+    observedDays: days.length,
     busiest,
     quiet,
     top: perBase
