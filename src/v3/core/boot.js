@@ -175,7 +175,16 @@ export function bootFault() {
     // could not have been caused by something else on this list.
     cause: dead[0] ?? repeating[0],
     detail: detailFor(dead, repeating),
-    text: "Part of the screen didn't start."
+    /* Two registers, same fact — `core/health.js` keeps the pair for every feed
+       and the surface's own fault is no exception. `text` is what the readout
+       SAYS when you ask; `label` is what the pill SHOWS, uppercased by its own
+       CSS and held to one line at 32px.
+
+       ⚠ NEITHER NAMES THE STAGE. `cause` and `detail` carry that, and the one
+       place they surface is the readout you deliberately asked for — "substrate"
+       is not a word anyone in a kitchen should need. */
+    text: "Part of the screen didn't start.",
+    label: "Screen didn't start"
   };
 }
 

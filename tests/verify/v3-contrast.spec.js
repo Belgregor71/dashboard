@@ -782,6 +782,27 @@ const SURFACES = [
         h.hidden = false;
       })
   },
+  /* ⚠ THE FAULT PILL, AND IT IS HERE FOR THE SAME REASON .heard IS DRIVEN
+     DIRECTLY ABOVE: it lives at top:var(--safe), roughly 0.91 of the way UP the
+     frame, and --scrim is a bottom-up gradient, fully transparent by 88%.
+     There is NOTHING between it and the photograph. That exposure is exactly
+     what put #ground-caption on the glass at 1.02:1, and it is why this is the
+     one element in V3 carrying its own ground rather than borrowing the scrim.
+
+     Driven through the pills own seam rather than through /api/system/health:
+     this sweep boots ONE page and walks it through every surface, so it cannot
+     re-fulfil a route per surface. The label is the longest one core/health.js
+     can produce, because the widest pill is the one most likely to be sitting
+     over the brightest part of a photograph. */
+  {
+    id: "0-fault",
+    requires: "#fault-label",
+    drive: (page) =>
+      page.evaluate(() => {
+        window.__setDepth(0, "sweep");
+        window.__v3Fault({ id: "calendar", label: "Calendar not updating", text: "The calendar stopped updating." });
+      })
+  },
   {
     id: "3-day",
     requires: ".subject--calendar .subject__row",

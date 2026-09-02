@@ -221,14 +221,34 @@ test("a subject that times out never lands on an empty depth", async ({ page }) 
     window.__setDepth(3, "spec", { holdMs: 120 });
     await new Promise((r) => setTimeout(r, 400));
     const depth = window.__depth().depth;
-    const layer = document.querySelector(`.depth--${["field", "glance", "spread", "subject"][depth]}`);
-    return { depth, reason: window.__depth().reason, text: (layer?.textContent ?? "").trim() };
+    const hour = document.getElementById("hour");
+    return {
+      depth,
+      reason: window.__depth().reason,
+      hour: hour.textContent.trim(),
+      shown: hour.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+    };
   });
 
   expect(landed.depth).toBe(0);
   expect(landed.reason).toBe("recede");
-  // The field is the floor precisely because it can never be empty.
-  expect(landed.text.length).toBeGreaterThan(0);
+  /* The field is the floor precisely because it can never be empty.
+
+     ⚠ THIS USED TO READ `.depth--field`.textContent, AND ON 2026-09-01 THAT
+     STOPPED BEING THE SAME QUESTION. #hour moved OUT of that layer so the clock
+     could survive depth 1 — depth layers exchange by opacity, so a clock inside
+     the field vanished the moment the morning commute earned the glance. The
+     layer now holds only .now-playing and .media-rooms, both legitimately empty
+     on a quiet wall, so the old read went to zero on a surface that was showing
+     the time perfectly well: it was measuring the DOM tree, not the room.
+
+     What it always MEANT is "the wall did not recede onto a blank screen", and
+     the hour is what makes that true. So it asks the hour — and asks whether it
+     is PAINTED, not merely present, because the failure being guarded against
+     is a landing nobody can see. Strictly stronger than the length check it
+     replaces, which a stray whitespace node would have satisfied. */
+  expect(landed.shown, "the wall receded onto a blank field").toBe(true);
+  expect(landed.hour).toMatch(/^\d{1,2}:\d{2}$/);
   expect(pageErrors).toEqual([]);
 });
 

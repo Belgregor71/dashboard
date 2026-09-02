@@ -306,49 +306,272 @@ test.describe("the status readout", () => {
   });
 });
 
-test.describe("the one-line notice", () => {
-  test("a broken feed reaches the attention queue without touching the screen", async ({ page }) => {
+/* ── The pill ───────────────────────────────────────────────────────────────
+   ⚠ THIS BLOCK USED TO BE "the one-line notice" AND IT ASSERTED THE OPPOSITE
+   MECHANISM. A fault rode in through announce() as a score-72 candidate and won
+   depth 1, setting itself in 132px Fraunces over whatever the room had come to
+   see. Owner's verdict on the glass 2026-09-01: "the big text error messages
+   take away from the dashboard itself." The fault is a pill now, and the tests
+   that pinned the announce are exactly the tests that would have stopped this
+   fix — so they are replaced rather than kept alongside it.
+
+   ⚠ THE LOAD-BEARING ASSERTIONS ARE THE NEGATIVE ONES. "A pill appeared" is
+   true of any implementation that also still shouts; only "#glance-said is
+   empty and the depth never left 0" proves the glance was actually given back.
+─────────────────────────────────────────────────────────────────────────── */
+
+/** What is actually on the glass: the pill, and the two things it must not
+ *  have taken. */
+async function pill(page) {
+  return page.evaluate(() => {
+    const node = document.getElementById("fault");
+    const label = document.getElementById("fault-label");
+    return {
+      hidden: node.hidden,
+      shown: node.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
+      id: node.dataset.fault ?? null,
+      words: (label.textContent ?? "").trim(),
+      glance: (document.getElementById("glance-said").textContent ?? "").trim(),
+      depth: document.documentElement.dataset.depth,
+      announced: window.__v3().announced.filter((c) => c.source === "health").length
+    };
+  });
+}
+
+test.describe("the fault pill", () => {
+  test("⚠ a broken feed reaches the room WITHOUT taking the glance", async ({ page }) => {
     await bootV3(page, { health: BROKEN });
+    await page.evaluate(() => window.__v3Health());
+    const got = await pill(page);
 
-    const got = await page.evaluate(async () => {
+    expect(got.hidden).toBe(false);
+    expect(got.shown, "the pill reports a rect but paints nothing").toBe(true);
+    // wan outranks weather — the healthService's own reasoning about which
+    // upstream broke the others, unchanged by the change of register.
+    expect(got.id).toBe("wan");
+    expect(got.words).toBe("Internet down");
+
+    /* ⚠ THE WHOLE POINT. The old lane put "The internet's down." into
+       #glance-said at --t-said-1 and pushed the wall to depth 1. Both must now
+       be untouched by a fault — and the announce lane has to be GONE, not
+       merely outranked, or a quiet morning still hands it the cell. */
+    expect(got.glance, "a fault is still writing the glance cell").toBe("");
+    expect(got.depth, "a fault still deepened the wall").toBe("0");
+    expect(got.announced, "health is still announcing into the attention queue").toBe(0);
+  });
+
+  test("⚠ the pill is MEASURED and sits on the floor — not a said-voice headline", async ({ page }) => {
+    /* The register is the fix, so the register is the assertion. A pill that
+       said the right words in the serif at 132px would satisfy every textContent
+       check in this file and still be the exact defect the owner reported. */
+    await bootV3(page, { health: BROKEN });
+    const type = await page.evaluate(async () => {
       await window.__v3Health();
+      const label = document.getElementById("fault-label");
+      const said = getComputedStyle(document.getElementById("glance-said"));
+      const s = getComputedStyle(label);
+      const box = document.getElementById("fault").getBoundingClientRect();
       return {
-        health: window.__v3().health,
-        announced: window.__v3().announced
+        family: s.fontFamily,
+        size: s.fontSize,
+        transform: s.textTransform,
+        saidFamily: said.fontFamily,
+        top: Math.round(box.top),
+        left: Math.round(box.left),
+        height: Math.round(box.height)
       };
     });
 
-    expect(got.health.fault).toBe("wan");
-    const entry = got.announced.find((c) => c.source === "health");
-    expect(entry, "the fault never reached the queue").toBeTruthy();
-    /* ⚠ High band, NOT the interrupt band. 72 earns depth 1 when someone is in
-       the room and never when nobody is: a house alone at 3am does not need to
-       be told about itself. */
-    expect(entry.score).toBe(72);
-    expect(entry.expiresAt).toBeGreaterThan(Date.now());
+    expect(type.family).toContain("Roboto Flex");
+    expect(type.family).not.toBe(type.saidFamily);
+    // --t-rail, the floor of the whole system. Not below it, and not above it.
+    expect(type.size).toBe("32px");
+    expect(type.transform).toBe("uppercase");
+    // Top-left at the safe inset: the corner a subject's title owns at depth 3
+    // and nothing owns at 0-2.
+    expect(type.top).toBe(96);
+    expect(type.left).toBe(96);
+    // One line. A wrapped pill has stopped being a pill — 32px of text plus
+    // 12px padding either side plus the hairline is 58.
+    expect(type.height).toBeLessThan(70);
   });
 
-  test("a healthy house announces nothing at all", async ({ page }) => {
+  test("a healthy house shows no pill at all", async ({ page }) => {
     await bootV3(page);
-    const got = await page.evaluate(async () => {
-      await window.__v3Health();
-      return window.__v3().announced.filter((c) => c.source === "health");
-    });
-    expect(got).toEqual([]);
+    await page.evaluate(() => window.__v3Health());
+    const got = await pill(page);
+    expect(got.hidden).toBe(true);
+    expect(got.words).toBe("");
+    expect(got.id).toBeNull();
   });
 
-  test("⚠ an unreachable server does not INVENT a fault", async ({ page }) => {
+  test("⚠ a fault that CLEARS takes the pill down with it", async ({ page }) => {
+    /* The half the announce lane got for free and this one has to do on
+       purpose: `announce()` had no retraction, so recovery was a 90 s decay.
+       Holding the state means clearing it is this module's job now, and a pill
+       left up after the internet came back is the wall lying with confidence —
+       worse than the fault it reports, because nobody can tell the two apart. */
+    /* ⚠ REGISTERED AFTER bootV3, AND THAT ORDER IS THE TEST WORKING AT ALL.
+       Playwright matches the LAST-registered route first, so a mutable handler
+       installed before bootV3s own catch-all never runs, and the second
+       poll reads the same BROKEN fixture as the first — a green test against a
+       pill that never came down. */
+    await bootV3(page, { health: BROKEN });
+    let health = BROKEN;
+    await page.route("**/api/system/health*", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(health) }));
+
+    await page.evaluate(() => window.__v3Health());
+    expect((await pill(page)).hidden).toBe(false);
+
+    health = HEALTHY;
+    await page.evaluate(() => window.__v3Health());
+    const after = await pill(page);
+    expect(after.hidden, "the pill outlived the fault").toBe(true);
+    expect(after.words).toBe("");
+  });
+
+  test("⚠ an unreachable server does not INVENT a fault — and does not KEEP one", async ({ page }) => {
     /* This page is served BY the server it is polling, so a failed poll means a
-       restart in progress or a page that is about to stop working anyway.
-       Announcing from a reading we could not take would be making one up. */
-    await bootV3(page, { health: null });
+       restart in progress or a page about to stop working anyway. Raising from
+       a reading we could not take would be making one up.
+
+       The second clause is the one the announce lane never had to answer. A
+       HELD state has to come down on an unread poll too: not being able to read
+       the server is not evidence of a fault, but it is not evidence that the
+       fault currently on the glass is still true either. */
+    // Registered AFTER bootV3 — last route wins, see the note above.
+    await bootV3(page, { health: BROKEN });
+    let health = BROKEN;
+    await page.route("**/api/system/health*", (route) =>
+      health === null
+        ? route.fulfill({ status: 503, contentType: "application/json", body: "{}" })
+        : route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(health) }));
+
+    await page.evaluate(() => window.__v3Health());
+    expect((await pill(page)).id).toBe("wan");
+
+    health = null;
     const got = await page.evaluate(async () => {
       await window.__v3Health();
-      return {
-        announced: window.__v3().announced.filter((c) => c.source === "health"),
-        health: window.__v3().health
-      };
+      return { hidden: document.getElementById("fault").hidden, health: window.__v3().health };
     });
-    expect(got.announced).toEqual([]);
+    expect(got.hidden, "a dark server held a stale fault on the glass").toBe(true);
+    // And it did not write a verdict it never took: `last` still reads the real
+    // one from the poll before.
+    expect(got.health.fault).toBe("wan");
+  });
+
+  test("⚠ it stands down at depth 3, where a subject's title owns the corner", async ({ page }) => {
+    /* The corner rule (index.html): hour BL, rail BR, title TL, transcript TR.
+       Nothing is lost by yielding — depth 3 is where "show me the status" puts
+       the full readout, so the one depth that hides the pill is the depth that
+       answers it properly. */
+    await bootV3(page, { health: BROKEN });
+    const got = await page.evaluate(async () => {
+      await window.__v3Health();
+      document.documentElement.style.setProperty("--m-calm", "0ms");
+      const node = document.getElementById("fault");
+      const at = (d) => {
+        window.__setDepth(d, "spec");
+        return node.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+      };
+      return { d0: at(0), d1: at(1), d2: at(2), d3: at(3) };
+    });
+    expect(got).toEqual({ d0: true, d1: true, d2: true, d3: false });
+  });
+
+  test("a feed this module has never heard of still gets plain words", async ({ page }) => {
+    /* The fallback both registers share. A fault class that is invisible
+       precisely because it is new is the one worth guarding against. */
+    await bootV3(page, {
+      health: { overall: "error", updatedAt: Date.now(), feeds: [feed("sonarr", "error", "down")], recoveries: [] }
+    });
+    await page.evaluate(() => window.__v3Health());
+    const got = await pill(page);
+    expect(got.id).toBe("sonarr");
+    expect(got.words).toBe("sonarr down");
+  });
+});
+
+/* ── The clock ──────────────────────────────────────────────────────────────
+   ⚠ NOT A HEALTH TEST, AND IT LIVES HERE ANYWAY. It is the second half of the
+   same sitting's verdict: depth 1 was taking two things it should not have, and
+   the fix for both is that the glance stops being a wall the rest of the
+   surface has to leave. Kept beside the pill so an edit that puts either back
+   finds both reasons in one place.
+─────────────────────────────────────────────────────────────────────────── */
+test.describe("the hour survives the glance", () => {
+  test("⚠ the clock does NOT disappear when something earns depth 1", async ({ page }) => {
+    /* SEEN ON THE GLASS 2026-09-01, on the morning commute. #hour lived inside
+       .depth--field; depth layers exchange by OPACITY; so the wall answered
+       "twenty-two minutes to work" by hiding the one number that tells you
+       whether that is a problem. Owner: "the clock disappears even though this
+       is important to see so you can work out if you are running late."
+
+       ⚠ checkVisibility({ opacityProperty: true }), never getComputedStyle on
+       the node alone — an ANCESTOR layer was what took it away, and the hour
+       sets its own opacity. A computed read of the element reports it visible
+       at every depth and is simply wrong, which is the note compose.css already
+       carries for .now-playing. */
+    await bootV3(page);
+    const got = await page.evaluate(() => {
+      /* ⚠ THE EXCHANGE IS A 350ms OPACITY TRANSITION, so a read taken in the
+         same turn as the depth change sees the OUTGOING value and every depth
+         reports visible. Zeroing --m-calm before the first change is what makes
+         this a state assertion rather than a race — Playwrights reducedMotion
+         does nothing on this surface (it is a token, not a media query the
+         stylesheet branches on for these rules). */
+      document.documentElement.style.setProperty("--m-calm", "0ms");
+      const hour = document.getElementById("hour");
+      const at = (d) => {
+        window.__setDepth(d, "spec");
+        return hour.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+      };
+      return { d0: at(0), d1: at(1), d2: at(2), d3: at(3) };
+    });
+
+    expect(got.d0, "the field lost its clock").toBe(true);
+    expect(got.d1, "the clock still vanishes at the glance — the reported defect").toBe(true);
+    // Depth 2's `.cell--wide` OWNS bottom-left (cols 1-8, rows 6-7) and depth 3
+    // is full bleed. Staying would be a corner collision, not a fix.
+    expect(got.d2).toBe(false);
+    expect(got.d3).toBe(false);
+  });
+
+  test("⚠ and it STEPS DOWN, so depth 1 is still one thing at editorial scale", async ({ page }) => {
+    /* The guard on the fix. Left at --t-hour, a 168px clock is the largest
+       thing on a screen that is about something else — the glance line beside
+       it is 132px. It renders at --t-measured-1 instead: a supporting readout,
+       which is what it is at that depth.
+
+       ⚠ MEASURED FROM THE PAINTED BOX, NOT THE FONT-SIZE. The step-down is a
+       transform (animating font-size would reflow the line on every frame of
+       the exchange), so a computed `font-size` read reports 168px at BOTH
+       depths and would pass against the defect. */
+    await bootV3(page);
+    const got = await page.evaluate(() => {
+      // Same reason as above: the step-down is a transitioned transform.
+      document.documentElement.style.setProperty("--m-calm", "0ms");
+      const hour = document.getElementById("hour");
+      const box = () => {
+        const r = hour.getBoundingClientRect();
+        return { h: r.height, left: Math.round(r.left), bottom: Math.round(r.bottom) };
+      };
+      window.__setDepth(0, "spec");
+      const field = box();
+      window.__setDepth(1, "spec");
+      return { field, glance: box(), size: getComputedStyle(hour).fontSize };
+    });
+
+    expect(got.size, "--t-hour drifted from the token").toBe("168px");
+    // 72/168 — the ratio rather than a pixel height, so the assertion survives
+    // a font swap that changes the line box.
+    expect(got.glance.h / got.field.h).toBeCloseTo(72 / 168, 2);
+    /* ⚠ transform-origin is `left bottom` — the two edges var(--safe) pins — so
+       the clock SHRINKS IN PLACE. A step-down that also slid the corner would
+       be a second motion for a cause the room cannot see. */
+    expect(got.glance.left).toBe(got.field.left);
+    expect(got.glance.bottom).toBe(got.field.bottom);
   });
 });

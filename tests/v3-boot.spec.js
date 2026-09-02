@@ -269,57 +269,85 @@ test.describe("a dead subsystem on a real page", () => {
 });
 
 test.describe("saying so", () => {
-  test("a boot failure reaches the room, not just the console", async ({ page }) => {
-    /* §4's second half. A console line nobody reads is the same as no report,
-       and V3 already has the two surfaces for this — the one-line notice into
-       the attention queue, and the readout. Neither is a new writer of a cell. */
-    await bootV3(page, { boom: "ground" });
-
-    const got = await page.evaluate(async () => {
+  /** The pill and the verdict behind it. ⚠ Reads `hidden` rather than
+   *  textContent alone: an empty pill that is still on the glass and a pill
+   *  carrying words are different failures, and only one of them is visible to
+   *  a text read. */
+  const surfaceFault = (page) =>
+    page.evaluate(async () => {
       await window.__v3Health();
-      return { health: window.__v3().health, announced: window.__v3().announced };
+      const node = document.getElementById("fault");
+      return {
+        health: window.__v3().health,
+        hidden: node.hidden,
+        id: node.dataset.fault ?? null,
+        words: (document.getElementById("fault-label").textContent ?? "").trim(),
+        // What the fault must NOT have taken, now that it no longer announces.
+        glance: (document.getElementById("glance-said").textContent ?? "").trim(),
+        announced: window.__v3().announced.filter((c) => c.source === "health").length
+      };
     });
 
+  test("a boot failure reaches the room, not just the console", async ({ page }) => {
+    /* §4's second half. A console line nobody reads is the same as no report.
+
+       ⚠ THE SURFACE IT REACHES CHANGED ON 2026-09-01 AND THE REQUIREMENT DID
+       NOT. It used to announce into the attention queue at score 72 and take
+       depth 1 in 132px Fraunces; it is a pill in the corner now, on the owner's
+       verdict that the big text was taking the wall away from the household.
+       What §4 actually asks for is "visible in the room, not just in the
+       console", and a pill satisfies that at a fraction of the cost — it is
+       also no longer presence-gated, so a wall that came up wrong at 3am says
+       so at 3am instead of waiting for someone to walk past during a tick. */
+    await bootV3(page, { boom: "ground" });
+    const got = await surfaceFault(page);
+
     expect(got.health.fault, "a healthy server silenced a broken surface").toBe("surface");
-    const entry = got.announced.find((c) => c.source === "health");
-    expect(entry, "the boot failure never reached the queue").toBeTruthy();
-    // The room hears a sentence, not a stage name. (announcements() reports the
-    // queue's bookkeeping only, so the words are read off the verdict.)
+    expect(got.hidden, "the boot failure never reached the glass").toBe(false);
+    expect(got.id).toBe("surface");
+
+    /* ⚠ THE PILL NAMES NO STAGE, and the readout below still does. "substrate"
+       is not a word anyone in a kitchen should need; a diagnostic you asked for
+       out loud is where it belongs. */
+    expect(got.words).toBe("Screen didn't start");
+    expect(got.words).not.toContain("ground");
+    // The spoken half is unchanged — it is what the readout says when asked.
     expect(got.health.text).toContain("didn't start");
     expect(got.health.text).not.toContain("ground");
-    // Which part is still recorded — for the readout, and for whoever is
-    // reading this over CDP at the time.
+    // Which part is still recorded, for the readout and for whoever is reading
+    // this over CDP at the time.
     expect(got.health.detail).toContain("ground");
-    // High band, presence-gated: a house alone at 3am is not told about itself.
-    expect(entry.score).toBe(72);
+
+    // And it took neither the glance cell nor the queue on its way there.
+    expect(got.glance, "a boot fault is still writing the glance cell").toBe("");
+    expect(got.announced, "health is still announcing into the attention queue").toBe(0);
   });
 
   test("⚠ and it survives an unreadable server", async ({ page }) => {
-    /* The server being dark is not a fault to announce — this page is served
-       BY it. But the surface's own boot is known LOCALLY, so reporting it is
-       not inventing it. Without this the one moment a half-booted wall most
-       needs to speak — a deploy that broke both — is the one moment it is
-       silent. */
-    await bootV3(page, { boom: "ground", health: null });
+    /* The server being dark is not a fault to raise — this page is served BY
+       it. But the surface's own boot is known LOCALLY, so reporting it is not
+       inventing it. Without this the one moment a half-booted wall most needs
+       to say so — a deploy that broke both — is the one moment it is silent.
 
-    const got = await page.evaluate(async () => {
-      await window.__v3Health();
-      return { health: window.__v3().health, announced: window.__v3().announced };
-    });
+       ⚠ SHARPER SINCE THE PILL. The old lane could only ever fail to announce;
+       this one HOLDS a state, and poll() takes the pill down on an unread poll
+       precisely so a stale fault cannot be propped up by a dark server. That
+       clause must not also swallow the local one. */
+    await bootV3(page, { boom: "ground", health: null });
+    const got = await surfaceFault(page);
 
     expect(got.health?.fault).toBe("surface");
-    expect(got.announced.filter((c) => c.source === "health")).toHaveLength(1);
+    expect(got.hidden, "a dark server swallowed the surface's own fault").toBe(false);
+    expect(got.id).toBe("surface");
   });
 
   test("an unreadable server on a HEALTHY wall still invents nothing", async ({ page }) => {
     // The guard on the clause above: it must add the local fault, not open a
     // door for the fault that was always forbidden.
     await bootV3(page, { health: null });
-    const got = await page.evaluate(async () => {
-      await window.__v3Health();
-      return { health: window.__v3().health, announced: window.__v3().announced };
-    });
-    expect(got.announced.filter((c) => c.source === "health")).toEqual([]);
+    const got = await surfaceFault(page);
+    expect(got.hidden, "an unreadable server INVENTED a fault").toBe(true);
+    expect(got.words).toBe("");
     expect(got.health).toBeNull();
   });
 

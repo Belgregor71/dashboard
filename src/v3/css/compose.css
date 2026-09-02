@@ -249,21 +249,155 @@ html, body {
    The sentence above still holds for the flag-off surface, which is what this
    file otherwise describes, and it is still the right default: a loop here
    needs a named cause and a measured budget, not a preference. */
-.depth--field .hour {
+/* ── The hour ───────────────────────────────────────────────────────────────
+   ⚠ THIS SELECTOR USED TO BE `.depth--field .hour`, AND THE CLOCK LIVED INSIDE
+   THAT LAYER. Depth layers exchange by opacity, so the moment the morning
+   commute earned depth 1 the whole field went to zero and took the clock with
+   it — leaving the household told "twenty-two minutes to work" by a wall that
+   had just hidden the one number you need to know whether that is a problem.
+   Owner's verdict on the glass 2026-09-01, and it is the correct one: the time
+   is not a depth-0 ornament, it is the wall's constant.
+
+   The node is now a child of .stage (see index.html) and gated here on the two
+   depths where the bottom-left corner is actually free:
+
+     0 FIELD    the hour is the field's only text — full --t-hour
+     1 GLANCE   one supporting readout beside the glance — --t-measured-1
+     2 SPREAD   `.cell--wide` OWNS this rectangle (cols 1-8, rows 6-7)
+     3 SUBJECT  full bleed, no tenants
+
+   ⚠ THE STEP-DOWN IS A SCALE, NOT A FONT-SIZE. Depth 1 is still EXACTLY ONE
+   THING at editorial scale; a 168px clock beside a 132px glance line makes the
+   clock the largest thing on a screen that is about something else. But
+   transitioning font-size reflows the line every frame of a 350ms exchange, on
+   a wall budgeted at ≤8% of one core at rest. transform-origin is `left bottom`
+   — the two edges the safe inset pins — so nothing appears to move, it only
+   changes size.
+
+   ⚠ `visibility`, not `display`, for the same reason the depth layers use it:
+   the transition has to actually run, and a `display:none` node reports no rect
+   to the contrast sweep and to `getBoundingClientRect` alike.
+─────────────────────────────────────────────────────────────────────────── */
+.hour {
   position: absolute;
   left: var(--safe);
   bottom: var(--safe);
   font-family: var(--font-measured);
   font-optical-sizing: auto;
   font-variation-settings: "GRAD" var(--grade);
-  font-size: 168px;
+  font-size: var(--t-hour);
   font-weight: 200;
   line-height: 0.9;
   letter-spacing: -0.03em;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
   text-shadow: var(--ink-shadow);
+  transform-origin: left bottom;
+  transform: scale(var(--hour-scale));
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--m-calm) var(--ease),
+              transform var(--m-calm) var(--ease),
+              visibility 0s linear var(--m-calm);
 }
+:root[data-depth="0"] .hour,
+:root[data-depth="1"] .hour {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--m-calm) var(--ease),
+              transform var(--m-calm) var(--ease),
+              visibility 0s linear 0s;
+}
+/* 72/168 — --t-measured-1 over --t-hour. Written as the quotient rather than
+   calc(var(--t-measured-1) / var(--t-hour)) because length-over-length division
+   is CSS Values 4 and this wall must not depend on it to keep its clock. */
+:root[data-depth="1"] { --hour-scale: 0.4286; }
+
+/* ── The fault pill ─────────────────────────────────────────────────────────
+   The house saying that a part of ITSELF is broken.
+
+   ⚠ THIS REPLACED AN announce() INTO THE ATTENTION QUEUE. A degraded feed used
+   to ride in as a score-72 candidate, win depth 1, and set "Home Assistant
+   isn't answering." in 132px Fraunces — the house's loudest editorial voice
+   spent on its own plumbing, on top of whatever the room came to see. Owner's
+   verdict 2026-09-01: "the big text error messages take away from the dashboard
+   itself." They do, and the register was the error: a fault is not a headline
+   the house is telling you, it is a STATE it is reporting, so it belongs in the
+   measured voice at --t-rail with every other label on this wall.
+
+   ⚠ IT IS THE ONLY ELEMENT IN V3 THAT CARRIES ITS OWN GROUND, and that is
+   forced rather than a style choice. --scrim is `to top` and fully transparent
+   by 88%, so at `top: var(--safe)` — 0.91 of the way up the frame — there is
+   NOTHING between this text and the photograph. That is the same exposure that
+   put `.heard` on the sweep's KNOWN_OPEN list. A pill carries its legibility
+   with it instead of borrowing a scrim that is not there. --surface-sunk at 92%
+   measures ~6.7:1 against --ink-dim over a white ground, which is AA at any
+   size rather than merely AA-large.
+
+   Blur is still not a material here: this is one opaque composite, no readback.
+   The precedent is archive.css, which already grounds the year plate in
+   --surface-sunk for exactly this reason.
+
+   ⚠ `.fault[hidden]` IS NOT REDUNDANT. `display: inline-flex` on the class
+   OVERRIDES the UA sheet's `[hidden] { display: none }` — author styles beat
+   the UA sheet at equal specificity — so without it the pill would be on the
+   glass permanently, empty. `.heard` and `.rail` get away with a bare `hidden`
+   only because neither sets `display`.
+─────────────────────────────────────────────────────────────────────────── */
+.fault {
+  position: absolute;
+  left: var(--safe);
+  top: var(--safe);
+  /* Above the depth layers, which are its earlier siblings. NOT for a subject's veil
+     the way .heard needs it — the pill is display:none at depth 3 — but a later
+     sibling only wins on paint order while every layer stays at opacity 1, and
+     a layer mid-fade IS a stacking context. */
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
+  padding: 12px 28px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--surface-sunk) 92%, transparent);
+  border: 1px solid color-mix(in oklch, var(--error) 42%, transparent);
+  font-family: var(--font-measured);
+  font-optical-sizing: auto;
+  font-variation-settings: "GRAD" var(--grade);
+  font-size: var(--t-rail);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  /* One line, always. A wrapped pill has stopped being a pill, and health.js
+     writes labels short enough that this can never bite — the ellipsis is the
+     guard for a feed the server grows that this file has never heard of. */
+  white-space: nowrap;
+  max-width: calc(100% - var(--safe) * 2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fault[hidden] { display: none; }
+
+/* The dot is the part that reads from across the room before a single word
+   does — the same job the status column does in the readout, at a distance
+   where the words have not resolved yet. --error, never --warn: only an `error`
+   level ever reaches this node (core/health.js refuses to raise a WARN, on the
+   grounds that a wall reporting lateness teaches the room to ignore it). */
+.fault__dot {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--error);
+}
+
+/* ⚠ STANDS DOWN AT DEPTH 3, which is the corner-ownership rule rather than an
+   exception to it: a subject's title owns top-left. Nothing is lost — depth 3
+   is where "show me the status" puts the FULL readout, so the one depth that
+   hides the pill is the one that answers it properly. */
+:root[data-depth="3"] .fault { display: none; }
 
 /* ── What's playing, ambiently (depth 0) ────────────────────────────────────
    The one thing besides the hour that the field is allowed to state, and it

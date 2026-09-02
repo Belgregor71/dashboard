@@ -65,6 +65,27 @@ const CENSUS_FILE = path.join(CENSUS_DIR, "features.json");
 export const MAX_DAYS = 30;
 export const MAX_KEYS = 256;      // observed on the live surface: ~124
 export const MAX_ROSTER = 128;    // observed: ~73
+
+/* ── Retired roster keys ────────────────────────────────────────────────────
+   ⚠ THE ROSTER IS A UNION WITH NO OTHER WAY OUT, AND THAT IS THE PROBLEM THIS
+   SOLVES. Union is right — several clients declare over time and a page booted
+   with a flag off must not be able to shrink the roster and take every "dead"
+   verdict with it — but it means a feature that is DELETED keeps its key in the
+   stored file forever, and reports as dead for the rest of the file's life.
+   Dead is precisely the verdict this instrument exists to give, so one
+   permanent false positive is not cosmetic: it is the instrument teaching its
+   reader to discount the finding it was built for.
+
+   `attn:health` is the first entry. core/health.js announced a degraded feed as
+   a score-72 candidate until 2026-09-01; it now draws a pill instead, so
+   nothing will ever observe that key again on any surface.
+
+   ⚠ FILTERED ON MERGE, NOT ON READ, so it leaves the stored file the first time
+   a live census is written rather than being masked on every request forever.
+   Add a key here ONLY when the code that could record it is gone — a key
+   removed while its feature still exists is this instrument going quiet about
+   exactly the thing it is for. */
+export const RETIRED_ROSTER = new Set(["attn:health"]);
 export const DEFAULT_SILENT_DAYS = 14;
 
 /* ⚠⚠ THE AGE GUARD — and this instrument shipped for one day without it.
@@ -227,6 +248,7 @@ export function mergeFeatureDelta(census, delta, at = new Date().toISOString()) 
   // laptop tab, the suite) and a page booted with a flag off would otherwise
   // shrink the roster to nothing and take every "dead" verdict with it.
   const roster = [...new Set([...(census?.roster ?? []), ...(delta.roster ?? [])])]
+    .filter((key) => !RETIRED_ROSTER.has(key))
     .sort()
     .slice(0, MAX_ROSTER);
 

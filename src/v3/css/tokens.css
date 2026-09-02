@@ -110,6 +110,20 @@
      so it is spending contrast budget and paint cost for nothing. The fix for
      "it doesn't fit" is to delete it, never to shrink it. */
 
+  /* The hour. Above --t-said-1 because it is not text being read, it is a
+     number being GLANCED at from the far side of a room — and it was already
+     living as a bare 168px in compose.css, which is exactly the drift this
+     file exists to prevent. Named here so the depth-1 step-down below can be
+     stated as the ratio it is rather than as a magic number.
+
+     At depth 1 the hour stops being the field's only text and becomes a
+     supporting readout beside the glance, so it steps down to --t-measured-1.
+     Expressed as a SCALE (72/168) because a transform costs no layout and
+     --hour-scale can therefore be transitioned; animating font-size would
+     reflow the line on every frame of the exchange. */
+  --t-hour: 168px;
+  --hour-scale: 1;
+
   /* Grade. At night, lower luminance thins perceived strokes. GRAD thickens
      them at CONSTANT metrics — no reflow, no layout shift — which is what
      weight cannot do. Set to 0 by day and raised by the night ramp. */

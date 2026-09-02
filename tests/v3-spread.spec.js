@@ -233,3 +233,96 @@ test("a long line steps down rather than trying to hold 132px", async ({ page })
   expect(type.len).toBe("long");
   expect(type.size).toBe("96px");
 });
+
+/* ── The wrapped-line veil ──────────────────────────────────────────────────
+   ⚠⚠ NOTHING IN THIS REPO ASSERTED `data-wrapped` UNTIL 2026-09-01, AND THE
+   SPREAD HAD NEVER ONCE SET IT. `renderSpread()` builds every cell into a
+   DocumentFragment and mounts the lot with one `replaceChildren`, so when it
+   called setSaidText the <p> had no parent — and a Range over a detached node
+   reports ZERO line boxes, which setSaidText correctly refuses to read as
+   wrapped. compose.css has carried `.depth--spread:has(.said[data-wrapped])`
+   since the finding was paid for; it selected nothing, so a two-line 132px line
+   in the spread sat on bare photograph for a month.
+
+   ⚠ AND THE CONTRAST SWEEP COULD NOT SEE IT. Until the same day core/health.js
+   announced faults at score 72, which outranked the sweep's own three fixture
+   candidates and made "The internet's down." — twenty characters, one line —
+   the dominant cell of its 2-spread surface. The instrument was measuring a
+   line that could not wrap. Taking the announce away is what turned it red.
+
+   So this is the assertion that should have existed: a Range's line-box count
+   on a MOUNTED node, at both depths, because "the two depths must not disagree
+   about when a line is long" is setSaidText's own stated reason for being
+   shared and this is the half of it nobody checked.
+─────────────────────────────────────────────────────────────────────────── */
+
+/* 132px holds about 20 characters on this wall and the step-down at 96px holds
+   about 28, so a line in between wraps at BOTH sizes — which is exactly why the
+   character count cannot answer this and a Range has to. Under SAID_LONG_MAX
+   (40) on purpose: this must wrap while still at 132px, or the test would be
+   about the step-down instead. */
+const WRAPS_AT_132 = "Rain likely from about four";
+
+test("⚠ a wrapped dominant line VEILS the spread — measured on the mounted node", async ({ page }) => {
+  await bootV3(page);
+
+  await dwell(page, [
+    { id: "spec:wrap", source: "weather", score: 42, cooldownMs: 0, text: WRAPS_AT_132 },
+    ORDINARY[1]
+  ]);
+
+  const got = await page.evaluate(() => {
+    const said = document.querySelector("#spread-lattice .said");
+    const layer = document.querySelector(".depth--spread");
+    const range = document.createRange();
+    range.selectNodeContents(said);
+    const lines = range.getClientRects().length;
+    range.detach();
+    return {
+      wrapped: said.dataset.wrapped ?? null,
+      len: said.dataset.len ?? null,
+      lines,
+      // The veil is a ::before on the layer, so ask whether the selector the
+      // stylesheet actually uses matches — not whether the attribute is merely
+      // present somewhere.
+      veiled: layer.matches(":has(.said[data-wrapped])"),
+      veilBg: getComputedStyle(layer, "::before").backgroundColor
+    };
+  });
+
+  /* The fixture must be able to produce the defect. A line that does not
+     actually wrap makes every assertion below pass against a surface with no
+     veil on it — the fixture-cannot-produce-the-defect trap this repo has paid
+     for more than once. */
+  expect(got.lines, "the fixture line did not wrap — this test cannot fail").toBe(2);
+  // And it wrapped at 132px, not because it had already stepped down.
+  expect(got.len, "the line stepped down, so this is testing the wrong case").toBeNull();
+
+  expect(got.wrapped, "the spread never set data-wrapped — the veil is dead").toBe("1");
+  expect(got.veiled, "the veil selector does not match the mounted spread").toBe(true);
+  // A ::before with no content still reports a background; the veil is real
+  // only if that background is actually painted.
+  expect(got.veilBg).not.toBe("rgba(0, 0, 0, 0)");
+});
+
+test("a one-line spread is NOT veiled — the photograph pays only when it must", async ({ page }) => {
+  /* The other half, and the reason the flag is measured rather than assumed:
+     the veil costs the photograph, so it must appear only for the case that
+     needs it. A `data-wrapped` set unconditionally would pass the test above
+     and dim every spread the house ever composes. */
+  await bootV3(page);
+  await dwell(page, ORDINARY);
+
+  const got = await page.evaluate(() => {
+    const said = document.querySelector("#spread-lattice .said");
+    return {
+      text: said?.textContent ?? null,
+      wrapped: said?.dataset.wrapped ?? null,
+      veiled: document.querySelector(".depth--spread").matches(":has(.said[data-wrapped])")
+    };
+  });
+
+  expect(got.text, "no said line mounted — the fixture changed shape").toBeTruthy();
+  expect(got.wrapped).toBeNull();
+  expect(got.veiled).toBe(false);
+});

@@ -304,10 +304,20 @@ function boot() {
     initFeatureCensus({
       roster: [
         ...SOURCE_NAMES.map((s) => `attn:${s}`),
-        // The announce() lane — candidates the house injects rather than
-        // collects. Their `source` literals live in the V3 modules that raise
-        // them, so they are named here beside the collected ones.
-        ...["arrival", "health", "memory", "delight", "predictive", "holidays"].map((s) => `attn:${s}`),
+        /* The announce() lane — candidates the house injects rather than
+           collects. Their `source` literals live in the V3 modules that raise
+           them, so they are named here beside the collected ones.
+
+           ⚠ "health" LEFT THIS LIST ON 2026-09-01 AND MUST NOT BE PUT BACK.
+           core/health.js no longer announces — a degraded feed is a pill now,
+           not a score-72 candidate for the glance — so `attn:health` would be a
+           roster key nothing can ever observe, i.e. a permanent DEAD finding in
+           the one instrument built to find dead features. Nor does the pill get
+           a key of its own: a fault that has never fired is the house being
+           healthy, and a census that reads nine silent fault ids as nine dead
+           features is worse than not counting them. Its reachability is a spec's
+           job (tests/v3-health.spec.js), not a census's. */
+        ...["arrival", "memory", "delight", "predictive", "holidays"].map((s) => `attn:${s}`),
         ...subjectRoster().map((id) => `subject:${id}`),
         ...INTENT_IDS.map((id) => `intent:${id}`),
         ...ACTING_INTENT_IDS.map((id) => `intent:${id}`),

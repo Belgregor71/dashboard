@@ -79,8 +79,6 @@
     <!-- DEPTH 0 — FIELD. Nobody present. The photograph carries it and the hour
          is the only text. Resting cost must be <=8% of one core. -->
     <section class="depth depth--field">
-      <div class="hour" id="hour" data-cell="hour">--:--</div>
-
       <!-- The field's other ambient fact: what the room can hear. Bottom right,
            which is the rail's corner — and the two are mutually exclusive by
            construction, because the rail only appears at depths 1-2 and this
@@ -133,6 +131,61 @@
     <section class="depth depth--subject">
       <div class="lattice"><div class="cell cell--full" id="subject-mount"></div></div>
     </section>
+
+    <!-- THE HOUR — and it is a child of .stage, NOT of .depth--field.
+
+         ⚠ IT LIVED INSIDE THE FIELD LAYER UNTIL 2026-09-01, AND THAT IS WHY THE
+         CLOCK VANISHED THE MOMENT THE MORNING COMMUTE EARNED THE GLANCE. Depth
+         layers exchange by OPACITY, so every child of .depth--field goes to
+         zero the instant :root[data-depth] leaves "0" — including the one piece
+         of text on this wall the household actually needs while it is being
+         told the drive to work is twenty-two minutes. Owner's verdict on the
+         glass: "the clock disappears even though this is important to see so
+         you can work out if you are running late."
+
+         Out here it survives the exchange and compose.css gates it on depth
+         instead: 0 and 1 only. Geometrically a no-op at depth 0 — it was
+         position:absolute inside a layer that is itself inset:0, so the box it
+         paints has not moved by a pixel; only its ancestry has. Placed AFTER
+         the depth sections so it paints above them rather than under a spread.
+
+         It steps down to --t-measured-1 at depth 1 (a scale, so nothing
+         reflows) because depth 1 is still EXACTLY ONE THING at editorial scale:
+         the glance keeps the dominant voice and the hour goes back to being
+         what it is at every other depth — a supporting readout. -->
+    <div class="hour" id="hour" data-cell="hour">--:--</div>
+
+    <!-- THE FAULT PILL — the house saying a part of itself is broken.
+
+         ⚠ THIS REPLACES AN announce() INTO THE ATTENTION QUEUE (core/health.js).
+         A fault used to ride in as a score-72 candidate, win depth 1 and set
+         "Home Assistant isn't answering." in 132px Fraunces across the top half
+         of the wall — the house's loudest editorial voice spent on its own
+         plumbing, over the top of whatever the room had actually come to see.
+         Owner's verdict 2026-09-01: "the big text error messages take away from
+         the dashboard itself."
+
+         A fault is not a headline, it is a STATE, so it takes the register
+         every other state on this wall takes: measured, uppercase, tracked,
+         --t-rail. Same idiom as .cell__label and .now-playing__sub, which is
+         how the room already reads "this is a label, not a fact competing for
+         your attention".
+
+         ⚠ IT IS THE ONE ELEMENT IN V3 WITH ITS OWN GROUND, and that is forced
+         rather than decorative. --scrim is `to top` and transparent by 88%, so
+         at top:var(--safe) there is NOTHING between this text and the
+         photograph — the same exposure that put .heard on the KNOWN_OPEN list.
+         A pill carries its own legibility instead of borrowing the scrim's.
+
+         Top-left is genuinely free at depths 0, 1 and 2: every .cell in the
+         lattice is `justify-content: flex-end`, so the top band is empty at all
+         three. At depth 3 a subject's title owns this corner and the pill
+         stands down — which is also the depth where the full readout lives, so
+         nothing is lost by it. core/health.js is the only writer. -->
+    <p class="fault" id="fault" hidden>
+      <span class="fault__dot" aria-hidden="true"></span>
+      <span class="fault__label" id="fault-label"></span>
+    </p>
 
     <!-- What the house believes it heard, and the vocabulary it is teaching. -->
     <p class="heard" id="heard" hidden></p>

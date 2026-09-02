@@ -74,12 +74,40 @@ export function setSaidText(node, text) {
   node.textContent = text ?? "";
   if ((text ?? "").trim().length > SAID_LONG_MAX) node.dataset.len = "long";
   else delete node.dataset.len;
+  markWrapped(node);
+}
 
+/**
+ * Ask the renderer whether this line ended up on more than one line box, and
+ * flag it if so. Split out of setSaidText because the two callers cannot both
+ * measure at the moment they write.
+ *
+ * ⚠⚠ A DETACHED NODE CANNOT ANSWER THIS, AND THAT IS HOW THE SPREAD SHIPPED
+ * WITH THE VEIL DEAD FOR A MONTH. `renderSpread()` builds every cell into a
+ * DocumentFragment and mounts the lot with one `replaceChildren`, so at the
+ * moment it called setSaidText the <p> had no parent at all — 0 client rects,
+ * which this function correctly reads as "not laid out" and therefore never as
+ * wrapped. `compose.css` has carried `.depth--spread:has(.said[data-wrapped])`
+ * since the finding was first paid for; nothing has ever set the attribute
+ * there, so a two-line 132px line in the spread has been sitting on bare
+ * photograph the whole time.
+ *
+ * ⚠ AND THE SWEEP COULD NOT SEE IT. Until 2026-09-01 core/health.js announced
+ * faults at score 72, which outranked the sweep' own three fixture candidates
+ * and made "The internet' down." — twenty characters, one line — the dominant
+ * cell of the 2-spread surface. The instrument was measuring a line that could
+ * not wrap. Removing the announce is what put the fixture back and turned this
+ * red. Ninth time a defect on this wall has been invisible to a textContent
+ * read and obvious to a measurement.
+ *
+ * 0 rects still means "not laid out" (detached, or a spec' fragment), which is
+ * not a wrapped line: guessing that it is would veil the photograph for a
+ * screen that does not exist.
+ */
+export function markWrapped(node) {
+  if (!node) return;
   const range = document.createRange();
   range.selectNodeContents(node);
-  // 0 rects means the node is not laid out at all (detached, or a spec's
-  // fragment). That is not a wrapped line, and guessing that it is would veil
-  // the photograph for a screen that does not exist.
   if (range.getClientRects().length > 1) node.dataset.wrapped = "1";
   else delete node.dataset.wrapped;
   range.detach();
@@ -302,6 +330,18 @@ export function renderSpread(selection) {
 
   stripCellImages(host);
   host.replaceChildren(frag);
+
+  /* ⚠ MEASURED HERE, AFTER THE MOUNT, AND IT CANNOT BE DONE ANY EARLIER. Every
+     cell above is built into a fragment, so the said line has no parent while
+     it is being written and a Range over it reports zero line boxes — see
+     markWrapped(). This is one forced layout per spread render, which happens
+     only when the composition signature actually changes, and it is what the
+     wrapped-line veil in compose.css has been waiting on.
+
+     Re-measured rather than re-written: nothing here touches textContent, so
+     this adds no second writer of a line the composer owns. */
+  for (const line of host.querySelectorAll(".said")) markWrapped(line);
+
   host.dataset.template = composition.template;
   return composition;
 }
