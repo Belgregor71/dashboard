@@ -65,6 +65,15 @@
 - New-bug pattern the suite exists to catch: uncaught page errors on the kiosk. Note
   `.finally()` re-throws rejections on a fresh unhandled chain — use a two-handler
   `.then(fn, fn)` for cleanup on promises whose rejection is handled elsewhere.
+- ⚠⚠ **A SCORED CANDIDATE LANE CAN SILENTLY REPLACE A SPEC'S OWN FIXTURE.** Any
+  surface driven by the attention engine composes from the ranked queue, so an
+  `announce()` at a high enough score outranks the candidates the test declared and
+  the spec measures something it never wrote. Found 2026-09-02: health announced at
+  score 72, so `v3-contrast.spec.js`'s `2-spread` surface had been measuring "The
+  internet's down." — one short line — instead of its own wrapping fixture, which
+  hid a dead legibility veil for a month. **If a result names text your fixture did
+  not write, the fixture is not what is being measured.** Assert the text, not just
+  the count.
 
 ### Model Routing — which brain does which job
 
@@ -123,7 +132,19 @@ names, and confirm the suite goes red.** That has twice exposed tests that were
 green against a real defect because they never reached the code enforcing the
 rule (the guard lived in a different function than the test assumed), and once a
 cap test that could not tell a per-map cap from a union cap because it sent every
-value to one key. It costs seconds and it has a hit rate.
+value to one key, and once a legibility veil that had NEVER fired because the
+attribute driving it was measured on a detached node. It costs seconds and it
+has a hit rate.
+
+**Run it with the `/inject-defect` skill.** The loop is stateful and the
+dangerous half is the RESTORE, not the injection — a mutated source file or a
+stray `.bak` at the repo root is how this practice ships the very defect it
+exists to catch, and this tree is shared with another session. The skill
+establishes green first, injects, proves red, restores, and proves green again.
+
+⚠ **Inject BOTH directions whenever the behaviour has an off state.** A veil
+set unconditionally passes the "it veils when wrapped" test and dims every
+screen the house composes. One direction is half a test.
 
 `AGENTS.md` is the agent-facing mirror of this file, read by Gemini and Codex
 (`.gemini/settings.json` sets `context.fileName`). **Regenerate it after editing
@@ -209,6 +230,23 @@ When debugging camera/doorbell staleness, check config sources (preferredSnapsho
     counts *itself* and its subshell. A detector that matches itself reported 2 survivors when
     the true answer was 0 — verify with something the probe cannot be (a dead port, an absent
     profile dir), never with a count that includes the counter.
+
+- **⚠⚠ EDITING FILES THROUGH `python -c "..."` HAS DESTROYED A FILE HERE.** Three
+  distinct failures, all silent, all on 2026-09-02:
+  - **`open(path, "w")` TRUNCATES BEFORE IT ENCODES.** A `UnicodeEncodeError` on the
+    write leaves the file EMPTY — the exception arrives after the data is gone. This
+    emptied `MEMORY.md`. Always `data = s.encode("utf-8")` FIRST, then
+    `open(path, "wb").write(data)`, so a bad character fails before anything is lost.
+  - **Backticks and `$(...)` inside a double-quoted shell string are evaluated by
+    bash**, so `` `to top` `` in a comment you are inserting silently becomes nothing
+    (and prints "command not found"). Same family as the quoting traps above: the
+    shell reads the string before the tool you meant to run ever sees it.
+  - Emoji written as `\ud83d\udd11` escapes in a `python -c` string are lone
+    surrogates and refuse to encode.
+  - 🔑 **Write the script to the scratchpad and run it by path.** Inline `-c` is where
+    all three come from. Back up before rewriting anything you cannot regenerate.
+  - Repo files here are **CRLF** (`core.autocrlf=true`). Read/normalise/write-back or
+    the whole file shows as changed.
 
 ### UI / CSS Workflow
 
