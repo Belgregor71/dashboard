@@ -318,12 +318,21 @@ export function startHealthService({ manager = null } = {}) {
       if (newState?.entity_id) noteMotionEntity(newState.entity_id, newState.state, Date.now());
     });
 
-    // Seed the motion canary from HA's own history so a server restart
-    // doesn't reset the 24h clock.
+    /* Seed the motion clocks from HA's snapshot so a server restart doesn't
+       reset them — but ONLY where we have nothing of our own.
+       ⚠ A snapshot arrives on every HA RECONNECT, not just at boot, and
+       `last_changed` on a re-registered entity is an `unavailable` → `off`
+       registry event. It proves the integration restarted; it is NOT evidence
+       the pipeline delivered anything. Treating it as an on/off edge (which
+       the comment here used to claim) let an HA restart reset the silence
+       clock on cameras that had been dead for weeks — see seed()'s note in
+       motionCoverage.js for the 2026-09-04 measurement.
+       Note the asymmetry this restores: noteMotionEntity() below refuses
+       anything that is not an `on` edge. The seed path now refuses to
+       overwrite, which is the same rule for a source that cannot tell the
+       difference. */
     haManager.on("snapshot", (states) => {
       for (const entity of states) {
-        // last_changed marks the most recent on/off edge — recent enough
-        // either way to prove the pipeline was alive at that moment.
         if (!entity?.entity_id) continue;
         const isMotion =
           MOTION_ENTITY_RE.test(entity.entity_id) || entity.entity_id === DOORBELL_RING_ENTITY;
@@ -331,7 +340,7 @@ export function startHealthService({ manager = null } = {}) {
         const changed = Date.parse(entity.last_changed || "");
         if (!Number.isFinite(changed)) continue;
         const state = getFeedState("motion");
-        if (!state.lastSuccessAt || changed > state.lastSuccessAt) state.lastSuccessAt = changed;
+        if (!state.lastSuccessAt) state.lastSuccessAt = changed;
         // Seeds last-seen only, never the house event log — see seed()'s note.
         coverage.seed(entity.entity_id, changed);
       }

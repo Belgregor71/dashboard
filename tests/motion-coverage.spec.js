@@ -160,6 +160,55 @@ test.describe("seed does not fabricate activity", () => {
     expect(tracker.evaluate({ now: T0 + 5 * HOUR, occupancy: "home" }).level).toBe("ok");
   });
 
+  /* 2026-09-04. HA came back from a NAS swap-livelock and re-registered every
+     eufy sensor at one instant — kitchen, side_gate, piano_room, tilt_pan and
+     backyard all stamped within 35 ms. A snapshot arrives on every RECONNECT,
+     not just at boot, so the seed overwrote 18 days of correct observation and
+     the wall reported "Kitchen silent 45h" for a camera with ZERO on-edges in
+     seven days of HA history. Worse than the wrong number: silentMs had gone
+     back to zero, and cameraLevel needs 90 min AND a dozen events elsewhere —
+     so the detector would have read `ok` on a dead camera for the next 90
+     minutes, every time HA restarted. */
+  test("an HA reconnect re-stamps every sensor and must NOT reset the silence clock", () => {
+    const tracker = createCoverageTracker({ watched: HOUSE, startedAt: T0 });
+    tracker.seed("binary_sensor.kitchen_motion_detected", T0);
+    tracker.seed("binary_sensor.side_gate_motion_detected", T0);
+
+    burst(tracker, "driveway", 20, T0 + MINUTE, 6 * HOUR);
+    burst(tracker, "front_yard", 20, T0 + 2 * MINUTE, 6 * HOUR);
+    const reconnect = T0 + 6 * HOUR;
+    expect(tracker.evaluate({ now: reconnect, occupancy: "home" }).level).toBe("error");
+
+    // HA restarts. Every sensor re-registers at one instant, dead ones included.
+    for (const camera of ["kitchen", "side_gate", "driveway", "front_yard"]) {
+      tracker.seed(`binary_sensor.${camera}_motion_detected`, reconnect);
+      tracker.seed(`binary_sensor.${camera}_person_detected`, reconnect);
+    }
+
+    // The kitchen has still never delivered. The fault must survive the restart.
+    const after = tracker.evaluate({ now: reconnect + MINUTE, occupancy: "home" });
+    expect(after.level).toBe("error");
+    expect(after.detail).toContain("Kitchen");
+    expect(after.detail).toContain("6h");
+    expect(tracker.snapshot().lastSeen.kitchen).toBe(T0);
+  });
+
+  /* The other direction, and it is not symmetric bookkeeping — refusing to seed
+     at all is the tempting over-correction and it reopens the same 90-minute
+     hole from the other side, on every deploy instead of every HA restart. */
+  test("but a COLD start must still seed, or every deploy blinds the detector", () => {
+    const startedAt = T0 + 6 * HOUR;
+    const tracker = createCoverageTracker({ watched: KITCHEN_ONLY, startedAt });
+    // The process knows nothing yet; HA's snapshot says six hours ago.
+    tracker.seed("binary_sensor.kitchen_motion_detected", T0);
+    expect(tracker.snapshot().lastSeen.kitchen).toBe(T0);
+
+    burst(tracker, "driveway", 40, startedAt, MINUTE);
+    // Without the seed, lastSeen falls back to startedAt and reads one minute
+    // of silence — a dead camera looking healthy because we just restarted.
+    expect(tracker.evaluate({ now: startedAt + MINUTE, occupancy: "home" }).level).toBe("error");
+  });
+
   test("seed ignores an unparseable timestamp rather than stamping the epoch", () => {
     // new Date(null) is the epoch and sails past a finite check — the trap
     // that captioned an undated photo "56 years ago".

@@ -115,7 +115,7 @@ export function createCoverageTracker({ watched = watchedCameras(), startedAt = 
     },
 
     /**
-     * Seed a camera's last-seen from HA's boot snapshot.
+     * Seed a camera's last-seen from HA's boot snapshot. COLD START ONLY.
      *
      * ⚠ Seeds `lastSeen` ONLY — deliberately never `houseEvents`. The snapshot
      * stamps every entity at one moment, and an eufy container restart does
@@ -123,12 +123,33 @@ export function createCoverageTracker({ watched = watchedCameras(), startedAt = 
      * 2026-08-08). Replaying those as discrete house events would fabricate a
      * burst of activity that never happened and hand every other camera a
      * divergence it did not earn.
+     *
+     * ⚠⚠ AND IT MUST NEVER OVERWRITE WHAT THIS PROCESS ALREADY WATCHED. A
+     * snapshot arrives on every HA reconnect, not just at boot, and
+     * `last_changed` on a re-registered entity is an `unavailable` → `off`
+     * REGISTRY event, not a house event: it proves the integration restarted
+     * and says nothing about whether the camera delivered. Taking the newer of
+     * the two therefore let a re-registration reset the silence clock on a
+     * camera that had been dead for weeks.
+     *
+     * Measured 2026-09-04: HA returned from a NAS swap-livelock and re-stamped
+     * kitchen, side_gate, piano_room, tilt_pan and backyard within 35 ms of
+     * each other. The wall then reported "Kitchen silent 45h" for a camera with
+     * ZERO on-edges in seven days of history — and because `silentMs` had
+     * dropped to zero, `cameraLevel()` (which needs 90 min / 4 h AND a dozen
+     * events elsewhere) would have read `ok` on a permanently dead camera for
+     * at least the next 90 minutes. A detector written because a green canary
+     * hid four dead cameras had grown a green window of its own.
+     *
+     * `noteEvent` is the only thing allowed to move a camera forward, and
+     * healthService only calls it on a genuine `on` edge. This is the same rule
+     * one level up: evidence of delivery, or nothing.
      */
     seed(entityId, at) {
       const camera = cameraIdFor(entityId);
       if (!camera || !Number.isFinite(at)) return null;
-      const previous = lastSeen.get(camera);
-      if (!previous || at > previous) lastSeen.set(camera, at);
+      if (lastSeen.has(camera)) return camera;
+      lastSeen.set(camera, at);
       return camera;
     },
 
