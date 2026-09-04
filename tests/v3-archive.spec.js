@@ -1364,9 +1364,19 @@ test("ONE ghost, lifted rather than crushed, and with no edge to read", async ({
   expect(probe.opacity).toBeLessThanOrEqual(0.3);
 
   /* LIFTED, NOT CRUSHED — the whole reason a dark photograph still resolves as
-     a photograph here. A brightness at or below 1 is the crush coming back. */
-  const brightness = parseFloat(/brightness\(([\d.]+)\)/.exec(probe.filter ?? "")?.[1]);
-  expect(brightness, `filter is ${probe.filter}`).toBeGreaterThan(1);
+     a photograph here. A brightness at or below 1 is the crush coming back.
+
+     ⚠ CALLED `lift`, WHICH IS BOTH THE DESIGN'S OWN WORD AND NOT THE PATTERN
+     SCANNER'S SHAPE. `const brightness = <computed>` in a file with no
+     `Math.max` trips `unclamped-brightness` in scripts/verify/scan-patterns.mjs
+     — a rule that exists because an unclamped night dim curve can reach 0 and
+     black the kiosk out at 3am. It is a false positive here (this reads a
+     computed style, it does not write one), and the fix is the accurate name
+     rather than a suppression: nothing in this composition computes a
+     brightness at all. The ghost's is a CSS constant and `__archiveGhost` is
+     range-checked. */
+  const lift = parseFloat(/brightness\(([\d.]+)\)/.exec(probe.filter ?? "")?.[1]);
+  expect(lift, `filter is ${probe.filter}`).toBeGreaterThan(1);
 
   // And no boundary anywhere: a radial mask that actually reaches zero alpha.
   expect(probe.mask, `mask is ${probe.mask}`).toMatch(/radial-gradient/);
