@@ -45,17 +45,63 @@
    2023; you are looking at 2018" is not a third telling of the engraved
    numeral. And it takes the band above the card, which at depth 0 is empty, so
    the card keeps its full 1040×609 box.
+
+   ── ⚠⚠ AND ALL OF THAT IS THE **FLAG-OFF** SURFACE NOW ────────────────────
+
+   Everything above describes the composition behind `v3Archive` alone. Behind
+   `v3ArchivePlane` this module builds a DIFFERENT one, and the year rail three
+   paragraphs up is deleted in it. Read `planeEnabled` below, and
+   docs/design/HANDOVER-ARCHIVE-ONE-PLANE.md for why — the short version is that
+   the owner's verdict on 2026-09-04 was "the spine looks haphazard and often is
+   obscured; the tilt on the main photo often looks skewed and out of kilter as
+   opposed to designed", and all three causes were measured rather than guessed.
+
+   The two compositions are alternatives, never layers. `planeMode` is latched
+   once in `initArchive` and decides how many ghosts exist, whether the strip's
+   canvas is created at all, whether the angled nodes carry their own rotation
+   or share one wrapper's, which card box the fit uses, and whether depth 0
+   carries the day and the sky.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { cardRectFor } from "../../js/services/archiveModel.js";
+import { cardRectFor, cardRectForPlane } from "../../js/services/archiveModel.js";
 import { relativeYearPhrase } from "../../js/services/photoMemory.js";
-import { CHECK_MS as GROUND_ROTATE_MS, frameParts, poolYears } from "./ground.js";
+import {
+  CHECK_MS as GROUND_ROTATE_MS,
+  frameParts,
+  poolCount,
+  poolYears
+} from "./ground.js";
 
 /* ⚠ Read the flag PER CALL, never at module load. ES imports hoist above the
    point where /js/config.js assigns window.CONFIG, so a module-level read is
    frozen to `undefined` and the flag silently reads false forever. This repo
    has paid for that three times (core/display.js says which). */
 const enabled = () => Boolean(globalThis.window?.CONFIG?.features?.v3Archive);
+
+/* ── ONE PLANE (features.v3ArchivePlane) ────────────────────────────────────
+   THE SECOND COMPOSITION THIS MODULE CAN BUILD, and the two are alternatives
+   rather than layers: whichever one `initArchive` picks is the whole surface
+   for the life of the page.
+
+   What changes, and every item is a named cause the owner pointed at on the
+   glass on 2026-09-04 (docs/design/HANDOVER-ARCHIVE-ONE-PLANE.md):
+
+     · ONE axis. The deck's `rotateY(-12deg) rotateX(8deg) rotateZ(2deg)`
+       becomes `rotateY(-9deg)` on a SINGLE wrapper that everything angled
+       lives inside. A 2 degree roll has no cause a room can see, so the eye
+       files it as a mistake rather than as perspective.
+     · ONE ghost, lifted and radially masked, instead of two crushed slabs with
+       corners.
+     · NO YEAR STRIP. The ruler is deleted outright and what it was saying
+       survives as one line under the plate — "six memories from this date" —
+       which takes ~120 hand-probed projection constants and their whole bug
+       class off the surface with it.
+     · THE DAY AND THE SKY, flat on the glass, which depth 0 has never carried.
+
+   ⚠ READ PER CALL for the same reason `enabled` is: a module-level read of
+   window.CONFIG is hoisted above the assignment and freezes to undefined. */
+const planeEnabled = () =>
+  Boolean(globalThis.window?.CONFIG?.features?.v3ArchivePlane);
 
 /* ── The stage ──────────────────────────────────────────────────────────── */
 const FRAME_W = 1920;
@@ -213,6 +259,12 @@ const PLATE_SWAP_RATIO = 0.92;
 
 let root = null;
 let built = false;
+/* ⚠ LATCHED AT BUILD, not read per paint. The composition is decided once and
+   every node, transform and lever below belongs to one of the two — a page that
+   changed its mind halfway would be holding a card that the stylesheet is no
+   longer positioning. `initArchive` sets it before `build()` and nothing else
+   writes it. */
+let planeMode = false;
 let slot = 0;               // which card slot is on top
 let ghostSlot = 0;
 let exchangeTimer = null;
@@ -227,6 +279,17 @@ let ghostSkins = [];        // [ghost][slot]
 let plateEl = null;
 let plateRows = null;
 let yearEl = null;
+let planeEl = null;         // the ONE angled wrapper — plane mode only
+let dayEl = null;           // "Thursday 4 September"
+let skyEl = null;           // "22° · partly cloudy · 14° / 25°"
+let hintEl = null;          // "six memories from this date"
+/* THE LAST SKY HANDED OVER, as the finished line rather than the payload.
+   main.js fetches the weather in an earlier boot stage than it builds the
+   archive, so the first hand-off arrives before there is anywhere to put it —
+   held here and painted by initArchive, which is the same shape ground's first
+   photograph already has. Null means "nothing known", which the surface says by
+   saying nothing. */
+let heldSky = null;
 let litYear = "";
 let lastYears = [];
 let lastRect = null;
@@ -305,6 +368,123 @@ export function plateForFrame(assets, now = new Date()) {
   return { year, title, who: people || null };
 }
 
+/* ── What the glass says (plane mode) ───────────────────────────────────────
+   Three lines, all pure, all here rather than in the paint so the decision that
+   is easiest to get quietly wrong — what the wall is allowed to claim — unit
+   tests in plain node.
+
+   ⚠ EVERY ONE OF THEM CAN RETURN NULL, and null means the line is not on the
+   glass at all. A wall that says "Unavailable" or "0 memories" is worse than a
+   wall that says nothing: silence is the house's default and a placeholder is a
+   claim. */
+
+/* Written out rather than taken from toLocaleDateString. The kiosk's locale is
+   not a thing this repo controls, and "Thursday 4 September" — day, then bare
+   numeral, then month, no comma and no year — is a house decision about voice.
+   Intl would render it four different ways across four locales and a spec
+   pinning the string would pass or fail by machine. */
+const DAY_NAMES = [
+  "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
+];
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
+/**
+ * THE DAY, on the glass at depth 0 for the first time.
+ *
+ * No year: the wall is telling the room which day it is standing in, and a year
+ * on that line is the one part nobody in a kitchen has ever needed. The archive
+ * already engraves a year — the MEMORY's year — and two four-digit numbers on
+ * one screen meaning different things is exactly the confusion the deleted
+ * spine was making.
+ *
+ * @param {Date} now
+ * @returns {string} e.g. "Thursday 4 September"
+ */
+export function dayLine(now = new Date()) {
+  const d = now instanceof Date && Number.isFinite(now.getTime()) ? now : new Date();
+  return `${DAY_NAMES[d.getDay()]} ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+}
+
+/**
+ * THE SKY, as one line: what it is now, what it is doing, and the day's range.
+ *
+ * ⚠ EVERY PART IS OPTIONAL AND THE LINE SURVIVES LOSING ANY OF THEM. `/api/weather/now`
+ * answers with a fallback whose every field is null and whose condition label
+ * is the literal string "Unavailable" — put that on the wall and depth 0 spends
+ * a line of its calmest surface telling the room that a fetch failed. The
+ * house's own rule for that is the fault pill, which is already on this screen
+ * and already says it properly.
+ *
+ * So: each part is added only if it is real, and an empty line is null — the
+ * band simply is not there, and the day above it does not move because the two
+ * are absolutely positioned rather than stacked in flow.
+ *
+ * @param {{now?:object, day?:object}|null} weather the /api/weather/now payload
+ * @returns {string|null} e.g. "22° · partly cloudy · 14° / 25°"
+ */
+/* ⚠⚠ `Number(null)` IS 0, NOT NaN — and every field of the weather fallback is
+   null. Rounding first and testing afterwards therefore reported a perfectly
+   finite ZERO for each of them, and the line came out "0° · 0° / 0°": a wall
+   confidently stating a temperature nobody measured. Caught by the spec below
+   on the first run, which is the whole reason that spec asserts the REAL
+   fallback shape rather than a tidy `null`. Test the value BEFORE it is
+   coerced, and take only an actual number. */
+const reading = (v) => (typeof v === "number" && Number.isFinite(v) ? Math.round(v) : null);
+
+export function skyLine(weather) {
+  const parts = [];
+
+  const temp = reading(weather?.now?.temp_c);
+  if (temp !== null) parts.push(`${temp}°`);
+
+  /* Lower-cased on purpose. The server's labels are sentence-case headlines
+     ("Partly cloudy", "Heavy showers") and this is a clause inside a line, not
+     a headline — the same reason `.archive__eyebrow` does not shout. */
+  const label = weather?.now?.condition?.label;
+  if (label && label !== "Unavailable") parts.push(String(label).toLowerCase());
+
+  const low = reading(weather?.day?.low_c);
+  const high = reading(weather?.day?.high_c);
+  // Both or neither: half a range is not a range, it is a number nobody can
+  // place.
+  if (low !== null && high !== null) parts.push(`${low}° / ${high}°`);
+
+  return parts.length ? parts.join(" · ") : null;
+}
+
+/* Words up to twelve, numerals past it. A count small enough to hold in the
+   head reads as language; "seventeen memories" reads as an inventory, and at
+   that point the numeral is the calmer object. */
+const COUNT_WORDS = [
+  "", "one", "two", "three", "four", "five", "six",
+  "seven", "eight", "nine", "ten", "eleven", "twelve"
+];
+
+/**
+ * WHAT THE DELETED YEAR SPINE WAS ACTUALLY SAYING.
+ *
+ * The strip drew which years this calendar date reaches, as a ruler on a
+ * receding deck — ~120 hand-probed projection constants, two shipped defects,
+ * and a lit label that collided with the card at one end and the fault pill at
+ * the other. Owner's call 2026-09-04: keep the fact, delete the instrument.
+ *
+ * ⚠ ZERO IS NULL, NOT "no memories". The pool is empty before the day's fetch
+ * lands and on the random fallback, so a wall that renders this eagerly says
+ * "no memories from this date" over a photograph from this date.
+ *
+ * @param {number} count how many photographs today's pool holds
+ * @returns {string|null}
+ */
+export function memoryHint(count) {
+  const n = Number(count);
+  if (!Number.isFinite(n) || n < 1) return null;
+  const word = COUNT_WORDS[Math.trunc(n)] || String(Math.trunc(n));
+  return `${word} ${n === 1 ? "memory" : "memories"} from this date`;
+}
+
 /* ── The strip ──────────────────────────────────────────────────────────────
    Years are placed by VALUE, not by index: a library that jumps 2011 → 2018 →
    2019 → 2023 should show that gap, because the gap is true of the date. Index
@@ -381,13 +561,27 @@ function drawStrip() {
    Every node this surface will ever have is created here. Nothing is allocated
    per photograph, per depth change or per day — the 24/7 rule is that a page
    which runs for weeks may not grow, and the cheapest way to guarantee that is
-   to have no per-event construction at all. */
+   to have no per-event construction at all.
+
+   ⚠ TWO COMPOSITIONS, ONE BUILD, AND THE BRANCHES ARE EXCLUSIVE. `planeMode`
+   is latched before this runs and decides how many ghosts exist, whether the
+   year strip exists at all, and whether the angled things live inside one
+   rotated wrapper or carry the rotation each. Nothing here is built "just in
+   case": a node that exists and is never shown still costs a composite on a
+   wall that runs for weeks, and the strip in particular carries a canvas. */
 function build(host) {
   const scene = document.createElement("div");
   scene.className = "archive__scene";
 
   ghostSkins = [];
-  const ghosts = ["a", "b"].map((which) => {
+  /* ⚠ ONE GHOST IN PLANE MODE, and it is a composition fix rather than a
+     saving. Two `.archive__ghost` at 22% over a dark photograph do not read as
+     ghosts of it — they read as two black rectangles with visible corners, and
+     they clip the engraved year behind the plate. Most of what the owner called
+     "haphazard" on 2026-09-04 was these two shapes. The plane's single ghost is
+     LIFTED rather than crushed and carries a radial mask, so it has no corner
+     to read as a slab: a ghost with a corner is not a ghost, it is a rectangle. */
+  const ghosts = (planeMode ? ["a"] : ["a", "b"]).map((which) => {
     const wrap = document.createElement("div");
     wrap.className = "archive__ghost";
     wrap.dataset.ghost = which;
@@ -407,10 +601,20 @@ function build(host) {
     return wrap;
   });
 
-  stripCanvas = document.createElement("canvas");
-  stripCanvas.className = "archive__strip";
-  stripCanvas.width = STRIP_W;
-  stripCanvas.height = STRIP_H;
+  /* ⚠⚠ THE YEAR STRIP DOES NOT EXIST IN PLANE MODE. Not hidden, not empty —
+     never created, so `drawStrip()` no-ops on a null canvas and the whole
+     projected-axis geometry above (AXIS_X0, AXIS_SPAN, the canvas-x -> frame-x
+     table, ~120 lines of hand-probed constants) is unreachable. That is the
+     point of deleting it: the two shipped defects on this surface were BOTH
+     that geometry landing a lit label somewhere a person could see it was
+     wrong, and code that cannot run cannot regress. What it was saying comes
+     back as `memoryHint()` under the plate. */
+  if (!planeMode) {
+    stripCanvas = document.createElement("canvas");
+    stripCanvas.className = "archive__strip";
+    stripCanvas.width = STRIP_W;
+    stripCanvas.height = STRIP_H;
+  }
 
   // The engraved year. aria-hidden and never a measured selector: at 5% ink it
   // is a texture, not text, and the contrast sweep would (correctly) fail it if
@@ -444,7 +648,26 @@ function build(host) {
   cardWrap.append(card);
   cardPlane.append(cardWrap);
 
-  scene.append(...ghosts, stripCanvas, yearEl, cardPlane);
+  const angled = [...ghosts, ...(stripCanvas ? [stripCanvas] : []), yearEl, cardPlane];
+  if (planeMode) {
+    /* 🔑 THE WHOLE FIX FOR "SKEWED RATHER THAN DESIGNED", IN ONE ELEMENT.
+       The shipped surface gives every angled node its own copy of the deck's
+       three-axis rotation, so each one is projected about the scene's
+       perspective origin from wherever it happens to sit — which is what
+       keystones them. Here there is ONE wrapper spanning the whole scene, it
+       carries the ONE rotation, and its `transform-origin` is the SAME
+       percentage of the SAME box as the scene's `perspective-origin`
+       (33% 50%, archive.css). Two points that are the same point cannot drift
+       apart under a later edit, which is exactly what a pair of hand-matched
+       pixel constants would do. The result foreshortens instead of keystoning,
+       and that is the difference between "tilted" and "out of kilter". */
+    planeEl = document.createElement("div");
+    planeEl.className = "archive__plane";
+    planeEl.append(...angled);
+    scene.append(planeEl);
+  } else {
+    scene.append(...angled);
+  }
 
   const vig = document.createElement("div");
   vig.className = "archive__vig";
@@ -466,10 +689,41 @@ function build(host) {
   plateRows.who.className = "archive__who measured";
   plateEl.append(plateRows.eyebrow, plateRows.title, plateRows.who);
 
+  /* The spine's surviving sentence, under the plate rather than beside it: it
+     is about the DATE, and the three rows above it are about the photograph. */
+  if (planeMode) {
+    hintEl = document.createElement("p");
+    hintEl.className = "archive__hint measured";
+    hintEl.dataset.blank = "1";
+    plateEl.append(hintEl);
+  }
+
   const grain = document.createElement("div");
   grain.className = "archive__grain";
 
-  host.append(scene, vig, word, plateEl, grain);
+  /* ── The glass ─────────────────────────────────────────────────────────────
+     FLAT, WITH NO TRANSFORM OF ANY KIND, and that is the other half of the
+     redesign. On the shipped surface the year strip is readable text on a
+     receding deck, which is a large part of why it is hard to read from across
+     the room. Nothing a person is meant to READ sits on an angled plane here:
+     the room holds the memory, the glass holds what the house says about it.
+
+     Both lines are absolutely positioned rather than stacked in flow, so the
+     sky going quiet (a failed fetch, a null-filled fallback) does not move the
+     day above it. */
+  const glass = [];
+  if (planeMode) {
+    dayEl = document.createElement("p");
+    dayEl.className = "archive__date said";
+
+    skyEl = document.createElement("p");
+    skyEl.className = "archive__sky measured";
+    skyEl.dataset.blank = "1";
+
+    glass.push(dayEl, skyEl);
+  }
+
+  host.append(scene, vig, word, plateEl, ...glass, grain);
   root = document.documentElement;
   built = true;
 }
@@ -531,6 +785,55 @@ function paintPlate(assets) {
   plateRows.title.textContent = plate.title;
   plateRows.who.textContent = plate.who ?? "";
   plateRows.who.dataset.blank = plate.who ? "0" : "1";
+}
+
+/* ── The glass, painted (plane mode) ────────────────────────────────────────
+   Three writers, each of which can put NOTHING on the glass and says so with
+   `data-blank`, which is the same seam `.archive__who` and `.archive__plate`
+   already use and which the plate's own contrast spec already skips on. */
+
+/** How many memories today's date reaches. Repainted with the plate, because a
+ *  new pool is adopted at the day boundary and the sentence is about the day. */
+function paintHint() {
+  if (!hintEl) return;
+  const line = memoryHint(poolCount());
+  hintEl.textContent = line ?? "";
+  hintEl.dataset.blank = line ? "0" : "1";
+}
+
+function paintSky() {
+  if (!skyEl) return;
+  skyEl.textContent = heldSky ?? "";
+  skyEl.dataset.blank = heldSky ? "0" : "1";
+}
+
+/**
+ * THE DAY, repainted. Rides main.js's existing 20s hour tick rather than owning
+ * a timer: the two say the same clock and a second interval for the same fact
+ * is a second thing that can drift.
+ *
+ * A no-op with the plane flag off — there is no node — so main.js calls it
+ * unconditionally and the flag-off path costs one function call a minute.
+ */
+export function archiveDay(now = new Date()) {
+  if (!dayEl) return;
+  dayEl.textContent = dayLine(now);
+}
+
+/**
+ * THE SKY, handed over by whoever fetched it.
+ *
+ * ⚠ HELD EVEN WHEN THERE IS NOWHERE TO PUT IT. main.js loads the weather in an
+ * earlier boot stage than it builds the archive, so the first hand-off lands
+ * before `build()` has run; `initArchive` paints from what is held. Without
+ * that the sky line stays empty until the ten-minute poll comes round, which is
+ * ten minutes of a blank band nobody can explain.
+ *
+ * @param {object|null} weather the /api/weather/now payload, as fetched
+ */
+export function archiveSky(weather) {
+  heldSky = skyLine(weather);
+  paintSky();
 }
 
 /**
@@ -602,8 +905,14 @@ function present(index) {
     for (const skins of ghostSkins) skins[ghostSlot ^ 1].classList.remove("is-shown");
   }, settleMs + CLEANUP_BUFFER_MS);
 
+  /* ⚠ TWO BOXES, ONE FIT. The plane's card is laid out under a different
+     projection — one axis at 2800px against three at 1400px — so the plane-space
+     rectangle that lands where a person wants it is a different rectangle, and
+     archiveModel keeps them as separate constants for exactly that reason. Both
+     are pure and both are unit-tested; the only thing chosen here is which. */
+  const fit = planeMode ? cardRectForPlane : cardRectFor;
   const source = held.imgs[index];
-  const rect = cardRectFor(imgAspect(source));
+  const rect = fit(imgAspect(source));
   if (rect) applyRect(rect);
   // A rendition that has not decoded yet reports 0×0. Re-measure on its load
   // rather than leaving the card on the previous memory's shape — and re-check
@@ -612,7 +921,7 @@ function present(index) {
   if (source && !source.complete) {
     source.addEventListener("load", () => {
       if (presentSeq !== seq) return;
-      const late = cardRectFor(imgAspect(source));
+      const late = fit(imgAspect(source));
       if (late) applyRect(late);
     }, { once: true });
   }
@@ -653,6 +962,10 @@ function present(index) {
     lastYears = poolYears();
     drawStrip();
     paintPlate(assets);
+    // The date's own sentence rides the same beat: it is repainted while the
+    // plate is invisible and returns with it, so nothing on this stack ever
+    // changes while a person is reading it.
+    paintHint();
     plateEl?.classList.remove("is-exchanging");
     yearEl?.classList.remove("is-exchanging");
   }, swapMs);
@@ -769,20 +1082,44 @@ export function archiveFocusId() {
  */
 export function initArchive(host) {
   if (!host || !enabled()) return false;
+  /* ⚠ LATCHED BEFORE build(), AND ONLY BEFORE build(). Every branch below the
+     build reads it, and a page that changed composition after the fact would be
+     holding nodes the stylesheet is no longer positioning. */
+  if (!built) planeMode = planeEnabled();
   if (!built) build(host);
 
   // The marker the stylesheet hangs everything off. On the root rather than the
   // host so a rule can combine it with data-depth / data-night / data-phase,
   // which all live there too.
   document.documentElement.dataset.archive = "1";
+  /* ⚠⚠ THE PLANE'S WHOLE ROLLBACK, in one attribute. Every rule the rebuild
+     adds is keyed on `[data-arch-plane="1"]`, so with the flag off this
+     attribute is absent, not one of those rules matches, and depth 0 is
+     byte-for-byte the surface that is on the wall today. Setting it here rather
+     than in the stylesheet is what makes the flag and the DOM agree by
+     construction: the same latch that decided which nodes exist decides which
+     rules can see them. */
+  if (planeMode) document.documentElement.dataset.archPlane = "1";
   document.documentElement.style.setProperty("--arch-gain", String(gain));
 
   lastYears = poolYears();
   drawStrip();
 
+  /* The glass, painted from whatever is already known. The day is always
+     knowable; the sky may have arrived before there was anywhere to put it, and
+     the hint is empty until ground adopts today's pool — which is why all three
+     are repainted on the beats that change them rather than only here. */
+  archiveDay();
+  paintSky();
+  paintHint();
+
   window.__archive = () => ({
     enabled: enabled(),
     built,
+    /* WHICH COMPOSITION IS ON THE GLASS. Every geometry assertion in
+       tests/v3-archive.spec.js branches on this rather than on the config,
+       because the latch — not the flag — is what the nodes were built from. */
+    plane: planeMode,
     gain,
     lit: litYear || null,
     years: lastYears.slice(),
@@ -819,6 +1156,13 @@ export function initArchive(host) {
           who: plateRows.who.textContent || null
         }
       : null,
+    /* THE THREE LINES THE PLANE ADDED, as they are actually on the glass —
+       textContent, not the model's answer. `null` where the surface is
+       deliberately saying nothing, which is a different state from an empty
+       string and the one a spec has to be able to tell apart. */
+    day: dayEl?.textContent || null,
+    sky: skyEl?.dataset.blank === "0" ? skyEl.textContent : null,
+    hint: hintEl?.dataset.blank === "0" ? hintEl.textContent : null,
     nodes: host.querySelectorAll("*").length,
     /* ⚠ A SNAPSHOT, and it moves with the clock now: arch-kenburns is a settle,
        so this reads five while a photograph is coming to rest and four once it
@@ -854,7 +1198,15 @@ export function initArchive(host) {
      the inherited 0.17 was tuned for thirty small tiles rather than two large
      shapes. Bounded at 0.6 — past that the crush stops being a crush and the
      plate's own contrast starts depending on the photograph behind it, which is
-     the one thing this filter exists to prevent. */
+     the one thing this filter exists to prevent.
+
+     ⚠ IT DRIVES A DIFFERENT PROPERTY IN PLANE MODE, and the same judgement.
+     There the crush is gone — the ghost is LIFTED (`brightness(2.15)
+     grayscale(0.85) contrast(0.5)`) so a dark photograph still resolves as a
+     photograph rather than as a black slab — and `--arch-ghost` becomes the
+     masked wrapper's OPACITY instead of the skin's brightness. Same question
+     ("how visible should the echo be"), same bound, same lever; only the
+     mechanism the answer lands on changed. */
   window.__archiveGhost = (n) => {
     const v = Number(n);
     if (!Number.isFinite(v) || v < 0 || v > 0.6) return ghost;

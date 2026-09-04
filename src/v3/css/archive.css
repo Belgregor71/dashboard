@@ -607,3 +607,367 @@
     visibility: visible;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ONE PLANE — the archive rebuilt (features.v3ArchivePlane)
+
+   ⚠⚠ EVERYTHING BELOW IS KEYED ON `[data-arch-plane="1"]`, WHICH IS THE WHOLE
+   ROLLBACK. `core/archive.js` writes that attribute only when the flag is on,
+   and it writes it with the same latch that decided which nodes to build — so
+   the DOM and the stylesheet cannot disagree about which composition is up.
+   Flag off: the attribute is absent, not one rule here matches, and depth 0 is
+   the surface above, unchanged.
+
+   The brief is docs/design/HANDOVER-ARCHIVE-ONE-PLANE.md. The owner's verdict
+   on the glass, 2026-09-04: "the spine looks haphazard and often is obscured.
+   The tilt on the main photo often looks skewed and out of kilter as opposed to
+   designed." Three causes, all measured:
+
+     1 THE TILT IS THREE AXES AT ONCE — and the `rotateZ(2deg)` is the culprit.
+       A 2 degree ROLL has no cause a room can see, so the eye files it as a
+       mistake rather than as perspective. Compounded with `rotateX` under a
+       1400px lens it KEYSTONES the card: no edge ends up parallel to any screen
+       edge or to any neighbour, which is what "out of kilter" is.
+     2 THE SPINE IS A CANVAS ON A RECEDING DECK, so it slopes, and its geometry
+       has to be hand-probed against the projection. Deleted outright here.
+     3 TWO GHOSTS AT 22% OVER A DARK PHOTOGRAPH COMPOSITE AS BLACK SLABS with
+       visible corners, and they clip the engraved year. One masked ghost here.
+
+   And the thing that makes this a composition rather than a repair: THE ROOM
+   holds the memory and is the only thing on the wall with an angle; THE GLASS
+   holds everything the house says, flat, with no transform of any kind.
+   Nothing a person is meant to READ sits on a receding plane any more.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root[data-arch-plane="1"] {
+  /* 🔑 ONE AXIS. Not "fewer axes" — one. Yaw alone is the rotation a room can
+     explain to itself ("the picture is turned a little"), and it is the only
+     one of the three that survives being looked at for a week. */
+  --arch-yaw: -9deg;
+
+  /* HOW FAR THE PLANE BREATHES ITS YAW, per unit of --arch-amp. At the shipped
+     gain of 4 that is 1.8 degrees over 90s: under the threshold of perception
+     per frame, visible over a minute. Life, not an event. */
+  --arch-breathe: 0.45deg;
+
+  /* ⚠ SAME LEVER, DIFFERENT PROPERTY. In the composition above --arch-ghost is
+     the skin's BRIGHTNESS inside a crush stack; here the ghost is lifted rather
+     than crushed and this is the masked wrapper's OPACITY. `__archiveGhost(n)`
+     drives both, bounded the same way, because it answers the same question. */
+  --arch-ghost: 0.22;
+
+  /* The plane card's own fallback rectangle — cardRectForPlane(16/9) to the
+     pixel, for the same reason the fallbacks above are cardRectFor(16/9): the
+     common landscape memory must land on the same box whether or not the fit
+     has run yet. ⚠ MOVES WITH archiveModel.js's PLANE_CARD_* constants. */
+  --arch-card-w: 978px;
+  --arch-card-h: 550px;
+  --arch-card-top: 249px;
+}
+
+/* ── The lens ───────────────────────────────────────────────────────────────
+   🔑🔑 THE PERSPECTIVE-ORIGIN AND THE PLANE'S TRANSFORM-ORIGIN ARE THE SAME
+   POINT, and that is the difference between "tilted" and "skewed". A plane
+   rotated about one point and projected from another is sheared — its far edge
+   is not merely smaller, it is displaced — and no amount of tuning the angle
+   fixes it. Written as the SAME PERCENTAGE OF THE SAME BOX (`.archive__plane`
+   is `inset: 0` inside `.archive__scene`, so 33% 50% resolves identically in
+   both) rather than as two hand-matched pixel pairs, which is the version that
+   would drift apart under a later edit.
+
+   ⚠ 2800px, NOT 1400. Same yaw, half the distortion: a longer lens keeps the
+   depth cue and drops the wide-angle stretch that made the card's near corner
+   read as a mistake. */
+:root[data-arch-plane="1"] .archive__scene {
+  perspective: 2800px;
+  perspective-origin: 33% 50%;
+}
+
+:root[data-arch-plane="1"] .archive__plane {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform-origin: 33% 50%;
+  transform: rotateY(var(--arch-yaw));
+}
+
+/* ⚠ ONE LOOP FOR THE WHOLE ROOM, and it REPLACES the card-wrap's Z pivot
+   (`arch-pivot`) rather than joining it — see the rule that switches that off
+   below. 90s against the ghost's 130s: co-prime enough that the two never
+   settle into a shared phase, which is what would turn two drifting objects
+   back into one. */
+:root[data-arch-plane="1"][data-archive="1"][data-depth="0"]:not([data-panel-dark="1"]) .archive__plane {
+  animation: arch-breathe 90s ease-in-out infinite alternate;
+}
+
+@keyframes arch-breathe {
+  to { transform: rotateY(calc(var(--arch-yaw) - var(--arch-breathe) * var(--arch-amp))); }
+}
+
+/* ── The frame does not move ────────────────────────────────────────────────
+   🔑 ONLY THE IMAGE INSIDE IT DOES. `arch-pivot` slides the card toward and
+   away from the eye, and on a surface whose complaint was "the photo looks
+   askew" that is indistinguishable from the print being crooked. The Ken Burns
+   settle is untouched: it moves the picture INSIDE a fixed mask, which can
+   never read as a tilted photograph, and it still ends. That pairing — a still
+   frame and a living image — is the whole motion design here. */
+:root[data-arch-plane="1"][data-archive="1"][data-depth="0"]:not([data-panel-dark="1"]) .archive__card-wrap {
+  animation: none;
+}
+
+/* ── The card ───────────────────────────────────────────────────────────────
+   ⚠ THE TOP EDGE IS SET BY HOW FAR THE FAULT PILL CAN REACH, NOT BY TASTE, and
+   the geometry lives in archiveModel.js's PLANE_CARD_* constants because it is
+   arithmetic. The first draft of this design put the card at y152 and the pill
+   landed on its corner — the original complaint, reproduced.
+
+   ⚠⚠ AND THE PROJECTED BOX IS NOT THE ELEMENT BOX. Under this lens the card's
+   far half is NEARER the eye than the origin, so it is magnified: the painted
+   rect is a few percent larger than the CSS numbers in both axes. Sizing from
+   the stylesheet alone puts the card through the hour. tests/v3-archive.spec.js
+   measures the PAINTED rect against the pill's maximum extent and the hour. */
+:root[data-arch-plane="1"] .archive__card-plane {
+  left: 88px;
+  transform: translateZ(40px);
+}
+
+/* ── The ghost ──────────────────────────────────────────────────────────────
+   ONE, LIFTED, AND WITHOUT AN EDGE.
+
+   ⚠⚠ A GHOST WITH A CORNER IS NOT A GHOST, IT IS A RECTANGLE. The crush stack
+   above (`grayscale(1) brightness(0.22) contrast(1.18)`) maps every input
+   luminance into roughly [0, 0.17], so over a dark photograph the ghost is a
+   flat near-black field with four hard edges, two of them across the middle of
+   the composition. That is most of what read as "haphazard", and it is why the
+   fix is not a lower opacity: a fainter black rectangle is still a rectangle.
+
+   The stack is inverted instead. `brightness(2.15)` LIFTS the photograph off
+   the floor before `grayscale(0.85)` drains it and `contrast(0.5)` pulls it
+   toward mid-grey, so what survives is structure — a dark photograph still
+   resolves as a photograph rather than as a hole. The radial mask then removes
+   the edges outright: nowhere is there a boundary for the eye to read as a
+   shape, only a region of the wall where a memory is faintly present.
+
+   ⚠ THE MASK IS ON THE WRAPPER, WHICH IS ALSO WHAT DRIFTS. Deliberate: the soft
+   region travels with the ghost, so its centre never parks on the card. The
+   filter stays on the SKIN for the reason the note above gives — a filter on
+   the node a keyframe transforms is re-evaluated every composited frame.
+   Both prefixes, because the kiosk's Chromium is the only browser any of this
+   has been proven on. */
+:root[data-arch-plane="1"] .archive__ghost[data-ghost="a"] {
+  left: 880px;
+  top: 470px;
+  width: 1180px;
+  height: 700px;
+  opacity: var(--arch-ghost);
+  transform: translateZ(-300px);
+  -webkit-mask-image: radial-gradient(
+    closest-side at 50% 50%,
+    oklch(0 0 0) 22%,
+    oklch(0 0 0 / 0.55) 58%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    closest-side at 50% 50%,
+    oklch(0 0 0) 22%,
+    oklch(0 0 0 / 0.55) 58%,
+    transparent 100%
+  );
+}
+
+:root[data-arch-plane="1"] .archive__ghost-skin {
+  filter: brightness(2.15) grayscale(0.85) contrast(0.5);
+}
+
+:root[data-arch-plane="1"][data-archive="1"][data-depth="0"]:not([data-panel-dark="1"]) .archive__ghost[data-ghost="a"] {
+  animation: arch-plane-drift 130s ease-in-out infinite alternate;
+}
+
+@keyframes arch-plane-drift {
+  to {
+    transform: translateZ(-300px)
+      translate3d(calc(-88px * var(--arch-amp)), calc(-38px * var(--arch-amp)), 0)
+      scale(calc(1 + 0.045 * var(--arch-amp)));
+  }
+}
+
+/* The engraved year keeps its job and loses the deck's compound rotation along
+   with everything else — it lives inside the plane now, so its only transform
+   is depth.
+   ⚠ Still not at night: the night rule takes it to opacity 0, and a hidden
+   element on a drift loop composites every frame for nobody. */
+:root[data-arch-plane="1"] .archive__year {
+  /* ⚠ MEASURED, NOT CHOSEN. At `right: 40px` the numeral PAINTED to x1897 —
+     23px from the edge of the glass — because the projection magnifies this
+     side of the plane. On the wall that reads as a clipped mistake rather than
+     as an engraving. At the safe margin it lands just inside the plate's own
+     right edge, which is where an engraving behind a label belongs. */
+  right: var(--safe);
+  top: 208px;
+  transform: translateZ(-190px);
+}
+
+:root[data-arch-plane="1"][data-archive="1"][data-depth="0"]:not([data-panel-dark="1"]):not([data-night="1"]) .archive__year {
+  animation: arch-plane-year 92s ease-in-out infinite alternate;
+}
+
+@keyframes arch-plane-year {
+  to {
+    transform: translateZ(-190px)
+      translate3d(calc(-46px * var(--arch-amp)), calc(30px * var(--arch-amp)), 0);
+  }
+}
+
+/* ── The plate, and the spine's surviving sentence ──────────────────────────
+   Right-aligned on the wall's own safe margin and vertically centred, so the
+   composition reads as one photograph on the left and one column of words on
+   the right rather than as three objects at three heights.
+
+   ⚠ `translateY(-50%)` IS NOT A PERSPECTIVE TRANSFORM. This node is on the
+   glass, outside `.archive__plane` entirely; it is a 2D centring device, and
+   the rule that nothing readable sits on an angled plane is intact. */
+:root[data-arch-plane="1"] .archive__plate {
+  right: var(--safe);
+  top: 50%;
+  /* ⚠ 440, NOT THE 400 THE FIRST DRAFT USED. Seen on the glass: at 400 the
+     eyebrow "On this day · 2015" wrapped onto a second line, which turns a
+     label into a paragraph and makes the plate top-heavy. Widened until it
+     fits, and the eyebrow's tracking eased below — a wrapped eyebrow is the
+     same failure as a wrapped fault pill and has the same answer. */
+  width: 440px;
+  transform: translateY(-50%);
+}
+
+/* ⚠ 0.16em, NOT 0.26em, and it is not taste — it is what makes the row fit on
+   one line at 32px inside a 440px plate. Same value `.archive__who` already
+   uses, so the plate still reads as one system. */
+:root[data-arch-plane="1"] .archive__eyebrow {
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+}
+
+/* WHAT THE DELETED YEAR SPINE WAS ACTUALLY SAYING. The ruler drew which years
+   this date reaches; the fact underneath it was "there is more than this one",
+   and that is a sentence rather than an instrument. At --t-rail because every
+   row on this plate is measured against the same legibility floor, and the
+   plate's own contrast spec reads all of them. */
+:root[data-arch-plane="1"] .archive__hint {
+  font-family: var(--font-measured);
+  font-size: var(--t-rail);
+  font-weight: 400;
+  /* Loose enough to read as a caption, tight enough that "six memories from
+     this date" breaks after "from" rather than orphaning a word. It IS allowed
+     two lines — it is a sentence, not a label. */
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  color: var(--ink-dim);
+}
+
+/* ── The word off the left edge stands down ─────────────────────────────────
+   SEEN ON THE GLASS. `.archive__word` — "ARCHIVE" set vertically at 150px and
+   cropped by the frame — is texture borrowed from the reference boards, and on
+   the shipped surface it sits behind a sloping spine and two ghost slabs where
+   it reads as part of a busy edge. With those gone it is the ONLY unexplained
+   mark left on the wall, and at the left margin of an otherwise empty band it
+   reads as a rendering fault rather than as a texture.
+
+   ⚠ THE COMPOSITION IS THE ARGUMENT, not the element. The brief's glass holds
+   the date, the sky, the pill, the hour, the plate and what is playing — six
+   things, each of which the room can name. A seventh that nobody can name is
+   exactly the "haphazard" this rebuild exists to remove. Still built, still in
+   the DOM for the flag-off surface; simply not on this one. */
+:root[data-arch-plane="1"] .archive__word { display: none; }
+
+.archive__hint[data-blank="1"] { display: none; }
+
+/* ── The glass: the day and the sky ─────────────────────────────────────────
+   Depth 0 has never carried either, and the owner asked for both on 2026-09-04
+   alongside everything it already carries.
+
+   ⚠ THE BAND THEY SIT IN HAS NO SCRIM ANYWHERE ELSE IN V3. `--scrim` is
+   `to top` and fully transparent by 88%, so at `top: var(--safe)` there is
+   NOTHING between text and photograph — the finding that put `.heard` on the
+   contrast sweep's KNOWN_OPEN list, and the reason `.fault` carries its own
+   ground. It does not bite HERE only because `.archive` is an opaque
+   `--surface` layer and the one ghost is nowhere near this corner. ⚠ That is a
+   property of THIS composition, not a general licence: anything moved into the
+   top band on the flag-off surface still needs a ground of its own.
+
+   Both are absolutely positioned rather than stacked in flow, so the sky going
+   quiet — a failed fetch answers with every field null — does not move the day.
+   They share a 56px band (48 x 1.1667 and 32 x 1.75) so their boxes align
+   across the top of the frame even though nothing here sets a baseline grid. */
+:root[data-arch-plane="1"] .archive__date {
+  position: absolute;
+  left: var(--safe);
+  top: var(--safe);
+  z-index: 6;
+  margin: 0;
+  font-family: var(--font-said);
+  font-size: var(--t-measured-2);
+  font-weight: 400;
+  line-height: 1.1667;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+/* ⚠⚠ THE TOP-RIGHT CORNER BELONGS TO THE TRANSCRIPT. compose.css keeps the list
+   of who owns which corner and it has been violated twice already. The sky
+   takes it on exactly the terms the deleted year strip took it: it stands down
+   the moment the house is listening, thinking or speaking, rather than
+   competing with what it heard. */
+:root[data-arch-plane="1"] .archive__sky {
+  position: absolute;
+  right: var(--safe);
+  top: var(--safe);
+  z-index: 6;
+  margin: 0;
+  max-width: 30ch;
+  text-align: right;
+  font-family: var(--font-measured);
+  font-size: var(--t-rail);
+  font-weight: 500;
+  line-height: 1.75;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+  transition: opacity var(--m-calm) var(--ease);
+}
+
+:root[data-arch-plane="1"]:not([data-phase="idle"]) .archive__sky { opacity: 0; }
+
+.archive__sky[data-blank="1"] { display: none; }
+
+/* ── The fault pill steps down ──────────────────────────────────────────────
+   ⚠⚠ THE ONE RULE IN THIS FILE THAT REACHES OUTSIDE THE ARCHIVE, and it is here
+   rather than in compose.css because the archive is the CAUSE: the pill only
+   has to move on the surface that put a date where it was standing. The
+   precedent is near the top of this file — `.ground-caption` stands down for
+   the plate for exactly the same reason.
+
+   96-152 date, 16 gap, 168-227 pill. That 227 is the number the card's top edge
+   is measured against, and a pill that grew a second line would break the
+   agreement — which is why `.fault` is `white-space: nowrap`, and always has
+   been. */
+:root[data-arch-plane="1"][data-archive="1"][data-depth="0"] .fault { top: 168px; }
+
+/* ── Night ──────────────────────────────────────────────────────────────────
+   The day and the sky go out with the plate and the engraved year, for the
+   reason that rule already gives: at 2am the wall should be a photograph and an
+   hour, not an instrument panel. The HOUR stays, as it always has. */
+:root[data-night="1"][data-arch-plane="1"] .archive__date,
+:root[data-night="1"][data-arch-plane="1"] .archive__sky {
+  opacity: 0;
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────────
+   The layer is already `display: none` above, so the date, the sky, the plate
+   and the hint go with it. The PILL is not in the layer, so its step-down has
+   to be undone by hand or it sits 72px low over a full-bleed photograph with
+   nothing above it. Later in the file at equal specificity, which is what wins.
+
+   ⚠ Found by asking what the flag-off surface looks like — the reduced-motion
+   surface IS the flag-off surface, so anything this composition changes outside
+   its own layer has to be answered twice. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-arch-plane="1"][data-archive="1"][data-depth="0"] .fault { top: var(--safe); }
+}

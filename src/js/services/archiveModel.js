@@ -148,3 +148,75 @@ export function cardRectFor(aspect) {
     tileH: Math.round(tileH)
   };
 }
+
+// ── The card on ONE PLANE (features.v3ArchivePlane) ──────────────────────────
+//
+// A SECOND BOX, not a tweak to the one above, and the two must not be merged.
+// The shipped card is laid out for a THREE-AXIS plane under a 1400px
+// perspective; the plane rebuild is one axis under 2800px with the
+// perspective-origin and the plane's transform-origin on the same point. Those
+// are different projections, so the plane-space rectangle that lands where a
+// person wants it is a different rectangle. Sharing constants between them
+// would mean any future tuning of one silently moves the other, and only one of
+// them is ever on the glass.
+//
+// ⚠⚠ THE PROJECTED BOX IS NOT THE ELEMENT BOX, and under this perspective it is
+// about 3% WIDER and TALLER than the CSS numbers below — the far edge of the
+// card is nearer the eye than the origin, so it is magnified rather than
+// shrunk. Sizing this from the CSS height alone puts the card through the hour.
+// Every number here was chosen against the PAINTED rect, and
+// tests/v3-archive.spec.js measures that rect rather than these constants.
+//
+//   left  88    PINNED, same reasoning as CARD_LEFT: the left edge never moves,
+//               so a portrait simply does not reach as far right and nothing
+//               else on the wall shifts.
+//   maxW  1000  as wide as the card may grow. The projection magnifies it back
+//               to ~970 painted against the shipped surface's 1040, so the
+//               photograph keeps essentially the size it has today.
+//   maxH  550   ⚠ SET BY HOW FAR THE FAULT PILL CAN REACH, NOT BY TASTE. Depth
+//               0's top-left stack is the date (96-152), a 16px gap, then the
+//               pill (168-227) — the pill is pushed down to make room for the
+//               date, so the card's painted top edge has to clear 227. The
+//               first draft of this design put the card at y152 and the pill
+//               landed on its corner: the original complaint, reproduced.
+//               The bottom is bounded by the hour, whose cap height starts
+//               near y833.
+//   midY  524   the centre the card grows about. Lower than CARD_MID_Y's 504.5
+//               because the band above it now holds two things instead of
+//               nothing at all.
+export const PLANE_CARD_LEFT = 88;
+export const PLANE_CARD_MAX_W = 1000;
+export const PLANE_CARD_MAX_H = 550;
+export const PLANE_CARD_MID_Y = 524;
+
+/**
+ * The card's rectangle on the one-plane surface, in PLANE space — the
+ * coordinates the element is laid out in, before the rotation and the
+ * perspective are applied to it.
+ *
+ * Same contract as `cardRectFor`: pure, aspect in, rectangle out, null for
+ * anything unmeasurable, and null means "leave the card alone". No `tileW`/
+ * `tileH` — the plane surface has ONE masked ghost covering a photograph rather
+ * than a tiled echo, so there is no tile to size.
+ *
+ * @param {number} aspect naturalWidth / naturalHeight of the DECODED rendition.
+ * @returns {{w:number,h:number,left:number,top:number}|null}
+ */
+export function cardRectForPlane(aspect) {
+  if (!Number.isFinite(aspect) || aspect <= 0) return null;
+  const a = Math.min(ASPECT_MAX, Math.max(ASPECT_MIN, aspect));
+
+  let w = PLANE_CARD_MAX_W;
+  let h = w / a;
+  if (h > PLANE_CARD_MAX_H) {
+    h = PLANE_CARD_MAX_H;
+    w = h * a;
+  }
+
+  return {
+    w: Math.round(w),
+    h: Math.round(h),
+    left: PLANE_CARD_LEFT,
+    top: Math.round(PLANE_CARD_MID_Y - h / 2)
+  };
+}

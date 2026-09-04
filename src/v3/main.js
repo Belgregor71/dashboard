@@ -20,7 +20,13 @@ import { initPresenceLight } from "./core/presence-light.js";
 import { initVoice } from "./core/voice.js";
 import { initGround } from "./core/ground.js";
 import { initScrim, applyScrim, resampleScrim } from "./core/scrim.js";
-import { initArchive, archivePhoto, archiveFocusId } from "./core/archive.js";
+import {
+  initArchive,
+  archivePhoto,
+  archiveFocusId,
+  archiveDay,
+  archiveSky
+} from "./core/archive.js";
 import { clearSubject, activeSubject, showSubject, subjectRoster } from "./subjects/index.js";
 import { clearVocabularyCard, vocabularyCardMounted } from "./core/vocabulary-card.js";
 import { clearSpread, spreadMounted } from "./core/spread.js";
@@ -82,6 +88,12 @@ function paintHour() {
   const d = new Date();
   const h = d.getHours() % 12 || 12;
   el.hour.textContent = `${h}:${String(d.getMinutes()).padStart(2, "0")}`;
+  /* The one-plane archive puts the DAY on the glass beside the hour, and it
+     rides this tick rather than owning one: two timers for the same clock is
+     two things that can disagree, and the date is wrong for at most twenty
+     seconds either way. A no-op with `v3ArchivePlane` off — there is no node —
+     so this costs one call every twenty seconds and changes nothing. */
+  archiveDay(d);
 }
 
 /* ── Night ──────────────────────────────────────────────────────────────────
@@ -160,6 +172,11 @@ async function loadWeather() {
     /* The code, not the icon — see feedWeatherCode. The substrate above wants
        the server's finer category; contextStore wants the collapsed one. */
     feedWeatherCode(weather?.now?.condition?.code ?? null);
+    /* And the archive says it in words. ⚠ THIS RUNS BEFORE initArchive — the
+       weather stage is earlier in boot than the ground stage — so the line is
+       HELD by the module and painted when the surface is built. Without that it
+       would stay blank until the ten-minute poll came round. */
+    archiveSky(weather);
   } catch {
     // Upstreams are allowed to be down. The substrate keeps its last causes;
     // an atmosphere that freezes is far better than one that lies.

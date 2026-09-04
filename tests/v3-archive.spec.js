@@ -1,8 +1,14 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "./fixtures/coverage.js";
-import { plateForFrame, yearPositions } from "../src/v3/core/archive.js";
-import { cardRectFor } from "../src/js/services/archiveModel.js";
+import {
+  dayLine,
+  memoryHint,
+  plateForFrame,
+  skyLine,
+  yearPositions
+} from "../src/v3/core/archive.js";
+import { cardRectFor, cardRectForPlane } from "../src/js/services/archiveModel.js";
 // The house's own contrast maths, so the archive is judged by the same
 // arithmetic the scrim solves with rather than by a second opinion.
 import { contrastRatio } from "../src/v3/core/scrim.js";
@@ -150,6 +156,107 @@ test("a diptych of two portraits fits as one wide card", () => {
   expect(rect.left).toBe(130);
 });
 
+// ── ONE PLANE: what the glass says ──────────────────────────────────────────
+
+/* The three lines depth 0 gained with `v3ArchivePlane`. All pure, all able to
+   return NULL, and the null case is the one that matters: a wall that says
+   "Unavailable" or "0 memories" is worse than a wall that says nothing. */
+
+test("the day is the day, with no year on it", () => {
+  // No comma, no year. The archive already engraves a year — the MEMORY's — and
+  // two four-digit numbers meaning different things is the confusion the
+  // deleted spine was making.
+  /* ⚠ THE DESIGN CANVAS'S SPECIMEN READS "Thursday 4 September" AND 2026-09-04
+     IS A FRIDAY. Caught here on the first run. A specimen is typeset to show
+     the shape of a line, and copying its words into an assertion turns a
+     drawing into a claim about the calendar. */
+  expect(dayLine(new Date("2026-09-04T09:00:00"))).toBe("Friday 4 September");
+  expect(dayLine(new Date("2026-01-01T09:00:00"))).toBe("Thursday 1 January");
+  expect(dayLine(new Date("2026-12-31T23:30:00"))).toBe("Thursday 31 December");
+});
+
+test("the sky is one line: now, what it is doing, and the day's range", () => {
+  expect(
+    skyLine({
+      now: { temp_c: 22.4, condition: { label: "Partly cloudy" } },
+      day: { low_c: 13.6, high_c: 25.2 }
+    })
+  ).toBe("22° · partly cloudy · 14° / 25°");
+});
+
+test("the sky NEVER says the fetch failed — that is the pill's job", () => {
+  /* ⚠ THE REAL FALLBACK SHAPE. `/api/weather/now` answers a 502 with every
+     field null and the literal label "Unavailable", and rendering that spends a
+     line of the calmest surface in the house telling the room about a fetch.
+     The fault pill is already on this screen and already says it properly. */
+  expect(
+    skyLine({
+      now: { temp_c: null, condition: { label: "Unavailable" } },
+      day: { low_c: null, high_c: null }
+    })
+  ).toBeNull();
+  expect(skyLine(null)).toBeNull();
+  expect(skyLine({})).toBeNull();
+});
+
+test("the sky survives losing any part of itself", () => {
+  // Each clause is added only if it is real, so a partial answer is still a
+  // line rather than a line with a hole in it.
+  expect(skyLine({ now: { temp_c: 19 }, day: {} })).toBe("19°");
+  expect(skyLine({ now: {}, day: { low_c: 8, high_c: 17 } })).toBe("8° / 17°");
+  // Half a range is not a range — it is a number nobody can place.
+  expect(skyLine({ now: { temp_c: 19 }, day: { high_c: 17 } })).toBe("19°");
+});
+
+test("the spine's surviving sentence counts memories, and says nothing at zero", () => {
+  expect(memoryHint(6)).toBe("six memories from this date");
+  // One is still worth saying, and it is not "one memories".
+  expect(memoryHint(1)).toBe("one memory from this date");
+  // Past twelve the numeral is the calmer object.
+  expect(memoryHint(17)).toBe("17 memories from this date");
+  /* ⚠ ZERO IS NULL, NOT "no memories". The pool is empty before the day's fetch
+     lands and on the random fallback, so a wall that renders this eagerly says
+     "no memories from this date" over a photograph from this date. */
+  expect(memoryHint(0)).toBeNull();
+  expect(memoryHint(null)).toBeNull();
+  expect(memoryHint(undefined)).toBeNull();
+});
+
+// ── ONE PLANE: the card's rectangle ─────────────────────────────────────────
+
+test("the plane's card is a DIFFERENT box, and the two must not be merged", () => {
+  /* The shipped card is laid out for three axes under a 1400px lens; the plane
+     is one axis under 2800px with the perspective-origin and the plane's own
+     transform-origin on the same point. Those are different projections, so the
+     plane-space rectangle that lands where a person wants it is a different
+     rectangle — and sharing constants would mean tuning one silently moved the
+     other, while only one of them is ever on the glass. */
+  expect(cardRectForPlane(16 / 9)).toEqual({ w: 978, h: 550, left: 88, top: 249 });
+  expect(cardRectFor(16 / 9)).toMatchObject({ w: 1040, h: 585, left: 130 });
+});
+
+test("the plane's card follows the print too, and pins its left edge", () => {
+  const portrait = cardRectForPlane(3 / 4);
+  expect(portrait.h).toBe(550);
+  expect(portrait.w).toBe(413);
+  // PINNED, same reasoning as CARD_LEFT: a portrait simply does not reach as far
+  // right, and nothing else on the wall shifts.
+  expect(portrait.left).toBe(88);
+  expect(cardRectForPlane(16 / 9).left).toBe(88);
+  // Grown about one centre, so the card does not drop toward the hour.
+  expect(portrait.top + portrait.h / 2).toBeCloseTo(524, 1);
+});
+
+test("the plane's card has no echo tile, because there is no tiled echo", () => {
+  // One masked ghost covering a photograph, never a grid — so there is nothing
+  // to size. A tileW here would be a constant with no reader.
+  const rect = cardRectForPlane(16 / 9);
+  expect(rect.tileW).toBeUndefined();
+  expect(rect.tileH).toBeUndefined();
+  expect(cardRectForPlane(0)).toBeNull();
+  expect(cardRectForPlane(NaN)).toBeNull();
+});
+
 // ── On the page ─────────────────────────────────────────────────────────────
 
 /* A 1x1 PNG: `load` must fire and naturalWidth must be non-zero so the card can
@@ -179,9 +286,21 @@ const POOL = [
    archive, and the law-3 assertion below passes or fails by time of day. */
 const MIDDAY = new Date("2026-07-06T12:00:00");
 
+/* ⚠ `v3ArchivePlane` IS PINNED OFF BY DEFAULT, never inherited, for the reason
+   the note below gives about `v3Archive`: flipping it back is the rollback path
+   and the off state has to keep being tested after the default moves. Every
+   test above the plane block runs the composition that is on the wall today;
+   every test that passes `v3ArchivePlane: true` runs the rebuild. */
 async function bootArchive(
   page,
-  { v3Archive = true, groundMemories = true, groundDiptych = false, pool = POOL } = {}
+  {
+    v3Archive = true,
+    v3ArchivePlane = false,
+    groundMemories = true,
+    groundDiptych = false,
+    pool = POOL,
+    weather = null
+  } = {}
 ) {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
@@ -194,6 +313,7 @@ async function bootArchive(
       body:
         (await res.text()) +
         `\nwindow.CONFIG.features.v3Archive = ${v3Archive};` +
+        `\nwindow.CONFIG.features.v3ArchivePlane = ${v3ArchivePlane};` +
         `\nwindow.CONFIG.features.groundMemories = ${groundMemories};` +
         `\nwindow.CONFIG.features.groundDiptych = ${groundDiptych};\n`
     });
@@ -214,6 +334,19 @@ async function bootArchive(
     route.fulfill({ status: 200, contentType: "text/plain", body: "" })
   );
 
+  /* ⚠ WITHOUT THIS THE SKY IS CORRECTLY SILENT. The suite runs with the
+     upstreams stubbed off, so `/api/weather/now` answers its fallback — every
+     field null, condition "Unavailable" — and `skyLine` refuses it, which is the
+     behaviour the pure test above pins. A spec that wants to see the line on
+     the glass has to hand the page a sky, and asserting the resulting TEXT is
+     the only way to know the line came from this payload rather than from
+     whatever else the page decided to put in that corner. */
+  if (weather) {
+    await page.route("**/api/weather/now", (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify(weather) })
+    );
+  }
+
   await page.route("**/api/immich/on-this-day", (route) =>
     route.fulfill({ contentType: "application/json", body: JSON.stringify({ assets: pool }) })
   );
@@ -225,6 +358,23 @@ async function bootArchive(
   await page.waitForFunction(() => typeof window.__ground === "function");
   return pageErrors;
 }
+
+/* A sky the house actually knows, in the shape `/api/weather/now` answers. */
+const WEATHER = {
+  location: { name: "Brisbane", tz: "Australia/Brisbane" },
+  now: {
+    temp_c: 22.4,
+    feels_like_c: 23.1,
+    condition: { code: 2, label: "Partly cloudy", icon: "cloudy", intensity: null, thunder: false },
+    wind_kph: 11,
+    wind_bearing: 90,
+    cloud_pct: 40,
+    humidity_pct: 58,
+    uv: 4,
+    rain_chance_pct: 10
+  },
+  day: { high_c: 25.2, low_c: 13.6, sunrise: "06:05", sunset: "17:40" }
+};
 
 const groundShown = (page) =>
   expect.poll(() => page.evaluate(() => window.__ground().shown), { timeout: 10_000 }).toBe(true);
@@ -952,6 +1102,523 @@ test("every word on the plate clears WCAG AA over its own backdrop", async ({ pa
   }
 });
 
+// ── ONE PLANE, on the page ──────────────────────────────────────────────────
+
+/* The rebuild behind `v3ArchivePlane`. Every test here boots the SAME page as
+   the block above with one flag flipped, so anything that reads differently is
+   the composition and not the harness.
+
+   ⚠⚠ WHAT THESE ARE REALLY GUARDING is that the three things the owner pointed
+   at on 2026-09-04 are gone and cannot come back quietly: a compound rotation,
+   a ruler projected onto a receding deck, and two hard-edged ghosts. The first
+   is asserted against the computed MATRIX rather than the stylesheet text,
+   because a matrix cannot be talked around. */
+
+const planeProbe = (page) =>
+  page.evaluate(() => {
+    const r = (sel) => {
+      const el = document.querySelector(sel);
+      return el ? el.getBoundingClientRect().toJSON() : null;
+    };
+    const plane = document.querySelector(".archive__plane");
+    const scene = document.querySelector(".archive__scene");
+    return {
+      ...window.__archive(),
+      marker: document.documentElement.dataset.archPlane ?? null,
+      hasPlane: Boolean(plane),
+      hasStrip: Boolean(document.querySelector(".archive__strip")),
+      // Everything with an angle is INSIDE the one plane, and nothing else is.
+      inPlane: plane
+        ? [...plane.children].map((c) => c.className.split(" ")[0]).sort()
+        : [],
+      transform: plane ? getComputedStyle(plane).transform : null,
+      transformOrigin: plane ? getComputedStyle(plane).transformOrigin : null,
+      perspective: scene ? getComputedStyle(scene).perspective : null,
+      perspectiveOrigin: scene ? getComputedStyle(scene).perspectiveOrigin : null,
+      /* ⚠ `*Rect`, NOT `card`/`sky`. `window.__archive()` already answers `card`,
+         `sky`, `day` and `hint`, and a rect spread over the top of one of them
+         is a probe quietly measuring a different question than the assertion
+         reads — `expect(probe.sky).toBeNull()` passed a 0x0 rect and failed on
+         "nothing said", which is the same fact wearing the wrong name. */
+      cardRect: r(".archive__card-plane"),
+      dateRect: r(".archive__date"),
+      skyRect: r(".archive__sky"),
+      hourRect: r("#hour")
+    };
+  });
+
+test("the plane's flag OFF leaves the shipped composition exactly as it is", async ({ page }) => {
+  /* The rollback, asserted as a state rather than reasoned about. `v3Archive`
+     is ON here — this is not the archive's own off switch, it is the rebuild's,
+     and what it must leave behind is the surface that is on the wall today. */
+  const pageErrors = await bootArchive(page, { v3ArchivePlane: false });
+  await groundShown(page);
+
+  const probe = await planeProbe(page);
+  expect(probe.plane).toBe(false);
+  expect(probe.marker).toBeNull();
+  expect(probe.hasPlane).toBe(false);
+  // The year strip, the two ghosts and the three-axis deck, all still there.
+  expect(probe.hasStrip).toBe(true);
+  expect(probe.ghosts).toBe(2);
+  expect(probe.dateRect).toBeNull();
+  expect(probe.skyRect).toBeNull();
+  // Not merely unpainted — never built, so there is nothing to say either.
+  expect(probe.day).toBeNull();
+  expect(probe.sky).toBeNull();
+  expect(probe.hint).toBeNull();
+  // And the fault pill keeps the corner it has always had.
+  const faultTop = await page.evaluate(() => {
+    const f = document.getElementById("fault");
+    return getComputedStyle(f).top;
+  });
+  expect(faultTop).toBe("96px");
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("ONE axis: the plane yaws and does nothing else", async ({ page }) => {
+  /* 🔑 THE WHOLE COMPLAINT, IN ONE ASSERTION. `--arch-plane` is
+     `rotateY(-12deg) rotateX(8deg) rotateZ(2deg)`, and the rotateZ is what
+     reads as crooked: a 2 degree ROLL has no cause a room can see, so the eye
+     files it as a mistake rather than as perspective.
+
+     Read off the computed MATRIX, not the stylesheet. A pure rotateY leaves the
+     matrix's second row and column as the identity — m[1], m[4], m[6] and m[9]
+     are zero and m[5] is one — and there is no way to write a roll or a pitch
+     that does not disturb them. A text assertion could be satisfied by a
+     `rotate3d` or a `matrix3d` spelling the same three axes. */
+  const pageErrors = await bootArchive(page, { v3ArchivePlane: true });
+  await groundShown(page);
+
+  const probe = await planeProbe(page);
+  expect(probe.plane).toBe(true);
+  expect(probe.marker).toBe("1");
+  expect(probe.hasPlane).toBe(true);
+
+  const m = probe.transform.match(/matrix3d\(([^)]+)\)/);
+  expect(m, `not a 3D matrix: ${probe.transform}`).not.toBeNull();
+  const v = m[1].split(",").map(Number);
+  // rotateZ shows up here…
+  expect(Math.abs(v[1]), "the plane carries a ROLL").toBeLessThan(1e-6);
+  expect(Math.abs(v[4]), "the plane carries a ROLL").toBeLessThan(1e-6);
+  // …and rotateX here.
+  expect(Math.abs(v[6]), "the plane carries a PITCH").toBeLessThan(1e-6);
+  expect(Math.abs(v[9]), "the plane carries a PITCH").toBeLessThan(1e-6);
+  expect(v[5]).toBeCloseTo(1, 6);
+  // And it IS turned — an identity matrix would pass every line above.
+  expect(Math.abs(v[0])).toBeLessThan(1);
+  expect(Math.abs(v[2])).toBeGreaterThan(0.1);
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("the lens and the plane pivot about the SAME point", async ({ page }) => {
+  /* 🔑🔑 THE DIFFERENCE BETWEEN "TILTED" AND "SKEWED". A plane rotated about one
+     point and projected from another is sheared — its far edge is not merely
+     smaller, it is displaced — and no amount of tuning the angle fixes that.
+     Both are written as the same percentage of the same box in archive.css;
+     this measures that they RESOLVE to the same pixel, which is the thing a
+     later edit could break while the stylesheet still looked right. */
+  await bootArchive(page, { v3ArchivePlane: true });
+  await groundShown(page);
+
+  const probe = await planeProbe(page);
+  const nums = (s) => s.split(/\s+/).map(parseFloat);
+  const [px, py] = nums(probe.perspectiveOrigin);
+  const [tx, ty] = nums(probe.transformOrigin);
+  expect(tx, `transform-origin x ${tx} vs perspective-origin x ${px}`).toBeCloseTo(px, 1);
+  expect(ty, `transform-origin y ${ty} vs perspective-origin y ${py}`).toBeCloseTo(py, 1);
+
+  // A longer lens: same depth cue, far less wide-angle distortion.
+  expect(parseFloat(probe.perspective)).toBe(2800);
+});
+
+test("everything with an angle is inside the plane, and nothing readable is", async ({ page }) => {
+  /* THE OTHER HALF OF THE REDESIGN. On the shipped surface the year strip is
+     text a person is meant to read, drawn on a receding deck. Here the room
+     holds the memory and the glass holds what the house says, and the two do
+     not mix — which is also why the plate is measured for contrast and nothing
+     inside the plane is. */
+  await bootArchive(page, { v3ArchivePlane: true });
+  await groundShown(page);
+
+  const probe = await planeProbe(page);
+  expect(probe.inPlane).toEqual(["archive__card-plane", "archive__ghost", "archive__year"]);
+
+  const flat = await page.evaluate(() =>
+    [".archive__date", ".archive__sky", ".archive__plate", ".hour", ".fault"].map((sel) => {
+      const el = document.querySelector(sel);
+      return {
+        sel,
+        // Inside the angled wrapper at any depth? That is the failure.
+        angled: Boolean(el?.closest(".archive__plane")),
+        // A 2D centring translate is fine; a 3D matrix is not.
+        transform: el ? getComputedStyle(el).transform : null
+      };
+    })
+  );
+  for (const node of flat) {
+    expect(node.angled, `${node.sel} is on the receding plane`).toBe(false);
+    expect(node.transform, `${node.sel} carries a 3D transform`).not.toMatch(/matrix3d/);
+  }
+});
+
+test("the year spine is DELETED — not hidden, not empty", async ({ page }) => {
+  /* ⚠⚠ THE POINT IS THAT THE GEOMETRY IS UNREACHABLE. The strip's ~120 lines of
+     hand-probed projection constants produced two shipped defects, both of them
+     a lit label landing somewhere a person could see was wrong: the newest
+     year's 48px label half off the right edge (2026-08-20), and the 2011 at the
+     left end sitting on the card's own corner with the fault pill painted over
+     it (2026-09-04). Code that cannot run cannot regress. */
+  const pageErrors = await bootArchive(page, { v3ArchivePlane: true });
+  await groundShown(page);
+
+  const probe = await planeProbe(page);
+  expect(probe.hasStrip).toBe(false);
+  expect(await page.locator("canvas.archive__strip").count()).toBe(0);
+
+  /* And what it was saying is still on the wall. The pool is four memories, so
+     the sentence is the count and not a year list — asserted as the TEXT rather
+     than as "something is there", because a surface driven by a scored lane can
+     put someone else's words in a node the spec never wrote. */
+  await expect
+    .poll(() => page.evaluate(() => window.__archive().hint))
+    .toBe("four memories from this date");
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("ONE ghost, lifted rather than crushed, and with no edge to read", async ({ page }) => {
+  /* ⚠⚠ A GHOST WITH A CORNER IS NOT A GHOST, IT IS A RECTANGLE. Two
+     `.archive__ghost` under the crush stack (`grayscale(1) brightness(0.22)
+     contrast(1.18)`) map every input luminance into roughly [0, 0.17], so over
+     a dark photograph they are flat near-black fields with four hard edges, two
+     of them across the middle of the composition. That is most of what read as
+     "haphazard".
+
+     Three things make this a ghost instead, and each is separately injectable:
+     there is one of them, the filter LIFTS (brightness > 1) rather than
+     crushes, and the mask reaches full transparency so no boundary exists. */
+  await bootArchive(page, { v3ArchivePlane: true });
+  await groundShown(page);
+
+  const probe = await page.evaluate(() => {
+    const ghosts = [...document.querySelectorAll(".archive__ghost")];
+    const skin = document.querySelector(".archive__ghost-skin");
+    const cs = ghosts[0] ? getComputedStyle(ghosts[0]) : null;
+    return {
+      count: ghosts.length,
+      opacity: cs ? parseFloat(cs.opacity) : null,
+      mask: cs ? cs.maskImage || cs.webkitMaskImage : null,
+      filter: skin ? getComputedStyle(skin).filter : null
+    };
+  });
+
+  expect(probe.count).toBe(1);
+  // Faint enough that the card is unambiguously the subject.
+  expect(probe.opacity).toBeGreaterThan(0);
+  expect(probe.opacity).toBeLessThanOrEqual(0.3);
+
+  /* LIFTED, NOT CRUSHED — the whole reason a dark photograph still resolves as
+     a photograph here. A brightness at or below 1 is the crush coming back. */
+  const brightness = parseFloat(/brightness\(([\d.]+)\)/.exec(probe.filter ?? "")?.[1]);
+  expect(brightness, `filter is ${probe.filter}`).toBeGreaterThan(1);
+
+  // And no boundary anywhere: a radial mask that actually reaches zero alpha.
+  expect(probe.mask, `mask is ${probe.mask}`).toMatch(/radial-gradient/);
+  expect(probe.mask).toMatch(/rgba\(0,\s*0,\s*0,\s*0\)|transparent/);
+});
+
+test("the card's PAINTED rect clears the pill's furthest reach and the hour", async ({ page }) => {
+  /* 🔑 THE CARD'S TOP EDGE IS SET BY HOW FAR THE FAULT PILL CAN REACH, NOT BY
+     TASTE. The first draft of this design put the card at y152 and the pill
+     landed on its corner — the original complaint, reproduced.
+
+     ⚠⚠ MEASURED, NOT COMPUTED. Under this lens the card's far half is NEARER
+     the eye than the origin, so the painted box is a few percent LARGER than
+     the CSS numbers in both axes; sizing from the stylesheet alone puts the
+     card through the hour.
+
+     ⚠ AND THE PILL IS FORCED VISIBLE. It is `hidden` on a healthy house, so a
+     rect taken as-is is 0x0 and this test would pass against a card sitting on
+     top of a fault nobody had yet. */
+  const pageErrors = await bootArchive(page, { v3ArchivePlane: true, weather: WEATHER });
+  await groundShown(page);
+  await expect.poll(() => page.evaluate(() => window.__archive().sky)).not.toBeNull();
+
+  const probe = await page.evaluate(() => {
+    const fault = document.getElementById("fault");
+    document.getElementById("fault-label").textContent = "MOTION COVERAGE DOWN";
+    fault.hidden = false;
+    const r = (sel) => document.querySelector(sel).getBoundingClientRect().toJSON();
+    return {
+      date: r(".archive__date"),
+      sky: r(".archive__sky"),
+      fault: r("#fault"),
+      card: r(".archive__card-plane"),
+      hour: r("#hour")
+    };
+  });
+
+  // The top-left stack: date, a gap, then the pill stepped down to make room.
+  expect(probe.date.top).toBe(96);
+  expect(probe.date.bottom).toBeCloseTo(152, 0);
+  expect(probe.fault.top).toBe(168);
+  expect(probe.fault.bottom).toBeLessThanOrEqual(240);
+
+  // Nothing lands on the pill's corner, and the pill never lands on the card's.
+  expect(
+    probe.card.top,
+    `card paints at y${Math.round(probe.card.top)}, pill ends at y${Math.round(probe.fault.bottom)}`
+  ).toBeGreaterThan(probe.fault.bottom);
+  expect(probe.card.left).toBeGreaterThanOrEqual(96);
+
+  // And it still clears the hour, which owns the bottom-left corner.
+  expect(
+    probe.card.bottom,
+    `card ends at y${Math.round(probe.card.bottom)}, hour starts at y${Math.round(probe.hour.top)}`
+  ).toBeLessThan(probe.hour.top);
+
+  /* THE PHOTOGRAPH IS STILL THE HERO. A build that shrank the card to make room
+     for something else is precisely what the panel rejected once already.
+
+     ⚠ THE FIXTURE IS A 1x1 PNG, so its aspect is 1 and the card is HEIGHT-bound
+     — 550 square in plane space, not the 978-wide box a landscape memory gets.
+     Asserting a width here would be asserting the fixture, which is how a
+     geometry test passes for a reason that has nothing to do with the
+     geometry. The hero WIDTH is pinned in the pure test above, against
+     cardRectForPlane(16/9); what is worth measuring on the page is that the
+     projection magnifies rather than shrinks. */
+  expect(probe.card.height).toBeGreaterThan(550);
+  expect(probe.card.width).toBeGreaterThan(530);
+
+  // The sky keeps the far corner and does not reach back across the frame.
+  expect(probe.sky.right).toBeCloseTo(1824, 0);
+  expect(probe.sky.left).toBeGreaterThan(probe.date.right);
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("the day and the sky are on the glass, in the house's own voice", async ({ page }) => {
+  const pageErrors = await bootArchive(page, { v3ArchivePlane: true, weather: WEATHER });
+  await groundShown(page);
+
+  /* ⚠ ASSERT THE TEXT, NOT THAT SOMETHING IS THERE. This wall composes from a
+     scored queue and a spec that only counts nodes can measure a line it never
+     wrote — the finding of 2026-09-02, where a score-72 announce substituted
+     itself for the contrast sweep's own fixture for a month. These two strings
+     can only have come from the clock this spec pinned and the payload it
+     served. */
+  await expect
+    .poll(() => page.evaluate(() => window.__archive().sky))
+    .toBe("22° · partly cloudy · 14° / 25°");
+
+  const probe = await planeProbe(page);
+  // The clock is pinned to MIDDAY on 2026-07-06, a Monday.
+  expect(probe.day).toBe("Monday 6 July");
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("with no sky to report, the band is not there at all", async ({ page }) => {
+  /* ⚠ THE REAL FALLBACK, END TO END. `/api/weather/now` answers a 502 with every
+     field null and the literal label "Unavailable" — which is exactly what the
+     suite's own stubbed-off upstreams produce, so this is the DEFAULT boot
+     rather than a contrived one. `Number(null)` is 0, and the first version of
+     `skyLine` rounded before it tested: the wall said "0° · 0° / 0°", stating
+     three temperatures nobody had measured. The line must be absent, and the
+     day above it must not move. */
+  const pageErrors = await bootArchive(page, { v3ArchivePlane: true });
+  await groundShown(page);
+
+  const probe = await planeProbe(page);
+  expect(probe.sky).toBeNull();          // window.__archive().sky — nothing said
+  expect(probe.day).toBe("Monday 6 July");
+
+  const band = await page.evaluate(() => {
+    const el = document.querySelector(".archive__sky");
+    return {
+      blank: el.dataset.blank,
+      display: getComputedStyle(el).display,
+      date: document.querySelector(".archive__date").getBoundingClientRect().toJSON()
+    };
+  });
+  expect(band.blank).toBe("1");
+  expect(band.display).toBe("none");
+  // Absolutely positioned, so the day is where it always is.
+  expect(band.date.top).toBe(96);
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("the sky stands down the moment the house is listening", async ({ page }) => {
+  /* ⚠⚠ THE TOP-RIGHT CORNER BELONGS TO THE TRANSCRIPT. compose.css keeps the
+     list of who owns which corner and it has been violated twice already. The
+     sky takes it on exactly the terms the deleted year strip took it. */
+  await bootArchive(page, { v3ArchivePlane: true, weather: WEATHER });
+  await groundShown(page);
+
+  const opacityAt = async (phase) => {
+    await page.evaluate((p) => {
+      document.documentElement.dataset.phase = p;
+    }, phase);
+    await page.waitForTimeout(500);   // > --m-calm
+    return page.evaluate(() =>
+      parseFloat(getComputedStyle(document.querySelector(".archive__sky")).opacity)
+    );
+  };
+
+  expect(await opacityAt("idle")).toBe(1);
+  expect(await opacityAt("listening")).toBe(0);
+  expect(await opacityAt("speaking")).toBe(0);
+  // And it comes back, because standing down is never a one-way door.
+  expect(await opacityAt("idle")).toBe(1);
+});
+
+test("the frame does not move — only the image inside it", async ({ page }) => {
+  /* 🔑 `arch-pivot` slides the card toward and away from the eye, and on a
+     surface whose complaint was "the photo looks askew" that is
+     indistinguishable from the print being crooked. The Ken Burns settle is
+     untouched: it moves the picture INSIDE a fixed mask.
+
+     Asserted off the live animation list rather than the stylesheet, because
+     "which loops are actually running at depth 0" is the soak's own question
+     and an expected count that is quietly wrong makes every future reading
+     wrong. */
+  await bootArchive(page, { v3ArchivePlane: true });
+  await groundShown(page);
+
+  const running = await page.evaluate(() =>
+    document.getAnimations().map((a) => ({
+      name: a.animationName,
+      target: a.effect?.target?.className ?? null,
+      forever: a.effect?.getComputedTiming().iterations === Infinity
+    }))
+  );
+  const names = running.map((a) => a.name);
+
+  expect(names).not.toContain("arch-pivot");
+  // The three loops the plane keeps, and no fourth.
+  expect(names.filter((n) => n === "arch-breathe")).toHaveLength(1);
+  expect(names.filter((n) => n === "arch-plane-drift")).toHaveLength(1);
+  expect(names.filter((n) => n === "arch-plane-year")).toHaveLength(1);
+  // The strip is gone, so nothing that belonged to it can be running either.
+  expect(names).not.toContain("arch-ghost-b");
+
+  /* ⚠ FOUR RUNNING, THREE FOREVER. `arch-kenburns` is a settle and simply stops
+     — the distinction that took depth 0 back inside the calm law's 25% ceiling,
+     and the number a soak should watch for a fifth forever-loop appearing. */
+  const forever = running.filter((a) => a.forever).map((a) => a.name).sort();
+  expect(forever).toEqual(["arch-breathe", "arch-plane-drift", "arch-plane-year"]);
+});
+
+test("the plane's own words clear WCAG AA over the surface they sit on", async ({ page }) => {
+  /* Same arithmetic and the same painted-stack method as the plate's test
+     above — see its note on why oklch() has to be painted and read back rather
+     than parsed. What is new here is the top band: `--scrim` is `to top` and
+     transparent by 88%, so on every OTHER V3 surface there is nothing between
+     text at `top: var(--safe)` and the photograph. It does not bite here only
+     because `.archive` is an opaque `--surface` layer — which is a property of
+     this composition and is exactly what this measures.
+
+     ⚠ A SKY IS SERVED ON PURPOSE. Without one the band is `display: none` and
+     this sweep would report two rows and pass — measuring the sky's legibility
+     by never looking at it, which is the failure mode `v3-contrast.spec.js`
+     already carries a guard against. */
+  await bootArchive(page, { v3ArchivePlane: true, weather: WEATHER });
+  await groundShown(page);
+  await expect.poll(() => page.evaluate(() => window.__archive().hint)).not.toBeNull();
+  await expect.poll(() => page.evaluate(() => window.__archive().sky)).not.toBeNull();
+
+  const rows = await page.evaluate(() => {
+    const px = (...layers) => {
+      const c = document.createElement("canvas");
+      c.width = c.height = 1;
+      const ctx = c.getContext("2d", { willReadFrequently: true });
+      for (const css of layers) {
+        ctx.fillStyle = css;
+        ctx.fillRect(0, 0, 1, 1);
+      }
+      const d = ctx.getImageData(0, 0, 1, 1).data;
+      return [d[0] / 255, d[1] / 255, d[2] / 255];
+    };
+    const ground = getComputedStyle(document.getElementById("archive")).backgroundColor;
+    return [".archive__date", ".archive__sky", ".archive__hint"]
+      .map((sel) => document.querySelector(sel))
+      .filter((el) => el && el.textContent.trim() && el.dataset.blank !== "1")
+      .map((el) => {
+        const cs = getComputedStyle(el);
+        return {
+          cls: el.className.split(" ")[0],
+          fontSize: parseFloat(cs.fontSize),
+          backdrop: px(ground, cs.backgroundColor),
+          ink: px(ground, cs.backgroundColor, cs.color)
+        };
+      });
+  });
+
+  // All three, and the count is the guard: a row that went silent would drop
+  // out of this list and take its own measurement with it.
+  expect(rows.map((r) => r.cls).sort())
+    .toEqual(["archive__date", "archive__hint", "archive__sky"]);
+  for (const row of rows) {
+    const ratio = contrastRatio(row.ink, row.backdrop);
+    expect(ratio, `${row.cls} at ${row.fontSize}px reads ${ratio.toFixed(2)}:1`)
+      .toBeGreaterThanOrEqual(4.5);
+    expect(row.fontSize, `${row.cls} is under the 32px floor`).toBeGreaterThanOrEqual(32);
+  }
+});
+
+test("the plane recedes with everything else, and nothing grows across exchanges", async ({ page }) => {
+  /* The 24/7 rule, re-asserted on the rebuild rather than inherited from the
+     composition above: this is a different node count and a different set of
+     per-exchange writers, so "nothing is allocated per photograph" has to be
+     true of THIS build too. */
+  const pageErrors = await bootArchive(page, { v3ArchivePlane: true });
+  await groundShown(page);
+
+  const nodes = () => page.evaluate(() => window.__archive().nodes);
+  const before = await nodes();
+
+  for (let i = 0; i < 3; i++) {
+    await page.evaluate(() => window.__groundDissolve(20, 200));
+    await expect.poll(() => page.evaluate(() => window.__ground().inFlight)).toBe(false);
+  }
+  // Past the exchange cleanup (settle 20 + 2000 buffer) and past the blur's
+  // 2.8s recovery, which getAnimations() counts as a transition until it ends.
+  await page.waitForTimeout(3400);
+  expect(await nodes()).toBe(before);
+
+  const probe = await page.evaluate(() => ({
+    ...window.__archive(),
+    layers: window.__ground().layers,
+    top: document.querySelectorAll('.archive__img.is-top:not([data-blank="1"])').length
+  }));
+  expect(probe.slots).toBe(2);
+  expect(probe.ghosts).toBe(1);
+  expect(probe.layers).toBe(1);
+  expect(probe.top).toBe(1);
+  /* THREE forever-loops, not four: the card-wrap's Z pivot is gone because the
+     FRAME does not move here. `anims` is four — those three plus the Ken Burns
+     settle, which is still running 2.2s into a fresh memory. A fifth
+     forever-loop appearing here is the regression that put depth 0 over the
+     calm law's ceiling once already. */
+  expect(probe.loops).toBe(3);
+  expect(probe.anims).toBe(4);
+
+  // And it is still depth 0's alone.
+  await page.evaluate(() => window.__setDepth(1, "spec"));
+  await page.waitForTimeout(500);
+  expect(
+    await page.evaluate(() =>
+      document.getElementById("archive").checkVisibility({ opacityProperty: true })
+    )
+  ).toBe(false);
+
+  expect(pageErrors).toEqual([]);
+});
+
 // ── The CSS guardrail ───────────────────────────────────────────────────────
 
 /* Comments stripped first: every rule below is DESCRIBED in a comment right
@@ -1073,4 +1740,94 @@ test("the archive's loops live in their own stylesheet", () => {
   ).replace(/\/\*[\s\S]*?\*\//g, "");
   expect(compose).not.toMatch(/\binfinite\b/);
   expect(compose).not.toMatch(/\.archive__/);
+});
+
+// ── The CSS guardrail, on the plane ─────────────────────────────────────────
+
+test("the plane's periods are pinned too, and night still scales displacement", () => {
+  /* THREE loops here against the shipped composition's four. `arch-pivot` is
+     switched off because the FRAME does not move — only the image inside it —
+     and that is the one loop the rebuild deletes rather than replaces. */
+  const text = css();
+  expect(text).toMatch(/animation:\s*arch-breathe 90s/);
+  expect(text).toMatch(/animation:\s*arch-plane-drift 130s/);
+  expect(text).toMatch(/animation:\s*arch-plane-year 92s/);
+  // The settle is shared: the plane keeps the Ken Burns exactly as it is.
+  expect(text).toMatch(/animation:\s*arch-kenburns 96s/);
+});
+
+test("the plane's yaw breathes by DISPLACEMENT, never by duration", () => {
+  /* §5.2, applied to a rotation for the first time on this wall: at 2am the
+     plane turns less FAR, not less often. --arch-amp is the only thing night
+     touches and it appears inside the keyframe, never in the period. */
+  const text = css();
+  expect(text).toMatch(/--arch-yaw:\s*-?[\d.]+deg/);
+  expect(text).toMatch(/rotateY\(calc\(var\(--arch-yaw\)[\s\S]*?var\(--arch-amp\)/);
+  for (const m of text.match(/animation:[^;]+;/g) || []) {
+    expect(m, `a period must not vary: ${m}`).not.toMatch(/var\(--arch-(amp|gain|day)\)/);
+  }
+});
+
+test("the plane carries ONE rotation and the stylesheet cannot smuggle in a second", () => {
+  /* The matrix assertion on the page is the real gate; this is the cheap one
+     that fails on a diff rather than on a run. `.archive__plane` and its
+     keyframe are the only two places a rotation may be written in plane mode,
+     and both may only write yaw. */
+  const text = css();
+  const planeRules = rules().filter((r) => /\.archive__plane\b/.test(r.slice(0, r.indexOf("{"))));
+  expect(planeRules.length, "the plane's rules have moved").toBeGreaterThan(0);
+  for (const rule of planeRules) {
+    expect(rule, `a pitch on the plane: ${rule}`).not.toMatch(/rotateX|rotate3d|rotateZ|\brotate\(/);
+  }
+  // And the plane's nodes must not inherit the deck's compound rotation either.
+  const planeScoped = rules().filter((r) => /\[data-arch-plane="1"\]/.test(r.slice(0, r.indexOf("{"))));
+  for (const rule of planeScoped) {
+    expect(rule, `the deck's plane leaked into plane mode: ${rule}`)
+      .not.toMatch(/var\(--arch-(plane|deck-plane)\)/);
+  }
+});
+
+test("the plane's whole rollback is one attribute", () => {
+  /* ⚠⚠ EVERY RULE THE REBUILD ADDS IS KEYED ON `[data-arch-plane="1"]`, which
+     is what makes flipping the flag off a real rollback rather than a hope. The
+     three class names below are the rebuild's own nodes, and a rule for one of
+     them that is NOT scoped would paint on the shipped surface — where those
+     nodes do not exist, so nobody would notice until one of them did.
+
+     The ONE exception is stated rather than excluded by pattern: `display: none`
+     on a row that is deliberately silent cannot paint anything anywhere, so it
+     is allowed to stand unscoped beside the `[data-blank]` rules the shipped
+     composition already carries. */
+  const OWN = ["archive__plane", "archive__date", "archive__sky", "archive__hint"];
+  for (const rule of rules()) {
+    const selector = rule.slice(0, rule.indexOf("{"));
+    if (!OWN.some((cls) => selector.includes(cls))) continue;
+    if (/\[data-blank="1"\]/.test(selector)) continue;   // display:none on a silent row
+    expect(selector, `not scoped to the plane flag: ${selector.trim()}`)
+      .toMatch(/\[data-arch-plane="1"\]/);
+  }
+});
+
+test("the frame does not move: the card-wrap's pivot is switched OFF, not re-timed", () => {
+  /* A slower pivot is still a moving frame, and on a surface whose complaint
+     was "the photo looks askew" a moving frame is indistinguishable from a
+     crooked print. The rule must say `none`. */
+  const rule = rules().find(
+    (r) =>
+      /\[data-arch-plane="1"\]/.test(r.slice(0, r.indexOf("{"))) &&
+      /\.archive__card-wrap\b/.test(r.slice(0, r.indexOf("{")))
+  );
+  expect(rule, "nothing switches the pivot off in plane mode").toBeTruthy();
+  expect(rule).toMatch(/animation:\s*none/);
+});
+
+test("the pill's step-down is undone under reduced motion", () => {
+  /* ⚠ THE ONE THING THIS COMPOSITION CHANGES OUTSIDE ITS OWN LAYER. Reduced
+     motion takes `.archive` off the glass entirely, so the date that the pill
+     stepped down for is not there — and a pill sitting 72px low over a
+     full-bleed photograph with nothing above it is a defect with no author.
+     The reduced-motion surface IS the flag-off surface, so anything the plane
+     reaches outside itself has to be answered twice. */
+  const reduced = css().slice(css().lastIndexOf("prefers-reduced-motion"));
+  expect(reduced).toMatch(/\.fault\s*\{\s*top:\s*var\(--safe\)/);
 });

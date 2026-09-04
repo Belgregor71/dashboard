@@ -466,6 +466,26 @@ export function poolYears() {
   return uniq(pool.flat().map(yearOf).filter(Boolean)).sort();
 }
 
+/**
+ * HOW MANY MEMORIES TODAY'S DATE ACTUALLY REACHES — the pool flattened, not the
+ * number of frames.
+ *
+ * The one-plane archive says this in words under the plate ("six memories from
+ * this date"), which is what the deleted year spine was really telling the room
+ * once its ruler was taken away. It has to be counted here rather than by the
+ * surface for the same reason `poolYears` does: the pool is filtered, ordered
+ * and, with the diptych on, PAIRED — so `frames.length` and "how many
+ * photographs" are different numbers, and only this module knows which is
+ * which. A second fetch would be a second answer.
+ *
+ * Zero until a pool is adopted, and zero on the random fallback: a date with no
+ * memories has nothing to count, and saying nothing is better than saying one.
+ */
+export function poolCount() {
+  if (poolDayKey !== localDayKey()) return 0;
+  return pool.flat().length;
+}
+
 async function fetchPool() {
   try {
     const res = await fetch(MEMORIES_URL, { signal: AbortSignal.timeout(8000) });

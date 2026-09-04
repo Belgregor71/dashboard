@@ -1569,6 +1569,44 @@ window.CONFIG = {
     // That rollback path is not theoretical: it is the SAME path every depth
     // above 0 takes, so production exercises it on every doorbell.
     v3Archive: true,
+    // ── The archive as ONE PLANE ────────────────────────────────────────────
+    // The composition of depth 0, rebuilt. Owner's verdict on the glass
+    // 2026-09-04: "the spine looks haphazard and often is obscured; the tilt on
+    // the main photo often looks skewed and out of kilter as opposed to
+    // designed." Three measured causes, each with a named fix, and the whole
+    // brief is docs/design/HANDOVER-ARCHIVE-ONE-PLANE.md.
+    //
+    // 1. THE TILT IS THREE AXES AT ONCE. `--arch-plane` is
+    //    `rotateY(-12deg) rotateX(8deg) rotateZ(2deg)`, and the rotateZ is the
+    //    culprit: a 2 degree ROLL has no cause a room can see, so the eye files
+    //    it as a mistake rather than as perspective. On: rotateY(-9deg) alone,
+    //    perspective 1400 -> 2800px, and the perspective-origin and the plane's
+    //    own transform-origin are THE SAME POINT. That last one is what makes
+    //    the card foreshorten instead of keystone, and it is the whole
+    //    difference between "tilted" and "skewed".
+    //
+    // 2. THE SPINE IS A CANVAS ON A RECEDING DECK, so its geometry has to be
+    //    derived against the projection — ~120 hand-probed constants that exist
+    //    only to keep a ruler on the glass, and that have already produced two
+    //    shipped defects at BOTH ends. Owner's call: delete the ruler and keep
+    //    what it was saying, as one line under the plate.
+    //
+    // 3. TWO GHOSTS AT 22% OVER A DARK PHOTOGRAPH COMPOSITE AS BLACK SLABS with
+    //    visible corners. On: ONE ghost, lifted rather than crushed, and a
+    //    radial mask — a ghost with a corner is not a ghost, it is a rectangle.
+    //
+    // Also new, and the reason this is a composition change rather than a
+    // geometry fix: depth 0 carries the DAY and the SKY. It keeps everything it
+    // already carried — hour, fault pill, now-playing — and the fault pill
+    // moves down to make room for the date, which is why the card's top edge is
+    // set by the pill's maximum reach rather than by taste.
+    //
+    // ⚠ DEFAULT-OFF until the owner has seen it on the glass. Flag-off, none of
+    // the plane's nodes are built and none of its CSS matches: `data-arch-plane`
+    // is absent, every new rule is keyed on it, and depth 0 is the surface that
+    // is on the wall today. Flipping it back off is the rollback path and
+    // tests/v3-archive.spec.js runs BOTH states.
+    v3ArchivePlane: false,
 
     // ── The depth census ────────────────────────────────────────────────────
     // Asked on 2026-08-23 and unanswerable: how many times has each depth been
