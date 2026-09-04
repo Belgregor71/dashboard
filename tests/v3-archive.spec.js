@@ -1569,16 +1569,31 @@ test("after dark the wall is a photograph and an hour, not an instrument panel",
   expect(day[".archive__date"]).toBe(1);
   expect(day[".archive__sky"]).toBe(1);
 
+  /* ⚠ POLLED TO A SETTLED VALUE. The three that go out do NOT share a duration
+     — the sky eases over --m-calm (350ms) and the plate over 2.4s — so there is
+     no single sleep that is both long enough for all of them and honest about
+     what it is waiting for. The first draft used a flat 500ms and went red on a
+     loaded machine, which is the same flake class as the recession check above:
+     a fixed sleep is a budget for the whole browser, not for a transition. */
   await page.evaluate(() => {
     document.documentElement.dataset.night = "1";
   });
-  await page.waitForTimeout(500);
+  await expect
+    .poll(
+      async () => {
+        const o = await read();
+        return [".archive__date", ".archive__sky", ".archive__plate"]
+          .map((sel) => Math.round(o[sel] * 100))
+          .join(",");
+      },
+      { timeout: 10_000 }
+    )
+    .toBe("0,0,0");
 
+  // The clock stays. It always has: the wall's constant is not part of the
+  // instrument panel, and a night rule one selector too wide is exactly how the
+  // household loses its clock at 2am.
   const night = await read();
-  expect(night[".archive__date"]).toBe(0);
-  expect(night[".archive__sky"]).toBe(0);
-  expect(night[".archive__plate"]).toBe(0);
-  // The clock stays.
   expect(night[".hour"]).toBe(1);
 });
 
