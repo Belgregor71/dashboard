@@ -10,12 +10,26 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <!-- Fraunces = the said voice (opsz, wght, SOFT).
+  <!-- Figtree = the said voice (wght 300..900, and a TRUE italic).
        Roboto Flex = the measured voice (opsz, wght, GRAD).
+
        Roboto Flex specifically because it CARRIES GRAD and Inter does not —
        the Google Fonts API 400s the axis on Inter, so a night-grade token bound
-       to Inter would have been a silent no-op. -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,200..700,0..100&family=Roboto+Flex:opsz,wght,GRAD@8..144,200..700,-200..150&display=swap" />
+       to Inter would have been a silent no-op.
+
+       ⚠⚠ THE `ital` AXIS IS REQUESTED EXPLICITLY AND THAT IS LOAD-BEARING.
+       `.rail` (type.css) and `.vocab__item` (compose.css) are set in ITALIC.
+       The Google Fonts API answers **200** for an italic request on a family
+       that ships none — Roboto Flex and Outfit both do — and then simply serves
+       no italic face, so the browser SHEARS the roman instead. A sheared roman
+       at 32px on this panel reads as a rendering fault, not as a voice.
+       🔑 Check a replacement by COUNTING the italic faces the response actually
+       contains. The status code does not tell you. Measured 2026-09-04:
+       Roboto Flex 0, Outfit 0, Figtree 1, Instrument Serif 1.
+
+       ⚠ 300..900 is Figtree's real weight range; 100..900 and 200..900 both
+       400, so the axis floor is 300 and `.said` cannot go lighter than that. -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&family=Roboto+Flex:opsz,wght,GRAD@8..144,200..700,-200..150&display=swap" />
 
   <link rel="stylesheet" href="./css/tokens.css" />
   <link rel="stylesheet" href="./css/type.css" />

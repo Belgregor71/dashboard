@@ -625,7 +625,7 @@ test("the briefing opens forced, holds longer than a subject, and speaks only it
    the whole string whether or not the screen ever showed it.
 
    `.subject__prose-stack` carried `max-width: 26ch`, and `ch` resolves against
-   the element's OWN font-size — the 32px body floor, not the 96px Fraunces of
+   the element's OWN font-size — the 32px body floor, not the 96px said face of
    the prose inside it. The "measured column" computed to 416px and then had
    96px text poured into it: eleven ragged lines about five characters wide,
    needing 1663px of an 800px stack, with `overflow: hidden` eating the rest.
@@ -670,8 +670,13 @@ test("the briefing fits the stack it is given — no line is clipped away", asyn
   });
 
   expect(got.proseFont).toBe(96);
-  // 26ch of 96px Fraunces is ~1480px. Anything near 416 means the measure has
-  // been read in the wrong font again.
+  // ⚠ THE THRESHOLD IS DELIBERATELY FAR FROM BOTH NUMBERS, because `ch` is a
+  // property of the FACE and the face is a token that has already moved once.
+  // Measured at 96px: Fraunces 400 gave 26ch = 1483px, Figtree 300 (the said
+  // face since 2026-09-04) gives 1592px. What this is actually catching is the
+  // 416px the stack's own 32px `ch` produced, so it asserts the gap, not either
+  // face's width — a tighter bound would fail on the next face rather than on
+  // the defect.
   expect(got.proseWidth).toBeGreaterThan(1000);
   // 1px of sub-pixel rounding is not a clip; a line is ~115px.
   expect(got.overflow).toBeLessThanOrEqual(1);

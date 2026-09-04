@@ -630,9 +630,9 @@ html, body {
   pointer-events: none;
 }
 
+/* Italic, and real — see the note on `.rail` in type.css. */
 .vocab__item {
   font-family: var(--font-said);
-  font-optical-sizing: auto;
   font-size: var(--t-measured-2);
   font-style: italic;
   font-weight: 300;
@@ -1080,7 +1080,7 @@ html, body {
 /* ⚠⚠ THE MEASURE WAS BEING TAKEN IN THE WRONG FONT, and it clipped a third of
    the briefing off the wall. `max-width: 26ch` sat here, on the stack — and
    `ch` resolves against the element's OWN font-size, which is the 32px body
-   floor, not the 96px Fraunces of the prose inside it. So the "measured column"
+   floor, not the 96px said face of the prose inside it. So the "measured column"
    computed to 416px and then had 96px text poured into it: eleven ragged lines
    about five characters wide, needing 1663px of a stack 800px tall, with the
    `overflow: hidden` below quietly eating the rest. Measured 2026-08-10.

@@ -83,17 +83,35 @@
   --sun-warmth: 0;         /* 0..1 ramp used by the substrate                */
 
   /* ── Type ─────────────────────────────────────────────────────────────────
-     SAID vs MEASURED. One rule, learnable in a day: if the house is speaking
-     it is set in the serif; if it is reporting a number it is set in the sans.
+     SAID vs MEASURED. If the house is SPEAKING it is set in Figtree; if it is
+     REPORTING A NUMBER it is set in Roboto Flex.
+
+     ⚠⚠ THIS USED TO BE "THE SERIF vs THE SANS" AND IT IS NOT ANY MORE.
+     Fraunces was the said voice until 2026-09-04. Owner's verdict on the glass:
+     the said face "looks out of place with the clean modern font the rest of
+     the dashboard is". TWO SANS FACES ARE A WEAKER SIGNAL than serif against
+     sans, and that cost was taken deliberately rather than overlooked. What
+     carries the distinction now is that Figtree is geometric and always set
+     LARGE, LIGHT and TIGHT against Roboto Flex's neutral grotesque at reading
+     weights.
+     🔑 So the rule is no longer safe by construction. If a later change ever
+     sets the two voices at a similar size and weight they stop being tellable
+     apart, and the system loses its one typographic rule with nothing failing.
 
      Faces are chosen for the axes they actually carry — verified against the
      Google Fonts API, which 400s an axis a family does not have:
-       Fraunces     opsz, wght, SOFT   (and WONK, unused)
+       Figtree      wght 300..900, plus a TRUE italic
        Roboto Flex  opsz, wght, GRAD
      NOTE: Inter is NOT used here. It has no GRAD axis, so the night-grade
      behaviour below would have silently done nothing.
+
+     ⚠⚠ THE ITALIC IS THE CONSTRAINT ON ANY FUTURE REPLACEMENT. `.rail` and
+     `.vocab__item` are italic, and the API returns 200 for an italic request on
+     a family that ships none — the browser then shears the roman and nothing
+     errors. Count the italic faces in the response; the status code does not
+     tell you. index.html holds the measured numbers.
   ────────────────────────────────────────────────────────────────────────── */
-  --font-said:     "Fraunces", Georgia, serif;
+  --font-said:     "Figtree", system-ui, sans-serif;
   --font-measured: "Roboto Flex", system-ui, sans-serif;
 
   /* Sizes, derived from the arc-minute legibility model rather than picked.

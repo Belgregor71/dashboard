@@ -1,9 +1,13 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    V3 TYPE — said vs measured.
 
-   The rule, in full: if the house is SPEAKING, it is set in the serif. If it is
-   REPORTING A NUMBER, it is set in the sans. There is no third case, and no
+   The rule, in full: if the house is SPEAKING, it is set in Figtree. If it is
+   REPORTING A NUMBER, it is set in Roboto Flex. There is no third case, and no
    element may mix them within one line.
+
+   ⚠ It was "the serif vs the sans" until 2026-09-04. Both voices are sans now,
+   which is a weaker signal — tokens.css records why that cost was taken and
+   what the rule rests on instead.
 
    That one rule is the whole typographic system. It is learnable in a day from
    across the room, and it means the family can tell at a glance whether they
@@ -11,17 +15,28 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── The said voice ─────────────────────────────────────────────────────────
-   Fraunces. A high-contrast variable serif with a real optical-size axis, so
-   at 132px it sets tight and sharp rather than as a scaled-up reading face.
-   SOFT is held low: this is a warm voice, not a soft one.
+   Figtree, from 2026-09-04 (it was Fraunces). A geometric sans with a wide
+   weight axis and a true italic.
+
+   ⚠⚠ THE NUMBERS MOVED WITH THE FACE, AND THAT IS NOT OPTIONAL. Optical weight
+   is not transferable between families — 400 in a high-contrast serif is not
+   400 in a geometric sans — so a swap that keeps the previous face's numbers is
+   a different design, not the same one wearing new clothes.
+     · weight 400 -> 300. Figtree's axis FLOOR is 300 (the API 400s anything
+       lower), and it sets heavier than Fraunces did at the same number.
+     · tracking -0.018em -> -0.026em. Round geometric bowls open a display line
+       up on their own; a serif at this size does not need as much taken out.
+     · SOFT and WONK are gone because they were FRAUNCES axes. Left behind they
+       would be a silent no-op that still reads as a decision.
+     · `font-optical-sizing` is gone for the same reason: Figtree has no opsz
+       axis, and a declaration that cannot do anything is worse than none — it
+       claims a choice was made where none was.
 ─────────────────────────────────────────────────────────────────────────── */
 .said {
   font-family: var(--font-said);
-  font-optical-sizing: auto;
-  font-variation-settings: "SOFT" 12, "WONK" 0;
-  font-weight: 400;
+  font-weight: 300;
   color: var(--ink);
-  letter-spacing: -0.018em;
+  letter-spacing: -0.026em;
   line-height: 1.06;
   text-wrap: balance;          /* never leave one word alone on the last line */
   text-shadow: var(--ink-shadow);
@@ -72,9 +87,13 @@
    32px is the floor of the whole system. It is meant to be readable but never
    demanding: peripheral, ignorable, and absorbed over weeks rather than read.
 ─────────────────────────────────────────────────────────────────────────── */
+/* ⚠ `font-style: italic` here is REAL, not synthesised — Figtree ships an
+   italic and index.html requests the `ital` axis for exactly these two rules.
+   If the said face is ever changed again this is the line that breaks in
+   silence: a family with no italic gets a browser-sheared roman, and nothing
+   errors, nothing logs and no test currently looks. */
 .rail {
   font-family: var(--font-said);
-  font-optical-sizing: auto;
   font-size: var(--t-rail);
   font-style: italic;
   font-weight: 300;

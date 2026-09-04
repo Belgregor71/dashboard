@@ -517,10 +517,16 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ⚠ Retuned with the face on 2026-09-04: Figtree 500 at 72px sets noticeably
+   heavier than Fraunces 500 did, which made the place name compete with the
+   hour instead of sitting under it. Same rule as `.said` in type.css — the
+   numbers move with the family, or the design changes without anyone having
+   decided to change it. */
 .archive__title {
   font-family: var(--font-said);
   font-size: var(--t-measured-1);
-  font-weight: 500;
+  font-weight: 400;
+  letter-spacing: -0.02em;
   line-height: 1.05;
   color: var(--ink);
 }
