@@ -1476,6 +1476,48 @@ test("the sky stands down the moment the house is listening", async ({ page }) =
   expect(await opacityAt("idle")).toBe(1);
 });
 
+test("after dark the wall is a photograph and an hour, not an instrument panel", async ({ page }) => {
+  /* The night rule the plate and the engraved year already obey, extended to
+     the two lines the plane added. A dimmed label is a label somebody still
+     tries to read, so these go out entirely.
+
+     ⚠ DRIVEN BY THE ATTRIBUTE, NOT BY THE CLOCK. V3 decides night off the sun's
+     altitude, so pinning a time here would make the test pass or fail by
+     latitude and season. `data-night` is what the stylesheet actually reads.
+
+     ⚠ AND THE HOUR MUST SURVIVE IT. It always has — the wall's constant is not
+     part of the instrument panel — and a night rule written one selector too
+     wide is exactly how the household loses its clock at 2am. */
+  await bootArchive(page, { v3ArchivePlane: true, weather: WEATHER });
+  await groundShown(page);
+
+  const read = () =>
+    page.evaluate(() =>
+      Object.fromEntries(
+        [".archive__date", ".archive__sky", ".archive__plate", ".hour"].map((sel) => [
+          sel,
+          parseFloat(getComputedStyle(document.querySelector(sel)).opacity)
+        ])
+      )
+    );
+
+  const day = await read();
+  expect(day[".archive__date"]).toBe(1);
+  expect(day[".archive__sky"]).toBe(1);
+
+  await page.evaluate(() => {
+    document.documentElement.dataset.night = "1";
+  });
+  await page.waitForTimeout(500);
+
+  const night = await read();
+  expect(night[".archive__date"]).toBe(0);
+  expect(night[".archive__sky"]).toBe(0);
+  expect(night[".archive__plate"]).toBe(0);
+  // The clock stays.
+  expect(night[".hour"]).toBe(1);
+});
+
 test("the frame does not move — only the image inside it", async ({ page }) => {
   /* 🔑 `arch-pivot` slides the card toward and away from the eye, and on a
      surface whose complaint was "the photo looks askew" that is
