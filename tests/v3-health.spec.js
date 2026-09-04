@@ -139,6 +139,28 @@ async function bootV3(page, { health = HEALTHY, metrics = METRICS } = {}) {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
 
+  /* ⚠⚠ `v3ArchivePlane` IS PINNED OFF, and it is load-bearing rather than
+     tidy-mindedness. The one-plane archive puts the DAY at the top-left corner
+     and steps the fault pill down to y168 to make room for it, so the pill's
+     `top: 96` assertion below is an assertion about WHICH COMPOSITION IS UP —
+     not about the pill. Measured by flipping the flag on before it shipped:
+     this file went red at "the pill is MEASURED and sits on the floor", 96
+     against 168, which is the exact shape of the ambientSubstrate lesson (a
+     flag flip breaking specs that assumed the old default).
+
+     Pinned rather than made tolerant, because "the pill sits at the safe inset
+     with nothing above it" is a true and worth-keeping fact about the surface
+     that is on the wall. The plane's own stepped geometry — and that the card
+     clears the pill's furthest reach — is measured in tests/v3-archive.spec.js,
+     against the real painted boxes. */
+  await page.route("**/js/config.js", async (route) => {
+    const res = await route.fetch();
+    await route.fulfill({
+      response: res,
+      body: `${await res.text()}\nwindow.CONFIG.features.v3ArchivePlane = false;\n`
+    });
+  });
+
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     const json = (body) =>

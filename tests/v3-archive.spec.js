@@ -603,24 +603,35 @@ test("the layer is depth 0's, and recedes to the full-bleed photograph above it"
   const pageErrors = await bootArchive(page);
   await groundShown(page);
 
-  const at = async (depth) => {
+  /* ⚠ POLLED, NOT SLEPT. This was `waitForTimeout(500)` against a 350ms
+     `--m-calm` — 150ms of slack — and the layer's `visibility` flips on a
+     `transition: visibility 0s linear var(--m-calm)`, i.e. at exactly 350ms
+     after the class lands. Under full-suite load that 500ms is a budget for the
+     whole browser rather than for this transition, and the check ran while the
+     layer was still visible: seen red at depth 1 on 2026-09-05. A fixed sleep
+     compared to an exact value is a test that passes on an idle machine, which
+     is the flake class this repo root-causes rather than retries. */
+  const at = async (depth, shown) => {
     await page.evaluate((d) => window.__setDepth(d, "spec"), depth);
-    await page.waitForTimeout(500);   // > --m-calm (350ms)
-    return page.evaluate(() =>
-      document.getElementById("archive").checkVisibility({ opacityProperty: true })
-    );
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          document.getElementById("archive").checkVisibility({ opacityProperty: true })
+        )
+      )
+      .toBe(shown);
   };
 
-  expect(await at(0)).toBe(true);
+  await at(0, true);
   /* Depth 1+ is BYTE-IDENTICAL to today's backdrop — the full-bleed photograph
      and the solved scrim — which is also the flag-off state. That is why the
      rollback is exercised in production on every doorbell rather than only at
      revert time. */
-  expect(await at(1)).toBe(false);
-  expect(await at(3)).toBe(false);
+  await at(1, false);
+  await at(3, false);
   // And it comes back, because recession is always automatic and always
   // downhill: nothing can get stuck deep.
-  expect(await at(0)).toBe(true);
+  await at(0, true);
 
   expect(pageErrors).toEqual([]);
 });
@@ -1501,21 +1512,32 @@ test("the sky stands down the moment the house is listening", async ({ page }) =
   await bootArchive(page, { v3ArchivePlane: true, weather: WEATHER });
   await groundShown(page);
 
-  const opacityAt = async (phase) => {
+  /* ⚠ POLLED TO A SETTLED VALUE, NOT SLEPT AND COMPARED TO EXACTLY 0. The
+     stand-down is a --m-calm ease, and a fixed 500ms wait caught it mid-flight
+     at 3.4972e-14 under full-suite load — a number that is visually zero and is
+     not `0`. Sleep-then-assert-exact is a test that passes on an idle machine
+     and fails on a busy one, which is the flake class this repo root-causes
+     rather than retries. */
+  const settled = async (phase, percent) => {
     await page.evaluate((p) => {
       document.documentElement.dataset.phase = p;
     }, phase);
-    await page.waitForTimeout(500);   // > --m-calm
-    return page.evaluate(() =>
-      parseFloat(getComputedStyle(document.querySelector(".archive__sky")).opacity)
-    );
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          Math.round(
+            parseFloat(getComputedStyle(document.querySelector(".archive__sky")).opacity) * 100
+          )
+        )
+      )
+      .toBe(percent);
   };
 
-  expect(await opacityAt("idle")).toBe(1);
-  expect(await opacityAt("listening")).toBe(0);
-  expect(await opacityAt("speaking")).toBe(0);
+  await settled("idle", 100);
+  await settled("listening", 0);
+  await settled("speaking", 0);
   // And it comes back, because standing down is never a one-way door.
-  expect(await opacityAt("idle")).toBe(1);
+  await settled("idle", 100);
 });
 
 test("after dark the wall is a photograph and an hour, not an instrument panel", async ({ page }) => {
@@ -1691,14 +1713,16 @@ test("the plane recedes with everything else, and nothing grows across exchanges
   expect(probe.loops).toBe(3);
   expect(probe.anims).toBe(4);
 
-  // And it is still depth 0's alone.
+  // And it is still depth 0's alone. Polled for the reason the recession test
+  // above gives: the layer's visibility flips at --m-calm, not before it.
   await page.evaluate(() => window.__setDepth(1, "spec"));
-  await page.waitForTimeout(500);
-  expect(
-    await page.evaluate(() =>
-      document.getElementById("archive").checkVisibility({ opacityProperty: true })
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        document.getElementById("archive").checkVisibility({ opacityProperty: true })
+      )
     )
-  ).toBe(false);
+    .toBe(false);
 
   expect(pageErrors).toEqual([]);
 });
