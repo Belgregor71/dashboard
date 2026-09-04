@@ -233,6 +233,14 @@ test("the plane's card is a DIFFERENT box, and the two must not be merged", () =
      other, while only one of them is ever on the glass. */
   expect(cardRectForPlane(16 / 9)).toEqual({ w: 978, h: 550, left: 88, top: 249 });
   expect(cardRectFor(16 / 9)).toMatchObject({ w: 1040, h: 585, left: 130 });
+
+  /* ⚠ AND A WIDTH-BOUND ASPECT, WHICH IS THE ONLY ONE THAT CAN SEE `maxW`.
+     Found by injecting the defect: raising PLANE_CARD_MAX_W from 1000 to 1040
+     left the line above completely unmoved, because at 16:9 the card is
+     HEIGHT-bound — 550 caps first and the width falls out of it. The hinge is
+     1000/550 = 1.818, so anything wider than that is width-bound. A 2:1
+     panorama is the case that reads the constant. */
+  expect(cardRectForPlane(2)).toEqual({ w: 1000, h: 500, left: 88, top: 274 });
 });
 
 test("the plane's card follows the print too, and pins its left edge", () => {
@@ -374,6 +382,30 @@ const WEATHER = {
     rain_chance_pct: 10
   },
   day: { high_c: 25.2, low_c: 13.6, sunrise: "06:05", sunset: "17:40" }
+};
+
+/* ⚠⚠ `weatherFallbackNow()`, COPIED FROM THE SERVER — every field null and the
+   literal label "Unavailable". This exists because of an injected defect that
+   came back GREEN: the "no sky" test below was serving nothing at all, so
+   `/api/weather/now` 502'd, `loadWeather` returned on `!res.ok`, and
+   `archiveSky` was never called. The test was passing because the line never
+   arrived — not because `skyLine` refused it — so re-introducing the
+   `Number(null) === 0` defect did not move it. A route that answers 200 with
+   this is what actually reaches the refusal. */
+const WEATHER_UNKNOWN = {
+  location: { name: "Unavailable", tz: "UTC" },
+  now: {
+    temp_c: null,
+    feels_like_c: null,
+    condition: { code: null, label: "Unavailable", icon: null, intensity: null, thunder: false },
+    wind_kph: null,
+    wind_bearing: null,
+    cloud_pct: null,
+    humidity_pct: null,
+    uv: null,
+    rain_chance_pct: null
+  },
+  day: { high_c: null, low_c: null, sunrise: null, sunset: null }
 };
 
 const groundShown = (page) =>
@@ -1428,8 +1460,18 @@ test("with no sky to report, the band is not there at all", async ({ page }) => 
      rather than a contrived one. `Number(null)` is 0, and the first version of
      `skyLine` rounded before it tested: the wall said "0° · 0° / 0°", stating
      three temperatures nobody had measured. The line must be absent, and the
-     day above it must not move. */
-  const pageErrors = await bootArchive(page, { v3ArchivePlane: true });
+     day above it must not move.
+
+     ⚠ THE PAYLOAD IS SERVED AT 200, NOT LEFT TO THE SERVER. Found by injecting
+     the defect: with no route the test server answers 502, `loadWeather`
+     returns on `!res.ok`, and `archiveSky` is never called — so the band was
+     empty for a reason that had nothing to do with what this test claims to
+     measure, and the "0°" defect could be re-introduced without turning it red.
+     Serving the fallback is what puts the refusal on the path. */
+  const pageErrors = await bootArchive(page, {
+    v3ArchivePlane: true,
+    weather: WEATHER_UNKNOWN
+  });
   await groundShown(page);
 
   const probe = await planeProbe(page);
