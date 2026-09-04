@@ -1601,12 +1601,29 @@ window.CONFIG = {
     // moves down to make room for the date, which is why the card's top edge is
     // set by the pill's maximum reach rather than by taste.
     //
-    // ⚠ DEFAULT-OFF until the owner has seen it on the glass. Flag-off, none of
-    // the plane's nodes are built and none of its CSS matches: `data-arch-plane`
-    // is absent, every new rule is keyed on it, and depth 0 is the surface that
-    // is on the wall today. Flipping it back off is the rollback path and
-    // tests/v3-archive.spec.js runs BOTH states.
-    v3ArchivePlane: false,
+    // ⚠⚠ FLIPPED DEFAULT-ON 2026-09-05, ON THE OWNER'S DIRECT INSTRUCTION AND
+    // BEFORE ANYONE HAD SEEN IT ON THE GLASS — which is not the usual ceremony
+    // and is recorded here rather than smoothed over. The house rule is "flip
+    // the default only after live Pi verification"; the owner read the
+    // before/after captures and said flip. So the evidence behind this default
+    // is a full-suite run in BOTH flag states (1923 passed / 1 skipped each
+    // way), nineteen injected defects every one of which went red, and painted
+    // geometry measured at 1920x1080 — not a person standing in the kitchen.
+    // The live look is what comes next, and this stays on trial until it
+    // happens.
+    //
+    // ⚠ THE TEST SWEEP FOUND A REAL ASSUMED DEFAULT, which is the whole reason
+    // that sweep exists: tests/v3-health.spec.js asserted the fault pill's top
+    // is 96, and this composition steps it down to 168 to make room for the
+    // date. That number was an assertion about WHICH COMPOSITION IS UP, not
+    // about the pill. It pins the flag off now.
+    //
+    // ONE-LINE REVERT (-> false): `data-arch-plane` is never written, so not
+    // one of the plane's ~30 CSS rules matches, none of its nodes are built,
+    // the year strip comes back and the fault pill returns to `var(--safe)`.
+    // The off state is the surface that ran on the wall from 2026-08-20 to
+    // 2026-09-05, and it is verified by the same spec file on every run.
+    v3ArchivePlane: true,
 
     // ── The depth census ────────────────────────────────────────────────────
     // Asked on 2026-08-23 and unanswerable: how many times has each depth been
