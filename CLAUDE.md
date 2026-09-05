@@ -8,9 +8,9 @@
   Vite builds both entries. `/` serves V3 (`server/config.js:45`, `DEFAULT_ROOT_SURFACE`);
   `/index.html` and `/v3/` stay reachable whichever way it points. **Check which surface a
   change targets before editing** — the same feature often exists in both.
-- **V3 is not standalone**: it imports ~26 modules from `src/js/`. The incumbent tree is a
+- **V3 is not standalone**: it imports 32 modules from `src/js/`. The incumbent tree is a
   live dependency, not dead code — don't delete from it on an audit's say-so.
-- `server.js` mounts `server/routes/*.js` (26 route modules) under `/api`. Route order
+- `server.js` mounts `server/routes/*.js` (30 route modules) under `/api`. Route order
   matters — see the measured comments in `server.js` around the static mounts.
 - Scripts: `npm run dev` (vite) · `npm run build` (vite + copy-static-config) ·
   `npm start` (node server.js, port 3000) · `npm test` (Playwright) ·
@@ -46,7 +46,7 @@
 
 ### Testing & Pre-Push Gate
 
-- `npm test` runs the Playwright suite — ~100 spec files in `tests/`, spanning API
+- `npm test` runs the Playwright suite — 112 spec files in `tests/`, spanning API
   contracts (`api.spec.js`), a browser smoke test (`ui.spec.js`), and per-feature specs.
   Browser specs need `npm run build` first. Test server runs on port 3210 with AI
   upstreams stubbed off (no API spend). Target one file when iterating:

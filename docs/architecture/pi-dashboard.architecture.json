@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Kiosk Dashboard — Source, Deploy, Runtime",
+    "output": "pi-dashboard-architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/Belgregor71/dashboard",
+      "revision": "12b605904a46c1b1a0b057867daccad5031ffcdb"
+    },
+    "views": [
+      { "id": "deploy-chain", "label": "Pull-based deploy", "focus": ["github", "deploy", "vite", "server", "pi4"], "note": "A push to main is the deploy. The kiosk polls, pulls, builds and restarts itself." },
+      { "id": "two-frontends", "label": "Two frontends", "focus": ["srcJs", "srcV3", "flags", "vite", "kiosk"], "note": "V3 is the served root but not standalone — it imports 32 modules from the incumbent tree." },
+      { "id": "upstreams", "label": "Upstream reach", "focus": ["server", "routes", "ha", "upstreams", "voice"], "note": "Thirty route modules under /api are the only place the house touches the outside world." }
+    ]
+  },
+  "components": [
+    { "id": "srcJs", "type": "frontend", "label": "Incumbent UI", "sublabel": "src/js/ — live dependency", "tag": "32 modules V3 imports", "pos": [60, 60], "size": [180, 66] },
+    { "id": "srcV3", "type": "frontend", "label": "V3 Surface", "sublabel": "src/v3/ — served at /", "sources": [{ "path": "server/config.js", "line": 45, "label": "DEFAULT_ROOT_SURFACE" }], "pos": [318, 60], "size": [180, 66] },
+    { "id": "flags", "type": "database", "label": "Feature Flags", "sublabel": "config.js — 78 flags", "tag": "tracked + public bundle", "pos": [576, 60], "size": [180, 66], "sources": [{ "path": "src/js/config.js", "line": 31, "label": "features" }] },
+    { "id": "github", "type": "external", "label": "GitHub origin/main", "sublabel": "Belgregor71/dashboard", "pos": [1132, 60], "size": [180, 66] },
+    { "id": "vite", "type": "backend", "label": "Vite Build", "sublabel": "two entries → dist/", "pos": [318, 190], "size": [180, 66] },
+    { "id": "deploy", "type": "cloud", "label": "dashboard-deploy", "sublabel": "systemd timer — 5 min", "pos": [1132, 190], "size": [180, 66] },
+    { "id": "ha", "type": "external", "label": "Home Assistant", "sublabel": "entities, cameras, todos", "pos": [874, 285], "size": [180, 66] },
+    { "id": "env", "type": "security", "label": "Kiosk .env", "sublabel": "untracked on the host", "tag": "HA token, API keys", "pos": [60, 350], "size": [180, 66] },
+    { "id": "server", "type": "backend", "label": "Express server.js", "sublabel": "dashboard.service :3000", "sources": [{ "path": "server.js", "line": 337, "label": "app.listen" }], "pos": [318, 350], "size": [180, 66] },
+    { "id": "routes", "type": "backend", "label": "API Routes", "sublabel": "30 modules under /api", "sources": [{ "path": "server.js", "line": 19, "end_line": 27, "label": "route imports" }], "pos": [576, 350], "size": [180, 66] },
+    { "id": "pi4", "type": "cloud", "label": "Pi 4 Rollback Host", "sublabel": "kiosk off, code-current", "tag": "warm standby", "pos": [1132, 350], "size": [180, 66] },
+    { "id": "upstreams", "type": "external", "label": "Media & Data", "sublabel": "Immich · Plex · *arr · TomTom", "pos": [874, 432], "size": [180, 66] },
+    { "id": "kiosk", "type": "cloud", "label": "G11 Chromium Kiosk", "sublabel": "32-inch display — CDP :9222", "tag": "runs for weeks", "pos": [318, 505], "size": [180, 66] },
+    { "id": "voice", "type": "external", "label": "Voice Agent", "sublabel": "Python — outside the repo", "tag": "whisper + Kokoro", "pos": [1132, 505], "size": [180, 66] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "GMKtec G11 · Debian 13 + X11", "wraps": ["vite", "server", "routes", "kiosk"] },
+    { "kind": "security-group", "label": "secrets stay on the host", "wraps": ["env", "server"] }
+  ],
+  "connections": [
+    { "id": "incumbent-into-build", "from": "srcJs", "to": "vite", "label": "shared modules", "fromSide": "bottom", "toSide": "left" },
+    { "id": "v3-entry", "from": "srcV3", "to": "vite", "label": "root entry", "labelAt": [408, 140], "variant": "emphasis", "fromSide": "bottom", "toSide": "top" },
+    { "id": "flags-copied", "from": "flags", "to": "vite", "label": "copied to static/js/", "variant": "dashed", "fromSide": "bottom", "toSide": "right" },
+    { "id": "push-is-deploy", "from": "github", "to": "deploy", "label": "polled every 5 min", "labelAt": [1222, 140], "fromSide": "bottom", "toSide": "top" },
+    { "id": "pull-build-restart", "from": "deploy", "to": "vite", "label": "pull · build · restart", "variant": "emphasis", "fromSide": "left", "toSide": "right" },
+    { "id": "rollback-stays-current", "from": "deploy", "to": "pi4", "label": "same timer", "labelAt": [1222, 270], "variant": "dashed", "fromSide": "bottom", "toSide": "top" },
+    { "id": "serve-bundle", "from": "vite", "to": "server", "label": "serves dist/", "labelAt": [408, 270], "variant": "emphasis", "fromSide": "bottom", "toSide": "top" },
+    { "id": "secrets-into-process", "from": "env", "to": "server", "label": "process.env", "variant": "security", "fromSide": "right", "toSide": "left" },
+    { "id": "mount-api", "from": "server", "to": "routes", "label": "mounts /api", "fromSide": "right", "toSide": "left" },
+    { "id": "ha-rest-ws", "from": "routes", "to": "ha", "label": "REST + WebSocket", "fromSide": "right", "toSide": "left" },
+    { "id": "upstream-rest", "from": "routes", "to": "upstreams", "label": "REST, cached", "fromSide": "right", "toSide": "left" },
+    { "id": "voice-posts-back", "from": "voice", "to": "routes", "label": "POST /api/voice", "variant": "dashed", "fromSide": "left", "toSide": "bottom" },
+    { "id": "kiosk-loads-root", "from": "server", "to": "kiosk", "label": "GET / → V3", "labelAt": [408, 430], "variant": "emphasis", "fromSide": "bottom", "toSide": "top" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Two frontends coexist", "items": ["src/js/ is the incumbent, src/v3/ the current surface", "V3 is not standalone — it imports 32 src/js/ modules", "V3_DEFAULT=0 rolls the surface back with no deploy"] },
+    { "dot": "emerald", "title": "Deploy is pull-based", "items": ["A push to origin/main is the deploy", "The timer pulls, builds, restarts the service", "The Pi 4 stays code-current as a warm rollback"] },
+    { "dot": "rose", "title": "What guards the push", "items": [".githooks/pre-push runs six gates in about 60s", "112 Playwright specs on :3210, upstreams stubbed", "config.js ships public — keep secrets out of it"] }
+  ]
+}

@@ -1,2 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# archify writes LF. Without this, autocrlf makes every regenerate of the
+# diagram show all ~15k lines as changed, and the delivered SHA-256 in the
+# deliver receipt stops matching the file on disk.
+docs/architecture/*.html eol=lf
+docs/architecture/*.json eol=lf

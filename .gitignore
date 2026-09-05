@@ -85,3 +85,6 @@ tools/voice-agent/*.log
 # graphify knowledge-graph output (regenerable; 5.7MB)
 graphify-out/
 tools/voice-pc/hotwords.txt
+
+# archify visual-check working files (screenshots + receipts)
+docs/architecture/*.visual-check.*
