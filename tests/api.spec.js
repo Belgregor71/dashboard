@@ -5,6 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { pickSensorPath } from "../server/routes/system.js";
 import { isScreenshot } from "../server/services/immichClient.js";
+import { TEST_ORIGIN } from "../playwright.config.js";
 
 const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -1805,7 +1806,7 @@ test.describe("ai + tts", () => {
     const http = await import("node:http");
     let posted;
     const received = await new Promise((resolve, reject) => {
-      const req = http.get("http://127.0.0.1:3210/api/voice/stream", (res) => {
+      const req = http.get(`${TEST_ORIGIN}/api/voice/stream`, (res) => {
         let buf = "";
         res.setEncoding("utf8");
         res.on("data", (chunk) => {
@@ -1869,7 +1870,7 @@ test.describe("ai + tts", () => {
     await request.post("/api/voice/speaking", { data: { speaking: true } });
     const http = await import("node:http");
     const received = await new Promise((resolve) => {
-      const req = http.get("http://127.0.0.1:3210/api/voice/stream?agent=1", (res) => {
+      const req = http.get(`${TEST_ORIGIN}/api/voice/stream?agent=1`, (res) => {
         let buf = "";
         res.setEncoding("utf8");
         res.on("data", (chunk) => {
@@ -1893,7 +1894,7 @@ test.describe("ai + tts", () => {
     const http = await import("node:http");
     let posted;
     const received = await new Promise((resolve) => {
-      const req = http.get("http://127.0.0.1:3210/api/voice/stream?agent=1", (res) => {
+      const req = http.get(`${TEST_ORIGIN}/api/voice/stream?agent=1`, (res) => {
         let buf = "";
         res.setEncoding("utf8");
         res.on("data", (chunk) => {
@@ -1924,7 +1925,7 @@ test.describe("ai + tts", () => {
     const http = await import("node:http");
     let posted;
     const received = await new Promise((resolve) => {
-      const req = http.get("http://127.0.0.1:3210/api/voice/stream", (res) => {
+      const req = http.get(`${TEST_ORIGIN}/api/voice/stream`, (res) => {
         let buf = "";
         res.setEncoding("utf8");
         res.on("data", (chunk) => {
@@ -1986,8 +1987,8 @@ test.describe("ai + tts", () => {
     });
 
     let posted;
-    const kiosk = open("http://127.0.0.1:3210/api/voice/stream");
-    const agent = open("http://127.0.0.1:3210/api/voice/stream?agent=1");
+    const kiosk = open(`${TEST_ORIGIN}/api/voice/stream`);
+    const agent = open(`${TEST_ORIGIN}/api/voice/stream?agent=1`);
     setTimeout(() => {
       posted = request.post("/api/voice/unheard", { data: { reason: "empty-transcript" } });
     }, 500);

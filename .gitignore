@@ -10,6 +10,10 @@ node_modules/
 .pm2
 logs
 dist/
+# Left behind only when an unattended /overnight-ship run dies hard. The wrapper
+# removes it on every normal exit; a survivor is a signal to read logs/overnight/,
+# not something to commit.
+.overnight-ship.lock/
 .claude/
 # Agent scaffolding, all of it local and regenerable. `.agents/` is a MIRROR of
 # `.claude/` (same files, s/CLAUDE.md/AGENTS.md/) and AGENTS.md is CLAUDE.md

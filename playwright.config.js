@@ -5,7 +5,18 @@ import { defineConfig } from "@playwright/test";
 // env vars. AI upstreams are stubbed to unreachable/empty so contract tests
 // are deterministic and never spend API credits — and, since 2026-07-31, the
 // CALENDAR feeds are stubbed for the same reason (see the env block).
-const TEST_PORT = 3210;
+// TEST_PORT is overridable so two suites can run at once from separate git
+// worktrees (the /variants fan-out). Default unchanged at 3210: every existing
+// invocation, the pre-push gate included, still lands on the same port it always
+// has. Back-to-back runs on ONE port collide, which is the other reason this
+// exists — an overlapping run inherits the previous server and reports nonsense.
+// Exported because a handful of specs open RAW http/SSE connections that bypass
+// Playwright's baseURL entirely (the voice stream ones). They must read the port
+// from HERE — the same number written in two files is a drift this repo has been
+// bitten by before, and on an overridden port those specs failed while the rest
+// of the file passed.
+export const TEST_PORT = Number(process.env.TEST_PORT) || 3210;
+export const TEST_ORIGIN = `http://127.0.0.1:${TEST_PORT}`;
 
 export default defineConfig({
   testDir: "tests",

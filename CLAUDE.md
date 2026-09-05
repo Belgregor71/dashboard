@@ -2,6 +2,28 @@
 
 ## Project: Kiosk Dashboard (GMKtec G11, migrated off a Raspberry Pi 4 on 2026-08-01)
 
+### Definition of Done — read this before answering anything
+
+**Verdict first.** For any feasibility or "should we do X" question, the first line is
+one of **YES / NO / YES-BUT**, then one sentence of reasoning, and only then the detail.
+A plan whose conclusion is buried in the middle has already failed — it cost a whole
+session once, ending in "sorry i'm confused can this be done or not".
+
+**Restate a multi-part request as a numbered checklist before touching code**, and
+re-print that checklist at the end with `DONE` / `DEPLOYED` / `NOT DONE` per item and
+nothing above it. Requests here routinely bundle 3-4 asks (feature + bug fix + deploy +
+doc update) and **the misses happen at the seams**: three ambient-archive design
+directions were asked for, one shipped, and the gap was found by the owner looking at
+the live wall — not by anything in the session.
+
+**A partially-completed request is never reported as complete.** Say which parts landed,
+which are committed but not deployed, and which were not built at all. Scaling the work
+down is the owner's call, not the session's.
+
+**"Shipped" means verified on the live G11/kiosk, not green tests.** See "Verification &
+Deployment". 1,937 green tests did not notice the briefing inventing an "8:41" that never
+happened; a glance at the wall did.
+
 ### Architecture
 
 - **Two frontends coexist.** `src/js/` is the incumbent; `src/v3/` is the current surface.
@@ -28,6 +50,7 @@
 - Access: **`ssh pi-dashboard` → the G11** (192.168.0.183, user `dashboard`, repo at `/home/dashboard/dashboard`). The alias name is **historical and deliberately unchanged** — keeping it means the deploy chain, all 7 skills and the pre-approved permissions need zero edits. The Pi 4 rollback host is **`ssh pi4-rollback`** (192.168.0.186); its kiosk is disabled but `dashboard.service` + `dashboard-deploy.timer` stay running so it remains code-current. Dashboard serves on port 3000 (systemd sets `PORT=3000`, and `.env.example:1` now agrees). Kiosk Chromium exposes CDP on 127.0.0.1:9222 (localhost only — run a node script on the kiosk host to reach it).
 - **Host-specific gotchas on the G11:** `vcgencmd` does not exist — read `tempC` from `/api/system/metrics` (autodetects `k10temp`; `/sys/class/thermal/` is absent entirely). `nproc` is **8**, not 4, so every "% of the box" derived from `gpucpu.sh` changes denominator. `sudo` is narrowed to three passwordless systemctl commands; anything else needs a password. Baselines for both hosts live in `docs/audit/HOST-BASELINES.md`.
 - During long sessions, commit working progress locally in small checkpoints — but don't push until verified, because pushing to main deploys to the live kiosk.
+- **After a deploy, state per deliverable whether it is DEPLOYED or merely COMMITTED**, and back the "deployed" half with something read off the live box — a screenshot, a CDP eval, a `curl` against `/api/…`, the deployed short SHA. Run `/verify-live` to do this against the session's own checklist; `/verify-push` covers the kiosk mechanics (bundle reload, contrast over the real photo, health). A typeface once shipped while the redesign it was part of did not, and the session reported the whole request as done.
 - **Surface rollback needs no deploy:** `V3_DEFAULT=0` in the kiosk's `.env` + a
   `dashboard.service` restart forces the incumbent back in place; `=1` forces V3.
   Unset falls through to the committed default. `root-surface.spec.js` pins that default.
@@ -40,6 +63,13 @@
 - Every flag must be cleanly reversible — flipping it off is the rollback path, so verify
   the off state still passes tests after the flip (flag flips have broken tests that
   assumed the old default).
+- **A flip is its own mini-deploy, never a footnote to another change.** Run the suite in
+  BOTH flag states, deploy, verify live, then flip — and immediately after flipping,
+  prove the rollback by flipping back once and confirming the wall recovers. Use
+  `/flag-flip <flagName>`; it runs `scripts/verify/flag-reversibility.mjs` for the suite
+  half. This is the single most common place a session ends in a live defect: a flip has
+  made the house invent a bin time, and a poisoned cache once blanked the whole wall.
+  Record both the flip and the rollback proof in the session memory entry.
 - Flags live in `src/js/config.js` under `features:` (~78 flags), copied to
   `static/js/config.js` on every build. That file is **tracked and shipped in the
   public bundle** — never put a secret or an address in it.
@@ -62,6 +92,12 @@
   after an async load completes (register before `await`), and time-of-day dependence
   (screensaver auto-engages after sunset; sunrise/briefing windows) — pin the clock
   (e.g. MIDDAY) in specs that assume the awake view.
+- **A vacuous assertion is not a test.** An assertion that passes on an empty, absent or
+  detached node can never fail, and three have shipped here: a 0-height box reports
+  `top == bottom ==` the defect's own coordinate and satisfies every clearance check; a
+  DocumentFragment returns 0 rects, which a *correct* guard reads as "no"; a `toContain`
+  on an id passed twice against an injected defect. **Assert the node is there before
+  asserting where it is**, and assert the text, not just the count.
 - New-bug pattern the suite exists to catch: uncaught page errors on the kiosk. Note
   `.finally()` re-throws rejections on a fresh unhandled chain — use a two-handler
   `.then(fn, fn)` for cleanup on promises whose rejection is handled elsewhere.
@@ -98,6 +134,13 @@ this session's context — only its report does. So anything whose *output* is
 large but whose *answer* is small belongs in a subagent, however trivial the
 task. That is the whole trick. `npm test` and a repo-wide grep are the two
 biggest offenders.
+
+Corollary: **a long-running job is dead time this session should not spend building.**
+While a suite run, an overnight remux, a VMAF ladder or a soak is in flight, hand the
+*next* phase's exploration to a subagent ("trace the voice pipeline across files", "find
+every consumer of the census flag") and keep the main thread on the running job and its
+handover. Building the next phase inline while waiting is how a context limit was hit
+mid-analysis. The subagent plans; it does not edit.
 
 Corollary: **do not re-read what a subagent already reported.** Re-opening the
 files to "check its work" spends exactly what delegating saved. If the report is
@@ -231,6 +274,25 @@ When debugging camera/doorbell staleness, check config sources (preferredSnapsho
     the true answer was 0 — verify with something the probe cannot be (a dead port, an absent
     profile dir), never with a count that includes the counter.
 
+- **MCP for Home Assistant: use HA's OWN server, or none.** Measured 2026-09-06:
+  `@modelcontextprotocol/server-homeassistant` and `@modelcontextprotocol/server-sqlite`
+  **do not exist** (npm 404) — do not install a third-party package to reach HA, because
+  the thing it would need is the long-lived token in `.env`, and this repo is public.
+  HA ships its own MCP server (integration added in 2025.2) at **`/api/mcp`**,
+  token-authenticated, exposing only what is exposed to Assist. It is **NOT enabled** on
+  this instance — `/api/mcp` returned 404 while `/api/` returned 200 on 192.168.0.179.
+  Enabling it is a config flow in the HA UI (Settings → Devices & Services), then:
+  `claude mcp add --transport http homeassistant http://192.168.0.179:8123/api/mcp/assist --header "Authorization: Bearer <token>"`.
+  Until then the dashboard's own `/api/ha/*` proxy routes are the typed lane that already
+  exists — `curl` those rather than shelling into HA.
+- **⚠⚠ NEVER WRITE A FILE WITH A HEREDOC — not locally, and not over SSH.** Use the
+  Write/Edit tools for local files, and write-locally-then-`scp` for remote ones. Heredoc
+  quoting has mangled docs and scripts repeatedly here: an apostrophe in a *comment* ends
+  the outer `ssh host '...'` quote, and backticks and `$(...)` inside an unquoted heredoc
+  are expanded by the shell before the file is ever written. Quote the delimiter
+  (`<<'EOF'`) if a heredoc is genuinely unavoidable for *stdin to a program* — but not
+  for producing file content. Same family as the `python -c` trap below: **the shell
+  reads the string before the tool you meant to run ever sees it.**
 - **⚠⚠ EDITING FILES THROUGH `python -c "..."` HAS DESTROYED A FILE HERE.** Three
   distinct failures, all silent, all on 2026-09-02:
   - **`open(path, "w")` TRUNCATES BEFORE IT ENCODES.** A `UnicodeEncodeError` on the
@@ -255,5 +317,29 @@ For CSS/UI work against a reference image: pin down the target spec first (exact
 ### Root-Cause Discipline
 
 In debugging sessions, state the root-cause hypothesis and the specific evidence (logs, config, live captures) that supports it before changing any code. Only patch once the cause is confirmed — first fixes aimed at guesses have repeatedly been reverted.
+
+**Label an unconfirmed cause a HYPOTHESIS, in those words, until a live probe confirms
+it.** The first diagnosis has been confidently wrong often enough to be the default
+expectation: Home Assistant was reported "stopped" when it was actually swap-livelocked
+and still holding its listen socket; a blank archive card was blamed on Immich; the
+motion-divergence station/re-homing theory was falsified by walking the devices.
+
+**Never write a hypothesis into a runbook, `docs/`, or a memory entry as fact.** The eufy
+runbook had to be rewritten after live probes falsified what it asserted. If it has not
+been probed, the sentence says so.
+
+### Session Workflow — memory & handover
+
+- **Open by reading the handover**, not by reading code: `MEMORY.md`'s "▶▶ Open" block
+  names what is still owed, and the top entry is the current handover. Anything under a
+  dated heading older than the top one is history, not a task list.
+- **Close by writing it back.** Update the relevant memory entry (or add one) with: what
+  shipped, **what is DEPLOYED vs merely COMMITTED**, open defects, and the exact next
+  command to run. One file per fact, one index line in `MEMORY.md`.
+- **Verify every number against the source before writing it down.** Counts quoted from a
+  log estimate rather than the live DB/box have had to be corrected after the fact, and a
+  stale count in a doc reads exactly like a true one. Doc counts drift silently — three
+  in the architecture doc were stale at once.
+- Long design arcs get a `docs/design/HANDOVER-*.md`; session state stays in memory.
 
 Every new behaviour should pass a simple test: Does this make the next glance more useful, calmer, or more delightful?
