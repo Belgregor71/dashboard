@@ -256,19 +256,39 @@ and they come out as broken text.
 
 | Surface | File | State |
 |---|---|---|
-| Conversational voice turn | `server/services/character.js` | **this page, flag `v3HouseCharacter`** |
-| Spoken door/gate alerts | `src/js/config/alertLines.js` | old register — pending propagation |
-| Delight / celebration | `src/js/services/delight.js` | old register — pending propagation |
-| Calendar occasions | `src/js/services/occasions.js` | old register — pending propagation |
-| Arrival card + speech | `src/js/modules/arrivalGreeting.js` | old register — pending propagation |
-| Goodnight routine | `src/js/modules/goodnightRoutine.js` | old register — pending propagation |
-| Memory caption | `src/js/services/memoryEngine.js` | old register — pending propagation |
-| AI briefing / concierge | `server/routes/ai.js` | old register — pending propagation |
+| Conversational voice turn | `server/services/character.js` | ✅ **this page, flag `v3HouseCharacter`** |
+| AI briefing / concierge | `server/routes/ai.js` | ✅ **this page, env `HOUSE_CHARACTER_BRIEFINGS`** (default off) |
+| Spoken door/gate alerts | `src/js/config/alertLines.js` | ⛔ old register — copy pool, see below |
+| Delight / celebration | `src/js/services/delight.js` | ⛔ old register — copy pool, see below |
+| Calendar occasions | `src/js/services/occasions.js` | ⛔ old register — copy pool, see below |
+| Arrival card + speech | `src/js/modules/arrivalGreeting.js` | ⛔ old register — copy pool. ⚠ its `phrase()` calls **normalise**, they do not inject character |
+| Goodnight routine | `src/js/services/goodnight.js` | ⛔ old register — copy pool. ⚠ **not** `modules/goodnightRoutine.js`, a 14-line shim since 2026-08-17 |
+| Memory caption | `src/js/services/memoryEngine.js` | ⛔ old register — copy pool, see below |
 
-The conversational lane goes first on purpose, so the character can be heard in
-the room and judged before it is spread across eight surfaces. Until the table
-above is all one column, the house is deliberately two-voiced — that is a known,
-temporary violation of `VOICE.md`'s one-voice principle, not an oversight.
+The conversational lane went first on purpose, so the character could be heard
+in the room and judged before it was spread across eight surfaces. The three
+briefing prompts followed on 2026-09-05 — they are the highest-frequency
+surface, spoken unprompted twice a day at a wall nobody has to address, where
+the converse lane is the rarest one. Until the table above is all one column,
+the house is deliberately two-voiced — a known, temporary violation of
+`VOICE.md`'s one-voice principle, not an oversight.
+
+⚠⚠ **The two halves of this migration are not the same job, and the second is
+not a flag.** The two rows above marked ✅ are *prompts*, so `character.js`
+propagates into them. Every row marked ⛔ is a **hand-written line pool that
+never reaches a model** — no flag can move them and there is nothing to
+propagate. That copy has to be rewritten line by line against this page. Budget
+it as writing, not as plumbing.
+
+⚠⚠ **And where a prompt shows a worked example, the example is the copy.**
+Moving the briefings across, swapping the register above two exemplars written
+in the old voice would have described the resident while demonstrating the
+costume twice — and a model matches the demonstration, not the description. The
+exemplar rewrite was the whole change; `houseCharacter()` was one line. The
+briefing exemplars are named constants (`EXEMPLARS` in `server/routes/ai.js`)
+precisely so this page's rules can be asserted against them —
+`tests/ai-character.spec.js` pins that they lead with a fact, carry the counting
+habit as an observation, and contain no line from the old register.
 
 ⚠ When the propagation lands, clear `server/tts-cache/*.wav` and re-run the
 warmer. The cache is keyed on a hash of the exact text, so stale WAVs would keep

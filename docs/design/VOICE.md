@@ -11,14 +11,37 @@ new line is written anywhere in the house, it is written against this page.
 >
 > **This page is mid-migration and is deliberately describing two voices.** The
 > conversational voice turn already speaks as CHARACTER.md (flag
-> `v3HouseCharacter`, via `server/services/character.js`). Every other surface —
-> alerts, delight, occasions, arrival, goodnight, memory captions, briefings —
-> still speaks the register below, and will until the propagation lands. The
-> paragraph and rules that follow describe **that** register: they are live copy
-> for those surfaces, not aspiration, and they must not be edited to match
-> CHARACTER.md until the surfaces themselves are rewritten. The **Mechanics**
-> and **Vocabulary** sections below are the exception — those are voice-neutral
-> and bind both.
+> `v3HouseCharacter`, via `server/services/character.js`), and **the three
+> briefing prompts now can too** (env `HOUSE_CHARACTER_BRIEFINGS`, default off —
+> `server/routes/ai.js`). Every remaining surface — alerts, delight, occasions,
+> arrival, goodnight, memory captions — still speaks the register below, and
+> will until the propagation lands. The paragraph and rules that follow describe
+> **that** register: they are live copy for those surfaces, not aspiration, and
+> they must not be edited to match CHARACTER.md until the surfaces themselves
+> are rewritten. The **Mechanics** and **Vocabulary** sections below are the
+> exception — those are voice-neutral and bind both.
+>
+> ⚠⚠ **THE REGISTER WAS NEVER THE WHOLE JOB, AND THE REMAINING HALF IS NOT A
+> FLAG.** Two things were learned moving the briefings across, and both apply
+> to every surface still on this list:
+>
+> 1. **A prompt's worked examples outrank its description.** Each briefing
+>    quoted two exemplars written in this register; swapping the register above
+>    them and leaving them in place would have described the resident while
+>    demonstrating the costume twice, and a model matches the demonstration.
+>    The exemplar rewrite was the change. Where a prompt shows an example,
+>    **the example is the copy.**
+> 2. **The surfaces left are not prompts at all.** `alertLines.js`,
+>    `delight.js`, `occasions.js`, `memoryEngine.js` and `voiceCommands.js` are
+>    hand-written line pools that never reach a model, so `character.js` cannot
+>    propagate into them and no flag can move them — the copy itself has to be
+>    rewritten, line by line, against CHARACTER.md. Budget it as writing, not
+>    as plumbing.
+>
+> ⚠ And when the alert pools are rewritten: **clear `server/tts-cache/*.wav`
+> and re-warm.** `ttsWarmer.js` pre-synthesises the name-free lines on boot and
+> the cache key is `sha256(text::rate)` with no voice in it, so stale audio
+> keeps speaking the old character for up to 14 days after the copy changes.
 
 ## The voice in one paragraph (surfaces not yet propagated)
 
@@ -118,18 +141,21 @@ goes quiet and plain, because some things aren't a bit.
 | Spoken door/gate alerts | `src/js/config/alertLines.js` | pre-warmed TTS; pools of ~6; graduated per rule 7 |
 | Delight/celebration lines | `src/js/services/delight.js` | the rarest surface — highest bar |
 | Calendar occasions | `src/js/services/occasions.js` | full moment each; ANZAC stays plain |
-| Arrival card + speech | `src/js/modules/arrivalGreeting.js` | welcome routes through `phrase()` |
-| Goodnight routine | `src/js/modules/goodnightRoutine.js` | spoken directly (not via `phrase()`) |
+| Arrival card + speech | `src/js/modules/arrivalGreeting.js` | ⚠ routes through `phrase()`, which **normalises** (strips apology/nag openers, caps length) — it does **not** inject character. Still this register. |
+| Goodnight routine | `src/js/services/goodnight.js` | ⚠ **not `goodnightRoutine.js`** — that is a 14-line shim since 2026-08-17; `prepareGoodnight()` holds the copy |
 | Memory caption | `src/js/services/memoryEngine.js` | normal only; tender stays wordless |
 | Voice-command replies | `src/js/core/voiceCommands.js` | data-first; personality only in the flavour lines |
 | Predictive / insight nudges | `src/js/services/predictiveRules.js`, `insightRules.js` | factual glances — kept terse (a bit that delays the number is a regression) |
-| AI briefing/concierge prompts | `server/routes/ai.js` | must quote this register |
+| AI briefing/concierge prompts | `server/routes/ai.js` | ✅ **migrated, flag-gated.** `SYSTEM_PROMPTS` quotes this register (flag off); `CHARACTER_PROMPTS` speaks as CHARACTER.md (`HOUSE_CHARACTER_BRIEFINGS=1`). Exemplars are named constants in `EXEMPLARS` — edit them there, and see `tests/ai-character.spec.js`. |
 
 ## Binding the AI layer
 
 ⚠ **The conversational voice turn no longer reads from here.** `/api/voice/converse`
 builds its prompt from `server/services/character.js` when `v3HouseCharacter` is
-on. The rest of this section describes the surfaces still on the old register.
+on. **Nor do the three briefings, when `HOUSE_CHARACTER_BRIEFINGS=1`** — with it
+unset they still quote `VOICE_REGISTER` below, byte for byte, which is what makes
+unsetting it the rollback. The rest of this section describes the surfaces still
+on the old register.
 
 The Haiku/Ollama system prompts in `server/routes/ai.js` carry this page's
 register in miniature via `VOICE_REGISTER`: *"warm, big, gossipy Australian
