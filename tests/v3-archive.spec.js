@@ -1442,6 +1442,18 @@ test("the card's PAINTED rect clears the date above it and the hour below", asyn
   const pageErrors = await bootArchive(page, { v3ArchivePlane: true, weather: WEATHER });
   await groundShown(page);
   await expect.poll(() => page.evaluate(() => window.__archive().sky)).not.toBeNull();
+  /* ⚠⚠ AND THE CAPTION MUST HAVE WORDS IN IT BEFORE ANY OF THIS IS MEASURED.
+     FOUND BY INJECTING THE DEFECT, 2026-09-05: without this poll `paintPlate` had
+     not run at probe time, so `.archive__plate` was an EMPTY box — 0 wide, 0 high,
+     sitting at y984 because it is bottom-pinned. Every caption assertion below
+     passed against it, and the one that matters passed VACUOUSLY: an empty
+     caption's `top` IS its `bottom` IS 984, which is exactly where an unlifted
+     hour ends, so `hour.bottom <= caption.top` was 984 <= 984 with `--hour-lift`
+     deleted. The test went green against the very defect it was written for.
+
+     🔑 The height assertion below is the guard that makes it stay honest — a
+     zero-height caption can never again satisfy a clearance check. */
+  await expect.poll(() => page.evaluate(() => window.__archive().line)).not.toBeNull();
 
   const probe = await page.evaluate(() => {
     const fault = document.getElementById("fault");
@@ -1505,6 +1517,13 @@ test("the card's PAINTED rect clears the date above it and the hour below", asyn
   ).toBeLessThanOrEqual(probe.caption.top);
   expect(probe.caption.bottom).toBeCloseTo(984, 0);
   expect(probe.caption.left).toBe(96);
+  /* 🔑 THE GUARD. A caption with no line box has a `top` equal to its `bottom`,
+     and every clearance assertion above it becomes an identity. One real 32px
+     line, and the gap over it is the air the design asks for. */
+  expect(probe.caption.height, "the caption has no line box — nothing above it is being measured")
+    .toBeGreaterThanOrEqual(32);
+  expect(probe.caption.top).toBeCloseTo(945.6, 0);
+  expect(probe.hour.bottom).toBeLessThanOrEqual(probe.caption.top - 16);
 
   /* THE PHOTOGRAPH IS STILL THE HERO. A build that shrank the card to make room
      for something else is precisely what the panel rejected once already.
