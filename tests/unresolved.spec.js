@@ -4,7 +4,8 @@ import os from "os";
 import path from "path";
 import {
   observe, noteCoverage, openItems, resolvedItems, resolve, forget, __reset,
-  MAX_OPEN, MAX_PROMPTED, RESOLVED_TTL_MS
+  ambientLine, ambientResolutions, markAired,
+  MAX_OPEN, MAX_PROMPTED, RESOLVED_TTL_MS, MAX_AMBIENT, AMBIENT_WINDOW_MS
 } from "../server/services/unresolved.js";
 import { unresolvedContext } from "../server/services/voiceShape.js";
 import { houseCharacter } from "../server/services/character.js";
@@ -313,5 +314,183 @@ test.describe("the house never invents a reading it was not given", () => {
 
   test("the temptation is named, because the weather interest is what causes it", () => {
     expect(houseCharacter()).toMatch(/being interested in these things is exactly what makes it tempting/i);
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE AMBIENT VOICE — resolutions only.
+
+   `unresolved.js`'s header argues the asymmetry; these hold it. The one that
+   matters most is the FIRST one below, and it is a test about something NOT
+   happening: an open observation must never produce a line, because "the
+   kitchen camera has gone quiet and I can't account for it", unprompted at
+   11pm, is a horror film rather than a dashboard. Every other test here is a
+   bound on repetition, which is the failure mode of a feature like this — not
+   being wrong, being tedious.
+
+   ⚠ THE WHOLE PATH IS COVERED HERE RATHER THAN IN THE BROWSER, deliberately.
+   The wording, the freshness floor and the one-shot are all server-side and
+   node-testable; what the browser adds is only whether the announce lands, and
+   that is v3-resolutions.spec.js's single job.
+   ═══════════════════════════════════════════════════════════════════════════ */
+test.describe("ambientResolutions — what the wall may say", () => {
+  const camera = {
+    key: "camera-silent:kitchen",
+    what: "the kitchen camera has been silent for 2h",
+    subject: "the kitchen camera",
+    cleared: "is reporting again"
+  };
+
+  /* ⚠⚠ THE LOAD-BEARING ONE. If this ever goes green while the assertion is
+     inverted, the feature has become the thing its own header forbids. */
+  test("an OPEN observation is never sayable, however fresh", () => {
+    observe([camera], T0);
+    expect(ambientResolutions(T0)).toEqual([]);
+    expect(ambientResolutions(T0 + 60_000)).toEqual([]);
+    // And it is genuinely there — this is not passing because nothing was stored.
+    expect(openItems()).toHaveLength(1);
+  });
+
+  test("a thing that comes good on its own says so, and claims no more than that", () => {
+    observe([camera], T0);
+    observe([], T0 + 60_000);
+
+    const [said] = ambientResolutions(T0 + 61_000);
+    expect(said.key).toBe("camera-silent:kitchen");
+    expect(said.text).toBe("The kitchen camera is reporting again, on its own.");
+  });
+
+  /* CHARACTER.md:196 — "when it is told the answer, it takes it". The reason it
+     was given IS the news, so it is the half that reaches the room. */
+  test("a thing the house was TOLD about repeats the reason it was given", () => {
+    observe([camera], T0);
+    resolve("camera-silent:kitchen", "it was unplugged.", T0 + 60_000);
+
+    const [said] = ambientResolutions(T0 + 61_000);
+    expect(said.text).toBe("The kitchen camera is reporting again — it was unplugged.");
+    // ⚠ And NOT the self-resolution wording. The two are different sentences and
+    // the FIELD, not a string match on `resolution`, is what tells them apart.
+    expect(said.text).not.toContain("on its own");
+  });
+
+  /* ⚠ REFUSAL, NOT INVENTION. `what` describes the FAULT ("has been silent for
+     2h") and the negation of a fault is not a sentence about recovery — a house
+     that derived one would eventually tell the room a light is "reporting
+     again". An adapter that did not say what normal looks like gets silence. */
+  test("an observation with no clearing phrase produces NO line, and is still resolved", () => {
+    observe([{ key: "mystery", what: "something happened" }], T0);
+    observe([], T0 + 60_000);
+
+    expect(ambientResolutions(T0 + 61_000)).toEqual([]);
+    // The store still holds it — it is off the wall, not lost. The prompt keeps it.
+    expect(resolvedItems()).toHaveLength(1);
+  });
+
+  test("half a phrase is no phrase — a subject without a verb says nothing", () => {
+    observe([{ key: "half", what: "x", subject: "the hall light" }], T0);
+    observe([], T0 + 60_000);
+    expect(ambientResolutions(T0 + 61_000)).toEqual([]);
+  });
+
+  /* A camera that came back at 3am is not news at 8am. The prompt still has it
+     for a fortnight if anyone asks; the wall does not open with it. */
+  test("stale news is not news — past AMBIENT_WINDOW_MS it is refused", () => {
+    observe([camera], T0);
+    observe([], T0 + 60_000);
+
+    expect(ambientResolutions(T0 + 60_000 + AMBIENT_WINDOW_MS - 1_000)).toHaveLength(1);
+    expect(ambientResolutions(T0 + 60_000 + AMBIENT_WINDOW_MS + 1_000)).toEqual([]);
+  });
+
+  test("reading is PURE — a curl does not consume the line the room has not seen", () => {
+    observe([camera], T0);
+    observe([], T0 + 60_000);
+
+    expect(ambientResolutions(T0 + 61_000)).toHaveLength(1);
+    expect(ambientResolutions(T0 + 62_000)).toHaveLength(1);
+    expect(ambientResolutions(T0 + 63_000)).toHaveLength(1);
+  });
+
+  test("airing burns it — said once, then never again", () => {
+    observe([camera], T0);
+    observe([], T0 + 60_000);
+
+    expect(markAired(["camera-silent:kitchen"], T0 + 61_000)).toBe(1);
+    expect(ambientResolutions(T0 + 62_000)).toEqual([]);
+    // Idempotent: a client that retries its POST does not double-count.
+    expect(markAired(["camera-silent:kitchen"], T0 + 63_000)).toBe(0);
+  });
+
+  /* ⚠⚠ THE TRAP markAired's `status === "resolved"` CLAUSE EXISTS FOR.
+     `observe()` keys a re-opening as a NEW item under the SAME key, so a key
+     can name both a resolved item and a live open one. Marking by key alone
+     stamps the OPEN one too — and the wall then goes permanently silent about
+     the resolution it has not had yet. A feature that works exactly once. */
+  test("airing does not reach forward and silence the NEXT time it happens", () => {
+    observe([camera], T0);
+    observe([], T0 + 60_000);
+    markAired(["camera-silent:kitchen"], T0 + 61_000);
+
+    // It goes quiet a second time, and comes good a second time.
+    observe([camera], T0 + 120_000);
+    observe([], T0 + 180_000);
+
+    const said = ambientResolutions(T0 + 181_000);
+    expect(said, "the second resolution was silenced by the first one's airing").toHaveLength(1);
+    expect(said[0].text).toContain("is reporting again");
+  });
+
+  test("bounded — three cameras coming back at once is still one line", () => {
+    const many = ["a", "b", "c"].map((id) => ({
+      key: `camera-silent:${id}`,
+      what: `the ${id} camera has been silent for 2h`,
+      subject: `the ${id} camera`,
+      cleared: "is reporting again"
+    }));
+    observe(many, T0);
+    observe([], T0 + 60_000);
+    expect(ambientResolutions(T0 + 61_000)).toHaveLength(MAX_AMBIENT);
+  });
+
+  test("never throws on rubbish, and marks nothing from it", () => {
+    for (const bad of [null, undefined, "x", 42, [null], [{}], [42]]) {
+      expect(() => markAired(bad, T0)).not.toThrow();
+      expect(markAired(bad, T0)).toBe(0);
+    }
+    for (const bad of [null, undefined, "x", 42, {}, { subject: 1, cleared: 2 }]) {
+      expect(() => ambientLine(bad)).not.toThrow();
+      expect(ambientLine(bad)).toBeNull();
+    }
+  });
+});
+
+/* The adapter's half. noteCoverage is the only producer today, and if it stops
+   supplying the two phrases the whole lane goes silent — not broken, silent,
+   which is the failure this asserts against. */
+test.describe("noteCoverage supplies what the voice needs", () => {
+  const table = (level) => [{
+    id: "kitchen",
+    label: "Kitchen",
+    level,
+    silentMs: 3 * 60 * 60 * 1000,
+    elsewhere: 22
+  }];
+
+  test("a camera coming back is sayable, in the house's own words", () => {
+    noteCoverage(table("warn"), T0);
+    noteCoverage(table("ok"), T0 + 60_000);
+
+    const [said] = ambientResolutions(T0 + 61_000);
+    expect(said.text).toBe("The kitchen camera is reporting again, on its own.");
+    // ⚠ The FEED ID never reaches the room — the same rule core/health.js's
+    // labels follow. "kitchen" is a device name here, not an entity id.
+    expect(said.text).not.toContain("camera-silent");
+  });
+
+  test("the clearing phrase survives a refresh of the open item", () => {
+    noteCoverage(table("warn"), T0);
+    noteCoverage(table("error"), T0 + 60_000);   // still diverging, re-stamped
+    noteCoverage(table("ok"), T0 + 120_000);
+    expect(ambientResolutions(T0 + 121_000)).toHaveLength(1);
   });
 });

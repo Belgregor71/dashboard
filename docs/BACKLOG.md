@@ -783,6 +783,71 @@ secondary slot beside the menu hero, which the screenshot shows. Worth a decisio
 
 ---
 
+### F9 · The briefing talks over the room
+
+**Filed 2026-09-05. Not built.**
+
+The briefing fires on a WINDOW plus presence (`src/v3/core/briefing-window.js` — the window is
+a permission, presence is the trigger) and nothing between that decision and `speak()` asks
+whether the room is already in the middle of something. So the one condition that most
+reliably means "somebody is here" — two people talking in the kitchen — is also the condition
+under which the house is most likely to talk over them.
+
+**What it should do:** before speaking a briefing, read the room's level. If it hears
+conversation, HOLD the briefing and speak it when the room goes quiet.
+
+#### What already exists, and what does not
+
+- ✅ **A level reading, already on a route, with a tuning surface already built.**
+  `GET /api/voice/ambient` reports `lastDb` (`server/services/soundPresence.js:253`), and
+  `?series=1` returns the series — `soundPresence.js:89` already says to tune from that rather
+  than by nudging a constant in place, which is exactly the measurement this item is gated on.
+  Known values on this box, from `project-mic-capture-stall`: **≈ −31 dB is healthy room tone,
+  −4.6 pinned is a saturated capture.**
+- ✅ **A presence lane that already treats sound as presence** — `soundPresence.js`, and
+  `presence.js` subscribes to `sound:presence`. Sound-as-occupancy is solved; sound-as-BUSY is
+  not.
+- ⛔ **No speech/silence discrimination anywhere.** A dB level cannot tell a conversation from
+  a dishwasher, and `project-v2-capture-endpointing` is the file that already learned this the
+  expensive way: endpointing on LOUDNESS was one of the two root causes there, and whisper
+  **hallucinated sentences out of room tone.** ⚠ Loudness is the naive answer and it is the
+  answer that has already failed once in this repo.
+- ⛔ **No hold/resume path.** A briefing today is spoken or it is not. There is no queue, no
+  deferral, and no expiry on a deferral — and a briefing held until 11pm is worse than one
+  spoken over.
+
+#### The traps this item exists to remember
+
+⚠⚠ **A HELD BRIEFING NEEDS AN END, NOT JUST A GATE.** The gate is the easy half. The failure
+mode is a conversation that runs for forty minutes and a morning briefing that arrives after
+everybody has left — the house delivering yesterday's news to an empty kitchen. Whatever holds
+it must also be able to DROP it, and the drop is the part worth designing first.
+
+⚠⚠ **THE HOUSE'S OWN SPEECH WILL TRIGGER THE DETECTOR.** `project-voice-self-answering` is
+already on record for this exact shape — the house answered itself out of its own speakers.
+The mic gate in `core/tts.js` (`announce(true)` at the first chunk, `announce(false)` at the
+drain) is the existing precedent for spanning a whole utterance, and any level-based hold has
+to honour it or the briefing will hold itself.
+
+⚠ **BARGE-IN THRESHOLDS ARE ALREADY TUNED AND ALREADY WRONG ONCE.** `project-barge-in-silent`
+records 0.70×2 for barge-in against 0.60×1 for wake, and that the wake word does NOT currently
+stop a reply. A second, independent "is someone talking" threshold added here would be a third
+number to keep in step with two that already disagree. **Reuse the lane, do not add a rival to
+it.**
+
+#### Shape of the work
+
+Flag-gated and default-off like everything else. The measurement comes first and it is the
+whole gate: **before writing any hold, log what `lastDb` actually reads during a real
+conversation in that room versus a quiet one.** If those two distributions overlap, loudness is
+not the signal and this item is about Silero VAD (already on the box — `project-voice-smart-turn`)
+rather than about a threshold.
+
+⏳ **Owed before any code: the two dB distributions.** A hold built on a threshold nobody has
+measured is the endpointing bug again, wearing a different hat.
+
+---
+
 ## P2 — Measurement debt (gates P1)
 
 ### M1 · Re-measure CPU/GPU — ✅ **CLOSED 2026-08-15: instrument repaired, sweep taken**

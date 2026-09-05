@@ -44,9 +44,56 @@
    The distinction is not convenient, it is the actual difference between
    something seen and something concluded about a person.
 
-   ⚠ These are ANSWERED, not announced. Nothing here becomes an attention
-   candidate or a glance line. The house mentions an open question when someone
-   asks; the wall stays quiet.
+   ⚠ AN OPEN QUESTION IS ANSWERED, NEVER ANNOUNCED. Nothing open here becomes
+   an attention candidate or a glance line. The house mentions an open question
+   when someone asks; the wall stays quiet.
+
+   ── The one exception, added 2026-09-05: RESOLUTIONS GET AN AMBIENT VOICE ───
+
+   ⚠⚠ **THE ASYMMETRY IS THE WHOLE DESIGN. Read it before widening it.**
+
+   The rule above was written as though open and resolved were the same kind of
+   thing said at two different times. They are not, and the difference is
+   exactly what makes one unpleasant to live with and the other worth having:
+
+     ⛔ "The kitchen camera has gone quiet and I can't account for it",
+        unprompted, at 11pm, is a horror film. It hands the room a problem it
+        cannot act on and then leaves. It stays answer-only, forever.
+     ✅ "The kitchen camera's reporting again" is the END of a story. It costs
+        the room nothing, it closes something rather than opening it, and
+        CHARACTER.md:196 already licenses it: *"When it is told the answer, it
+        takes it — and remembers being told."* character.js:104 says the same
+        to the model: *"When it clears up, you may say so."*
+
+   So the voice is the half the house was already allowed to have and had no
+   way to use — a resolution reached the model's prompt and nothing else, which
+   meant it existed only for someone who happened to ask a question that
+   touched it in the fortnight before it aged out.
+
+   ⚠ **AMBIENT MEANS LOW-BAND AND SILENT, NOT "QUIETLY LOUD".** This file owns
+   the WORDS; `src/v3/core/resolutions.js` owns how loudly they are said, and
+   it scores them 41 — the Low band (40-49), the ordinary readout traffic.
+   (The score is not exported from here on purpose: it is a position on the
+   attention engine's ladder, which is a fact about the surface and not about
+   the observation, and a copy of it on this side would be a second answer
+   waiting to disagree with the first.) Under `attentionRank.selectForMode`
+   that band has three consequences worth stating, because they are the safety
+   of this feature and none of them is enforced here:
+     1. An EMPTY ROOM sees nothing. MODE.AMBIENT is interrupt-only, so a
+        resolution to nobody is not shown to nobody — it is not shown at all.
+     2. It can NEVER take the glance. Depth 1 needs `interrupt` or score 70,
+        and this carries neither. It reaches the wall only at depth 2, i.e.
+        after someone has stood there for thirty seconds.
+     3. It NEVER SPEAKS. No `speak()` call exists on this path, deliberately —
+        core/health.js's rule, that a wall running for weeks teaches the room
+        to stop listening if it talks about its own plumbing, is about
+        FREQUENCY and applies here whichever direction the news points.
+
+   ⚠ And it is still ONE-SHOT. `markAired()` burns a resolution the first time
+   the wall takes it, and `AMBIENT_WINDOW_MS` refuses one that has gone stale —
+   a resolution the kiosk was off for is simply missed, not queued up to be
+   announced at breakfast. Both bounds exist because the failure mode of a
+   feature like this is not being wrong, it is being repetitive.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
@@ -86,6 +133,30 @@ export const RESOLVED_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 
 /** How many open items may reach the prompt. The rest exist but stay quiet. */
 export const MAX_PROMPTED = 3;
+
+/* ── The ambient half ───────────────────────────────────────────────────────
+   How fresh a resolution has to be to still be worth saying out on the wall.
+
+   This is a FLOOR ON RELEVANCE, not a retry budget. A camera that came back at
+   3am is not news at 8am — it is a thing that happened while nobody was here,
+   and the honest handling of that is to let it pass. The prompt still has it
+   for a fortnight (RESOLVED_TTL_MS) if anyone asks. */
+export const AMBIENT_WINDOW_MS = 30 * 60 * 1000;
+
+/* At most this many in one pass. Two cameras coming back together is one
+   event's worth of news and the spread has one slot for it; a list of four
+   would be the wall doing maintenance paperwork in front of the room. */
+export const MAX_AMBIENT = 1;
+
+/* The marker `observe()` writes when a thing explains itself by stopping.
+   ⚠ A FIELD, NOT A STRING MATCH. The ambient line reads differently for
+   something that came back on its own than for something the house was TOLD
+   the answer to, and deciding that by comparing `resolution` against the
+   sentence below would break silently the first time the wording is edited —
+   which is a thing this file expects to happen, since the wording is the part
+   that matters. */
+const RESOLVED_BY_ITSELF = "itself";
+const SELF_RESOLUTION = "it started reporting again on its own";
 
 /** @type {{ items: object[] } | null} */
 let state = null;
@@ -135,7 +206,22 @@ function persist() {
  * set has, by definition, stopped being wrong. Making the caller remember to
  * close things is how a mystery file fills up with stale ghosts.
  *
- * @param {{key: string, what: string, evidence?: string}[]} current
+ * ── `subject` and `cleared` ─────────────────────────────────────────────────
+ *
+ * Both optional, both carried from OPEN to RESOLVE untouched, and both exist
+ * only so a resolution can be said in a sentence: `what` is the divergence
+ * ("the kitchen camera has been silent for 2h") and nothing in it can be
+ * turned into "it is fine again" without guessing.
+ *
+ * ⚠ THEY ARE SUPPLIED BY THE ADAPTER, NOT DERIVED HERE, and that is the point.
+ * "is reporting again" is the right clearing verb for a camera and the wrong
+ * one for a light that ran with nothing behind it, so the module that knows
+ * which kind of thing this is writes the phrase. An entry without them is
+ * recorded exactly as before and simply has no ambient line — see
+ * ambientResolutions(), which refuses rather than invents.
+ *
+ * @param {{key: string, what: string, evidence?: string, subject?: string,
+ *          cleared?: string}[]} current
  * @param {number} now
  * @returns {{ opened: string[], resolved: string[] }}
  */
@@ -160,17 +246,23 @@ export function observe(current, now = Date.now()) {
       existing.lastSeen = now;
       existing.what = entry.what;
       if (entry.evidence) existing.evidence = entry.evidence;
+      if (entry.subject) existing.subject = entry.subject;
+      if (entry.cleared) existing.cleared = entry.cleared;
       continue;
     }
     s.items.push({
       key,
       what: entry.what,
       evidence: entry.evidence ?? null,
+      subject: entry.subject ?? null,
+      cleared: entry.cleared ?? null,
       firstSeen: now,
       lastSeen: now,
       status: "open",
       resolvedAt: null,
-      resolution: null
+      resolution: null,
+      resolvedBy: null,
+      airedAt: null
     });
     opened.push(key);
   }
@@ -180,7 +272,8 @@ export function observe(current, now = Date.now()) {
     if (item.status !== "open" || seen.has(item.key)) continue;
     item.status = "resolved";
     item.resolvedAt = now;
-    item.resolution = "it started reporting again on its own";
+    item.resolution = SELF_RESOLUTION;
+    item.resolvedBy = RESOLVED_BY_ITSELF;
     resolved.push(item.key);
   }
 
@@ -216,13 +309,22 @@ function prune(now) {
 export function noteCoverage(cameras, now = Date.now()) {
   const diverging = (Array.isArray(cameras) ? cameras : [])
     .filter((c) => c && (c.level === "warn" || c.level === "error"))
-    .map((c) => ({
-      key: `camera-silent:${c.id}`,
-      // Plain and factual. What it saw, and the thing that makes the silence
-      // strange rather than merely quiet — the house being busy elsewhere.
-      what: `the ${String(c.label ?? c.id).toLowerCase()} camera has been silent for ${formatAge(c.silentMs)}`,
-      evidence: `${c.elsewhere} motion events arrived from other cameras in that time`
-    }));
+    .map((c) => {
+      const name = `the ${String(c.label ?? c.id).toLowerCase()} camera`;
+      return {
+        key: `camera-silent:${c.id}`,
+        // Plain and factual. What it saw, and the thing that makes the silence
+        // strange rather than merely quiet — the house being busy elsewhere.
+        what: `${name} has been silent for ${formatAge(c.silentMs)}`,
+        evidence: `${c.elsewhere} motion events arrived from other cameras in that time`,
+        /* The two halves of the sentence this becomes if it ever clears. Same
+           reason the wording lives here at all: `cleared` is a claim about what
+           NORMAL looks like for this kind of device, and only the adapter knows
+           that a camera's normal is reporting motion. */
+        subject: name,
+        cleared: "is reporting again"
+      };
+    });
   return observe(diverging, now);
 }
 
@@ -253,8 +355,118 @@ export function resolve(key, resolution, now = Date.now()) {
   item.resolution = typeof resolution === "string" && resolution.trim()
     ? resolution.trim().slice(0, 200)
     : "explained";
+  /* ⚠ NOT `RESOLVED_BY_ITSELF`, and the distinction reaches the wall. Being
+     told the answer is a different sentence from watching a thing come good —
+     "it was unplugged" against "on its own" — and this is the field that
+     decides which one gets said. */
+  item.resolvedBy = "told";
   persist();
   return true;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE AMBIENT VOICE — resolutions only. See the header for why only these.
+
+   ⚠⚠ THIS FUNCTION'S JOB IS AS MUCH REFUSAL AS IT IS PHRASING. Three of the
+   four things it does are declining to say something:
+
+     · no `subject` or no `cleared`  → no line. The adapter did not say what
+       normal looks like for this thing, and a house that fills that in gets
+       "the front light is reporting again" about a light. Nothing is invented
+       from `what`: it describes the FAULT, and the negation of a fault is not
+       a sentence about recovery. Items opened before those fields existed land
+       here, which is correct — they stay in the prompt and off the wall.
+     · older than AMBIENT_WINDOW_MS → no line. Stale news is not news.
+     · already aired               → no line. The one-shot rule.
+
+   The phrasing itself is CHARACTER.md §"Holding an open question": mildly
+   interested, entirely unbothered, and it takes the answer when it is given
+   one. It does not congratulate itself for having noticed, it does not say
+   "strange" a second time, and it does not leave the room holding anything.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * The one sentence a resolved observation is worth on the wall, or null.
+ *
+ * ⚠ Exported for the tests and for nothing else — the wall reads
+ * ambientResolutions(), which applies the bounds this does not.
+ */
+export function ambientLine(item) {
+  const subject = typeof item?.subject === "string" ? item.subject.trim() : "";
+  const cleared = typeof item?.cleared === "string" ? item.cleared.trim() : "";
+  if (!subject || !cleared) return null;
+
+  const opening = `${subject[0].toUpperCase()}${subject.slice(1)} ${cleared}`;
+
+  /* Told: the reason IS the news, so it goes in and the house stops talking.
+     An em dash rather than a colon — this is the house finishing a thought,
+     not labelling a field. */
+  if (item.resolvedBy === "told") {
+    const why = typeof item.resolution === "string" ? item.resolution.trim() : "";
+    if (why && why !== "explained") return `${opening} — ${why.replace(/[.!?]+$/, "")}.`;
+    return `${opening}.`;
+  }
+
+  /* Came good by itself: the house says so and does not pretend to more
+     mystery than there is (CHARACTER.md — "most unexplained things are a flat
+     battery"). "On its own" is the whole editorial; there is no second beat. */
+  return `${opening}, on its own.`;
+}
+
+/**
+ * What the wall may say right now — fresh, unaired, sayable. Newest first.
+ *
+ * ⚠ PURE. Reading does not burn anything; markAired() does. The split is what
+ * lets a curl look at this endpoint without silently consuming the one showing
+ * the room said nothing about, and it is what lets the airing mean "the wall
+ * actually took it" rather than "someone asked".
+ *
+ * @param {number} now
+ * @returns {{key: string, text: string, resolvedAt: number}[]}
+ */
+export function ambientResolutions(now = Date.now()) {
+  return load().items
+    .filter((i) => i.status === "resolved" && !i.airedAt)
+    .filter((i) => now - (i.resolvedAt ?? 0) < AMBIENT_WINDOW_MS)
+    .sort((a, b) => (b.resolvedAt ?? 0) - (a.resolvedAt ?? 0))
+    .map((i) => ({ key: i.key, text: ambientLine(i), resolvedAt: i.resolvedAt ?? null }))
+    .filter((r) => r.text)
+    .slice(0, MAX_AMBIENT);
+}
+
+/**
+ * Burn them. Called once the wall has actually put them in front of the room.
+ *
+ * ⚠⚠ RESOLVED ITEMS ONLY, AND THAT CLAUSE IS LOAD-BEARING RATHER THAN TIDY.
+ * `observe()` keys a re-opening as a NEW item under the SAME key — a camera
+ * that goes quiet a second time is a second story, not the first one reopened
+ * — so a key here can match both a resolved item and a live open one. Marking
+ * by key alone would stamp `airedAt` on the OPEN one, and the wall would then
+ * be permanently silent about the resolution it has not had yet: a feature
+ * that goes quiet the second time it is used, for a reason nothing would
+ * surface. Freshness is deliberately NOT re-checked — a key that reached here
+ * has been aired by definition, and re-deriving the bounds would let the two
+ * halves disagree about what was said.
+ *
+ * Unknown keys are ignored rather than an error — the wall replaying a stale
+ * list after a restart is a no-op, which is the behaviour that wants no
+ * handling.
+ *
+ * @returns {number} how many were newly marked.
+ */
+export function markAired(keys, now = Date.now()) {
+  const s = load();
+  const wanted = new Set(Array.isArray(keys) ? keys.filter((k) => typeof k === "string") : []);
+  if (!wanted.size) return 0;
+
+  let marked = 0;
+  for (const item of s.items) {
+    if (item.status !== "resolved" || !wanted.has(item.key) || item.airedAt) continue;
+    item.airedAt = now;
+    marked += 1;
+  }
+  if (marked) persist();
+  return marked;
 }
 
 /** Forget one outright — the review surface's delete. */

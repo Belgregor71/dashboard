@@ -393,6 +393,7 @@ test.describe("⚠ the roster cannot go quietly short", () => {
     const announced = [
       ...src("src/v3/core/arrival.js").matchAll(/source:\s*"([^"]+)"/g),
       ...src("src/v3/core/health.js").matchAll(/source:\s*"([^"]+)"/g),
+      ...src("src/v3/core/resolutions.js").matchAll(/source:\s*"([^"]+)"/g),
       ...src("src/js/services/memoryEngine.js").matchAll(/source:\s*"([^"]+)"/g),
       ...src("src/js/core/personality.js").matchAll(/source:\s*"([^"]+)"/g),
       ...src("src/js/services/predictiveRules.js").matchAll(/SOURCE\s*=\s*"([^"]+)"/g),

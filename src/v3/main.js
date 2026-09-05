@@ -42,6 +42,7 @@ import { initAlerts, lastAlert } from "./core/alerts.js";
 import { initArrival, lastArrival } from "./core/arrival.js";
 import { initBriefingWindow, lastBriefing } from "./core/briefing-window.js";
 import { initHealth, lastHealth } from "./core/health.js";
+import { initResolutions, lastResolution } from "./core/resolutions.js";
 import { initDisplay, onPanelDark, displayState } from "./core/display.js";
 import { initNowPlaying, nowPlayingState } from "./core/now-playing.js";
 import { initMediaRooms, mediaRoomsState } from "./core/media-rooms.js";
@@ -334,7 +335,16 @@ function boot() {
            healthy, and a census that reads nine silent fault ids as nine dead
            features is worse than not counting them. Its reachability is a spec's
            job (tests/v3-health.spec.js), not a census's. */
-        ...["arrival", "memory", "delight", "predictive", "holidays"].map((s) => `attn:${s}`),
+        /* ⚠ "resolution" IS IN THIS LIST WHILE ITS FLAG IS OFF, and that is
+           the opposite of the "health" mistake three lines up rather than a
+           repeat of it. `attn:health` was a key nothing could EVER observe —
+           the code stopped announcing. This one is announced by
+           core/resolutions.js and merely not armed yet, so the census reading
+           it as dead for as long as the flag is off is the census being
+           correct. The day it flips, the roster is already right; a key added
+           at flip time would start its seven-day window then and report dead
+           through the exact week the feature most wants watching. */
+        ...["arrival", "memory", "delight", "predictive", "holidays", "resolution"].map((s) => `attn:${s}`),
         ...subjectRoster().map((id) => `subject:${id}`),
         ...INTENT_IDS.map((id) => `intent:${id}`),
         ...ACTING_INTENT_IDS.map((id) => `intent:${id}`),
@@ -572,17 +582,37 @@ function boot() {
   /* Phase 6 — the box saying it is broken. The watchdog and the self-heal are
      server-side and already running; what V3 lacked was any way to tell the
      ROOM, which matters most for the one feed that is display-only by design
-     (the internet — a push about it would travel over it). Announces a
-     candidate like arrival does, so the queue decides whether anyone sees it.
+     (the internet — a push about it would travel over it).
 
-     After initAttention() for the same reason arrival is: `announce()` needs an
-     engine to reach.
+     ⚠ IT NO LONGER ANNOUNCES. This said "announces a candidate like arrival
+     does, so the queue decides whether anyone sees it" until 2026-09-01, when
+     the owner's verdict at the panel — "the big text error messages take away
+     from the dashboard itself" — turned a fault from a score-72 candidate into
+     a pill core/health.js paints itself. It still runs here rather than earlier
+     because it subscribes to nothing and wants the surface up.
 
      ⚠ This is also the stage that carries every OTHER stage's failure to the
      room — health.js polls bootFault() alongside the server's feeds. So a boot
      where this one is the casualty is the boot with no voice to say so, which
      is why the console line in stage() is not redundant with it. */
   stage("health", () => initHealth());
+
+  /* The other half of the same story, and the opposite register. health.js says
+     a thing is broken NOW, in a corner, as a state. This says a thing the house
+     could not explain has come good — and because that is news rather than a
+     state, it goes through `announce()` like arrival does, at score 41 with no
+     interrupt, so the queue can decline to show it to an empty room and can
+     never give it the glance.
+
+     ⚠⚠ THE FLAG GATES ONE HALF OF `server/services/unresolved.js`, NOT THE
+     FILE. Everything OPEN in that store stays answered-only forever — a house
+     that volunteers "the kitchen camera has gone quiet" at 11pm is a horror
+     film, and no flag turns that on. Read that file's header before widening
+     this to anything but resolutions.
+
+     After initAttention() for the reason arrival is: `announce()` needs an
+     engine to reach. */
+  stage("resolutions", () => initResolutions({ enabled: flag("v3ResolutionVoice") }));
 
   /* `?__backend=canvas2d` forces the fallback — see substrate/index.js. The
      backend is chosen by capability and every machine in this house has WebGL2,
@@ -715,6 +745,11 @@ function registerHandles() {
     dinner: lastDinner(),
     briefing: lastBriefing(),
     health: lastHealth(),
+    // Null with the flag off, and `{ announced: [] }` on a wall with nothing to
+    // report — which is almost every poll. The two readings are worth being
+    // able to tell apart: one is a feature that is not armed, the other is a
+    // house with no open questions, and only one of them is a bug.
+    resolutions: lastResolution(),
     display: displayState(),
     nowPlaying: nowPlayingState(),
     mediaRooms: mediaRoomsState(),

@@ -551,6 +551,69 @@ test.describe("weather", () => {
     }
   });
 
+
+  /* The ambient half of the same store — services/unresolved.js. RESOLUTIONS
+     ONLY: an open observation is answered when asked and never reaches here,
+     and that asymmetry is argued at the top of that file.
+
+     ⚠⚠ THIS TEST MUST NOT BURN A REAL RESOLUTION. The suite runs against the
+     server's own data/unresolved.json — there is no test seam across an HTTP
+     boundary — so the GET is asserted for SHAPE only (it is pure; reading
+     consumes nothing, which is the whole reason the airing is a separate POST)
+     and the POST is only ever sent keys that cannot match anything. A contract
+     test that silenced a line the room was about to see would be the feature's
+     own failure mode, committed. */
+  test("GET /api/house/resolutions is a bounded list of sayable lines", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/house/resolutions");
+    expect(Array.isArray(body.resolutions)).toBe(true);
+    // MAX_AMBIENT. Three cameras coming back at once is still one line — the
+    // wall has one slot for this and a list of four is paperwork.
+    expect(body.resolutions.length).toBeLessThanOrEqual(1);
+    for (const r of body.resolutions) {
+      expect(typeof r.key).toBe("string");
+      expect(typeof r.text).toBe("string");
+      expect(r.text.trim().length).toBeGreaterThan(0);
+      // A line is one sentence at a readable length — it lands in a Low-band
+      // spread cell, not in a paragraph. personality.phrase() caps at 140.
+      expect(r.text.length).toBeLessThanOrEqual(140);
+      expect(typeof r.resolvedAt).toBe("number");
+    }
+  });
+
+  test("GET /api/house/resolutions is PURE — two reads agree", async ({ request }) => {
+    const first = await expectJson(request, "/api/house/resolutions");
+    const second = await expectJson(request, "/api/house/resolutions");
+    /* ⚠ The property that makes the feature debuggable. A GET that burned what
+       it returned would consume the only copy the moment anyone looked, and the
+       wall would then show nothing — a bug that appears only under observation
+       and reads as a broken client. */
+    expect(second.body.resolutions.map((r) => r.key)).toEqual(first.body.resolutions.map((r) => r.key));
+  });
+
+  test("POST /api/house/resolutions/aired counts what it marked, and ignores what it cannot", async ({ request }) => {
+    // Nothing to mark: the empty case, which is what a wall with nothing to say
+    // would send if it ever sent one at all.
+    const empty = await expectJson(request, "/api/house/resolutions/aired", {
+      method: "post", data: { keys: [] }
+    });
+    expect(empty.body.aired).toBe(0);
+
+    // An unknown key is ignored rather than an error — a wall replaying a stale
+    // list after a restart is a no-op, which is the behaviour that wants no
+    // handling. ⚠ This key cannot collide with a real observation.
+    const unknown = await expectJson(request, "/api/house/resolutions/aired", {
+      method: "post", data: { keys: ["contract-test:no-such-observation"] }
+    });
+    expect(unknown.body.aired).toBe(0);
+
+    // A body the wall would never send. Still 200, still marks nothing —
+    // failing here would take the request down and leave the line unburned,
+    // which repeats rather than loses, but a 500 in the log is a false alarm.
+    const rubbish = await expectJson(request, "/api/house/resolutions/aired", {
+      method: "post", data: { keys: "not-an-array" }
+    });
+    expect(rubbish.body.aired).toBe(0);
+  });
   test("GET /api/weather/radar/meta", async ({ request }) => {
     const { status, body } = await expectJson(request, "/api/weather/radar/meta", { statuses: [200, 502] });
     if (status === 200) {

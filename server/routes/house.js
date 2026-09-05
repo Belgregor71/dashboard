@@ -1,6 +1,8 @@
 import express from "express";
 import { loopbackOnly } from "../middleware/security.js";
-import { openItems, resolvedItems, resolve, forget } from "../services/unresolved.js";
+import {
+  openItems, resolvedItems, resolve, forget, ambientResolutions, markAired
+} from "../services/unresolved.js";
 import { buildHouseClaims, MIN_DAYS } from "../services/houseLately.js";
 import { occupancyDays, houseDay } from "../services/occupancyDays.js";
 import { readFeatureCensus } from "./censusFeatures.js";
@@ -25,6 +27,44 @@ router.get("/api/house/unresolved", loopbackOnly("The unresolved list"), (_req, 
   } catch (err) {
     console.error("[house] listing unresolved failed:", err.message);
     res.status(500).json({ error: "could not list" });
+  }
+});
+
+/* ── The ambient half: what the wall may SAY, and saying it once ────────────
+ *
+ * Resolutions only. `unresolved.js`'s header carries the argument for the
+ * asymmetry; what matters at this layer is that these are TWO routes rather
+ * than one GET with a side effect, and that split is deliberate.
+ *
+ * ⚠ A GET THAT BURNS WHAT IT RETURNS WOULD MAKE THE FEATURE UNDEBUGGABLE. The
+ * whole point of a one-shot line is that it is said once, so a curl checking
+ * "is there anything to say?" would consume the only copy and the wall would
+ * then show nothing — a feature that breaks precisely when someone looks at
+ * it, silently, and looks like a bug in the client. Keeping the read pure
+ * means the read is repeatable and the airing means what it says: the wall
+ * took it, not somebody asked.
+ *
+ * Loopback-gated for the same reason the list above it is — it names cameras.
+ */
+router.get("/api/house/resolutions", loopbackOnly("The resolutions feed"), (_req, res) => {
+  try {
+    res.json({ resolutions: ambientResolutions() });
+  } catch (err) {
+    console.error("[house] listing resolutions failed:", err.message);
+    /* An empty list, not a 502. The wall polls this every minute for weeks and
+       a store it cannot read is the house having nothing to say — which is
+       already the answer on almost every one of those polls. */
+    res.json({ resolutions: [] });
+  }
+});
+
+router.post("/api/house/resolutions/aired", loopbackOnly("Airing"), (req, res) => {
+  try {
+    const keys = Array.isArray(req.body?.keys) ? req.body.keys : [];
+    res.json({ aired: markAired(keys) });
+  } catch (err) {
+    console.error("[house] airing failed:", err.message);
+    res.status(500).json({ error: "could not air" });
   }
 });
 

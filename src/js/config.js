@@ -1739,6 +1739,39 @@ window.CONFIG = {
     // The route stays mounted and answers a GET nobody makes. Both states are
     // asserted in tests/chore-roster.spec.js.
     choreRoster: true,
+
+    // ── The house saying a mystery cleared up ───────────────────────────────
+    // `server/services/unresolved.js` has always been ANSWERED-NEVER-ANNOUNCED:
+    // it holds the things the house saw and cannot explain, and mentions them
+    // only when someone asks. This flag opens ONE half of that — a RESOLVED
+    // observation ("the kitchen camera is reporting again, on its own") may
+    // reach the wall. Open ones stay silent, permanently and by design: the
+    // asymmetry is argued at the top of that file and it is the whole feature.
+    //
+    // ⚠ LOW BAND, SCORE 41, AND NEVER SPOKEN. `src/v3/core/resolutions.js`
+    // announces at 41 with `interrupt: false`, so `attentionRank.selectForMode`
+    // keeps it off the glance (needs 70 or `interrupt`) and away from an empty
+    // room (MODE.AMBIENT is interrupt-only). It reaches the glass only as one
+    // cell of a depth-2 spread, to somebody who has already stood there for
+    // thirty seconds. There is no speak() on the path. This is the register
+    // core/health.js was REVERSED INTO on 2026-09-01 after the owner's verdict
+    // that "the big text error messages take away from the dashboard itself" —
+    // good news in the loud register is not an improvement on bad news in it.
+    //
+    // ⚠ Flag-off is BEHAVIOURALLY identical, not byte-identical: the module is
+    // in the bundle either way and `initResolutions` returns before arming
+    // anything. Off means no interval, no `window.__v3Resolutions` handle, and
+    // neither /api/house/resolutions nor its /aired POST is ever called — so
+    // nothing is ever marked aired and the store is untouched. Both routes stay
+    // mounted and answer a caller that does not exist.
+    //
+    // Revert (-> false): this one line. Nothing to undo server-side; `airedAt`
+    // on already-aired items is inert and only ever suppresses a repeat.
+    //
+    // ⏳ DEFAULT-OFF until it has been seen on the wall. The thing to check is
+    // not that it renders — it is that a real resolution reads as a small true
+    // thing in the corner of a spread and not as the wall doing paperwork.
+    v3ResolutionVoice: false,
   },
 
   /* --------------------------------------------------------------
