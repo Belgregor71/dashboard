@@ -90,17 +90,23 @@ export const SYSTEM_PROMPTS_TYPES = Object.keys(SYSTEM_PROMPTS);
    houseCharacter() is one line.
 
    The rewritten examples are built to CHARACTER.md's rules rather than to a
-   vibe: the fact leads every one of them; the comedy is scale (a bin time to
-   the minute, a count of clear days) rather than volume; each is specific
-   where the old ones were effusive ("twelve millimetres since four", not "bit
-   of weather about"); and none performs intimacy — no "gorgeous", no chivvying,
-   which the character page bans outright as warmth it has not earned.
+   vibe: the fact leads every one of them; each is specific about what it was
+   GIVEN where the old ones were effusive; and none performs intimacy — no
+   "gorgeous", no chivvying, which the character page bans outright as warmth
+   the house has not earned.
 
-   ⚠ Kept OUT of these, deliberately: the "keeping count" habit is allowed to
-   observe ("the latest all month") but never to score or correct, and the
-   photograph taste is absent entirely because no photograph is ever in a
-   briefing prompt — naming one it cannot see is the exact failure CHARACTER.md
-   records from 2026-08-16.
+   ⚠⚠ TWO OF THE CHARACTER'S BEST TRAITS ARE DELIBERATELY ABSENT HERE, and both
+   for the same reason: a briefing prompt does not carry the data they need, and
+   an exemplar that demonstrates a trait the data cannot support is an
+   instruction to invent one.
+
+   - The KEEPING-COUNT habit. The first version of these exemplars showed it
+     ("the latest all month", "four clear days running") and the house promptly
+     invented a bin time it had never been told. See the EXEMPLARS header below
+     for the live capture. Counting belongs to the lanes actually handed history.
+   - The PHOTOGRAPH taste, absent entirely because no photograph is ever in a
+     briefing prompt — naming one it cannot see is the failure CHARACTER.md
+     records from 2026-08-16.
    ═══════════════════════════════════════════════════════════════════════════ */
 /* The exemplars, named rather than inlined. VOICE.md says to treat these as
    copy, not comments, and copy that cannot be addressed cannot be reviewed or
@@ -110,15 +116,52 @@ export const SYSTEM_PROMPTS_TYPES = Object.keys(SYSTEM_PROMPTS);
    as their own strings is what lets tests/ai-character.spec.js assert on the
    demonstration separately from the description, which is the whole point:
    the description is one line, the demonstration is the change. */
+/* ⚠⚠⚠ NO EXEMPLAR MAY DEMONSTRATE A CROSS-DAY CLAIM. READ THIS BEFORE EDITING.
+   Found live on the kiosk 2026-09-05, flag on, within minutes of the flip.
+
+   The first version of these exemplars demonstrated the counting habit —
+   "last week they went out at 8:41, the latest all month", "which is the most
+   this week", "the best day of the week by a fair margin", "four clear days
+   running". The house then produced, against a prompt whose bins line said
+   only "general waste tonight":
+
+     "General waste tonight — last week you got them out at 8:41, so you're
+      set up for a late run."
+
+   Reproduced 2 of 3 runs with a bins line, 0 of 2 without one. That is a
+   MANUFACTURED PARTICULAR, the one failure CHARACTER.md says outranks every
+   other rule on its page, and it was introduced by these strings.
+
+   🔑🔑🔑 THE ROOT CAUSE IS NOT THE NUMBER, IT IS THE LANE. buildPrompt() below
+   assembles Time / Weather / Calendar / Bins / Chores / Traffic / Fuel / News /
+   Home — ALL OF IT TODAY. There is no history in a briefing prompt, so a count
+   across days is not something the house can derive here; demonstrating one
+   teaches it to invent one. The counting habit is real and it is the character's
+   most distinctive trait, but it belongs to the lanes that are actually handed
+   history (houseLately.js, weatherHistory.js, occupancyDays.js feed the converse
+   lane) — not to this one.
+
+   🔑 8:41 made it worse but was not the cause: it appears in houseCharacter()'s
+   own CARES_ABOUT block too, so the assembled prompt showed it twice on the same
+   topic and it stopped reading as an illustration.
+
+   ⚠ The "style references ONLY" clause was present the whole time and did NOT
+   hold. A worked example outranks a description — that is the same lesson that
+   made this rewrite necessary in the first place, arriving from the other side.
+
+   THE RULE: an exemplar may only demonstrate a behaviour the prompt's own data
+   can support. Fact first, a dry opinion after it, specific about what is given,
+   no chivvying — all fine. A tally, a comparison to other days, a duration the
+   house claims to have watched — never. Pinned by tests/ai-character.spec.js. */
 const EXEMPLARS = {
   morningQuiet:
-    "Nothing on the calendar, which I intend to enjoy. UV hits 8 by lunch, so a hat if you're out in it. Bins tonight — last week they went out at 8:41, the latest all month.",
+    "Nothing on the calendar, which I intend to enjoy. UV hits 8 by lunch, so a hat if you're out in it. Recycling goes out tonight.",
   morningBusy:
-    "Three things before lunch, which is the most this week. Cool start, twenty-one by the arvo. The wind swung southeast overnight and I have been watching it since four.",
+    "Three things before lunch, so it's an early start. Fourteen now, twenty-one by the arvo — the good half of the day is the back half.",
   eveningClear:
-    "Nothing left on the books tonight. Tomorrow is a top of twenty-six and clear, which is the best day of the week by a fair margin. Bins go out tonight.",
+    "Nothing left on the books tonight, so the evening is yours. Tomorrow is a top of twenty-six and clear. Bins go out tonight.",
   eveningBusy:
-    "One thing left, then you're done. Tomorrow: twenty-six and fine all day. That's four clear days running.",
+    "One thing left, then you're done. Tomorrow: twenty-six and fine all day, which is worth planning around.",
   conciergeWarm:
     "Twenty-eight before nine — that's the whole day's argument.",
   conciergeWinter:
@@ -132,7 +175,7 @@ const CHARACTER_PROMPTS = {
     "Respond in 3-4 short sentences of plain prose, no markdown, no lists.",
     `Match this tone: '${EXEMPLARS.morningQuiet}'`,
     `Or, on a busier day, the same voice: '${EXEMPLARS.morningBusy}'`,
-    "Those examples are style references ONLY — their content (bins, UV, wind, events) must not leak into your answer.",
+    "Those examples show CADENCE ONLY. Never reuse their wording and never carry a number, a time or a fact across from them — every figure in your answer must come from the data below. You are given today only: you hold no record of other days here, so never say how something compares with last week, the rest of the month, or how long you have been watching it.",
     "Use only the real details given below. Mention the practical stuff first — weather warnings, bins, calendar events, unusual traffic — then, if there's room, one dry aside about a news headline or the fuel price.",
     "If a topic has no line in the data below (no Bins line, no Traffic line, etc.), it does not exist today — do not mention it at all.",
     "The Chores line, when present, states whose turn it is — say the name as given, never swap it, and never invent a chore that has no line.",
@@ -143,7 +186,7 @@ const CHARACTER_PROMPTS = {
     "Respond in 3-4 short sentences of plain prose, no markdown, no lists.",
     `Match this tone: '${EXEMPLARS.eveningClear}'`,
     `Or, with something still on, the same voice: '${EXEMPLARS.eveningBusy}'`,
-    "Those examples are style references ONLY — their content (bins, weather, events) must not leak into your answer.",
+    "Those examples show CADENCE ONLY. Never reuse their wording and never carry a number, a time or a fact across from them — every figure in your answer must come from the data below. You are given today only: you hold no record of other days here, so never say how something compares with last week, the rest of the month, or how long you have been watching it.",
     "Use only the real details given below. Cover tonight and tomorrow — bins, tomorrow's weather and events first — then, if there's room, one dry aside about a news headline or the fuel price.",
     "If a topic has no line in the data below (no Bins line, no Traffic line, etc.), it does not exist today — do not mention it at all.",
     "The Chores line, when present, states whose turn it is — say the name as given, never swap it, and never invent a chore that has no line.",

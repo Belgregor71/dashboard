@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { houseCharacter } from "../server/services/character.js";
 import {
   SYSTEM_PROMPTS_TYPES,
   systemPromptFor,
@@ -179,8 +180,11 @@ test.describe("the rewritten exemplars are in the house's voice", () => {
        real reading if it leaked. */
     withFlag("1", () => {
       for (const type of ["morning", "evening"]) {
+        // Reworded 2026-09-05 from "style references ONLY" — that phrasing was
+        // in the prompt throughout the live leak and did not hold. See the
+        // hardened-clause test below for what replaced it and why.
         expect(systemPromptFor(type), `${type} lost the style-only clause`)
-          .toMatch(/style references ONLY/);
+          .toMatch(/CADENCE ONLY/);
       }
     });
   });
@@ -199,14 +203,68 @@ test.describe("the rewritten exemplars are in the house's voice", () => {
     });
   });
 
-  test("the counting habit is present as an observation, never a scoreboard", () => {
-    /* CHARACTER.md: the count is "offered as an observation, never as a
-       scoreboard and never as a correction". The bin time to the minute is
-       the page's own worked example of the habit, so it belongs in the
-       exemplars; anything that reads as a reprimand does not. */
+  test("NO exemplar makes a cross-day claim — the briefing has no history", () => {
+    /* ⚠⚠⚠ THE REGRESSION TEST. Found live on the kiosk 2026-09-05, minutes
+       after the flag went on, against a prompt whose bins line said only
+       "general waste tonight":
+
+         "General waste tonight — last week you got them out at 8:41, so
+          you're set up for a late run."
+
+       Reproduced 2 of 3 runs with a bins line, 0 of 2 without one. A
+       MANUFACTURED PARTICULAR — the failure CHARACTER.md says outranks every
+       other rule on its page — and these strings caused it: the first version
+       of the exemplars demonstrated "last week they went out at 8:41, the
+       latest all month", "which is the most this week", "the best day of the
+       week by a fair margin", "four clear days running". FIVE of six.
+
+       buildPrompt() assembles Time / Weather / Calendar / Bins / Chores /
+       Traffic / Fuel / News / Home — all of it TODAY. A count across days is
+       not derivable in this lane, so demonstrating one teaches invention.
+       The counting habit is real and stays in CHARACTER.md; it belongs to the
+       lanes that are handed history, not to this one. */
+    const CROSS_DAY = [
+      /last week/i, /this week/i, /all month/i, /days? running/i,
+      /best day of the/i, /since (four|five|six|seven|eight|nine|ten)/i,
+      /the most .* this/i, /latest all/i, /first .* this year/i,
+    ];
+    for (const [name, line] of Object.entries(__EXEMPLARS)) {
+      for (const pat of CROSS_DAY) {
+        expect(line, `${name} demonstrates a cross-day claim: ${pat}`)
+          .not.toMatch(pat);
+      }
+    }
+  });
+
+  test("no exemplar reuses a figure the character block already owns", () => {
+    /* 8:41 was not the root cause but it made the leak worse: it appears in
+       houseCharacter()'s own CARES_ABOUT block, so the assembled prompt showed
+       it twice on the same topic and it stopped reading as an illustration.
+       Any figure appearing in BOTH places gets that reinforcement, so none may. */
+    const figures = s => (s.match(/\b\d{1,2}:\d{2}\b/g) ?? []);
+    const inCharacter = new Set(figures(houseCharacter()));
+    expect(inCharacter.size, "character block lost its counting example")
+      .toBeGreaterThan(0);
+    for (const [name, line] of Object.entries(__EXEMPLARS)) {
+      for (const f of figures(line)) {
+        expect(inCharacter.has(f), `${name} reuses ${f} from the character block`)
+          .toBe(false);
+      }
+    }
+  });
+
+  test("the hardened style clause forbids carrying figures across", () => {
+    /* The original clause said the examples' content "must not leak into your
+       answer". It was present for the whole live failure and did NOT hold — a
+       worked example outranks a description. It now states the constraint the
+       lane actually has: today only, no record of other days. */
     withFlag("1", () => {
-      expect(systemPromptFor("morning")).toMatch(/the latest all month/i);
-      expect(systemPromptFor("evening")).toMatch(/four clear days running/i);
+      for (const type of ["morning", "evening"]) {
+        const text = systemPromptFor(type);
+        expect(text).toMatch(/CADENCE ONLY/);
+        expect(text).toMatch(/never reuse their wording/i);
+        expect(text).toMatch(/you hold no record of other days here/i);
+      }
     });
   });
 
