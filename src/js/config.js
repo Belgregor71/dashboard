@@ -1768,10 +1768,47 @@ window.CONFIG = {
     // Revert (-> false): this one line. Nothing to undo server-side; `airedAt`
     // on already-aired items is inert and only ever suppresses a repeat.
     //
-    // ⏳ DEFAULT-OFF until it has been seen on the wall. The thing to check is
-    // not that it renders — it is that a real resolution reads as a small true
-    // thing in the corner of a spread and not as the wall doing paperwork.
-    v3ResolutionVoice: false,
+    // ✅ ON 2026-09-05, on the owner's call, verified flag-on live on the G11
+    // first (CDP, no deploy — the F1 precedent). What that proved and what it
+    // did not is worth being exact about, because the two halves were proved
+    // by different means:
+    //   · the LANE is armed and polls — `__v3Resolutions()` returns a verdict
+    //     and `__v3().resolutions` is non-null on the glass.
+    //   · the BAND is honoured — a resolution-shaped candidate at 41 sits in
+    //     the queue, leaves `#glance-said` empty and does not move the depth.
+    //   · ⏳ NOT YET PROVED ON THE GLASS: a real resolution rendering in a
+    //     depth-2 spread cell. See the note below — the store could not supply
+    //     one yet, and no fake was written into it to manufacture the proof.
+    //
+    // ⚠⚠ EVERY RESOLUTION IN THE LIVE STORE AT FLIP TIME IS UNSAYABLE, AND
+    // THAT IS CORRECT. All ~20 of them predate the deploy, so none carries the
+    // `subject`/`cleared` the adapter now writes, and `ambientLine()` refuses
+    // rather than inventing one from `what`. GET /api/house/resolutions
+    // answered `{"resolutions":[]}` immediately after the flip. An empty feed
+    // here is the refusal working, NOT a broken flip — do not go chasing it.
+    // Only a camera that goes quiet and comes back AFTER 2026-09-05 18:33 can
+    // produce a line.
+    //
+    // ⚠ THE SUPPLY IS HIGHER THAN THIS FEATURE ASSUMED. The kitchen and
+    // side_gate cameras are flapping (the open motion-divergence issue), and
+    // the store shows ~5 distinct resolution moments in 24 h, kitchen and
+    // side_gate usually together. MAX_AMBIENT caps a single POLL at one line,
+    // not the day — so this can be ~5 low-band cells a day, which is more than
+    // "a small true thing you see occasionally". If it reads as chatter on the
+    // wall, the lever is MAX_AMBIENT/AMBIENT_WINDOW_MS in unresolved.js or a
+    // per-day cap, NOT this flag.
+    //
+    // ⚠ A LATENT SUITE HAZARD, recorded because it is invisible on the box it
+    // was checked on. CLAUDE.md's ⚠⚠ rule: a scored candidate lane can silently
+    // replace a spec's own fixture. With this flag on, every booted V3 page in
+    // the suite polls /api/house/resolutions, so on a box where
+    // data/unresolved.json EXISTS and holds a fresh sayable resolution, a
+    // score-41 candidate can enter any spec's queue. It is empty on this dev
+    // box (the file is gitignored and the test server never reaches HA), which
+    // is why the suite is green — that is a fact about the box, not a
+    // guarantee. A spec that composes a spread and asserts its cells is the
+    // one that would go red. Assert the TEXT, not just the count.
+    v3ResolutionVoice: true,
   },
 
   /* --------------------------------------------------------------
