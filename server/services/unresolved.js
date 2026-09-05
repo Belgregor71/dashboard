@@ -392,6 +392,28 @@ export function resolve(key, resolution, now = Date.now()) {
  * ambientResolutions(), which applies the bounds this does not.
  */
 export function ambientLine(item) {
+  /* ⚠⚠ THE STATUS CHECK IS HERE, AT THE POINT THE CLAIM IS MANUFACTURED, and
+     it was put here by an injected defect on 2026-09-05 rather than by design.
+
+     Found by deleting the `status === "resolved"` filter in
+     ambientResolutions() below and watching the suite stay GREEN. It stayed
+     green because an OPEN item has `resolvedAt: null`, so `now - (null ?? 0)`
+     is the whole unix epoch and the FRESHNESS filter refused it — the wall was
+     quiet for a reason that had nothing to do with the rule anybody wrote
+     down. Two guards, both accidental in their coverage, and a test that could
+     not tell which was working.
+
+     What the injection actually exposed is worse than a weak test: called
+     directly on an open observation, this function returned "The kitchen
+     camera is reporting again, on its own." It is exported, so any future
+     caller gets a sentence asserting a thing is fixed while it is still
+     broken. **A function that manufactures a claim has to check the claim.**
+
+     So the refusal lives here now, where it is one expression, reachable by a
+     test, and true of every caller. The filter below is kept as the cheap
+     pass, not as the guarantee. */
+  if (item?.status !== "resolved") return null;
+
   const subject = typeof item?.subject === "string" ? item.subject.trim() : "";
   const cleared = typeof item?.cleared === "string" ? item.cleared.trim() : "";
   if (!subject || !cleared) return null;

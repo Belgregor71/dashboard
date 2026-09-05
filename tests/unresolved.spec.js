@@ -341,14 +341,43 @@ test.describe("ambientResolutions — what the wall may say", () => {
     cleared: "is reporting again"
   };
 
-  /* ⚠⚠ THE LOAD-BEARING ONE. If this ever goes green while the assertion is
-     inverted, the feature has become the thing its own header forbids. */
+  /* ⚠⚠ THE LOAD-BEARING PAIR. If either goes green while inverted, the feature
+     has become the thing its own header forbids.
+
+     TWO tests rather than one, and the second exists because the first was
+     PROVED INSUFFICIENT by injection on 2026-09-05. Deleting the
+     `status === "resolved"` filter from ambientResolutions() left this list
+     assertion green — an open item has `resolvedAt: null`, so the freshness
+     arithmetic refused it first and the wall was quiet for a reason nobody had
+     written down. 🔑 A test that cannot tell which of two guards is holding is
+     not testing either of them. */
   test("an OPEN observation is never sayable, however fresh", () => {
     observe([camera], T0);
     expect(ambientResolutions(T0)).toEqual([]);
     expect(ambientResolutions(T0 + 60_000)).toEqual([]);
     // And it is genuinely there — this is not passing because nothing was stored.
     expect(openItems()).toHaveLength(1);
+  });
+
+  /* ⚠⚠ THE ONE THAT ACTUALLY BITES. Straight at the sentence factory, with no
+     freshness arithmetic in front of it to pass the test for the wrong reason.
+
+     This is the defect the injection found: `ambientLine()` used to return
+     "The kitchen camera is reporting again, on its own." for an observation
+     that was STILL OPEN. It is exported, so that sentence was one caller away
+     from the room — a claim that a thing is fixed while it is broken. */
+  test("⚠ the sentence factory refuses an unresolved observation outright", () => {
+    observe([camera], T0);
+    const open = openItems()[0];
+
+    // The precondition, stated: this item has everything a line needs EXCEPT
+    // having actually been resolved. Without this the test could pass because
+    // the fixture was unsayable for some other reason.
+    expect(open.status).toBe("open");
+    expect(open.subject).toBe("the kitchen camera");
+    expect(open.cleared).toBe("is reporting again");
+
+    expect(ambientLine(open), "the house claimed a still-broken thing was fixed").toBeNull();
   });
 
   test("a thing that comes good on its own says so, and claims no more than that", () => {
@@ -427,15 +456,26 @@ test.describe("ambientResolutions — what the wall may say", () => {
      stamps the OPEN one too — and the wall then goes permanently silent about
      the resolution it has not had yet. A feature that works exactly once. */
   test("airing does not reach forward and silence the NEXT time it happens", () => {
+    /* ⚠⚠ THE ORDER OF THESE FIVE LINES IS THE TEST. A first draft aired the
+       first resolution BEFORE the camera went quiet again, and stayed GREEN
+       against the injected defect (proved 2026-09-05) — because at the moment
+       markAired ran there was no open item for it to wrongly stamp. The trap
+       only exists while an OPEN item and a RESOLVED one share a key, so the
+       re-opening has to happen FIRST.
+
+       And that ordering is the realistic one, not a contrivance: the wall's
+       airing POST is fire-and-forget on a 60 s poll while coverage re-evaluates
+       on its own 60 s clock, so a camera that flickers lands the POST after the
+       re-opening as a matter of course. */
     observe([camera], T0);
-    observe([], T0 + 60_000);
-    markAired(["camera-silent:kitchen"], T0 + 61_000);
+    observe([], T0 + 60_000);            // 1st resolution
 
-    // It goes quiet a second time, and comes good a second time.
-    observe([camera], T0 + 120_000);
-    observe([], T0 + 180_000);
+    observe([camera], T0 + 70_000);      // it goes quiet AGAIN — a 2nd, open item
+    markAired(["camera-silent:kitchen"], T0 + 80_000);   // the late POST lands here
 
-    const said = ambientResolutions(T0 + 181_000);
+    observe([], T0 + 140_000);           // and it comes good again
+
+    const said = ambientResolutions(T0 + 141_000);
     expect(said, "the second resolution was silenced by the first one's airing").toHaveLength(1);
     expect(said[0].text).toContain("is reporting again");
   });

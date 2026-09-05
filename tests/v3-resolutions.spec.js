@@ -184,16 +184,29 @@ test.describe("flag ON — the line reaches the queue and stays in the Low band"
     const got = await page.evaluate(async () => {
       await window.__v3Resolutions();
       window.__v3Presence(true);
-      window.__refreshAttention?.();
+      /* ⚠⚠ `__v3Tick`, NOT `__refreshAttention`. They are different engines and
+         the wrong one makes this test measure nothing at all — proved by
+         injection on 2026-09-05: with SCORE raised to 72 (which MUST take the
+         glance) this test stayed GREEN, because `__refreshAttention` is
+         attentionEngine's own async briefing refresh and never re-runs V3's
+         tick. Nothing re-rendered, so the glance was empty for the same reason
+         a wall that had never booted would be. `__v3Tick` is the handle that
+         re-evaluates depth and writes the cell. */
+      window.__v3Tick();
       return {
         present: window.__v3Presence().present,
+        hero: window.__v3().attention?.hero?.source ?? null,
         glance: (document.getElementById("glance-said").textContent ?? "").trim(),
         depth: document.documentElement.dataset.depth
       };
     });
     expect(got.present, "presence did not take — the alibi is back").toBe(true);
-    expect(got.glance).toBe("");
-    expect(got.depth).toBe("0");
+    /* ⚠ AND THE TICK REALLY RANKED IT. Without this the two assertions below
+       are satisfied by any tick that did nothing, which is the failure this
+       test was just found to have. */
+    expect(got.hero, "the resolution did not even reach the ranking").toBe("resolution");
+    expect(got.glance, "the resolution took the glance").toBe("");
+    expect(got.depth, "the resolution deepened the surface").toBe("0");
   });
 
   test("the airing is POSTed with the key that was announced", async ({ page }) => {
