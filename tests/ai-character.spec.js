@@ -236,6 +236,113 @@ test.describe("the rewritten exemplars are in the house's voice", () => {
     }
   });
 
+  test("⚠ no exemplar CLAIMS a topic the prompt might not carry", () => {
+    /* THE ONE THE OWNER CAUGHT ON THE WALL, 2026-09-05, hours after the
+       cross-day fix above and by the same mechanism:
+
+         "the briefing just ran and it said bins go out tonight but they don't.
+          They go out Wednesday night."
+
+       The schedule was never wrong — /api/bins answered {configured:true,
+       due:false}, and aiBriefing.js:80 returns null when due is false, so there
+       was NO Bins line in the prompt. `eveningClear` ended "Bins go out
+       tonight." and `morningQuiet` said "Recycling goes out tonight.", and the
+       model copied the sentence it was shown.
+
+       🔑 The written guard already named Bins — "If a topic has no line in the
+       data below (no Bins line, no Traffic line, etc.), it does not exist
+       today" — and did not hold. A description cannot cancel a demonstration,
+       so the demonstration is what this test deletes.
+
+       ⚠ THE AXIS IS PRESENCE VS ABSENCE, NOT THE TOPIC. Every buildPrompt()
+       line but `Time:` is conditional, so an ABSENCE claim is always safe
+       ("nothing on the calendar" is correct exactly when there is no Calendar
+       line) and a PRESENCE claim about an intermittent topic is an instruction
+       to invent one. A Bins line exists ~11% of the week, so this was inviting
+       a false claim in six briefings out of seven. */
+    const INTERMITTENT = [
+      /\bbins?\b/i, /\brubbish\b/i, /\brecycling\b/i, /\bwheelie\b/i,
+      /\bgarden waste\b/i, /\bgeneral waste\b/i,
+      /\btraffic\b/i, /\bcommute\b/i, /\bdetour\b/i,
+      /\bfuel\b/i, /\bpetrol\b/i, /\bunleaded\b/i, /\bcents? a litre\b/i,
+      /\bheadline/i, /\bin the news\b/i,
+      /\bbin night\b/i, /\bwhose turn\b/i,
+    ];
+    for (const [name, line] of Object.entries(__EXEMPLARS)) {
+      for (const pat of INTERMITTENT) {
+        expect(line, `${name} claims an intermittent topic (${pat}) — the prompt may carry no such line, and an exemplar that shows one is an instruction to invent it`)
+          .not.toMatch(pat);
+      }
+    }
+  });
+
+  test("⚠⚠ NEITHER prompt set demonstrates a bin claim — flag on OR off", () => {
+    /* ⚠⚠ THE ROLLBACK PATH HAD THE SAME BUG AND `__EXEMPLARS` CANNOT SEE IT.
+       The named EXEMPLARS above feed CHARACTER_PROMPTS (live —
+       HOUSE_CHARACTER_BRIEFINGS=1 on the kiosk). SYSTEM_PROMPTS, the flag-off
+       path, carries its OWN exemplars INLINE, and both of them ended with a bin
+       claim too: "Bins go out tonight, gorgeous." and "Bins go out tonight,
+       don't make me say it twice." A loop over __EXEMPLARS is green against
+       both of those, which would have left the rollback a rollback INTO the
+       defect — the failure mode this whole file exists to prevent.
+
+       So this asserts on the ASSEMBLED PROMPT, under both flag states, which is
+       the only view that sees every exemplar however it got there.
+
+       ⚠ MATCHED ON THE CLAIM SHAPE, NOT ON THE WORD "bins". Both prompts talk
+       ABOUT bins legitimately and must keep doing so — "Mention the practical
+       stuff first — weather warnings, bins, calendar events" and the guard "no
+       Bins line ... it does not exist today". Those are instructions; "bins go
+       out tonight" is a demonstration. Only the second is the defect, so only
+       the second is banned.
+
+       ⚠ AND THE DETERMINISTIC SURFACES ARE NOT IN SCOPE. predictiveRules.js and
+       insightRules.js both emit the literal "Bins go out tonight." — correctly,
+       because they are gated on `ctx.bins.eve`, i.e. they only say it when the
+       data says it. This scans PROMPTS, never those. */
+    const CLAIM = [
+      /\bbins?\s+(go|goes)\s+out\b/i,
+      /\brecycling\s+(go|goes)\s+out\b/i,
+      /\brubbish\s+(go|goes)\s+out\b/i,
+      /\bgarden\s+(bin|waste)\s+(go|goes)\s+out\b/i,
+      /\bbin night\b/i,
+      /\bput\s+the\s+bins?\s+out\b/i,
+    ];
+    for (const value of [undefined, "1"]) {
+      withFlag(value, () => {
+        for (const type of ["morning", "evening"]) {
+          const text = systemPromptFor(type);
+          const state = value === "1" ? "character" : "flag-off";
+          for (const pat of CLAIM) {
+            expect(text, `${state} ${type} prompt demonstrates a bin claim (${pat}) — the prompt carries a Bins line only ~11% of the week, so this is an instruction to invent one the rest of the time`)
+              .not.toMatch(pat);
+          }
+        }
+      });
+    }
+  });
+
+  test("both prompt sets still TALK about bins — the instructions survived", () => {
+    /* The companion to the test above, and it is not padding. The obvious wrong
+       fix for that failure is to purge the word "bins" from the prompts
+       entirely, which would delete the line that TELLS the house to mention
+       bins when there IS a Bins line — trading a false claim for a missing
+       true one. This pins the instructions the other test must not take with
+       it. */
+    for (const value of [undefined, "1"]) {
+      withFlag(value, () => {
+        for (const type of ["morning", "evening"]) {
+          const text = systemPromptFor(type);
+          const state = value === "1" ? "character" : "flag-off";
+          expect(text, `${state} ${type} stopped asking for bins at all`)
+            .toMatch(/\bbins\b/i);
+          expect(text, `${state} ${type} lost the no-line guard`)
+            .toMatch(/no Bins line/i);
+        }
+      });
+    }
+  });
+
   test("no exemplar reuses a figure the character block already owns", () => {
     /* 8:41 was not the root cause but it made the leak worse: it appears in
        houseCharacter()'s own CARES_ABOUT block, so the assembled prompt showed

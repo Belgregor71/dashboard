@@ -32,7 +32,7 @@ const SYSTEM_PROMPTS = {
     VOICE_REGISTER,
     TIME_GROUNDING,
     "Respond in 3-4 short sentences of plain prose, no markdown, no lists.",
-    "Match this tone: 'Quiet one today, thank goodness — nothing on the calendar and I intend to enjoy it. UV's hitting 8 by lunch, so hat and sunscreen if you're heading out, we're not doing sunstroke today. Bins go out tonight, gorgeous.'",
+    "Match this tone: 'Quiet one today, thank goodness — nothing on the calendar and I intend to enjoy it. UV's hitting 8 by lunch, so hat and sunscreen if you're heading out, we're not doing sunstroke today. Otherwise it's yours to spend, gorgeous.'",
     "Or, on a busier day, the same voice: 'A big one today — three things before lunch, get your skates on. Cool start, warms up by arvo, so dress in layers like the sophisticated people you are.'",
     "Those examples are style references ONLY — their content (bins, UV, events) must not leak into your answer.",
     "Use only the real details given below. Mention the practical stuff first — weather warnings, bins, calendar events, unusual traffic — then, if there's room, one dry aside about a news headline or the fuel price.",
@@ -44,7 +44,7 @@ const SYSTEM_PROMPTS = {
     VOICE_REGISTER,
     TIME_GROUNDING,
     "Respond in 3-4 short sentences of plain prose, no markdown, no lists.",
-    "Match this tone: 'Nothing left on the books tonight — the day's officially yours. Tomorrow's mid-twenties and sunny, an absolute cracker. Bins go out tonight, don't make me say it twice.'",
+    "Match this tone: 'Nothing left on the books tonight — the day's officially yours. Tomorrow's mid-twenties and sunny, an absolute cracker. I'd be getting outside for that one, don't make me say it twice.'",
     "Or, with something still on, the same voice: 'One thing left tonight, then you're free. Tomorrow's a top of twenty-six, fine all day — practically showing off.'",
     "Those examples are style references ONLY — their content (bins, weather, events) must not leak into your answer.",
     "Use only the real details given below. Cover tonight and tomorrow — bins, tomorrow's weather and events first — then, if there's room, one dry aside about a news headline or the fuel price.",
@@ -116,7 +116,51 @@ export const SYSTEM_PROMPTS_TYPES = Object.keys(SYSTEM_PROMPTS);
    as their own strings is what lets tests/ai-character.spec.js assert on the
    demonstration separately from the description, which is the whole point:
    the description is one line, the demonstration is the change. */
-/* ⚠⚠⚠ NO EXEMPLAR MAY DEMONSTRATE A CROSS-DAY CLAIM. READ THIS BEFORE EDITING.
+/* ⚠⚠⚠ NO EXEMPLAR MAY CLAIM A TOPIC THE PROMPT MIGHT NOT CARRY.
+   Found live on the kiosk 2026-09-05, hours after the cross-day fix below, and
+   it is the SAME MECHANISM one layer up. The owner, on a Saturday evening:
+
+     "the briefing just ran and it said bins go out tonight but they don't.
+      They go out Wednesday night."
+
+   The schedule was never wrong. `/api/bins` answered `{configured:true,
+   due:false}` at that moment, BIN_COLLECTION_DAY is Thursday, and
+   `aiBriefing.js:80` returns null when `due` is false — so **there was no Bins
+   line in the prompt at all.** The house invented the whole claim, and it did
+   not invent it freely: `EXEMPLARS.eveningClear` ended with the sentence
+   "Bins go out tonight." and the model copied it. `morningQuiet` carried the
+   same defect ("Recycling goes out tonight.").
+
+   🔑🔑🔑 THE WRITTEN GUARD WAS ALREADY THERE AND NAMED BINS EXPLICITLY —
+   "If a topic has no line in the data below (no Bins line, no Traffic line,
+   etc.), it does not exist today — do not mention it at all." It has been in
+   both prompt sets the whole time and it did NOT hold. That is the third time
+   this lane has proved the rule: **a description cannot cancel a
+   demonstration.** The only fix that works is deleting the demonstration.
+
+   🔑🔑 THE TEST FOR "IS THIS SAFE IN AN EXEMPLAR" IS NOT THE TOPIC, IT IS
+   PRESENCE VS ABSENCE. Look at buildPrompt(): every line but `Time:` is
+   conditional. So —
+     ✅ an ABSENCE claim is always true and always safe. "Nothing on the
+        calendar" is correct precisely WHEN there is no Calendar line.
+     ⛔ a PRESENCE claim about a conditional topic is an instruction to invent
+        one on every run where that line is missing. A Bins line exists only
+        from Wednesday midday to Thursday 7am — about 11% of the week — so this
+        exemplar was inviting a false bin claim in roughly six briefings out of
+        seven, which is how it was caught the same day it shipped.
+
+   ⚠ WEATHER IS THE ONE PRESENCE CLAIM KEPT, and it is a judged risk rather
+   than an oversight. It is the only topic that is present on essentially every
+   run, and the exemplars have to demonstrate the practical-first habit on
+   something. The residual: during a weather-upstream outage the prompt has no
+   Weather line and these exemplars still show a temperature — the same shape as
+   the invented-reading defect in tests/unresolved.spec.js. If the house is ever
+   caught inventing a forecast in a BRIEFING, this paragraph is the first place
+   to look, and the fix is the same one: delete the demonstration.
+
+   ── And the original finding, which is the same rule about a different axis ──
+
+   ⚠⚠⚠ NO EXEMPLAR MAY DEMONSTRATE A CROSS-DAY CLAIM. READ THIS BEFORE EDITING.
    Found live on the kiosk 2026-09-05, flag on, within minutes of the flip.
 
    The first version of these exemplars demonstrated the counting habit —
@@ -155,11 +199,11 @@ export const SYSTEM_PROMPTS_TYPES = Object.keys(SYSTEM_PROMPTS);
    house claims to have watched — never. Pinned by tests/ai-character.spec.js. */
 const EXEMPLARS = {
   morningQuiet:
-    "Nothing on the calendar, which I intend to enjoy. UV hits 8 by lunch, so a hat if you're out in it. Recycling goes out tonight.",
+    "Nothing on the calendar, which I intend to enjoy. UV hits 8 by lunch, so a hat if you're out in it. Otherwise it's yours to spend.",
   morningBusy:
     "Three things before lunch, so it's an early start. Fourteen now, twenty-one by the arvo — the good half of the day is the back half.",
   eveningClear:
-    "Nothing left on the books tonight, so the evening is yours. Tomorrow is a top of twenty-six and clear. Bins go out tonight.",
+    "Nothing left on the books tonight, so the evening is yours. Tomorrow is a top of twenty-six and clear. I'd be getting outside for that one.",
   eveningBusy:
     "One thing left, then you're done. Tomorrow: twenty-six and fine all day, which is worth planning around.",
   conciergeWarm:
