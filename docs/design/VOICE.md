@@ -146,6 +146,7 @@ goes quiet and plain, because some things aren't a bit.
 | Memory caption | `src/js/services/memoryEngine.js` | normal only; tender stays wordless |
 | Voice-command replies | `src/js/core/voiceCommands.js` | data-first; personality only in the flavour lines |
 | Predictive / insight nudges | `src/js/services/predictiveRules.js`, `insightRules.js` | factual glances — kept terse (a bit that delays the number is a regression) |
+| Resolved-observation line | `server/services/unresolved.js` (`ambientLine`) | ✅ **written against `CHARACTER.md` §"Holding an open question", not the register above** — mildly interested, entirely unbothered, no second beat. Two sentences only ("…, on its own." / "… — it was unplugged."), composed from a `subject` + `cleared` phrase the ADAPTER supplies. ⚠ **Resolutions only.** An OPEN observation is never voiced anywhere, at any volume — that rule is absolute and argued at the top of that file. Flag `v3ResolutionVoice`; reaches the wall via `src/v3/core/resolutions.js` at score 41, never spoken aloud. |
 | AI briefing/concierge prompts | `server/routes/ai.js` | ✅ **migrated, flag-gated.** `SYSTEM_PROMPTS` quotes this register (flag off); `CHARACTER_PROMPTS` speaks as CHARACTER.md (`HOUSE_CHARACTER_BRIEFINGS=1`). Exemplars are named constants in `EXEMPLARS` — edit them there, and see `tests/ai-character.spec.js`. |
 
 ## Binding the AI layer

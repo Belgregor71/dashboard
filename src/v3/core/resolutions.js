@@ -38,6 +38,20 @@
         is the correct audience for it: a person looking at the wall on
         purpose, who has room for one more small true thing.
 
+   Checked rather than assumed, because each one is a way this could have been
+   a dead lever: `tickAttention` merges `announced` into `sources` before
+   ranking (attention.js), `composer.js` has no source whitelist — it takes
+   whatever is in the stack and addresses the cell by `candidate.source` — and
+   a 41 will not be the dominant cell, so it lands in a `measured` rect.
+
+   ⚠ THAT LAST ONE IS THE RIGHT OUTCOME, NOT A COMPROMISE, and it is worth
+   saying because it looks like a type error at first glance. `.measured` is
+   NOT the pill's uppercase-and-tracked treatment (type.css) — it is Roboto
+   Flex at `--ink-dim`, sentence case, 1.24 line-height. So the line renders as
+   a dimmed sans sentence beside the day's actual news, which is exactly the
+   weight this deserves: quieter than the serif, and never mistaken for the
+   thing the glance is about.
+
    ⚠ **IT NEVER SPEAKS.** There is no `speak()` on this path and adding one
    would not be a small change. health.js's reason transfers directly and is
    about FREQUENCY, not about sentiment: a wall that runs for weeks and talks
