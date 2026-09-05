@@ -68,7 +68,6 @@ import { relativeYearPhrase } from "../../js/services/photoMemory.js";
 import {
   CHECK_MS as GROUND_ROTATE_MS,
   frameParts,
-  poolCount,
   poolYears
 } from "./ground.js";
 
@@ -282,7 +281,6 @@ let yearEl = null;
 let planeEl = null;         // the ONE angled wrapper — plane mode only
 let dayEl = null;           // "Thursday 4 September"
 let skyEl = null;           // "22° · partly cloudy · 14° / 25°"
-let hintEl = null;          // "six memories from this date"
 /* THE LAST SKY HANDED OVER, as the finished line rather than the payload.
    main.js fetches the weather in an earlier boot stage than it builds the
    archive, so the first hand-off arrives before there is anywhere to put it —
@@ -365,7 +363,14 @@ export function plateForFrame(assets, now = new Date()) {
   if (!year) return null;
   const title = place || relativeYearPhrase(Number(year), now);
   if (!title) return null;
-  return { year, title, who: people || null };
+  /* ⚠ `place` IS CARRIED SEPARATELY EVEN THOUGH `title` IS DERIVED FROM IT, and
+     the plane surface is why. `title` falls back to a relative phrase — "Seven
+     years ago today" — which is the SAID voice stating a fact the one-line
+     caption already gives as a numeral. `plateLine` has to know whether the
+     title is a real place or that fallback, and deriving it back out by
+     re-running `relativeYearPhrase` and comparing strings is exactly the kind
+     of inference that goes quietly wrong the day the phrasing changes. */
+  return { year, title, place: place || null, who: people || null };
 }
 
 /* ── What the glass says (plane mode) ───────────────────────────────────────
@@ -455,34 +460,43 @@ export function skyLine(weather) {
   return parts.length ? parts.join(" · ") : null;
 }
 
-/* Words up to twelve, numerals past it. A count small enough to hold in the
-   head reads as language; "seventeen memories" reads as an inventory, and at
-   that point the numeral is the calmer object. */
-const COUNT_WORDS = [
-  "", "one", "two", "three", "four", "five", "six",
-  "seven", "eight", "nine", "ten", "eleven", "twelve"
-];
+/* ── The caption, as ONE LINE ─────────────────────────────────────
+   ⚠⚠ THIS REPLACED A FOUR-ROW PLATE, and the owner's verdict at the wall on
+   2026-09-05 is the whole of the reason: *"the On this Day section doesn't need
+   to take up so much screen real estate"*, and of the count line specifically,
+   *"that is information not needed"*. The plate was an eyebrow at 32, a place
+   name at 72 in the said voice, a `who` row and a counted sentence — four rows
+   and an opaque backdrop, standing at the vertical centre of the right-hand half
+   of the wall. It is ONE measured line in the bottom-left corner now, under the
+   hour, with no ground of its own.
+
+   ⚠ THE COUNT IS DELETED, NOT RESTYLED. `memoryHint()` — the sentence the
+   deleted year spine's fact came back as — had exactly one reader, this surface,
+   and the owner asked for it off the wall. Deleting it is the house rule rather
+   than a preference: a lever nobody can pull is the thing this repo keeps finding
+   in its own audits. `poolCount()` in ground.js loses its only caller with it.
+
+   ⚠ NO SAID VOICE ON THIS LINE. The relative-year phrase (`title`, for a memory
+   with no place) was written to be SET — "Seven years ago today" at 72px is a
+   sentence the house says. At 32px in a corner, beside a year the same line
+   already states, it is one fact twice in the measured voice. So the line takes
+   the PLACE or nothing, and a memory with no place says "On this day · 2019",
+   which is what the eyebrow always said and is still true.
+
+   Dot-separated, in the order the room reads it: what this is, when, where, who.
+   Every part after the year is optional and the line survives losing all of them.
+───────────────────────────────────────────────────────────────────────────── */
 
 /**
- * WHAT THE DELETED YEAR SPINE WAS ACTUALLY SAYING.
- *
- * The strip drew which years this calendar date reaches, as a ruler on a
- * receding deck — ~120 hand-probed projection constants, two shipped defects,
- * and a lit label that collided with the card at one end and the fault pill at
- * the other. Owner's call 2026-09-04: keep the fact, delete the instrument.
- *
- * ⚠ ZERO IS NULL, NOT "no memories". The pool is empty before the day's fetch
- * lands and on the random fallback, so a wall that renders this eagerly says
- * "no memories from this date" over a photograph from this date.
- *
- * @param {number} count how many photographs today's pool holds
- * @returns {string|null}
+ * @param {{year:string, place:string|null, who:string|null}|null} plate
+ * @returns {string|null} null when there is no plate, and null means no line
  */
-export function memoryHint(count) {
-  const n = Number(count);
-  if (!Number.isFinite(n) || n < 1) return null;
-  const word = COUNT_WORDS[Math.trunc(n)] || String(Math.trunc(n));
-  return `${word} ${n === 1 ? "memory" : "memories"} from this date`;
+export function plateLine(plate) {
+  if (!plate?.year) return null;
+  const parts = ["On this day", String(plate.year)];
+  if (plate.place) parts.push(plate.place);
+  if (plate.who) parts.push(plate.who);
+  return parts.join(" · ");
 }
 
 /* ── The strip ──────────────────────────────────────────────────────────────
@@ -607,8 +621,13 @@ function build(host) {
      table, ~120 lines of hand-probed constants) is unreachable. That is the
      point of deleting it: the two shipped defects on this surface were BOTH
      that geometry landing a lit label somewhere a person could see it was
-     wrong, and code that cannot run cannot regress. What it was saying comes
-     back as `memoryHint()` under the plate. */
+     wrong, and code that cannot run cannot regress.
+
+     ⚠ WHAT IT WAS SAYING IS NOW SAID BY NOBODY. The fact came back for a day as
+     `memoryHint()` — "37 memories from this date" — under the plate, and the
+     owner took it off the wall on 2026-09-05: *"that is information not needed"*.
+     Deleting the ruler was right; the sentence it left behind was a consolation
+     nobody had asked for. */
   if (!planeMode) {
     stripCanvas = document.createElement("canvas");
     stripCanvas.className = "archive__strip";
@@ -679,23 +698,27 @@ function build(host) {
 
   plateEl = document.createElement("div");
   plateEl.className = "archive__plate";
-  plateRows = {
-    eyebrow: document.createElement("p"),
-    title: document.createElement("p"),
-    who: document.createElement("p")
-  };
-  plateRows.eyebrow.className = "archive__eyebrow measured";
-  plateRows.title.className = "archive__title said";
-  plateRows.who.className = "archive__who measured";
-  plateEl.append(plateRows.eyebrow, plateRows.title, plateRows.who);
-
-  /* The spine's surviving sentence, under the plate rather than beside it: it
-     is about the DATE, and the three rows above it are about the photograph. */
+  /* ⚠⚠ TWO DIFFERENT OBJECTS SHARE THIS NODE, and the second is not a restyle
+     of the first. The shipped surface builds the four-row plate it always has;
+     the plane surface builds ONE measured line and none of the rows. Rendering
+     the rows and hiding three of them would leave `.archive__title` writing 72px
+     of said voice into a node nobody can see — and the contrast sweep reads
+     `.archive__plate > p`, so a hidden row is a row it silently stops measuring.
+     Build what the surface actually says, and nothing else. */
   if (planeMode) {
-    hintEl = document.createElement("p");
-    hintEl.className = "archive__hint measured";
-    hintEl.dataset.blank = "1";
-    plateEl.append(hintEl);
+    plateRows = { line: document.createElement("p") };
+    plateRows.line.className = "archive__line measured";
+    plateEl.append(plateRows.line);
+  } else {
+    plateRows = {
+      eyebrow: document.createElement("p"),
+      title: document.createElement("p"),
+      who: document.createElement("p")
+    };
+    plateRows.eyebrow.className = "archive__eyebrow measured";
+    plateRows.title.className = "archive__title said";
+    plateRows.who.className = "archive__who measured";
+    plateEl.append(plateRows.eyebrow, plateRows.title, plateRows.who);
   }
 
   const grain = document.createElement("div");
@@ -773,6 +796,16 @@ function applyRect(rect) {
 function paintPlate(assets) {
   if (!plateEl) return;
   const plate = plateForFrame(assets);
+
+  /* The plane surface, which has one row and one writer. Same silence contract:
+     no line means `data-blank="1"`, which is what takes the node off the glass. */
+  if (plateRows.line) {
+    const line = plateLine(plate);
+    plateEl.dataset.blank = line ? "0" : "1";
+    plateRows.line.textContent = line ?? "";
+    return;
+  }
+
   if (!plate) {
     plateEl.dataset.blank = "1";
     plateRows.eyebrow.textContent = "";
@@ -791,15 +824,6 @@ function paintPlate(assets) {
    Three writers, each of which can put NOTHING on the glass and says so with
    `data-blank`, which is the same seam `.archive__who` and `.archive__plate`
    already use and which the plate's own contrast spec already skips on. */
-
-/** How many memories today's date reaches. Repainted with the plate, because a
- *  new pool is adopted at the day boundary and the sentence is about the day. */
-function paintHint() {
-  if (!hintEl) return;
-  const line = memoryHint(poolCount());
-  hintEl.textContent = line ?? "";
-  hintEl.dataset.blank = line ? "0" : "1";
-}
 
 function paintSky() {
   if (!skyEl) return;
@@ -962,10 +986,6 @@ function present(index) {
     lastYears = poolYears();
     drawStrip();
     paintPlate(assets);
-    // The date's own sentence rides the same beat: it is repainted while the
-    // plate is invisible and returns with it, so nothing on this stack ever
-    // changes while a person is reading it.
-    paintHint();
     plateEl?.classList.remove("is-exchanging");
     yearEl?.classList.remove("is-exchanging");
   }, swapMs);
@@ -1106,12 +1126,12 @@ export function initArchive(host) {
   drawStrip();
 
   /* The glass, painted from whatever is already known. The day is always
-     knowable; the sky may have arrived before there was anywhere to put it, and
-     the hint is empty until ground adopts today's pool — which is why all three
-     are repainted on the beats that change them rather than only here. */
+     knowable; the sky may have arrived before there was anywhere to put it —
+     which is why both are repainted on the beats that change them rather than
+     only here. The caption is not among them: it belongs to the PHOTOGRAPH, so
+     `paintPlate` rides the card's own exchange. */
   archiveDay();
   paintSky();
-  paintHint();
 
   window.__archive = () => ({
     enabled: enabled(),
@@ -1149,20 +1169,26 @@ export function initArchive(host) {
     ghosts: host.querySelectorAll(".archive__ghost").length,
     slots: host.querySelectorAll(".archive__img").length,
     shown: host.querySelectorAll(".archive__img.is-shown:not([data-blank='1'])").length,
-    plate: plateEl?.dataset.blank === "0"
-      ? {
-          eyebrow: plateRows.eyebrow.textContent,
-          title: plateRows.title.textContent,
-          who: plateRows.who.textContent || null
-        }
-      : null,
-    /* THE THREE LINES THE PLANE ADDED, as they are actually on the glass —
-       textContent, not the model's answer. `null` where the surface is
-       deliberately saying nothing, which is a different state from an empty
-       string and the one a spec has to be able to tell apart. */
+    /* ⚠ THE FOUR-ROW PLATE IS THE SHIPPED SURFACE'S, AND ONLY ITS. On the plane
+       surface `plateRows` holds one `line` and no `eyebrow` at all, so reading
+       `plateRows.eyebrow.textContent` unguarded throws inside the probe every
+       spec in this file calls — a TypeError with the lever's name on it, not the
+       null this field is supposed to mean. Read `line` for that composition. */
+    plate:
+      plateEl?.dataset.blank === "0" && plateRows?.eyebrow
+        ? {
+            eyebrow: plateRows.eyebrow.textContent,
+            title: plateRows.title.textContent,
+            who: plateRows.who.textContent || null
+          }
+        : null,
+    /* WHAT THE PLANE'S GLASS SAYS, as it is actually on it — textContent, not
+       the model's answer. `null` where the surface is deliberately saying
+       nothing, which is a different state from an empty string and the one a
+       spec has to be able to tell apart. */
     day: dayEl?.textContent || null,
     sky: skyEl?.dataset.blank === "0" ? skyEl.textContent : null,
-    hint: hintEl?.dataset.blank === "0" ? hintEl.textContent : null,
+    line: plateEl?.dataset.blank === "0" ? plateRows?.line?.textContent ?? null : null,
     nodes: host.querySelectorAll("*").length,
     /* ⚠ A SNAPSHOT, and it moves with the clock now: arch-kenburns is a settle,
        so this reads five while a photograph is coming to rest and four once it

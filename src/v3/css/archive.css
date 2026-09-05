@@ -818,49 +818,88 @@
   }
 }
 
-/* ── The plate, and the spine's surviving sentence ──────────────────────────
-   Right-aligned on the wall's own safe margin and vertically centred, so the
-   composition reads as one photograph on the left and one column of words on
-   the right rather than as three objects at three heights.
+/* ── The caption ────────────────────────────────────────────────────────────
+   ⚠⚠ ONE LINE UNDER THE HOUR, 2026-09-05, replacing a four-row plate that stood
+   at the vertical centre of the right-hand half of the wall. Owner at the glass:
+   *"the On this Day section doesn't need to take up so much screen real estate —
+   my thought below the clock smaller font"*, and of the count row, *"that is
+   information not needed"*.
 
-   ⚠ `translateY(-50%)` IS NOT A PERSPECTIVE TRANSFORM. This node is on the
-   glass, outside `.archive__plane` entirely; it is a 2D centring device, and
-   the rule that nothing readable sits on an angled plane is intact. */
+   ⚠ NO GROUND OF ITS OWN, which reverses the plate's founding decision rather
+   than forgetting it. The plate carried `--surface-sunk` at 0.72 because it
+   floated OVER the photograph at the centre of the frame, and a label at low ink
+   over a photograph is the shape that measured 1.96:1 elsewhere in this house.
+   This line does not float over anything: `.archive` is an opaque `--surface`
+   layer, the card ends at y743 and the one ghost is centred at x1470, so the
+   bottom-left corner is flat surface — the same ground the hour and the date
+   have always stood on unaided, and the same one the contrast sweep measures
+   `.archive__date` and `.archive__sky` against. ⚠ That is a fact about THIS
+   corner of THIS composition, not a general licence.
+
+   ⚠⚠ THE CAP IS THE GHOST, AND IT IS ARITHMETIC RATHER THAN A ROUND NUMBER. The
+   ghost's radial mask is `closest-side` on a 1180x700 box at left 880 / top 470,
+   so it is centred on (1470, 820) with a 350px radius — outside that it is fully
+   transparent and the caption reads against bare `--surface`. At the caption's
+   own band (y945-984, so dy≈145) the mask first has alpha at
+   x = 1470 - sqrt(350² - 145²) = 1152. Capping the line at 1050 keeps its far
+   edge at x1146, which is inside the transparent region by 6px. A caption that
+   runs longer ellipsizes rather than sliding under a lifted photograph, because
+   `--ink-dim` over a mid-grey wash is the 1.96:1 shape this house has already
+   paid for once.
+
+   ⚠ It clears the media column by construction as well — `.now-playing` is
+   right-pinned and up to ~470px wide with artwork, so its left edge is near
+   x1354 and the caption stops 208px short of it.
+
+   One line always. A caption that wrapped would walk up into the hour, which is
+   the same failure as a wrapped fault pill and takes the same answer. */
 :root[data-arch-plane="1"] .archive__plate {
-  right: var(--safe);
-  top: 50%;
-  /* ⚠ 440, NOT THE 400 THE FIRST DRAFT USED. Seen on the glass: at 400 the
-     eyebrow "On this day · 2015" wrapped onto a second line, which turns a
-     label into a paragraph and makes the plate top-heavy. Widened until it
-     fits, and the eyebrow's tracking eased below — a wrapped eyebrow is the
-     same failure as a wrapped fault pill and has the same answer. */
-  width: 440px;
-  transform: translateY(-50%);
+  left: var(--safe);
+  right: auto;
+  top: auto;
+  bottom: var(--safe);
+  width: auto;
+  max-width: 1050px;
 }
 
-/* ⚠ 0.16em, NOT 0.26em, and it is not taste — it is what makes the row fit on
-   one line at 32px inside a 440px plate. Same value `.archive__who` already
-   uses, so the plate still reads as one system. */
-:root[data-arch-plane="1"] .archive__eyebrow {
-  letter-spacing: 0.16em;
-  white-space: nowrap;
+/* ⚠ THE `> p` RULE ABOVE GIVES EVERY PLATE ROW AN OPAQUE BACKDROP AND 14/22 OF
+   PADDING. It is written at (0,2,0) and this file's plane block comes later, so
+   an equal-specificity rule would win on order alone — which is exactly the kind
+   of agreement that breaks the first time somebody reorders the file. Stated at
+   (0,3,0) instead, so it wins because it is more specific. */
+:root[data-arch-plane="1"] .archive__plate > p {
+  background: none;
+  padding: 0;
 }
 
-/* WHAT THE DELETED YEAR SPINE WAS ACTUALLY SAYING. The ruler drew which years
-   this date reaches; the fact underneath it was "there is more than this one",
-   and that is a sentence rather than an instrument. At --t-rail because every
-   row on this plate is measured against the same legibility floor, and the
-   plate's own contrast spec reads all of them. */
-:root[data-arch-plane="1"] .archive__hint {
+:root[data-arch-plane="1"] .archive__line {
   font-family: var(--font-measured);
   font-size: var(--t-rail);
-  font-weight: 400;
-  /* Loose enough to read as a caption, tight enough that "six memories from
-     this date" breaks after "from" rather than orphaning a word. It IS allowed
-     two lines — it is a sentence, not a label. */
-  letter-spacing: 0.04em;
-  line-height: 1.25;
+  font-weight: 500;
+  /* Same tracking `.archive__who` uses, so the caption still reads as part of
+     the same system as the sky opposite it. */
+  letter-spacing: 0.16em;
+  line-height: 1.2;
   color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── The hour makes room ────────────────────────────────────────────────────
+   THE SECOND RULE IN THIS FILE THAT REACHES OUTSIDE THE ARCHIVE, and the cause
+   is the same as the pill's: the archive is what put something under the clock.
+   62 = the caption's line box (32 x 1.2 = 38.4) plus 24 of air, rounded to the
+   pixel the card's geometry is derived against.
+
+   ⚠⚠ THIS NUMBER IS PAIRED WITH `PLANE_CARD_MID_Y` IN archiveModel.js, which
+   moved 524 → 462 by exactly this 62. The hour is the card's floor; lift one
+   without the other and the photograph lands on the clock. tests/v3-archive.spec.js
+   measures the PAINTED card against the PAINTED hour, so the pair is checked
+   rather than trusted. */
+:root[data-arch-plane="1"][data-archive="1"][data-depth="0"] {
+  --hour-lift: -62px;
 }
 
 /* ── The word off the left edge stands down ─────────────────────────────────
@@ -877,8 +916,6 @@
    exactly the "haphazard" this rebuild exists to remove. Still built, still in
    the DOM for the flag-off surface; simply not on this one. */
 :root[data-arch-plane="1"] .archive__word { display: none; }
-
-.archive__hint[data-blank="1"] { display: none; }
 
 /* ── The glass: the day and the sky ─────────────────────────────────────────
    Depth 0 has never carried either, and the owner asked for both on 2026-09-04
@@ -937,21 +974,52 @@
 
 .archive__sky[data-blank="1"] { display: none; }
 
-/* ── The fault pill steps down ──────────────────────────────────────────────
-   ⚠⚠ THE ONE RULE IN THIS FILE THAT REACHES OUTSIDE THE ARCHIVE, and it is here
-   rather than in compose.css because the archive is the CAUSE: the pill only
-   has to move on the surface that put a date where it was standing. The
-   precedent is near the top of this file — `.ground-caption` stands down for
-   the plate for exactly the same reason.
+/* ── The fault pill changes corner ──────────────────────────────────────────
+   ⚠⚠ IT USED TO STEP DOWN TO y168 AND STAY TOP-LEFT. Owner at the glass
+   2026-09-05: *"up top left is distracting — would put them below the media on
+   bottom right"*. That is the second half of the same verdict that made a fault a
+   pill rather than a headline in the first place: a fault is a STATE the house is
+   reporting, not something it is telling you, and the top-left corner of the
+   calmest surface in the house is where the room's eye lands first.
 
-   96-152 date, 16 gap, 168-227 pill. That 227 is the number the card's top edge
-   is measured against, and a pill that grew a second line would break the
-   agreement — which is why `.fault` is `white-space: nowrap`, and always has
-   been. */
-:root[data-arch-plane="1"][data-archive="1"][data-depth="0"] .fault { top: 168px; }
+   Bottom-right, under `.now-playing`, is where the house already keeps what it is
+   merely REPORTING — what is playing, which nobody asked for either. The two now
+   read as one column of house-state, opposite the column of memory on the left.
+
+   ⚠ THE CARD'S TOP EDGE NO LONGER ANSWERS TO THIS PILL. `PLANE_CARD_MID_Y`
+   carried a comment saying its band was set by how far the pill could reach —
+   the first draft of this design put the card at y152 and the pill landed on its
+   corner. With the pill gone from that corner the top-left stack is the date and
+   nothing else, and the card's band is bounded by the date above and the hour
+   below. archiveModel.js says so where the arithmetic is.
+
+   ⚠ SCOPED TO THIS SURFACE, deliberately. Depths 1 and 2 keep the top-left
+   corner: at depth 2 `.cell--wide` and its neighbours own the bottom rectangle,
+   and a pill dropped into a grid cell is a pill on top of a readout. */
+:root[data-arch-plane="1"][data-archive="1"][data-depth="0"] .fault {
+  top: auto;
+  bottom: var(--safe);
+  left: auto;
+  right: var(--safe);
+}
+
+/* ── What's playing makes room for it ───────────────────────────────────────
+   ⚠ THE SPACE IS RESERVED WHETHER OR NOT THERE IS A FAULT, and that is the calm
+   law rather than laziness. `.fault` is `hidden` on a healthy house, so a lift
+   that depended on it would move the artwork and the track title 74px up the wall
+   at the moment a feed went down — furniture rearranging itself for a reason the
+   room is being told about in words at the same instant. An empty 74px band in a
+   corner is invisible; a media block that jumps is not.
+
+   74 = the pill's own height (32 of type on a 1 line-height, 10 and 10 of
+   padding, 1 and 1 of border = 54) plus 20 of air. It moves with the pill's
+   padding in compose.css. */
+:root[data-arch-plane="1"][data-archive="1"][data-depth="0"] .now-playing {
+  bottom: calc(var(--safe) + 74px);
+}
 
 /* ── Night ──────────────────────────────────────────────────────────────────
-   The day and the sky go out with the plate and the engraved year, for the
+   The day and the sky go out with the caption and the engraved year, for the
    reason that rule already gives: at 2am the wall should be a photograph and an
    hour, not an instrument panel. The HOUR stays, as it always has. */
 :root[data-night="1"][data-arch-plane="1"] .archive__date,
@@ -959,15 +1027,46 @@
   opacity: 0;
 }
 
+/* ⚠ AND IT TAKES ITS CORNER BACK. `--hour-lift` exists to clear the caption; the
+   night rule fades the caption to 0, so a lift that stayed would leave the clock
+   floating 62px off the safe margin for a line nobody can see — a position with
+   no cause, which is the exact complaint this whole rebuild answers.
+
+   It is a TRANSFORM, so it eases down over --m-calm alongside the four things
+   fading out, once, at dusk. That reads as the wall settling for the night
+   rather than as a jump: the words go and the clock takes the corner. */
+:root[data-night="1"][data-arch-plane="1"][data-archive="1"][data-depth="0"] {
+  --hour-lift: 0px;
+}
+
 /* ── Reduced motion ─────────────────────────────────────────────────────────
-   The layer is already `display: none` above, so the date, the sky, the plate
-   and the hint go with it. The PILL is not in the layer, so its step-down has
-   to be undone by hand or it sits 72px low over a full-bleed photograph with
-   nothing above it. Later in the file at equal specificity, which is what wins.
+   The layer is already `display: none` above, so the date, the sky and the
+   caption go with it. THREE things this composition changes are NOT in the
+   layer, and every one of them has to be undone by hand:
+
+     the pill      or it sits bottom-right under a media block that has not
+                   moved, i.e. on top of it
+     the hour      or it rides 62px high with nothing beneath it, for a caption
+                   that is not on the glass
+     what's playing  or it floats 74px up for a pill that is elsewhere
 
    ⚠ Found by asking what the flag-off surface looks like — the reduced-motion
    surface IS the flag-off surface, so anything this composition changes outside
-   its own layer has to be answered twice. */
+   its own layer has to be answered twice. That question has now caught three
+   rules where it once caught one.
+
+   Later in the file at equal specificity, which is what wins. */
 @media (prefers-reduced-motion: reduce) {
-  :root[data-arch-plane="1"][data-archive="1"][data-depth="0"] .fault { top: var(--safe); }
+  :root[data-arch-plane="1"][data-archive="1"][data-depth="0"] .fault {
+    top: var(--safe);
+    bottom: auto;
+    left: var(--safe);
+    right: auto;
+  }
+  :root[data-arch-plane="1"][data-archive="1"][data-depth="0"] {
+    --hour-lift: 0px;
+  }
+  :root[data-arch-plane="1"][data-archive="1"][data-depth="0"] .now-playing {
+    bottom: var(--safe);
+  }
 }

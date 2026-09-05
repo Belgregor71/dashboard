@@ -293,7 +293,16 @@ html, body {
   font-variant-numeric: tabular-nums;
   text-shadow: var(--ink-shadow);
   transform-origin: left bottom;
-  transform: scale(var(--hour-scale));
+  /* ⚠ THE LIFT IS ON THE TRANSFORM, NOT ON `bottom`, and that is the same
+     argument the scale above already makes. The archive's caption line takes the
+     bottom of this column (archive.css sets --hour-lift), so the hour has to
+     rise 62px on that surface and drop back on every other — and a `bottom` that
+     changes mid-exchange relayouts the glyphs every frame of a 350ms depth
+     change on a wall budgeted at <=8% of one core. Read right-to-left: the scale
+     happens first about `left bottom`, then the lift moves the result in the
+     parent's own pixels, so the two compose without either one scaling the
+     other. */
+  transform: translateY(var(--hour-lift, 0px)) scale(var(--hour-scale));
   opacity: 0;
   visibility: hidden;
   transition: opacity var(--m-calm) var(--ease),
@@ -355,9 +364,17 @@ html, body {
   z-index: 1;
   display: inline-flex;
   align-items: center;
-  gap: 16px;
+  /* ⚠ TIGHTER 2026-09-05, AND THE TYPE DID NOT MOVE. Owner at the wall: "the
+     error pills are too big". The font stays at --t-rail because --t-rail IS the
+     floor — below ~30px at 3m the words are not received, and a fault the room
+     cannot read is a dot with decoration. What shrinks is everything that is not
+     the message: 28px of side padding to 22, 12 to 10 above and below, the gap
+     from 16 to 12 and the dot from 16 to 12. ~20% less pill for the same
+     sentence, which is the half of "too big" that could honestly be given. The
+     other half was the CORNER, and archive.css answers that one. */
+  gap: 12px;
   margin: 0;
-  padding: 12px 28px;
+  padding: 10px 22px;
   border-radius: 999px;
   background: color-mix(in oklch, var(--surface-sunk) 92%, transparent);
   border: 1px solid color-mix(in oklch, var(--error) 42%, transparent);
@@ -387,8 +404,8 @@ html, body {
    grounds that a wall reporting lateness teaches the room to ignore it). */
 .fault__dot {
   flex: none;
-  width: 16px;
-  height: 16px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: var(--error);
 }

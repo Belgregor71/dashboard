@@ -173,21 +173,23 @@ export function cardRectFor(aspect) {
 //   maxW  1000  as wide as the card may grow. The projection magnifies it back
 //               to ~970 painted against the shipped surface's 1040, so the
 //               photograph keeps essentially the size it has today.
-//   maxH  550   ⚠ SET BY HOW FAR THE FAULT PILL CAN REACH, NOT BY TASTE. Depth
-//               0's top-left stack is the date (96-152), a 16px gap, then the
-//               pill (168-227) — the pill is pushed down to make room for the
-//               date, so the card's painted top edge has to clear 227. The
-//               first draft of this design put the card at y152 and the pill
-//               landed on its corner: the original complaint, reproduced.
-//               The bottom is bounded by the hour, whose cap height starts
-//               near y833.
-//   midY  524   the centre the card grows about. Lower than CARD_MID_Y's 504.5
-//               because the band above it now holds two things instead of
-//               nothing at all.
+//   maxH  550   ⚠ SET BY THE TWO STACKS IT SITS BETWEEN, NOT BY TASTE. Above it
+//               is the date (96-152) and nothing else — the fault pill left the
+//               top-left corner on 2026-09-05 — so the painted top edge has to
+//               clear 152 with a gap rather than the pill's old 227. Below it
+//               the hour now rides 62px higher than the safe margin, because
+//               the archive's one caption line took the bottom of that column,
+//               so the painted bottom edge has to clear y771 rather than y833.
+//               The band lost 62 at the bottom and gained 62 at the top: the
+//               height is unchanged and the whole left column simply moved up.
+//   midY  462   ⚠ MOVED WITH THE HOUR, 524 → 462, and it is arithmetic rather
+//               than taste: the hour's lift is --hour-lift (-62px, archive.css)
+//               and this is the same 62. Change one without the other and the
+//               card lands on the clock.
 export const PLANE_CARD_LEFT = 88;
 export const PLANE_CARD_MAX_W = 1000;
 export const PLANE_CARD_MAX_H = 550;
-export const PLANE_CARD_MID_Y = 524;
+export const PLANE_CARD_MID_Y = 462;
 
 /**
  * The card's rectangle on the one-plane surface, in PLANE space — the

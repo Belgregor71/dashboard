@@ -1,5 +1,64 @@
 # Handover — rebuild the ambient archive as ONE PLANE
 
+---
+
+## ⚠⚠ AMENDED 2026-09-05 — READ THIS BEFORE THE GEOMETRY BELOW
+
+**The whole of this brief SHIPPED** (`843c561` flag-off, `facb4a9` default-on) and then
+the owner sat in front of it and moved three things. Everything below this section is the
+brief AS WRITTEN, and three of its numbers are now wrong. They are kept rather than edited
+because the reasoning is what makes the new numbers legible.
+
+**Owner's verdict at the wall, 2026-09-05** — with a marked-up screenshot, two arrows:
+
+> "The On this Day section doesn't need to take up so much screen real estate — my thought
+> below the clock, smaller font. The error pills are too big as well and up top left is
+> distracting — would put them below the media on bottom right."
+
+and, asked how compact:
+
+> "should just be one line not 3 — would also remove the 37 Memories from this date, that
+> is information not needed" · "one line at 32px. The place doesn't need to be larger."
+
+### What changed
+
+| | Brief said | On the wall now |
+|---|---|---|
+| The plate | four rows (eyebrow 32 · place 72 said · who 32 · hint 32), opaque backdrop, right-aligned `x1425–1824`, vertically centred | **ONE measured line at 32px**, `left: var(--safe)`, `bottom: var(--safe)`, **no ground of its own**, capped at 1050px — `On this day · 2023 · Nudgee` |
+| The count line | *"six memories from this date"* — the deleted spine's surviving fact | **DELETED.** `memoryHint()` and `poolCount()` are gone, not hidden: the line had one reader and the owner took it off the wall |
+| The fault pill | top-left, stepped down to `y168` to clear the date | **bottom-right**, `right/bottom: var(--safe)`, under `.now-playing` — which is lifted 74px unconditionally to make room |
+| The hour | `bottom: var(--safe)` | **`--hour-lift: -62px`** on this surface, to clear the caption beneath it. Returns to the margin at night, when the caption fades out |
+| `PLANE_CARD_MID_Y` | 524 — band bounded by the pill's `y227` above and the hour's `y833` below | **462** — the band lost 62 at the bottom (the hour rose) and gained the same 62 at the top (the pill left the corner). **The height did not change: 550.** |
+
+🔑 **`--hour-lift` and `PLANE_CARD_MID_Y` are ONE number in two files.** The hour is the
+card's floor. Move either by 62 without the other and the photograph lands on the clock;
+`tests/v3-archive.spec.js` measures the painted card against the painted hour so the pair
+is checked rather than trusted.
+
+🔑 **The caption's cap is the GHOST, not the media column.** The ghost's `closest-side`
+radial mask is centred on (1470, 820) with a 350px radius; at the caption's band
+(y945–984) the mask first has alpha at `x = 1470 - sqrt(350² - 145²) = 1152`. 1050 keeps
+the line's far edge at x1146. A longer caption ellipsizes rather than sliding under a
+lifted photograph — `--ink-dim` over a mid-grey wash is the 1.96:1 shape this house has
+already paid for once.
+
+### ⏳ STILL OPEN: the portrait case, and the premise has changed
+
+The brief measured its geometry for a **landscape** memory (978 wide). A portrait paints
+at **413** and the card is left-pinned at 88, which used to leave ~890px of near-empty wall
+between the card and the plate. **The plate is no longer there** — it is in the bottom-left
+corner — so that specific gap no longer exists, and the right-hand half of the wall now
+holds the sky, the engraved year, the soft ghost, the media and the pill.
+
+⚠ **A portrait is still 413 × 550, unchanged**, and it cannot grow without MOVING: the only
+height left is below y743, and that belongs to the hour, which is directly beneath the
+left-pinned card. Making a portrait bigger means giving up the left pin for tall prints —
+a print hung where it fits rather than always at the same edge. **That is an owner call
+and it has not been made.** Judge it on the glass first: the composition it sits in is not
+the one the original complaint was about.
+
+---
+
 > **Status: NOT STARTED. Fully unblocked.** The design is settled, published and
 > approved by the owner; nothing is waiting on a decision. What is left is code.
 >

@@ -3,8 +3,8 @@ import { fileURLToPath } from "node:url";
 import { test, expect } from "./fixtures/coverage.js";
 import {
   dayLine,
-  memoryHint,
   plateForFrame,
+  plateLine,
   skyLine,
   yearPositions
 } from "../src/v3/core/archive.js";
@@ -101,7 +101,17 @@ const asset = (extra = {}) => ({
 
 test("the plate names the place, the year and who was there", () => {
   const plate = plateForFrame([asset({ people: ["Melanie"] })], new Date("2026-08-18"));
-  expect(plate).toEqual({ year: "2019", title: "Nudgee", who: "Melanie" });
+  /* ⚠ `place` RIDES ALONGSIDE `title` EVEN THOUGH title IS DERIVED FROM IT.
+     The plane surface's one-line caption has to know whether the title is a real
+     place or the relative-year fallback, and re-deriving that by running
+     `relativeYearPhrase` again and comparing strings would go wrong the day the
+     phrasing changes. */
+  expect(plate).toEqual({
+    year: "2019",
+    title: "Nudgee",
+    place: "Nudgee",
+    who: "Melanie"
+  });
 });
 
 test("with no place the plate STILL SPEAKS — it says the year in words", () => {
@@ -110,7 +120,14 @@ test("with no place the plate STILL SPEAKS — it says the year in words", () =>
      plate absent on most days. A whole day's set captioned as bare years is not
      an edge case, it was 100% of the surface. */
   const plate = plateForFrame([asset({ city: null, country: null })], new Date("2026-08-18"));
-  expect(plate).toEqual({ year: "2019", title: "Seven years ago today", who: null });
+  expect(plate).toEqual({
+    year: "2019",
+    title: "Seven years ago today",
+    // Null, and that is what the plane's caption reads to know the title is a
+    // phrase rather than a place.
+    place: null,
+    who: null
+  });
 });
 
 test("no year at all means no plate: silence is the default", () => {
@@ -208,18 +225,28 @@ test("the sky survives losing any part of itself", () => {
   expect(skyLine({ now: { temp_c: 19 }, day: { high_c: 17 } })).toBe("19°");
 });
 
-test("the spine's surviving sentence counts memories, and says nothing at zero", () => {
-  expect(memoryHint(6)).toBe("six memories from this date");
-  // One is still worth saying, and it is not "one memories".
-  expect(memoryHint(1)).toBe("one memory from this date");
-  // Past twelve the numeral is the calmer object.
-  expect(memoryHint(17)).toBe("17 memories from this date");
-  /* ⚠ ZERO IS NULL, NOT "no memories". The pool is empty before the day's fetch
-     lands and on the random fallback, so a wall that renders this eagerly says
-     "no memories from this date" over a photograph from this date. */
-  expect(memoryHint(0)).toBeNull();
-  expect(memoryHint(null)).toBeNull();
-  expect(memoryHint(undefined)).toBeNull();
+test("the caption is ONE line, and every part after the year is optional", () => {
+  /* ⚠⚠ THIS REPLACED A FOUR-ROW PLATE AND A COUNTED SENTENCE. Owner at the wall
+     2026-09-05: the section "doesn't need to take up so much screen real estate",
+     and of the count, "that is information not needed". `memoryHint()` went with
+     it — it had one reader and this was it. */
+  expect(plateLine({ year: "2019", place: "Nudgee", who: "Melanie" }))
+    .toBe("On this day · 2019 · Nudgee · Melanie");
+  expect(plateLine({ year: "2019", place: "Nudgee", who: null }))
+    .toBe("On this day · 2019 · Nudgee");
+
+  /* ⚠ THE RELATIVE-YEAR PHRASE DOES NOT REACH THIS LINE, and dropping it is the
+     decision rather than an omission. "Seven years ago today" was written to be
+     SET at 72px in the said voice; at 32px in a corner, beside a numeral the same
+     line already carries, it is one fact twice. A memory with no place says the
+     year and stops — which is exactly what the eyebrow always said. */
+  expect(plateLine({ year: "2019", title: "Seven years ago today", place: null, who: null }))
+    .toBe("On this day · 2019");
+
+  // No plate is no line, and no line is no node on the glass.
+  expect(plateLine(null)).toBeNull();
+  expect(plateLine({})).toBeNull();
+  expect(plateLine({ year: "" })).toBeNull();
 });
 
 // ── ONE PLANE: the card's rectangle ─────────────────────────────────────────
@@ -231,7 +258,12 @@ test("the plane's card is a DIFFERENT box, and the two must not be merged", () =
      plane-space rectangle that lands where a person wants it is a different
      rectangle — and sharing constants would mean tuning one silently moved the
      other, while only one of them is ever on the glass. */
-  expect(cardRectForPlane(16 / 9)).toEqual({ w: 978, h: 550, left: 88, top: 249 });
+  /* ⚠ `top` MOVED 249 → 187 ON 2026-09-05, and the height did not move at all.
+     The band lost 62px at the bottom — the hour rides `--hour-lift: -62px` to
+     clear the caption line that took the bottom of its column — and gained the
+     same 62 at the top, because the fault pill left the top-left corner and the
+     card now only has to clear the date's y152 rather than the pill's y227. */
+  expect(cardRectForPlane(16 / 9)).toEqual({ w: 978, h: 550, left: 88, top: 187 });
   expect(cardRectFor(16 / 9)).toMatchObject({ w: 1040, h: 585, left: 130 });
 
   /* ⚠ AND A WIDTH-BOUND ASPECT, WHICH IS THE ONLY ONE THAT CAN SEE `maxW`.
@@ -240,7 +272,7 @@ test("the plane's card is a DIFFERENT box, and the two must not be merged", () =
      HEIGHT-bound — 550 caps first and the width falls out of it. The hinge is
      1000/550 = 1.818, so anything wider than that is width-bound. A 2:1
      panorama is the case that reads the constant. */
-  expect(cardRectForPlane(2)).toEqual({ w: 1000, h: 500, left: 88, top: 274 });
+  expect(cardRectForPlane(2)).toEqual({ w: 1000, h: 500, left: 88, top: 212 });
 });
 
 test("the plane's card follows the print too, and pins its left edge", () => {
@@ -252,7 +284,10 @@ test("the plane's card follows the print too, and pins its left edge", () => {
   expect(portrait.left).toBe(88);
   expect(cardRectForPlane(16 / 9).left).toBe(88);
   // Grown about one centre, so the card does not drop toward the hour.
-  expect(portrait.top + portrait.h / 2).toBeCloseTo(524, 1);
+  // ⚠ 462, NOT 524, AND IT IS PAIRED WITH `--hour-lift` IN archive.css. The hour
+  // is the card's floor; move one by 62 without the other and the photograph
+  // lands on the clock.
+  expect(portrait.top + portrait.h / 2).toBeCloseTo(462, 1);
 });
 
 test("the plane's card has no echo tile, because there is no tiled echo", () => {
@@ -1179,7 +1214,7 @@ const planeProbe = (page) =>
       perspective: scene ? getComputedStyle(scene).perspective : null,
       perspectiveOrigin: scene ? getComputedStyle(scene).perspectiveOrigin : null,
       /* ⚠ `*Rect`, NOT `card`/`sky`. `window.__archive()` already answers `card`,
-         `sky`, `day` and `hint`, and a rect spread over the top of one of them
+         `sky`, `day` and `line`, and a rect spread over the top of one of them
          is a probe quietly measuring a different question than the assertion
          reads — `expect(probe.sky).toBeNull()` passed a 0x0 rect and failed on
          "nothing said", which is the same fact wearing the wrong name. */
@@ -1209,7 +1244,7 @@ test("the plane's flag OFF leaves the shipped composition exactly as it is", asy
   // Not merely unpainted — never built, so there is nothing to say either.
   expect(probe.day).toBeNull();
   expect(probe.sky).toBeNull();
-  expect(probe.hint).toBeNull();
+  expect(probe.line).toBeNull();
   // And the fault pill keeps the corner it has always had.
   const faultTop = await page.evaluate(() => {
     const f = document.getElementById("fault");
@@ -1321,13 +1356,19 @@ test("the year spine is DELETED — not hidden, not empty", async ({ page }) => 
   expect(probe.hasStrip).toBe(false);
   expect(await page.locator("canvas.archive__strip").count()).toBe(0);
 
-  /* And what it was saying is still on the wall. The pool is four memories, so
-     the sentence is the count and not a year list — asserted as the TEXT rather
+  /* ⚠ AND WHAT IT WAS SAYING IS SAID BY NOBODY NOW. The ruler's fact came back
+     for a day as a counted sentence under the plate — "four memories from this
+     date" — and the owner took it off the wall on 2026-09-05: "that is
+     information not needed". `memoryHint()` is deleted, not hidden.
+
+     What IS still on the wall is the caption, and it is asserted as TEXT rather
      than as "something is there", because a surface driven by a scored lane can
-     put someone else's words in a node the spec never wrote. */
+     put someone else's words into a node the spec never wrote. The pool is four
+     Nudgee memories across four years, so the year is the card's and the shape
+     is the assertion. */
   await expect
-    .poll(() => page.evaluate(() => window.__archive().hint))
-    .toBe("four memories from this date");
+    .poll(() => page.evaluate(() => window.__archive().line))
+    .toMatch(/^On this day · 20\d\d · Nudgee$/);
 
   expect(pageErrors).toEqual([]);
 });
@@ -1383,19 +1424,21 @@ test("ONE ghost, lifted rather than crushed, and with no edge to read", async ({
   expect(probe.mask).toMatch(/rgba\(0,\s*0,\s*0,\s*0\)|transparent/);
 });
 
-test("the card's PAINTED rect clears the pill's furthest reach and the hour", async ({ page }) => {
-  /* 🔑 THE CARD'S TOP EDGE IS SET BY HOW FAR THE FAULT PILL CAN REACH, NOT BY
-     TASTE. The first draft of this design put the card at y152 and the pill
-     landed on its corner — the original complaint, reproduced.
+test("the card's PAINTED rect clears the date above it and the hour below", async ({ page }) => {
+  /* 🔑 THE CARD'S BAND IS SET BY THE TWO STACKS IT SITS BETWEEN, NOT BY TASTE.
+     It used to be the fault pill above — the first draft put the card at y152
+     and the pill landed on its corner, the original complaint reproduced. The
+     pill left the top-left corner on 2026-09-05, so the ceiling is the date and
+     the floor is the hour, which now rides 62px higher to clear the caption.
 
      ⚠⚠ MEASURED, NOT COMPUTED. Under this lens the card's far half is NEARER
      the eye than the origin, so the painted box is a few percent LARGER than
      the CSS numbers in both axes; sizing from the stylesheet alone puts the
      card through the hour.
 
-     ⚠ AND THE PILL IS FORCED VISIBLE. It is `hidden` on a healthy house, so a
-     rect taken as-is is 0x0 and this test would pass against a card sitting on
-     top of a fault nobody had yet. */
+     ⚠ AND THE PILL IS STILL FORCED VISIBLE, for its own assertions below. It is
+     `hidden` on a healthy house, so a rect taken as-is is 0x0 — and a 0x0 rect
+     at the origin passes every "does not overlap" check ever written. */
   const pageErrors = await bootArchive(page, { v3ArchivePlane: true, weather: WEATHER });
   await groundShown(page);
   await expect.poll(() => page.evaluate(() => window.__archive().sky)).not.toBeNull();
@@ -1410,21 +1453,40 @@ test("the card's PAINTED rect clears the pill's furthest reach and the hour", as
       sky: r(".archive__sky"),
       fault: r("#fault"),
       card: r(".archive__card-plane"),
-      hour: r("#hour")
+      hour: r("#hour"),
+      caption: r(".archive__plate"),
+      media: r(".now-playing")
     };
   });
 
-  // The top-left stack: date, a gap, then the pill stepped down to make room.
+  // The top-left stack is the date and NOTHING ELSE now.
   expect(probe.date.top).toBe(96);
   expect(probe.date.bottom).toBeCloseTo(152, 0);
-  expect(probe.fault.top).toBe(168);
-  expect(probe.fault.bottom).toBeLessThanOrEqual(240);
 
-  // Nothing lands on the pill's corner, and the pill never lands on the card's.
+  /* ⚠⚠ THE PILL IS IN THE OTHER CORNER, AND THIS IS THE ASSERTION THAT SAYS SO.
+     Owner 2026-09-05: "up top left is distracting — would put them below the
+     media on bottom right". A rule that only moved `top` would leave it pinned to
+     `left: var(--safe)` and drop it under the HOUR, which is the same defect in a
+     new place — so both axes are read. */
+  expect(probe.fault.right).toBeCloseTo(1824, 0);
+  expect(probe.fault.bottom).toBeCloseTo(984, 0);
+  expect(probe.fault.left, "the pill is still in the left half of the wall")
+    .toBeGreaterThan(960);
+
+  /* BELOW THE MEDIA, not on top of it. `.now-playing` is lifted by exactly the
+     pill's height plus its air, whether or not there is a fault — a lift that
+     depended on the pill being visible would move the artwork up the wall at the
+     moment a feed went down. */
+  expect(
+    probe.fault.top,
+    `pill starts at y${Math.round(probe.fault.top)}, media ends at y${Math.round(probe.media.bottom)}`
+  ).toBeGreaterThanOrEqual(probe.media.bottom);
+
+  // The card answers to the date above it now, not to the pill.
   expect(
     probe.card.top,
-    `card paints at y${Math.round(probe.card.top)}, pill ends at y${Math.round(probe.fault.bottom)}`
-  ).toBeGreaterThan(probe.fault.bottom);
+    `card paints at y${Math.round(probe.card.top)}, date ends at y${Math.round(probe.date.bottom)}`
+  ).toBeGreaterThan(probe.date.bottom);
   expect(probe.card.left).toBeGreaterThanOrEqual(96);
 
   // And it still clears the hour, which owns the bottom-left corner.
@@ -1432,6 +1494,17 @@ test("the card's PAINTED rect clears the pill's furthest reach and the hour", as
     probe.card.bottom,
     `card ends at y${Math.round(probe.card.bottom)}, hour starts at y${Math.round(probe.hour.top)}`
   ).toBeLessThan(probe.hour.top);
+
+  /* ⚠ AND THE HOUR CLEARS THE CAPTION, which is the other half of the same
+     agreement. `--hour-lift` and `PLANE_CARD_MID_Y` moved by the same 62 on the
+     same day; if the lift were dropped the clock would sit ON the line it made
+     room for, and the card assertion above would still pass. */
+  expect(
+    probe.hour.bottom,
+    `hour ends at y${Math.round(probe.hour.bottom)}, caption starts at y${Math.round(probe.caption.top)}`
+  ).toBeLessThanOrEqual(probe.caption.top);
+  expect(probe.caption.bottom).toBeCloseTo(984, 0);
+  expect(probe.caption.left).toBe(96);
 
   /* THE PHOTOGRAPH IS STILL THE HERO. A build that shrank the card to make room
      for something else is precisely what the panel rejected once already.
@@ -1575,9 +1648,27 @@ test("after dark the wall is a photograph and an hour, not an instrument panel",
       )
     );
 
+  /* ⚠⚠ POLLED, NEVER READ ONCE, AND THIS COST A RED SUITE. `--hour-lift` is a
+     TRANSITIONED transform: it eases in over --m-calm the instant `data-archive`
+     latches, which happens somewhere inside `groundShown`. The first draft read
+     the rect straight afterwards and got 923.31 against an expected 922 — not a
+     wrong number, a sample of an animation still in flight. The tell was the
+     computed matrix, `matrix(1, 0, 0, 1, 0, -61.1564)` rather than -62.
+
+     ⚠ AND `toBeCloseTo(x, 0)` IS ±0.5, WHICH IS NOT A SUB-PIXEL TOLERANCE. It is
+     tight enough to catch a transform mid-ease and loose enough to look
+     forgiving, which is the worst of both. Polled to the settled value instead. */
+  const hourBottom = () =>
+    page.evaluate(() => document.querySelector("#hour").getBoundingClientRect().bottom);
+  const settledHourBottom = async (want) => {
+    await expect.poll(() => hourBottom(), { timeout: 10_000 }).toBeCloseTo(want, 0);
+  };
+
   const day = await read();
   expect(day[".archive__date"]).toBe(1);
   expect(day[".archive__sky"]).toBe(1);
+  // Lifted, in daylight, to clear the caption line under it. 1080 - 96 - 62.
+  await settledHourBottom(922);
 
   /* ⚠ POLLED TO A SETTLED VALUE. The three that go out do NOT share a duration
      — the sky eases over --m-calm (350ms) and the plate over 2.4s — so there is
@@ -1605,6 +1696,16 @@ test("after dark the wall is a photograph and an hour, not an instrument panel",
   // household loses its clock at 2am.
   const night = await read();
   expect(night[".hour"]).toBe(1);
+
+  /* ⚠ AND IT TAKES ITS CORNER BACK. `--hour-lift` exists to clear the caption,
+     and the caption is what just faded to zero — a lift that stayed would leave
+     the clock floating 62px off the safe margin for a line nobody can see, which
+     is a position with no cause and the exact complaint this rebuild answers.
+
+     ⚠ POLLED, for the reason the block above gives: this is a transform easing
+     over --m-calm, and the value read at the instant the opacities settle is
+     whatever frame the compositor happened to be on. */
+  await settledHourBottom(984);
 });
 
 test("the frame does not move — only the image inside it", async ({ page }) => {
@@ -1659,7 +1760,7 @@ test("the plane's own words clear WCAG AA over the surface they sit on", async (
      already carries a guard against. */
   await bootArchive(page, { v3ArchivePlane: true, weather: WEATHER });
   await groundShown(page);
-  await expect.poll(() => page.evaluate(() => window.__archive().hint)).not.toBeNull();
+  await expect.poll(() => page.evaluate(() => window.__archive().line)).not.toBeNull();
   await expect.poll(() => page.evaluate(() => window.__archive().sky)).not.toBeNull();
 
   const rows = await page.evaluate(() => {
@@ -1675,7 +1776,7 @@ test("the plane's own words clear WCAG AA over the surface they sit on", async (
       return [d[0] / 255, d[1] / 255, d[2] / 255];
     };
     const ground = getComputedStyle(document.getElementById("archive")).backgroundColor;
-    return [".archive__date", ".archive__sky", ".archive__hint"]
+    return [".archive__date", ".archive__sky", ".archive__line"]
       .map((sel) => document.querySelector(sel))
       .filter((el) => el && el.textContent.trim() && el.dataset.blank !== "1")
       .map((el) => {
@@ -1689,10 +1790,16 @@ test("the plane's own words clear WCAG AA over the surface they sit on", async (
       });
   });
 
-  // All three, and the count is the guard: a row that went silent would drop
-  // out of this list and take its own measurement with it.
+  /* All three, and the count is the guard: a row that went silent would drop out
+     of this list and take its own measurement with it.
+
+     ⚠⚠ `.archive__line` IS THE ONE THAT LOST ITS GROUND. As a plate row it read
+     against `--surface-sunk` at 0.72; in the bottom-left corner it reads against
+     the archive's own opaque `--surface`, exactly as the date and the sky above
+     it always have. That is the whole reason the backdrop could be dropped, and
+     this measurement is what says so rather than the argument in the stylesheet. */
   expect(rows.map((r) => r.cls).sort())
-    .toEqual(["archive__date", "archive__hint", "archive__sky"]);
+    .toEqual(["archive__date", "archive__line", "archive__sky"]);
   for (const row of rows) {
     const ratio = contrastRatio(row.ink, row.backdrop);
     expect(ratio, `${row.cls} at ${row.fontSize}px reads ${ratio.toFixed(2)}:1`)
@@ -1931,7 +2038,7 @@ test("the plane's whole rollback is one attribute", () => {
      on a row that is deliberately silent cannot paint anything anywhere, so it
      is allowed to stand unscoped beside the `[data-blank]` rules the shipped
      composition already carries. */
-  const OWN = ["archive__plane", "archive__date", "archive__sky", "archive__hint"];
+  const OWN = ["archive__plane", "archive__date", "archive__sky", "archive__line"];
   for (const rule of rules()) {
     const selector = rule.slice(0, rule.indexOf("{"));
     if (!OWN.some((cls) => selector.includes(cls))) continue;
@@ -1954,13 +2061,24 @@ test("the frame does not move: the card-wrap's pivot is switched OFF, not re-tim
   expect(rule).toMatch(/animation:\s*none/);
 });
 
-test("the pill's step-down is undone under reduced motion", () => {
-  /* ⚠ THE ONE THING THIS COMPOSITION CHANGES OUTSIDE ITS OWN LAYER. Reduced
-     motion takes `.archive` off the glass entirely, so the date that the pill
-     stepped down for is not there — and a pill sitting 72px low over a
-     full-bleed photograph with nothing above it is a defect with no author.
-     The reduced-motion surface IS the flag-off surface, so anything the plane
-     reaches outside itself has to be answered twice. */
+test("all THREE things the plane moves outside its layer are undone under reduced motion", () => {
+  /* ⚠ REDUCED MOTION TAKES `.archive` OFF THE GLASS ENTIRELY, so everything this
+     composition changes INSIDE its own layer goes with it for free. What does not
+     go with it is anything it reaches outside — and on 2026-09-05 that went from
+     one rule to three:
+
+       the pill        or it sits bottom-right on top of a media block that has
+                       not moved
+       the hour        or it rides 62px high for a caption that is not there
+       what's playing  or it floats 74px up for a pill that is elsewhere
+
+     The reduced-motion surface IS the flag-off surface. This test is the reason
+     the second and third were not forgotten: it had already caught the first. */
   const reduced = css().slice(css().lastIndexOf("prefers-reduced-motion"));
   expect(reduced).toMatch(/\.fault\s*\{\s*top:\s*var\(--safe\)/);
+  // Both axes: a pill returned to `top` but left on `right` is still in the
+  // wrong corner, and `top: var(--safe)` alone would say it was fixed.
+  expect(reduced).toMatch(/left:\s*var\(--safe\)/);
+  expect(reduced).toMatch(/--hour-lift:\s*0px/);
+  expect(reduced).toMatch(/\.now-playing\s*\{\s*bottom:\s*var\(--safe\)/);
 });

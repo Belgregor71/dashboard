@@ -74,6 +74,25 @@ async function bootV3(page, { flags = {} } = {}) {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
 
+  /* ⚠⚠ `v3Archive` PINNED OFF, 2026-09-05, and it is what makes "the hour does
+     not move when music starts" a real assertion again. The ambient archive
+     lifts the hour 62px (`--hour-lift`) so it clears the caption line beneath
+     it, and that lift is a TRANSITIONED transform — it eases in over --m-calm
+     the moment `data-archive` latches, which is somewhere inside this file's
+     boot. A `before` rect captured during that ease and an `after` captured
+     after it differ by a fraction of a pixel, and the test goes red reporting
+     that music moved the clock. It did not: the archive did, and it had already
+     started before the test began.
+
+     🔑 The tell was the computed matrix — `matrix(1, 0, 0, 1, 0, -61.1564)`
+     rather than -62. A rect read off a mid-transition transform is a sample of
+     an animation, not a measurement of a layout.
+
+     The archive surface's own bottom-left agreement — the hour clearing the
+     caption, the card clearing the hour — is measured in v3-archive.spec.js,
+     polled to settled values. A caller may still override this explicitly. */
+  flags = { v3Archive: false, ...flags };
+
   await page.route("**/js/config.js", async (route) => {
     const res = await route.fetch();
     const body = (await res.text()) +

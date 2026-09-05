@@ -57,7 +57,22 @@ async function bootV3(page, { flags = {} } = {}) {
      shipped still works, which is what makes `v3MediaRooms: false` a real revert
      rather than a switch into an untested state. So the pin is deliberate and must
      survive — a caller may still override it explicitly. */
-  flags = { v3MediaRooms: false, ...flags };
+  /* ⚠⚠ AND `v3Archive` IS PINNED OFF FOR THE SAME KIND OF REASON, added
+     2026-09-05. This file measures the band OVER A PHOTOGRAPH, under `--scrim`:
+     the 240px ceiling below is the part of the frame core/scrim.js solved to
+     >=85% of its opacity, and every assertion about the bottom-right corner here
+     is really an assertion about that scrim. The ambient archive replaces depth 0
+     with an OPAQUE `--surface` layer where no scrim exists or is needed, and on
+     that surface the band is deliberately lifted 74px to seat the fault pill
+     beneath it — so a page booted with the archive on measures a different
+     corner against a rule written for this one.
+
+     ⚠ It is a PIN, not a claim that the combination is untested: the archive
+     surface's own version of this corner — the pill under the band, the band
+     clear of the caption — is measured in tests/v3-archive.spec.js against the
+     PAINTED rects. Splitting them is what keeps each assertion about one
+     surface. A caller may still override this explicitly. */
+  flags = { v3MediaRooms: false, v3Archive: false, ...flags };
 
   await page.route("**/js/config.js", async (route) => {
     const res = await route.fetch();
