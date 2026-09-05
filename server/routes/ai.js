@@ -2,6 +2,7 @@ import express from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import { loopbackOnly } from "../middleware/security.js";
 import { reportFailure, reportSuccess } from "../services/healthService.js";
+import { houseCharacter } from "../services/character.js";
 
 const router = express.Router();
 
@@ -66,6 +67,130 @@ const SYSTEM_PROMPTS = {
    asked for. Guarded on both sides now: the route 400s an unknown type, and
    tests/ai-brief-callers.spec.js holds every caller to this list. */
 export const SYSTEM_PROMPTS_TYPES = Object.keys(SYSTEM_PROMPTS);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE SAME THREE PROMPTS, SPOKEN BY THE HOUSE (docs/design/CHARACTER.md).
+
+   VOICE.md:12 has said since 2026-08-15 that it "is deliberately describing
+   two voices": the converse lane moved onto CHARACTER.md and every other
+   surface stayed on VOICE_REGISTER — i.e. on "Kath & Kim energy", which
+   CHARACTER.md's own opening note calls a costume rather than a character,
+   because it points at somebody else's person and borrows the outline. These
+   three briefings are the highest-frequency surface still wearing it: the
+   house speaks them unprompted, twice a day, at a wall nobody has to ask.
+
+   ⚠⚠ SWAPPING THE REGISTER ALONE WOULD HAVE BEEN WORSE THAN CHANGING NOTHING.
+   Each prompt below also carries two WORKED EXAMPLES, and the originals were
+   written in the old voice — "Bins go out tonight, gorgeous", "don't make me
+   say it twice", "like the sophisticated people you are". VOICE.md's own note
+   on this section says to treat them as copy, not comments. Leave them in
+   place under houseCharacter() and the prompt states one character while
+   demonstrating a different one twice; a model matches the demonstration. So
+   the exemplars are rewritten here, and they are the actual deliverable —
+   houseCharacter() is one line.
+
+   The rewritten examples are built to CHARACTER.md's rules rather than to a
+   vibe: the fact leads every one of them; the comedy is scale (a bin time to
+   the minute, a count of clear days) rather than volume; each is specific
+   where the old ones were effusive ("twelve millimetres since four", not "bit
+   of weather about"); and none performs intimacy — no "gorgeous", no chivvying,
+   which the character page bans outright as warmth it has not earned.
+
+   ⚠ Kept OUT of these, deliberately: the "keeping count" habit is allowed to
+   observe ("the latest all month") but never to score or correct, and the
+   photograph taste is absent entirely because no photograph is ever in a
+   briefing prompt — naming one it cannot see is the exact failure CHARACTER.md
+   records from 2026-08-16.
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* The exemplars, named rather than inlined. VOICE.md says to treat these as
+   copy, not comments, and copy that cannot be addressed cannot be reviewed or
+   tested — the first version of the spec tried to scrape them back out of the
+   assembled prompt and could not, because the character block is prose full of
+   apostrophes and quote-pairing finds nothing meaningful in it. Keeping them
+   as their own strings is what lets tests/ai-character.spec.js assert on the
+   demonstration separately from the description, which is the whole point:
+   the description is one line, the demonstration is the change. */
+const EXEMPLARS = {
+  morningQuiet:
+    "Nothing on the calendar, which I intend to enjoy. UV hits 8 by lunch, so a hat if you're out in it. Bins tonight — last week they went out at 8:41, the latest all month.",
+  morningBusy:
+    "Three things before lunch, which is the most this week. Cool start, twenty-one by the arvo. The wind swung southeast overnight and I have been watching it since four.",
+  eveningClear:
+    "Nothing left on the books tonight. Tomorrow is a top of twenty-six and clear, which is the best day of the week by a fair margin. Bins go out tonight.",
+  eveningBusy:
+    "One thing left, then you're done. Tomorrow: twenty-six and fine all day. That's four clear days running.",
+  conciergeWarm:
+    "Twenty-eight before nine — that's the whole day's argument.",
+  conciergeWinter:
+    "Clear and dead still. The best sort of winter morning.",
+};
+
+const CHARACTER_PROMPTS = {
+  morning: [
+    houseCharacter(),
+    TIME_GROUNDING,
+    "Respond in 3-4 short sentences of plain prose, no markdown, no lists.",
+    `Match this tone: '${EXEMPLARS.morningQuiet}'`,
+    `Or, on a busier day, the same voice: '${EXEMPLARS.morningBusy}'`,
+    "Those examples are style references ONLY — their content (bins, UV, wind, events) must not leak into your answer.",
+    "Use only the real details given below. Mention the practical stuff first — weather warnings, bins, calendar events, unusual traffic — then, if there's room, one dry aside about a news headline or the fuel price.",
+    "If a topic has no line in the data below (no Bins line, no Traffic line, etc.), it does not exist today — do not mention it at all.",
+    "The Chores line, when present, states whose turn it is — say the name as given, never swap it, and never invent a chore that has no line.",
+  ].join(" "),
+  evening: [
+    houseCharacter(),
+    TIME_GROUNDING,
+    "Respond in 3-4 short sentences of plain prose, no markdown, no lists.",
+    `Match this tone: '${EXEMPLARS.eveningClear}'`,
+    `Or, with something still on, the same voice: '${EXEMPLARS.eveningBusy}'`,
+    "Those examples are style references ONLY — their content (bins, weather, events) must not leak into your answer.",
+    "Use only the real details given below. Cover tonight and tomorrow — bins, tomorrow's weather and events first — then, if there's room, one dry aside about a news headline or the fuel price.",
+    "If a topic has no line in the data below (no Bins line, no Traffic line, etc.), it does not exist today — do not mention it at all.",
+    "The Chores line, when present, states whose turn it is — say the name as given, never swap it, and never invent a chore that has no line.",
+  ].join(" "),
+  concierge: [
+    "You are an ambient one-line observation on a wall dashboard. Output ONLY one short sentence, 12 words maximum, about the weather or time of day.",
+    houseCharacter(),
+    "Do not mention people, children, school, work, family, or events — only weather and the day itself. Do not greet.",
+    TIME_GROUNDING,
+    "Use only the weather facts provided below — never predict or invent conditions (no guessing about tomorrow, heat or rain). If no weather is given, riff on the time of day and the given season alone.",
+    `Match this tone: '${EXEMPLARS.conciergeWarm}' Or, on a winter morning in the same voice: '${EXEMPLARS.conciergeWinter}'`,
+  ].join(" "),
+};
+
+/* Both maps must offer the same three types: the route validates an incoming
+   `type` against SYSTEM_PROMPTS (the contract) and then resolves the text
+   through here, so a key present in one and missing from the other would 400
+   on one flag setting and serve on the other. Pinned by tests/ai-character.spec.js. */
+
+/* ⚠ READ PER CALL, NEVER AT MODULE SCOPE. server.js's static imports all
+   evaluate before its dotenv.config(), so a module-scope read sees undefined
+   on the G11 every time — exactly how KOKORO_VOICE was silently ignored for
+   weeks (project-voice-blend). Same reason VAULT_ENABLED is read per request
+   in routes/voice.js.
+
+   Default OFF, and off is byte-identical: SYSTEM_PROMPTS is untouched above
+   and this returns it unchanged, so a flag-off build sends the same prompt
+   string it sent before this block existed. Flipping the env var off is the
+   whole rollback — no deploy, just a dashboard.service restart.
+
+   Deliberately a NEW flag rather than HOUSE_CHARACTER_ENABLED, which is
+   already =1 on the kiosk: reusing it would have put this on the wall the
+   moment it deployed, with no flag-off soak and nothing to roll back to. */
+function characterBriefings() {
+  return process.env.HOUSE_CHARACTER_BRIEFINGS === "1";
+}
+
+export function systemPromptFor(type) {
+  return characterBriefings()
+    ? (CHARACTER_PROMPTS[type] ?? SYSTEM_PROMPTS[type])
+    : SYSTEM_PROMPTS[type];
+}
+
+/* Exported for the spec only — it asserts the two maps stay key-identical and
+   that the rewritten exemplars carry no old-register copy. */
+export const __CHARACTER_PROMPTS = CHARACTER_PROMPTS;
+export const __EXEMPLARS = EXEMPLARS;
 
 function buildPrompt({ type, time, weather, events, bins, chores, commute, fuel, news, home }) {
   const lines = [`Time: ${time ?? "unknown"}`];
@@ -160,7 +285,11 @@ router.post("/api/ai/brief", loopbackOnly("The briefing endpoint"), async (req, 
   }
 
   const type   = body.type ?? "morning";
-  const system = SYSTEM_PROMPTS[type];
+  // Validation above is against SYSTEM_PROMPTS (the contract); the text comes
+  // from systemPromptFor(), which is the same string unless the character
+  // briefings flag is set. Both generators — Claude and the Ollama fallback —
+  // are handed this one value, so the two never diverge in voice.
+  const system = systemPromptFor(type);
   const prompt = buildPrompt(body);
 
   try {
