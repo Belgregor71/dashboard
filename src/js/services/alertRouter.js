@@ -122,6 +122,31 @@ export function alertLine(location, personName = null) {
   return typeof entry === "function" ? entry(personName) : entry;
 }
 
+/* ── Why a dropped alert has to say WHICH kind of dropped ───────────────────
+   The feature census counted one `alert:<prefix>:dropped` bucket for all three
+   of these, and the resulting number cannot accuse anything. Read on the live
+   G11 2026-09-06, 8 days: doorbell 252 dropped / 108 routed, which looks like
+   70% of rings lost and is nothing of the kind — `inactive` fires on the `off`
+   edge after EVERY ring, so a healthy doorbell is guaranteed to out-drop its
+   own routes. Meanwhile `alert:side_gate` read 72/1 and there was no way to
+   tell a suppressed duplicate from a stale replay from a dead device.
+
+   Three distinct diagnoses that were one number:
+
+     inactive  the entity went to an off/idle state. ROUTINE — every ring ends
+               with one, so a high count here is health, not loss.
+     stale     older than `minFreshMs`. The SSE replay guard doing its job, or
+               a device delivering events late.
+     cooldown  suppressed as a duplicate inside ALERT_COOLDOWN_MS. THE ONLY ONE
+               that means a real event did not reach the screen.
+
+   ⚠ Existing `:dropped` counts stay in the stored census and are not migrated —
+   `baseOf()` keys the roster on `alert:<prefix>`, so the dead/alive verdict is
+   unaffected and only the outcome breakdown changes shape from today forward. */
+export const DROP_INACTIVE = "inactive";
+export const DROP_STALE = "stale";
+export const DROP_COOLDOWN = "cooldown";
+
 /**
  * The whole decision for one entity update, or null for "not an alert".
  *
@@ -135,19 +160,39 @@ export function alertLine(location, personName = null) {
  * has been reading `on` since this morning would announce a visitor at every
  * page load. A missing `last_changed` is treated as live, because that is what a
  * genuine push event looks like.
+ *
+ * `onDrop(reason)` is called for the three nulls that are a DOOR THAT DID NOT
+ * OPEN THE SCREEN, and never for the fourth. See DROP_* below.
  */
-export function routeAlert(entity, { now = Date.now(), cooldowns = null, minFreshMs = null } = {}) {
+export function routeAlert(
+  entity,
+  { now = Date.now(), cooldowns = null, minFreshMs = null, onDrop = null } = {}
+) {
   const location = locationFor(entity?.entity_id);
+  /* ⚠ NOT a drop, and deliberately unreported: every light switch, sensor and
+     media player in the house lands here on every SSE frame. Counting it would
+     bury the doorbell under thousands of rows — the reason alerts.js gates its
+     census call on `locationFor` too. */
   if (!location) return null;
-  if (!isActiveState(entity?.state)) return null;
+
+  if (!isActiveState(entity?.state)) {
+    onDrop?.(DROP_INACTIVE);
+    return null;
+  }
 
   if (minFreshMs != null && entity?.last_changed) {
     const changedAt = Date.parse(entity.last_changed);
-    if (Number.isFinite(changedAt) && now - changedAt > minFreshMs) return null;
+    if (Number.isFinite(changedAt) && now - changedAt > minFreshMs) {
+      onDrop?.(DROP_STALE);
+      return null;
+    }
   }
 
   if (cooldowns) {
-    if ((cooldowns.get(location.prefix) ?? 0) > now) return null;
+    if ((cooldowns.get(location.prefix) ?? 0) > now) {
+      onDrop?.(DROP_COOLDOWN);
+      return null;
+    }
     cooldowns.set(location.prefix, now + ALERT_COOLDOWN_MS);
   }
 

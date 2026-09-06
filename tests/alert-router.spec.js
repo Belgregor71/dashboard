@@ -5,7 +5,10 @@ import {
   locationFor,
   isActiveState,
   alertLine,
-  routeAlert
+  routeAlert,
+  DROP_INACTIVE,
+  DROP_STALE,
+  DROP_COOLDOWN
 } from "../src/js/services/alertRouter.js";
 import {
   VISITOR_KNOWN_LINES,
@@ -145,6 +148,60 @@ test("one ring per location per cooldown, and the two doors are independent", ()
 
   // And it comes back once the cooldown is spent.
   expect(routeAlert(ring(), { now: now + ALERT_COOLDOWN_MS + 1, cooldowns })).not.toBeNull();
+});
+
+/* ── The drop reason, because one bucket could not accuse anything ──────────
+   The census read doorbell 252 dropped / 108 routed and that number is
+   unreadable: `inactive` fires on the off-edge after every ring, so a perfectly
+   healthy doorbell out-drops its own routes roughly 2:1. Only `cooldown` means a
+   real event did not reach the screen. These assert the three causes are told
+   apart AND that the fourth null stays silent — a light switch must not be
+   counted as a dropped alert. */
+test("a dropped alert says which of the three drops it was", () => {
+  const now = Date.parse("2026-08-08T18:00:00Z");
+
+  const reasons = [];
+  const onDrop = (r) => reasons.push(r);
+
+  // 1. off-edge → inactive
+  expect(routeAlert(ring({ state: "off" }), { now, onDrop })).toBeNull();
+  expect(reasons).toEqual(["inactive"]);
+
+  // 2. older than the freshness window → stale
+  reasons.length = 0;
+  expect(routeAlert(
+    ring(at("2026-08-08T09:14:00Z")),
+    { now, minFreshMs: 30_000, onDrop }
+  )).toBeNull();
+  expect(reasons).toEqual(["stale"]);
+
+  // 3. suppressed duplicate → cooldown. The FIRST ring routes and reports nothing.
+  reasons.length = 0;
+  const cooldowns = new Map();
+  expect(routeAlert(ring(), { now, cooldowns, onDrop })).not.toBeNull();
+  expect(reasons, "a routed alert must not report a drop").toEqual([]);
+  expect(routeAlert(ring(), { now: now + 1000, cooldowns, onDrop })).toBeNull();
+  expect(reasons).toEqual(["cooldown"]);
+});
+
+test("an entity that is not a door is not a dropped alert", () => {
+  const now = Date.parse("2026-08-08T18:00:00Z");
+  const reasons = [];
+
+  expect(routeAlert(
+    { entity_id: "light.kitchen_bench", state: "off" },
+    { now, onDrop: (r) => reasons.push(r) }
+  )).toBeNull();
+  // Every light, sensor and media player in the house passes through here on
+  // every SSE frame. Counting them would bury the doorbell.
+  expect(reasons, "a non-trigger entity was counted as a dropped alert").toEqual([]);
+});
+
+test("the drop reasons are the three the census records, and routeAlert still returns null", () => {
+  // Guards the contract both callers and every other test in this file rely on:
+  // the reason rides out of band, the return value stays falsy.
+  expect([DROP_INACTIVE, DROP_STALE, DROP_COOLDOWN]).toEqual(["inactive", "stale", "cooldown"]);
+  expect(routeAlert(ring({ state: "off" }), { now: Date.now() })).toBeNull();
 });
 
 test("a sensor going off is not an event, and does not spend the cooldown", () => {

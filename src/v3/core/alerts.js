@@ -65,7 +65,17 @@ let last = null;
  * driving a real doorbell over CDP means finding someone to press it.
  */
 export async function raiseAlert(entity, { now = Date.now() } = {}) {
-  const alert = routeAlert(entity, { now, cooldowns, minFreshMs: ALERT_FRESH_MS });
+  /* Which of the three counted nulls happened, captured synchronously by the
+     callback below. routeAlert still returns bare null — both surfaces and
+     tests/alert-router.spec.js read it for truthiness — so the reason rides out
+     of band rather than changing the return contract. */
+  let dropReason = null;
+  const alert = routeAlert(entity, {
+    now,
+    cooldowns,
+    minFreshMs: ALERT_FRESH_MS,
+    onDrop: (reason) => { dropReason = reason; }
+  });
 
   /* Feature census (docs/AUGUST-IMPROVEMENTS.md §1). A no-op until
      initFeatureCensus() has run.
@@ -75,9 +85,16 @@ export async function raiseAlert(entity, { now = Date.now() } = {}) {
      older than the freshness window, inside the cooldown — and only the last
      three are a door that did not open the screen. An ordinary light switch
      returning null is not a dropped alert, and counting it as one would bury
-     the doorbell under thousands of rows of every other entity in the house. */
+     the doorbell under thousands of rows of every other entity in the house.
+
+     Those three are now recorded APART (DROP_* in alertRouter.js) because one
+     `dropped` bucket could not tell a routine off-edge from a suppressed
+     duplicate — see the block there for the numbers that forced this.
+     `?? "dropped"` is unreachable rather than defensive-for-its-own-sake: the
+     only null that leaves dropReason unset is `!location`, and that same
+     condition makes `seat` null so nothing is recorded at all. */
   const seat = locationFor(entity?.entity_id);
-  if (seat) record("alert", seat.prefix, alert ? "routed" : "dropped");
+  if (seat) record("alert", seat.prefix, alert ? "routed" : (dropReason ?? "dropped"));
 
   if (!alert) return null;
 

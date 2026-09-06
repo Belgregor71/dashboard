@@ -5,7 +5,8 @@ import {
   houseCacheAge,
   __resetHouseCache
 } from "../src/js/services/houseSnapshot.js";
-import { collectSources } from "../src/js/services/candidateSources.js";
+import { collectSources, cameraTriggerCandidate } from "../src/js/services/candidateSources.js";
+import { rankQueue } from "../src/js/services/attentionRank.js";
 
 /* houseSnapshot's contract. Pure-node — no browser, no server, no DOM — because
    that is the entire point of the module: the attention engine's inputs were
@@ -423,6 +424,40 @@ test("the last camera trigger is derived from last_changed, with no subscription
   expect(snap.cameraTriggerAt).toBe(entities[0].last_changed);
   expect(snap.cameraTriggerLabel).toMatch(/^Last triggered /);
   expect(collectSources(snap).find((c) => c.source === "cameraTrigger")).toBeTruthy();
+});
+
+/* ⚠⚠ THIS IS THE ASSERTION THE ABOVE ONE WAS MISSING, AND THE GAP SHIPPED A
+   DEAD FEATURE FOR THE WHOLE LIFE OF V3. `collectSources(...).find(...)` proves
+   the adapter PRODUCED a candidate; it proves nothing about whether the candidate
+   survives the queue. houseSnapshot supplies `cameraTriggerAt` as an ISO STRING,
+   so `expiresAt` was string-concatenated into "…Z900000", Number() of that is
+   NaN, and rankQueue drops anything whose expiresAt fails `> t`. Offered zero
+   times in 8 days on the live wall while 108 doorbell alerts routed.
+
+   So: assert it is STILL THERE AFTER RANKING, and assert the numeric type that
+   is the actual defect — a string expiresAt satisfies "is not null" perfectly. */
+test("a snapshot-derived camera trigger survives rankQueue, with a numeric lifetime", () => {
+  const entities = [sensor("binary_sensor.driveway_motion_detected", "off", 4)];
+  const snap = houseSnapshot({ now: NOW, entities });
+
+  expect(typeof snap.cameraTriggerAt).toBe("string"); // the input shape that broke it
+
+  const candidate = collectSources({ ...snap, now: NOW }).find((c) => c.source === "cameraTrigger");
+  expect(candidate).toBeTruthy();
+  expect(typeof candidate.expiresAt).toBe("number");
+  expect(Number.isFinite(candidate.expiresAt)).toBe(true);
+  expect(candidate.expiresAt).toBeGreaterThan(NOW.getTime());
+  expect(candidate.id).toMatch(/^camera-trigger:\d+$/);
+
+  const ranked = rankQueue([candidate], NOW);
+  expect(ranked.map((c) => c.source)).toContain("cameraTrigger");
+});
+
+test("an unparseable trigger stamp yields no candidate rather than a NaN lifetime", () => {
+  // The failure mode this guards is a candidate that exists and can never rank —
+  // strictly worse than absence, because the census reads it as "alive upstream".
+  const c = cameraTriggerCandidate({ cameraTriggerName: "driveway", cameraTriggerAt: "not a date" });
+  expect(c).toBeNull();
 });
 
 test("a sensor still detecting outranks a more recent one that has cleared", () => {

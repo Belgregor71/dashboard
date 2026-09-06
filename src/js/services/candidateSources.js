@@ -352,17 +352,49 @@ export function cameraSnapshotUrl({ cameraId, at, now = Date.now() } = {}) {
   return `/api/camera/${encodeURIComponent(cameraId)}/snapshot?ts=${ts}`;
 }
 
+/* ⚠⚠ THE TWO SURFACES SUPPLY DIFFERENT TYPES HERE, AND V3'S WAS SILENTLY DEAD.
+   Found by the feature census 2026-09-06, its first real catch: `attn:cameraTrigger`
+   offered ZERO across 8 days while 108 doorbell alerts routed on the same wall.
+
+   The incumbent (focusHero → cameraTiles) passes an epoch NUMBER — `Date.now()`
+   at cameraTiles.js:1113 — and has always worked. V3 (houseSnapshot.js:627)
+   passes `top.at.toISOString()`, a STRING, and `"…Z" + 900000` CONCATENATES:
+   expiresAt became "2026-09-06T04:12:33.000ZZ900000", `Number()` of it is NaN,
+   and rankQueue's `expiresAt > t` is false for NaN — so attentionRank.js:36
+   dropped the candidate on EVERY tick from the V3 cutover onward. `ageMs` was
+   NaN for the same reason, so `hot` could never be true either.
+
+   🔑 Why the suite stayed green: insights.spec.js passes a NUMBER, and
+   house-snapshot.spec.js asserted `collectSources(snap)` CONTAINS the candidate
+   without ever putting it through rankQueue. The candidate was produced; it just
+   never survived. A test proving a path CAN run proved nothing about the wall.
+
+   Normalised once, here, because SOURCES is shared by both surfaces — fixing
+   houseSnapshot alone would leave the next caller to rediscover this. */
+function epochMs(value) {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number") return Number.isFinite(value) ? value : Number.NaN;
+  if (typeof value === "string") return Date.parse(value);
+  return Number.NaN;
+}
+
 export function cameraTriggerCandidate({ cameraTriggerName, cameraTriggerAt, cameraTriggerLabel, cameraTriggerImage, now, timely } = {}) {
   if (!cameraTriggerName || !cameraTriggerAt) return null;
+  const atMs = epochMs(cameraTriggerAt);
+  /* An unparseable stamp is "no usable trigger", not a candidate with a NaN
+     lifetime — that is the shape this whole block exists to stop shipping. */
+  if (!Number.isFinite(atMs)) return null;
   /* Unlike the commute and the menu, this window is relative to the EVENT, not
      to the clock: someone reached the door, and it matters for the couple of
      minutes you might still catch them. After that it decays back to a stack
      card for the rest of its 15-minute life rather than vanishing, because a
      recent trigger is still worth having in the stack when you walk past. */
-  const ageMs = nowMs(now) - cameraTriggerAt;
+  const ageMs = nowMs(now) - atMs;
   const hot = Boolean(timely) && ageMs >= 0 && ageMs <= CAMERA_TRIGGER_HOT_MS;
   return {
-    id: `camera-trigger:${cameraTriggerAt}`,
+    /* Keyed on the canonical epoch so the id is one shape across both surfaces.
+       Unchanged for the incumbent, which already passed a number. */
+    id: `camera-trigger:${atMs}`,
     source: "cameraTrigger",
     icon: "📹",
     text: cameraTriggerLabel ? `${cameraTriggerName} · ${cameraTriggerLabel}` : cameraTriggerName,
@@ -374,7 +406,7 @@ export function cameraTriggerCandidate({ cameraTriggerName, cameraTriggerAt, cam
     sub: cameraTriggerLabel || null,
     score: hot ? IN_WINDOW_SCORE : 45,
     stackOnly: !hot, // outside the hot window: the lean-in stack, never the hero
-    expiresAt: cameraTriggerAt + CAMERA_TRIGGER_FRESH_MS,
+    expiresAt: atMs + CAMERA_TRIGGER_FRESH_MS,
     cooldownMs: 0
   };
 }
