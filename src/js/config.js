@@ -683,8 +683,21 @@ window.CONFIG = {
     // the incumbent is the rollback surface and must not drift while it is the
     // thing we fall back to.
     //
+    // ✅ VERIFIED LIVE on the G11 kiosk 2026-09-06 12:06 AEST, against the real
+    // renewed warning (sensor.nudgee_warnings, expiry 06T06:00Z), by CDP eval —
+    // flag toggled on the live page and ticked with __v3Tick, all three states
+    // in one pass:
+    //
+    //   off      score 95  interrupt true   reason "attention:bom"
+    //   ON       score 45  interrupt false  reason "attention:spread", depth 2
+    //   back off score 95  interrupt true   recovered
+    //
+    // Note the ON row is a DEMOTION, not a suppression: the warning is still in
+    // the queue (45, just above memory at 44) and still readable at the wall.
+    // It simply can no longer seize a room nobody is standing in.
+    //
     // One-line revert (-> false), and the flag-off queue is identical.
-    bomWarningSeverity: false,
+    bomWarningSeverity: true,
 
     // GROUND MEMORIES — the ambient photograph becomes "on this day".
     //
