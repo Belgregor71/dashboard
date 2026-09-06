@@ -17,16 +17,76 @@
 
 const SEVERE_WEATHER_PATTERN = /storm|severe|warning|heavy rain|flood/i;
 
-/** Active BOM warning — interrupt band; may override the AMBIENT floor. */
-export function bomCandidate({ bomWarning } = {}) {
+/* ── BOM warning severity ────────────────────────────────────────────────────
+   Until 2026-09-06 every BOM warning was score 95 + interrupt, flat: a MINOR
+   MARINE WIND WARNING FOR QUEENSLAND and a SEVERE THUNDERSTORM WARNING were the
+   same object, because the only field that survived the reader was `title`.
+
+   Measured on the live wall that morning:
+
+     hero  bom:Marine Wind Warning for Queensland   score 95  interrupt true
+     mode  ambient   present false   depth 1 held, reason "attention:bom"
+     next candidate  44
+
+   An empty room lit for a boating advisory covering the whole state, winning by
+   51 points, with BOM itself calling the thing `warning_group_type: "minor"`.
+
+   ⚠⚠ THE SCORE IS THE SMALLER HALF OF THIS, and getting that wrong makes the
+   whole change a no-op. `attentionRank.js` filters AMBIENT down to `interrupt`
+   candidates ONLY, and `earnsGlance` in v3/core/attention.js is
+   `hero.interrupt === true || hero.score >= bar`. Demote 95 → 45 and leave
+   `interrupt: true` and NOTHING moves on the glass: it is still the only
+   eligible candidate in an empty room, and it still earns the glance at any
+   score you like. Both fields move together, or neither does.
+
+   Marine warnings are demoted at EVERY severity, not just minor: this house is
+   not a boat, so even a severe marine warning is somebody else's emergency. A
+   severe LAND warning keeps the full 95 + interrupt — the wall must still be
+   able to say a storm is coming, and that is the failure this repo has already
+   had once in the other direction (`bomWarning` empty for weeks).
+
+   An unknown or absent `warning_group_type` keeps the old 95 + interrupt.
+   Absence is read as "severity unknown", never as "safe to ignore". */
+const MARINE_WARNING = /(^|_)marine(_|$)/;
+
+/** The un-gated behaviour, and the fallback whenever severity is unreadable. */
+const WARNING_DEFAULT = { score: 95, interrupt: true };
+
+const WARNING_TIERS = {
+  severe: { score: 95, interrupt: true },
+  moderate: { score: 75, interrupt: false },
+  minor: { score: 45, interrupt: false }
+};
+
+/**
+ * Score + interrupt for one warning, from BOM's own `type` and severity.
+ * Exported so a spec can assert the ladder without building a whole candidate.
+ */
+export function bomWarningTier(detail) {
+  if (!detail) return WARNING_DEFAULT;
+  if (MARINE_WARNING.test(detail.type || "")) return WARNING_TIERS.minor;
+  return WARNING_TIERS[detail.groupType] ?? WARNING_DEFAULT;
+}
+
+/**
+ * Active BOM warning. Interrupt band for a severe land warning; demoted to the
+ * Low band with `interrupt` OFF for anything minor or marine.
+ *
+ * ⚠ Gated on `bomSeverity` from the runtime, not read from CONFIG here — this
+ * module stays import-free and unit-testable in plain node, same as `timely`.
+ * Absent the flag, `bomWarningTier` is never consulted and the candidate is
+ * byte-identical to before.
+ */
+export function bomCandidate({ bomWarning, bomWarningDetail, bomSeverity } = {}) {
   if (!bomWarning) return null;
+  const tier = Boolean(bomSeverity) ? bomWarningTier(bomWarningDetail) : WARNING_DEFAULT;
   return {
     id: `bom:${bomWarning}`,
     source: "bom",
     icon: "⚠️",
     text: bomWarning,
-    score: 95,
-    interrupt: true,
+    score: tier.score,
+    interrupt: tier.interrupt,
     cooldownMs: 0
   };
 }

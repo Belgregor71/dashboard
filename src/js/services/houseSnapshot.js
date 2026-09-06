@@ -585,6 +585,11 @@ export function houseSnapshot({
 
   return {
     bomWarning: bom?.summary ?? null,
+    /* BOM's own severity/kind for the warning `bomWarning` names, so
+       bomCandidate can tell a severe thunderstorm from a minor marine advisory.
+       Null whenever the entity gave no structured warning — the ladder reads
+       that as "severity unknown" and leaves the old interrupt score alone. */
+    bomWarningDetail: bom?.top ?? null,
     robotProblems: robot?.problems ?? null,
     robotConsumables: robot?.consumables ?? null,
     insight,

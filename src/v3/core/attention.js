@@ -231,7 +231,10 @@ export function tickAttention(now = new Date()) {
     ...collectSources({
       ...state,
       now,
-      timely: Boolean(globalThis.window?.CONFIG?.features?.timelyCandidates)
+      timely: Boolean(globalThis.window?.CONFIG?.features?.timelyCandidates),
+      /* Same reason as `timely`: candidateSources is import-free, so the flag
+         rides in with the state rather than being read there. */
+      bomSeverity: Boolean(globalThis.window?.CONFIG?.features?.bomWarningSeverity)
     }),
     ...announced
   ];

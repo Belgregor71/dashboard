@@ -191,6 +191,37 @@ export function getBomForecastBundle(locationKey, dayIndex = 0, haStatesInput = 
   };
 }
 
+/* BOM's OWN severity and kind, carried alongside the title.
+   Live shape, read off sensor.nudgee_warnings on 2026-09-06:
+
+     { id: "QLD_MW013_IDQ20085", area_id: "QLD_MW013", state: "QLD",
+       type: "marine_wind_warning", warning_group_type: "minor",
+       title: "Marine Wind Warning for Queensland",
+       issue_time: "…", expiry_time: "…", phase: "renewal" }
+
+   Every one of those fields arrived at the wall and was thrown away one line
+   later, because this reader flattened the array to `item.title`. That is how a
+   MINOR MARINE warning covering the whole state reached the glass at interrupt
+   score in an empty room — nothing downstream of here could tell it apart from
+   a severe thunderstorm, since by then it was a bare string.
+
+   A warning that arrives as a plain string (some integrations do) yields no
+   detail at all, and that is deliberate: `null` means "no severity known", and
+   candidateSources reads that as the un-demoted default. Absence stays safe. */
+function warningDetail(item) {
+  if (!item || typeof item !== "object") return null;
+  const title = String(item.title || item.message || "").trim();
+  if (!title) return null;
+  return {
+    title,
+    type: String(item.type || "").trim().toLowerCase(),
+    groupType: String(item.warning_group_type || "").trim().toLowerCase(),
+    areaId: String(item.area_id || "").trim(),
+    state: String(item.state || "").trim(),
+    expiryTime: String(item.expiry_time || "").trim()
+  };
+}
+
 export function getBomWarnings(haStatesInput = null) {
   const haStates = haStatesInput || {};
   const configured = normalizeEntityId(CONFIG.weather?.bom?.warningsEntityId);
@@ -198,11 +229,24 @@ export function getBomWarnings(haStatesInput = null) {
   bomLog("warnings entity", { configured, resolved: warningsEntityId || "(none)" });
   const state = getEntityState(haStates, warningsEntityId, "");
   const attrWarnings = getEntityAttr(haStates, warningsEntityId, "warnings", []);
-  const messages = Array.isArray(attrWarnings)
-    ? attrWarnings.map((item) => (typeof item === "string" ? item : item?.title || item?.message || "")).filter(Boolean)
-    : [];
+  const items = Array.isArray(attrWarnings) ? attrWarnings : [];
+  const messages = items
+    .map((item) => (typeof item === "string" ? item : item?.title || item?.message || ""))
+    .filter(Boolean);
+  /* ⚠ `details` is NOT index-aligned with `messages` — a string-form warning
+     contributes a message and no detail. `top` is therefore the detail for the
+     FIRST STRUCTURED warning, which is the one `summary` names in every shape
+     the live entity actually produces. Read them as a pair, never by index. */
+  const details = items.map(warningDetail).filter(Boolean);
   const summary = messages[0] || (state && state !== "0" ? String(state) : "");
-  return { warningsEntityId, summary, count: messages.length || (summary ? 1 : 0), messages };
+  return {
+    warningsEntityId,
+    summary,
+    count: messages.length || (summary ? 1 : 0),
+    messages,
+    details,
+    top: details[0] ?? null
+  };
 }
 
 export function getBomHourlySeries(haStatesInput = null) {

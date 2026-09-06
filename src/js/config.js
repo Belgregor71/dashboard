@@ -657,6 +657,35 @@ window.CONFIG = {
     // ⚠ Windows are LOCAL time and half-open: 08:00 is already outside.
     timelyCandidates: true,
 
+    // BOM WARNING SEVERITY — not every warning is a storm.
+    //
+    // Off (default): every BOM warning is score 95 + interrupt, exactly as
+    // before. On: the warning's own `warning_group_type` and `type` set the
+    // score, and marine warnings are demoted at every severity.
+    //
+    //   severe (land) → 95, interrupt      a storm still takes the wall
+    //   moderate      → 75, no interrupt
+    //   minor         → 45, no interrupt
+    //   marine_*      → 45, no interrupt   any severity; this house is not a boat
+    //   unknown/absent→ 95, interrupt      absence is never read as "safe"
+    //
+    // Why it exists, measured on the live wall 2026-09-06 08:20: a MINOR MARINE
+    // WIND WARNING FOR QUEENSLAND (BOM's own words) was hero at 95 against a
+    // next-best of 44, holding depth 1 with `present: false` — the wall lit for
+    // a statewide boating advisory in an empty room, for hours.
+    //
+    // ⚠⚠ The `interrupt` half is what actually does the work. AMBIENT filters to
+    // interrupt-only candidates and `earnsGlance` is `interrupt || score >= bar`,
+    // so demoting the score alone is a NO-OP on the glass. Both move together.
+    //
+    // ⚠ V3 only, on the same reasoning as timelyCandidates above: focusHero and
+    // computeFocus (the incumbent) keep the flat ladder deliberately, because
+    // the incumbent is the rollback surface and must not drift while it is the
+    // thing we fall back to.
+    //
+    // One-line revert (-> false), and the flag-off queue is identical.
+    bomWarningSeverity: false,
+
     // GROUND MEMORIES — the ambient photograph becomes "on this day".
     //
     // The ground held ONE photograph for the whole day by design (see the long

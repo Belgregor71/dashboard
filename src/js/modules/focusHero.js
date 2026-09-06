@@ -123,8 +123,15 @@ function readState() {
   const cameraTrigger = cameraCandidateOn ? readCameraTrigger() : null;
   // Flag-off reads nothing, so the queue carries no robot candidate at all.
   const robot = robotCandidateOn ? robotAttentionFrom(getAllEntities()) : null;
+  const bom = getBomWarnings(getAllEntities());
   return {
-    bomWarning: getBomWarnings(getAllEntities()).summary || null,
+    bomWarning: bom.summary || null,
+    /* Read for SHAPE parity with houseSnapshot (tests/house-snapshot.spec.js
+       asserts the two key sets are equal), not for behaviour: this surface
+       never passes `bomSeverity`, so bomCandidate never consults the tier and
+       the incumbent keeps the flat 95 + interrupt. Same deliberate split as
+       `timely` — the incumbent is the rollback surface and must not drift. */
+    bomWarningDetail: bom.top ?? null,
     robotProblems: robot?.problems ?? null,
     robotConsumables: robot?.consumables ?? null,
     insight: getCurrentInsight(),
