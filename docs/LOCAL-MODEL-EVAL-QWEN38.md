@@ -1,6 +1,68 @@
 # Evaluation plan — Qwen3.8-27B on Mandragon, and DeepSeek Harness
 
-Written 2026-09-06. **Nothing here has been run.** This is the plan, not a result.
+# ⛔ RESULT: FAILED AT PHASE 0 — 2026-09-06. WEIGHTS DELETED.
+
+**The trial is closed. Qwen3.8-27B replaces neither lane. `devstral-small-2505`
+keeps the review lane, `gpt-oss-20b` keeps the bulk lane, and `/xreview` stays
+disabled.** Phases 1-4 were never started. Nothing here changed a flag, a
+default, or anything that ships to the kiosk.
+
+## 🔑 It calls tools and still says nothing — a state this plan had no row for
+
+```
+xreview-local: 1028s, 14 tool call(s), 0 Claude tokens, 0 cost
+stdout: no answer produced — rerun with --verbose to see where it stalled.
+```
+
+The adherence failure that killed `/xreview` (7/7 runs at **0 tool calls**) is
+genuinely **gone** — 14 calls, none garbled, the `LEAKED` regex never matched.
+A *different* failure replaced it: at step 8/24 the model returned no tool calls
+and empty `content` **and** empty `reasoning`, so `xreview-local.mjs:354-360`
+broke with `answer=''`, and the designed finalisation fallback (`:395`) burned
+both retries and also came back empty.
+
+⚠ **The tool-call count in the header is NOT the gate on its own — stdout has to
+be read too.** This plan's own warning, made real: *a reviewer that never
+converged reports nothing, which looks identical to one that found nothing.*
+
+Time also failed independently: **1028s against a PASS bar of a clean case under
+~200s**, ~6-7× devstral's 135-163s. Even a converging run was already out.
+
+## ⚠ Four premises below were WRONG — corrected against this box
+
+| the plan says | actually measured |
+|---|---|
+| `Q4_K_M` **17.1 GB**, "does not fit" | **15.33 GB.** Conclusion survives, margin does not — and **`UD-IQ4_XS` (13.27 GB) / `UD-Q4_K_S` (14.30 GB) are plausible full-GPU quants this plan never considered**, because the published sweep it trusted jumps Q4 → 2-bit |
+| take `UD-IQ3_XXS` | the plan's OWN rule is *largest ≤ ~12 GB* → **`UD-IQ3_S` (11.21 GiB)**, which is what was taken |
+| **69 GB** free on C: | **238 GB.** The "delete as you go" hazard was not real |
+| gate on `--range HEAD~1..HEAD` | ⛔ HEAD is this plan's **own docs commit** — one markdown file, pure insertions. A reviewer has nothing to open, so **0 calls would have been CORRECT behaviour scored as ⛔ STOP**, falsely killing the trial. Gated on `HEAD~3..HEAD~2` (`2439fec`, 8 files, src+specs) instead |
+
+Also measured, and worth keeping: the model **loads at 32768 ctx in 19.6s at
+12.08 GiB — 32K fits on the 16 GB card** with no K/V quantization, and the
+`mmproj-F16` vision projector downloads automatically alongside the weights. If
+a future 27B-class candidate is tried, neither needed the workaround this plan
+budgeted for.
+
+⚠⚠ **`lms get <short-name>` FAILS SILENTLY WITH EXIT 0** — it printed
+`Failed to resolve artifact` and still exited 0; nothing downloaded. HuggingFace
+models need the **full URL**, and a download is verified with `lms ls`, **never
+with the exit code**.
+
+## Why the Q4 control was NOT run
+
+This plan's control exists to separate *a 3-bit quantization failure* from *a bad
+model* **when the symptom is 0 tool calls**. The symptom was not 0 tool calls, so
+the control is the wrong instrument — it answers a question this run did not ask.
+Reopening the trial means the `--verbose` re-run the tool itself asks for, and
+would need a fresh download; the weights are gone.
+
+---
+
+*Everything below is the ORIGINAL PLAN as written before the run, kept intact so
+the verdict rules cannot be read as having drifted to fit the outcome. Read it as
+history — its numbers are corrected in the table above.*
+
+Written 2026-09-06. This is the plan, not a result.
 Every number below marked *measured* was measured somewhere else, on other
 hardware, by someone else; every number marked *estimate* is a guess. The whole
 point of the plan is to replace both with numbers from this box.
