@@ -1723,7 +1723,7 @@ window.CONFIG = {
     // second argument — the pinned rectangle, to the pixel. Proven by flipping
     // back on the live kiosk once, immediately after this flip, and watching the
     // wall return to the composition above.
-    v3ArchivePortrait: true,
+    v3ArchivePortrait: false,
 
     // ── The depth census ────────────────────────────────────────────────────
     // Asked on 2026-08-23 and unanswerable: how many times has each depth been
