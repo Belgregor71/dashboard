@@ -1699,11 +1699,31 @@ window.CONFIG = {
     //              reaches further left and --ink-dim over a mid-grey wash is the
     //              1.96:1 shape this house has already paid for once
     //
+    // ⚠⚠ FLIPPED DEFAULT-ON 2026-09-07, ON THE OWNER'S DIRECT INSTRUCTION AND
+    // BEFORE IT HAD BEEN SEEN ON THE GLASS — the same departure from the house
+    // ceremony that `v3ArchivePlane` records two blocks up, recorded here rather
+    // than smoothed over. The rule is "flip only after live Pi verification"; the
+    // owner read four before/after captures (portrait, day and night) and said
+    // flip. So the evidence behind this default at the moment of flipping was:
+    // the full suite green in BOTH flag states (1994 passed / 1 skipped each
+    // way), NINE injected defects of which eight went red for the reason named
+    // and the ninth exposed a test that could not fail, and painted geometry
+    // measured at 1920x1080 — not a person standing in the kitchen. The live
+    // check is step 5 of the flip and happens within minutes of this line.
+    //
+    // 🔑 THE MEASUREMENT THAT MADE IT A DEFECT, taken off the live wall at 17:44
+    // on the evening of the flip, with a real portrait memory up and `night=1`:
+    // the card painted x97-493, the engraved year x1094-1839 at `opacity: 0`.
+    // Six hundred pixels of bare wall between them, and nothing at all beyond the
+    // year's dead box to the screen edge.
+    //
     // ONE-LINE REVERT (-> false): `data-arch-portrait` is never written and
     // `--arch-portrait` stays 0, so every calc in archive.css reduces to the
     // number it holds today and `cardRectForPlane` is called with its default
-    // second argument — the pinned rectangle, to the pixel.
-    v3ArchivePortrait: false,
+    // second argument — the pinned rectangle, to the pixel. Proven by flipping
+    // back on the live kiosk once, immediately after this flip, and watching the
+    // wall return to the composition above.
+    v3ArchivePortrait: true,
 
     // ── The depth census ────────────────────────────────────────────────────
     // Asked on 2026-08-23 and unanswerable: how many times has each depth been
