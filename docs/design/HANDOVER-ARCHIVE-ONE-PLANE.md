@@ -42,6 +42,98 @@ the line's far edge at x1146. A longer caption ellipsizes rather than sliding un
 lifted photograph — `--ink-dim` over a mid-grey wash is the 1.96:1 shape this house has
 already paid for once.
 
+---
+
+## ✅ ANSWERED 2026-09-07 — the portrait goes into the middle (`features.v3ArchivePortrait`)
+
+**The owner call below was made.** Asked the one sentence — *should a portrait keep the
+left pin at 394px wide, or give up the pin so tall prints can grow into the middle?* — the
+answer was:
+
+> "go into the middle - might need to look at the posioning of the ghosts and year stamp
+> to balance the compostion"
+
+So all three objects move, not just the card. **Built flag-gated and default-off; the
+composition below is measured, not sketched.**
+
+### ⚠⚠ The evidence that made it a defect rather than a taste question
+
+The 2026-09-05 rebuttal in the section below — *"the plate is no longer there, so that gap
+no longer exists"* — **does not survive the night.** The night rule takes the engraved year
+to `opacity: 0`, and the year is the only thing occupying x1093–1838. Captured live over
+CDP on 2026-09-06 with a portrait memory up: after dark the wall from the card's right edge
+(494) to the right screen edge holds **nothing but the ghost — about 1,400px of it**, which
+is larger than the ~890 the original complaint named.
+
+### The rule: THE PRINT'S RIGHT EDGE IS THE WALL'S SPINE
+
+A landscape already ends at `88 + 978 = 1066`, which is exactly where the engraved year
+begins. A tall print slides right until it ends there too — so the print and the year meet
+at the same place whatever shape the memory is. That is a rule the composition can state,
+not a position somebody liked.
+
+| | Pinned (flag off) | Leaned (flag on, 3:4) |
+|---|---|---|
+| Card, CSS | 413 × 550 at (88, 187) | **495 × 660 at (571, 200)** |
+| Card, PAINTED | x97–495 · y185–738 | **x565–1071 · y187–873** |
+| Gap, card → year | **598px of bare wall** | **22px — they meet** |
+| Engraved year | y209–608, level with the card's top | **y331–730 — centred on the print** |
+| Ghost core | (1475, 813), far bottom-right | **(1305, 724), out from behind the print's right shoulder** |
+| Caption cap | 1050px | **900px** |
+
+### 🔑 ONE NUMBER FOR THREE OBJECTS — `portraitLean`
+
+0 at square-or-wider, 1 at 3:4 and every taller print, linear between. The card's rectangle
+is computed from it in JS; the year, the ghost and the caption's cap are computed from it in
+CSS as `--arch-portrait`. **At 0 every one of them reduces to the number it holds today**,
+which is what makes the flag-off path identical rather than merely close.
+
+A *hinge* at 1.0 was rejected: it moves the card ~325px between two photographs a person
+would call the same shape.
+
+### ⚠⚠ IT SLIDES BEFORE IT STANDS UP — and this was a real defect, found on the glass
+
+The first draft ramped the height on the same curve as the position. At aspect 0.9 that put
+the card at left 281 and 608 tall, and **its bottom-left corner landed on the clock** —
+exactly the collision `PLANE_CARD_MAX_H = 550` has always existed to prevent. The cap is not
+about height in the abstract; it is about a card standing over the hour.
+
+So there are **two ramps**: `lean` moves the card (and the year, the ghost, the caption),
+and `rise` grows it — and `rise` stays 0 until the un-grown card's left edge has cleared the
+hour's painted right edge (405) with air. `PLANE_PORTRAIT_RISE_CLEAR = 430`,
+`PLANE_PORTRAIT_RISE_SPAN = 120`. Swept across the whole aspect range in the spec rather
+than spot-checked, because the failure was at an aspect nobody thought to spot-check.
+
+### 🔑 The ghost and the year move on the TRANSFORM, never on `left`/`top`/`width`
+
+Both carry a forever-loop and this wall runs for weeks. Changing a masked, filtered
+1180×700 layer's box re-rasters it; composing another translate into a transform it is
+already animating costs the compositor nothing.
+
+⚠⚠ **And the lean has to be in the KEYFRAME as well as the base rule.** An animation's `to`
+*replaces* `transform` — it does not compose with the rule it came from — so a lean written
+only in the base rule is erased for most of every 130s cycle, and the ghost slowly swims
+180px back across the composition and then swims back. **An injected defect proved this and
+came back GREEN**: every geometry assertion in the spec reads the computed transform seconds
+into the cycle, where the base rule still holds. It is caught now by driving the Web
+Animations API to the end of the cycle and reading the transform there.
+
+### ⚠ The caption's cap follows the ghost, because the cap IS the ghost
+
+Re-run of the arithmetic below against the leaned ghost (painted x688–1921, y355–1093):
+centre (1305, 724), radius 370, so at the caption's band (dy = 241) the mask first has alpha
+at `x = 1305 - sqrt(370² - 241²) = 1024`. A cap of 900 puts the far edge at x996 — inside by
+28px, the same clearance 1050 buys against the unleaned ghost. The spec computes this from
+the **measured** ghost box, so moving the ghost again without moving the cap goes red.
+
+### ⏳ Owed
+
+**Not deployed and not flipped.** The owner has not yet seen it on the wall. The flip is a
+`/flag-flip v3ArchivePortrait` with its own rollback proof, and the on-state suite must be
+green first.
+
+---
+
 ### ⏳ STILL OPEN: the portrait case, and the premise has changed
 
 The brief measured its geometry for a **landscape** memory (978 wide). A portrait paints

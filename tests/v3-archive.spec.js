@@ -8,7 +8,12 @@ import {
   skyLine,
   yearPositions
 } from "../src/v3/core/archive.js";
-import { cardRectFor, cardRectForPlane } from "../src/js/services/archiveModel.js";
+import {
+  cardRectFor,
+  cardRectForPlane,
+  portraitLean,
+  ASPECT_MIN
+} from "../src/js/services/archiveModel.js";
 // The house's own contrast maths, so the archive is judged by the same
 // arithmetic the scrim solves with rather than by a second opinion.
 import { contrastRatio } from "../src/v3/core/scrim.js";
@@ -263,7 +268,15 @@ test("the plane's card is a DIFFERENT box, and the two must not be merged", () =
      clear the caption line that took the bottom of its column — and gained the
      same 62 at the top, because the fault pill left the top-left corner and the
      card now only has to clear the date's y152 rather than the pill's y227. */
-  expect(cardRectForPlane(16 / 9)).toEqual({ w: 978, h: 550, left: 88, top: 187 });
+  /* ⚠ `lean` AND `rise` ARE PART OF THE SHAPE, and asserting them here rather
+     than loosening this to `toMatchObject` is deliberate: with
+     `v3ArchivePortrait` off the second argument defaults false, and BOTH ramps
+     being 0 for every aspect is what "the flag-off rectangle is the one it has
+     always been" actually means. A `toMatchObject` would go green on a build
+     that leaned by default. */
+  expect(cardRectForPlane(16 / 9)).toEqual({
+    w: 978, h: 550, left: 88, top: 187, lean: 0, rise: 0
+  });
   expect(cardRectFor(16 / 9)).toMatchObject({ w: 1040, h: 585, left: 130 });
 
   /* ⚠ AND A WIDTH-BOUND ASPECT, WHICH IS THE ONLY ONE THAT CAN SEE `maxW`.
@@ -272,7 +285,9 @@ test("the plane's card is a DIFFERENT box, and the two must not be merged", () =
      HEIGHT-bound — 550 caps first and the width falls out of it. The hinge is
      1000/550 = 1.818, so anything wider than that is width-bound. A 2:1
      panorama is the case that reads the constant. */
-  expect(cardRectForPlane(2)).toEqual({ w: 1000, h: 500, left: 88, top: 212 });
+  expect(cardRectForPlane(2)).toEqual({
+    w: 1000, h: 500, left: 88, top: 212, lean: 0, rise: 0
+  });
 });
 
 test("the plane's card follows the print too, and pins its left edge", () => {
@@ -288,6 +303,105 @@ test("the plane's card follows the print too, and pins its left edge", () => {
   // is the card's floor; move one by 62 without the other and the photograph
   // lands on the clock.
   expect(portrait.top + portrait.h / 2).toBeCloseTo(462, 1);
+});
+
+/* ═══ A TALL PRINT GOES INTO THE MIDDLE (features.v3ArchivePortrait) ═════════
+   The pin above is honest for a landscape and strands a portrait: 413 wide,
+   ending at x501, while the engraved year does not start until x1093. The owner
+   asked for it twice — "~890px of soft middle", then "go into the middle" — and
+   the second time named the two things that have to move with it, the ghost and
+   the year stamp.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+test("the lean is a ramp, not a hinge", () => {
+  /* 🔑 WHY A RAMP AT ALL. A threshold at 1.0 would move the card ~325px between
+     two photographs a person would call the same shape. 0 at square-or-wider, 1
+     at 3:4 and every taller print, linear between — so no pair of neighbouring
+     aspects composes differently by more than their difference warrants. */
+  expect(portraitLean(16 / 9)).toBe(0);
+  expect(portraitLean(1.0)).toBe(0);
+  expect(portraitLean(0.9)).toBeCloseTo(0.4, 5);
+  expect(portraitLean(0.8)).toBeCloseTo(0.8, 5);
+  expect(portraitLean(3 / 4)).toBe(1);
+  // Clamped, not extrapolated: a 9:16 phone portrait and an unmeasurably thin
+  // scan are both "all the way", never 1.8 of the way.
+  expect(portraitLean(9 / 16)).toBe(1);
+  expect(portraitLean(0.1)).toBe(1);
+  expect(portraitLean(NaN)).toBe(0);
+  expect(portraitLean(0)).toBe(0);
+});
+
+test("the flag off, the plane's card is the pinned one for every aspect", () => {
+  /* The rollback as arithmetic. Not "close to" — the same object, because the
+     second argument defaults false and both ramps are then 0 identically. */
+  for (const a of [16 / 9, 2, 1.5, 1, 0.9, 3 / 4, 9 / 16]) {
+    expect(cardRectForPlane(a, false)).toEqual(cardRectForPlane(a));
+    expect(cardRectForPlane(a).left).toBe(88);
+    expect(cardRectForPlane(a).lean).toBe(0);
+  }
+});
+
+test("a tall print's right edge lands on the spine, where the year begins", () => {
+  /* 🔑 THE RULE, NOT A POSITION SOMEBODY LIKED. A landscape already ends at
+     88 + 978 = 1066, which is where the engraved year starts — so a tall print
+     slides right until it ends there too, and the print and the year meet at the
+     same place whatever shape the memory is. */
+  for (const a of [3 / 4, 0.7, 9 / 16, 0.45]) {
+    const r = cardRectForPlane(a, true);
+    expect(r.lean).toBe(1);
+    expect(r.left + r.w).toBe(1066);
+  }
+  // And the reference landscape is untouched by the flag being ON, which is the
+  // half a reversibility check cannot see: an off/off comparison would pass on a
+  // build that moved every card.
+  expect(cardRectForPlane(16 / 9, true)).toEqual(cardRectForPlane(16 / 9, false));
+  expect(cardRectForPlane(1, true)).toEqual(cardRectForPlane(1, false));
+});
+
+test("a 3:4 print is 495x660 at (571, 200) — the probed composition, to the pixel", () => {
+  /* These four numbers are the ones measured on the glass at 1920x1080 and shown
+     to the owner: PAINTED x565-1071 y187-873. Written out rather than derived so
+     that a change to any constant behind them has to come here and say so. */
+  expect(cardRectForPlane(3 / 4, true)).toEqual({
+    w: 495, h: 660, left: 571, top: 200, lean: 1, rise: 1
+  });
+  // It really is taller than the pinned card, which is the half of the fix that
+  // answers "the photo is small": 660 against 550.
+  expect(cardRectForPlane(3 / 4, true).h).toBeGreaterThan(cardRectForPlane(3 / 4).h);
+});
+
+test("IT SLIDES BEFORE IT STANDS UP — the height waits until the card leaves the clock", () => {
+  /* ⚠⚠ THE DEFECT THIS TEST EXISTS FOR WAS REAL AND WAS FOUND ON THE GLASS, not
+     here: ramping the height on the SAME curve as the position put a 0.9 memory
+     at left 281 and 608 tall, and its bottom-left corner landed ON THE CLOCK.
+     That is exactly the collision the 550 cap has always existed to prevent —
+     the cap is not about height in the abstract, it is about a card standing
+     over the hour.
+
+     So `rise` lags `lean`. At 0.9 the card has plainly MOVED and just as plainly
+     has NOT GROWN, and both halves are asserted: a test that only checked the
+     height would pass on a build that never moved the card at all. */
+  const mid = cardRectForPlane(0.9, true);
+  expect(mid.lean).toBeCloseTo(0.4, 5);
+  expect(mid.rise).toBe(0);
+  expect(mid.left).toBeGreaterThan(88);            // it has moved
+  expect(mid.h).toBe(cardRectForPlane(0.9).h);     // and it has not grown
+
+  /* The gate opens somewhere near 0.84, and what matters is the INVARIANT rather
+     than the number: nothing may grow while it is still over the hour's column.
+     The hour is x96-405 painted; PLANE_PORTRAIT_RISE_CLEAR is 430. Swept across
+     the whole aspect range rather than spot-checked, because the failure was at
+     an aspect nobody thought to spot-check. */
+  for (let a = ASPECT_MIN; a <= 2; a += 0.005) {
+    const r = cardRectForPlane(a, true);
+    if (r.rise > 0) {
+      expect(r.left).toBeGreaterThan(405);
+    }
+    // Monotone: a taller print never leans or rises less than a squarer one.
+    const squarer = cardRectForPlane(Math.min(2, a + 0.005), true);
+    expect(r.lean).toBeGreaterThanOrEqual(squarer.lean - 1e-9);
+    expect(r.rise).toBeGreaterThanOrEqual(squarer.rise - 1e-9);
+  }
 });
 
 test("the plane's card has no echo tile, because there is no tiled echo", () => {
@@ -308,6 +422,26 @@ const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
   "base64"
 );
+
+/* ⚠⚠ THE CARD'S SHAPE COMES FROM `naturalWidth / naturalHeight` OF THE DECODED
+   RENDITION, never from the asset metadata — `imgAspect` in core/archive.js reads
+   the <img>, and a pool entry's `aspect:` field reaches nothing on this path. So
+   a spec about a PORTRAIT composition that served the 1x1 above would compose a
+   SQUARE and quietly measure lean 0 while claiming to measure lean 1. These are
+   real PNGs at real ratios, three and four pixels wide; nothing asserts what the
+   picture looks like, only how tall it is against how wide. */
+const PORTRAIT_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAMAAAAECAIAAADETxJQAAAAMElEQVR4nGPQ1DYytXR0cgtkMDK1tXf29QmMYbBx8PTwjQiNzmBw9QoNCk+JTy0BALmgCm6HmeDMAAAAAElFTkSuQmCC",
+  "base64"
+); // 3x4 — full lean
+const NEARSQUARE_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAkAAAAKCAIAAADpZ+PpAAAA70lEQVR4nB3Jy06DQBQA0Pkdo8ZWqYV0UEAGgaEw5f1+V0pKTW1Mu9CFG//bXM/2oKvr+9vZcs7hhSALovakUEXbaDSkToZu7h7n3GrBQ4gyVTSmmYHpZLZfo9nDiuMlARNRNmXCCERqe5Ub94hbSjwmGMIhpm/Yydqr3KgP8xHxWMWSIRGHGP/hlpuoC7Mxrd8RhGqrhqevY4iwC7JdUh3K/oSeVVvVIaxNwcI2SCGK7tTsLuhFd3UrgghaPx2Sciq6j2a4bKdv9GpFlOUsaPzkLS6nHOK8nb7G4w+iLHf8xoPY5+2xHs79HuLw+fsH27JWZLfP27sAAAAASUVORK5CYII=",
+  "base64"
+); // 9x10 = 0.9 — moved but not yet grown
+const LANDSCAPE_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAABX0lEQVR4nD3P107CYABA4f91DEERgTIKLd170E0HdFCgVpAhuKLRmPjapgW8PxffAVeVeuW6Ua1BtbtuvdlvtFGoh3f6FIyyA0xASRmnRyRnMILFyWNB9UG1Bt3UyxRCWl2sA5M9hOljPEpIGK2SrE4LFisVqaRNVTMGtw34DkJaHawNk70B0x9yCCFilEKwGs2brOTwiidpE8WIRvbMcBeg2Rm2e0R3QMMoh+DikFIIRqN4kxFtXnHFUaAY4chK9PHc8jNn8gD+uUNSxpmSK9qcXKSyHqpWrDup6S2dIHfDtZ9swaDk4rRKcgX3dCbpBVdzUtNd2kE+nq79eDNJ99HiCDBKJc5njqCWXDPSSq7t34+nKy/aTGb7cHGMs9f04R1QvMmKxZl4PkuMC9eLHoNkF84PcfYyy98X689s8w34E/dyZnpF6oaPQbKdpk/R8nmWv81XH9nmK9/9rA6/fwyZi40HLX8kAAAAAElFTkSuQmCC",
+  "base64"
+); // 16x9 — the reference that must not move
 
 const POOL = [
   { id: "a", aspect: 1.78, localDateTime: "2011-08-18T09:00:00Z", city: "Nudgee", people: [] },
@@ -339,9 +473,11 @@ async function bootArchive(
   {
     v3Archive = true,
     v3ArchivePlane = false,
+    v3ArchivePortrait = false,
     groundMemories = true,
     groundDiptych = false,
     pool = POOL,
+    thumb = PNG,
     weather = null
   } = {}
 ) {
@@ -357,6 +493,7 @@ async function bootArchive(
         (await res.text()) +
         `\nwindow.CONFIG.features.v3Archive = ${v3Archive};` +
         `\nwindow.CONFIG.features.v3ArchivePlane = ${v3ArchivePlane};` +
+        `\nwindow.CONFIG.features.v3ArchivePortrait = ${v3ArchivePortrait};` +
         `\nwindow.CONFIG.features.groundMemories = ${groundMemories};` +
         `\nwindow.CONFIG.features.groundDiptych = ${groundDiptych};\n`
     });
@@ -394,7 +531,7 @@ async function bootArchive(
     route.fulfill({ contentType: "application/json", body: JSON.stringify({ assets: pool }) })
   );
   await page.route("**/api/immich/asset/*/thumb", (route) =>
-    route.fulfill({ contentType: "image/png", body: PNG })
+    route.fulfill({ contentType: "image/png", body: thumb })
   );
 
   await page.goto("/v3/");
@@ -2100,4 +2237,358 @@ test("all THREE things the plane moves outside its layer are undone under reduce
   expect(reduced).toMatch(/left:\s*var\(--safe\)/);
   expect(reduced).toMatch(/--hour-lift:\s*0px/);
   expect(reduced).toMatch(/\.now-playing\s*\{\s*bottom:\s*var\(--safe\)/);
+});
+
+/* ═══ A TALL PRINT GOES INTO THE MIDDLE, ON THE GLASS ═══════════════════════
+   The pure half above proves the arithmetic. This half proves it ARRIVES: the
+   lean is computed in JS and spent in CSS by three different objects, and those
+   two came apart once already on this surface when a custom property was written
+   to the card instead of to the root — where the year and the ghost, being the
+   card's SIBLINGS, could never have seen it.
+
+   ⚠⚠ EVERY NUMBER HERE IS A **PAINTED** RECT. Under this lens the plane's far
+   half is nearer the eye than the origin, so the painted box is a few percent
+   larger than the CSS box and shifted — sizing an assertion from the stylesheet
+   puts it several pixels out. They were measured at 1920x1080 over CDP and shown
+   to the owner on 2026-09-07.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const leanProbe = (page) =>
+  page.evaluate(() => {
+    const r = (sel) => {
+      const el = document.querySelector(sel);
+      return el ? el.getBoundingClientRect().toJSON() : null;
+    };
+    const cs = (sel, prop) => {
+      const el = document.querySelector(sel);
+      return el ? getComputedStyle(el)[prop] : null;
+    };
+    /* The translate and scale a matrix3d actually carries, so the assertions can
+       name the movement rather than a 16-number string. m[0] is the X scale;
+       m[12]/m[13] are the X/Y translates. */
+    const parts = (sel) => {
+      const t = cs(sel, "transform");
+      const m = t && t.startsWith("matrix3d")
+        ? t.slice(9, -1).split(",").map(Number)
+        : null;
+      return m ? { scale: m[0], dx: m[12], dy: m[13] } : null;
+    };
+    return {
+      depth: document.documentElement.dataset.depth ?? null,
+      attr: document.documentElement.dataset.archPortrait ?? null,
+      lean: window.__archive().lean,
+      line: window.__archive().line,
+      card: r(".archive__card-plane"),
+      year: r(".archive__year"),
+      ghost: r('.archive__ghost[data-ghost="a"]'),
+      lineRect: r(".archive__line"),
+      dateRect: r(".archive__date"),
+      hourRect: r("#hour"),
+      ghostParts: parts('.archive__ghost[data-ghost="a"]'),
+      yearParts: parts(".archive__year"),
+      captionCap: cs(".archive__plate", "maxWidth")
+    };
+  });
+
+/* ⚠⚠ PIN DEPTH 0 **LAST**, AND ASSERT IT. Written the obvious way round — pin,
+   then poll the card — these tests measured a card right edge of 326 against a
+   year at 1093 and reported a 767px gap, which is not a geometry anybody wrote.
+   The attention engine had raised the VOCABULARY CARD over depth 0 during the
+   poll, and the page snapshot said so: date, clock, and the words "show me the
+   driveway". The archive's rects were still readable and still wrong.
+
+   This is the trap CLAUDE.md names — a scored candidate lane silently replacing
+   a spec's own fixture — arriving as geometry rather than as text. So the depth
+   is set AFTER everything that could take time, polled until the attribute
+   agrees, and then carried in the probe so every test can assert it rather than
+   assume it. A number measured at the wrong depth must fail loudly, naming the
+   depth, instead of failing as a mysterious coordinate. */
+async function leanShown(page, wantLeft) {
+  await groundShown(page);
+  await expect
+    .poll(() => page.evaluate(() => window.__archive().card?.left ?? null), { timeout: 10_000 })
+    .toBe(wantLeft);
+  /* ⚠⚠ AND WAIT FOR THE WORDS, NOT ONLY FOR THE CARD. The plate and the engraved
+     year swap on a timer at 92% of the exchange, so for most of a second after
+     the card has been fitted the year is an EMPTY node and the caption is blank —
+     and an empty node reports a 0x0 rect sitting wherever its pin puts it.
+     Measured that early, this file read the year's left edge as 1838 (its RIGHT
+     pin, because it had no width) and reported a card-to-year gap of 767px: a
+     number nothing on the wall ever had, produced entirely by measuring absence.
+     `__archive().line` is the tell that both have arrived. */
+  await expect
+    .poll(() => page.evaluate(() => window.__archive().line), { timeout: 10_000 })
+    .not.toBeNull();
+  await page.evaluate(() => window.__setDepth(0, "spec"));
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.dataset.depth ?? null))
+    .toBe("0");
+  // The node has to BE there before anything asks where it is — a 0x0 or absent
+  // box satisfies every clearance check ever written.
+  await expect(page.locator(".archive__card-plane")).toBeVisible();
+}
+
+test("the portrait flag OFF strands a tall print exactly where it has always been", async ({ page }) => {
+  /* The rollback, on the glass and for the aspect the flag is about. `wantLeft`
+     is 88 — the pin — and the three shared objects must read their pre-flag
+     values, because their rules are the SAME rules with `--arch-portrait` at 0
+     rather than separate ones. That is the half a `[data-arch-plane]` scoping
+     check cannot see. */
+  const pageErrors = await bootArchive(page, {
+    v3ArchivePlane: true,
+    v3ArchivePortrait: false,
+    thumb: PORTRAIT_PNG,
+    weather: WEATHER
+  });
+  await leanShown(page, 88);
+  const p = await leanProbe(page);
+
+  expect(p.depth, "measured at the wrong depth").toBe("0");
+  expect(p.attr).toBeNull();
+  expect(p.lean).toBeNull();
+  // Painted: the stranded portrait the owner complained about, 398 wide, ending
+  // at x495 with the year not starting until x1093.
+  expect(p.card.left).toBeCloseTo(97, 0);
+  expect(p.card.width).toBeCloseTo(398, 0);
+  expect(p.year.left - (p.card.left + p.card.width)).toBeGreaterThan(500);
+
+  // ⚠ THE SHARED TRANSFORMS COLLAPSE TO IDENTITY AT LEAN 0. `translate3d(0,0,z)`
+  // is the same matrix `translateZ(z)` gave, which is what makes this state the
+  // one that shipped rather than one that merely resembles it. The ghost's drift
+  // loop contributes a sub-pixel wobble, hence the tolerance rather than 0.
+  expect(p.ghostParts.scale).toBeCloseTo(1, 2);
+  expect(Math.abs(p.ghostParts.dx)).toBeLessThan(2);
+  expect(Math.abs(p.yearParts.dy)).toBeLessThan(2);
+  expect(p.captionCap).toBe("1050px");
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("a tall print goes into the middle, and the year and the ghost go with it", async ({ page }) => {
+  const pageErrors = await bootArchive(page, {
+    v3ArchivePlane: true,
+    v3ArchivePortrait: true,
+    thumb: PORTRAIT_PNG,
+    weather: WEATHER
+  });
+  await leanShown(page, 571);
+  const p = await leanProbe(page);
+
+  expect(p.depth, "measured at the wrong depth").toBe("0");
+  expect(p.attr).toBe("1");
+  expect(p.lean).toBe(1);
+
+  /* 🔑 THE RULE, MEASURED: the print's right edge and the engraved year's left
+     edge MEET. Asserted as the gap between two measured boxes rather than as a
+     painted coordinate, because the gap is the design decision and the
+     coordinate is only where it happens to land. Before the lean this gap was
+     598px, which is the complaint. */
+  const gap = p.year.left - (p.card.left + p.card.width);
+  expect(gap).toBeGreaterThan(0);
+  expect(gap).toBeLessThan(45);
+
+  // It grew, which is the half that answers "the photo is small". 554 -> 686
+  // painted, and it grew because it no longer stands over the clock.
+  expect(p.card.height).toBeGreaterThan(650);
+
+  /* ⚠ AND IT STILL CLEARS BOTH STACKS. The date is above it and the hour below,
+     and the second is the one the height cap has always been about. Node
+     presence first, then position — an absent date reports no rect and a
+     `toBeGreaterThan` against nothing is a test that cannot fail. */
+  expect(p.dateRect, "the date is not on the glass").not.toBeNull();
+  expect(p.hourRect, "the hour is not on the glass").not.toBeNull();
+  expect(p.card.top).toBeGreaterThan(p.dateRect.bottom);
+  const clearsHour =
+    p.card.bottom < p.hourRect.top || p.card.left > p.hourRect.right;
+  expect(clearsHour, "the print is standing on the clock").toBe(true);
+
+  /* The year DROPPED — centred against the leaned print instead of level with
+     its top — and the ghost moved left and grew. Both are transform-only, so
+     they are read off the matrix rather than off a box that never changes. */
+  expect(p.yearParts.dy).toBeCloseTo(122, 0);
+  expect(p.ghostParts.dx).toBeCloseTo(-180, 0);
+  expect(p.ghostParts.scale).toBeCloseTo(1.09, 2);
+
+  /* ⚠ ASSERT THE TEXT, NOT THE COUNT. A caption that is present-but-wrong passes
+     every geometric check in this test, and a surface driven by the attention
+     engine can put something else entirely in this corner. */
+  expect(p.line).toMatch(/On this day . (2011|2015|2019|2023) . Nudgee/);
+  /* And the year is ENGRAVED, not merely present. An empty node satisfies every
+     rect assertion in this test — it is what produced the 767px gap this file
+     reported before `leanShown` waited for the words. */
+  expect(p.year.width, "the engraved year has no box").toBeGreaterThan(100);
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("the lean survives the whole drift cycle, not just its first frame", async ({ page }) => {
+  /* ⚠⚠ FOUND BY AN INJECTION THAT CAME BACK GREEN. Reverting `arch-plane-drift`'s
+     keyframe to the un-leaned `translateZ(-300px)` — leaving the base rule leaned
+     — did not move a single assertion in this file, because `getComputedStyle`
+     during a running animation returns the value AT THAT MOMENT, and every other
+     test here reads it seconds into a 130s ease. The base rule's lean is what
+     they saw.
+
+     🔑 AN ANIMATION'S `to` REPLACES `transform`, IT DOES NOT COMPOSE WITH THE
+     RULE IT CAME FROM. So a lean written only in the base rule is erased for most
+     of every cycle, and the defect on the wall is a ghost that slowly swims 180px
+     back across the composition over a minute and then swims back — the exact
+     class of slow, ambient wrongness this surface exists to avoid, and the one no
+     screenshot catches.
+
+     The fix is to look at the END of the cycle, which the Web Animations API can
+     be asked for directly rather than waited out. */
+  const pageErrors = await bootArchive(page, {
+    v3ArchivePlane: true,
+    v3ArchivePortrait: true,
+    thumb: PORTRAIT_PNG,
+    weather: WEATHER
+  });
+  await leanShown(page, 571);
+
+  const drift = await page.evaluate(() => {
+    const dx = (sel, name, at) => {
+      const el = document.querySelector(sel);
+      const anim = el?.getAnimations().find((a) => a.animationName === name);
+      if (!anim) return null;
+      anim.pause();
+      // `alternate` + `infinite`: currentTime === one duration is the `to` frame.
+      const end = anim.effect.getTiming().duration;
+      anim.currentTime = at === "end" ? end : 0;
+      const m = getComputedStyle(el).transform;
+      const n = m.startsWith("matrix3d") ? m.slice(9, -1).split(",").map(Number) : null;
+      return n ? { scale: n[0], dx: n[12], dy: n[13] } : null;
+    };
+    return {
+      /* ⚠ `--arch-amp` IS A `calc()` AND AN UNREGISTERED CUSTOM PROPERTY, so
+         `getPropertyValue` hands back the raw token stream — "calc(4 * (0.34 +
+         0.66 * 1))" — and `parseFloat` of that is NaN, not 4. Read the two plain
+         numbers it is built from instead. The formula is restated here, which is
+         a duplication worth naming: what this test pins is that the LEAN is
+         still in the keyframe, and the amp is only the scale it sits on. */
+      amp: (() => {
+        const cs = getComputedStyle(document.documentElement);
+        const gain = parseFloat(cs.getPropertyValue("--arch-gain"));
+        const day = parseFloat(cs.getPropertyValue("--arch-day"));
+        return gain * (0.34 + 0.66 * day);
+      })(),
+      ghostStart: dx('.archive__ghost[data-ghost="a"]', "arch-plane-drift", "start"),
+      ghostEnd: dx('.archive__ghost[data-ghost="a"]', "arch-plane-drift", "end"),
+      yearStart: dx(".archive__year", "arch-plane-year", "start"),
+      yearEnd: dx(".archive__year", "arch-plane-year", "end")
+    };
+  });
+
+  expect(drift.ghostEnd, "the ghost's drift loop is not running").not.toBeNull();
+  expect(drift.yearEnd, "the year's drift loop is not running").not.toBeNull();
+  expect(Number.isFinite(drift.amp)).toBe(true);
+
+  /* Derived from `--arch-amp` rather than written as a number, so this does not
+     go red the day the gain is retuned — what it pins is that the lean's 180 and
+     122 are STILL THERE at the far end of the cycle, on top of the drift's own
+     travel, not that the drift travels any particular distance. */
+  expect(drift.ghostEnd.dx).toBeCloseTo(-180 - 88 * drift.amp, 0);
+  expect(drift.ghostEnd.scale).toBeCloseTo(1.09 * (1 + 0.045 * drift.amp), 2);
+  expect(drift.yearEnd.dy).toBeCloseTo(122 + 30 * drift.amp, 0);
+
+  // And the lean's own contribution is the SAME at both ends — the drift moves
+  // the object, the lean places it. A keyframe carrying a different lean would
+  // satisfy the three assertions above and still swim.
+  expect(drift.ghostEnd.dx - drift.ghostStart.dx).toBeCloseTo(-88 * drift.amp, 0);
+  expect(drift.yearEnd.dy - drift.yearStart.dy).toBeCloseTo(30 * drift.amp, 0);
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("the caption stays out of the moved ghost's mask", async ({ page }) => {
+  /* ⚠⚠ THE CAP IS THE GHOST'S, AND THE LEAN MOVES THE GHOST. `--ink-dim` over a
+     mid-grey wash is the 1.96:1 shape this house has already paid for once, and
+     the 1050px cap was solved against the ghost where it USED to be. Computed
+     here from the MEASURED ghost box rather than from the constants, so moving
+     the ghost again without moving the cap goes red — which is the failure this
+     test is for, not the value 900. */
+  const pageErrors = await bootArchive(page, {
+    v3ArchivePlane: true,
+    v3ArchivePortrait: true,
+    thumb: PORTRAIT_PNG,
+    weather: WEATHER
+  });
+  await leanShown(page, 571);
+  const p = await leanProbe(page);
+
+  expect(p.depth, "measured at the wrong depth").toBe("0");
+  expect(p.ghost, "no ghost to measure against").not.toBeNull();
+  expect(p.lineRect, "no caption to measure").not.toBeNull();
+  expect(p.lineRect.height, "the caption has no line box").toBeGreaterThan(0);
+
+  // The mask is `closest-side` on the ghost's box, so its radius is half the
+  // shorter side and its centre is the box's centre.
+  const cx = p.ghost.left + p.ghost.width / 2;
+  const cy = p.ghost.top + p.ghost.height / 2;
+  const radius = Math.min(p.ghost.width, p.ghost.height) / 2;
+  const dy = p.lineRect.top + p.lineRect.height / 2 - cy;
+  expect(Math.abs(dy)).toBeLessThan(radius);       // else the sum below is not a number
+  const alphaFrom = cx - Math.sqrt(radius * radius - dy * dy);
+
+  // A caption at its FULL cap, not the short one this fixture happens to write —
+  // the hazard is the long caption, and measuring the short one would pass at
+  // any cap at all.
+  const capRight = p.lineRect.left + parseFloat(p.captionCap);
+  expect(capRight, `a full-length caption reaches ${capRight}, mask starts ${alphaFrom}`)
+    .toBeLessThan(alphaFrom);
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("IT SLIDES BEFORE IT STANDS UP, on the glass", async ({ page }) => {
+  /* The mid-ramp case, and the reason it has a test of its own: at 0.9 the FIRST
+     draft of this change put the card at left 281 and 608 tall, and its
+     bottom-left corner landed on the clock. Both halves are asserted — moved,
+     and not yet grown — because a build that never moved the card at all would
+     also satisfy "not grown". */
+  const pageErrors = await bootArchive(page, {
+    v3ArchivePlane: true,
+    v3ArchivePortrait: true,
+    thumb: NEARSQUARE_PNG,
+    weather: WEATHER
+  });
+  await leanShown(page, 281);
+  const p = await leanProbe(page);
+
+  expect(p.depth, "measured at the wrong depth").toBe("0");
+  expect(p.lean).toBeCloseTo(0.4, 5);
+  expect(p.card.left).toBeGreaterThan(200);              // it has moved
+  expect(p.card.height).toBeLessThan(600);               // and it has not grown
+
+  expect(p.hourRect, "the hour is not on the glass").not.toBeNull();
+  const clearsHour =
+    p.card.bottom < p.hourRect.top || p.card.left > p.hourRect.right;
+  expect(clearsHour, "the print is standing on the clock at mid-ramp").toBe(true);
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("the portrait flag ON leaves a LANDSCAPE memory exactly where it was", async ({ page }) => {
+  /* ⚠ THE HALF A REVERSIBILITY RUN CANNOT SEE. Comparing flag-off to flag-off
+     proves nothing about a build that leaned every card; this is the flag ON,
+     against the aspect the whole plane composition was measured for. */
+  const pageErrors = await bootArchive(page, {
+    v3ArchivePlane: true,
+    v3ArchivePortrait: true,
+    thumb: LANDSCAPE_PNG,
+    weather: WEATHER
+  });
+  await leanShown(page, 88);
+  const p = await leanProbe(page);
+
+  expect(p.depth, "measured at the wrong depth").toBe("0");
+  expect(p.attr).toBe("1");        // the flag IS on
+  expect(p.lean).toBe(0);          // and it still changes nothing here
+  expect(p.card.left).toBeCloseTo(97, 0);
+  expect(p.card.width).toBeCloseTo(974, 0);
+  expect(p.ghostParts.scale).toBeCloseTo(1, 2);
+  expect(Math.abs(p.yearParts.dy)).toBeLessThan(2);
+  expect(p.captionCap).toBe("1050px");
+
+  expect(pageErrors).toEqual([]);
 });

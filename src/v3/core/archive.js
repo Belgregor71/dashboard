@@ -102,6 +102,15 @@ const enabled = () => Boolean(globalThis.window?.CONFIG?.features?.v3Archive);
 const planeEnabled = () =>
   Boolean(globalThis.window?.CONFIG?.features?.v3ArchivePlane);
 
+/* ⚠ THE PORTRAIT LEAN IS A MODIFIER OF THE PLANE, NEVER A THIRD COMPOSITION.
+   It moves three objects the plane already builds and builds nothing of its own,
+   so it is meaningless with `v3ArchivePlane` off — and reading it independently
+   would let a flag-off page write `--arch-portrait` for a stylesheet that has no
+   rule to spend it on. `portraitMode` is `planeMode && this`, latched in the
+   same place and for the same reason. */
+const portraitEnabled = () =>
+  Boolean(globalThis.window?.CONFIG?.features?.v3ArchivePortrait);
+
 /* ── The stage ──────────────────────────────────────────────────────────── */
 const FRAME_W = 1920;
 
@@ -264,6 +273,8 @@ let built = false;
    longer positioning. `initArchive` sets it before `build()` and nothing else
    writes it. */
 let planeMode = false;
+/* Latched with `planeMode` and never read before it. See `portraitEnabled`. */
+let portraitMode = false;
 let slot = 0;               // which card slot is on top
 let ghostSlot = 0;
 let exchangeTimer = null;
@@ -791,6 +802,17 @@ function applyRect(rect) {
   cardPlane.style.setProperty("--arch-card-w", `${rect.w}px`);
   cardPlane.style.setProperty("--arch-card-h", `${rect.h}px`);
   cardPlane.style.setProperty("--arch-card-top", `${rect.top}px`);
+  /* ⚠ THE LEAN GOES ON THE ROOT, NOT ON THE CARD, and that is not tidiness: the
+     year and the ghost are the card's SIBLINGS, so a property written here would
+     never reach them and the three would ramp apart. `--arch-card-left` stays on
+     the card because only the card reads it.
+
+     Nothing at all is written with the flag off — `rect.lean` is 0 for every
+     aspect then, but a write of "0" is still a write, and the flag-off path
+     being the untouched one is the rollback. */
+  if (!portraitMode) return;
+  cardPlane.style.setProperty("--arch-card-left", `${rect.left}px`);
+  document.documentElement.style.setProperty("--arch-portrait", rect.lean.toFixed(3));
 }
 
 function paintPlate(assets) {
@@ -934,7 +956,9 @@ function present(index) {
      rectangle that lands where a person wants it is a different rectangle, and
      archiveModel keeps them as separate constants for exactly that reason. Both
      are pure and both are unit-tested; the only thing chosen here is which. */
-  const fit = planeMode ? cardRectForPlane : cardRectFor;
+  const fit = planeMode
+    ? (a) => cardRectForPlane(a, portraitMode)
+    : cardRectFor;
   const source = held.imgs[index];
   const rect = fit(imgAspect(source));
   if (rect) applyRect(rect);
@@ -1106,6 +1130,7 @@ export function initArchive(host) {
      build reads it, and a page that changed composition after the fact would be
      holding nodes the stylesheet is no longer positioning. */
   if (!built) planeMode = planeEnabled();
+  if (!built) portraitMode = planeMode && portraitEnabled();
   if (!built) build(host);
 
   // The marker the stylesheet hangs everything off. On the root rather than the
@@ -1120,6 +1145,17 @@ export function initArchive(host) {
      construction: the same latch that decided which nodes exist decides which
      rules can see them. */
   if (planeMode) document.documentElement.dataset.archPlane = "1";
+  /* The lean's own rollback, and it is TWO halves because the two are not
+     redundant: the attribute gates the one rule that cannot be written as a
+     calc (`.archive__card-plane`'s `left`), and `--arch-portrait` carries the
+     ramp to the year, the ghost and the caption, whose rules are shared with the
+     flag-off path and reduce to today's numbers at 0. Seeded here rather than
+     only in `applyRect` so a page that has not yet decoded a photograph is
+     already at 0 rather than at the stylesheet's guess. */
+  if (portraitMode) {
+    document.documentElement.dataset.archPortrait = "1";
+    document.documentElement.style.setProperty("--arch-portrait", "0");
+  }
   document.documentElement.style.setProperty("--arch-gain", String(gain));
 
   lastYears = poolYears();
@@ -1165,6 +1201,16 @@ export function initArchive(host) {
             wanted: lastRect
           };
         })()
+      : null,
+    /* ⚠ THE COMPUTED VALUE, NOT `lastRect.lean` — the spec has to be able to
+       tell "the model produced a lean" from "the lean reached the stylesheet",
+       and those came apart once already on this surface when a property was
+       written to the card instead of the root. `null` when the flag is off,
+       which is the state the reversibility half asserts. */
+    lean: portraitMode
+      ? parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue("--arch-portrait")
+        )
       : null,
     ghosts: host.querySelectorAll(".archive__ghost").length,
     slots: host.querySelectorAll(".archive__img").length,

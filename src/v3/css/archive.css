@@ -663,6 +663,41 @@
   --arch-card-w: 978px;
   --arch-card-h: 550px;
   --arch-card-top: 249px;
+
+  /* ── A TALL PRINT GOES INTO THE MIDDLE (features.v3ArchivePortrait) ───────
+     ⚠⚠ 0 IS THE ROLLBACK, AND IT IS THE DEFAULT DECLARED HERE rather than a
+     `var(…, 0)` fallback at each site. Every rule below multiplies its offset by
+     this, so at 0 each one reduces to the exact number it held before the flag
+     existed — the year at top 208 with no Y offset, the ghost unmoved and
+     unscaled, the caption capped at 1050. `core/archive.js` overwrites it per
+     photograph, and ONLY when the flag is on.
+
+     🔑 ONE NUMBER FOR THREE OBJECTS. `portraitLean` in archiveModel.js is the
+     single source: 0 at square-or-wider, 1 at 3:4 and every taller print. The
+     card's own rectangle is computed from it in JS; these three are computed
+     from it in CSS. Splitting it into per-object thresholds is how the print
+     ends up leaning and the year does not. */
+  --arch-portrait: 0;
+
+  /* ⚠ THE GHOST AND THE YEAR MOVE ON THE TRANSFORM, NEVER ON left/top/width.
+     Both already carry a forever-loop, and this wall runs for weeks: changing a
+     masked, filtered 1180x700 layer's BOX re-rasters it, while composing another
+     translate into a transform it is already animating costs the compositor
+     nothing. Same argument DESIGN_SYSTEM §5.5 makes about animating layout, one
+     step further out — here the change is per-exchange rather than per-frame,
+     which is cheaper still but not free.
+
+     The numbers are the measured landing points of the composition the owner
+     chose on 2026-09-07, probed at 1920x1080 against a 3:4 memory:
+       ghost  painted centre (1475, 813) -> (1305, 724), and 1.09 wider, so its
+              soft core comes out from behind the print's right shoulder instead
+              of pooling in the far bottom-right corner
+       year   painted y209-608 -> y330-730, which is centred on the leaned card's
+              painted y187-873 rather than level with its top */
+  --arch-ghost-dx: calc(-180px * var(--arch-portrait));
+  --arch-ghost-dy: calc(-90px * var(--arch-portrait));
+  --arch-ghost-s: calc(1 + 0.09 * var(--arch-portrait));
+  --arch-year-dy: calc(122px * var(--arch-portrait));
 }
 
 /* ── The lens ───────────────────────────────────────────────────────────────
@@ -731,6 +766,16 @@
   transform: translateZ(40px);
 }
 
+/* ⚠ THE ONE RULE IN THE LEAN THAT IS NOT A CALC, so it is the one that needs the
+   attribute. `left` cannot ramp in the stylesheet: the spine is `1066 - w` and
+   `w` is the fitted width, which only `cardRectForPlane` knows — so JS computes
+   the whole interpolation and writes the answer. The fallback is the pin, so a
+   page that has the attribute but has not yet decoded a photograph sits exactly
+   where it sits today rather than at 0. */
+:root[data-arch-portrait="1"] .archive__card-plane {
+  left: var(--arch-card-left, 88px);
+}
+
 /* ── The ghost ──────────────────────────────────────────────────────────────
    ONE, LIFTED, AND WITHOUT AN EDGE.
 
@@ -760,7 +805,13 @@
   width: 1180px;
   height: 700px;
   opacity: var(--arch-ghost);
-  transform: translateZ(-300px);
+  /* ⚠ `translate3d(0, 0, -300px)` AT LEAN 0 IS THE SAME MATRIX `translateZ`
+     GAVE, which is what makes the flag-off state identical rather than merely
+     similar — tests/v3-archive.spec.js asserts the computed matrix in both
+     states rather than trusting the arithmetic. The scale is composed with the
+     drift's own below, not instead of it. */
+  transform: translate3d(var(--arch-ghost-dx), var(--arch-ghost-dy), -300px)
+    scale(var(--arch-ghost-s));
   -webkit-mask-image: radial-gradient(
     closest-side at 50% 50%,
     oklch(0 0 0) 22%,
@@ -783,11 +834,20 @@
   animation: arch-plane-drift 130s ease-in-out infinite alternate;
 }
 
+/* ⚠⚠ THE LEAN HAS TO BE IN THE KEYFRAME TOO, NOT ONLY IN THE BASE RULE. An
+   animation's `to` REPLACES `transform` outright — it does not compose with the
+   rule it came from — so a lean written only above would be erased for most of
+   every 130s cycle and the ghost would swim back and forth across the wall. That
+   is the same trap the `--hour-lift` pairing documents one file over: a value
+   that lives in two places has to move in both. */
 @keyframes arch-plane-drift {
   to {
-    transform: translateZ(-300px)
-      translate3d(calc(-88px * var(--arch-amp)), calc(-38px * var(--arch-amp)), 0)
-      scale(calc(1 + 0.045 * var(--arch-amp)));
+    transform: translate3d(
+        calc(var(--arch-ghost-dx) - 88px * var(--arch-amp)),
+        calc(var(--arch-ghost-dy) - 38px * var(--arch-amp)),
+        -300px
+      )
+      scale(calc(var(--arch-ghost-s) * (1 + 0.045 * var(--arch-amp))));
   }
 }
 
@@ -804,17 +864,26 @@
      right edge, which is where an engraving behind a label belongs. */
   right: var(--safe);
   top: 208px;
-  transform: translateZ(-190px);
+  /* Drops 122px at full lean, so the numeral is centred against a leaned print
+     rather than level with its top. Same reason as the ghost's for being a
+     transform: this node is on a forever-loop too. */
+  transform: translate3d(0, var(--arch-year-dy), -190px);
 }
 
 :root[data-arch-plane="1"][data-archive="1"][data-depth="0"]:not([data-panel-dark="1"]):not([data-night="1"]) .archive__year {
   animation: arch-plane-year 92s ease-in-out infinite alternate;
 }
 
+/* Same trap as the ghost's keyframe above: `to` replaces the transform, so the
+   lean's Y offset has to be restated here or the year climbs back to its
+   unleaned top over 92s. */
 @keyframes arch-plane-year {
   to {
-    transform: translateZ(-190px)
-      translate3d(calc(-46px * var(--arch-amp)), calc(30px * var(--arch-amp)), 0);
+    transform: translate3d(
+      calc(-46px * var(--arch-amp)),
+      calc(var(--arch-year-dy) + 30px * var(--arch-amp)),
+      -190px
+    );
   }
 }
 
@@ -859,7 +928,18 @@
   top: auto;
   bottom: var(--safe);
   width: auto;
-  max-width: 1050px;
+  /* ⚠⚠ THE CAP FOLLOWS THE GHOST, because the whole reason there is a cap is the
+     ghost's mask and the lean MOVES IT LEFT. Re-run of the arithmetic above
+     against the leaned ghost, from its measured painted box (x688-1921,
+     y355-1093): centre (1305, 724), radius 370, so at the caption's own band
+     (y946-984, dy = 241) the mask first has alpha at
+     x = 1305 - sqrt(370² - 241²) = 1024. A cap of 900 puts the line's far edge at
+     x996, inside the transparent region by 28px — the same clearance 1050 buys
+     against the unleaned ghost. A caption that runs longer ellipsizes, which is
+     the answer this composition already gives. Asserted rather than trusted:
+     tests/v3-archive.spec.js computes the alpha edge from the MEASURED ghost
+     rect, so moving the ghost again without moving this goes red. */
+  max-width: calc(1050px - 150px * var(--arch-portrait));
 }
 
 /* ⚠ THE `> p` RULE ABOVE GIVES EVERY PLATE ROW AN OPAQUE BACKDROP AND 14/22 OF

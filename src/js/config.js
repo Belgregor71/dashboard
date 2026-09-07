@@ -1667,6 +1667,44 @@ window.CONFIG = {
     // 2026-09-05, and it is verified by the same spec file on every run.
     v3ArchivePlane: true,
 
+    // ── A tall print goes into the middle ───────────────────────────────────
+    // The plane above pins every card's LEFT edge at 88, which is honest for a
+    // landscape and strands a portrait: a 3:4 memory paints 394 wide and ends at
+    // x494, while the engraved year does not start until x1093. The owner named
+    // the hole twice — "~890px of soft middle" on 2026-09-05, then "go into the
+    // middle - might need to look at the posioning of the ghosts and year stamp
+    // to balance the compostion" on 2026-09-07, which is the decision this flag
+    // implements and the reason all three objects move rather than just the card.
+    //
+    // ⚠⚠ THE NIGHT CASE IS WHY THIS IS NOT A TASTE QUESTION. The daytime answer
+    // recorded in memory was that the year fills the right-hand side, so the gap
+    // is gone. The night rule takes the year to opacity 0 and the year is the
+    // ONLY thing occupying x1093-1838 — so after dark the wall from the card's
+    // right edge to the screen edge is ~1,400px holding nothing but a ghost.
+    // Captured live over CDP on 2026-09-06 with a portrait memory up.
+    //
+    // What it does, all three ramped on ONE number (`portraitLean`, 0 at
+    // square-or-wider and 1 at 3:4, so nothing jumps between two photographs a
+    // person would call the same shape):
+    //   the card   slides right until its right edge lands on the spine at 1066,
+    //              where a landscape already ends and the year begins, and grows
+    //              550 -> 660 tall because the cap that held it at 550 existed to
+    //              keep it off the clock it no longer stands over
+    //   the year   drops 122px, so it is centred against the print instead of
+    //              level with its top
+    //   the ghost  moves left and up and scales 1.09, so the glow comes out from
+    //              behind the print's right shoulder instead of pooling in the
+    //              far corner — this is the half that carries the night
+    //   the caption tightens its cap 1050 -> 900, because the moved ghost's mask
+    //              reaches further left and --ink-dim over a mid-grey wash is the
+    //              1.96:1 shape this house has already paid for once
+    //
+    // ONE-LINE REVERT (-> false): `data-arch-portrait` is never written and
+    // `--arch-portrait` stays 0, so every calc in archive.css reduces to the
+    // number it holds today and `cardRectForPlane` is called with its default
+    // second argument — the pinned rectangle, to the pixel.
+    v3ArchivePortrait: false,
+
     // ── The depth census ────────────────────────────────────────────────────
     // Asked on 2026-08-23 and unanswerable: how many times has each depth been
     // reached in the last fortnight? Nothing knew. core/depth.js keeps one

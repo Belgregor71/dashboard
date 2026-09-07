@@ -191,6 +191,85 @@ export const PLANE_CARD_MAX_W = 1000;
 export const PLANE_CARD_MAX_H = 550;
 export const PLANE_CARD_MID_Y = 462;
 
+// ── A TALL PRINT LEAVES THE PIN (features.v3ArchivePortrait) ─────────────────
+//
+// The pin above is honest for a landscape and strands a portrait. A 3:4 memory
+// fits to 413 wide against a 16:9 memory's 978, so left-pinned it ends at x501
+// while the engraved year still starts at x1093 — ~600px of bare wall between
+// the only two objects in the room, and the owner named it twice ("~890px of
+// soft middle", then "go into the middle"). ⚠ AND THE DAYTIME REBUTTAL DOES NOT
+// SURVIVE THE NIGHT: the night rule takes the year to opacity 0, and the year is
+// the only thing occupying x1093-1838, so after dark the gap is ~1,400px of
+// ghost. Measured on the live wall 2026-09-06, which is the evidence this
+// geometry answers.
+//
+// THE RULE: THE PRINT'S RIGHT EDGE IS THE WALL'S SPINE. A landscape already ends
+// at 88 + 978 = 1066, where the engraved year begins; a tall print slides right
+// until it ends there too, so the print and the year meet at the same place
+// whatever shape the memory is. That is a rule the composition can state, not a
+// position somebody liked.
+//
+// ⚠⚠ AND IT RAMPS RATHER THAN SWITCHES. A hinge would move the card ~325px
+// between two photographs a person would call the same shape — 1.01 and 0.99 are
+// not different rooms. `portraitLean` is 0 at square-or-wider and 1 at 3:4 (the
+// commonest phone portrait, and every taller print clamps there), so at lean 0
+// EVERY number below reduces to the pinned rectangle above, to the pixel. That
+// is what makes the flag-off path identical rather than merely close.
+//
+//   maxH 660  ⚠ THE 550 CAP EXISTS BECAUSE THE CARD STANDS OVER THE CLOCK, and a
+//             print that has left the left column no longer does. The hour is
+//             x96-405; a leaned print starts at 571. What still bounds it is the
+//             date above (painted bottom 152) and the fault pill below (painted
+//             top 930, and the pill can grow). 660 lands the PAINTED box at
+//             y187-873: 35 clear of the date, 57 clear of the pill.
+//   midY 530  moves with the height, because the band it grows into is not
+//             centred on 462. Ramped from 462 so nothing jumps.
+export const PLANE_PORTRAIT_HINGE = 1.0;
+export const PLANE_PORTRAIT_FULL = 0.75;
+export const PLANE_PORTRAIT_MAX_H = 660;
+export const PLANE_PORTRAIT_MID_Y = 530;
+export const PLANE_CARD_RIGHT = 1066;
+
+// ⚠⚠ IT SLIDES BEFORE IT STANDS UP, AND THAT ORDER IS THE WHOLE SAFETY OF THIS
+// CHANGE. Growing the height on the same ramp as the position put a 0.9 memory
+// at left 281 and 608 tall, whose bottom-left corner landed ON THE CLOCK —
+// caught by probing the mid-ramp case at 1920x1080, not by any assertion, and it
+// is precisely the collision the 550 cap exists to prevent. The cap is not about
+// height in the abstract: it is about a card that stands over the hour.
+//
+// So the growth is gated on the card having actually left that column. `rise` is
+// 0 until the un-grown rectangle's left edge has cleared the hour's painted
+// right edge (405) with air, and reaches the lean's full value 120px later.
+// 430/120 put the gate's opening at aspect ~0.84, where the card is already at
+// left ~438 — clear of the hour in x, and still short enough to clear it in y.
+//
+// 🔑 ONE PASS, NOT A FIXED POINT. The gate reads the left edge the card would
+// have at its UN-GROWN width, so `rise` never depends on the height it is about
+// to choose. Growing widens the card and therefore slides it slightly back left,
+// so the gate is a little optimistic — which is why the spec measures the
+// painted card against the painted hour across the whole ramp rather than
+// trusting this arithmetic.
+export const PLANE_PORTRAIT_RISE_CLEAR = 430;
+export const PLANE_PORTRAIT_RISE_SPAN = 120;
+
+/**
+ * How far a print of this aspect has left the left pin: 0 for anything square
+ * or wider, 1 for 3:4 and every taller print, linear between.
+ *
+ * Pure and exported because THREE things ramp on it — the card's rectangle here,
+ * and the engraved year and the ghost in archive.css, which read it as the
+ * `--arch-portrait` custom property. One number, one source.
+ *
+ * @param {number} aspect naturalWidth / naturalHeight of the DECODED rendition.
+ * @returns {number} 0..1, and 0 for anything unmeasurable.
+ */
+export function portraitLean(aspect) {
+  if (!Number.isFinite(aspect) || aspect <= 0) return 0;
+  const span = PLANE_PORTRAIT_HINGE - PLANE_PORTRAIT_FULL;
+  const t = (PLANE_PORTRAIT_HINGE - aspect) / span;
+  return Math.min(1, Math.max(0, t));
+}
+
 /**
  * The card's rectangle on the one-plane surface, in PLANE space — the
  * coordinates the element is laid out in, before the rotation and the
@@ -202,23 +281,77 @@ export const PLANE_CARD_MID_Y = 462;
  * than a tiled echo, so there is no tile to size.
  *
  * @param {number} aspect naturalWidth / naturalHeight of the DECODED rendition.
- * @returns {{w:number,h:number,left:number,top:number}|null}
+ * @param {boolean} [portrait] features.v3ArchivePortrait — let a tall print
+ *   leave the pin. ⚠ DEFAULTS FALSE so the flag-off caller is the function it
+ *   has always been, and `lean` is 0 for every aspect when it is.
+ * @returns {{w:number,h:number,left:number,top:number,lean:number}|null}
  */
-export function cardRectForPlane(aspect) {
+export function cardRectForPlane(aspect, portrait = false) {
   if (!Number.isFinite(aspect) || aspect <= 0) return null;
   const a = Math.min(ASPECT_MAX, Math.max(ASPECT_MIN, aspect));
 
-  let w = PLANE_CARD_MAX_W;
-  let h = w / a;
-  if (h > PLANE_CARD_MAX_H) {
-    h = PLANE_CARD_MAX_H;
-    w = h * a;
-  }
+  /* ⚠ THE LEAN IS TAKEN FROM THE CLAMPED ASPECT, not the raw one, for the same
+     reason the box below is: a 9:16 phone portrait and an unmeasurably thin scan
+     must land on the same rectangle, and reading the raw value here would ramp
+     past 1 for one of them and not the other. `portraitLean` clamps too, so this
+     is belt and braces — but the two clamps are for different reasons and
+     collapsing them is how one of them goes missing later. */
+  const lean = portrait ? portraitLean(a) : 0;
+
+  /* The fit, unchanged: as wide as it may go, then height-bound if that is too
+     tall. Taken as a function of the cap because the cap is asked for twice —
+     once at today's 550 to find out where the card would land, and once at the
+     leaned cap to size it. */
+  const box = (maxH) => {
+    let w = PLANE_CARD_MAX_W;
+    let h = w / a;
+    if (h > maxH) { h = maxH; w = h * a; }
+    return { w, h };
+  };
+
+  /* THE SPINE. The print's right edge is the wall's spine: a landscape already
+     ends at 1066, where the engraved year begins, so a tall print slides right
+     until it ends there too and the two always meet at the same place.
+
+     ⚠ At lean 0 this is PLANE_CARD_LEFT exactly, whatever w is — which is what
+     makes the flag-off rectangle the pinned one to the pixel rather than to a
+     rounding.
+
+     ⚠ THE FLOOR CANNOT FIRE TODAY AND IS KEPT ANYWAY, which is worth saying
+     plainly rather than leaving as a guard somebody later reads as live: the
+     ramp ends at 3:4, so any print with lean > 0 is narrower than 660 and
+     1066 - w is never left of 88. It is here because widening
+     PLANE_PORTRAIT_FULL toward a landscape aspect is the obvious next edit, and
+     that edit without this line walks the card off the safe margin silently. */
+  const pinnedLeft = (w) =>
+    PLANE_CARD_LEFT + (Math.max(PLANE_CARD_LEFT, PLANE_CARD_RIGHT - w) - PLANE_CARD_LEFT) * lean;
+
+  /* PASS ONE — where the lean alone would put the card at the height it has
+     always had. Read ONLY to answer "has it left the clock yet?". */
+  const rise =
+    lean *
+    Math.min(
+      1,
+      Math.max(
+        0,
+        (pinnedLeft(box(PLANE_CARD_MAX_H).w) - PLANE_PORTRAIT_RISE_CLEAR) / PLANE_PORTRAIT_RISE_SPAN
+      )
+    );
+
+  /* PASS TWO — the rectangle it actually gets. ⚠ `rise` drives the height and the
+     centre; `lean` drives the position. They are different ramps on purpose (see
+     the note above), and using one where the other belongs is how the card ends
+     up on the clock again. */
+  const maxH = PLANE_CARD_MAX_H + (PLANE_PORTRAIT_MAX_H - PLANE_CARD_MAX_H) * rise;
+  const midY = PLANE_CARD_MID_Y + (PLANE_PORTRAIT_MID_Y - PLANE_CARD_MID_Y) * rise;
+  const { w, h } = box(maxH);
 
   return {
     w: Math.round(w),
     h: Math.round(h),
-    left: PLANE_CARD_LEFT,
-    top: Math.round(PLANE_CARD_MID_Y - h / 2)
+    left: Math.round(pinnedLeft(w)),
+    top: Math.round(midY - h / 2),
+    lean,
+    rise
   };
 }
