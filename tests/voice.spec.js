@@ -238,7 +238,29 @@ test.describe("houseCharacter — who is speaking", () => {
   test("carries the traits the page says are load-bearing", () => {
     const text = houseCharacter();
     expect(text).toMatch(/fact comes first/i);      // never a joke before the number
-    expect(text).toMatch(/8:41/);                    // the counting habit, by example
+    // The counting habit, by example. Pinned on the COUNT, not on a clock time:
+    // the exemplar said "8:41" until 2026-09-08, and a worked example of
+    // recalling the minute a household event happened is a worked example of
+    // inventing one — 5/5 live replies did, against 1/5 without it.
+    expect(text).toMatch(/third late night this week/i);
+    expect(text).toMatch(/busiest day at the door was a Sunday/i);
+    /* ⛔ The regression itself, and it is scoped to the two EXEMPLARS rather
+       than to the whole block. 7:20 and 8:20 are elsewhere in the character on
+       purpose and must stay: one is the counter-example in the LIKELY grade
+       ("not 'you leave at 7:20'"), the other an en-AU formatting spec. Neither
+       is a worked example of recalling when a household event happened, which
+       is the only thing that teaches invention. */
+    const slice = (from, to) => {
+      const i = text.indexOf(from), j = text.indexOf(to);
+      expect(i, `the "${from}" exemplar moved or was renamed`).toBeGreaterThan(-1);
+      expect(j, `the "${to}" boundary moved or was renamed`).toBeGreaterThan(i);
+      return text.slice(i, j);
+    };
+    for (const s of [slice("Keeping count", "The photographs"),
+                     slice("Your comedy is scale", "One beat per line")]) {
+      expect(s, "a clock time returned to a counting exemplar")
+        .not.toMatch(/\b\d{1,2}:\d{2}\b/);
+    }
     // The anti-vagueness rule. Reworded 2026-08-16 from "be specific or be
     // silent", which the model read as licence to invent specifics when it had
     // none — see the invented-reading guard in tests/unresolved.spec.js.

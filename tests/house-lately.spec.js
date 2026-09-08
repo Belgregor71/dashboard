@@ -448,6 +448,51 @@ test.describe("houseLatelyContext", () => {
     expect(claims.groups.door.busiest.clear).toBe(false); // every day tied at 4
     expect(houseLatelyContext(claims)).toContain("too close to call a record");
   });
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     THE 2026-09-08 LIVE FINDINGS. Six real turns on the kiosk: the counts were
+     exact every time and everything DERIVED from them was invented in 3 of 4.
+     Each test below pins one of the three shapes it took.
+     See project-house-lately-manufactured-particulars.
+  ───────────────────────────────────────────────────────────────────────── */
+
+  test("names the weekday beside the date, so the model never derives one", () => {
+    /* Live, asked to convert a bare ISO date, it was wrong every time it tried:
+       "Saturday" for a Sunday, "Friday" twice for a Saturday, and once "the
+       eighth" for a record set on the thirtieth. The door block holds two dates
+       and the loose weekday of one landed on the other's value. WEEK[1] is
+       2026-08-25, a Tuesday, and it is the busiest day in this fixture. */
+    const text = houseLatelyContext(ready());
+    expect(WEEK[1], "the fixture window moved").toBe("2026-08-25");
+    expect(text).toContain("busiest day Tuesday 2026-08-25 with 30");
+    // ⚠ The date must survive alongside the name — a weekday alone cannot be
+    // checked against the record, and "Tuesday" recurs every seven days.
+    expect(text).toContain("2026-08-25");
+  });
+
+  test("⛔ says there is no per-day series, so today is never a most or a least", () => {
+    /* The sharpest evidence there was: the same number, the same prompt bytes,
+       minutes apart, called both "the most since Saturday" and "the lowest
+       count we've had since counting started". Neither is derivable — only
+       total, today, one busiest day and the quiet entries are handed over. */
+    const text = houseLatelyContext(ready());
+    expect(text).toContain("day totals and nothing else");
+    expect(text).toContain("never call today's count a most, a least, a record or a first");
+    expect(text).toContain("the busiest day named above is the only comparison you hold");
+  });
+
+  test("⛔ says it holds no clock time for any single event", () => {
+    /* "The last one a few minutes ago", "last one being whatever just now",
+       "about twenty minutes ago", "a couple of hours ago" — four different
+       inventions of a number that is nowhere in the prompt. §4 is day-granular
+       by design, so the absence has to be stated or the model fills it. */
+    const text = houseLatelyContext(ready());
+    expect(text).toContain("no clock time for any single one of these events");
+    expect(text).toContain("never say when the last one was, not even vaguely");
+    // ⚠ And the block itself must still carry no time, or the ban is moot.
+    const counts = text.slice(0, text.indexOf("⛔ These are day totals"));
+    expect(counts, "a clock time reached the §4 block").not.toMatch(/\b\d{1,2}:\d{2}\b/);
+  });
 });
 
 /* ───────────────────────────────────────────────────────────────────────────

@@ -343,15 +343,55 @@ test.describe("the rewritten exemplars are in the house's voice", () => {
     }
   });
 
-  test("no exemplar reuses a figure the character block already owns", () => {
-    /* 8:41 was not the root cause but it made the leak worse: it appears in
-       houseCharacter()'s own CARES_ABOUT block, so the assembled prompt showed
-       it twice on the same topic and it stopped reading as an illustration.
-       Any figure appearing in BOTH places gets that reinforcement, so none may. */
+  test("the character block owns no clock time, and still demonstrates counting", () => {
+    /* 2026-09-05: 8:41 was not the root cause of the briefing leak but it made it
+       worse — it appeared in houseCharacter()'s own CARES_ABOUT block, so the
+       assembled prompt showed it twice on the same topic and it stopped reading
+       as an illustration. The ban was therefore "no exemplar may reuse a figure
+       the character block owns", and this test asserted the character block still
+       HELD one.
+
+       ⚠⚠⚠ 2026-09-08 INVERTED THAT. Measured in the voice lane, which unlike the
+       briefing IS handed history: with the 8:41 exemplar present, 5/5 replies to
+       one question manufactured a particular; with those two sentences the only
+       thing changed, 1/5. The clock time was not merely reinforcement, it was the
+       instruction. No lane's data carries the minute a household event happened —
+       §4 hands over day totals and a busiest day, the briefing holds today only —
+       so a worked example containing one can only teach invention.
+
+       The ban is now the stronger one: the character block owns NO clock time at
+       all, which subsumes the reuse rule below (nothing can be reused from an
+       empty set). The loop stays because it is what fails first and by name if a
+       figure ever comes back. See project-house-lately-manufactured-particulars. */
+    const text = houseCharacter();
     const figures = s => (s.match(/\b\d{1,2}:\d{2}\b/g) ?? []);
-    const inCharacter = new Set(figures(houseCharacter()));
-    expect(inCharacter.size, "character block lost its counting example")
-      .toBeGreaterThan(0);
+    const inCharacter = new Set(figures(text));
+
+    /* ⛔ THE NEW INVARIANT, scoped to the two exemplars rather than the block.
+       7:20 and 8:20 remain elsewhere in the character and must: one is the
+       counter-example in the LIKELY grade, the other an en-AU format spec.
+       Neither demonstrates recalling when a household event happened. */
+    const slice = (from, to) => {
+      const i = text.indexOf(from), j = text.indexOf(to);
+      expect(i, `the "${from}" exemplar moved or was renamed`).toBeGreaterThan(-1);
+      expect(j, `the "${to}" boundary moved or was renamed`).toBeGreaterThan(i);
+      return text.slice(i, j);
+    };
+    for (const s of [slice("Keeping count", "The photographs"),
+                     slice("Your comedy is scale", "One beat per line")]) {
+      expect(s, "a clock time returned to a counting exemplar")
+        .not.toMatch(/\b\d{1,2}:\d{2}\b/);
+    }
+
+    /* ⚠ Without this the ban above is satisfied by a block that simply lost its
+       exemplar — the same vacuous pass in the other direction. The counting
+       habit is load-bearing and must still be SHOWN, now by a count. */
+    expect(text, "character block lost its counting example")
+      .toMatch(/third late night this week/i);
+
+    /* The original 2026-09-05 ban, intact and still non-vacuous — the block does
+       own clock times, just no longer inside an exemplar. */
+    expect(inCharacter.size, "character block owns no figure to protect").toBeGreaterThan(0);
     for (const [name, line] of Object.entries(__EXEMPLARS)) {
       for (const f of figures(line)) {
         expect(inCharacter.has(f), `${name} reuses ${f} from the character block`)

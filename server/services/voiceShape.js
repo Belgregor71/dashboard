@@ -312,6 +312,22 @@ export function latelyContext(claims) {
 
    Volatile: goes AFTER the cache breakpoint with the rest of the live state.
 ─────────────────────────────────────────────────────────────────────────── */
+/* ⚠⚠ NAME THE DAY; DO NOT MAKE THE MODEL DERIVE IT. Measured live 2026-09-08:
+   asked to convert a bare ISO date, it got the weekday wrong every time it tried
+   — "Saturday" for 2026-08-30 (a Sunday), "Friday" twice for 2026-09-05 (a
+   Saturday), and once "the eighth" for a record set on the thirtieth. The door
+   block holds exactly two dates, so the loose weekday of one landed on the
+   other's value. Noon UTC so no zone can shift the day, and the weekday and the
+   date ship together so a wrong pairing is not expressible.
+   See project-house-lately-manufactured-particulars. */
+function namedDay(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso ?? ""));
+  if (!m) return String(iso ?? "");
+  const at = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12));
+  if (Number.isNaN(at.getTime())) return String(iso);
+  return `${at.toLocaleDateString("en-AU", { timeZone: "UTC", weekday: "long" })} ${iso}`;
+}
+
 export function houseLatelyContext(claims) {
   if (!claims?.ready) return "";
 
@@ -326,12 +342,12 @@ export function houseLatelyContext(claims) {
        make the house answer "I cannot see that" to something it holds. */
     if (group.busiest) {
       bits.push(
-        `  busiest day ${group.busiest.day} with ${group.busiest.value}` +
+        `  busiest day ${namedDay(group.busiest.day)} with ${group.busiest.value}` +
         (group.busiest.clear ? "" : " — too close to call a record, do not use the word")
       );
     }
     for (const q of group.quiet ?? []) {
-      bits.push(`  nothing from ${q.name} for ${q.daysSince} day(s); last was ${q.lastDay}`);
+      bits.push(`  nothing from ${q.name} for ${q.daysSince} day(s); last was ${namedDay(q.lastDay)}`);
     }
     out.push(bits.join("\n"));
   }
@@ -356,6 +372,19 @@ export function houseLatelyContext(claims) {
     `This covers ${claims.observedDays} day(s) the wall was actually awake, ${claims.since} to ` +
     `${claims.until}${claims.continuous ? "" : `, with ${claims.gapDays} day(s) missing`}. ` +
     "Days the screen was off are not counted at all, so never say nothing happened on one. " +
+    /* ⚠⚠⚠ THE TWO ABSENCES, STATED. Everything above is a day TOTAL. Measured
+       live 2026-09-08: asked the same question minutes apart on identical bytes,
+       the house called today's count "the most since Saturday" and then "the
+       lowest we've had since counting started" — opposite superlatives, neither
+       derivable, because no per-day series is in here at all. A third run put a
+       clock on it ("about twenty minutes ago") when no event time is in here
+       either. An absence the prompt does not name is an absence the model fills.
+       See project-house-lately-manufactured-particulars. */
+    "⛔ These are day totals and nothing else. You have no day-by-day series here, so never " +
+    "call today's count a most, a least, a record or a first — the busiest day named above is " +
+    "the only comparison you hold. And you have no clock time for any single one of these " +
+    "events, so never say when the last one was, not even vaguely. Give the number and the " +
+    "day, and say you cannot see the rest. " +
     "⛔ NEVER VOLUNTEER ANY OF THIS. What the household asked, and when they were home, is " +
     "answered only when they ask for it — never offered, and never as a scoreboard."
   );
