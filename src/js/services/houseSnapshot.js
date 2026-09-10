@@ -43,6 +43,7 @@
 
 import { getAllEntities } from "./homeAssistant/state.js";
 import { menuFrom } from "./mealEvent.js";
+import { plainTitle } from "./eventTitle.js";
 import { resolveMediaImage } from "./mediaImage.js";
 import { isTvAudio } from "./mediaSource.js";
 import { getBomWarnings } from "./weather/bom.js";
@@ -198,7 +199,12 @@ function nextEventFrom(events, now) {
   const { ev, start } = candidates[0];
 
   const icon = ev?.category?.icon || "📅";
-  const title = ev?.displayTitle || ev?.title || "(Untitled)";
+  /* ⚠ SEEN ON THE WALL, 2026-09-09: "📅 Bill: Ora due · Starts in 12 min".
+     This is V3's next-event line — the incumbent scrapes its own rendered panel
+     (focusHero) and never reaches here, so `ev` arrives straight off
+     /api/calendar/all with no `displayTitle` and no `category`: the raw title,
+     scaffolding and all. services/eventTitle.js is the one home for that rule. */
+  const title = plainTitle(ev) || "(Untitled)";
   const delta = Math.round((start.getTime() - now.getTime()) / 60000);
   const relative =
     delta > 0 ? `Starts in ${delta} min` : delta === 0 ? "Starting now" : `Started ${Math.abs(delta)} min ago`;

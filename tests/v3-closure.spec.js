@@ -102,6 +102,11 @@ const SHARED_BOTH = [
   "js/services/briefingSchedule.js",
   "js/services/candidateSources.js",
   "js/services/delight.js",
+  /* ⚠ ENTERED V3'S CLOSURE 2026-09-10, and it entered as a DE-duplication: the
+     "Meal:"/"Bill:" strip existed twice (v3/subjects/calendar.js and, missing,
+     houseSnapshot's next-event line) and the second omission was read off the
+     wall. Pure and import-free, like mealEvent.js beside it. */
+  "js/services/eventTitle.js",
   /* ⚠ ENTERED V3'S CLOSURE 2026-08-17, and it entered by being CARVED OUT of
      modules/goodnightRoutine.js rather than by a new import of it. That module
      ends in `engageScreensaver()` — an incumbent-only surface — so reaching its

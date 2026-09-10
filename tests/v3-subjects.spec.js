@@ -144,12 +144,39 @@ test.describe("what a calendar row actually says", () => {
        should read. Every other consumer strips it and this one did not. */
     expect(displayTitleOf({ title: "Meal: Chicken Fajitas" })).toBe("Chicken Fajitas");
     expect(displayTitleOf({ displayTitle: "Meal:   Lasagne" })).toBe("Lasagne");
+    // The live calendar carries "MEAL: spaghetti Bol" as well as "Meal: …", and
+    // the strip was case-SENSITIVE, so one of the two showed its scaffolding.
+    expect(displayTitleOf({ title: "MEAL: spaghetti Bol" })).toBe("spaghetti Bol");
+  });
+
+  test("⚠ nor does Bill: — SEEN ON THE WALL 2026-09-09", () => {
+    /* The glance read "📅 Bill: Ora due · Starts in 12 min". `Bill:` is typed
+       so the incumbent's categoriser draws 💵; V3 has no icon column, so the
+       prefix was simply on the glass. Same class as Meal:, fixed a month apart
+       because the rule lived in one consumer instead of one module. */
+    expect(displayTitleOf({ title: "Bill: Ora due" })).toBe("Ora due");
+    expect(displayTitleOf({ title: "Bill - Ora due" })).toBe("Ora due");
+  });
+
+  test("⚠ a DESCRIPTIVE prefix stays — stripping it would say less, not more", () => {
+    /* The incumbent strips ~20 category prefixes because it puts an icon in the
+       space it clears: "✈️ Brisbane to Gladstone" loses nothing. V3's rows have
+       no icon, so the same strip leaves a title that no longer says what it is.
+       24 of these are in the real calendar; they are not scaffolding. */
+    expect(displayTitleOf({ title: "Flight: Brisbane to Gladstone" }))
+      .toBe("Flight: Brisbane to Gladstone");
+    expect(displayTitleOf({ title: "Meeting - SafeWork NSW v Tamex" }))
+      .toBe("Meeting - SafeWork NSW v Tamex");
   });
 
   test("an ordinary event is untouched, and an empty one still says something", () => {
     expect(displayTitleOf({ title: "Dentist" })).toBe("Dentist");
     // "Meal:" with nothing after it must not render as an empty row.
     expect(displayTitleOf({ title: "Meal:" })).toBe("Meal:");
+    expect(displayTitleOf({ title: "Bill:" })).toBe("Bill:");
+    // A bare hyphen is part of the title, not a separator: "Meal-prep Sunday"
+    // is a thing somebody wrote, and `[:\-]` eats the front of it.
+    expect(displayTitleOf({ title: "Meal-prep Sunday" })).toBe("Meal-prep Sunday");
     expect(displayTitleOf({})).toBe("Something");
   });
 });

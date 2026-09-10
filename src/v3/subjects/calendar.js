@@ -15,7 +15,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { frame, title, column } from "./dom.js";
-import { MEAL_PREFIX } from "../../js/services/mealEvent.js";
+import { plainTitle } from "../../js/services/eventTitle.js";
 
 /* Six rows at 96px inside the safe area. The fix for a seventh is not a smaller
    row — nothing below the 32px floor is received at 3m, and a shrunken list is
@@ -43,11 +43,15 @@ function clock(d) {
    should ever read on the glass. Every other consumer strips it; the one that
    puts the raw title on a 1920px wall did not. Stripped here at the last
    possible moment, so the event is still matched by its real title everywhere
-   upstream. */
+   upstream.
+
+   ⚠ AND AGAIN ON 2026-09-09, with the other one: the glance read "Bill: Ora
+   due". The fix above was correct and was made in exactly one of the three
+   places a raw title reaches the glass, with a private regex. The rule now
+   lives in services/eventTitle.js and every one of the three reads it, so the
+   next authoring prefix is one list entry rather than a third sighting. */
 export function displayTitleOf(event) {
-  const raw = event?.displayTitle || event?.title || "";
-  const stripped = raw.replace(MEAL_PREFIX, "").trim();
-  return stripped || raw.trim() || "Something";
+  return plainTitle(event) || "Something";
 }
 
 /** Today's events in order, from `now` onwards, plus the ones already running.

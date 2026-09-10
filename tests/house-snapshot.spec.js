@@ -156,6 +156,41 @@ test("an event inside the window becomes a candidate with split title/sub slots"
   expect(collectSources(snap).find((c) => c.source === "nextEvent")).toBeTruthy();
 });
 
+test("⚠ an authoring prefix never reaches V3's glance — SEEN ON THE WALL 2026-09-09", async () => {
+  /* The wall read "📅 Bill: Ora due · Starts in 12 min • 6:00 PM". This line is
+     V3-only in practice — the incumbent scrapes its own rendered next-event
+     panel (focusHero) and never calls here — so `ev` arrives raw off
+     /api/calendar/all: no `displayTitle`, no `category`, prefix and all.
+
+     ⚠ Assert the CANDIDATE's text too, not just the snapshot field. What V3
+     puts on the glass is `hero.text` written verbatim into #said
+     (v3/core/attention.js → setSaidText); a snapshot field nobody renders
+     passing is the shape of reference-adapter-output-asserted-never-ranked. */
+  stubFetch({ "/api/calendar/all": calendarWith([eventAt(12, "Bill: Ora due")]) });
+  await refreshHouseCache();
+
+  const snap = houseSnapshot({ now: NOW });
+  expect(snap.nextEventTitle).toBe("Ora due");
+  expect(snap.nextEventText).toContain("Ora due");
+  expect(snap.nextEventText).not.toContain("Bill:");
+
+  const candidate = collectSources(snap).find((c) => c.source === "nextEvent");
+  expect(candidate?.text).toBe(snap.nextEventText);
+  expect(candidate.text).not.toContain("Bill:");
+});
+
+test("a descriptive prefix survives — the strip is scaffolding-only", async () => {
+  /* 24 "Flight: …" events are in the real calendar and none of them is
+     scaffolding. V3 has no icon column to put in the space, so stripping this
+     would leave "Brisbane to Gladstone" — a row that no longer says what it is. */
+  stubFetch({ "/api/calendar/all": calendarWith([eventAt(12, "Flight: Brisbane to Gladstone")]) });
+  await refreshHouseCache();
+
+  const snap = houseSnapshot({ now: NOW });
+  expect(snap.nextEventTitle).toBe("Flight: Brisbane to Gladstone");
+  expect(snap.nextEventText).toContain("Flight: Brisbane to Gladstone");
+});
+
 test("an event beyond the 30-minute lead-in is not yet offered", async () => {
   stubFetch({ "/api/calendar/all": calendarWith([eventAt(90)]) });
   await refreshHouseCache();
