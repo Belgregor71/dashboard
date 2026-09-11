@@ -1,4 +1,8 @@
-import { test, expect } from "@playwright/test";
+import { test as base, expect } from "@playwright/test";
+import { withVoiceBusLock } from "./fixtures/voice-bus-lock.js";
+
+// `voiceBus` serialises the tests that post or suffer a barge-in — see the fixture.
+const test = withVoiceBusLock(base);
 import { existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -248,7 +252,7 @@ async function stubVoiceLanes(page, speaking) {
   });
 }
 
-test("half duplex on: the page tells the mic when it starts and stops talking", async ({ page }) => {
+test("half duplex on: the page tells the mic when it starts and stops talking", async ({ page, voiceBus }) => {
   const speaking = [];
   await stubVoiceLanes(page, speaking);
   const pageErrors = await boot(page, { voiceSession: true, halfDuplex: true });
@@ -266,7 +270,7 @@ test("half duplex on: the page tells the mic when it starts and stops talking", 
   expect(pageErrors).toEqual([]);
 });
 
-test("half duplex on: a barge-in over SSE silences the page mid-sentence", async ({ page, request }) => {
+test("half duplex on: a barge-in over SSE silences the page mid-sentence", async ({ page, request, voiceBus }) => {
   const speaking = [];
   await stubVoiceLanes(page, speaking);
 

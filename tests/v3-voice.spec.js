@@ -1,4 +1,8 @@
-import { test, expect } from "./fixtures/coverage.js";
+import { test as coverageTest, expect } from "./fixtures/coverage.js";
+import { withVoiceBusLock } from "./fixtures/voice-bus-lock.js";
+
+// `voiceBus` serialises the tests that post or suffer a barge-in — see the fixture.
+const test = withVoiceBusLock(coverageTest);
 
 /* V3's voice turn: which depth it lands on, which cells light, and — the one
    that actually matters for a surface that runs for weeks — whether a subject
@@ -241,7 +245,7 @@ async function bootHalfDuplex(page, { speaking, replySeconds = 30 }) {
   return boot(page);
 }
 
-test("half duplex: V3 tells the mic when it is speaking", async ({ page }) => {
+test("half duplex: V3 tells the mic when it is speaking", async ({ page, voiceBus }) => {
   const speaking = [];
   const pageErrors = await bootHalfDuplex(page, { speaking, replySeconds: 0.2 });
 
@@ -254,7 +258,7 @@ test("half duplex: V3 tells the mic when it is speaking", async ({ page }) => {
   expect(pageErrors).toEqual([]);
 });
 
-test("half duplex: a barge-in stops the reply AND does not wedge the turn", async ({ page, request }) => {
+test("half duplex: a barge-in stops the reply AND does not wedge the turn", async ({ page, request, voiceBus }) => {
   const speaking = [];
   const pageErrors = await bootHalfDuplex(page, { speaking });
 

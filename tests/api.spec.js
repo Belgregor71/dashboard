@@ -1,4 +1,8 @@
-import { test, expect } from "@playwright/test";
+import { test as base, expect } from "@playwright/test";
+import { withVoiceBusLock } from "./fixtures/voice-bus-lock.js";
+
+// `voiceBus` serialises the tests that post or suffer a barge-in — see the fixture.
+const test = withVoiceBusLock(base);
 import { createHash } from "crypto";
 import { mkdir, rm, stat, utimes, writeFile } from "fs/promises";
 import path from "path";
@@ -1856,7 +1860,7 @@ test.describe("ai + tts", () => {
     }
   });
 
-  test("POST /api/voice/barge-in is accepted from loopback", async ({ request }) => {
+  test("POST /api/voice/barge-in is accepted from loopback", async ({ request, voiceBus }) => {
     const { status, body } = await expectJson(request, "/api/voice/barge-in", { method: "post", data: {} });
     expect(status).toBe(200);
     expect(body.ok).toBe(true);
@@ -1921,7 +1925,7 @@ test.describe("ai + tts", () => {
     expect(received, "transcripts leaked onto the agent stream").not.toContain("voice_transcript");
   });
 
-  test("a barge-in reaches the KIOSK stream, which is what silences the page", async ({ request }) => {
+  test("a barge-in reaches the KIOSK stream, which is what silences the page", async ({ request, voiceBus }) => {
     const http = await import("node:http");
     let posted;
     const received = await new Promise((resolve) => {
