@@ -5,6 +5,37 @@ family 3). **Owner's decision: port as a design arc** — competing directions o
 real wall, each behind its own default-off V3 flag, GPU measured, flipped one at a time.
 Nothing below is built yet. Facts are cited; everything marked HYPOTHESIS is not probed.
 
+## ▶ Status 2026-09-12 — steps 0 and 1 DONE and live; step 2 BUILT, awaiting the owner
+
+Read this block first; the sections below are the 09-11 handover as written, and four of
+its facts were corrected by measuring the wall.
+
+- **Step 0 — the baseline is taken** (`HOST-BASELINES.md`, "the Living Window baseline").
+  Depth 0, archive on, plane composition: **19.4-19.8 settled / 27.4 mid-settle**, engine +
+  SSE running. Archive off, still air: **0.2**. `V3-MIGRATION.md:537` ticked.
+- **Correction to fact 1: at depth 0 the archive covers EVERYTHING**, not only the substrate.
+  `.archive` is `inset:0` over an opaque `--surface` (z3) — the full-bleed photograph (z1)
+  and its scrim (z2) are under it too. A shader-only effect is invisible at depth 0, full stop.
+- **Found on the way: the substrate drew 15 fps under that opaque layer** — ~1.9 gpu / ~7.4
+  renderer for nothing. `v3SubstrateCoveredPause` (`9db0d96`) pauses it; **flipped default-on
+  `56270a4`**, live, rollback proven in-page.
+- **Correction to fact 2's arithmetic: the headroom is ~5 points live, not ~19** (the 5.9
+  ambient row predates the archive) — ~7 with the covered pause. The owner has since
+  **raised the ceiling for weather episodes** (draft row in `LIVING-WINDOW-VARIANTS.md`, branch).
+- **Fact 3 is done: step 1 shipped (`8083ee1`, live)** — V3 writes the store's `weather`
+  slice `{category, intensity, thunder, windKph, tempC}` from the WMO code, change-guarded;
+  read off the wall matching `/api/weather/now` field for field. Season already existed on
+  V3 (`intent.season` via `intentEngine`). The stale `main.js` comment is fixed (it was at
+  `:161-167`, not `:149-155` — `6707979` moved it).
+- **Fact 6 is resolved by the owner: the monopoly is WIDENED on purpose** — `tokens.css` now
+  names the four things atmosphere may move (hue, the mat, the grade, the scrim).
+- **Step 2 — three directions BUILT on branch `lw-variants`** (worktree `../pi-lw-variants`),
+  each behind its own default-off flag, 12 specs, 11/11 injections red, suite 2050 green,
+  and each **served to the real panel** for 16 min by CDP fetch interception (no deploy).
+  Evidence + recommendation: `docs/design/LIVING-WINDOW-VARIANTS.md` **on that branch**;
+  screenshots locally in `C:\Users\gdee7\projects\lw-variants-shots\` (family photographs —
+  never in this public repo). 🛑 **Waiting on the owner's pick.**
+
 ## What is missing from the wall
 
 Seven incumbent effects have not been on the wall since the V3 cutover, whatever their
