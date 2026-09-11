@@ -27,31 +27,51 @@ window.CONFIG = {
   /* --------------------------------------------------------------
      FEATURE FLAGS
      Toggle modules on/off without touching code
+
+     ⛔ INERT-ON-V3 — A FLAG WITH THIS MARK IS NOT A LEVER ON THE WALL.
+     `/` serves V3, and no module V3 loads reads these flags: their only
+     readers are incumbent modules, almost all in src/js/core/app.js, which
+     V3 never imports. Setting one to false changes nothing on the glass, and
+     the flag-off half of /flag-flip passes while proving nothing.
+
+     This says the FLAG is dead on V3, not the feature. V3 reimplements some
+     of these behaviours without a gate (its own substrate, its own archive);
+     which of the marked features exist on V3 at all has NOT been established
+     flag by flag yet (docs/audit/AUDIT-2026-09-10.md §9.1, parts b/c).
+
+     The rollback that does work for one of these on the wall is the SURFACE
+     rollback — `V3_DEFAULT=0` in the kiosk's .env + a dashboard.service
+     restart puts the incumbent back, where these flags gate again — or a
+     revert of the commit that built the V3 behaviour.
+
+     Unmarked = read by at least one module V3 loads. The marks are derived,
+     not maintained: tests/flag-surface.spec.js walks V3's import closure and
+     goes red on a missing mark AND on a stale one.
   --------------------------------------------------------------*/
   features: {
     // Core UI
-    background: true,
-    clock: true,
-    commute: true,
+    background: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    clock: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    commute: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Data-driven panels
-    weather: true,
-    calendar: true,
+    weather: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    calendar: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // External integrations
-    homeAssistant: true, // force enable
-    plex: true,
+    homeAssistant: true, // force enable · ⛔ INERT-ON-V3 (incumbent-only)
+    plex: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Phase 1 presence runtime (docs/vision/phase-1-presence-runtime.md).
     // Verified live on the Pi 2026-07-11 (screensaver boundary drives
     // ambient<->glance; dead click-cycle suppressed) — now enabled.
-    presenceRuntime: true,
+    presenceRuntime: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Phase 2 attention engine (docs/vision/phase-2-attention-engine.md).
     // Unifies every focus-hero source into one scored, presence-gated queue.
     // Verified live on the Pi 2026-07-11 (DWELL reveals top-3 stack; AMBIENT
     // interrupt-only; GLANCE single hero) — now enabled.
-    attentionEngine: true,
+    attentionEngine: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Phase 3 predictive candidates (docs/vision/phase-3-anticipate.md).
     // Grounded anticipatory rules (rain-incoming, bin-night, on-this-day) merged
@@ -65,7 +85,7 @@ window.CONFIG = {
     // occasional earned "on this day" memory. Verified live on the Pi
     // 2026-07-11: tint renders and adds zero GPU cost (80% Mode 0 baseline is
     // the pre-existing Ken Burns photo decode, unchanged by the token) — enabled.
-    ambientAtmospherics: true,
+    ambientAtmospherics: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Phase 6 House Model (docs/vision/phase-6-intent.md). A pure reducer fuses
     // presence + calendar + people-home into an `intent` posture the attention
@@ -114,7 +134,7 @@ window.CONFIG = {
     // PASSED on the Pi (Ken Burns → 6s settle+hold dropped Mode-0 steady-state
     // GPU 80%→0%). Enabled here in daylight to run the remaining awake
     // GLANCE/DWELL gpucpu + per-token legibility verification. Reversible (→ false).
-    ambientSubstrate: true,
+    ambientSubstrate: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Phase 8 "Learn Without Asking" (docs/vision/phase-8-learn.md). A passive
     // observer on the signals already emitted (presence, person.* transitions,
@@ -167,7 +187,7 @@ window.CONFIG = {
     // with real exif on the Pi (captions + travel gate correct), MAP_API_KEY added,
     // screensaver surface proven live via __ssPlace. Revert (-> false) restores the
     // immichPhotos blend exactly (routes/scheduler stay inert, build-on-demand only).
-    dailyMemories: true,
+    dailyMemories: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Phase 10 "One Character" (docs/vision/phase-10-temperament.md). One
     // temperament authority (personality.js) every surfacing path routes through,
@@ -199,7 +219,7 @@ window.CONFIG = {
     // (13ch->144px / 32ch->104px / 52ch->72px), heap + GPU flat (80% = the
     // pre-existing awake-home baseline, unchanged by a static type change).
     // Now default-on. One-line revert (-> false).
-    heroType: true,
+    heroType: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Design study 05 "The Ambient Clock" (docs/design/homeos-ambient-clock.html),
     // WP1 of docs/design/PLAN.md. The Mode-0 screensaver clock gets the study
@@ -211,7 +231,7 @@ window.CONFIG = {
     // clock clamped to the 0.3 floor, tabular face + quieter "pm", gpu-process
     // 0% over 25s, legible over a real photo. Now default-on. One-line revert
     // (-> false); flag-off is byte-identical (plain string, binary dimming).
-    ambientClock: true,
+    ambientClock: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Design study 01 "The Lean-in stack" (docs/design/homeos-component-studies.html),
     // WP2 of docs/design/PLAN.md. In DWELL — the one mode where glass earns its
@@ -225,7 +245,7 @@ window.CONFIG = {
     // DOM flat 2265→2265 across 40 reveal/teardown cycles, heap 54MB / listeners
     // 64 (no leak). Now default-on; flag-off stays byte-identical (flat cards).
     // One-line revert (-> false).
-    leanInStack: true,
+    leanInStack: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Tier-1a spec-fidelity upgrade of the lean-in stack (2026-07-15 conformance
     // audit vs docs/design/design_handoff_homeos_home). Requires leanInStack for
@@ -241,7 +261,7 @@ window.CONFIG = {
     // queue below the fold. Flag-off adds no class and renderStack keeps the
     // one-line chips → byte-identical. Enabled 2026-07-15 after the 4663e71
     // flag-off deploy; Pi live proof in the project memory. Revert (-> false).
-    stackCards: true,
+    stackCards: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Design study 03 "The Arrival card" (docs/design/homeos-arrival-card.html),
     // WP3 of docs/design/PLAN.md. The away->home greeting card gets the study
@@ -258,7 +278,7 @@ window.CONFIG = {
     // agenda; DOM flat 2265→2265 over 40 arrivals, heap 54MB / 64 listeners (no
     // leak). Now default-on; flag-off stays byte-identical (cool card, JS drain).
     // One-line revert (-> false).
-    arrivalCard: true,
+    arrivalCard: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Tier-1b spec-fidelity reshape of the arrival card (2026-07-15 conformance
     // audit vs docs/design/design_handoff_homeos_home). Requires arrivalCard.
@@ -270,7 +290,7 @@ window.CONFIG = {
     // titles 26px/ink-85, padding 38/46. Flag-off adds no class → byte-identical
     // (the shipped top-slide WP3 card stands). Enabled 2026-07-15 after the
     // 4663e71 flag-off deploy; Pi live proof in the project memory. Revert (-> false).
-    arrivalBottom: true,
+    arrivalBottom: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Design study 01 "The Ambient memory surface" (ambient half of
     // docs/design/homeos-component-studies.html), WP4 of docs/design/PLAN.md.
@@ -287,7 +307,7 @@ window.CONFIG = {
     // spent (lastSurfacedDay set), a non-tender surface was refused by the lane,
     // gpu-process 0% over 25s. Now default-on; flag-off stays byte-identical (no
     // mark element, tender memories stay dropped). One-line revert (-> false).
-    ambientMemory: true,
+    ambientMemory: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Design-system rollout WP-B (docs/design/DESIGN_ROLLOUT.md) — the bare top
     // row. Strips the old chrome off the awake Glance/Lean-in top row so the time
@@ -306,7 +326,7 @@ window.CONFIG = {
     // #current-conditions textContent stayed "Clear" so the screensaver dateline
     // is unaffected; concierge hero unaffected. Now default-on; flag-off stays
     // byte-identical (old cards + icon + wind + range return). Revert (-> false).
-    bareTopRow: true,
+    bareTopRow: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Design-system rollout WP-C (docs/design/DESIGN_ROLLOUT.md) — un-chrome the
     // hero. Strips the container box off #focus-hero so the scored line sits bare
@@ -321,7 +341,7 @@ window.CONFIG = {
     // y587 h147 → centre 660 = 540 + 120px), matte (glyph no glow, ink .78),
     // legible; no overlap with the legacy media panel. Now default-on; flag-off
     // byte-identical (the boxed hero returns). Revert (-> false).
-    bareHero: true,
+    bareHero: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Design-system rollout WP-D (docs/design/DESIGN_ROLLOUT.md) — the awake
     // photographic ground. Today only the screensaver draws a photo; the awake
@@ -340,7 +360,7 @@ window.CONFIG = {
     // retired; gpu-process 0% over 25s in Mode 0 (idle-freeze intact) AND 0% awake-
     // idle (the retired aurora loop = a net GPU reduction). Now default-on; flag-off
     // byte-identical (aurora returns, no photo). One-line revert (-> false).
-    awakeGround: true,
+    awakeGround: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // WP-D follow-up #1 (DESIGN_SYSTEM.md §6) — the weather-based living accent.
     // The atmosphere already tints the ground per condition (the shipped atmo-*
@@ -357,7 +377,7 @@ window.CONFIG = {
     // cool .97, night .92, clear/day white .95); the real evening state showed the
     // point — tint-evening periwinkle vs atmo-night → the flag gives night blue,
     // the clock lit by the actual sky. Revert (-> false).
-    livingAccent: true,
+    livingAccent: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // WP-D follow-up #2 — the day-boundary photo cross-dissolve. The awake
     // ground photo no longer holds for the whole session: when the calendar
@@ -372,7 +392,7 @@ window.CONFIG = {
     // dissolve → two .awake-photo imgs during the settle, old node removed on
     // the timer, id handed to the survivor, latch released (second dissolve
     // works), 0 page errors, DOM count flat. Revert (-> false).
-    awakePhotoDissolve: true,
+    awakePhotoDissolve: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Design-system rollout WP-E (docs/design/DESIGN_ROLLOUT.md) — the captioned
     // memory whisper: the Mode-0 bottom-right "on this day" surface (the non-tender
@@ -386,7 +406,7 @@ window.CONFIG = {
     // + the display title), legible over the night photo, footer dropped its line;
     // hidden when no anniversary (silence). Now default-on; flag-off byte-identical
     // (footer keeps the line, no whisper element). One-line revert (-> false).
-    memoryWhisper: true,
+    memoryWhisper: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Design-system follow-up (docs/design/DESIGN_ROLLOUT.md) — fold the standalone
     // "Now Playing" media panel into the one attention queue. With this on, what's
@@ -400,7 +420,7 @@ window.CONFIG = {
     // through the bare hero line; the standalone #media-stack was display:none but
     // stayed in the DOM. Now default-on; flag-off byte-identical (panel shows, no
     // candidate). One-line revert (-> false).
-    mediaCandidate: true,
+    mediaCandidate: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Design-system follow-up (docs/design/DESIGN_ROLLOUT.md) — fold the remaining
     // home tiles (Tonight's Menu + Bins) off the presence surface. Tonight's
@@ -413,7 +433,7 @@ window.CONFIG = {
     // queue and #home-stack was display:none (tiles stayed in the DOM). Now
     // default-on; flag-off byte-identical (the tiles show, no menu candidate).
     // One-line revert (-> false).
-    foldHomeTiles: true,
+    foldHomeTiles: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Old-chrome audit (memory: project-next-session) — fold the near-always-visible
     // #camera-last-trigger-pill ("Driveway · Last triggered 3:42pm") off the home
@@ -427,7 +447,7 @@ window.CONFIG = {
     // be69ebe → default-on) to fold the pill on the Pi; verify at the kiosk that a
     // recent trigger rides the stack (📹 name · last triggered) and decays, and the
     // standalone pill is display:none. One-line revert (-> false).
-    cameraCandidate: true,
+    cameraCandidate: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // The robot vacuum's "needs a human" states — the only thing it knows that
     // nobody is ever told: a `device_class: problem` sensor that is ON (empty
@@ -468,7 +488,7 @@ window.CONFIG = {
     // __voiceTranscript("...") over CDP for proof; no user-facing wake path
     // exists on the kiosk until the STT→forward bridge lands, so on is inert
     // for users. One-line revert (-> false) is the rollback path.
-    voiceSession: true,
+    voiceSession: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // HALF DUPLEX — the house stops talking when someone says the wake word,
     // and never answers its own voice.
@@ -907,7 +927,7 @@ window.CONFIG = {
     // deploy) → flipped ON 2026-07-18; verify via __forceAtmoEpisode
     // ("rain-moment"/"rain-heavy") + /kiosk-metrics (ambient must sit at GPU 0%
     // between episodes). One-line revert (-> false).
-    weatherFxRain: true,
+    weatherFxRain: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Living-window Phase 1 — storm lightning. One-shot CSS keyframes on a
     // screen-blend horizon veil (zero rAF; utils/atmo-fx.css), big strike then
@@ -915,7 +935,7 @@ window.CONFIG = {
     // Shares the atmoFx runtime with weatherFxRain; either flag alone inits it.
     // Shipped OFF 9c851e6 → flipped ON 2026-07-18. __forceAtmoEpisode
     // ("lightning") to verify. One-line revert (-> false).
-    weatherFxLightning: true,
+    weatherFxLightning: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Living-window Phase 2 — reactive glass. Pure CSS on the two-class
     // pattern (the living-accent precedent, layout/background.css): the atmo-*
@@ -926,7 +946,7 @@ window.CONFIG = {
     // body.fx-lightning-active from the Phase-1 strike path (box-shadow 150ms
     // in / 1s out — finite transitions, zero rAF). Shipped OFF 75c214c →
     // flipped ON 2026-07-18. One-line revert (-> false).
-    reactiveGlass: true,
+    reactiveGlass: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Living-window Phase 3 — sunrise/sunset sky ramp. syncNight steps
     // --sky-warmth on <body> once a minute from the sun altitude (pure
@@ -935,7 +955,7 @@ window.CONFIG = {
     // substrate tint, so golden hour arrives gradually instead of on the
     // mapper's hour-band edge (which stays as the flag-off fallback).
     // Shipped OFF 7023304 → flipped ON 2026-07-18. One-line revert (-> false).
-    skyRamp: true,
+    skyRamp: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Living-window Phase 3 — clear-night sky. The atmosphere mapper names
     // clear nights atmo-night-clear (opt-in via nightClear, so flag-off keeps
@@ -944,7 +964,7 @@ window.CONFIG = {
     // hold. The planner adds a twinkle moment (2–4 stars, ~2.5s) every 3–6
     // min, ambient-only. __forceAtmoEpisode("twinkle") to verify. Shipped OFF
     // 7023304 → flipped ON 2026-07-18. One-line revert (-> false).
-    nightSky: true,
+    nightSky: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Living-window Phase 4 (final) — atmosphere textures. Static body states
     // synced from the weather slice by the atmoFx runtime (pure texturesFor:
@@ -956,7 +976,7 @@ window.CONFIG = {
     // substrate hue biases riding body.season-*. __forceAtmoEpisode("fog"|
     // "heat-pulse") to verify. Shipped OFF a95beff → flipped ON 2026-07-18.
     // One-line revert (-> false).
-    atmoTextures: true,
+    atmoTextures: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Dinner recipe panel. One hour before a Meal:-prefixed calendar dinner, a
     // glass panel slides in from the right with that night's recipe (title,
@@ -966,7 +986,7 @@ window.CONFIG = {
     // Flipped ON 2026-07-22 (deadlock-break: flag-off has no verify hook, so
     // the only way to eyeball it live is a flag-on deploy). Verify on the Pi
     // via window.__recipePanel("<dish>"). One-line revert (-> false).
-    recipePanel: true,
+    recipePanel: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // The voice rail. The local lane went from 8 phrases to 33, and a lane
     // nobody knows about is worth nothing — discoverability is second only to
@@ -995,7 +1015,7 @@ window.CONFIG = {
     //
     // One-line revert (-> false): removes the element, the timer and the
     // listener entirely.
-    voiceRail: true,
+    voiceRail: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // RETIRED 2026-08-15 — `motionWakeGate` was here, and the wall outgrew it.
     // Audit M5 built it to stop plain camera motion waking the kiosk (61 wakes
@@ -1041,7 +1061,7 @@ window.CONFIG = {
     // fails, the revert is this line (-> false): the hero + lean-in stack return
     // untouched, and their specs still pass pinned off (verified by
     // scripts/verify/flag-reversibility.mjs).
-    temporalSpine: true,
+    temporalSpine: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // "The Day, Rendered" v2 §11 — calm law v3 / the AMBIENT ARCHIVE
     // (docs/design/AMBIENT-ARCHIVE.md). The deliberately-deferred half of the
@@ -1096,7 +1116,7 @@ window.CONFIG = {
     // construction: no archive element is built, the class is never set, the
     // spine is not hidden, and Mode 0 is exactly the surface verified above.
     // Proven green by scripts/verify/flag-reversibility.mjs at flip time.
-    ambientArchive: true,
+    ambientArchive: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Live Photo motion in the Ambient Archive: when an arriving memory has a
     // motion part, the card breathes for ~3.5s and then settles into the still.
@@ -1140,7 +1160,7 @@ window.CONFIG = {
     // One-line revert (-> false) builds no <video> at all — no element, no
     // timer, no listener, no fetch. Proven green by
     // scripts/verify/flag-reversibility.mjs at flip time.
-    ambientArchiveMotion: true,
+    ambientArchiveMotion: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // THE BURST HOLDS FOR THE WHOLE DWELL. Raised on the panel 2026-08-04: the
     // burst plays once and the card then sits still for the remaining ~26s of
@@ -1168,7 +1188,7 @@ window.CONFIG = {
     // One-line revert (-> false): no `loop` attribute is set and the hold
     // returns to MOTION_HOLD_MS — i.e. today's verified single burst, which is
     // the shipped surface.
-    archiveMotionLoop: false,
+    archiveMotionLoop: false, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // THE CARD FOLLOWS THE PRINT. The archive card is a fixed 1040×585 = 1.78:1
     // rectangle with the photograph `object-fit: cover` inside it, so a
@@ -1215,7 +1235,7 @@ window.CONFIG = {
     // the CSS var() fallbacks ARE the verified rectangle, and a guardrail pins
     // those fallbacks so they cannot drift. Proven green by
     // scripts/verify/flag-reversibility.mjs at flip time.
-    archiveFitToPrint: true,
+    archiveFitToPrint: true, // ⛔ INERT-ON-V3 (incumbent-only)
 
     // Audit M11. The Pi's crontab already powers the panel down 21:00→05:00
     // (`xset dpms force off`), so a doorbell ring at 3am currently speaks its

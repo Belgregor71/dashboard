@@ -70,9 +70,15 @@ happened; a glance at the wall did.
   half. This is the single most common place a session ends in a live defect: a flip has
   made the house invent a bin time, and a poisoned cache once blanked the whole wall.
   Record both the flip and the rollback proof in the session memory entry.
-- Flags live in `src/js/config.js` under `features:` (~78 flags), copied to
+- Flags live in `src/js/config.js` under `features:` (80 flags), copied to
   `static/js/config.js` on every build. That file is **tracked and shipped in the
   public bundle** — never put a secret or an address in it.
+- ⛔ **A flag marked `INERT-ON-V3` is not a lever on the wall.** No module V3 loads
+  reads it (almost all are gated only in `src/js/core/app.js`), so flipping it off
+  changes nothing on `/` and is **not** a rollback — the flag-off half of
+  `/flag-flip` passes while proving nothing. For those, the rollback is the
+  surface rollback (`V3_DEFAULT=0`) or a revert. The marks are derived, not
+  maintained: `tests/flag-surface.spec.js` goes red on a missing or a stale one.
 
 ### Testing & Pre-Push Gate
 
