@@ -99,7 +99,9 @@ async function bootV3(page, { routes = {}, flags = {} } = {}) {
     const res = await route.fetch();
     const body =
       (await res.text()) +
-      Object.entries(flags)
+      /* voiceSession pinned ON: these tests open the year by voice, and since
+         2026-09-11 voiceSession is V3's real voice switch rather than a no-op. */
+      Object.entries({ voiceSession: true, ...flags })
         .map(([k, v]) => `\nwindow.CONFIG.features.${k} = ${JSON.stringify(v)};`)
         .join("") +
       "\n";

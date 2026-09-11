@@ -167,7 +167,9 @@ async function bootV3(page, { diptych = false, photoVeto = true, pool } = {}) {
         (await res.text()) +
         "\nwindow.CONFIG.features.groundMemories = true;" +
         `\nwindow.CONFIG.features.groundDiptych = ${diptych};` +
-        `\nwindow.CONFIG.features.photoVeto = ${photoVeto};\n`
+        `\nwindow.CONFIG.features.photoVeto = ${photoVeto};` +
+        // The veto is SAID — V3's voice is a real switch since 2026-09-11.
+        "\nwindow.CONFIG.features.voiceSession = true;\n"
     });
   });
   /* ⚠ THE STUB FILTERS, because the real server does — the veto lives in

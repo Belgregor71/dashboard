@@ -556,11 +556,11 @@ test.describe("wired to the wall", () => {
 
   test("an intent matched by the voice lane is counted under its own id", async ({ page }) => {
     const posted = [];
-    /* ⚠ No `voiceSession: false` here any more. It was a no-op on V3 while
-       initVoice was hardcoded `enabled: true`; since 2026-09-11 it is V3's real
-       voice off switch, and pinned off it would refuse the very transcript this
-       test drives. The page was always on the bus — nothing changed but the lie. */
-    await bootV3(page, {}, { features: { v3FeatureCensus: true } });
+    /* ⚠ `voiceSession` was pinned FALSE here, and that was a no-op on V3 while
+       initVoice was hardcoded `enabled: true`. Since 2026-09-11 it is V3's real
+       voice switch, and this test drives a transcript — so it is pinned ON, as
+       the precondition it always silently had. */
+    await bootV3(page, {}, { features: { v3FeatureCensus: true, voiceSession: true } });
     await page.route("**/api/census/features", async (route) => {
       if (route.request().method() === "POST") posted.push(JSON.parse(route.request().postData()));
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });

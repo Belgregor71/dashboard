@@ -19,9 +19,16 @@
           claim a gated sentence until its feature is on.
    @returns {Promise<{pageErrors: string[]}>}
 */
-export async function bootV3(page, routes = {}, { features = null } = {}) {
+export async function bootV3(page, routes = {}, { features: overrides = null } = {}) {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
+  /* ⚠ voiceSession defaults ON here, as it is on the wall. Since 2026-09-11 it is
+     V3's real voice switch (it was a hardcoded `enabled: true` before), and the
+     specs using this fixture open subjects BY VOICE — so a config with the flag
+     off would refuse every sentence they say, and flag-reversibility.mjs proved
+     it: nine failures, none of them about voice. A spec that wants the voice off
+     says so: `{ features: { voiceSession: false } }`. */
+  const features = { voiceSession: true, ...(overrides ?? {}) };
 
   /* ⚠⚠ A PLAIN ASSIGNMENT HERE DOES NOTHING, and it fails silently — the flag
      reads as off, the sentence is not claimed, and the spec looks like a broken

@@ -15,6 +15,24 @@ const test = withVoiceBusLock(coverageTest);
 async function boot(page) {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
+  /* Every test in this file talks to the voice, and since 2026-09-11 voiceSession
+     is V3's real voice switch — so it is forced ON over whatever config.js says
+     (flag-reversibility.mjs flips that file). A setter rather than a config.js
+     route, because half the tests here already route config.js from the real
+     file and a second route would silently replace theirs. A test that wants the
+     voice OFF appends its own config.js line, which runs after this merge and
+     wins — see pinVoice(). */
+  await page.addInitScript(() => {
+    let real;
+    Object.defineProperty(window, "CONFIG", {
+      configurable: true,
+      get() { return real; },
+      set(value) {
+        real = value ?? {};
+        real.features = { ...(real.features ?? {}), voiceSession: true };
+      }
+    });
+  });
   await page.goto("/v3/");
   await page.waitForFunction(() => typeof window.__v3Transcript === "function", null, { timeout: 10_000 });
   return pageErrors;

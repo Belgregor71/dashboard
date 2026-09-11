@@ -24,6 +24,12 @@ async function bootV3(page) {
   await page.route("**/api/**", (route) =>
     route.fulfill({ status: 503, contentType: "application/json", body: "{}" })
   );
+  // A spoken ask is one of this file's inputs — V3's voice is a real switch
+  // since 2026-09-11, so it is pinned on as the precondition it always was.
+  await page.route("**/js/config.js", async (route) => {
+    const res = await route.fetch();
+    await route.fulfill({ response: res, body: (await res.text()) + "\nwindow.CONFIG.features.voiceSession = true;\n" });
+  });
   await page.goto("/v3/");
   await page.waitForFunction(() => typeof window.__v3 === "function");
   return pageErrors;

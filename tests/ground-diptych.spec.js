@@ -320,7 +320,9 @@ async function bootV3(page, { groundMemories = true, groundDiptych = true, pool 
       body:
         (await res.text()) +
         `\nwindow.CONFIG.features.groundMemories = ${groundMemories};` +
-        `\nwindow.CONFIG.features.groundDiptych = ${groundDiptych};\n`
+        `\nwindow.CONFIG.features.groundDiptych = ${groundDiptych};` +
+        // The veto is SAID — V3's voice is a real switch since 2026-09-11.
+        "\nwindow.CONFIG.features.voiceSession = true;\n"
     });
   });
 

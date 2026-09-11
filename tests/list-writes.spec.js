@@ -390,7 +390,8 @@ test.describe("wired to the wall", () => {
 
   test("a confirmed write is spoken AND put on the glass", async ({ page }) => {
     const { pageErrors } = await bootV3(page, { "/api/lists": REPLY.confirmed }, {
-      features: { voiceListWrites: true }
+      // voiceSession: the write is SPOKEN, and V3's voice is a real switch now.
+      features: { voiceListWrites: true, voiceSession: true }
     });
     const res = await turn(page, "add oat milk to the shopping list");
 
@@ -413,7 +414,8 @@ test.describe("wired to the wall", () => {
        `not-on-list` and the browser can say "added" anyway, because "the POST
        resolved" is the easiest thing in the world to treat as success. */
     const { pageErrors } = await bootV3(page, { "/api/lists": REPLY.notOnList }, {
-      features: { voiceListWrites: true }
+      // voiceSession: the write is SPOKEN, and V3's voice is a real switch now.
+      features: { voiceListWrites: true, voiceSession: true }
     });
     await turn(page, "add oat milk to the shopping list");
 
@@ -427,7 +429,8 @@ test.describe("wired to the wall", () => {
 
   test("a house it cannot reach is said differently from a write that failed", async ({ page }) => {
     const { pageErrors } = await bootV3(page, { "/api/lists": REPLY.unknown }, {
-      features: { voiceListWrites: true }
+      // voiceSession: the write is SPOKEN, and V3's voice is a real switch now.
+      features: { voiceListWrites: true, voiceSession: true }
     });
     await turn(page, "add oat milk to the shopping list");
 
@@ -445,7 +448,8 @@ test.describe("wired to the wall", () => {
        and let the next lane have the sentence — the same courtesy the
        photograph veto pays a wall with no photograph on it. */
     const { pageErrors } = await bootV3(page, { "/api/lists": REPLY.noSuchItem }, {
-      features: { voiceListWrites: true }
+      // voiceSession: the write is SPOKEN, and V3's voice is a real switch now.
+      features: { voiceListWrites: true, voiceSession: true }
     });
     const res = await turn(page, "we got the milk");
 
@@ -456,7 +460,8 @@ test.describe("wired to the wall", () => {
 
   test("…and the same failure IS spoken when the room named the list", async ({ page }) => {
     const { pageErrors } = await bootV3(page, { "/api/lists": REPLY.noSuchItem }, {
-      features: { voiceListWrites: true }
+      // voiceSession: the write is SPOKEN, and V3's voice is a real switch now.
+      features: { voiceListWrites: true, voiceSession: true }
     });
     await turn(page, "take milk off the shopping list");
 
