@@ -207,6 +207,45 @@ function clearGlance() {
   setLabel(el.cell, el.measured, null);
 }
 
+/* ── The incumbent's four candidate lanes, gated here too (audit F1b) ───────
+   `commute`, `mediaCandidate`, `foldHomeTiles` and `cameraCandidate` each gate
+   a lane on the incumbent — focusHero.js:120-123 hands that lane's inputs to
+   collectSources as null when its flag is off — and until 2026-09-11 V3 read
+   none of them. The lanes ran here unconditionally, so turning one off was not
+   a rollback on the wall (docs/audit/F1-FLAG-CENSUS-2026-09-11.md).
+
+   Same contract as the incumbent: the flag masks the lane's INPUTS on the copy
+   handed to collectSources, and nothing else. ⚠ Not in houseSnapshot, where
+   `robotCandidate`'s gate lives: the now-playing band, the media subject and the
+   dinner panel read that same snapshot for themselves, and none of these four
+   flags ever switched those off. The robot's data has no other reader.
+
+   `commute` switches the whole commute module off on the incumbent; on V3 this
+   lane IS the commute, so the same flag is the same switch. */
+const LANE_GATES = [
+  { flag: "commute", off: { commuteActive: false, commuteText: null } },
+  { flag: "mediaCandidate", off: { nowPlayingActive: false, nowPlayingText: null, plexActive: false, plexText: null } },
+  { flag: "foldHomeTiles", off: { menuActive: false, menuName: null } },
+  { flag: "cameraCandidate", off: { cameraTriggerName: null, cameraTriggerAt: null } }
+];
+
+/* Read late, per call, never at module load — the same reason as every other V3
+   flag helper: a module-level read can run before /js/config.js has set
+   window.CONFIG and freeze the flag to off. An unreadable config reads as off. */
+function flag(name) {
+  return Boolean(globalThis.window?.CONFIG?.features?.[name]);
+}
+
+/** The snapshot as collectSources should see it: each lane whose flag is off
+ *  carries no inputs. Pure, and never mutates `state`. */
+export function laneState(state, isOn = flag) {
+  let out = state;
+  for (const gate of LANE_GATES) {
+    if (!isOn(gate.flag)) out = { ...out, ...gate.off };
+  }
+  return out;
+}
+
 /**
  * One pass: read the house, score it, and act only if something earned it.
  *
@@ -229,7 +268,7 @@ export function tickAttention(now = new Date()) {
      own expiry can never disagree about the moment. */
   const sources = [
     ...collectSources({
-      ...state,
+      ...laneState(state),
       now,
       timely: Boolean(globalThis.window?.CONFIG?.features?.timelyCandidates),
       /* Same reason as `timely`: candidateSources is import-free, so the flag

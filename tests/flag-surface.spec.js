@@ -27,6 +27,7 @@ import { dirname, join, resolve, relative, sep, extname } from "node:path";
      5. every read form is one this scan knows  → a new helper this scan cannot
                                                   see, reading a flag it would
                                                   then call inert
+     6. every `V3 lever:` names a flag V3 reads → a pointer to a second dead lever
 
    ⚠ A red 2 or 3 is not a mark to refresh until green. It means the lever
    under a flag just appeared or disappeared on the live surface — read the
@@ -190,7 +191,11 @@ function declaredFlags() {
   for (let i = start + 1; i < lines.length && !/^ {2}\},?\s*$/.test(lines[i]); i++) {
     if (/^ {4}\w+:\s*(true|false)\b/.test(lines[i])) flagLines++;
     const m = lines[i].match(/^ {4}(\w+):\s*(true|false),?\s*(?:\/\/(.*))?$/);
-    if (m) flags.push({ name: m[1], marked: (m[3] || "").includes(MARK) });
+    if (m) {
+      const comment = m[3] || "";
+      const lever = comment.match(/V3 lever:\s*`?(\w+)`?/);
+      flags.push({ name: m[1], marked: comment.includes(MARK), lever: lever ? lever[1] : null });
+    }
   }
   return { flags, flagLines, start };
 }
@@ -284,6 +289,28 @@ test.describe("flag surface — INERT-ON-V3 marks (audit F1a)", () => {
       `Marked incumbent-only, but no incumbent module reads them either — the flag ` +
         `gates nothing on any surface. That is audit F1(c), retirement, not a mark.`
     ).toEqual([]);
+  });
+
+  test("every named V3 lever is a real flag that V3 reads", () => {
+    /* `· V3 lever: v3Archive` tells the next session which flag to flip INSTEAD.
+       A pointer at a flag that was renamed, retired or is itself inert on V3
+       sends that session to a second dead lever with more confidence than the
+       first — so it is checked like the mark it rides on. */
+    const flags = scan().flags;
+    const byName = new Map(flags.map((f) => [f.name, f]));
+    const named = flags.filter((f) => f.lever);
+    expect(named.length, "no mark names a V3 lever — the parser has gone blind").toBeGreaterThan(0);
+
+    const bad = named
+      .map((f) => {
+        const target = byName.get(f.lever);
+        if (!f.marked) return `${f.name}: names a V3 lever but is not marked ${MARK}`;
+        if (!target) return `${f.name}: V3 lever "${f.lever}" is not a flag in config.js`;
+        if (!target.v3Readers.length) return `${f.name}: V3 lever "${f.lever}" is not read by V3 either`;
+        return null;
+      })
+      .filter(Boolean);
+    expect(bad, `A V3 lever pointer is wrong:\n  ${bad.join("\n  ")}`).toEqual([]);
   });
 
   test("every flag read form is one this scan understands", () => {

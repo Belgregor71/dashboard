@@ -44,15 +44,19 @@ window.CONFIG = {
      restart puts the incumbent back, where these flags gate again — or a
      revert of the commit that built the V3 behaviour.
 
+     `· V3 lever: <flag>` on a mark names the V3 flag that DOES switch the same
+     feature on the wall — flip that one, not this one.
+
      Unmarked = read by at least one module V3 loads. The marks are derived,
      not maintained: tests/flag-surface.spec.js walks V3's import closure and
-     goes red on a missing mark AND on a stale one.
+     goes red on a missing mark AND on a stale one, and checks that every named
+     V3 lever is a real flag V3 reads.
   --------------------------------------------------------------*/
   features: {
     // Core UI
     background: true, // ⛔ INERT-ON-V3 (incumbent-only)
     clock: true, // ⛔ INERT-ON-V3 (incumbent-only)
-    commute: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    commute: true, // V3: gates the commute candidate lane (v3/core/attention.js LANE_GATES)
 
     // Data-driven panels
     weather: true, // ⛔ INERT-ON-V3 (incumbent-only)
@@ -60,7 +64,7 @@ window.CONFIG = {
 
     // External integrations
     homeAssistant: true, // force enable · ⛔ INERT-ON-V3 (incumbent-only)
-    plex: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    plex: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3 lever: v3NowPlaying
 
     // Phase 1 presence runtime (docs/vision/phase-1-presence-runtime.md).
     // Verified live on the Pi 2026-07-11 (screensaver boundary drives
@@ -187,7 +191,7 @@ window.CONFIG = {
     // with real exif on the Pi (captions + travel gate correct), MAP_API_KEY added,
     // screensaver surface proven live via __ssPlace. Revert (-> false) restores the
     // immichPhotos blend exactly (routes/scheduler stay inert, build-on-demand only).
-    dailyMemories: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    dailyMemories: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3 lever: groundMemories
 
     // Phase 10 "One Character" (docs/vision/phase-10-temperament.md). One
     // temperament authority (personality.js) every surfacing path routes through,
@@ -420,7 +424,7 @@ window.CONFIG = {
     // through the bare hero line; the standalone #media-stack was display:none but
     // stayed in the DOM. Now default-on; flag-off byte-identical (panel shows, no
     // candidate). One-line revert (-> false).
-    mediaCandidate: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    mediaCandidate: true, // V3: gates the now-playing + Plex candidate lanes (v3/core/attention.js LANE_GATES)
 
     // Design-system follow-up (docs/design/DESIGN_ROLLOUT.md) — fold the remaining
     // home tiles (Tonight's Menu + Bins) off the presence surface. Tonight's
@@ -433,7 +437,7 @@ window.CONFIG = {
     // queue and #home-stack was display:none (tiles stayed in the DOM). Now
     // default-on; flag-off byte-identical (the tiles show, no menu candidate).
     // One-line revert (-> false).
-    foldHomeTiles: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    foldHomeTiles: true, // V3: gates the tonight's-menu candidate lane (v3/core/attention.js LANE_GATES)
 
     // Old-chrome audit (memory: project-next-session) — fold the near-always-visible
     // #camera-last-trigger-pill ("Driveway · Last triggered 3:42pm") off the home
@@ -447,7 +451,7 @@ window.CONFIG = {
     // be69ebe → default-on) to fold the pill on the Pi; verify at the kiosk that a
     // recent trigger rides the stack (📹 name · last triggered) and decays, and the
     // standalone pill is display:none. One-line revert (-> false).
-    cameraCandidate: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    cameraCandidate: true, // V3: gates the camera-trigger candidate lane (v3/core/attention.js LANE_GATES)
 
     // The robot vacuum's "needs a human" states — the only thing it knows that
     // nobody is ever told: a `device_class: problem` sensor that is ON (empty
@@ -986,7 +990,7 @@ window.CONFIG = {
     // Flipped ON 2026-07-22 (deadlock-break: flag-off has no verify hook, so
     // the only way to eyeball it live is a flag-on deploy). Verify on the Pi
     // via window.__recipePanel("<dish>"). One-line revert (-> false).
-    recipePanel: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    recipePanel: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3 lever: v3DinnerPanel
 
     // The voice rail. The local lane went from 8 phrases to 33, and a lane
     // nobody knows about is worth nothing — discoverability is second only to
@@ -1116,7 +1120,7 @@ window.CONFIG = {
     // construction: no archive element is built, the class is never set, the
     // spine is not hidden, and Mode 0 is exactly the surface verified above.
     // Proven green by scripts/verify/flag-reversibility.mjs at flip time.
-    ambientArchive: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    ambientArchive: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3 lever: v3Archive
 
     // Live Photo motion in the Ambient Archive: when an arriving memory has a
     // motion part, the card breathes for ~3.5s and then settles into the still.
