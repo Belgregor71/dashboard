@@ -984,7 +984,13 @@ scratch, copied to `/home/dashboard/`).
 `.archive` is `inset:0` with an opaque `--surface` background at z3 — the substrate (z0) and
 the full-bleed photograph (z1) beneath it are invisible. Rows 2/3/4 (A/B/A, repeatable to
 0.4) put the cost of drawing it anyway at **~1.4 gpu-process and ~7.5 renderer**. Pausing it
-while it is covered is free headroom; it is not yet done.
+while it is covered is free headroom.
+
+✅ **Built and measured the same morning — `v3SubstrateCoveredPause` (`9db0d96`, shipped OFF).**
+A/B/A on the deployed bundle, the flag toggled in-page, 60 s windows, depth 0, archive on:
+**off 20.1 / 13.5 → on 18.2 / 6.3 → off 20.1 / 13.9**. The fix buys **1.9 gpu-process and
+~7.4 renderer** — the probe's estimate, reproduced by the real code path. Frames froze while
+covered (880 → 880 over 10 s) and resumed at 15 fps the moment the flag went off.
 
 🔑 **The plane composition is CHEAPER than the 2026-08-22 card.** Settled 19.4–19.8 against
 21.3, mid-settle 27.4 against 31.6. So the Living Window's headroom at depth 0 is **~5.4 live
