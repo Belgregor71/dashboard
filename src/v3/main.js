@@ -10,7 +10,7 @@ import lottie from "lottie-web/build/player/lottie_light.js";
 import { getPosition } from "../js/vendor/suncalc.js";
 import { stage, guard, bootReport } from "./core/boot.js";
 import { initSubstrate, toCauses } from "./substrate/index.js";
-import { initDepth, setDepth, onDepth, DEPTH } from "./core/depth.js";
+import { initDepth, setDepth, getDepth, onDepth, DEPTH } from "./core/depth.js";
 import { initCensus } from "./core/census.js";
 import { initFeatureCensus } from "./core/feature-census.js";
 import { SOURCE_NAMES } from "../js/services/candidateSources.js";
@@ -80,6 +80,36 @@ let railTick = 0;
 let substrate = null;
 let weather = null;
 let wasNight = null;
+
+/* Why the substrate is paused. Two independent reasons share the ONE setPaused
+   the substrate has, so neither may write it directly: the panel coming back on
+   at 05:00 must not restart a field the archive is still covering, and leaving
+   depth 0 must not wake a field on a panel that is dark. */
+const substratePause = { dark: false, covered: false };
+function applySubstratePause() {
+  substrate?.setPaused(substratePause.dark || substratePause.covered);
+}
+
+/* ── The covered field (features.v3SubstrateCoveredPause) ──────────────────
+   At depth 0 with the archive on, `.archive` is inset:0 over an opaque
+   `--surface` (css/archive.css), so the substrate beneath it cannot be seen. It
+   drew at 15 fps there anyway: ~1.4 gpu-process and ~7.5 renderer points on the
+   live wall, for pixels nobody sees (HOST-BASELINES.md, 2026-09-12, A/B/A).
+
+   Covered = the archive's root marker AND depth 0. Asked of the root rather
+   than tracked, because that marker is the attribute every archive rule hangs
+   off — if the rules can see it, the archive is on the glass. Anything else
+   uncovers it at once, and setPaused(false) draws a frame on the way out, so
+   leaving depth 0 never shows a stale field. Flag off: `covered` never leaves
+   false, and the pause is exactly the panel's, as it was. */
+function syncSubstrateCover() {
+  const covered = flag("v3SubstrateCoveredPause")
+    && document.documentElement.dataset.archive === "1"
+    && getDepth() === DEPTH.FIELD;
+  if (covered === substratePause.covered) return;
+  substratePause.covered = covered;
+  applySubstratePause();
+}
 
 /* ── The hour ───────────────────────────────────────────────────────────────
    Depth 0's only text. Ticks on the minute rather than the second: a seconds
@@ -154,6 +184,9 @@ function syncSun() {
 function pushCauses() {
   const s = syncSun();
   if (!substrate) return;
+  // Before the update, so a covered field takes its causes without drawing
+  // them. Also what makes a live flag flip land within a minute either way.
+  syncSubstrateCover();
   substrate.update(toCauses({
     sunAltitudeDeg: s.altitudeDeg,
     sunAzimuthRad: s.azimuthRad,
@@ -651,6 +684,7 @@ function boot() {
   stage("substrate", () => {
     const forceBackend = new URLSearchParams(location.search).get("__backend");
     substrate = initSubstrate(el.substrate, { forceBackend });
+    onDepth(syncSubstrateCover);
   });
 
   /* ── Step 5.1 · the panel ─────────────────────────────────────────────────
@@ -664,7 +698,10 @@ function boot() {
      the wiring is a single subscription rather than a condition in the loop. */
   stage("display", () => {
     if (initDisplay()) {
-      onPanelDark((isDark) => substrate?.setPaused(isDark));
+      onPanelDark((isDark) => {
+        substratePause.dark = isDark;
+        applySubstratePause();
+      });
     }
   });
 
@@ -739,6 +776,9 @@ function registerHandles() {
   window.__v3 = () => ({
     depth: window.__depth?.(),
     substrate: window.__substrate?.(),
+    // The REASONS behind substrate.paused, which alone cannot say whether the
+    // panel is dark or the archive is covering the field.
+    substratePause: { ...substratePause },
     // `light` and not `presence`: both of these used to be called presence, so
     // the second key silently ate the first and the presence LIGHT's state was
     // unreachable from this handle. They are different things — one is whether

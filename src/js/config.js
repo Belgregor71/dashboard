@@ -1945,6 +1945,17 @@ window.CONFIG = {
     // question for tests/verify/v3-contrast.spec.js, not just a look — measure it
     // with the flag on, then /flag-flip v3SunClock. Rollback: -> false.
     v3SunClock: false,
+
+    // Pause the substrate while the archive covers it (src/v3/main.js,
+    // syncSubstrateCover). At depth 0 with v3Archive on, `.archive` is inset:0
+    // over an opaque --surface, so the field beneath cannot be seen — and it
+    // drew at 15 fps there anyway: ~1.4 gpu-process / ~7.5 renderer points on
+    // the live wall (HOST-BASELINES.md, "the Living Window baseline",
+    // 2026-09-12, A/B/A). Nothing on the glass changes; leaving depth 0 draws a
+    // fresh frame before anything can see it. Shipped OFF. Rollback: -> false.
+    // ⚠ A Living Window direction that lets the substrate SHOW through the
+    // archive's mat (variant C) must narrow "covered", or this hides it.
+    v3SubstrateCoveredPause: false,
   },
 
   /* --------------------------------------------------------------
