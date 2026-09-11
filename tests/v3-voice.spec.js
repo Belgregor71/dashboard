@@ -449,6 +449,75 @@ test("the thread ends when the room goes quiet", async ({ page }) => {
 // path, so the off state has to keep being tested after the default flips on —
 // a spec that asserts "off" by inheriting the default silently becomes a
 // second copy of the on-state test the day it ships.
+/* ── voiceSession is V3's voice off switch (audit F1b, 2026-09-11) ───────────
+   Until then initVoice was called `enabled: true` — a literal — so the flag was
+   no lever on the wall. Both directions, because an off switch that is always
+   off passes the "off" half and silences the house. */
+async function pinVoice(page, on) {
+  await page.route("**/js/config.js", async (route) => {
+    const res = await route.fetch();
+    await route.fulfill({
+      response: res,
+      body: (await res.text()) + `\nwindow.CONFIG.features.voiceSession = ${on};\n`
+    });
+  });
+}
+
+for (const on of [true, false]) {
+  test(`voiceSession ${on ? "on" : "off"}: the voice ${on ? "listens" : "is gone — no stream of its own, no turn, no rail"}`, async ({ page }) => {
+    await pinVoice(page, on);
+    /* Mid-afternoon, fixed: in the morning the rail can have nothing to offer and
+       hides itself, which would make "hidden when off" pass against a missing
+       gate. Date only — timers keep running. */
+    const afternoon = new Date();
+    afternoon.setHours(16, 0, 0, 0);
+    await page.clock.setFixedTime(afternoon);
+    const pageErrors = await boot(page);
+
+    expect(await page.evaluate(() => window.__v3Voice().enabled)).toBe(on);
+    const turn = await page.evaluate(() => window.__v3Transcript("what time is it"));
+    expect(turn.handled).toBe(on);
+
+    // The node must be there before its hidden state means anything.
+    expect(await page.locator("#rail").count()).toBe(1);
+    if (on) {
+      await expect.poll(() => page.evaluate(() => window.__v3Voice().streamOpen), { timeout: 10_000 }).toBe(true);
+      // The positive control that makes the off branch's `hidden` mean something.
+      await expect.poll(() => page.evaluate(() => document.getElementById("rail").hidden), { timeout: 10_000 }).toBe(false);
+    } else {
+      expect(await page.evaluate(() => window.__v3Voice().streamState), "voice.js opened a stream while switched off").toBeNull();
+      // ⚠ After the first paint, not before: the rail starts hidden in the HTML.
+      await page.waitForSelector("#rail[data-painted]", { state: "attached", timeout: 10_000 });
+      expect(await page.evaluate(() => document.getElementById("rail").hidden)).toBe(true);
+    }
+    expect(pageErrors).toEqual([]);
+  });
+}
+
+test("voiceSession off: the listening rim stays down — and lifts the moment it is on", async ({ page }) => {
+  /* This page's stream only, served canned: a real POST /api/voice/level would
+     reach every page in the suite (voiceBus is process-wide). `retry: 200` makes
+     the EventSource re-fetch the frame every 200 ms for as long as the test runs. */
+  await page.route("**/api/voice/stream", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: 'retry: 200\nevent: voice_level\ndata: {"rms":0.4}\n\n'
+    })
+  );
+  await pinVoice(page, false);
+  const pageErrors = await boot(page);
+
+  // Frames arrive for well over a second, and the rim must not move.
+  await page.waitForTimeout(1500);
+  expect(await page.evaluate(() => window.__presenceLight().phase)).toBe("idle");
+
+  // The positive control: the same frames, the flag flipped in place.
+  await page.evaluate(() => { window.CONFIG.features.voiceSession = true; });
+  await expect.poll(() => page.evaluate(() => window.__presenceLight().phase), { timeout: 5_000 }).toBe("listening");
+  expect(pageErrors).toEqual([]);
+});
+
 test("half duplex off: V3 reports nothing and installs no observer", async ({ page }) => {
   const speaking = [];
   await page.route("**/js/config.js", async (route) => {

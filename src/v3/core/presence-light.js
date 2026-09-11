@@ -146,6 +146,10 @@ function stopSweep() {
    more than it looks: six connections per host is the browser's limit, and two
    never-ending SSE streams have already starved a media request in this house.
 ─────────────────────────────────────────────────────────────────────────── */
+/* Read per frame, never at module load — the V3 flag rule: a load-time read can
+   run before /js/config.js and freeze the flag. Unreadable config reads as off. */
+const voiceOn = () => Boolean(globalThis.window?.CONFIG?.features?.voiceSession);
+
 export function initPresenceLight({ enabled = true } = {}) {
   root.dataset.phase = "idle";
   writeLevel(0);
@@ -163,6 +167,11 @@ export function initPresenceLight({ enabled = true } = {}) {
   }
 
   stream.addEventListener("voice_level", (event) => {
+    /* The rim says "I am listening". With V3's voice switched off (voiceSession,
+       2026-09-11) the house takes no turn, so lifting it on speech would be a
+       lie. The stream itself stays: it also carries sound presence below, which
+       is a room sensor with a flag of its own, not a voice feature. */
+    if (!voiceOn()) return;
     try {
       const { rms } = JSON.parse(event.data);
       if (typeof rms !== "number") return;

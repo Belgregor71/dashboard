@@ -190,6 +190,16 @@ async function loadWeather() {
    the rail is decorative. */
 function paintRail() {
   if (!el.rail) return;
+  /* Marks that a paint has happened at all. The rail starts `hidden` in the HTML,
+     so "hidden" alone cannot tell a gated rail from one not painted yet — a spec
+     asserting the gate read it before the first paint and passed without it. */
+  el.rail.toggleAttribute("data-painted", true);
+  /* The rail offers things to SAY. With the voice switched off it would be
+     inviting the room to talk to a house that is not listening. */
+  if (!flag("voiceSession")) {
+    el.rail.hidden = true;
+    return;
+  }
   const phrase = railPhrase(voiceSnapshot({ lat: CITY.lat, lon: CITY.lon }), { tick: railTick });
   if (!phrase) {
     el.rail.hidden = true;
@@ -274,7 +284,14 @@ function boot() {
 
   stage("depth", () => initDepth({ inhabited: depthInhabited }));
   stage("presence-light", () => initPresenceLight());
-  stage("voice", () => initVoice({ enabled: true, lat: CITY.lat, lon: CITY.lon }));
+  /* `voiceSession` is V3's voice off switch (audit F1b, 2026-09-11). Until then
+     this was a hardcoded `enabled: true`, so the flag the incumbent reads was no
+     lever on the wall and a voice misbehaving had no rollback short of a revert.
+     Off → voice.js opens no stream of its own (initVoice returns before the
+     EventSource), transcripts are refused, the rail stops offering phrases and
+     the listening rim stays down. ⚠ presence-light.js KEEPS its stream: it also
+     carries sound presence, which is a room sensor (soundPresence), not voice. */
+  stage("voice", () => initVoice({ enabled: flag("voiceSession"), lat: CITY.lat, lon: CITY.lon }));
   stage("depth-teardown", () => onDepth(onDepthChange));
 
   /* The depth census (core/census.js). Flag-gated and default-off: with

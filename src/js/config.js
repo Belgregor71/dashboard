@@ -46,6 +46,8 @@ window.CONFIG = {
 
      `· V3 lever: <flag>` on a mark names the V3 flag that DOES switch the same
      feature on the wall — flip that one, not this one.
+     `· V3: always on, no lever` means V3 runs the same behaviour hardwired: the
+     feature is on the wall and nothing in config.js turns it off there.
 
      Unmarked = read by at least one module V3 loads. The marks are derived,
      not maintained: tests/flag-surface.spec.js walks V3's import closure and
@@ -54,28 +56,28 @@ window.CONFIG = {
   --------------------------------------------------------------*/
   features: {
     // Core UI
-    background: true, // ⛔ INERT-ON-V3 (incumbent-only)
-    clock: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    background: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
+    clock: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
     commute: true, // V3: gates the commute candidate lane (v3/core/attention.js LANE_GATES)
 
     // Data-driven panels
-    weather: true, // ⛔ INERT-ON-V3 (incumbent-only)
-    calendar: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    weather: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
+    calendar: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
 
     // External integrations
-    homeAssistant: true, // force enable · ⛔ INERT-ON-V3 (incumbent-only)
+    homeAssistant: true, // force enable · ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
     plex: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3 lever: v3NowPlaying
 
     // Phase 1 presence runtime (docs/vision/phase-1-presence-runtime.md).
     // Verified live on the Pi 2026-07-11 (screensaver boundary drives
     // ambient<->glance; dead click-cycle suppressed) — now enabled.
-    presenceRuntime: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    presenceRuntime: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
 
     // Phase 2 attention engine (docs/vision/phase-2-attention-engine.md).
     // Unifies every focus-hero source into one scored, presence-gated queue.
     // Verified live on the Pi 2026-07-11 (DWELL reveals top-3 stack; AMBIENT
     // interrupt-only; GLANCE single hero) — now enabled.
-    attentionEngine: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    attentionEngine: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
 
     // Phase 3 predictive candidates (docs/vision/phase-3-anticipate.md).
     // Grounded anticipatory rules (rain-incoming, bin-night, on-this-day) merged
@@ -89,7 +91,7 @@ window.CONFIG = {
     // occasional earned "on this day" memory. Verified live on the Pi
     // 2026-07-11: tint renders and adds zero GPU cost (80% Mode 0 baseline is
     // the pre-existing Ken Burns photo decode, unchanged by the token) — enabled.
-    ambientAtmospherics: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    ambientAtmospherics: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
 
     // Phase 6 House Model (docs/vision/phase-6-intent.md). A pure reducer fuses
     // presence + calendar + people-home into an `intent` posture the attention
@@ -138,7 +140,7 @@ window.CONFIG = {
     // PASSED on the Pi (Ken Burns → 6s settle+hold dropped Mode-0 steady-state
     // GPU 80%→0%). Enabled here in daylight to run the remaining awake
     // GLANCE/DWELL gpucpu + per-token legibility verification. Reversible (→ false).
-    ambientSubstrate: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    ambientSubstrate: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
 
     // Phase 8 "Learn Without Asking" (docs/vision/phase-8-learn.md). A passive
     // observer on the signals already emitted (presence, person.* transitions,
@@ -265,7 +267,7 @@ window.CONFIG = {
     // queue below the fold. Flag-off adds no class and renderStack keeps the
     // one-line chips → byte-identical. Enabled 2026-07-15 after the 4663e71
     // flag-off deploy; Pi live proof in the project memory. Revert (-> false).
-    stackCards: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    stackCards: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
 
     // Design study 03 "The Arrival card" (docs/design/homeos-arrival-card.html),
     // WP3 of docs/design/PLAN.md. The away->home greeting card gets the study
@@ -282,7 +284,7 @@ window.CONFIG = {
     // agenda; DOM flat 2265→2265 over 40 arrivals, heap 54MB / 64 listeners (no
     // leak). Now default-on; flag-off stays byte-identical (cool card, JS drain).
     // One-line revert (-> false).
-    arrivalCard: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    arrivalCard: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
 
     // Tier-1b spec-fidelity reshape of the arrival card (2026-07-15 conformance
     // audit vs docs/design/design_handoff_homeos_home). Requires arrivalCard.
@@ -364,7 +366,7 @@ window.CONFIG = {
     // retired; gpu-process 0% over 25s in Mode 0 (idle-freeze intact) AND 0% awake-
     // idle (the retired aurora loop = a net GPU reduction). Now default-on; flag-off
     // byte-identical (aurora returns, no photo). One-line revert (-> false).
-    awakeGround: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    awakeGround: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
 
     // WP-D follow-up #1 (DESIGN_SYSTEM.md §6) — the weather-based living accent.
     // The atmosphere already tints the ground per condition (the shipped atmo-*
@@ -396,7 +398,7 @@ window.CONFIG = {
     // dissolve → two .awake-photo imgs during the settle, old node removed on
     // the timer, id handed to the survivor, latch released (second dissolve
     // works), 0 page errors, DOM count flat. Revert (-> false).
-    awakePhotoDissolve: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    awakePhotoDissolve: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
 
     // Design-system rollout WP-E (docs/design/DESIGN_ROLLOUT.md) — the captioned
     // memory whisper: the Mode-0 bottom-right "on this day" surface (the non-tender
@@ -410,7 +412,7 @@ window.CONFIG = {
     // + the display title), legible over the night photo, footer dropped its line;
     // hidden when no anniversary (silence). Now default-on; flag-off byte-identical
     // (footer keeps the line, no whisper element). One-line revert (-> false).
-    memoryWhisper: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    memoryWhisper: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3 lever: groundMemories
 
     // Design-system follow-up (docs/design/DESIGN_ROLLOUT.md) — fold the standalone
     // "Now Playing" media panel into the one attention queue. With this on, what's
@@ -492,7 +494,7 @@ window.CONFIG = {
     // __voiceTranscript("...") over CDP for proof; no user-facing wake path
     // exists on the kiosk until the STT→forward bridge lands, so on is inert
     // for users. One-line revert (-> false) is the rollback path.
-    voiceSession: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    voiceSession: true, // V3: switches V3's voice (v3/main.js stage "voice")
 
     // HALF DUPLEX — the house stops talking when someone says the wake word,
     // and never answers its own voice.
@@ -1019,7 +1021,7 @@ window.CONFIG = {
     //
     // One-line revert (-> false): removes the element, the timer and the
     // listener entirely.
-    voiceRail: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    voiceRail: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3 lever: voiceSession
 
     // RETIRED 2026-08-15 — `motionWakeGate` was here, and the wall outgrew it.
     // Audit M5 built it to stop plain camera motion waking the kiosk (61 wakes
@@ -1239,7 +1241,7 @@ window.CONFIG = {
     // the CSS var() fallbacks ARE the verified rectangle, and a guardrail pins
     // those fallbacks so they cannot drift. Proven green by
     // scripts/verify/flag-reversibility.mjs at flip time.
-    archiveFitToPrint: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    archiveFitToPrint: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
 
     // Audit M11. The Pi's crontab already powers the panel down 21:00→05:00
     // (`xset dpms force off`), so a doorbell ring at 3am currently speaks its

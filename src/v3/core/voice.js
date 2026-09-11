@@ -932,6 +932,9 @@ export function initVoice({ enabled: on = false, lat = null, lon = null } = {}) 
     busy,
     failures: consecutiveFailures,
     streamOpen: stream?.readyState === 1,
+    // null = this module never opened a stream at all (voiceSession off), which
+    // `streamOpen: false` cannot tell apart from one that opened and dropped.
+    streamState: stream ? stream.readyState : null,
     halfDuplex: flag("voiceHalfDuplex"),
     // The thread, readable from outside — the incumbent's __voiceSession has
     // reported exactly these two since Phase 4, and the only reason V3's

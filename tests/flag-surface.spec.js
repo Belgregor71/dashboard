@@ -194,7 +194,12 @@ function declaredFlags() {
     if (m) {
       const comment = m[3] || "";
       const lever = comment.match(/V3 lever:\s*`?(\w+)`?/);
-      flags.push({ name: m[1], marked: comment.includes(MARK), lever: lever ? lever[1] : null });
+      flags.push({
+        name: m[1],
+        marked: comment.includes(MARK),
+        lever: lever ? lever[1] : null,
+        alwaysOn: /V3: always on/.test(comment)
+      });
     }
   }
   return { flags, flagLines, start };
@@ -311,6 +316,15 @@ test.describe("flag surface — INERT-ON-V3 marks (audit F1a)", () => {
       })
       .filter(Boolean);
     expect(bad, `A V3 lever pointer is wrong:\n  ${bad.join("\n  ")}`).toEqual([]);
+
+    /* "always on, no lever" is a claim about an INERT flag, and it contradicts a
+       lever on the same line. Either mismatch means one of the two notes is stale. */
+    const always = flags.filter((f) => f.alwaysOn);
+    expect(always.length, "no flag reads 'always on' — the parser has gone blind").toBeGreaterThan(0);
+    const contradicted = always
+      .filter((f) => !f.marked || f.lever)
+      .map((f) => `${f.name}: ${!f.marked ? `not marked ${MARK}` : `also names V3 lever ${f.lever}`}`);
+    expect(contradicted, `An 'always on' note contradicts its own line:\n  ${contradicted.join("\n  ")}`).toEqual([]);
   });
 
   test("every flag read form is one this scan understands", () => {
