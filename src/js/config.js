@@ -237,7 +237,7 @@ window.CONFIG = {
     // clock clamped to the 0.3 floor, tabular face + quieter "pm", gpu-process
     // 0% over 25s, legible over a real photo. Now default-on. One-line revert
     // (-> false); flag-off is byte-identical (plain string, binary dimming).
-    ambientClock: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    ambientClock: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3 lever: v3SunClock
 
     // Design study 01 "The Lean-in stack" (docs/design/homeos-component-studies.html),
     // WP2 of docs/design/PLAN.md. In DWELL — the one mode where glass earns its
@@ -1935,6 +1935,16 @@ window.CONFIG = {
     // guarantee. A spec that composes a spread and asserts its cells is the
     // one that would go red. Assert the TEXT, not just the count.
     v3ResolutionVoice: true,
+
+    // The sun-dimmed hour (src/v3/core/sun-clock.js) — V3's form of the
+    // incumbent's `ambientClock`, which V3 never read and never had (F1 flag
+    // census, family 4, 2026-09-11). The hour's opacity tracks the sun: 0.3 at
+    // astronomical twilight (-18°) rising to 1 once the sun is 6° up, eased on
+    // the hour's existing transition. Opacity only; no new motion.
+    // Shipped OFF. ⚠ Before flipping: a 0.3 hour at night is a contrast
+    // question for tests/verify/v3-contrast.spec.js, not just a look — measure it
+    // with the flag on, then /flag-flip v3SunClock. Rollback: -> false.
+    v3SunClock: false,
   },
 
   /* --------------------------------------------------------------

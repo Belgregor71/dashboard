@@ -53,6 +53,7 @@ import { initPersonalityRuntime } from "../js/core/personalityRuntime.js";
 import { initIntent } from "../js/core/intentEngine.js";
 import { initContextFeed, pushContext, feedWeatherCode } from "./core/context-feed.js";
 import { initCommands } from "./core/commands.js";
+import { clockDim } from "./core/sun-clock.js";
 
 /* ⚠ `/js/config.js` is a separate <script> in index.html, so window.CONFIG is
    populated before this module runs — but read it LATE anyway (per call, not at
@@ -128,6 +129,17 @@ function syncSun() {
   root.style.setProperty("--sun-az", `${s.azimuthRad}rad`);
   root.style.setProperty("--sun-alt", s.altitudeDeg.toFixed(2));
   root.style.setProperty("--sun-warmth", Math.max(0, Math.min(1, (s.altitudeDeg + 6) / 18)).toFixed(3));
+
+  /* The sun-dimmed hour (features.v3SunClock) — the incumbent's ambientClock,
+     which V3 never had. Flag off writes nothing and removes nothing that was
+     not there: the attribute and the property simply never exist. */
+  if (flag("v3SunClock")) {
+    root.dataset.sunClock = "1";
+    root.style.setProperty("--clock-dim", clockDim(s.altitudeDeg).toFixed(3));
+  } else if (root.dataset.sunClock) {
+    delete root.dataset.sunClock;
+    root.style.removeProperty("--clock-dim");
+  }
 
   /* AFTER the stamp, never before: the context feed reads `data-night` off this
      root rather than doing its own suncalc, so pushing first would publish
