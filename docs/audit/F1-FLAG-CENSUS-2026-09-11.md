@@ -94,6 +94,16 @@ not that it was seen.
    cutover**, whatever their flags say.
 5. **Five retire with the incumbent** (N/A-BY-DESIGN).
 
+## The rest, by family — the owner's calls (2026-09-11)
+
+| Family | Flags | Call | Status |
+|---|---|---|---|
+| Always on in V3 | 17 | relabel + a real V3 voice off switch | ✅ `ca67797`: 14 read `· V3: always on, no lever`; `voiceRail`→`voiceSession` and `memoryWhisper`→`groundMemories` turned out to have a V3 lever after all; **`voiceSession` is now V3's voice switch** (voice.js stream, transcripts, rail, listening rim — presence-light keeps its stream for sound presence) and is cleanly reversible |
+| Living Window weather effects | 7 | port as a design arc | 📋 `docs/design/HANDOVER-LIVING-WINDOW-V3.md` — nothing built; at depth 0 the substrate is UNDER the photo, so where effects live is the first design question |
+| Small ports | 2 of 3 | build the sun-dimmed clock + the Live Photo motion; `archiveMotionLoop` not retired | ✅ `6707979` **`v3SunClock`** (shipped OFF; `ambientClock` → `V3 lever: v3SunClock`) · 📋 motion: `docs/design/HANDOVER-V3-ARCHIVE-MOTION.md`, blocked on two owner decisions |
+| Design first | 2 (`temporalSpine`, `ambientMemory`) | park | parked, still marked |
+| Incumbent-only layout | 5 | retire with the incumbent, not before | unchanged |
+
 ⚠ **Retiring is not free while the incumbent is the rollback surface.** `V3_DEFAULT=0`
 puts the incumbent back on the wall, and every flag in this table gates it there.
 Deleting an incumbent-only flag degrades the rollback, not just dead weight.
