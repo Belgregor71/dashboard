@@ -1960,6 +1960,19 @@ window.CONFIG = {
     // ⚠ A Living Window direction that lets the substrate SHOW through the
     // archive's mat (variant C) must narrow "covered", or this hides it.
     v3SubstrateCoveredPause: true,
+
+    // ── The Living Window on V3 — design arc step 2, THREE COMPETING
+    // DIRECTIONS (src/v3/core/atmosphere-fx.js, css/atmosphere.css). Each is
+    // default-off; the first one on wins, in this order. Branch `lw-variants`
+    // only — judged on the wall by the owner, then one is merged and the other
+    // two deleted. docs/design/HANDOVER-LIVING-WINDOW-V3.md.
+    //   A · a thin weather layer above the card and mat, below all text
+    v3AtmoOverlay: false,
+    //   B · the mat, the card's grade and the scrim move; no new layer
+    v3AtmoGrade: false,
+    //   C · the mat opens onto the live substrate (hides the full-bleed photo +
+    //       scrim at depth 0, and v3SubstrateCoveredPause stands aside)
+    v3AtmoMat: false,
   },
 
   /* --------------------------------------------------------------

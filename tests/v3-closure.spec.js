@@ -97,6 +97,10 @@ const SHARED_BOTH = [
      year leads there and trails here). The module imports only photoMemory.js,
      which was already in this list, so this one line is the whole addition. */
   "js/services/archiveModel.js",
+  /* ⚠ ENTERED V3'S CLOSURE 2026-09-12 with the Living Window's host
+     (v3/core/atmosphere-fx.js), for `skyWarmthFor` alone — the incumbent's sky
+     ramp, reused rather than re-derived. Pure and import-free. */
+  "js/services/atmosphere.js",
   "js/services/attentionEngine.js",
   "js/services/attentionRank.js",
   "js/services/briefingSchedule.js",

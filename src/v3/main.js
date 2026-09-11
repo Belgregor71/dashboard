@@ -54,6 +54,7 @@ import { initIntent } from "../js/core/intentEngine.js";
 import { initContextFeed, pushContext, feedWeather } from "./core/context-feed.js";
 import { initCommands } from "./core/commands.js";
 import { clockDim } from "./core/sun-clock.js";
+import { initAtmosphereFx, atmosphereSun, atmoCauseOverride } from "./core/atmosphere-fx.js";
 
 /* ⚠ `/js/config.js` is a separate <script> in index.html, so window.CONFIG is
    populated before this module runs — but read it LATE anyway (per call, not at
@@ -105,7 +106,10 @@ function applySubstratePause() {
 function syncSubstrateCover() {
   const covered = flag("v3SubstrateCoveredPause")
     && document.documentElement.dataset.archive === "1"
-    && getDepth() === DEPTH.FIELD;
+    && getDepth() === DEPTH.FIELD
+    // The Living Window's direction C opens the mat onto the field: it is not
+    // covered then, and pausing it would hide the one thing that direction shows.
+    && document.documentElement.dataset.atmo !== "mat";
   if (covered === substratePause.covered) return;
   substratePause.covered = covered;
   applySubstratePause();
@@ -159,6 +163,8 @@ function syncSun() {
   root.style.setProperty("--sun-az", `${s.azimuthRad}rad`);
   root.style.setProperty("--sun-alt", s.altitudeDeg.toFixed(2));
   root.style.setProperty("--sun-warmth", Math.max(0, Math.min(1, (s.altitudeDeg + 6) / 18)).toFixed(3));
+  // The Living Window reads the same sun. A no-op until a direction is on.
+  atmosphereSun(s.altitudeDeg);
 
   /* The sun-dimmed hour (features.v3SunClock) — the incumbent's ambientClock,
      which V3 never had. Flag off writes nothing and removes nothing that was
@@ -187,8 +193,12 @@ function pushCauses() {
   // Before the update, so a covered field takes its causes without drawing
   // them. Also what makes a live flag flip land within a minute either way.
   syncSubstrateCover();
+  // A forced Living Window probe, for the one direction that draws weather
+  // WITH the substrate (v3AtmoMat). Null otherwise, so every `??` below falls
+  // through to the real sky.
+  const probe = atmoCauseOverride();
   substrate.update(toCauses({
-    sunAltitudeDeg: s.altitudeDeg,
+    sunAltitudeDeg: probe?.sunAltitudeDeg ?? s.altitudeDeg,
     sunAzimuthRad: s.azimuthRad,
     windKph: weather?.now?.wind_kph ?? 0,
     // Both are on /api/weather/now (weatherService.js, and the BOM fallback
@@ -202,8 +212,8 @@ function pushCauses() {
     // [label, category, intensity, thunder] and weatherService destructures
     // position 1 into a field it calls `icon`, but the value is the CATEGORY
     // string ("clear", "cloudy", "rain"...). `code` is the raw numeric code.
-    category: weather?.now?.condition?.icon ?? null,
-    intensity: weather?.now?.condition?.intensity ?? null
+    category: probe?.category ?? weather?.now?.condition?.icon ?? null,
+    intensity: probe?.intensity ?? weather?.now?.condition?.intensity ?? null
   }));
 }
 
@@ -734,6 +744,13 @@ function boot() {
       focusId: archiveFocusId
     });
   });
+
+  /* The Living Window (design arc, step 2): at most ONE of three competing
+     directions, each behind its own default-off flag — see core/atmosphere-fx.js.
+     After the ground, because two of them restyle the archive; before "causes",
+     so the first push already knows whether the field is covered. Flag-off it
+     returns false having touched nothing. */
+  stage("atmosphere", () => initAtmosphereFx({ onCauses: pushCauses }));
 
   stage("hour", () => paintHour());
   stage("causes", () => pushCauses());
