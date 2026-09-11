@@ -30,14 +30,24 @@
 
 import { get as getContext, set as setContext } from "../../js/core/contextStore.js";
 import { on } from "../../js/core/eventBus.js";
-import { getBaseCategory } from "../../js/weatherPrompts.js";
+import { getBaseCategory, intensityForWeatherCode, isThunderCode } from "../../js/weatherPrompts.js";
 import { presenceMode, lastMotionAtMs } from "./presence.js";
 
 /* Last known base category. Held here rather than re-derived because the
    weather fetch is a 10-minute poll and the store must answer between them. */
 let condition = null;
 let conditionCode = null;
+/* The Living Window's input — `{category, intensity, thunder, windKph, tempC}`,
+   the shape the incumbent's weather renderer writes and atmoFx/planner.js
+   reads. Null until a reading with a code arrives. Its IDENTITY only changes
+   when a field does: the store's set() notifies on `!==`, so a fresh object per
+   minute's push would wake every subscriber sixty times an hour for nothing. */
+let weather = null;
 let unsubscribe = null;
+
+/* Strict, never Number(): Number(null) is 0, and a missing temperature read as
+   0°C is a frost the house would draw (the atmoTextures bug, 2026-07-19). */
+const finiteOrNull = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 /** Write the whole context slice from the house as it stands right now. */
 export function pushContext() {
@@ -50,7 +60,8 @@ export function pushContext() {
        and the disagreement is invisible until something acts on the wrong one. */
     isNight: document.documentElement.dataset.night === "1",
     condition,
-    conditionCode
+    conditionCode,
+    weather
   });
   return getContext();
 }
@@ -71,6 +82,33 @@ export function feedWeatherCode(code) {
     conditionCode = Number(code);
   }
   return pushContext();
+}
+
+/**
+ * Feed the whole reading in — the `now` block of `/api/weather/now`.
+ *
+ * Everything categorical comes from the WMO CODE, through the same three
+ * helpers the incumbent renderer uses, and not from the server's
+ * `condition.icon` / `.intensity` / `.thunder`: one code, one vocabulary, so
+ * `condition` and `weather.category` can never disagree with each other.
+ *
+ * Nothing on V3 reads the slice yet (2026-09-12) — it is the input the Living
+ * Window's effects will plan from, landed first so they arrive to a real one.
+ * A reading with no code keeps the last slice, for feedWeatherCode's reason.
+ */
+export function feedWeather(now) {
+  const code = now?.condition?.code ?? null;
+  if (code != null) {
+    const next = {
+      category: getBaseCategory(code),
+      intensity: intensityForWeatherCode(code),
+      thunder: isThunderCode(code),
+      windKph: finiteOrNull(now.wind_kph),
+      tempC: finiteOrNull(now.temp_c)
+    };
+    if (!weather || Object.keys(next).some((k) => next[k] !== weather[k])) weather = next;
+  }
+  return feedWeatherCode(code);
 }
 
 /**
@@ -102,4 +140,5 @@ export function __resetContextFeed() {
   if (unsubscribe) { unsubscribe(); unsubscribe = null; }
   condition = null;
   conditionCode = null;
+  weather = null;
 }

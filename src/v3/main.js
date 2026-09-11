@@ -51,7 +51,7 @@ import { initMemoryRuntime } from "../js/core/memoryRuntime.js";
 import { initRoutineRuntime } from "../js/core/routineRuntime.js";
 import { initPersonalityRuntime } from "../js/core/personalityRuntime.js";
 import { initIntent } from "../js/core/intentEngine.js";
-import { initContextFeed, pushContext, feedWeatherCode } from "./core/context-feed.js";
+import { initContextFeed, pushContext, feedWeather } from "./core/context-feed.js";
 import { initCommands } from "./core/commands.js";
 import { clockDim } from "./core/sun-clock.js";
 
@@ -191,13 +191,11 @@ function pushCauses() {
     sunAltitudeDeg: s.altitudeDeg,
     sunAzimuthRad: s.azimuthRad,
     windKph: weather?.now?.wind_kph ?? 0,
-    // wind_bearing and cloud_pct DO NOT EXIST on /api/weather/now yet — the
-    // route returns wind_kph but not direction, and no cloud cover at all.
-    // Both are already in the Open-Meteo response the server throws away, so
-    // this is an additive server change (with its contract test) rather than a
-    // new upstream. Until it lands these fall back, and the fallback is stated
-    // rather than hidden: a fixed bearing would make the drift LOOK caused
-    // while being decorative, which is the one thing the substrate must not do.
+    // Both are on /api/weather/now (weatherService.js, and the BOM fallback
+    // too; asserted in tests/api.spec.js). Null still falls back, and the
+    // fallback is stated rather than hidden: a fixed bearing would make the
+    // drift LOOK caused while being decorative, which is the one thing the
+    // substrate must not do.
     windBearingDeg: weather?.now?.wind_bearing ?? null,
     cloudPct: weather?.now?.cloud_pct ?? null,
     // condition.icon, not condition.code: the WMO tuple is
@@ -216,8 +214,9 @@ async function loadWeather() {
     weather = await res.json();
     pushCauses();
     /* The code, not the icon — see feedWeatherCode. The substrate above wants
-       the server's finer category; contextStore wants the collapsed one. */
-    feedWeatherCode(weather?.now?.condition?.code ?? null);
+       the server's finer category; contextStore wants the collapsed one, and
+       the Living Window's `weather` slice rides the same call. */
+    feedWeather(weather?.now ?? null);
     /* And the archive says it in words. ⚠ THIS RUNS BEFORE initArchive — the
        weather stage is earlier in boot than the ground stage — so the line is
        HELD by the module and painted when the surface is built. Without that it

@@ -112,6 +112,80 @@ test("a storm reaches the store as a storm", async ({ page }) => {
   await expect.poll(async () => (await context(page)).condition).toBe("storm");
 });
 
+/* ═══ THE LIVING WINDOW'S INPUT — the `weather` slice ════════════════════════
+
+   Null on V3 until 2026-09-12: its only writer was the incumbent's weather
+   renderer, so the atmoFx planner the Living Window reuses would have read
+   null forever. Every categorical field is derived from the WMO CODE — the
+   server's own `intensity`/`thunder` are handed deliberate garbage below, so a
+   slice that read them instead of the code cannot pass.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+const weatherFull = (code, { temp = 14, wind = 6 } = {}) => ({
+  now: {
+    temp_c: temp,
+    wind_kph: wind,
+    condition: { code, label: "spec", icon: "server-icon", intensity: "server-says", thunder: "server-says" }
+  }
+});
+
+test("heavy rain lands in the slice with every field, taken from the code", async ({ page }) => {
+  await page.clock.setFixedTime(MIDDAY);
+  const { pageErrors } = await bootV3(page, { "/api/weather/now": weatherFull(65) });
+
+  await expect.poll(async () => (await context(page)).weather).toEqual({
+    category: "rain", intensity: "heavy", thunder: false, windKph: 6, tempC: 14
+  });
+  expect(pageErrors).toEqual([]);
+});
+
+test("a thunderstorm code arms thunder — the lightning lane's only input", async ({ page }) => {
+  await page.clock.setFixedTime(MIDDAY);
+  await bootV3(page, { "/api/weather/now": weatherFull(95) });
+
+  await expect.poll(async () => (await context(page)).weather).toEqual({
+    category: "storm", intensity: "moderate", thunder: true, windKph: 6, tempC: 14
+  });
+});
+
+test("a missing temperature is null, never 0° — a frost the house would draw", async ({ page }) => {
+  await page.clock.setFixedTime(MIDDAY);
+  await bootV3(page, { "/api/weather/now": weatherFull(3, { temp: null, wind: null }) });
+
+  // The code landed (the slice exists), THEN its absent fields are asserted.
+  await expect.poll(async () => (await context(page)).weather?.category ?? null).toBe("cloudy");
+  const w = (await context(page)).weather;
+  expect(w.tempC).toBeNull();
+  expect(w.windKph).toBeNull();
+});
+
+test("an identical re-reading keeps the SAME slice; a changed field replaces it", async ({ page }) => {
+  await page.clock.install({ time: MIDDAY });
+  let fetches = 0;
+  let temp = 14;
+  await bootV3(page, {
+    "/api/weather/now": () => { fetches += 1; return weatherFull(61, { temp }); }
+  });
+  await expect.poll(async () => (await context(page)).weather?.tempC ?? null).toBe(14);
+  await page.evaluate(() => { window.__wRef = window.__v3Context().weather; });
+
+  // The ten-minute poll, with nothing changed upstream.
+  const before = fetches;
+  await page.clock.fastForward("10:30");
+  // Prove the re-reading HAPPENED before trusting that it changed nothing.
+  await expect.poll(() => fetches).toBeGreaterThan(before);
+  expect(await page.evaluate(() => window.__v3Context().weather === window.__wRef),
+    "an unchanged reading replaced the slice — every store subscriber woke for nothing").toBe(true);
+
+  // And a real change does land, as a new object.
+  temp = 15;
+  const mid = fetches;
+  await page.clock.fastForward("10:30");
+  await expect.poll(() => fetches).toBeGreaterThan(mid);
+  await expect.poll(async () => (await context(page)).weather?.tempC ?? null).toBe(15);
+  expect(await page.evaluate(() => window.__v3Context().weather === window.__wRef)).toBe(false);
+});
+
 /* ═══ THE SUNNY AFTERNOON THE HOUSE ANNOUNCED RAIN ═══════════════════════════
 
    2026-08-29: the wall said "First rain in ages — the garden's having an

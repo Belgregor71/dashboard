@@ -21,7 +21,18 @@
      while holding L absolutely constant, so no tint change can ever break a
      contrast guarantee. HSL cannot do that without hand-tuning every stop.
 
-     --atmo-hue is the ONLY thing atmosphere is allowed to move.
+     Atmosphere may move EXACTLY these, and nothing else:
+       --atmo-hue     the hue of every surface and the accent; L and C held
+       the mat        the archive's field around the card (--surface's use there)
+       the grade      the photograph's own grade on the card
+       the scrim      its tint (never its solved opacity — scrim.js owns that)
+     Widened on purpose from "--atmo-hue only" by the owner, 2026-09-12, for
+     the Living Window (docs/design/HANDOVER-LIVING-WINDOW-V3.md). The last
+     three get their token names from the direction that ships, and are added
+     HERE when they do. Anything that moves a lightness can break a contrast
+     guarantee the hue alone never could, so each one is measured by
+     tests/verify/v3-contrast.spec.js with the weather FORCED, not just pinned.
+     A token not on this list is not atmosphere's to move — add it first.
   ────────────────────────────────────────────────────────────────────────── */
   --atmo-hue: 65;          /* warm daylight default; night shifts to 40 */
   --atmo-chroma: 0.012;
@@ -79,8 +90,9 @@
      light in the room agree. Written from suncalc.
   ────────────────────────────────────────────────────────────────────────── */
   --sun-az: 0deg;          /* solar azimuth  */
-  --sun-alt: 0;            /* -1..1 altitude */
-  --sun-warmth: 0;         /* 0..1 ramp used by the substrate                */
+  --sun-alt: 0;            /* altitude in DEGREES (main.js syncSun) — no reader yet  */
+  --sun-warmth: 0;         /* 0..1, (alt+6)/18 clamped — written, NO reader yet;
+                              the substrate takes the sun via toCauses, not this  */
 
   /* ── Type ─────────────────────────────────────────────────────────────────
      SAID vs MEASURED. If the house is SPEAKING it is set in Figtree; if it is
