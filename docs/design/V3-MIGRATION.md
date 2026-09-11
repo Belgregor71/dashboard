@@ -534,8 +534,11 @@ and the flip stays a URL.
       the announced fault line and the status subject. ⏳ **Owed: a real degradation seen on
       the glass; every reading so far is a stubbed feed.**
 - [ ] 72 h soak clean — heap, DOM, listeners at or below t0
-- [ ] Quiescent ≤8% of one core, live ≤25%, peak ≤35% — **not re-measured since the engine
-      and the SSE landed; the old A/B predates both**
+- [x] Quiescent ≤8% of one core, live ≤25%, peak ≤35% — ✅ **re-measured 2026-09-12 on the
+      live wall with the engine and the SSE running** (`HOST-BASELINES.md`, "the Living Window
+      baseline"): quiescent 0.2 (archive off, still air) · live 19.4–19.8 (archive on, plane)
+      · peak 27.4 (mid-settle). ⚠ ~1.4 gpu of the live row is the substrate drawing under the
+      opaque archive, where nobody can see it.
 - [ ] Seen by eye on the actual panel — every V3 verification so far is a headless read
 
 ## Measuring V3 without taking the wall

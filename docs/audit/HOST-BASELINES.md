@@ -166,6 +166,8 @@ replaced by *"never move for a reason the room can't see"* plus a measured ceili
 | Peak episode — a moment, must decay | **≤ 35** | 22.5 | ~1.5× |
 | **V3 archive — depth 0** (v3Archive default-on) | **≤ 25** sustained (live ambient) | **21.3** settled (2026-08-22, gain 4) · 21.5 at gain 2 · 21.1 (2026-08-20, `b6a7d86`) — was 27.4 ⚠ OVER while the fifth loop ran forever | ~1.2× |
 | **V3 archive — depth 0, mid-settle** (96 s per photograph) | **≤ 35** peak episode | **31.6** (2026-08-22, gain 4) · 28.4 at gain 2 · 27.3 (2026-08-20), decays to the row above | ~1.1× |
+| **V3 archive — depth 0, PLANE composition** (2026-09-12, `6707979`, `loops:3`) | **≤ 25** sustained | **19.4–19.8** settled · 19.0 lit-night (`loops:2`) · **27.4** mid-settle (vs ≤ 35) | ~1.3× · 1.3× |
+| ↳ of which: the substrate drawing UNDER the opaque archive | — | **~1.4** gpu / **~7.5** renderer, for pixels nobody can see | see the 2026-09-12 section |
 
 > **2026-08-22 — the exchange fix, and the gain raised to 4.** Both readings above were
 > retaken on `fe352bf` (daylight, depth 0, renderer 1306 / gpu 1161, 30 s windows,
@@ -951,3 +953,48 @@ half, and both settle.
 
 ⏳ **Still owed: the 24 h and 72 h rows** — for the settled state, which is where the wall spends
 roughly eight and a half minutes of every ten.
+
+## V3 depth 0 — the Living Window baseline (2026-09-12, `6707979`)
+
+Step 0 of `docs/design/HANDOVER-LIVING-WINDOW-V3.md`: the number any weather effect is judged
+against. Live wall, **attention engine + SSE running** (page uptime 674–684 min), depth 0
+pinned (the in-page pin above) and `arch-kenburns` finished unless the row says otherwise,
+**60 s windows**, gpu 1315896 / wall renderer 1315934, `/proc/pressure/cpu` `some avg10=0.00`
+in every row, `tempC` 38.5–43.4. Weather "Mostly clear", **wind live → `substrateFps` 15.0**.
+Archive in the **plane** composition (`__archive().plane: true`).
+
+| row | state | gpu-process | renderer | ceiling |
+|---|---|---|---|---|
+| 1 | archive on, **lit night** (05:44, `data-night=1`, `loops:2`), substrate running | **19.0** | 12.5 | ≤ 25 |
+| 2 | archive on, **day** (`loops:3`), substrate running — A | **19.8** | 13.4 | ≤ 25 |
+| 3 | archive on, day, **substrate loop stopped** — B | **18.2** | **6.0** | ≤ 25 |
+| 4 | archive on, day, substrate running — A′ | **19.4** | 13.5 | ≤ 25 |
+| 5 | archive **off** (root marker removed in-page), substrate running | **5.8** | 6.2 | ≤ 25 |
+| 6 | archive off, substrate stopped | **0.2** | 0.4 | ≤ 8 |
+| 7 | archive on, **mid-settle** (`__groundDissolve(1200)`, kenburns running all 60 s) | **27.4** | 23.2 | ≤ 35 |
+
+Method for the substrate stop: `window.requestAnimationFrame` swallowed in-page (so
+`data-panel-dark` — which would also stop the archive's own loops — is untouched), restored
+after with a `__v3PanelDark(true/false)` toggle to kick the loop. Proof it stopped:
+`frames` +1 across the stopped window against +904 across a running one. Every in-page
+change self-cleared on a timer. The probe is `lw-probe.cjs` / `lw-measure.sh` (session
+scratch, copied to `/home/dashboard/`).
+
+🔑🔑 **THE SUBSTRATE DRAWS 15 fps UNDER AN OPAQUE LAYER.** At depth 0 with `v3Archive` on,
+`.archive` is `inset:0` with an opaque `--surface` background at z3 — the substrate (z0) and
+the full-bleed photograph (z1) beneath it are invisible. Rows 2/3/4 (A/B/A, repeatable to
+0.4) put the cost of drawing it anyway at **~1.4 gpu-process and ~7.5 renderer**. Pausing it
+while it is covered is free headroom; it is not yet done.
+
+🔑 **The plane composition is CHEAPER than the 2026-08-22 card.** Settled 19.4–19.8 against
+21.3, mid-settle 27.4 against 31.6. So the Living Window's headroom at depth 0 is **~5.4 live
+/ ~7.6 peak** — not the ~3.7 / 3.4 the 08-22 rows imply — and **~6.8 live** once the covered
+substrate is paused.
+
+⚠ **Rows 5/6 are the only V3 reading of a truly quiescent wall** (0.2 gpu): archive off,
+still air. Row 5 is the old 5.9 ambient row, reproduced (5.8) — the substrate IS the whole
+cost of V3 without the archive.
+
+⚠ Not taken: a lit **dusk** reading (the lit-night row was taken at dawn, same token state),
+and anything with a real weather cause beyond wind — "Mostly clear" is the weather this
+baseline had.
