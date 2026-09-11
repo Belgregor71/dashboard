@@ -40,9 +40,17 @@ function windowExcluding() {
  * on the window and X is the authority on the monitor, so every interesting
  * case here is a different pair of those two.
  */
-async function bootV3(page, { flags = {}, state = null, onWake = null } = {}) {
+async function bootV3(page, { flags: own = {}, state = null, onWake = null } = {}) {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
+
+  /* ⚠ THE PANEL IS THE ONLY PAUSE THIS FILE MEANS. Since v3SubstrateCoveredPause
+     went default-on (2026-09-12), depth 0 with the archive on also pauses the
+     field — it cannot be seen — so "the panel is lit and the field keeps moving"
+     would read a field correctly asleep for a different reason. The interplay of
+     the two reasons is tests/v3-substrate-covered.spec.js's; here the cover is
+     pinned off so `paused` answers exactly one question. */
+  const flags = { v3SubstrateCoveredPause: false, ...own };
 
   await page.route("**/js/config.js", async (route) => {
     const res = await route.fetch();

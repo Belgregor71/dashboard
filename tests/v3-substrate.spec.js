@@ -54,9 +54,18 @@ const BLUSTERY = {
   }
 };
 
-async function bootV3(page, { query = "", weather = null, flags = {} } = {}) {
+async function bootV3(page, { query = "", weather = null, flags: own = {} } = {}) {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
+
+  /* ⚠ AN UNCOVERED FIELD IS THIS FILE'S PRECONDITION. Since
+     v3SubstrateCoveredPause went default-on (2026-09-12) a depth-0 wall with the
+     archive on pauses the substrate, because nothing can see it — so every "the
+     field is painted / moves / resumes" case here would be reading a field that
+     is correctly asleep. What these specs test is the loop and its backends, not
+     the cover (tests/v3-substrate-covered.spec.js owns that), so the cover is
+     pinned off rather than the archive: the rest of the wall stays as shipped. */
+  const flags = { v3SubstrateCoveredPause: false, ...own };
 
   await page.clock.setFixedTime(MIDDAY);
 

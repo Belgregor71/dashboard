@@ -1952,10 +1952,14 @@ window.CONFIG = {
     // drew at 15 fps there anyway: ~1.4 gpu-process / ~7.5 renderer points on
     // the live wall (HOST-BASELINES.md, "the Living Window baseline",
     // 2026-09-12, A/B/A). Nothing on the glass changes; leaving depth 0 draws a
-    // fresh frame before anything can see it. Shipped OFF. Rollback: -> false.
+    // fresh frame before anything can see it. Shipped OFF (`9db0d96`), measured
+    // live with the flag toggled in-page: A/B/A off 20.1 / on 18.2 / off 20.1
+    // gpu, renderer 13.5 / 6.3 / 13.9; frames froze while covered and resumed
+    // at 15 fps. FLIPPED ON 2026-09-12. Rollback: -> false (V3 reads it every
+    // minute and on every depth change, so an in-page flip needs no reload).
     // ⚠ A Living Window direction that lets the substrate SHOW through the
     // archive's mat (variant C) must narrow "covered", or this hides it.
-    v3SubstrateCoveredPause: false,
+    v3SubstrateCoveredPause: true,
   },
 
   /* --------------------------------------------------------------
