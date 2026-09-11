@@ -29,7 +29,7 @@ not that it was seen.
 |---|---|---|---|---|
 | `background` | rotating background photos + tint | REPLACED | `v3/main.js:661` `initGround()`, unconditional | tint comes from the substrate, not a CSS class |
 | `clock` | 1 s clock | EQUIVALENT | `v3/main.js:88` `paintHour`, `:688` every 20 s | minute precision, not seconds |
-| `commute` | drive-time panel + car lottie | SHARED-UNGATED | `houseSnapshot.js:107` fetch → `candidateSources.js:194` `commuteCandidate` | no panel; reaches the glass only as an attention line |
+| `commute` | drive-time panel + car lottie | SHARED-UNGATED → ✅ **gated on V3** (`d619025`) | `houseSnapshot.js:107` fetch → `candidateSources.js:194` `commuteCandidate` | no panel; reaches the glass only as an attention line |
 | `weather` | weather renderer + radar, 10 min | REPLACED | `v3/main.js:167` `loadWeather` → substrate causes; `v3/subjects/forecast.js` | **no radar** |
 | `calendar` | calendar + next-event panel | REPLACED | `v3/subjects/calendar.js`; next-event line in `houseSnapshot` | no persistent next-event panel |
 | `homeAssistant` | `connectHA()` + HA events | EQUIVALENT | `v3/main.js:420-423`, unconditional | V3 has no HA-off path at all |
@@ -46,9 +46,9 @@ not that it was seen.
 | `arrivalBottom` | repositions that card bottom-centre | N/A-BY-DESIGN | depends on `arrivalCard`'s card | — |
 | `bareTopRow` | strips the incumbent top row | N/A-BY-DESIGN | V3 has no top row | — |
 | `bareHero` | un-chromes the incumbent hero | N/A-BY-DESIGN | no hero container on V3 | — |
-| `mediaCandidate` | folds now-playing/Plex into the queue | SHARED-UNGATED | `houseSnapshot.js:583-584, 614-623` → `candidateSources.js:250-266` | — |
-| `foldHomeTiles` | folds tonight's menu into the queue | SHARED-UNGATED | `houseSnapshot.js:589, 629-630` → `candidateSources.js:301-320` | — |
-| `cameraCandidate` | folds the camera trigger into the queue | SHARED-UNGATED | `houseSnapshot.js:590, 632-635` → `candidateSources.js:323-350` | contrast: `robotCandidate` **is** gated, `houseSnapshot.js:580` |
+| `mediaCandidate` | folds now-playing/Plex into the queue | SHARED-UNGATED → ✅ **gated on V3** (`d619025`) | `houseSnapshot.js:583-584, 614-623` → `candidateSources.js:250-266` | — |
+| `foldHomeTiles` | folds tonight's menu into the queue | SHARED-UNGATED → ✅ **gated on V3** (`d619025`) | `houseSnapshot.js:589, 629-630` → `candidateSources.js:301-320` | — |
+| `cameraCandidate` | folds the camera trigger into the queue | SHARED-UNGATED → ✅ **gated on V3** (`d619025`) | `houseSnapshot.js:590, 632-635` → `candidateSources.js:323-350` | contrast: `robotCandidate` **is** gated, `houseSnapshot.js:580` |
 | `dailyMemories` | frozen per-day on-this-day set + map tile | REPLACED — own flag **`groundMemories`** | `v3/core/ground.js:139, 148` (`/api/immich/on-this-day`) | rotates every 10 min, not frozen; no travel-map tile |
 | `ambientMemory` | tender memory, wordless, Mode 0 only | **ABSENT** (deliberately) | `v3/main.js:459-463`: on a tender day V3 shows no memory | — |
 | `awakeGround` | awake modes hold one photo | EQUIVALENT | `v3/core/ground.js` — the ground photo at every depth | — |
@@ -72,14 +72,18 @@ not that it was seen.
 
 ## What it means for (b) and (c) — the owner's calls, grouped
 
-1. **Four have a lever already, under another name** — `plex`→`v3NowPlaying`,
-   `dailyMemories`→`groundMemories`, `recipePanel`→`v3DinnerPanel`,
-   `ambientArchive`→`v3Archive`. No code: extend the mark to name the V3 lever.
-2. **Four are the one real (b) target** — `commute`, `mediaCandidate`,
-   `foldHomeTiles`, `cameraCandidate` are candidate lanes in shared code that V3 runs
-   ungated. `robotCandidate` shows the pattern: a one-line `flag(...)` guard in
-   `houseSnapshot.js`. All four are `true`, so wiring the gate changes nothing on the
-   wall and creates a real rollback lever.
+1. ✅ **DONE (`d619025`) — four have a lever already, under another name.**
+   `plex`→`v3NowPlaying`, `dailyMemories`→`groundMemories`,
+   `recipePanel`→`v3DinnerPanel`, `ambientArchive`→`v3Archive`. Each mark now ends
+   `· V3 lever: <flag>`, and `tests/flag-surface.spec.js` checks the named flag is
+   real and read by V3.
+2. ✅ **DONE (`d619025`) — the four SHARED-UNGATED lanes are gated on V3.**
+   `commute`, `mediaCandidate`, `foldHomeTiles`, `cameraCandidate` now mask their
+   lane's inputs in `v3/core/attention.js` (`LANE_GATES`, `laneState`) — ⚠ **not** in
+   `houseSnapshot` as `robotCandidate` is, because the now-playing band, the media
+   subject and the dinner panel read that snapshot too. Their marks are gone: the
+   flags are levers on the wall now. `tests/v3-candidate-lanes.spec.js`.
+   **The census count of inert flags is therefore 38, not 42.**
 3. **Seventeen are on the wall hardwired** (8 EQUIVALENT + 9 REPLACED without a V3
    flag). The choice is whether each needs a kill switch at all — for the clock, HA
    and the attention engine almost certainly not.
