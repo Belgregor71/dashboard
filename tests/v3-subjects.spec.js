@@ -1104,6 +1104,28 @@ test("⚠ the three leave nothing behind either — ten cycles, same DOM", async
   await page.evaluate(() => window.__v3Refresh());
   await page.evaluate((entity) => window.__emitHaState(entity), PLAYING);
 
+  /* ⚠⚠ WAIT FOR THE SURFACE THIS TEST'S OWN SETUP JUST PERTURBED, BEFORE THE
+     BASELINE. `count()` below is `document.querySelectorAll("*")` — the WHOLE
+     document, not the mount — and the PLAYING emit above schedules a media-room
+     render on `#media-rooms`, debounced by `SETTLE_MS = 400` in
+     core/media-rooms.js. Take `settle` before that lands and it is ten nodes
+     short of the steady state; the ten arrive mid-loop and `after` reads as a
+     leak that never happened.
+
+     That is exactly what it was read as. It failed three full suites in a row
+     (70 vs 80), passed in isolation every time, and was carried in memory as an
+     unexplained "10-node teardown residue" — while `children: 0` and
+     `liveSrcs: []` sat green beside it, because the mount really was clean. The
+     ten nodes were one complete `.mroom` card: lines, where/what/meta, frame,
+     still, img, rule, icon.
+
+     🔑 A MOVING BASELINE IS NOT A LEAK. If this assertion ever fires again,
+     check what else the setup started before blaming teardown.
+
+     Waiting on the card itself rather than on a duration: a sleep would be the
+     same race with a nicer name. */
+  await page.locator("#media-rooms .mroom").first().waitFor({ timeout: 10_000 });
+
   const got = await page.evaluate(async () => {
     const count = () => document.querySelectorAll("*").length;
     /* ⚠ `__setDepth(0)` DOES NOT CLEAR A SUBJECT MOUNTED THIS WAY, which is the
@@ -1115,7 +1137,9 @@ test("⚠ the three leave nothing behind either — ten cycles, same DOM", async
        the previous subject down before it looks the new one up. Same bracket
        kiosk-drive.cjs puts around the wall's own cycle. */
     await window.__v3Subject("__spec.none__");
+    const mrooms = () => document.querySelectorAll("#media-rooms .mroom").length;
     const settle = count();
+    const mroomsAtSettle = mrooms();
     const seen = new Set();
     for (let i = 0; i < 10; i++) {
       for (const id of ["show.sky", "show.tonight", "show.media"]) {
@@ -1128,6 +1152,8 @@ test("⚠ the three leave nothing behind either — ten cycles, same DOM", async
     return {
       settle,
       after: count(),
+      mroomsAtSettle,
+      mroomsAtEnd: mrooms(),
       seen: [...seen],
       children: mount.childElementCount,
       // Any <img> still holding a tile or an artwork after the last teardown.
@@ -1138,6 +1164,13 @@ test("⚠ the three leave nothing behind either — ten cycles, same DOM", async
   expect(got.seen.sort()).toEqual(["show.media", "show.sky", "show.tonight"]);
   expect(got.children).toBe(0);
   expect(got.liveSrcs).toEqual([]);
+  /* The premise, asserted rather than assumed: the media room really was on the
+     glass when the baseline was taken, and stayed put across the loop. Without
+     this the wait above could silently start timing out into a no-op and the
+     comparison would quietly go back to racing a 400ms debounce. */
+  expect(got.mroomsAtSettle, "the baseline was taken before the media room rendered").toBeGreaterThan(0);
+  expect(got.mroomsAtEnd).toBe(got.mroomsAtSettle);
+
   expect(got.after).toBe(got.settle);
   expect(pageErrors).toEqual([]);
 });
