@@ -323,7 +323,18 @@ peak ceiling is no longer the binding constraint on this surface** — the ambie
 ⚠ The ambient `state(pre)`/`state(post)` both read `layers: 2` — which is the SETTLE STUCK
 signature and was **not** a fault: a cross-fade was legitimately in flight across the whole
 window (06:44 is inside the sunrise rotation). `inFlight` is now carried in the state line for
-exactly this reason. Note also `anims: 1` here and `anims: 0` in the peak row — the *reverse*
+exactly this reason.
+
+> ⚠⚠ **CORRECTION 2026-09-12 — `inFlight` NEVER FIXED THIS, AND THE SAME FALSE POSITIVE WAS
+> STILL FIRING A MONTH LATER.** `ground.js` clears `inFlight` the instant the incoming frame
+> is on the glass and removes the outgoing one `DISSOLVE_MS + CLEANUP_BUFFER_MS` = 62 s later,
+> so the entire settle reads `layers: 2` with `inFlight: false` — the exact pair this note
+> claims are distinguishable. Measured on the live G11 with a 700 s 1 Hz poll across one
+> natural rotation: **61 of 698 samples, 8.7%**, self-clearing after **61.2 s**.
+> The field that actually separates them is **`settleDueInMs`** (`__ground()`, added with the
+> fix): null or overdue means nothing is coming to clean up. `heap-metrics.cjs` now faults on
+> that, and refuses to judge a page too old to expose it. See
+> `tests/ground-settle-deadline.spec.js`. Note also `anims: 1` here and `anims: 0` in the peak row — the *reverse*
 of the truth, since the peak was the busier state. Read `substrateFps`.
 
 **The cycle is symmetric — measured, not reasoned.** 9/10 subjects mounted, `#subject-mount`

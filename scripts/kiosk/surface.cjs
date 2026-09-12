@@ -91,13 +91,23 @@ const STATE_EXPR = {
       },
       panelDark: disp?.dark ?? (document.documentElement.dataset.panelDark === "1" ? true : null),
       monitor: disp?.monitor ?? null,
-      /* ⚠ inFlight is carried because without it "layers: 2" is ambiguous, and
-         the first live run hit exactly that: the 06:44 ambient sample read two
-         photographic layers at rest, which is the SETTLE STUCK signature — and
-         was in fact a perfectly normal cross-fade caught mid-flight. One field
-         separates "a photograph arriving" from "a fade that never cleaned up".
+      /* ⚠⚠ inFlight WAS CARRIED TO DISAMBIGUATE "layers: 2" AND IT CANNOT DO IT.
+         The 06:44 ambient run of 2026-08-15 read two photographic layers at rest
+         — the SETTLE STUCK signature — and was a perfectly normal cross-fade; the
+         note added then said inFlight now separates the two cases. It does not.
+         ground.js clears inFlight the instant the incoming frame is on the glass
+         and removes the outgoing one 62 seconds later, so the whole window reads
+         layers 2 with inFlight false. Measured on the wall 2026-09-12: 8.7% of
+         698 samples, clearing itself after 61.2s every time.
+         settleDueInMs is the field that actually separates them — null or overdue
+         means nothing is coming to clean up. Carry all three or the state line
+         cannot be judged.
+         ⚠ Carried RAW, never coerced with ?? null: on a page older than the fix
+         the key is undefined, JSON drops it, and a reader sees it is ABSENT
+         rather than being told "nothing armed" — which is the difference between
+         refusing to judge and calling a healthy cross-fade stuck.
          (No backticks in here — this comment lives inside a template literal.) */
-      ground: g && { assetId: g.assetId, layers: g.layers, imgs: g.imgs, pair: g.pair, shown: g.shown, inFlight: g.inFlight },
+      ground: g && { assetId: g.assetId, layers: g.layers, imgs: g.imgs, pair: g.pair, shown: g.shown, inFlight: g.inFlight, settleDueInMs: g.settleDueInMs },
       // Carried to record that it is BLIND to the substrate, not to be read as
       // the activity level. See the block comment above.
       anims: document.getAnimations().filter(a => a.playState === "running").length

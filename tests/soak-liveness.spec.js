@@ -158,6 +158,13 @@ function ground(over = {}) {
     imgs: 1,
     pair: false,
     inFlight: false,
+    /* "Settled" in the line above means nothing is armed — no cleanup is still
+       owed. ⚠ It is NOT enough for a case here to say `layers: 2` and expect
+       SETTLE STUCK: since 2026-09-12 two layers with a deadline still running is
+       an ordinary cross-fade, and the judge says UNVERIFIABLE when the field is
+       missing altogether. `ground-settle-deadline.spec.js` owns that distinction
+       and measured it on the wall — 8.7% of live samples. */
+    settleDueInMs: null,
     __dark: false,
     __todayKey: TODAY,
     __uptimeMin: 1180,
