@@ -2,36 +2,33 @@
    THE LIVING WINDOW ON V3 — the host (design arc, step 2: the variants).
 
    docs/design/HANDOVER-LIVING-WINDOW-V3.md. Seven incumbent weather effects have
-   not been on the wall since the V3 cutover. Before any of them is ported, the
-   arc's first question is WHERE they live — because at depth 0 the archive's
-   opaque mat covers both the photograph and the substrate, so the incumbent's
-   answer (a canvas above everything) is only one of three honest ones:
+   not been on the wall since the V3 cutover. The arc's first question was WHERE
+   they live — because at depth 0 the archive's opaque mat covers both the
+   photograph and the substrate. Three directions were built and shown on the
+   real panel (docs/design/LIVING-WINDOW-VARIANTS.md); **the owner chose A, the
+   overlay**, on 2026-09-12, and B (grade) and C (mat-as-window) were deleted.
 
      v3AtmoOverlay  A · a thin layer above the card and the mat, below all text
-     v3AtmoGrade    B · the mat, the card's grade and the scrim move; no new layer
-     v3AtmoMat      C · the mat opens and the live substrate IS the weather
 
-   This module is the part the three share: it turns the house's weather slice
-   (context-feed.js) and the sun into three numbers on the root —
+   This module turns the house's weather slice (context-feed.js) and the sun
+   into three numbers on the root —
      --atmo-rain    0..1  how hard it is raining (0 unless rain/storm)
      --atmo-warmth  0..1  the sky's warmth, peaking at the horizon (skyWarmthFor)
      --atmo-amp     0.3..1 the night amplitude, the SAME curve as the sun-dimmed
                           hour (DESIGN_SYSTEM §5.2: reuse the curve, no second
                           night gate) — it scales swing and opacity, never time
    — plus `data-atmo-raining` (so rain only MOVES while it rains: §5.1's cause
-   test) and a one-shot `data-atmo-strike`. Each renderer is CSS keyed on
-   `:root[data-atmo="<name>"]`; see css/atmosphere.css.
+   test) and a one-shot `data-atmo-strike`. The renderer is CSS keyed on
+   `:root[data-atmo="overlay"]`; see css/atmosphere.css.
 
-   Flag-off (all three): no attribute, no node, no handle, no subscription — the
-   build that shipped before. The first flag that is on wins, in the order above.
+   Flag-off: no attribute, no node, no handle, no subscription — the build that
+   shipped before.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { get as getContext, subscribe } from "../../js/core/contextStore.js";
 import { skyWarmthFor } from "../../js/services/atmosphere.js";
 import { clockDim } from "./sun-clock.js";
 import { overlay } from "../atmo/overlay.js";
-import { grade } from "../atmo/grade.js";
-import { mat } from "../atmo/mat.js";
 
 const flag = (name) => Boolean(globalThis.window?.CONFIG?.features?.[name]);
 
@@ -46,34 +43,17 @@ export function rainLevel(weather) {
   return RAIN_LEVEL[weather.intensity] ?? RAIN_LEVEL.moderate;
 }
 
-/**
- * What a forced probe asks the SUBSTRATE for — only direction C draws weather
- * with the substrate, so only C's renderer takes causes. Pure, for the spec.
- * @returns {null|{category?:string,intensity?:string,sunAltitudeDeg?:number}}
- */
-export function causeOverrideFor(forced) {
-  if (!forced) return null;
-  const out = {};
-  if (forced.rain) { out.category = "rain"; out.intensity = forced.rain; }
-  // A forced dusk is the sun on the horizon, which is where the field glows.
-  if (forced.warmth != null) out.sunAltitudeDeg = 1;
-  return Object.keys(out).length ? out : null;
-}
-
 let renderer = null;
 let unsubscribe = null;
 let strikeTimer = null;
 let lastWeather = undefined;
 let sunAlt = NaN;
 let forced = null;
-let onCauses = null;
 
 function pick() {
-  // Literal reads, one per flag — tests/flag-surface.spec.js derives which
-  // flags V3 reads from exactly this form.
+  // A literal read — tests/flag-surface.spec.js derives which flags V3 reads
+  // from exactly this form.
   if (flag("v3AtmoOverlay")) return overlay;
-  if (flag("v3AtmoGrade")) return grade;
-  if (flag("v3AtmoMat")) return mat;
   return null;
 }
 
@@ -109,11 +89,6 @@ export function atmosphereSun(altitudeDeg) {
   paint();
 }
 
-/** For main.js pushCauses: what the substrate should draw instead, or null. */
-export function atmoCauseOverride() {
-  return renderer?.takesCauses ? causeOverrideFor(forced) : null;
-}
-
 /** One strike. A one-shot the stylesheet plays; cleanup is a TIMER, never
     animationend, which does not fire under display:none (CLAUDE.md, memory). */
 export function strike() {
@@ -140,17 +115,12 @@ function handle() {
   };
 }
 
-/**
- * @param {{onCauses?: () => void}} [opts] onCauses re-pushes the substrate's
- *        causes at once when a probe is forced (direction C only uses it).
- * @returns {boolean} false when every variant flag is off.
- */
-export function initAtmosphereFx({ onCauses: push = null } = {}) {
+/** @returns {boolean} false when the flag is off. */
+export function initAtmosphereFx() {
   if (renderer) return true;
   const r = pick();
   if (!r) return false;
   renderer = r;
-  onCauses = push;
   document.documentElement.dataset.atmo = r.name;
   r.mount?.();
 
@@ -164,15 +134,14 @@ export function initAtmosphereFx({ onCauses: push = null } = {}) {
   });
 
   window.__v3Atmo = () => handle();
-  /* The probe set every variant is judged on: `{rain: "moderate"}`,
-     `{strike: true}`, `{warmth: 0.8}` — combinable. `force(null)` hands the
-     wall back to the real weather. */
+  /* The probe set: `{rain: "moderate"}`, `{strike: true}`, `{warmth: 0.8}` —
+     combinable. `force(null)` hands the wall back to the real weather. This is
+     how the effect is driven on the kiosk without waiting for a storm. */
   window.__v3Atmo.force = (f) => {
     forced = f ? { ...f } : null;
     if (forced) delete forced.strike;
     if (forced && !Object.keys(forced).length) forced = null;
     paint();
-    onCauses?.();
     if (f?.strike) strike();
     return handle();
   };

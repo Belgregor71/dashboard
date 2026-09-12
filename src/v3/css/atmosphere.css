@@ -1,9 +1,14 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   THE LIVING WINDOW — three directions, one stylesheet (design arc, step 2).
+   THE LIVING WINDOW — the overlay (features.v3AtmoOverlay).
 
-   Every rule is keyed on `:root[data-atmo="<direction>"]`, which core/
-   atmosphere-fx.js sets only when that direction's flag is on. Flag-off, the
-   attribute is absent and NOTHING in this file matches — the rollback.
+   Chosen on the wall by the owner, 2026-09-12, over two other directions that
+   were built and measured beside it (the grade, and the mat opened onto the
+   substrate) — docs/design/LIVING-WINDOW-VARIANTS.md has the evidence and the
+   numbers; both losers were deleted in the same commit that merged this.
+
+   Every rule is keyed on `:root[data-atmo="overlay"]`, which core/
+   atmosphere-fx.js sets only when the flag is on. Flag-off, the attribute is
+   absent and NOTHING in this file matches — the rollback.
 
    Inputs, all on the root, all written by the host:
      --atmo-rain    0..1   0 unless raining; `data-atmo-raining` while > 0
@@ -12,7 +17,7 @@
      data-atmo-strike      present for one strike (host clears it on a timer)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── A · the overlay ──────────────────────────────────────────────────────────
+/* ── The layer ────────────────────────────────────────────────────────────────
    z4: above .archive (3) and the photograph (1), below .presence-cool (5),
    .ground-caption (6) and .stage (10). Text is never under the weather. */
 .atmo-overlay {
@@ -87,71 +92,7 @@
   100% { opacity: 0; }
 }
 
-/* ── B · the grade ────────────────────────────────────────────────────────────
-   The mat turns: rain → cooler (hue toward 235) and a shade darker; dusk →
-   warmer (toward 48) with a little more chroma. Lightness only ever FALLS with
-   rain, so text on the mat can only gain contrast from it.
-   ⚠ The transition list is RESTATED in both depth states: archive.css gives
-   depth 0 a zero visibility delay, and a rule here that replaced the list once
-   would make the archive arrive a --m-calm late. */
-:root[data-atmo="grade"] .archive {
-  background-color: oklch(
-    calc(0.16 - 0.03 * var(--atmo-rain, 0) * var(--atmo-amp, 1))
-    calc(var(--atmo-chroma) + 0.028 * var(--atmo-rain, 0) + 0.03 * var(--atmo-warmth, 0) * (1 - var(--atmo-rain, 0)))
-    calc(var(--atmo-hue) + (235 - var(--atmo-hue)) * var(--atmo-rain, 0) + (48 - var(--atmo-hue)) * var(--atmo-warmth, 0) * (1 - var(--atmo-rain, 0)))
-  );
-  transition: opacity var(--m-calm) var(--ease), visibility 0s linear var(--m-calm), background-color 20s linear;
-}
-:root[data-atmo="grade"][data-archive="1"][data-depth="0"] .archive {
-  transition: opacity var(--m-calm) var(--ease), visibility 0s linear 0s, background-color 20s linear;
-}
-
-/* The photograph's own grade: wet light is flatter and dimmer; dusk is warm. */
-:root[data-atmo="grade"] .archive__img {
-  filter:
-    saturate(calc(1 - 0.30 * var(--atmo-rain, 0) * var(--atmo-amp, 1)))
-    brightness(calc(1 - 0.12 * var(--atmo-rain, 0) * var(--atmo-amp, 1)))
-    sepia(calc(0.20 * var(--atmo-warmth, 0) * var(--atmo-amp, 1)));
-  transition: filter 20s linear;
-}
-
-/* The strike lights the whole archive at once — mat and card together. */
-:root[data-atmo="grade"][data-atmo-strike="1"] .archive {
-  animation: atmo-grade-strike 1.6s ease-out forwards;
-}
-@keyframes atmo-grade-strike {
-  0%   { filter: brightness(1); }
-  5%   { filter: brightness(calc(1 + 1.5 * var(--atmo-amp, 1))); }
-  12%  { filter: brightness(calc(1 + 0.6 * var(--atmo-amp, 1))); }
-  20%  { filter: brightness(calc(1 + 1.0 * var(--atmo-amp, 1))); }
-  100% { filter: brightness(1); }
-}
-
-/* ── C · the mat as a window ──────────────────────────────────────────────────
-   At depth 0 the mat goes part-transparent onto the living substrate, and the
-   full-bleed photograph and its scrim — which sit under the mat as well — step
-   aside, or the room would see the card twice. Every rule is depth-0 only:
-   above it the photograph IS the ground, exactly as today. */
-:root[data-atmo="mat"][data-archive="1"][data-depth="0"] .archive {
-  background-color: color-mix(in oklab, var(--surface) 45%, transparent);
-}
-:root[data-atmo="mat"][data-archive="1"][data-depth="0"] :is(.photo, .scrim) {
-  visibility: hidden;
-}
-/* The strike brightens the field itself. A filter on the canvas element, so
-   the shader stays byte-for-byte what was measured (substrate/gl.js). */
-:root[data-atmo="mat"][data-atmo-strike="1"] .substrate {
-  animation: atmo-mat-strike 1.6s ease-out forwards;
-}
-@keyframes atmo-mat-strike {
-  0%   { filter: brightness(1); }
-  5%   { filter: brightness(calc(1 + 2.2 * var(--atmo-amp, 1))); }
-  12%  { filter: brightness(calc(1 + 0.9 * var(--atmo-amp, 1))); }
-  20%  { filter: brightness(calc(1 + 1.4 * var(--atmo-amp, 1))); }
-  100% { filter: brightness(1); }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  :root[data-atmo] .atmo-overlay__rain { animation: none; }
-  :root[data-atmo][data-atmo-strike="1"] :is(.atmo-overlay__flash, .archive, .substrate) { animation: none; }
+  :root[data-atmo="overlay"] .atmo-overlay__rain { animation: none; }
+  :root[data-atmo="overlay"][data-atmo-strike="1"] .atmo-overlay__flash { animation: none; }
 }

@@ -1,5 +1,16 @@
 # The Living Window on V3 — three directions, judged on the wall
 
+## ✅ DECIDED 2026-09-12: **A, the overlay.** The owner picked it off this evidence.
+
+B (grade) and C (mat-as-window) were **deleted in the merge commit** — their flags,
+renderers and CSS are gone, and this document is the only record that they existed. It is
+kept for that reason: the numbers below are why A won, and the next person to wonder
+"why not just tint the mat?" should read the B column rather than rebuild it.
+
+Shipped **flag-off** (`v3AtmoOverlay: false`). Turning it on is its own mini-deploy:
+`/flag-flip v3AtmoOverlay` — and the contrast sweep must pin the flag AND force a weather
+state first, or it measures a layer that is not there.
+
 Step 2 of `docs/design/HANDOVER-LIVING-WINDOW-V3.md`. Branch `lw-variants`, nothing merged.
 Each direction was served to the **real kiosk** (G11, 32" panel) by CDP fetch interception —
 the branch's own bundle, its flag on, no deploy — for 16 minutes, then the wall was handed
