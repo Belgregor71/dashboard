@@ -66,7 +66,21 @@
     oklch(0.78 0.11 60 / 0.55),
     oklch(0.70 0.09 45 / 0.18) 45%,
     transparent 75%);
-  opacity: calc(var(--atmo-warmth, 0) * 0.5);
+  /* ⚠⚠ THE TOP BAND IS MASKED OUT OF THE WASH, and the mask is the whole reason
+     this can be 0.22 rather than 0.08. The wash is brightest at the top — which
+     is exactly where `#heard` sits (48px --ink-faint, the dimmest ink on the
+     wall and already a known-open debt at floor 2.8). Measured on the sweep's
+     bright-sky ground, unmasked: 0.5 -> 2.72:1, 0.30 -> 2.78, 0.22 -> 2.81,
+     i.e. the dusk light was eating an existing debt, and dimming it enough to
+     be safe left almost nothing to see.
+
+     Masked, the warmth starts below that band and the same 0.22 costs the node
+     nothing measurable. The gradient still peaks above the frame, so what the
+     room sees is light coming from the sky rather than a band floating in it.
+     tests/verify/v3-contrast.spec.js pins this flag and forces the weather, so
+     a future change here fails the gate rather than the wall. */
+  mask-image: linear-gradient(to bottom, transparent 0, transparent 168px, #000 320px);
+  opacity: calc(var(--atmo-warmth, 0) * 0.22);
   transition: opacity 60s linear;
 }
 

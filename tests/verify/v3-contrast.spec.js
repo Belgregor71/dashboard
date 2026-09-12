@@ -298,7 +298,15 @@ const IMAGE_PATH = /\/(thumb|snapshot|live|image|basemap|overlay|art)/;
    default's expense — which is exactly the "pinned, not inherited" rule above,
    applied in the direction that keeps a surface measured rather than the one
    that matches production. */
-const PINNED_FLAGS = { groundMemories: true, v3Archive: false };
+/* ⚠⚠ v3AtmoOverlay IS PINNED ON AND ITS WEATHER IS FORCED BELOW — the two
+   halves are one act. The Living Window paints a rain pane and a warm wash
+   BETWEEN the photograph and the text (z4, under the stage), so it is part of
+   the ground every ratio in this file is measured against. But it paints
+   nothing while it is dry, and the sweep's weather routes answer a calm sky —
+   so pinning the flag ALONE would measure a layer that was never there, and
+   report it as measured. That is the `#ground-caption` hole above wearing a
+   new coat. See bootV3. */
+const PINNED_FLAGS = { groundMemories: true, v3Archive: false, v3AtmoOverlay: true };
 
 async function bootV3(page, { ground, phase }) {
   const pageErrors = [];
@@ -355,6 +363,36 @@ async function bootV3(page, { ground, phase }) {
   // twice would pass for the wrong reason.
   const isNight = await page.evaluate(() => document.documentElement.dataset.night === "1");
   expect(isNight, `phase pin failed: expected night=${phase === "night"}`).toBe(phase === "night");
+
+  /* The Living Window at its brightest: heavy rain AND full warmth. The wash is
+     a warm light from above and the ink over it is light, so this is the worst
+     the layer makes the ground — and the strike is deliberately NOT forced: it
+     is a 1.6s one-shot, and a gate that measured a flash would be measuring
+     something nobody reads by. */
+  await page.evaluate(() => window.__v3Atmo?.force({ rain: "heavy", warmth: 1 }));
+  /* ⚠ POLLED, NOT READ ONCE. The pane goes display:none -> block, and
+     @starting-style holds its opacity at 0 for the first frame after it becomes
+     rendered — killing transitions does not skip that frame. A single read here
+     measures the fade-in and reports the layer as absent (it did, on the first
+     run of this block). Settle first, then measure. */
+  const layerState = () => page.evaluate(() => {
+    const rain = document.querySelector(".atmo-overlay__rain");
+    const warm = document.querySelector(".atmo-overlay__warm");
+    if (!rain || !warm) return null;
+    return {
+      rain: getComputedStyle(rain).display,
+      rainOpacity: Number(getComputedStyle(rain).opacity),
+      warmOpacity: Number(getComputedStyle(warm).opacity)
+    };
+  });
+  await expect.poll(async () => (await layerState())?.rainOpacity ?? 0, { timeout: 5000 }).toBeGreaterThan(0);
+  const weatherLayer = await layerState();
+  // A pin that silently did nothing is the failure this whole block exists to
+  // stop: assert the layer is THERE before measuring anything through it.
+  expect(weatherLayer, "the weather layer never mounted — v3AtmoOverlay's pin did not take").not.toBeNull();
+  expect(weatherLayer.rain, "the rain pane is not painting").toBe("block");
+  expect(weatherLayer.rainOpacity).toBeGreaterThan(0);
+  expect(weatherLayer.warmOpacity).toBeGreaterThan(0);
 
   await page.evaluate(() => window.__v3Refresh?.());
 

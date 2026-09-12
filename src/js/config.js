@@ -1973,11 +1973,16 @@ window.CONFIG = {
     // evidence. Measured live on the panel at depth 0: rest 17.1, sustained
     // rain 19.4, a strike every 4 s 18.9 gpu (ceiling 25 live / 35 peak).
     //
-    // Shipped OFF. ⚠ Before flipping: the contrast sweep must PIN this flag and
-    // FORCE a weather state, or it measures a layer that is not there
-    // (tests/verify/v3-contrast.spec.js). Drive it with
-    // `window.__v3Atmo.force({rain: "heavy"})`. Rollback: -> false.
-    v3AtmoOverlay: false,
+    // FLIPPED ON 2026-09-12, after the contrast sweep was taught to pin this
+    // flag AND force a weather state — pinning alone measured a layer that was
+    // not there. That measurement earned its keep immediately: the warm wash at
+    // 0.5 pushed `#heard` (--ink-faint, already a known-open debt) from 2.90:1
+    // to 2.72:1 over the bright-sky ground. The wash is now masked out of the
+    // top band and reads 2.90/2.94 — see css/atmosphere.css.
+    // Drive it by hand with `window.__v3Atmo.force({rain: "heavy"})`.
+    // Rollback: -> false (one line; V3 reads the flag at boot, so it needs a
+    // kiosk reload, which /flag-flip's ceremony does).
+    v3AtmoOverlay: true,
   },
 
   /* --------------------------------------------------------------
