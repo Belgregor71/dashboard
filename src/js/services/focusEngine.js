@@ -1,4 +1,5 @@
-const SEVERE_WEATHER_PATTERN = /storm|severe|warning|heavy rain|flood/i;
+// Must match candidateSources.js's copy. The reason for "heavy showers" is there.
+const SEVERE_WEATHER_PATTERN = /storm|severe|warning|heavy rain|heavy showers|flood/i;
 
 export function computeFocus({
   bomWarning,

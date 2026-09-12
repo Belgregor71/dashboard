@@ -15,7 +15,14 @@
 // These bands reproduce the old computeFocus ladder as plain numbers, so the
 // unified queue ranks the same sources without the if/else special-casing.
 
-const SEVERE_WEATHER_PATTERN = /storm|severe|warning|heavy rain|flood/i;
+/* "Heavy showers" (WMO 82) carries the same row as "Heavy rain" (65) in
+   weatherService's CODE_LABELS (rain, heavy, no thunder), and Open-Meteo, which is
+   the live source, emits it. Until 2026-09-13 it matched nothing here (audit F3).
+   Last summer's hourly codes put it at 3 hours on 3 days in Dec–Mar. "Heavy
+   drizzle" is also "heavy" in that table and deliberately stays out, at 24 hours
+   on 14 days. Keep focusEngine.js's copy identical; insights.spec.js walks every
+   label the server can emit against both. */
+const SEVERE_WEATHER_PATTERN = /storm|severe|warning|heavy rain|heavy showers|flood/i;
 
 /* ── BOM warning severity ────────────────────────────────────────────────────
    Until 2026-09-06 every BOM warning was score 95 + interrupt, flat: a MINOR

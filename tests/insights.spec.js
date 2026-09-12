@@ -25,6 +25,7 @@ import {
   collectSources
 } from "../src/js/services/candidateSources.js";
 import { rankQueue, selectForMode, MODE } from "../src/js/services/attentionRank.js";
+import { conditionFor } from "../server/services/weatherService.js";
 import {
   rainIncoming,
   binNight,
@@ -292,6 +293,46 @@ test.describe("candidateSources score bands", () => {
 
   test("a benign condition is not a severe-weather candidate", () => {
     expect(weatherSevereCandidate({ weatherCondition: "Clear", weatherTemp: "18°" })).toBeNull();
+  });
+
+  /* Audit F3. The labels come from the SERVER's own table, not a list typed
+     here, so a label renamed or added there cannot slip past this test.
+     Both directions are pinned: "Heavy showers" must fire, and "Heavy drizzle"
+     must not. Drizzle is also "heavy" in that table, so a broad
+     /heavy/ would pass the first half and fail here. */
+  test("every label the server emits fires the severe lane exactly when it should (F3)", () => {
+    const labels = [...new Set(
+      Array.from({ length: 100 }, (_, code) => conditionFor(code).label)
+    )].filter((l) => l !== "Unavailable");
+    // Assert the walk found the table before asserting anything about it.
+    expect(labels).toContain("Heavy showers");
+    expect(labels).toContain("Heavy drizzle");
+    expect(labels.length).toBeGreaterThan(20);
+
+    const SEVERE = [
+      "Heavy rain",
+      "Heavy showers",
+      "Thunderstorm",
+      "Thunderstorm with hail",
+      "Thunderstorm with heavy hail"
+    ];
+    const fires = labels.filter((l) => weatherSevereCandidate({ weatherCondition: l }) !== null);
+    expect(fires.sort()).toEqual([...SEVERE].sort());
+
+    // The incumbent's computeFocus carries its own copy of the pattern.
+    const incumbent = labels.filter((l) => computeFocus({ weatherCondition: l })?.text === l);
+    expect(incumbent.sort()).toEqual([...SEVERE].sort());
+  });
+
+  test("heavy showers take the hero in an empty room, through the ranker (F3)", () => {
+    const now = new Date("2026-01-15T15:00:00");
+    const q = rankQueue(
+      collectSources({ weatherCondition: "Heavy showers", weatherTemp: "27°" }),
+      now
+    );
+    const sel = selectForMode(q, MODE.AMBIENT, { now });
+    expect(sel.hero?.source).toBe("weather");
+    expect(sel.hero.text).toBe("Heavy showers · 27°");
   });
 
   test("next-event lands in the medium band", () => {
