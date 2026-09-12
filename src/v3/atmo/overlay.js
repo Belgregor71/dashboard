@@ -11,7 +11,7 @@
               compositor-only keyframe while `data-atmo-raining` is set. No rAF,
               no per-frame JS (§5.4): "motion implemented in JS per frame is the
               wrong implementation".
-     __warm   a warm wash from the top, opacity = --atmo-warmth.
+     __warm   a warm wash from the top, its opacity following --atmo-warmth.
      __flash  the incumbent strike curve on a cool horizon glow, one-shot.
    No mix-blend-mode anywhere: a blend over a moving layer is the measured
    3.0-4.3-point defect this surface has already paid for (HOST-BASELINES.md).

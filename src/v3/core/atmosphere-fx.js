@@ -71,13 +71,19 @@ function state() {
   };
 }
 
+/* Everything written to the root is clamped to 0..1 here, not trusted from the
+   caller: `force({warmth: 5})` from a CDP probe would otherwise reach a calc()
+   in the stylesheet. The curves themselves already clamp (skyWarmthFor,
+   clockDim); this is the seam where a hand-driven value arrives. */
+const unit = (n) => Math.max(0, Math.min(1, Number(n) || 0));
+
 function paint() {
   if (!renderer) return;
   const s = state();
   const root = document.documentElement;
-  root.style.setProperty("--atmo-rain", s.rain.toFixed(3));
-  root.style.setProperty("--atmo-warmth", s.warmth.toFixed(3));
-  root.style.setProperty("--atmo-amp", s.amp.toFixed(3));
+  root.style.setProperty("--atmo-rain", unit(s.rain).toFixed(3));
+  root.style.setProperty("--atmo-warmth", unit(s.warmth).toFixed(3));
+  root.style.setProperty("--atmo-amp", unit(s.amp).toFixed(3));
   if (s.rain > 0) root.dataset.atmoRaining = "1";
   else delete root.dataset.atmoRaining;
   renderer.apply?.(s);
