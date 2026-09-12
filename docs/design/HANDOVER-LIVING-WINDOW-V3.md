@@ -29,12 +29,18 @@ its facts were corrected by measuring the wall.
   `:161-167`, not `:149-155` — `6707979` moved it).
 - **Fact 6 is resolved by the owner: the monopoly is WIDENED on purpose** — `tokens.css` now
   names the four things atmosphere may move (hue, the mat, the grade, the scrim).
-- **Step 2 — three directions BUILT on branch `lw-variants`** (worktree `../pi-lw-variants`),
-  each behind its own default-off flag, 12 specs, 11/11 injections red, suite 2050 green,
-  and each **served to the real panel** for 16 min by CDP fetch interception (no deploy).
-  Evidence + recommendation: `docs/design/LIVING-WINDOW-VARIANTS.md` **on that branch**;
-  screenshots locally in `C:\Users\gdee7\projects\lw-variants-shots\` (family photographs —
-  never in this public repo). 🛑 **Waiting on the owner's pick.**
+- **Step 2 — DONE. Three directions were built, shown on the real panel, and the owner chose
+  A, the overlay** (2026-09-12). B (grade) and C (mat-as-window) were **deleted** before the
+  merge; `docs/design/LIVING-WINDOW-VARIANTS.md` is the only record they existed, and it is
+  kept so nobody rebuilds them. Merged `53b3ae2`, deployed **`42b4754`**, **shipped OFF**
+  (`v3AtmoOverlay`). Live on the merged build: flag-off mounts nothing; flag-on mounts the
+  layer, a dry wall runs no animation, forced rain paints streaks over card and mat and under
+  every word. Screenshots: `C:\Users\gdee7\projects\lw-variants-shots\` (family photographs —
+  never in this public repo).
+- ⏳ **Owed: the flip.** `/flag-flip v3AtmoOverlay` — and first pin the flag AND force a
+  weather state in `tests/verify/v3-contrast.spec.js`, or the sweep measures a layer that is
+  not there. Also still owed: the §5.4 weather-episode row (drafted, not written — no
+  direction needed it: A's worst was 19.4 against the existing ≤ 25).
 
 ## What is missing from the wall
 
