@@ -992,6 +992,19 @@ A/B/A on the deployed bundle, the flag toggled in-page, 60 s windows, depth 0, a
 ~7.4 renderer** — the probe's estimate, reproduced by the real code path. Frames froze while
 covered (880 → 880 over 10 s) and resumed at 15 fps the moment the flag went off.
 
+✅ **The Living Window, shipped and flipped ON — `v3AtmoOverlay` (`68a5c0e`), measured on the
+deployed build the same afternoon, depth 0, 60 s windows:**
+
+| state | gpu-process | renderer |
+|---|---|---|
+| **dry** (real weather — the wall's normal day) | **18.3** | 6.3 |
+| **rain forced, sustained** | **19.0** | 6.7 |
+
+🔑 **Dry costs NOTHING measurable** — 18.3 against the 18.2 baseline row 3 above. The rain
+pane is `display:none` unless it is actually raining, so the effect's cost is paid only while
+the cause is live (§5.1), and even then it is **+0.7** against ~6.7 of headroom under the
+≤ 25 live row. DOM 66 → 70 (the layer's four nodes); heap 3.0 MB; `pressure avg10 0.00`.
+
 🔑 **The plane composition is CHEAPER than the 2026-08-22 card.** Settled 19.4–19.8 against
 21.3, mid-settle 27.4 against 31.6. So the Living Window's headroom at depth 0 is **~5.4 live
 / ~7.6 peak** — not the ~3.7 / 3.4 the 08-22 rows imply — and **~6.8 live** once the covered

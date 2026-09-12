@@ -7,9 +7,21 @@ renderers and CSS are gone, and this document is the only record that they exist
 kept for that reason: the numbers below are why A won, and the next person to wonder
 "why not just tint the mat?" should read the B column rather than rebuild it.
 
-Shipped **flag-off** (`v3AtmoOverlay: false`). Turning it on is its own mini-deploy:
-`/flag-flip v3AtmoOverlay` — and the contrast sweep must pin the flag AND force a weather
-state first, or it measures a layer that is not there.
+✅ **FLIPPED ON 2026-09-12 (`68a5c0e`), live on the wall.** Suite 2044 green with it on,
+flag-reversibility green with it off, rollback proven on the panel (the layer disappears and
+the wall is otherwise unchanged).
+
+🔑 **Teaching the contrast sweep to pin the flag AND force the weather paid for itself in one
+run.** The warm wash at 0.5 opacity pushed `#heard` — 48px `--ink-faint`, the dimmest ink on
+the wall and already a known-open debt with a 2.8 floor — from 2.90:1 to **2.72:1** over the
+bright-sky ground. Dimming it enough to be safe (0.22) left it at 2.81, a 0.01 margin that
+would have flaked. **Masking the wash out of the top band instead** keeps 0.22 everywhere
+below and reads **2.90 / 2.94** — the debt pays nothing for the weather. A layer pinned but
+not forced would have measured none of this and gone green.
+
+⚠ Also learned there: the rain pane goes `display:none → block`, and `@starting-style` holds
+its opacity at 0 for the first frame — killing transitions does not skip it. A single read
+after forcing measures the fade-in and reports the layer as absent. The sweep polls.
 
 Step 2 of `docs/design/HANDOVER-LIVING-WINDOW-V3.md`. Branch `lw-variants`, nothing merged.
 Each direction was served to the **real kiosk** (G11, 32" panel) by CDP fetch interception —
