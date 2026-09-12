@@ -2,6 +2,7 @@ import express from "express";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { loopbackOnly } from "../middleware/security.js";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    FEATURE CENSUS — which named features are still alive on the wall.
@@ -244,8 +245,8 @@ export function mergeFeatureDelta(census, delta, at = new Date().toISOString()) 
     }
   }
 
-  // Union, never replace: several clients declare over time (the kiosk, a
-  // laptop tab, the suite) and a page booted with a flag off would otherwise
+  // Union, never replace: several clients declare over time (the kiosk across
+  // reloads and deploys, the suite) and a page booted with a flag off would otherwise
   // shrink the roster to nothing and take every "dead" verdict with it.
   const roster = [...new Set([...(census?.roster ?? []), ...(delta.roster ?? [])])]
     .filter((key) => !RETIRED_ROSTER.has(key))
@@ -407,7 +408,13 @@ router.get("/api/census/features", async (req, res) => {
   res.json({ census, report: buildReport(census, { today: todayLocal(), silentDays, deadDays }) });
 });
 
-router.post("/api/census/features", async (req, res) => {
+/* ⛔ Loopback only (audit 2026-09-10, S2), for the same reason as the depth
+   census in routes/census.js: the verdicts here are about THE WALL, and a LAN
+   client — a laptop tab, or a `curl` with no Origin, which the CSRF guard lets
+   through — could mark a dead feature alive and hide the exact silence this
+   file exists to find. The roster union below still takes every loopback
+   writer (the kiosk across reloads, the suite). */
+router.post("/api/census/features", loopbackOnly("The feature census"), async (req, res) => {
   const body = req.body ?? {};
   const day = body.day;
   if (typeof day !== "string" || !DAY_RE.test(day)) {

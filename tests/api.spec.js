@@ -3,12 +3,16 @@ import { withVoiceBusLock } from "./fixtures/voice-bus-lock.js";
 
 // `voiceBus` serialises the tests that post or suffer a barge-in — see the fixture.
 const test = withVoiceBusLock(base);
+import express from "express";
+import { networkInterfaces } from "os";
 import { createHash } from "crypto";
 import { mkdir, rm, stat, utimes, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { pickSensorPath } from "../server/routes/system.js";
 import { isScreenshot } from "../server/services/immichClient.js";
+import depthCensusRoutes from "../server/routes/census.js";
+import featureCensusRoutes from "../server/routes/censusFeatures.js";
 import { TEST_ORIGIN } from "../playwright.config.js";
 
 const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -2075,4 +2079,72 @@ test.describe("isScreenshot — ambient pool curation", () => {
     expect(isScreenshot(null)).toBe(false);
     expect(isScreenshot(undefined)).toBe(false);
   });
+});
+
+/* Audit 2026-09-10, S2 — the census routes take writes from the kiosk alone.
+
+   Every other loopback gate in this file is proved only half-way locally ("a 400,
+   not a 403"), because the suite's client IS loopback and the LAN leg was left to
+   a live probe. This one proves both halves here: the two routers are mounted on
+   an ephemeral server bound to every interface, and the LAN leg dials this
+   machine's own non-loopback IPv4 — so the socket's remoteAddress is a real LAN
+   address, which is exactly what `isLoopback` reads.
+
+   ⚠ Both legs send a MALFORMED day on purpose. With the guard present the LAN
+   leg is a 403; with it deleted, the same body is a 400 from the handler — so
+   the test goes red on the defect without ever writing data/census/ on the
+   machine running it. The loopback leg's 400 is the positive control: it proves
+   the route is mounted and the guard lets the kiosk through, so the 403 is the
+   guard and not a missing route. */
+test.describe("the census routes take writes from the kiosk alone (audit S2)", () => {
+  const ROUTES = [
+    { path: "/api/census/depth", label: "The depth census" },
+    { path: "/api/census/features", label: "The feature census" }
+  ];
+  const lanAddress = () => Object.values(networkInterfaces()).flat()
+    .find((i) => i && i.family === "IPv4" && !i.internal)?.address;
+  const post = (host, port, route) => fetch(`http://${host}:${port}${route}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ day: "not-a-day" })
+  });
+
+  let server;
+  let port;
+  let savedAllow;
+  test.beforeAll(async () => {
+    // The worker may have inherited the override; it would open the gate.
+    savedAllow = process.env.ALLOW_LAN_COST_ROUTES;
+    delete process.env.ALLOW_LAN_COST_ROUTES;
+    const app = express();
+    app.use(express.json());
+    app.use(depthCensusRoutes);
+    app.use(featureCensusRoutes);
+    server = await new Promise((resolve) => {
+      const s = app.listen(0, "0.0.0.0", () => resolve(s));
+    });
+    port = server.address().port;
+  });
+  test.afterAll(async () => {
+    if (savedAllow !== undefined) process.env.ALLOW_LAN_COST_ROUTES = savedAllow;
+    await new Promise((resolve) => server.close(resolve));
+  });
+
+  for (const { path: route, label } of ROUTES) {
+    test(`POST ${route} from a LAN address is refused before the handler`, async () => {
+      const lan = lanAddress();
+      test.skip(!lan, "this machine has no non-loopback IPv4 to dial from");
+      const res = await post(lan, port, route);
+      const body = await res.json();
+      expect(res.status, `${route} from ${lan} said ${JSON.stringify(body)}`).toBe(403);
+      expect(body.error).toBe(`${label} is available to the kiosk only`);
+    });
+
+    test(`POST ${route} from loopback reaches the handler`, async () => {
+      const res = await post("127.0.0.1", port, route);
+      const body = await res.json();
+      expect(res.status, `${route} from loopback said ${JSON.stringify(body)}`).toBe(400);
+      expect(body.error).toBe("expected { day: 'YYYY-MM-DD' }");
+    });
+  }
 });

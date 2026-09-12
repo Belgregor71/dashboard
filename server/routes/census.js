@@ -2,6 +2,7 @@ import express from "express";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { loopbackOnly } from "../middleware/security.js";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    DEPTH CENSUS — how often the wall is at each depth, and for how long.
@@ -26,7 +27,9 @@ import { fileURLToPath } from "url";
 
    routines.js PUTs its entire aggregate because exactly one runtime owns it.
    This one has several writers over time: the kiosk reloads on every deploy,
-   the page can be open on a laptop at the same time, and the suite drives it.
+   a reloading page can flush alongside its predecessor's pagehide beacon, and
+   the suite drives it. (A laptop tab USED to be one; since S2 only loopback
+   writes land — see the POST route below.)
    A whole-blob PUT from a freshly-booted page whose in-memory tally starts at
    zero would erase the fortnight it was meant to be collecting. So the client
    sends only what it has counted SINCE ITS LAST FLUSH, and the addition happens
@@ -226,7 +229,16 @@ router.get("/api/census/depth", async (_req, res) => {
   res.json({ census });
 });
 
-router.post("/api/census/depth", async (req, res) => {
+/* ⛔ Loopback only (audit 2026-09-10, S2). The kiosk is the only writer this
+   census is ABOUT — it runs against http://localhost:3000 on the box itself.
+   A laptop tab, a phone, or a plain `curl` from the LAN would all have been
+   accepted before, and every one of them skews the house's own instrument:
+   `dwellMs` is summed by services/houseLately.js as the wall's awake time, so
+   a tab left open elsewhere counts the same hour twice, and can make a day the
+   wall was dark read as covered. The CSRF guard does not cover
+   this — a client that sends no Origin is not a browser and passes it.
+   ALLOW_LAN_COST_ROUTES=1 re-opens it along with the other kiosk-only routes. */
+router.post("/api/census/depth", loopbackOnly("The depth census"), async (req, res) => {
   const body = req.body ?? {};
   const day = body.day;
   if (typeof day !== "string" || !DAY_RE.test(day)) {
