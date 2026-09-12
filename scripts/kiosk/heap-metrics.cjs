@@ -36,6 +36,12 @@ const ORIGIN = process.env.DASHBOARD_ORIGIN || "http://127.0.0.1:3000";
 // thirty missed opportunities, not a quiet patch.
 const BURST_SILENCE_MS = 15 * 60 * 1000;
 
+/* How far past its own deadline a settle's cleanup may be before the frame is
+   called stuck. The timer is armed for exactly DISSOLVE_MS + CLEANUP_BUFFER_MS,
+   so this covers only scheduler drift on a loaded box — CLEANUP_BUFFER_MS is
+   already the generous half. Two seconds, against a 62 s window. */
+const SETTLE_GRACE_MS = 2000;
+
 // ── The V3 half (added 2026-08-15) ──────────────────────────────────────────
 // The block above was written for the incumbent screensaver and asks about Live
 // Photo motion. **That surface does not exist on the wall any more, and this is
@@ -136,12 +142,42 @@ function judgeGround(ground, pool, todayKey) {
     );
   }
 
-  // `layers` counts photographic frames, ignoring a diptych's right half: 1 at
-  // rest, 2 mid-settle. Two at rest with nothing in flight is a settle that
-  // never finished, which is exactly the transitionend-never-fires shape this
-  // house has paid for before.
+  /* `layers` counts photographic frames, ignoring a diptych's right half: 1 at
+     rest, 2 mid-settle. Two at rest that never resolve is the
+     transitionend-never-fires shape this house has paid for before.
+
+     ⚠⚠ THIS CHECK USED TO BE `layers > 1 && !inFlight` AND IT FIRED ON EVERY
+     ORDINARY ROTATION. `ground.js` clears `inFlight` the moment the incoming
+     frame is on the glass, then removes the outgoing one on a timer armed for
+     DISSOLVE_MS + CLEANUP_BUFFER_MS — 62 s later. Measured on the live G11
+     2026-09-12 with a 700 s 1 Hz poll: 61 of 698 samples satisfied the old
+     condition, 8.7%, and it cleared itself after 61.2 s every time. The wall
+     was healthy throughout.
+
+     🔑 A false positive HERE is worse than elsewhere, because this is the only
+     check aimed at the zombie-node class, and `--gate` exits non-zero on it. A
+     detector that cries wolf on a tenth of its samples gets waved through on
+     the one sample that matters. So the question is no longer "are there two
+     layers" but "are there two layers with NOTHING LEFT TO DO". */
   if (ground.layers > 1 && !ground.inFlight) {
-    faults.push(`SETTLE STUCK: ${ground.layers} photographic layers at rest with inFlight=false — a cross-fade did not complete its cleanup.`);
+    const due = ground.settleDueInMs;
+    if (due === undefined) {
+      /* The seam is missing, which means the page is running a bundle older than
+         2026-09-12 — the kiosk keeps the old one until a reload, so this is the
+         expected reading straight after a deploy. Say that, rather than assert a
+         defect the sample cannot distinguish from a routine cross-fade. */
+      faults.push(
+        `SETTLE UNVERIFIABLE: ${ground.layers} layers at rest with inFlight=false, but the page ` +
+        `exposes no settleDueInMs — it predates the 2026-09-12 fix, so this is indistinguishable ` +
+        `from an ordinary 62 s settle. Reload the kiosk onto the current bundle before judging it.`
+      );
+    } else if (due === null || due < -SETTLE_GRACE_MS) {
+      faults.push(
+        `SETTLE STUCK: ${ground.layers} photographic layers at rest with inFlight=false and ` +
+        `${due === null ? "no cleanup armed" : `its cleanup ${Math.round(-due / 1000)}s overdue`} ` +
+        `— a cross-fade did not complete its cleanup.`
+      );
+    }
   }
 
   return { assessable: true, why: null, faults };
@@ -390,7 +426,7 @@ async function main() {
 // no-op for weeks, and the leak regression it was meant to catch went unwatched
 // the whole time. This one is only ever assessable in daylight Mode 0, so
 // waiting for the real conditions to test it is how it would go the same way.
-module.exports = { judge, judgeGround, BURST_SILENCE_MS };
+module.exports = { judge, judgeGround, BURST_SILENCE_MS, SETTLE_GRACE_MS };
 
 if (require.main === module) {
   main().catch((err) => { console.error("ERROR:", err.message); process.exit(1); });

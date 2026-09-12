@@ -72,6 +72,28 @@ const CLEANUP_BUFFER_MS = 2000;
 let host = null;                 // the .photo container
 let current = null;              // { img, assetId, dayKey }
 let inFlight = false;
+/* EVERY ARMED CLEANUP, so an instrument can tell MID-SETTLE from STUCK.
+
+   ⚠⚠ `inFlight` IS CLEARED 62 SECONDS BEFORE THE WORK IT DESCRIBES IS DONE.
+   `settle()` below clears it the moment the incoming frame is on the glass, but
+   the outgoing frame is removed on a timer armed for DISSOLVE_MS +
+   CLEANUP_BUFFER_MS. So `layers > 1 && !inFlight` — which is what
+   heap-metrics.cjs called SETTLE STUCK until 2026-09-12 — is the NORMAL state
+   for 62 s of every 10-minute rotation. Measured on the live G11: 61 of 698
+   samples, 8.7%, clearing itself after 61.2 s every time.
+
+   That is worse than a cosmetic false positive. SETTLE STUCK is the only
+   instrument aimed at the transitionend-zombie class that cost this house 709
+   lottie wrappers and 230k detached nodes, and a detector that cries wolf on a
+   tenth of its samples trains the reader to wave through the one reading that
+   matters.
+
+   🔑 A DEADLINE, NOT A BOOLEAN. One token per armed cleanup — an object rather
+   than the timestamp itself, because two dissolves inside the same millisecond
+   (a veto answered by a veto) would collide as Set members and one delete would
+   drop both. `settleDueInMs` reports the LATEST of them: while any cleanup is
+   still legitimately pending, nothing is stuck. */
+const pendingSettles = new Set();
 let checkTimer = null;
 let onPhoto = () => {};
 
@@ -741,7 +763,21 @@ async function dissolve(settleMs = DISSOLVE_MS, stallMs = STALL_MS) {
       // are on the glass, and the scrim has to protect the brighter of them.
       onPhoto(frameArg(imgs), { transitioning: true, assets, settleMs });
 
+      /* Armed BEFORE the timer so the window is covered from its first instant —
+         a token added inside the callback would leave the whole settle looking
+         like the stuck state it exists to distinguish. */
+      const pending = { dueAt: Date.now() + settleMs + CLEANUP_BUFFER_MS };
+      pendingSettles.add(pending);
+
       setTimeout(() => {
+        /* Disarmed FIRST, before any work that could throw. If the removal below
+           fails, the token is already gone and the frame is left at two layers
+           with nothing pending — so the detector FIRES. Clearing it last inside
+           a `finally` would be the same number of lines and fail OPEN: one throw
+           and this settle stays "legitimately pending" forever, silencing the
+           check permanently on the one page that runs for weeks. */
+        pendingSettles.delete(pending);
+
         // ⚠ EVERY element of the outgoing frame. Removing only the first is how
         // a diptych leaks one <img> per rotation on a page that runs for weeks.
         for (const el of old.imgs) el.remove();
@@ -974,7 +1010,19 @@ export function initGround(img, opts = {}) {
        prove the anchor moved something, and read by the specs so the assertion
        is the number the sampler will use rather than a parsed CSS string. */
     posY: (current?.imgs ?? []).map(posYOf),
-    inFlight
+    inFlight,
+    /* HOW LONG THE CURRENT SETTLE STILL HAS, or null when no cleanup is armed.
+       Relative on purpose: an absolute timestamp would have to be compared
+       against the reader's clock, and the reader is a node process — a probe
+       that silently assumes two clocks agree is the kind of instrument this
+       field exists to replace. Negative means the timer is overdue.
+
+       ⚠ Read WITH `layers` and `inFlight`, never alone. The stuck state is
+       `layers > 1 && !inFlight` AND this null-or-overdue; any one of the three
+       on its own is an ordinary moment in a healthy rotation. */
+    settleDueInMs: pendingSettles.size
+      ? Math.max(...[...pendingSettles].map((p) => p.dueAt)) - Date.now()
+      : null
   });
   // The specs drive the day boundary rather than sitting out a real one, and
   // drive the stall rather than sitting out 30 seconds to prove a latch clears.
