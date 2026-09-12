@@ -57,6 +57,9 @@ A non-zero exit is a failure even though the previous HTML survives it.
 
 ## Last verified
 
-Rendered against `12b6059` — 9/9 checks, 0 warnings, evidence verified across
-4 pinned references, `visual-check` clean at 1440×900, 1600×1000 and 2048×1320
-in both themes.
+Rendered against `a2a6a3e` with archify `6db72a9` — 9/9 checks, 0 warnings,
+evidence verified across 4 pinned references. `visual-check` clean: containment
+and readability at 1440×900, 1600×1000, 1920×1080 and 2048×1320 (smallest node
+text 7.06px at 1440×900, floor 6px), screenshots in both themes at 1440×900 and
+2048×1320. Counts recounted from source on 2026-09-13: 83 flags, 50 `src/js`
+modules in V3's closure, 31 route modules, 120 specs in `tests/`.
