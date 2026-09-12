@@ -54,6 +54,7 @@ import { initIntent } from "../js/core/intentEngine.js";
 import { initContextFeed, pushContext, feedWeather } from "./core/context-feed.js";
 import { initCommands } from "./core/commands.js";
 import { clockDim } from "./core/sun-clock.js";
+import { initAtmosphereFx, atmosphereSun } from "./core/atmosphere-fx.js";
 
 /* ⚠ `/js/config.js` is a separate <script> in index.html, so window.CONFIG is
    populated before this module runs — but read it LATE anyway (per call, not at
@@ -159,6 +160,8 @@ function syncSun() {
   root.style.setProperty("--sun-az", `${s.azimuthRad}rad`);
   root.style.setProperty("--sun-alt", s.altitudeDeg.toFixed(2));
   root.style.setProperty("--sun-warmth", Math.max(0, Math.min(1, (s.altitudeDeg + 6) / 18)).toFixed(3));
+  // The Living Window reads the same sun. A no-op until a direction is on.
+  atmosphereSun(s.altitudeDeg);
 
   /* The sun-dimmed hour (features.v3SunClock) — the incumbent's ambientClock,
      which V3 never had. Flag off writes nothing and removes nothing that was
@@ -734,6 +737,11 @@ function boot() {
       focusId: archiveFocusId
     });
   });
+
+  /* The Living Window (features.v3AtmoOverlay) — the direction the owner chose
+     on the wall, 2026-09-12. After the ground, because the layer it mounts sits
+     above the archive; flag-off it returns false having touched nothing. */
+  stage("atmosphere", () => initAtmosphereFx());
 
   stage("hour", () => paintHour());
   stage("causes", () => pushCauses());

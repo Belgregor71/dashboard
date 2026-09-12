@@ -1,0 +1,98 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE LIVING WINDOW — the overlay (features.v3AtmoOverlay).
+
+   Chosen on the wall by the owner, 2026-09-12, over two other directions that
+   were built and measured beside it (the grade, and the mat opened onto the
+   substrate) — docs/design/LIVING-WINDOW-VARIANTS.md has the evidence and the
+   numbers; both losers were deleted in the same commit that merged this.
+
+   Every rule is keyed on `:root[data-atmo="overlay"]`, which core/
+   atmosphere-fx.js sets only when the flag is on. Flag-off, the attribute is
+   absent and NOTHING in this file matches — the rollback.
+
+   Inputs, all on the root, all written by the host:
+     --atmo-rain    0..1   0 unless raining; `data-atmo-raining` while > 0
+     --atmo-warmth  0..1   the sky's warmth, peaking at the horizon
+     --atmo-amp     0.3..1 the §5.2 night amplitude (the sun-dimmed hour's curve)
+     data-atmo-strike      present for one strike (host clears it on a timer)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── The layer ────────────────────────────────────────────────────────────────
+   z4: above .archive (3) and the photograph (1), below .presence-cool (5),
+   .ground-caption (6) and .stage (10). Text is never under the weather. */
+.atmo-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+/* The pane. One tall element, one tile taller than the panel, moved down by
+   exactly one tile — compositor-only, seamless. ⚠ It exists only WHILE IT
+   RAINS: display:none otherwise, so a dry wall runs no animation at all (the
+   cause test, §5.1). The tile's slant is painted into the texture. */
+.atmo-overlay__rain {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -512px;
+  height: calc(100% + 512px);
+  background-repeat: repeat;
+  background-size: 512px 512px;
+  display: none;
+  opacity: 0;
+  transition: opacity 6s linear;
+}
+:root[data-atmo="overlay"][data-atmo-raining="1"] .atmo-overlay__rain {
+  display: block;
+  opacity: calc(var(--atmo-rain, 0) * var(--atmo-amp, 1) * 0.6);
+  animation: atmo-fall 0.9s linear infinite;
+  will-change: transform;
+}
+@starting-style {
+  :root[data-atmo="overlay"][data-atmo-raining="1"] .atmo-overlay__rain { opacity: 0; }
+}
+@keyframes atmo-fall {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(0, 512px, 0); }
+}
+
+/* The sky's warmth, from above. A minute-stepped value, so the transition is
+   the minute: the wash never jumps. */
+.atmo-overlay__warm {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(130% 75% at 50% -12%,
+    oklch(0.78 0.11 60 / 0.55),
+    oklch(0.70 0.09 45 / 0.18) 45%,
+    transparent 75%);
+  opacity: calc(var(--atmo-warmth, 0) * 0.5);
+  transition: opacity 60s linear;
+}
+
+/* The strike: the incumbent's curve (atmo-fx.css — attack at 5%, a flicker
+   bump in the decay), on a cool horizon glow, WITHOUT its screen blend. */
+.atmo-overlay__flash {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(ellipse 90% 60% at 50% 100%,
+    oklch(0.93 0.03 250 / 0.55),
+    oklch(0.80 0.05 255 / 0.20) 45%,
+    transparent 80%);
+}
+:root[data-atmo="overlay"][data-atmo-strike="1"] .atmo-overlay__flash {
+  animation: atmo-strike 1.6s ease-out forwards;
+}
+@keyframes atmo-strike {
+  0%   { opacity: 0; }
+  5%   { opacity: calc(0.90 * var(--atmo-amp, 1)); }
+  12%  { opacity: calc(0.40 * var(--atmo-amp, 1)); }
+  20%  { opacity: calc(0.68 * var(--atmo-amp, 1)); }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-atmo="overlay"] .atmo-overlay__rain { animation: none; }
+  :root[data-atmo="overlay"][data-atmo-strike="1"] .atmo-overlay__flash { animation: none; }
+}

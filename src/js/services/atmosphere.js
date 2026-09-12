@@ -1,3 +1,10 @@
+/* ═══ V3-SHARED-RUNTIME ═════════════════════════════════════════════════════
+   Loaded by BOTH surfaces. The incumbent reads all of it through
+   modules/screensaver.js; V3's core/atmosphere-fx.js (the Living Window,
+   2026-09-12) reads `skyWarmthFor` only — one warmth ramp, not two.
+   docs/design/V3-CUTOVER.md §1 · guarded by tests/v3-closure.spec.js
+   ════════════════════════════════════════════════════════════════════════ */
+
 // Ambient atmosphere mapper — Phase 5 (docs/vision/phase-5-atmospherics.md).
 // Pure function over { condition, isNight, hour } → an atmosphere token, same
 // contract as predictiveRules.js / insightRules.js: no imports, no DOM, no IO,

@@ -1960,6 +1960,24 @@ window.CONFIG = {
     // ⚠ A Living Window direction that lets the substrate SHOW through the
     // archive's mat (variant C) must narrow "covered", or this hides it.
     v3SubstrateCoveredPause: true,
+
+    // ── The Living Window on V3 (src/v3/core/atmosphere-fx.js,
+    // css/atmosphere.css): a thin weather layer at z4 — above the archive card
+    // and its mat, BELOW every word — carrying rain, the sky's warmth and a
+    // lightning one-shot. Rain is a tiled texture moved by a compositor-only
+    // keyframe, and only while it actually rains (§5.1's cause test).
+    //
+    // Chosen by the owner on the wall 2026-09-12 over two other directions
+    // built beside it (the grade; the mat opened onto the substrate), both
+    // deleted on merge — docs/design/LIVING-WINDOW-VARIANTS.md holds the
+    // evidence. Measured live on the panel at depth 0: rest 17.1, sustained
+    // rain 19.4, a strike every 4 s 18.9 gpu (ceiling 25 live / 35 peak).
+    //
+    // Shipped OFF. ⚠ Before flipping: the contrast sweep must PIN this flag and
+    // FORCE a weather state, or it measures a layer that is not there
+    // (tests/verify/v3-contrast.spec.js). Drive it with
+    // `window.__v3Atmo.force({rain: "heavy"})`. Rollback: -> false.
+    v3AtmoOverlay: false,
   },
 
   /* --------------------------------------------------------------
