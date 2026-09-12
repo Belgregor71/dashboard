@@ -1,6 +1,7 @@
 import express from "express";
 import multer from "multer";
 import crypto from "crypto";
+import { readFileSync } from "fs";
 import { readdir, unlink, mkdir, open } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -8,6 +9,8 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PHOTOS_DIR = path.resolve(__dirname, "..", "..", "static", "photos");
 const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif"]);
+// Read once at startup. The page's script is a file, not an inline block (audit S1).
+const PAGE_SCRIPT = readFileSync(path.resolve(__dirname, "..", "admin", "photos.client.js"), "utf8");
 
 const router = express.Router();
 
@@ -121,10 +124,12 @@ function safePath(filename) {
   return resolved;
 }
 
-router.get("/admin/photos", basicAuth, async (_req, res) => {
-  let files;
-  try { files = await listPhotos(); } catch { files = []; }
-
+/**
+ * The whole /admin/photos document for a list of filenames. Exported so a spec
+ * can assert the page carries no inline script or on*="" handler: the test
+ * server has no ADMIN_PASSWORD, so the route itself only ever answers 403 there.
+ */
+export function renderPhotosPage(files) {
   const rows = files.map(name => `
     <li class="photo-row" id="row-${encodeURIComponent(name)}">
       <img src="/photos/${encodeURIComponent(name)}" alt="${escapeHtml(name)}" loading="lazy" />
@@ -132,7 +137,7 @@ router.get("/admin/photos", basicAuth, async (_req, res) => {
       <button class="del-btn" data-name="${escapeHtml(name)}" title="Delete">&#x2715; Delete</button>
     </li>`).join("");
 
-  res.type("html").send(`<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -166,106 +171,28 @@ router.get("/admin/photos", basicAuth, async (_req, res) => {
   <div class="upload-area">
     <label>Add photos (JPG, PNG, WEBP, GIF, AVIF — max 25 MB each)</label>
     <input type="file" id="files" multiple accept="image/*">
-    <button class="upload-btn" onclick="doUpload()">Upload</button>
+    <button class="upload-btn" id="upload-btn" type="button">Upload</button>
     <div id="progress"></div>
     <div id="status"></div>
   </div>
 
   <ul id="list">${rows || '<li class="empty">No photos yet.</li>'}</ul>
 
-  <script>
-    async function doUpload() {
-      const input = document.getElementById('files');
-      const btn = document.querySelector('.upload-btn');
-      const status = document.getElementById('status');
-      const progress = document.getElementById('progress');
-      if (!input.files.length) { setStatus('Choose at least one file.', 'err'); return; }
-      btn.disabled = true;
-      setStatus('Uploading…', '');
-      const fd = new FormData();
-      for (const f of input.files) fd.append('photos', f);
-      const xhr = new XMLHttpRequest();
-      xhr.upload.onprogress = e => {
-        if (e.lengthComputable) progress.style.width = (e.loaded / e.total * 100) + '%';
-      };
-      xhr.onload = () => {
-        progress.style.width = '100%';
-        setTimeout(() => { progress.style.width = '0'; }, 600);
-        btn.disabled = false;
-        input.value = '';
-        if (xhr.status === 200) {
-          const { added, skipped } = JSON.parse(xhr.responseText);
-          setStatus('Added ' + added.length + ' photo(s)' + (skipped.length ? ', skipped ' + skipped.length + ' (wrong type).' : '.'), 'ok');
-          added.forEach(insertRow);
-        } else {
-          setStatus('Upload failed: ' + xhr.statusText, 'err');
-        }
-      };
-      xhr.onerror = () => { btn.disabled = false; setStatus('Network error.', 'err'); };
-      xhr.open('POST', '/admin/photos/upload');
-      xhr.send(fd);
-    }
-
-    document.getElementById('list').addEventListener('click', e => {
-      const btn = e.target.closest('.del-btn');
-      if (btn) del(btn.dataset.name);
-    });
-
-    async function del(name) {
-      if (!confirm('Delete ' + name + '?')) return;
-      const enc = encodeURIComponent(name);
-      const r = await fetch('/admin/photos/' + enc, { method: 'DELETE' });
-      if (r.ok) {
-        const row = document.getElementById('row-' + enc);
-        if (row) row.remove();
-        if (!document.querySelector('#list li:not(.empty)')) {
-          const empty = document.createElement('li');
-          empty.className = 'empty';
-          empty.textContent = 'No photos yet.';
-          document.getElementById('list').appendChild(empty);
-        }
-      } else {
-        alert('Delete failed.');
-      }
-    }
-
-    function insertRow(name) {
-      const list = document.getElementById('list');
-      const empty = list.querySelector('.empty');
-      if (empty) empty.remove();
-      const enc = encodeURIComponent(name);
-
-      const li = document.createElement('li');
-      li.className = 'photo-row';
-      li.id = 'row-' + enc;
-
-      const img = document.createElement('img');
-      img.src = '/photos/' + enc;
-      img.alt = name;
-      img.loading = 'lazy';
-
-      const span = document.createElement('span');
-      span.className = 'name';
-      span.textContent = name;
-
-      const btn = document.createElement('button');
-      btn.className = 'del-btn';
-      btn.dataset.name = name;
-      btn.title = 'Delete';
-      btn.textContent = '\\u2715 Delete';
-
-      li.append(img, span, btn);
-      list.appendChild(li);
-    }
-
-    function setStatus(msg, cls) {
-      const el = document.getElementById('status');
-      el.textContent = msg;
-      el.className = cls;
-    }
-  </script>
+  <script src="/admin/photos.js"></script>
 </body>
-</html>`);
+</html>`;
+}
+
+router.get("/admin/photos", basicAuth, async (_req, res) => {
+  let files;
+  try { files = await listPhotos(); } catch { files = []; }
+  res.type("html").send(renderPhotosPage(files));
+});
+
+// Behind the same auth as the page. A browser resends the cached Basic
+// credentials for a same-origin subresource, so the page needs nothing extra.
+router.get("/admin/photos.js", basicAuth, (_req, res) => {
+  res.type("application/javascript").set("Cache-Control", "no-store").send(PAGE_SCRIPT);
 });
 
 router.post("/admin/photos/upload", basicAuth, upload.array("photos", 50), async (req, res) => {

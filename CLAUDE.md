@@ -33,7 +33,7 @@ happened; a glance at the wall did.
 - **V3 is not standalone**: its import closure pulls 50 files from `src/js/`, plus
   `js/config.js` by script tag. The authority is the manifest in `tests/v3-closure.spec.js`. The incumbent tree is a
   live dependency, not dead code — don't delete from it on an audit's say-so.
-- `server.js` mounts `server/routes/*.js` (30 route modules) under `/api`. Route order
+- `server.js` mounts `server/routes/*.js` (31 route modules) under `/api`. Route order
   matters — see the measured comments in `server.js` around the static mounts.
 - Scripts: `npm run dev` (vite) · `npm run build` (vite + copy-static-config) ·
   `npm start` (node server.js, port 3000) · `npm test` (Playwright) ·

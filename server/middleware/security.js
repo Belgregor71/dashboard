@@ -100,7 +100,11 @@ const CSP_DIRECTIVES = {
     "https://api.open-meteo.com",
     "https://air-quality-api.open-meteo.com"
   ],
-  "upgrade-insecure-requests": null
+  "upgrade-insecure-requests": null,
+  // Where the browser POSTs each violation. Without it, report-only mode wrote
+  // only to the kiosk's console, so "zero violations" could never be read (S1).
+  // server/routes/cspReport.js tallies them.
+  "report-uri": ["/api/csp-report"]
 };
 
 // --- CORS allowlist (S3) ------------------------------------------------
@@ -135,9 +139,10 @@ export function applySecurity(app) {
   // express-rate-limit keys on the real socket address.
   app.set("trust proxy", false);
 
-  // CSP ships report-only until a live Pi pass confirms zero violations
-  // (CSP_ENFORCE=1 flips it). Known pending violation: the /admin/photos page
-  // is built with an inline <script> and an onclick handler.
+  // CSP ships report-only until a live pass confirms zero violations
+  // (CSP_ENFORCE=1 flips it). Read the evidence at GET /api/csp-report on the box.
+  // The /admin/photos page's inline <script> and onclick, the known blocker,
+  // moved to /admin/photos.js on 2026-09-13.
   app.use(
     helmet({
       contentSecurityPolicy: {
