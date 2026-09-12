@@ -282,8 +282,15 @@ test.describe("houseCharacter — who is speaking", () => {
   // invalidator is a LIVE clock, so compare against the live clock: anything
   // todayLine() would render today must be absent from a block that claims to
   // be constant.
+  // ⚠⚠ …and for ONE MINUTE EVERY MORNING the live clock IS "8:20 am", so the
+  // static example matched it and this went red (blocked a push 2026-09-13 at
+  // 08:20 exactly). The example is stripped in its quotes before comparing: a
+  // live clock would not arrive wrapped in the formatting example's quote marks.
+  // Asserted present first, so a copy edit cannot leave the strip silently stale.
   test("carries no live clock or date — only static copy and biography", () => {
-    const text = houseCharacter();
+    const STATIC_TIME_EXAMPLE = '"8:20 am"';
+    expect(houseCharacter()).toContain(STATIC_TIME_EXAMPLE);
+    const text = houseCharacter().replaceAll(STATIC_TIME_EXAMPLE, "");
     const now = new Date();
     const today = now.toLocaleDateString("en-AU", {
       timeZone: HOUSE_TIME_ZONE, weekday: "long", day: "numeric", month: "long", year: "numeric"
