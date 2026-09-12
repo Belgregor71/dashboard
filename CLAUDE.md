@@ -52,6 +52,11 @@ happened; a glance at the wall did.
 - **Host-specific gotchas on the G11:** `vcgencmd` does not exist — read `tempC` from `/api/system/metrics` (autodetects `k10temp`; `/sys/class/thermal/` is absent entirely). `nproc` is **8**, not 4, so every "% of the box" derived from `gpucpu.sh` changes denominator. `sudo` is narrowed to three passwordless systemctl commands; anything else needs a password. Baselines for both hosts live in `docs/audit/HOST-BASELINES.md`.
 - During long sessions, commit working progress locally in small checkpoints — but don't push until verified, because pushing to main deploys to the live kiosk.
 - **After a deploy, state per deliverable whether it is DEPLOYED or merely COMMITTED**, and back the "deployed" half with something read off the live box — a screenshot, a CDP eval, a `curl` against `/api/…`, the deployed short SHA. Run `/verify-live` to do this against the session's own checklist; `/verify-push` covers the kiosk mechanics (bundle reload, contrast over the real photo, health). A typeface once shipped while the redesign it was part of did not, and the session reported the whole request as done.
+- **The CSP is ENFORCED on the G11** (`CSP_ENFORCE=1` in its `.env`, since 2026-09-13);
+  the committed default and the Pi 4 stay report-only. If an asset, font or stream
+  goes blank on the wall, read `curl -s localhost:3000/api/csp-report` on the box first
+  (the first sighting of each violation is also in the journal as `[CSP]`). Rollback needs
+  no deploy: delete the line, restart `dashboard.service`, hard-reload the kiosk.
 - **Surface rollback needs no deploy:** `V3_DEFAULT=0` in the kiosk's `.env` + a
   `dashboard.service` restart forces the incumbent back in place; `=1` forces V3.
   Unset falls through to the committed default. `root-surface.spec.js` pins that default.
