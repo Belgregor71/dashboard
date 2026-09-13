@@ -2010,7 +2010,15 @@ window.CONFIG = {
     // Fog / heat (>= 32 °C) / cold (<= 8 °C) vignettes at the edges, a fog
     // bank's drift every 40-80 s and a heat pulse every 3-7 min.
     // force({textures: ["fog"]}) · force({weather: {category: "fog"}}).
-    v3AtmoTextures: false,
+    // Masked OFF the words (a top-band ramp + a soft oval round the clock and
+    // caption): at visible strength, unmasked, they took #hour to 2.87:1 and
+    // #ground-caption to 1.89:1. Shown ON on the live wall 2026-09-13 — fog,
+    // heat, frost and the drift all visible with no mask edge; gpu 20.7 at
+    // rest / 21.0 drifting; contrast gate pins it on with all three forced,
+    // worst nodes unchanged.
+    // FLIPPED ON 2026-09-13. Rollback: v3AtmoTextures: false (read at boot — a
+    // kiosk cache-bypass reload).
+    v3AtmoTextures: true,
     // A clear night's 110 stars on the archive's MAT (never the photograph),
     // and a 2-4 star twinkle every 3-6 min. force({night: true,
     // weather: {category: "clear"}}), then fire("twinkle").
