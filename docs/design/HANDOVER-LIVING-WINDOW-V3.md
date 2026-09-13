@@ -5,7 +5,35 @@ family 3). **Owner's decision: port as a design arc** — competing directions o
 real wall, each behind its own default-off V3 flag, GPU measured, flipped one at a time.
 Nothing below is built yet. Facts are cited; everything marked HYPOTHESIS is not probed.
 
-## ▶ Status 2026-09-12 — steps 0 and 1 DONE and live; step 2 BUILT, awaiting the owner
+## ▶ Status 2026-09-13 — step 3 BUILT, all five flags OFF
+
+Step 3 had not started when this was re-read on 2026-09-13 (the only commit after the
+flip was docs). It is now built as five flags, each read only while `v3AtmoOverlay` is
+on, each writing its own root attribute. Pacing comes from `atmoFx/planner.js` (now in
+V3's closure) and the motion is CSS only. Owner decisions the same day: build all five
+OFF and show each on the wall before any flip; rain moves in **bursts**.
+
+| Flag | What it does on V3 | Where |
+|---|---|---|
+| `v3AtmoAccent` | `--atmo-hue` → 240 under rain/storm, by day only; L/C held; 60 s settle | `css/atmosphere.css` |
+| `v3AtmoLightning` | the organic strike: 40-160 s gaps, 0-2 aftershocks, sized per strike | host lane `lightning` |
+| `v3AtmoTextures` | fog / heat / cold edge vignettes; CSS fog drift; heat pulse | overlay children |
+| `v3AtmoNightSky` | 110 stars as a background layer of `.archive` (the mat), twinkle on `::before` | `.archive` |
+| `v3AtmoRainEpisodes` | the pane's fall runs in bursts and is PAUSED (not hidden) between | host lane `rain` |
+
+- **Dropped on purpose:** `reactiveGlass` (V3 has no glass) and the season hue (a second
+  hue driver would fight the accent). `livingAccent`'s golden-hour warmth is already V3's
+  day hue and the overlay's warm wash.
+- **Tests:** `tests/v3-atmosphere-effects.spec.js`. 19/19 injected defects went RED, both
+  directions per effect. The contrast gate pins accent + textures and forces all three
+  textures at once; the worst node is unchanged (`#heard` 2.90/2.94, known open).
+- ⚠ **The night sky is NOT measured by the contrast gate**, which pins `v3Archive` off.
+- ⚠ HYPOTHESIS, not measured: the accent's 60 s `@property` transition restyles every
+  `--atmo-hue` consumer for a minute. Read the renderer cost on the wall before flipping.
+- ⏳ **Owed:** show each flag on the real panel (CDP config interception + `force`/`fire`),
+  take a GPU reading for each, then `/flag-flip` them one at a time, in the owner's order.
+
+## Status 2026-09-12 — steps 0 and 1 DONE and live; step 2 BUILT, awaiting the owner
 
 Read this block first; the sections below are the 09-11 handover as written, and four of
 its facts were corrected by measuring the wall.

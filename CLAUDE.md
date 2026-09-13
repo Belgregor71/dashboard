@@ -30,7 +30,7 @@ happened; a glance at the wall did.
   Vite builds both entries. `/` serves V3 (`server/config.js:45`, `DEFAULT_ROOT_SURFACE`);
   `/index.html` and `/v3/` stay reachable whichever way it points. **Check which surface a
   change targets before editing** — the same feature often exists in both.
-- **V3 is not standalone**: its import closure pulls 50 files from `src/js/`, plus
+- **V3 is not standalone**: its import closure pulls 51 files from `src/js/`, plus
   `js/config.js` by script tag. The authority is the manifest in `tests/v3-closure.spec.js`. The incumbent tree is a
   live dependency, not dead code — don't delete from it on an audit's say-so.
 - `server.js` mounts `server/routes/*.js` (31 route modules) under `/api`. Route order
@@ -76,7 +76,7 @@ happened; a glance at the wall did.
   half. This is the single most common place a session ends in a live defect: a flip has
   made the house invent a bin time, and a poisoned cache once blanked the whole wall.
   Record both the flip and the rollback proof in the session memory entry.
-- Flags live in `src/js/config.js` under `features:` (83 flags), copied to
+- Flags live in `src/js/config.js` under `features:` (88 flags), copied to
   `static/js/config.js` on every build. That file is **tracked and shipped in the
   public bundle** — never put a secret or an address in it.
 - ⛔ **A flag marked `INERT-ON-V3` is not a lever on the wall.** No module V3 loads
@@ -88,7 +88,7 @@ happened; a glance at the wall did.
 
 ### Testing & Pre-Push Gate
 
-- `npm test` runs the Playwright suite — 120 spec files in `tests/` (plus 2 in `tests/verify/`,
+- `npm test` runs the Playwright suite — 121 spec files in `tests/` (plus 2 in `tests/verify/`,
   which `npm test` ignores), spanning API
   contracts (`api.spec.js`), a browser smoke test (`ui.spec.js`), and per-feature specs.
   Browser specs need `npm run build` first. Test server runs on port 3210 with AI
