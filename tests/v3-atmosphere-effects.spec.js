@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
 import {
+  ACCENT_SETTLE_MS,
+  ACCENT_STEPS,
   accentFor,
   gapFor,
   lanesFor,
@@ -174,7 +176,7 @@ test("all five OFF, every cause forced: the overlay paints and no effect exists"
   expect(errors).toEqual([]);
 });
 
-test("accent: rain turns the hue cool by day, holds L and C, and night keeps its warm 40", async ({ page }) => {
+test("accent: rain walks the hue cool by day in steps, holds L and C, and night keeps its warm 40", async ({ page }) => {
   const errors = await boot(page, ["accent"]);
   const hue = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--atmo-hue").trim());
   const accentLC = () => page.evaluate(() => {
@@ -187,12 +189,28 @@ test("accent: rain turns the hue cool by day, holds L and C, and night keeps its
   expect(await hue()).toBe("65");
   const dayLC = await accentLC();
 
+  const inline = () => page.evaluate(() => document.documentElement.style.getPropertyValue("--atmo-hue"));
+
   await force(page, { weather: { category: "rain" } });
   expect((await rootData(page)).atmoAccent).toBe("cool");
+  // It does not jump: the walk starts where the hue was…
+  expect(await hue()).toBe("65.0");
+  // …and moves in DISCRETE steps — one of twelve over the minute, not a
+  // per-frame transition (measured gpu 51 / renderer 68 on the G11).
+  await page.clock.runFor(ACCENT_SETTLE_MS / ACCENT_STEPS + 50);
+  expect(await hue()).toBe((65 + (240 - 65) / ACCENT_STEPS).toFixed(1));
+  // Settled: the inline walk is gone and the stylesheet's rule holds 240.
+  await page.clock.runFor(ACCENT_SETTLE_MS);
+  expect(await inline()).toBe("");
   expect(await hue()).toBe("240");
   expect(await accentLC()).toEqual(dayLC);
 
+  // Night owns its warm 40 in CSS, and nothing walks.
   await page.evaluate(() => { document.documentElement.dataset.night = "1"; });
+  await force(page, { weather: { category: "clear" } });
+  expect(await inline()).toBe("");
+  expect(await hue()).toBe("40");
+  await force(page, { weather: { category: "rain" } });
   expect(await hue()).toBe("40");
 
   await page.evaluate(() => { delete document.documentElement.dataset.night; });

@@ -123,18 +123,17 @@
    Never at night: the night rule is "dim AND warm, never dim and blue"
    (tokens.css), and the :not() keeps its 40.
 
-   The settle is the incumbent's 60 s. A custom property only transitions once
-   it is registered; the registration is global but changes no computed value
-   (it is the same number either way), and the transition itself is keyed on
-   the attribute, so flag-off nothing eases. */
-@property --atmo-hue {
-  syntax: "<number>";
-  inherits: true;
-  initial-value: 65;
-}
-:root[data-atmo="overlay"][data-atmo-accent] {
-  transition: --atmo-hue 60s linear;
-}
+   ⚠⚠ NO CSS TRANSITION, AND THAT IS MEASURED. The first build registered
+   --atmo-hue with @property and transitioned it over 60 s. On the live G11
+   (2026-09-13) that minute cost gpu 51.2 / renderer 67.8 against a baseline of
+   19.3 / 6.6: an inherited root property interpolated per frame restyles every
+   consumer of the hue — every surface, the scrim, the vignette — sixty times a
+   second, for a minute. Over §5.4's peak row by half again.
+
+   So this rule holds only the SETTLED value, and the host
+   (core/atmosphere-fx.js settleAccent) walks the hue there in 12 inline steps
+   over the same minute — twelve restyles, not three thousand six hundred —
+   then removes its inline value so this rule, and night's, own the hue again. */
 :root[data-atmo="overlay"][data-atmo-accent="cool"]:not([data-night="1"]) {
   --atmo-hue: 240;
 }
@@ -256,5 +255,4 @@
   :root[data-atmo="overlay"][data-atmo-fog-drift="1"] .atmo-overlay__fog { animation: none; display: none; }
   :root[data-atmo="overlay"][data-atmo-heat-pulse="1"] .atmo-overlay__heat { animation: none; }
   :root[data-atmo="overlay"][data-atmo-twinkle="1"] .archive::before { animation: none; }
-  :root[data-atmo="overlay"][data-atmo-accent] { transition: none; }
 }

@@ -77,6 +77,14 @@ export const FOG_MS = [7000, BUDGETS.fog.maxActiveMs];
 /** A heat pulse is one slow breath, the whole sequence budget. */
 export const HEAT_MS = BUDGETS.heatPulse.maxSequenceMs;
 
+/** The accent's settled DAY hues: tokens.css's warm 65, and the incumbent's
+    rain-cool rgb(196,230,255) as an OKLCH hue. Night is tokens.css's 40, owned
+    by CSS alone. */
+export const ACCENT_HUE = { none: 65, cool: 240 };
+/** The incumbent's 60 s settle, walked in discrete steps (see settleAccent). */
+export const ACCENT_SETTLE_MS = 60000;
+export const ACCENT_STEPS = 12;
+
 /** @returns {number} 0..1 — 0 unless the slice says it is raining or storming. */
 export function rainLevel(weather) {
   if (!weather || (weather.category !== "rain" && weather.category !== "storm")) return 0;
@@ -235,6 +243,8 @@ function paintEffects(s) {
        the attribute, so removing it on the way BACK would snap the hue home. */
     const a = forced?.accent !== undefined ? forced.accent : accentFor(w);
     setAttr("atmoAccent", a || "none");
+    // A forced accent is a probe asking for the settled look: no walk.
+    settleAccent(a || "none", forced?.accent !== undefined);
   }
   if (effects.textures) {
     const tex = Array.isArray(forced?.textures) ? forced.textures : texturesOf(w);
@@ -246,6 +256,59 @@ function paintEffects(s) {
   }
   if (effects.rainEpisodes) setAttr("atmoRainEpisodes", "1");
   syncLanes(s, w);
+}
+
+/* ── The accent's settle ─────────────────────────────────────────────────────
+   The attribute flips at once and css/atmosphere.css holds the settled hue;
+   this walks the ROOT's inline --atmo-hue from where it was to there in
+   ACCENT_STEPS steps, then removes the inline value so the stylesheet owns
+   the hue again. A CSS transition on the property measured gpu 51 / renderer
+   68 for the minute on the G11 — every hue consumer restyled per frame; this
+   is twelve restyles. At night nothing walks: night's 40 is CSS's alone. */
+let hueNow = null;
+let hueEnd = null;
+let hueTimer = null;
+
+function stopAccent() {
+  clearInterval(hueTimer);
+  hueTimer = null;
+  document.documentElement.style.removeProperty("--atmo-hue");
+}
+
+function settleAccent(accent, jump = false) {
+  const target = ACCENT_HUE[accent] ?? ACCENT_HUE.none;
+  if (document.documentElement.dataset.night === "1") {
+    stopAccent();
+    hueNow = null;
+    hueEnd = null;
+    return;
+  }
+  // First sight (boot, or the first day paint after night), or a probe asking
+  // for the settled look: nothing to ease FROM.
+  if (hueNow === null || jump) {
+    stopAccent();
+    hueNow = target;
+    hueEnd = target;
+    return;
+  }
+  if (target === hueEnd) return;
+  const from = hueNow;
+  const root = document.documentElement;
+  clearInterval(hueTimer);
+  hueEnd = target;
+  // Pin where it was BEFORE the attribute's settled value can show through.
+  root.style.setProperty("--atmo-hue", from.toFixed(1));
+  let step = 0;
+  hueTimer = setInterval(() => {
+    step++;
+    hueNow = from + ((target - from) * step) / ACCENT_STEPS;
+    if (step >= ACCENT_STEPS) {
+      hueNow = target;
+      stopAccent();
+      return;
+    }
+    root.style.setProperty("--atmo-hue", hueNow.toFixed(1));
+  }, ACCENT_SETTLE_MS / ACCENT_STEPS);
 }
 
 /* ── Episode lanes ───────────────────────────────────────────────────────────
@@ -461,6 +524,9 @@ export function __resetAtmosphereFx(opts = {}) {
   unsubscribe?.();
   unsubscribe = null;
   for (const name of [...lanes.keys()]) cancelLane(name);
+  stopAccent();
+  hueNow = null;
+  hueEnd = null;
   renderer?.unmount?.();
   renderer = null;
   clearTimeout(strikeTimer);
