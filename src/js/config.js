@@ -2006,7 +2006,13 @@ window.CONFIG = {
     v3AtmoAccent: true,
     // Strikes arrive on their own while thunder is live: 40-160 s apart, 0-2
     // aftershocks. force({thunder: true}), then fire("lightning").
-    v3AtmoLightning: false,
+    // Shown ON on the live wall 2026-09-13 by config interception: the strike
+    // reads as a glow off the horizon, under every word; gpu 19.9 / renderer
+    // 5.5 armed, 20.3 / 6.0 with a full sequence every 10 s. Not in the
+    // contrast gate: a 1.6 s one-shot nobody reads by, and the sweep kills motion.
+    // FLIPPED ON 2026-09-13. Rollback: v3AtmoLightning: false (read at boot — a
+    // kiosk cache-bypass reload).
+    v3AtmoLightning: true,
     // Fog / heat (>= 32 °C) / cold (<= 8 °C) vignettes at the edges, a fog
     // bank's drift every 40-80 s and a heat pulse every 3-7 min.
     // force({textures: ["fog"]}) · force({weather: {category: "fog"}}).
