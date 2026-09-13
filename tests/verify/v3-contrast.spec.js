@@ -159,6 +159,22 @@ const KNOWN_OPEN = [
     match: (m) => m.token === "--ink-faint",
     floor: 2.8,
     why: "--ink-faint under the presence rim (the token itself is lifted)"
+  },
+  {
+    /* OPEN 2026-09-13 — FOUND, NOT CAUSED, by the flip of v3AtmoTextures. The
+       depth-0 media room had never been a surface in this sweep (see
+       "0-media-room" below). Its first measurement: the room line
+       (`p.mroom__where`, 32px --ink-dim) reads 2.78:1 over the WHITE ground at
+       NIGHT — and reads exactly 2.78:1 with every texture forced OFF, so it is
+       the card's own debt, not the weather's. The three other grounds clear AA
+       (worst 3.46 / 4.10 / 4.24), and so do the card's title and meta lines on
+       all four.
+       The fix is a design decision (the night --ink-dim over the card's ground,
+       or a scrim for the corner) and is the owner's, so it is recorded here with
+       its measured floor instead of being spent inside a flag flip. */
+    match: (m) => m.surface === "0-media-room" && m.selector.startsWith("p.mroom__where"),
+    floor: 2.7,
+    why: "media room's room line at night over the white bound (pre-existing; textures OFF reads the same)"
   }
 ];
 
@@ -957,6 +973,26 @@ const SURFACES = [
            a measurement. The glow itself is bound to the phase and holds. */
         document.documentElement.dataset.phase = "listening";
         document.documentElement.style.setProperty("--presence-level", "1");
+      })
+  },
+  /* ⚠ THE DEPTH-0 MEDIA ROOM WAS NEVER MEASURED (found 2026-09-13, flipping
+     v3AtmoTextures). The sweep's only media reading was the depth-3 subject;
+     the "now playing" card that sits bottom-right of the resting wall — room,
+     title, meta — had no surface at all. It is exactly where the textures'
+     mask leaves the fog and the heat open, so a texture could sit under its
+     words and nothing here would say so. LAST on purpose: the HA state it
+     emits persists, and it must not become part of any other surface. */
+  {
+    id: "0-media-room",
+    requires: "#media-rooms .mroom .mroom__what",
+    drive: (page) =>
+      page.evaluate(() => {
+        window.__setDepth(0, "sweep");
+        window.__emitHaState({
+          entity_id: "media_player.living_room",
+          state: "playing",
+          attributes: { media_title: "Wichita Lineman", media_artist: "Glen Campbell", source: "Spotify Connect" }
+        });
       })
   }
 ];

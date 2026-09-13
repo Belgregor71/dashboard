@@ -155,9 +155,16 @@
    the wall they read as geometry, a banner line and a cut-out, not as weather.
    So both edges are long and round: a top band that fades in over 230px, and a
    soft OVAL hole around the clock and its caption, which reads as the room's
-   own vignette. Composite: layers paint last-to-first, so the top-band layer
-   `subtract`s the oval beneath it — visible below the top band, outside the
-   oval. The same mask covers the fog drift and the heat pulse. */
+   own vignette. The same mask covers the fog drift and the heat pulse.
+
+   ⚠⚠ TWO OVALS, NOT ONE. The bottom-right corner holds the "now playing"
+   media room (room · title · meta), and the contrast sweep had never measured
+   it. Found flipping this flag (2026-09-13): with all three textures forced its
+   meta line read 1.50:1 and its room 2.36:1; the same surface with textures OFF
+   read 3.46:1 — the textures were the cause. It gets its own soft oval.
+   Composite: layers paint last-to-first — the media oval, the clock oval
+   `add`ed to it, and the top-band layer `subtract`s that union: visible below
+   the top band, outside both ovals. */
 .atmo-overlay__texture,
 .atmo-overlay__fog,
 .atmo-overlay__heat {
@@ -166,8 +173,9 @@
   pointer-events: none;
   mask-image:
     linear-gradient(to bottom, transparent 0, transparent 170px, #000 400px),
-    radial-gradient(ellipse 760px 400px at 300px 920px, #000 45%, transparent 100%);
-  mask-composite: subtract, add;
+    radial-gradient(ellipse 760px 400px at 300px 920px, #000 45%, transparent 100%),
+    radial-gradient(ellipse 820px 400px at 1590px 910px, #000 45%, transparent 100%);
+  mask-composite: subtract, add, add;
 }
 .atmo-overlay__texture {
   --tx-fog: none;
