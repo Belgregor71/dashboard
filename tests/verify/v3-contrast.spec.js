@@ -175,6 +175,28 @@ const KNOWN_OPEN = [
     match: (m) => m.surface === "0-media-room" && m.selector.startsWith("p.mroom__where"),
     floor: 2.7,
     why: "media room's room line at night over the white bound (pre-existing; textures OFF reads the same)"
+  },
+  {
+    /* OPEN 2026-09-13 — the same finding at TWO rooms, and much worse. With a
+       second room the stack climbs to y~650, out of the scrim's strongest band,
+       and the 32px --ink-dim lines fail on EVERY ground: room line 1.61 / 1.79
+       / 2.43 / 2.43, meta line 2.27 / 2.45 over white. Controlled the same way:
+       textures OFF reads 1.63 / 1.83 / 2.46 / 2.50 — the textures cost at most
+       0.07, inside renderer noise. The card's own debt.
+       ⚠ This is the ARCHIVE-OFF path (this sweep pins v3Archive off, so the
+       ground is a full-bleed photograph). The live wall runs the archive, whose
+       dark mat sits under the corner — which is why it reads on the glass
+       today. It would not survive the archive being rolled back. Owner's call:
+       a scrim for the corner, or --ink-dim's use there. Floors at the measured
+       numbers with renderer slack, never below them. */
+    match: (m) => m.surface === "0-media-rooms-2" && m.selector.startsWith("p.mroom__where"),
+    floor: 1.55,
+    why: "two media rooms: the upper room line over a full-bleed photograph (pre-existing; textures OFF reads the same)"
+  },
+  {
+    match: (m) => m.surface === "0-media-rooms-2" && m.selector.startsWith("p.mroom__meta"),
+    floor: 2.2,
+    why: "two media rooms: meta line over the white bound (pre-existing; see the entry above)"
   }
 ];
 
@@ -988,10 +1010,40 @@ const SURFACES = [
     drive: (page) =>
       page.evaluate(() => {
         window.__setDepth(0, "sweep");
+        /* ⚠ #heard still holds the last transcript here ("show me the year"),
+           and voice.js hides it on its OWN turn timer — so these surfaces ran
+           into it mid-exit: collected as visible, gone by the screenshot, and
+           the no-pixel guard fired on a node this surface is not about (seen
+           once in two runs, 2026-09-13). #heard is measured on 1-heard and
+           0-field-listening; here it is put away first, like IDLE's phase. */
+        const heard = document.getElementById("heard");
+        if (heard) heard.hidden = true;
         window.__emitHaState({
           entity_id: "media_player.living_room",
           state: "playing",
           attributes: { media_title: "Wichita Lineman", media_artist: "Glen Campbell", source: "Spotify Connect" }
+        });
+      })
+  },
+  /* TWO ROOMS, the most the band ever holds (media-rooms.js MAX_ROWS), with a
+     long title in the second: the stack climbs to y~650 and its title runs left
+     toward the card — the widest the corner's text ever gets, and the case the
+     live wall showed on the day this surface was added. Its own surface, AFTER
+     the one-room one (whose living_room state it inherits), so the two carry
+     separate known-open floors and a loose two-room floor cannot hide a
+     one-room regression. */
+  {
+    id: "0-media-rooms-2",
+    requires: "#media-rooms .mroom:nth-of-type(2) .mroom__what",
+    drive: (page) =>
+      page.evaluate(() => {
+        window.__setDepth(0, "sweep");
+        const heard = document.getElementById("heard");
+        if (heard) heard.hidden = true;
+        window.__emitHaState({
+          entity_id: "media_player.piano_room",
+          state: "playing",
+          attributes: { media_title: "That Time I Got Reincarnated as a Slime", media_artist: "S4 E22", source: "Plex" }
         });
       })
   }
