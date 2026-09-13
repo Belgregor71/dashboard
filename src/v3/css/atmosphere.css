@@ -98,15 +98,163 @@
 :root[data-atmo="overlay"][data-atmo-strike="1"] .atmo-overlay__flash {
   animation: atmo-strike 1.6s ease-out forwards;
 }
+/* --atmo-strike-peak (0..1) is the host's per-strike size: 0.8-1 for a strike,
+   0.25-0.5 for an aftershock (v3AtmoLightning). Unset — a hand-driven strike —
+   is the full curve, as before. */
 @keyframes atmo-strike {
   0%   { opacity: 0; }
-  5%   { opacity: calc(0.90 * var(--atmo-amp, 1)); }
-  12%  { opacity: calc(0.40 * var(--atmo-amp, 1)); }
-  20%  { opacity: calc(0.68 * var(--atmo-amp, 1)); }
+  5%   { opacity: calc(0.90 * var(--atmo-strike-peak, 1) * var(--atmo-amp, 1)); }
+  12%  { opacity: calc(0.40 * var(--atmo-strike-peak, 1) * var(--atmo-amp, 1)); }
+  20%  { opacity: calc(0.68 * var(--atmo-strike-peak, 1) * var(--atmo-amp, 1)); }
   100% { opacity: 0; }
+}
+
+/* ═══ STEP 3 — the effects the overlay carries, each behind its own flag ═══════
+   Every rule below is keyed on an attribute the host writes ONLY while that
+   effect's flag is on (core/atmosphere-fx.js paintEffects). Flag-off, the
+   attribute is absent and the rule matches nothing. The timing of every
+   episode is the incumbent's (atmoFx/planner.js); the motion is CSS. */
+
+/* ── v3AtmoAccent: the accent follows the weather ─────────────────────────────
+   The incumbent's livingAccent (background.css:47-54) turned the accent
+   rain-cool under rain and storm: rgb(196,230,255), OKLCH hue 240. Here it is
+   the HUE ALONE — --atmo-hue, the first thing tokens.css lets atmosphere move —
+   so L and C are untouched and every contrast guarantee holds by construction.
+   Never at night: the night rule is "dim AND warm, never dim and blue"
+   (tokens.css), and the :not() keeps its 40.
+
+   The settle is the incumbent's 60 s. A custom property only transitions once
+   it is registered; the registration is global but changes no computed value
+   (it is the same number either way), and the transition itself is keyed on
+   the attribute, so flag-off nothing eases. */
+@property --atmo-hue {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 65;
+}
+:root[data-atmo="overlay"][data-atmo-accent] {
+  transition: --atmo-hue 60s linear;
+}
+:root[data-atmo="overlay"][data-atmo-accent="cool"]:not([data-night="1"]) {
+  --atmo-hue: 240;
+}
+
+/* ── v3AtmoTextures: the sky's feel at the edges ──────────────────────────────
+   Three static vignettes, each one layer of one element, so fog and cold can
+   stand together (a winter fog morning) — planner.js texturesFor decides.
+   Edges only: the middle of the frame, where the card and the words are, is
+   left alone. Static costs nothing per frame; the night amplitude dims them. */
+.atmo-overlay__texture,
+.atmo-overlay__fog,
+.atmo-overlay__heat {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.atmo-overlay__texture {
+  --tx-fog: none;
+  --tx-heat: none;
+  --tx-cold: none;
+  background-image: var(--tx-fog), var(--tx-heat), var(--tx-cold);
+  opacity: var(--atmo-amp, 1);
+  transition: opacity 60s linear;
+}
+:root[data-atmo="overlay"][data-atmo-texture~="fog"] .atmo-overlay__texture {
+  --tx-fog: radial-gradient(120% 95% at 50% 50%, transparent 52%, oklch(0.80 0.008 250 / 0.20) 100%);
+}
+:root[data-atmo="overlay"][data-atmo-texture~="heat"] .atmo-overlay__texture {
+  --tx-heat: radial-gradient(95% 55% at 50% 112%, oklch(0.74 0.12 55 / 0.20), transparent 72%);
+}
+:root[data-atmo="overlay"][data-atmo-texture~="cold"] .atmo-overlay__texture {
+  --tx-cold:
+    radial-gradient(38% 42% at 0% 100%, oklch(0.90 0.02 230 / 0.16), transparent 70%),
+    radial-gradient(38% 42% at 100% 100%, oklch(0.90 0.02 230 / 0.16), transparent 70%);
+}
+
+/* A fog bank crossing once (the incumbent drew 18-30 blobs per frame on a
+   canvas; here it is two soft gradients and one transform). display:none at
+   rest, so no animation exists between drifts. Duration from the host. */
+.atmo-overlay__fog {
+  display: none;
+  opacity: 0;
+  background:
+    radial-gradient(55% 38% at 28% 62%, oklch(0.82 0.008 250 / 0.16), transparent 72%),
+    radial-gradient(48% 34% at 74% 40%, oklch(0.82 0.008 250 / 0.12), transparent 72%);
+}
+:root[data-atmo="overlay"][data-atmo-fog-drift="1"] .atmo-overlay__fog {
+  display: block;
+  animation: atmo-fog var(--atmo-fog-ms, 8000ms) ease-in-out forwards;
+  will-change: transform, opacity;
+}
+@keyframes atmo-fog {
+  0%   { opacity: 0; transform: translate3d(-6%, 0, 0); }
+  25%  { opacity: var(--atmo-amp, 1); }
+  75%  { opacity: var(--atmo-amp, 1); }
+  100% { opacity: 0; transform: translate3d(6%, 0, 0); }
+}
+
+/* A heat pulse: one slow warm breath from below, capped at 0.3 (planner.js
+   BUDGETS.heatPulse.maxPeak). A one-shot, like the strike. */
+.atmo-overlay__heat {
+  opacity: 0;
+  background: radial-gradient(85% 55% at 50% 108%, oklch(0.78 0.13 55), transparent 70%);
+}
+:root[data-atmo="overlay"][data-atmo-heat-pulse="1"] .atmo-overlay__heat {
+  animation: atmo-heat 4s ease-in-out forwards;
+}
+@keyframes atmo-heat {
+  0%   { opacity: 0; }
+  50%  { opacity: calc(var(--atmo-heat-peak, 0.2) * var(--atmo-amp, 1)); }
+  100% { opacity: 0; }
+}
+
+/* ── v3AtmoNightSky: a clear night, on the MAT ────────────────────────────────
+   Not on this layer. The overlay crosses the card, which is right for rain on
+   a pane and wrong for stars: nobody wants a starfield over a family
+   photograph. So the field is a background layer of `.archive` itself — the
+   mat — and the card covers the middle of it with no geometry at all.
+   `--atmo-stars` is painted once by atmo/overlay.js starField. */
+:root[data-atmo="overlay"][data-atmo-night-sky="1"] .archive {
+  background-image: var(--atmo-stars, none);
+}
+/* The twinkle: up to four stars breathe once, landing on painted stars (the
+   host writes their positions). ::before is the archive's first painted child,
+   so the scene — the card — still paints over it. */
+:root[data-atmo="overlay"][data-atmo-night-sky="1"] .archive::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background-image:
+    radial-gradient(circle 3px at var(--atmo-tw-1, -99px -99px), oklch(0.97 0.01 250 / 0.9), transparent),
+    radial-gradient(circle 3px at var(--atmo-tw-2, -99px -99px), oklch(0.97 0.01 250 / 0.9), transparent),
+    radial-gradient(circle 3px at var(--atmo-tw-3, -99px -99px), oklch(0.97 0.01 250 / 0.9), transparent),
+    radial-gradient(circle 3px at var(--atmo-tw-4, -99px -99px), oklch(0.97 0.01 250 / 0.9), transparent);
+}
+:root[data-atmo="overlay"][data-atmo-night-sky="1"][data-atmo-twinkle="1"] .archive::before {
+  animation: atmo-twinkle 2.5s ease-in-out forwards;
+}
+@keyframes atmo-twinkle {
+  0%   { opacity: 0; }
+  50%  { opacity: calc(0.7 * var(--atmo-amp, 1)); }
+  100% { opacity: 0; }
+}
+
+/* ── v3AtmoRainEpisodes: bursts, a still pane between ─────────────────────────
+   While it rains the pane stays up and visible — the glass is wet — but the
+   fall only RUNS during a burst. Paused, not removed: removing the animation
+   would snap the streaks back to the top of the tile, which is exactly the
+   jump the eye catches. Flag-off, the pane falls continuously, as shipped. */
+:root[data-atmo="overlay"][data-atmo-rain-episodes="1"][data-atmo-raining="1"]:not([data-atmo-rain-moving="1"]) .atmo-overlay__rain {
+  animation-play-state: paused;
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root[data-atmo="overlay"] .atmo-overlay__rain { animation: none; }
   :root[data-atmo="overlay"][data-atmo-strike="1"] .atmo-overlay__flash { animation: none; }
+  :root[data-atmo="overlay"][data-atmo-fog-drift="1"] .atmo-overlay__fog { animation: none; display: none; }
+  :root[data-atmo="overlay"][data-atmo-heat-pulse="1"] .atmo-overlay__heat { animation: none; }
+  :root[data-atmo="overlay"][data-atmo-twinkle="1"] .archive::before { animation: none; }
+  :root[data-atmo="overlay"][data-atmo-accent] { transition: none; }
 }

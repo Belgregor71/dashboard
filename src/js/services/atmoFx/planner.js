@@ -1,3 +1,11 @@
+/* ═══ V3-SHARED-RUNTIME ═════════════════════════════════════════════════════
+   Loaded by BOTH surfaces. The incumbent plans every episode through
+   planNextEpisode (atmoFx/runtime.js); V3's core/atmosphere-fx.js (the Living
+   Window's step 3, 2026-09-13) reads the gap bands, budgets and texturesFor —
+   one set of pacing numbers, not two. Keep it import-free and DOM-free.
+   docs/design/V3-CUTOVER.md §1 · guarded by tests/v3-closure.spec.js
+   ════════════════════════════════════════════════════════════════════════ */
+
 // Living-window episode planner — Phase 1 (rain on glass + storm lightning).
 // Pure function over { weather, mode, now, rng } → the next effect episode, or
 // null when the sky earns none. Same contract as atmosphere.js: no imports, no

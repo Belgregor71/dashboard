@@ -306,7 +306,22 @@ const IMAGE_PATH = /\/(thumb|snapshot|live|image|basemap|overlay|art)/;
    so pinning the flag ALONE would measure a layer that was never there, and
    report it as measured. That is the `#ground-caption` hole above wearing a
    new coat. See bootV3. */
-const PINNED_FLAGS = { groundMemories: true, v3Archive: false, v3AtmoOverlay: true };
+/* ⚠ STEP 3 (2026-09-13): v3AtmoAccent and v3AtmoTextures are pinned ON and
+   forced below for the same reason — the accent moves the hue of every surface
+   and the textures lay light over the edges of the ground. The textures are
+   forced ALL AT ONCE (fog + heat + cold), which no sky produces (heat and cold
+   are exclusive): the worst the layer can be, not the worst it usually is.
+   v3AtmoNightSky is NOT pinned: its stars live on the archive's mat, and this
+   sweep pins v3Archive off, so a pin would measure nothing and claim it did.
+   Lightning, the rain bursts and every episode are motion, and this sweep
+   kills animation — they are one-shots nobody reads by. */
+const PINNED_FLAGS = {
+  groundMemories: true,
+  v3Archive: false,
+  v3AtmoOverlay: true,
+  v3AtmoAccent: true,
+  v3AtmoTextures: true
+};
 
 async function bootV3(page, { ground, phase }) {
   const pageErrors = [];
@@ -369,7 +384,9 @@ async function bootV3(page, { ground, phase }) {
      the layer makes the ground — and the strike is deliberately NOT forced: it
      is a 1.6s one-shot, and a gate that measured a flash would be measuring
      something nobody reads by. */
-  await page.evaluate(() => window.__v3Atmo?.force({ rain: "heavy", warmth: 1 }));
+  await page.evaluate(() =>
+    window.__v3Atmo?.force({ rain: "heavy", warmth: 1, accent: "cool", textures: ["fog", "heat", "cold"] })
+  );
   /* ⚠ POLLED, NOT READ ONCE. The pane goes display:none -> block, and
      @starting-style holds its opacity at 0 for the first frame after it becomes
      rendered — killing transitions does not skip that frame. A single read here
@@ -378,11 +395,18 @@ async function bootV3(page, { ground, phase }) {
   const layerState = () => page.evaluate(() => {
     const rain = document.querySelector(".atmo-overlay__rain");
     const warm = document.querySelector(".atmo-overlay__warm");
-    if (!rain || !warm) return null;
+    const texture = document.querySelector(".atmo-overlay__texture");
+    if (!rain || !warm || !texture) return null;
+    const root = getComputedStyle(document.documentElement);
     return {
       rain: getComputedStyle(rain).display,
       rainOpacity: Number(getComputedStyle(rain).opacity),
-      warmOpacity: Number(getComputedStyle(warm).opacity)
+      warmOpacity: Number(getComputedStyle(warm).opacity),
+      // fog 1 + heat 1 + cold 2 corners = 4 gradient layers when all three are forced.
+      textureLayers: (getComputedStyle(texture).backgroundImage.match(/radial-gradient/g) || []).length,
+      textureOpacity: Number(getComputedStyle(texture).opacity),
+      hue: root.getPropertyValue("--atmo-hue").trim(),
+      night: document.documentElement.dataset.night === "1"
     };
   });
   await expect.poll(async () => (await layerState())?.rainOpacity ?? 0, { timeout: 5000 }).toBeGreaterThan(0);
@@ -393,6 +417,11 @@ async function bootV3(page, { ground, phase }) {
   expect(weatherLayer.rain, "the rain pane is not painting").toBe("block");
   expect(weatherLayer.rainOpacity).toBeGreaterThan(0);
   expect(weatherLayer.warmOpacity).toBeGreaterThan(0);
+  expect(weatherLayer.textureLayers, "the textures are not painting — v3AtmoTextures' pin or force did not take").toBe(4);
+  expect(weatherLayer.textureOpacity).toBeGreaterThan(0);
+  // The accent is cool by day and keeps its warm 40 at night — assert which, so
+  // a hue that silently stayed at 65 cannot pass as measured.
+  expect(weatherLayer.hue, "the accent hue was not moved by the force").toBe(weatherLayer.night ? "40" : "240");
 
   await page.evaluate(() => window.__v3Refresh?.());
 

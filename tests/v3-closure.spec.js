@@ -101,6 +101,10 @@ const SHARED_BOTH = [
      (v3/core/atmosphere-fx.js), for `skyWarmthFor` alone — the incumbent's sky
      ramp, reused rather than re-derived. Pure and import-free. */
   "js/services/atmosphere.js",
+  /* ⚠ ENTERED V3'S CLOSURE 2026-09-13 with the Living Window's step 3 — the
+     gap bands, budgets and texturesFor, so V3's five effects pace exactly as
+     the incumbent's did. Pure and import-free, like atmosphere.js above. */
+  "js/services/atmoFx/planner.js",
   "js/services/attentionEngine.js",
   "js/services/attentionRank.js",
   "js/services/briefingSchedule.js",

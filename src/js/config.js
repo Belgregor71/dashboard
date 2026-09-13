@@ -1983,6 +1983,33 @@ window.CONFIG = {
     // Rollback: -> false (one line; V3 reads the flag at boot, so it needs a
     // kiosk reload, which /flag-flip's ceremony does).
     v3AtmoOverlay: true,
+
+    // ── The Living Window, step 3 — the effects the overlay carries
+    // (docs/design/HANDOVER-LIVING-WINDOW-V3.md). Each is read ONLY while
+    // v3AtmoOverlay is on, each writes its own root attribute, and each ships
+    // OFF until it has been seen on the wall. Pacing is the incumbent's
+    // (atmoFx/planner.js); the motion is CSS, never rAF. Every one can be driven
+    // by hand: `__v3Atmo.force({...})`, and `__v3Atmo.fire(lane)` runs an armed
+    // lane's episode now. Rollback for each: -> false (read at boot, so a kiosk
+    // reload).
+    //
+    // The accent hue turns rain-cool (OKLCH 240) under rain and storm, by day
+    // only; L and C are untouched. 60 s settle. force({accent: "cool"}).
+    v3AtmoAccent: false,
+    // Strikes arrive on their own while thunder is live: 40-160 s apart, 0-2
+    // aftershocks. force({thunder: true}), then fire("lightning").
+    v3AtmoLightning: false,
+    // Fog / heat (>= 32 °C) / cold (<= 8 °C) vignettes at the edges, a fog
+    // bank's drift every 40-80 s and a heat pulse every 3-7 min.
+    // force({textures: ["fog"]}) · force({weather: {category: "fog"}}).
+    v3AtmoTextures: false,
+    // A clear night's 110 stars on the archive's MAT (never the photograph),
+    // and a 2-4 star twinkle every 3-6 min. force({night: true,
+    // weather: {category: "clear"}}), then fire("twinkle").
+    v3AtmoNightSky: false,
+    // Rain moves in bursts (6 s, 8 s heavy) and the pane holds still between
+    // (45-240 s by intensity); flag-off it falls continuously while it rains.
+    v3AtmoRainEpisodes: false,
   },
 
   /* --------------------------------------------------------------

@@ -26,6 +26,8 @@
        the mat        the archive's field around the card (--surface's use there)
        the grade      the photograph's own grade on the card
        the scrim      its tint (never its solved opacity — scrim.js owns that)
+       the overlay    the Living Window's z4 layer (css/atmosphere.css) and,
+                      for the night sky only, a background layer on the mat
      Widened on purpose from "--atmo-hue only" by the owner, 2026-09-12, for
      the Living Window (docs/design/HANDOVER-LIVING-WINDOW-V3.md). The last
      three get their token names from the direction that ships, and are added
