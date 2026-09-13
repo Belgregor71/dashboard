@@ -1994,8 +1994,16 @@ window.CONFIG = {
     // reload).
     //
     // The accent hue turns rain-cool (OKLCH 240) under rain and storm, by day
-    // only; L and C are untouched. 60 s settle. force({accent: "cool"}).
-    v3AtmoAccent: false,
+    // only; L and C are untouched. force({accent: "cool"}) jumps; real weather
+    // walks the hue there in 12 steps over 60 s (a CSS transition on --atmo-hue
+    // measured gpu 51 / renderer 68 on the G11 — see css/atmosphere.css).
+    // Shown ON on the live wall 2026-09-13 by config interception: the cool mat
+    // is plainly visible, the walk read 65 -> 94.2 -> ... -> 240 and handed back
+    // to CSS, gpu 20.2 / renderer 6.6 against a 19.6 / 5.4 baseline; contrast
+    // gate pins it on (worst nodes unchanged).
+    // FLIPPED ON 2026-09-13. Rollback: v3AtmoAccent: false (read at boot — a
+    // kiosk cache-bypass reload).
+    v3AtmoAccent: true,
     // Strikes arrive on their own while thunder is live: 40-160 s apart, 0-2
     // aftershocks. force({thunder: true}), then fire("lightning").
     v3AtmoLightning: false,
