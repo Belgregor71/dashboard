@@ -1064,4 +1064,29 @@ episodes are fired 4-20× faster than they would really arrive. The rain bursts 
 over continuous rain (19.0 above), because a paused pane draws no frames.
 
 ⚠ The textures' motion row was taken at **depth 1** (the room changed depth mid-window), so it
-is not a depth-0 number. ⚠ Everything here is daylight: there is still no dusk or night reading.
+is not a depth-0 number. ⚠ Everything in the table above is daylight. The night reading is below.
+
+### The first real night — after the night-sky + lightning flips (2026-09-13, `7243b8a`)
+
+`v3AtmoNightSky` flipped on in `be62580`, `v3AtmoLightning` in `7243b8a`. Main then had four
+step-3 flags on (accent, textures, night sky, lightning; rain bursts still off). **Nothing was
+forced.** It was a real clear night over Brisbane: `data-night=1` from about 17:45 (sun
+below -2°), weather code 0, depth 0, archive on. 30 s windows, nproc 8.
+
+| sample | state | gpu-process | renderer | heap MB | dom | cdpNodes | listeners |
+|---|---|---|---|---|---|---|---|
+| 17:49, uptime 1.6 min | stars on the mat, twinkle armed, card pair | **20.8** | 6.1 | 3.9 | 84 | 207 | 19 |
+| 18:12, uptime 23.8 min | twinkle had fired 5× on its own, single card | **18.7** | 6.1 | 3.9 | 73 | 197 | 24 |
+
+Both readings are inside the daylight band with every flag off (19.3-19.6). The organic
+twinkle kept to its band: 5 in about 23 min.
+
+🔑 **The +5 listeners between the two samples is NOT the effects. It was tested, not argued.**
+A count that rose by five over five twinkles looked like one listener per episode, so each lane
+was fired by hand with GC-forced samples either side, on the same page:
+- five twinkles, 4 s apart: dom / cdpNodes / listeners **73 / 197 / 24 → 73 / 197 / 24**.
+- four full lightning sequences under a forced storm: **73 / 197 / 24 → 73 / 197 / 24**, and
+  releasing the force dropped the lane and re-armed the twinkle.
+
+The difference between the samples is the composition (pair → single card) and a page at 1.6
+min into boot. It is not a trend. A third sample 30-60 min later is what would make it one.

@@ -5,7 +5,7 @@ family 3). **Owner's decision: port as a design arc** — competing directions o
 real wall, each behind its own default-off V3 flag, GPU measured, flipped one at a time.
 Nothing below is built yet. Facts are cited; everything marked HYPOTHESIS is not probed.
 
-## ▶ Status 2026-09-13 — step 3 BUILT, all five flags OFF
+## ▶ Status 2026-09-13 — step 3 BUILT; four of five FLIPPED ON (rain bursts still OFF)
 
 Step 3 had not started when this was re-read on 2026-09-13 (the only commit after the
 flip was docs). It is now built as five flags, each read only while `v3AtmoOverlay` is
@@ -78,10 +78,32 @@ OFF and show each on the wall before any flip; rain moves in **bursts**.
       for the corner, or `--ink-dim`'s use there.
   - A pre-push run caught a latent race in `v3-scrim.spec.js:381` (a single read of the
     ground's first fetch). It is polled now, and proven both ways (`f63ae5a`).
+- ✅ **`v3AtmoNightSky` FLIPPED ON (`be62580`), rollback proven on the panel.** Suite 2079
+  with it on; reversibility passes with it off.
+  - The harness's rollback branch had forced fog + 34°C for every flag. That is no cause for a
+    night sky, so it now forces each flag's OWN cause. With a clear night forced and the flag
+    served `false`: no star field, no `.archive` background, no attribute, no lane. The
+    positive control on main, same force: attribute on, field on the mat, twinkle armed at
+    347 s.
+  - **First real night, unforced (17:49):** `data-night=1` under a clear sky. Stars on the mat,
+    none on the photograph, twinkle armed on its own. It then fired 5× in about 23 min.
+- ✅ **`v3AtmoLightning` FLIPPED ON (`7243b8a`), rollback proven on the panel.** Suite 2079
+  with it on; reversibility passes with it off.
+  - Served `false` under a forced thunderstorm: `fire("lightning")` returned `false`, no strike
+    attribute, flash animation none.
+  - Main, same force: the lane armed on its own at 96.5 s. A strike fired mid-sequence at
+    peak 0.809, opacity 0.37.
+  - ⚠ Minor residue: `--atmo-strike-peak` stays inline after a sequence (harmless; it is read
+    only during the animation).
+- **Night GPU/heap** (HOST-BASELINES, "the first real night"): 20.8 → 18.7 gpu across two
+  samples, heap 3.9. Hand-firing 5 twinkles and 4 lightning sequences left
+  dom/cdpNodes/listeners unchanged at 73/197/24.
 - ⏳ **Owed:**
-  - The remaining three flips (lightning, night sky, rain bursts), in the owner's order.
+  - The last flip: `v3AtmoRainEpisodes`.
   - The media-room legibility decision above.
-  - There is still no dusk or night reading for any effect.
+  - A lit-dusk reading. There is still no organic storm reading; it has to wait for weather.
+  - The night sky's stars behind the date/weather rows are unmeasured by any gate (the
+    sweep has no mat).
 
 ## Status 2026-09-12 — steps 0 and 1 DONE and live; step 2 BUILT, awaiting the owner
 
