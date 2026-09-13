@@ -384,6 +384,15 @@ test("the ground survives an upstream that never answers", async ({ page }) => {
   // empty set: no photograph, no latch left holding, and the substrate carries
   // depth 0 by itself. The failure that matters is a stuck `inFlight`, because
   // it is permanent on a page that runs for weeks.
+  //
+  // ⚠ POLLED, NOT READ ONCE (2026-09-13). boot() waits for the scrim's handle,
+  // not for the ground's first fetch, so a single read raced it: on a loaded
+  // pre-push run it caught `inFlight: true` with `assetId: null, layers: 1` —
+  // the empty answer simply had not come back yet. A bounded wait still fails a
+  // genuinely stuck flag (loadFirst's `finally` never clearing it goes RED here).
+  await expect
+    .poll(() => page.evaluate(() => window.__ground().inFlight), { timeout: 10_000 })
+    .toBe(false);
   const ground = await page.evaluate(() => window.__ground());
   expect(ground.inFlight).toBe(false);
   expect(ground.assetId).toBeNull();
