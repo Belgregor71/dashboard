@@ -148,14 +148,16 @@
    first stronger one broke the gate where every word on this surface lives —
    #hour 2.87:1 and #ground-caption 1.89:1 bottom-left, #heard 2.58:1 top-right
    (tests/verify/v3-contrast.spec.js, all three forced, 2026-09-13).
-   So the textures are kept OFF the text, not dimmed ON it: the mask is the
-   union of (a) the middle band, below the top band's words and above the
-   clock's line, at every x, and (b) everything below that band to the right
-   of the clock block. The top band and the bottom-left block never see a
-   texture; what the room sees is weather at the sides and along the bottom.
-   The same mask covers the fog drift and the heat pulse.
-   Composite order: layers paint last-to-first, so `intersect` on (b)'s first
-   half joins its two gradients, and `add` on (a) unions the result. */
+   So the textures are kept OFF the text, not dimmed ON it.
+
+   ⚠ AND THE MASK MUST NOT BE SEEN. The first masked build cut rectangles — a
+   170px ramp under the top band and an L-shaped notch around the clock — and on
+   the wall they read as geometry, a banner line and a cut-out, not as weather.
+   So both edges are long and round: a top band that fades in over 230px, and a
+   soft OVAL hole around the clock and its caption, which reads as the room's
+   own vignette. Composite: layers paint last-to-first, so the top-band layer
+   `subtract`s the oval beneath it — visible below the top band, outside the
+   oval. The same mask covers the fog drift and the heat pulse. */
 .atmo-overlay__texture,
 .atmo-overlay__fog,
 .atmo-overlay__heat {
@@ -163,10 +165,9 @@
   inset: 0;
   pointer-events: none;
   mask-image:
-    linear-gradient(to bottom, transparent 0, transparent 180px, #000 300px, #000 640px, transparent 790px),
-    linear-gradient(to bottom, transparent 0, transparent 180px, #000 300px),
-    linear-gradient(to right, transparent 0, transparent 470px, #000 640px);
-  mask-composite: add, intersect, add;
+    linear-gradient(to bottom, transparent 0, transparent 170px, #000 400px),
+    radial-gradient(ellipse 760px 400px at 300px 920px, #000 45%, transparent 100%);
+  mask-composite: subtract, add;
 }
 .atmo-overlay__texture {
   --tx-fog: none;
