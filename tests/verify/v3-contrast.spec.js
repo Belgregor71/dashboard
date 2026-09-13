@@ -402,7 +402,7 @@ async function bootV3(page, { ground, phase }) {
       rain: getComputedStyle(rain).display,
       rainOpacity: Number(getComputedStyle(rain).opacity),
       warmOpacity: Number(getComputedStyle(warm).opacity),
-      // fog 1 + heat 1 + cold 2 corners = 4 gradient layers when all three are forced.
+      // fog 1 + heat 1 + cold 3 (two sides, one corner) = 5 gradient layers when all three are forced.
       textureLayers: (getComputedStyle(texture).backgroundImage.match(/radial-gradient/g) || []).length,
       textureOpacity: Number(getComputedStyle(texture).opacity),
       hue: root.getPropertyValue("--atmo-hue").trim(),
@@ -417,7 +417,7 @@ async function bootV3(page, { ground, phase }) {
   expect(weatherLayer.rain, "the rain pane is not painting").toBe("block");
   expect(weatherLayer.rainOpacity).toBeGreaterThan(0);
   expect(weatherLayer.warmOpacity).toBeGreaterThan(0);
-  expect(weatherLayer.textureLayers, "the textures are not painting — v3AtmoTextures' pin or force did not take").toBe(4);
+  expect(weatherLayer.textureLayers, "the textures are not painting — v3AtmoTextures' pin or force did not take").toBe(5);
   expect(weatherLayer.textureOpacity).toBeGreaterThan(0);
   // The accent is cool by day and keeps its warm 40 at night — assert which, so
   // a hue that silently stayed at 65 cannot pass as measured.

@@ -321,7 +321,7 @@ test("textures: fog and heat paint their vignettes, drift and pulse on their own
 
   await force(page, { weather: { category: "clear", tempC: 5 } });
   expect((await rootData(page)).atmoTexture).toBe("cold");
-  expect((await tex()).layers).toBe(2); // the two frost corners
+  expect((await tex()).layers).toBe(3); // frost from both sides and the open corner
   expect((await atmo(page)).lanes).toEqual({});
   expect((await rootData(page)).atmoHeatPulse).toBeUndefined();
   expect(errors).toEqual([]);

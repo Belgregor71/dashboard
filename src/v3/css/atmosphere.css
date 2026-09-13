@@ -143,12 +143,30 @@
    stand together (a winter fog morning) — planner.js texturesFor decides.
    Edges only: the middle of the frame, where the card and the words are, is
    left alone. Static costs nothing per frame; the night amplitude dims them. */
+/* ⚠⚠ THE WORDS ARE AT THE EDGES, so the edges are MASKED. The first build was
+   invisible (0.16-0.20 alpha, full strength only past the frame's corners); the
+   first stronger one broke the gate where every word on this surface lives —
+   #hour 2.87:1 and #ground-caption 1.89:1 bottom-left, #heard 2.58:1 top-right
+   (tests/verify/v3-contrast.spec.js, all three forced, 2026-09-13).
+   So the textures are kept OFF the text, not dimmed ON it: the mask is the
+   union of (a) the middle band, below the top band's words and above the
+   clock's line, at every x, and (b) everything below that band to the right
+   of the clock block. The top band and the bottom-left block never see a
+   texture; what the room sees is weather at the sides and along the bottom.
+   The same mask covers the fog drift and the heat pulse.
+   Composite order: layers paint last-to-first, so `intersect` on (b)'s first
+   half joins its two gradients, and `add` on (a) unions the result. */
 .atmo-overlay__texture,
 .atmo-overlay__fog,
 .atmo-overlay__heat {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  mask-image:
+    linear-gradient(to bottom, transparent 0, transparent 180px, #000 300px, #000 640px, transparent 790px),
+    linear-gradient(to bottom, transparent 0, transparent 180px, #000 300px),
+    linear-gradient(to right, transparent 0, transparent 470px, #000 640px);
+  mask-composite: add, intersect, add;
 }
 .atmo-overlay__texture {
   --tx-fog: none;
@@ -159,15 +177,18 @@
   transition: opacity 60s linear;
 }
 :root[data-atmo="overlay"][data-atmo-texture~="fog"] .atmo-overlay__texture {
-  --tx-fog: radial-gradient(120% 95% at 50% 50%, transparent 52%, oklch(0.80 0.008 250 / 0.20) 100%);
+  --tx-fog: radial-gradient(72% 78% at 50% 50%, transparent 38%, oklch(0.78 0.008 250 / 0.40) 100%);
 }
 :root[data-atmo="overlay"][data-atmo-texture~="heat"] .atmo-overlay__texture {
-  --tx-heat: radial-gradient(95% 55% at 50% 112%, oklch(0.74 0.12 55 / 0.20), transparent 72%);
+  --tx-heat: radial-gradient(110% 70% at 50% 112%, oklch(0.72 0.13 55 / 0.42), transparent 72%);
 }
 :root[data-atmo="overlay"][data-atmo-texture~="cold"] .atmo-overlay__texture {
+  /* Frost creeping in from both sides and up from the bottom-right corner —
+     the corners the mask leaves open. */
   --tx-cold:
-    radial-gradient(38% 42% at 0% 100%, oklch(0.90 0.02 230 / 0.16), transparent 70%),
-    radial-gradient(38% 42% at 100% 100%, oklch(0.90 0.02 230 / 0.16), transparent 70%);
+    radial-gradient(28% 48% at 0% 52%, oklch(0.88 0.03 230 / 0.36), transparent 72%),
+    radial-gradient(28% 48% at 100% 52%, oklch(0.88 0.03 230 / 0.36), transparent 72%),
+    radial-gradient(46% 55% at 100% 100%, oklch(0.88 0.03 230 / 0.36), transparent 70%);
 }
 
 /* A fog bank crossing once (the incumbent drew 18-30 blobs per frame on a
@@ -177,8 +198,8 @@
   display: none;
   opacity: 0;
   background:
-    radial-gradient(55% 38% at 28% 62%, oklch(0.82 0.008 250 / 0.16), transparent 72%),
-    radial-gradient(48% 34% at 74% 40%, oklch(0.82 0.008 250 / 0.12), transparent 72%);
+    radial-gradient(55% 38% at 28% 62%, oklch(0.82 0.008 250 / 0.32), transparent 72%),
+    radial-gradient(48% 34% at 74% 40%, oklch(0.82 0.008 250 / 0.26), transparent 72%);
 }
 :root[data-atmo="overlay"][data-atmo-fog-drift="1"] .atmo-overlay__fog {
   display: block;
