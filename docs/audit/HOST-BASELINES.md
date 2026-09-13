@@ -1028,3 +1028,40 @@ cost of V3 without the archive.
 ⚠ Not taken: a lit **dusk** reading (the lit-night row was taken at dawn, same token state),
 and anything with a real weather cause beyond wind — "Mostly clear" is the weather this
 baseline had.
+
+## The Living Window, step 3 — five effects shown on the wall (2026-09-13, `a7ca0b4` / `feb7fcb`)
+
+All five flags are **OFF in main**. Each was served ON to the live kiosk by CDP interception of
+`/js/config.js` alone (the code was already deployed), its cause forced through
+`__v3Atmo.force`, then restored by `Fetch.disable` + a cache-bypass reload. Restore was
+confirmed each time: every effect false, no lane, no attribute. Windows are gpu-process and
+renderer CPU from `/proc` deltas (`gpucpu.sh`'s method), with nproc 8, at depth 0 with the
+archive on unless a row says otherwise. Episodes were fired **far faster than their organic
+rates**, so those rows are upper bounds. 10:23-10:47 AEST, partly cloudy, full daylight.
+
+| flag | window (60 s unless noted) | gpu-process | renderer |
+|---|---|---|---|
+| — | **baseline**, every step-3 flag off, no forcing | **19.3** | 6.6 |
+| `v3AtmoAccent` | ❌ first build: the 60 s `@property` transition on `--atmo-hue` | **51.2** | **67.8** |
+| `v3AtmoAccent` | ✅ fix `feb7fcb`: the 12-step walk (re-baseline 19.6 / 5.4) | **20.2** | 6.6 |
+| `v3AtmoLightning` | armed at rest (30 s) | 19.9 | 5.5 |
+| `v3AtmoLightning` | a full sequence every 10 s (organic: 40-160 s) | 20.3 | 6.0 |
+| `v3AtmoTextures` | vignettes static (30 s) | 19.1 | 5.7 |
+| `v3AtmoTextures` | a fog drift every 12 s + one heat pulse — ⚠ **depth 1** by then | 17.0 | 7.8 |
+| `v3AtmoNightSky` | field on the mat (30 s) | 19.8 | 5.5 |
+| `v3AtmoNightSky` | a twinkle every 10 s (organic: 3-6 min) | 19.3 | 6.2 |
+| `v3AtmoRainEpisodes` | rain forced, between bursts (30 s) | 19.0 | 5.5 |
+| `v3AtmoRainEpisodes` | a burst every 15 s (organic: 90-150 s moderate) | 19.6 | 5.3 |
+
+🔑🔑 **A CSS transition on an inherited ROOT custom property is a whole-document restyle per
+frame.** The accent's first build eased `--atmo-hue` over 60 s. Every surface, the scrim and
+the vignette read that hue, so all of them restyled 60 times a second for the minute:
+gpu 51 / renderer 68. That is over the ≤ 35 peak row by half again. The same visual, walked in
+12 inline steps and then handed back to CSS, is indistinguishable from the baseline.
+
+🔑 Every other effect sits **inside the noise of the baseline** (±1 gpu), including when its
+episodes are fired 4-20× faster than they would really arrive. The rain bursts cost nothing
+over continuous rain (19.0 above), because a paused pane draws no frames.
+
+⚠ The textures' motion row was taken at **depth 1** (the room changed depth mid-window), so it
+is not a depth-0 number. ⚠ Everything here is daylight: there is still no dusk or night reading.

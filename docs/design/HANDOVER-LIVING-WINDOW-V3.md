@@ -28,10 +28,26 @@ OFF and show each on the wall before any flip; rain moves in **bursts**.
   directions per effect. The contrast gate pins accent + textures and forces all three
   textures at once; the worst node is unchanged (`#heard` 2.90/2.94, known open).
 - ⚠ **The night sky is NOT measured by the contrast gate**, which pins `v3Archive` off.
-- ⚠ HYPOTHESIS, not measured: the accent's 60 s `@property` transition restyles every
-  `--atmo-hue` consumer for a minute. Read the renderer cost on the wall before flipping.
-- ⏳ **Owed:** show each flag on the real panel (CDP config interception + `force`/`fire`),
-  take a GPU reading for each, then `/flag-flip` them one at a time, in the owner's order.
+- **Shown on the real panel, all five (same day).** Each flag was served ON by CDP
+  interception of `config.js`, driven with `force`/`fire`, screenshotted with CDP, measured,
+  and restored. Numbers are in `docs/audit/HOST-BASELINES.md` ("step 3"). Screenshots are in
+  `C:\Users\gdee7\projects\lw-step3-shots\`; they show family photographs, so they are never
+  kept in this repo.
+- ❌→✅ **The hypothesis was TRUE and it was bad.** The accent's 60 s `@property` transition
+  measured **gpu 51.2 / renderer 68** on the wall. Fixed in `feb7fcb`: CSS holds the settled
+  hue, and the host walks it there in 12 inline steps (**20.2 / 6.6**, baseline 19.6 / 5.4).
+- Every other effect is within ±1 gpu of the baseline, even with episodes fired 4-20× faster
+  than their organic rates.
+- 👁 **Looks, for the owner to judge:**
+  - The cool accent is clearly visible across the whole mat.
+  - The strike reads as a horizon glow.
+  - The stars sit on the mat with the card over them.
+  - The paused rain pane still reads as rain.
+  - ⚠ **The textures are close to invisible** at 0.16-0.20 alpha in daylight (fog, heat and
+    cold alike). Deciding whether to make them stronger is a design call. Any change must go
+    back through the contrast gate.
+- ⏳ **Owed:** the owner picks the order, then one `/flag-flip` per effect. There is still no
+  dusk or night reading for any of them.
 
 ## Status 2026-09-12 — steps 0 and 1 DONE and live; step 2 BUILT, awaiting the owner
 
