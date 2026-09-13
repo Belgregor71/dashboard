@@ -168,10 +168,16 @@ test("the page arms a deadline for the settle, and clears it when cleanup runs",
   /* ── Mid-settle. 150 ms of dissolve so the cleanup lands 2,150 ms later —
      long enough to sample inside the window, short enough for a suite to run.
      The REAL 60 s constant is exercised on the wall, not here. */
+  /* ⚠ POLL THE SETTLED MID-STATE, NOT `layers` ALONE (2026-09-13). dissolve()
+     appends the incoming <img> BEFORE its src loads, and only the load's
+     settle() clears `inFlight` — so `layers` reads 2 for the whole load window
+     with `inFlight` still true. A loaded pre-push run caught exactly that
+     (layers 2, inFlight true at the check below). A settle that never clears
+     `inFlight` still times out here and goes RED. */
   await page.evaluate(() => window.__groundDissolve(150));
   await expect
-    .poll(() => page.evaluate(() => window.__ground().layers), { timeout: 10_000 })
-    .toBe(2);
+    .poll(() => page.evaluate(() => { const g = window.__ground(); return g.layers === 2 && !g.inFlight; }), { timeout: 10_000 })
+    .toBe(true);
 
   const during = await page.evaluate(() => window.__ground());
 
