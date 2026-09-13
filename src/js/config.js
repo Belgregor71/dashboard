@@ -2022,7 +2022,13 @@ window.CONFIG = {
     // A clear night's 110 stars on the archive's MAT (never the photograph),
     // and a 2-4 star twinkle every 3-6 min. force({night: true,
     // weather: {category: "clear"}}), then fire("twinkle").
-    v3AtmoNightSky: false,
+    // Shown ON on the live wall 2026-09-13 by config interception: the field
+    // sits on the mat with the card covering the centre, never the photograph;
+    // gpu 19.8 / renderer 5.5 with the field up, 19.3 / 6.2 twinkling every
+    // 10 s. Not in the contrast gate (it pins v3Archive off, so there is no mat).
+    // FLIPPED ON 2026-09-13. Rollback: v3AtmoNightSky: false (read at boot — a
+    // kiosk cache-bypass reload).
+    v3AtmoNightSky: true,
     // Rain moves in bursts (6 s, 8 s heavy) and the pane holds still between
     // (45-240 s by intensity); flag-off it falls continuously while it rains.
     v3AtmoRainEpisodes: false,
