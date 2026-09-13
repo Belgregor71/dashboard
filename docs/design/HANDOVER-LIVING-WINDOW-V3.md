@@ -43,11 +43,24 @@ OFF and show each on the wall before any flip; rain moves in **bursts**.
   - The strike reads as a horizon glow.
   - The stars sit on the mat with the card over them.
   - The paused rain pane still reads as rain.
-  - ⚠ **The textures are close to invisible** at 0.16-0.20 alpha in daylight (fog, heat and
-    cold alike). Deciding whether to make them stronger is a design call. Any change must go
-    back through the contrast gate.
-- ⏳ **Owed:** the owner picks the order, then one `/flag-flip` per effect. There is still no
-  dusk or night reading for any of them.
+  - The textures were **close to invisible** at 0.16-0.20 alpha in daylight.
+- **Owner, same afternoon: "strengthen the textures first, then flip the accent."**
+  - ✅ **Textures strengthened (`d259396` + `4ea89eb`, still OFF).** Doubling them broke the
+    contrast gate on every word near an edge: `#hour` 2.87, `#ground-caption` 1.89, `#heard`
+    2.58. So they are masked off the text rather than dimmed. The first mask was rectangular
+    and showed on the wall as a banner line and a notch, so it became a 230px top ramp plus
+    a soft oval around the clock and caption. That was previewed on the live kiosk via a
+    constructable stylesheet (CSP-safe) before committing. Gate 13/13, worst nodes unchanged;
+    removing the mask turns it RED. GPU 20.7 at rest / 21.0 drifting.
+  - ✅ **`v3AtmoAccent` FLIPPED ON (`0540a75`).** Suite 2079 with it on; reversibility passes
+    with it off. Deployed and cache-bypass reloaded. Live: served `true`, and real weather reads
+    `none` at hue 65. Forced rain walked 65 → 94.2 in 11 s; released, it settled back to CSS 65
+    with no inline value. **Rollback proven on the panel:** config served `false` under forced
+    rain gave no attribute and hue 65 with the overlay intact, then main was restored with the
+    accent on.
+- ⏳ **Owed:** the remaining four flips (lightning, textures, night sky, rain bursts), one
+  `/flag-flip` each, in the owner's order. There is still no dusk or night reading for any of
+  them.
 
 ## Status 2026-09-12 — steps 0 and 1 DONE and live; step 2 BUILT, awaiting the owner
 
