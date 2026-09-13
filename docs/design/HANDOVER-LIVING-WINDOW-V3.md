@@ -58,9 +58,30 @@ OFF and show each on the wall before any flip; rain moves in **bursts**.
     with no inline value. **Rollback proven on the panel:** config served `false` under forced
     rain gave no attribute and hue 65 with the overlay intact, then main was restored with the
     accent on.
-- ⏳ **Owed:** the remaining four flips (lightning, textures, night sky, rain bursts), one
-  `/flag-flip` each, in the owner's order. There is still no dusk or night reading for any of
-  them.
+- ✅ **`v3AtmoTextures` FLIPPED ON (`a4fe7d3`), rollback proven on the panel.** Suite 2079
+  with it on; reversibility passes with it off. Rollback proof: served `false` under forced
+  fog + 34°C gave no texture attribute, no lane and 3 overlay children; restoring main brought
+  back 6.
+  - ⚠⚠ **The flip's own live screenshot found a gap.** A Plex "now playing" card sat
+    bottom-right, exactly where the mask left fog and heat open, and **the contrast sweep had
+    never measured the depth-0 media room**. Added `0-media-room` and `0-media-rooms-2`. With
+    textures forced the card read 1.50:1; textures OFF read 3.46:1, so the textures were the
+    cause. A second soft oval in the mask fixed it (`67e999a`); removing the oval turns the
+    gate RED.
+  - **The same first measurement found the CARD'S OWN debt** (controlled with textures OFF,
+    within 0.07):
+    - One room: its room line reads 2.78:1 at night over white.
+    - Two rooms: the upper room line reads 1.61-2.43 on every ground, and the meta line 2.27.
+    - This is the archive-OFF path (a full-bleed photograph); the live wall's dark mat is why
+      it reads today.
+    - Recorded in `KNOWN_OPEN` at floors 2.7 / 1.55 / 2.2 (`7dc9417`). **Owner's call:** a scrim
+      for the corner, or `--ink-dim`'s use there.
+  - A pre-push run caught a latent race in `v3-scrim.spec.js:381` (a single read of the
+    ground's first fetch). It is polled now, and proven both ways (`f63ae5a`).
+- ⏳ **Owed:**
+  - The remaining three flips (lightning, night sky, rain bursts), in the owner's order.
+  - The media-room legibility decision above.
+  - There is still no dusk or night reading for any effect.
 
 ## Status 2026-09-12 — steps 0 and 1 DONE and live; step 2 BUILT, awaiting the owner
 
