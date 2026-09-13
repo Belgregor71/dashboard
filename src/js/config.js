@@ -2037,7 +2037,14 @@ window.CONFIG = {
     v3AtmoNightSky: true,
     // Rain moves in bursts (6 s, 8 s heavy) and the pane holds still between
     // (45-240 s by intensity); flag-off it falls continuously while it rains.
-    v3AtmoRainEpisodes: false,
+    // force({rain: "moderate"}), then fire("rain").
+    // Shown ON on the live wall 2026-09-13 by config interception: the paused
+    // pane still reads as rain (paused, never removed — no snap to the top);
+    // gpu 19.0 / renderer 5.5 between bursts, 19.6 / 5.3 with a burst every
+    // 15 s. The contrast gate is unaffected: a paused pane keeps its opacity.
+    // FLIPPED ON 2026-09-13. Rollback: v3AtmoRainEpisodes: false (read at boot —
+    // a kiosk cache-bypass reload).
+    v3AtmoRainEpisodes: true,
   },
 
   /* --------------------------------------------------------------
