@@ -48,6 +48,47 @@
   transition: opacity var(--m-calm) var(--ease), visibility 0s linear 0s;
 }
 
+/* ── The corner's own veil ──────────────────────────────────────────────────
+   ⚠ MEASURED 2026-09-13, PAID 2026-09-14 (owner's call: a scrim, not the ink).
+   The band's 32px --ink-dim lines read 2.78:1 at night over the sweep's white
+   ground with one room, and 1.61:1 with two — the second row lifts the stack to
+   y~0.37, where the gradient scrim has thinned, and the scrim is clamped at
+   SCRIM_MAX anyway. Textures OFF read the same, so it was the card's own debt.
+
+   Same answer as the vocabulary card and the wrapped line: the SOLVED opacity,
+   not an invented one. But not full bleed — the corner is one small thing on a
+   resting wall, and veiling the whole photograph to rescue it would be the
+   wrong trade. So it is a wash ANCHORED IN THE CORNER:
+
+   · Sized from the band's own box (+ the safe inset), times 2, so it grows with
+     a second room or a long title and never has to be re-measured by hand.
+   · `ellipse 100% 100%` puts the gradient's 100% EXACTLY on the box edges, so
+     it is transparent where the box ends. ⚠ A radius that overshot the box
+     would be clipped mid-alpha, and a clipped edge shows on the wall as a line
+     — the textures' first rectangular mask did exactly that.
+   · The far corner of the text sits at √2/2 ≈ 0.71 of the radius; the plateau
+     holds full strength to 0.74, so every glyph is under the solved opacity.
+
+   isolation + z-index -1 paints it under this band's own words and artwork and
+   nowhere else, and the band's opacity fades it with them. */
+.media-rooms { isolation: isolate; }
+.media-rooms::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  right: calc(-1 * var(--safe));
+  bottom: calc(-1 * var(--safe));
+  width: calc((100% + var(--safe)) * 2);
+  height: calc((100% + var(--safe)) * 2);
+  background: radial-gradient(
+    ellipse 100% 100% at 100% 100%,
+    color-mix(in oklch, var(--scrim-base) calc(var(--scrim-opacity) * 100%), transparent) 0%,
+    color-mix(in oklch, var(--scrim-base) calc(var(--scrim-opacity) * 100%), transparent) 74%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
 .mroom { display: flex; align-items: center; gap: var(--gutter); }
 
 .mroom__lines {

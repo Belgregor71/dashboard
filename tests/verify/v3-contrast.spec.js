@@ -160,44 +160,15 @@ const KNOWN_OPEN = [
     floor: 2.8,
     why: "--ink-faint under the presence rim (the token itself is lifted)"
   },
-  {
-    /* OPEN 2026-09-13 — FOUND, NOT CAUSED, by the flip of v3AtmoTextures. The
-       depth-0 media room had never been a surface in this sweep (see
-       "0-media-room" below). Its first measurement: the room line
-       (`p.mroom__where`, 32px --ink-dim) reads 2.78:1 over the WHITE ground at
-       NIGHT — and reads exactly 2.78:1 with every texture forced OFF, so it is
-       the card's own debt, not the weather's. The three other grounds clear AA
-       (worst 3.46 / 4.10 / 4.24), and so do the card's title and meta lines on
-       all four.
-       The fix is a design decision (the night --ink-dim over the card's ground,
-       or a scrim for the corner) and is the owner's, so it is recorded here with
-       its measured floor instead of being spent inside a flag flip. */
-    match: (m) => m.surface === "0-media-room" && m.selector.startsWith("p.mroom__where"),
-    floor: 2.7,
-    why: "media room's room line at night over the white bound (pre-existing; textures OFF reads the same)"
-  },
-  {
-    /* OPEN 2026-09-13 — the same finding at TWO rooms, and much worse. With a
-       second room the stack climbs to y~650, out of the scrim's strongest band,
-       and the 32px --ink-dim lines fail on EVERY ground: room line 1.61 / 1.79
-       / 2.43 / 2.43, meta line 2.27 / 2.45 over white. Controlled the same way:
-       textures OFF reads 1.63 / 1.83 / 2.46 / 2.50 — the textures cost at most
-       0.07, inside renderer noise. The card's own debt.
-       ⚠ This is the ARCHIVE-OFF path (this sweep pins v3Archive off, so the
-       ground is a full-bleed photograph). The live wall runs the archive, whose
-       dark mat sits under the corner — which is why it reads on the glass
-       today. It would not survive the archive being rolled back. Owner's call:
-       a scrim for the corner, or --ink-dim's use there. Floors at the measured
-       numbers with renderer slack, never below them. */
-    match: (m) => m.surface === "0-media-rooms-2" && m.selector.startsWith("p.mroom__where"),
-    floor: 1.55,
-    why: "two media rooms: the upper room line over a full-bleed photograph (pre-existing; textures OFF reads the same)"
-  },
-  {
-    match: (m) => m.surface === "0-media-rooms-2" && m.selector.startsWith("p.mroom__meta"),
-    floor: 2.2,
-    why: "two media rooms: meta line over the white bound (pre-existing; see the entry above)"
-  }
+  /* ── CLOSED 2026-09-14: the depth-0 media room's --ink-dim lines ────────────
+     Opened 2026-09-13, found (not caused) by the v3AtmoTextures flip: one room's
+     room line read 2.78:1 at night over white; two rooms put the upper room line
+     at 1.61-2.43 on every ground and the meta line at 2.27, textures OFF within
+     0.07 — the card's own debt on the archive-off path. Owner's call was a scrim
+     for the corner, not the ink: media.css `.media-rooms::before`, a corner
+     wash at the solved opacity. The three rows were deleted rather than their
+     floors raised, so any regression on those nodes now fails at AA like
+     anything else. */
 ];
 
 function knownOpen(m) {
