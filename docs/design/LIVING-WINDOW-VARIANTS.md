@@ -90,9 +90,14 @@ move, contrast-neutral — lightness is untouched by warmth, asserted) as the sk
 expression, and C's idea of the flash revealing structure, if a cheap form exists.
 It is the owner's call on the wall — this document is the evidence, not the verdict.
 
-## The §5.4 weather-episode row — DRAFT, for the owner to confirm
+## The §5.4 weather-episode row — WITHDRAWN (owner, 2026-09-14: "don't move the ceiling")
 
-The owner raised the ceiling for weather (2026-09-12). Measured, no direction needs it for a
+⛔ **Not written into `DESIGN_SYSTEM.md`, and not to be re-proposed.** The weather lives
+inside the existing rows: live sustained ≤ 25, peak ≤ 35. Every shipped step-3 effect
+measured inside ≤ 25, so nothing depends on a higher ceiling. The draft is kept below only as
+the record of what was declined.
+
+The owner had first raised the ceiling for weather (2026-09-12). Measured, no direction needs it for a
 **storm** (worst: B 22.6, inside the existing ≤ 25 live row). Proposed wording:
 
 > **Weather episode** — a live weather cause (rain falling, a storm with strikes): **≤ 30**

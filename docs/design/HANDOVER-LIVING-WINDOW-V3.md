@@ -146,8 +146,8 @@ its facts were corrected by measuring the wall.
   never in this public repo).
 - ⏳ **Owed: the flip.** `/flag-flip v3AtmoOverlay` — and first pin the flag AND force a
   weather state in `tests/verify/v3-contrast.spec.js`, or the sweep measures a layer that is
-  not there. Also still owed: the §5.4 weather-episode row (drafted, not written — no
-  direction needed it: A's worst was 19.4 against the existing ≤ 25).
+  not there. ~~Also still owed: the §5.4 weather-episode row~~ — **WITHDRAWN 2026-09-14,
+  owner: "don't move the ceiling".** The weather stays inside the existing ≤ 25 live row.
 
 ## What is missing from the wall
 
