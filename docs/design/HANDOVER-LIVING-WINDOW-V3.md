@@ -5,7 +5,7 @@ family 3). **Owner's decision: port as a design arc** — competing directions o
 real wall, each behind its own default-off V3 flag, GPU measured, flipped one at a time.
 Nothing below is built yet. Facts are cited; everything marked HYPOTHESIS is not probed.
 
-## ▶ Status 2026-09-13 — step 3 BUILT; four of five FLIPPED ON (rain bursts still OFF)
+## ▶ Status 2026-09-13 — step 3 BUILT; ALL FIVE FLIPPED ON (rain bursts last, `dd157dd`)
 
 Step 3 had not started when this was re-read on 2026-09-13 (the only commit after the
 flip was docs). It is now built as five flags, each read only while `v3AtmoOverlay` is
@@ -98,9 +98,16 @@ OFF and show each on the wall before any flip; rain moves in **bursts**.
 - **Night GPU/heap** (HOST-BASELINES, "the first real night"): 20.8 → 18.7 gpu across two
   samples, heap 3.9. Hand-firing 5 twinkles and 4 lightning sequences left
   dom/cdpNodes/listeners unchanged at 73/197/24.
+- ✅ **`v3AtmoRainEpisodes` FLIPPED ON (`dd157dd`), rollback proven on the panel.** The
+  pre-push suite passed 2079 with it on, and reversibility passes with it off.
+  - Main, forced moderate rain: the first burst runs with the rain. At 8 s the pane is up
+    and PAUSED, with the lane armed 105 s out. `fire("rain")` returns true.
+  - Served `false` under the same force, read at 9 s (past the first burst): the pane is
+    still running, with no `atmoRainEpisodes` attribute, no rain lane, and `fire` false.
+  - Baseline after the flip: heap 3.4 · dom 83 · listeners 17 · gpu 19.1 (night, 30 s).
 - ⏳ **Owed:**
-  - The last flip: `v3AtmoRainEpisodes`.
-  - The media-room legibility decision above.
+  - The media-room legibility decision above. The owner chose a scrim for the corner on
+    2026-09-14.
   - A lit-dusk reading. There is still no organic storm reading; it has to wait for weather.
   - The night sky's stars behind the date/weather rows are unmeasured by any gate (the
     sweep has no mat).
