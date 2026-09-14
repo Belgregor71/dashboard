@@ -1938,13 +1938,13 @@ window.CONFIG = {
 
     // The sun-dimmed hour (src/v3/core/sun-clock.js) — V3's form of the
     // incumbent's `ambientClock`, which V3 never read and never had (F1 flag
-    // census, family 4, 2026-09-11). The hour's opacity tracks the sun: 0.3 at
+    // census, family 4, 2026-09-11). The hour's opacity tracks the sun: 0.7 at
     // astronomical twilight (-18°) rising to 1 once the sun is 6° up, eased on
     // the hour's existing transition. Opacity only; no new motion.
-    // Shipped OFF. ⚠ Before flipping: a 0.3 hour at night is a contrast
-    // question for tests/verify/v3-contrast.spec.js, not just a look — measure it
-    // with the flag on, then /flag-flip v3SunClock. Rollback: -> false.
-    v3SunClock: false,
+    // FLIPPED ON 2026-09-14. The contrast sweep now pins it: the designed 0.3
+    // floor failed AA-large on every night ground (1.59-2.08:1), so the owner
+    // took a measured 0.7 (worst 3.11:1). Rollback: -> false.
+    v3SunClock: true,
 
     // Pause the substrate while the archive covers it (src/v3/main.js,
     // syncSubstrateCover). At depth 0 with v3Archive on, `.archive` is inset:0

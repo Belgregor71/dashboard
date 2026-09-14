@@ -3,6 +3,7 @@ import { existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { encodePng } from "../fixtures/png.js";
+import { CLOCK_DIM_DAY, CLOCK_DIM_NIGHT } from "../../src/v3/core/sun-clock.js";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -329,7 +330,12 @@ const PINNED_FLAGS = {
   v3Archive: false,
   v3AtmoOverlay: true,
   v3AtmoAccent: true,
-  v3AtmoTextures: true
+  v3AtmoTextures: true,
+  /* The sun-dimmed hour (2026-09-14). Night pins the sun below -18°, which is
+     the curve's floor — the dimmest hour it can ever paint — so the night half
+     of this sweep is its worst case. Its "force" is the phase pin itself, and
+     bootV3 asserts the dim actually landed rather than trusting the pin. */
+  v3SunClock: true
 };
 
 async function bootV3(page, { ground, phase }) {
@@ -387,6 +393,17 @@ async function bootV3(page, { ground, phase }) {
   // twice would pass for the wrong reason.
   const isNight = await page.evaluate(() => document.documentElement.dataset.night === "1");
   expect(isNight, `phase pin failed: expected night=${phase === "night"}`).toBe(phase === "night");
+
+  // v3SunClock: a pinned flag whose dim never landed would measure a full-
+  // strength hour and call it the dimmed one. Read the value the hour is set by.
+  const sunClock = await page.evaluate(() => ({
+    attr: document.documentElement.dataset.sunClock ?? null,
+    dim: document.documentElement.style.getPropertyValue("--clock-dim")
+  }));
+  expect(sunClock, "v3SunClock's pin did not take").toEqual({
+    attr: "1",
+    dim: (phase === "night" ? CLOCK_DIM_NIGHT : CLOCK_DIM_DAY).toFixed(3)
+  });
 
   /* The Living Window at its brightest: heavy rain AND full warmth. The wash is
      a warm light from above and the ink over it is light, so this is the worst

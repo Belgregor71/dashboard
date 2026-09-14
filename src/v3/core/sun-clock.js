@@ -17,7 +17,14 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export const CLOCK_DIM_DAY = 1;     // sun well up → V3's normal hour
-export const CLOCK_DIM_NIGHT = 0.3; // the small-hours floor — dim, never off
+/* The small-hours floor — dim, never off. ⚠ 0.3 → 0.7 (2026-09-14), MEASURED
+   rather than chosen: at the incumbent's 0.3 the night hour read 1.59–2.08:1 in
+   tests/verify/v3-contrast.spec.js — under AA-large on every night ground, even
+   over near-black, because 0.3 of --ink cannot clear 3:1 against anything. 0.55
+   still failed the white ground (2.53); 0.7 reads 3.11 white / 4.03 sky. The
+   owner took 0.7. ⚠ Its margin is 0.11 — lowering this is a contrast change,
+   and the sweep pins this flag to say so. */
+export const CLOCK_DIM_NIGHT = 0.7;
 export const CLOCK_ALT_DAY = 6;     // ° above the horizon mapped to CLOCK_DIM_DAY
 export const CLOCK_ALT_NIGHT = -18; // ° (astronomical twilight) mapped to CLOCK_DIM_NIGHT
 
