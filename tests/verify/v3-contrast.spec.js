@@ -896,6 +896,42 @@ const SURFACES = [
         window.__v3Fault({ id: "calendar", label: "Calendar not updating", text: "The calendar stopped updating." });
       })
   },
+  /* THE TIMER PILL (features.voiceTimers), top-right. Same exposure as the fault
+     pill — the top band has no scrim — and the same answer, its own ground. The
+     label is a long two-word name with a second timer behind it and an hours
+     clock, the widest pill core/timers.js paints. Driven through its seam, which
+     exists flag-off, so this is measured regardless of the shipped default.
+     #heard is put away first: the pill yields that corner to it. */
+  {
+    id: "0-timers",
+    requires: "#timers-time",
+    drive: (page) =>
+      page.evaluate(() => {
+        window.__setDepth(0, "sweep");
+        const heard = document.getElementById("heard");
+        if (heard) heard.hidden = true;
+        window.__v3Timers.paint({ ringing: false, label: "sourdough loaf", time: "1:02:30", more: 1 });
+      })
+  },
+  /* ⚠ AND RINGING, AT ITS DIMMEST FRAME. The done state breathes opacity 1 → 0.6,
+     and a screenshot lands on whichever frame it lands on — a number that moves
+     with the harness is not a measurement. So the animation is stopped and the
+     pill is held at the trough, where its ground is thinnest. */
+  {
+    id: "0-timers-ringing",
+    requires: "#timers[data-ringing='1'] #timers-time",
+    drive: (page) =>
+      page.evaluate(() => {
+        window.__setDepth(0, "sweep");
+        const heard = document.getElementById("heard");
+        if (heard) heard.hidden = true;
+        window.__v3Timers.paint({ ringing: true, label: "sourdough loaf", time: "Done", more: 1 });
+        const pill = document.getElementById("timers");
+        // compose.css @keyframes timers-ring trough — move together.
+        pill.style.animation = "none";
+        pill.style.opacity = "0.75";
+      })
+  },
   {
     id: "3-day",
     requires: ".subject--calendar .subject__row",

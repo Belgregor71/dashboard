@@ -627,7 +627,10 @@ html, body {
   border-color: color-mix(in oklch, var(--warm) 70%, transparent);
   animation: timers-ring 1.6s var(--ease) infinite alternate;
 }
-@keyframes timers-ring { from { opacity: 1; } to { opacity: 0.6; } }
+/* Trough 0.75, not deeper: at 0.6 the sweep measured the words 3.72:1 at night
+   (0-timers-ringing) — AA-large, but the thinnest margin on the wall for the one
+   moment this pill most needs reading. */
+@keyframes timers-ring { from { opacity: 1; } to { opacity: 0.75; } }
 @media (prefers-reduced-motion: reduce) {
   .timers[data-ringing="1"] { animation: none; }
 }
