@@ -34,7 +34,6 @@ dashboards. Round 1 chosen by the owner the same day: **camera "what did I miss"
 | Item | Source idea | Where it lands | Status |
 |---|---|---|---|
 | Voice timers & reminders | every commercial assistant; absent here (grep: no `timer`/`reminder` intents) | `voiceTimers` flag, local-intent lane | planned |
-| House exceptions — blank means fine | Timeframe (Hawksley, 2026-02) | `v3HouseExceptions` flag; rules in `.env` only | planned |
 | Moonshine v2 as a **shadow** STT engine | moonshine-ai/moonshine, arXiv 2602.12241 | `STT_SHADOW_ENGINE=moonshine` | planned |
 | livekit-wakeword as a **shadow** wake model | livekit.com/blog/livekit-wakeword (2026-04-06) | `WAKE_SHADOW_MODEL_PATH` | planned — gated on the ONNX loading in `openwakeword.Model` |
 | Camera caption timeline + arrival recap | LLM Vision v1.7 Timeline, Gemini for Home "Home Brief" | `cameraCaptions` flag; **local vision model on Mandragon only** | planned — Phase 0 measurement first |
@@ -45,6 +44,7 @@ dashboards. Round 1 chosen by the owner the same day: **camera "what did I miss"
 |---|---|---|---|
 | **LLM Vision v1.7.x** (HA integration) + Glimpse-v1 | https://github.com/valentinfrlch/ha-llmvision/releases (v1.7.2, 2026-09-03) | `get_events` timeline API; snapshot-based so it tolerates Eufy's flaky RTSP | Glimpse-v1 distribution and AMD speed are **UNVERIFIED**. Compare against the in-repo caption lane before adding an HA dependency |
 | **Frigate 0.18** | https://github.com/blakeblackshear/frigate/discussions/24252 (2026-09-12) | GenAI review summaries, threat labels, ROCm 7.2 for RDNA4 | Needs stable RTSP from six Eufy cams — measure stream uptime before anything else |
+| **House exceptions — blank means fine** | Timeframe https://hawksley.org/2026/02/17/timeframe.html | Only abnormal states surface (door open after dark), and quietly resolve | **PARKED by owner 2026-09-15.** A live read of `/api/ha/states` found NO door/window/garage/lock/washer sensors — the idea has nothing to read. What exists (NAS drive health, Eufy security mode, vacuum problems) was judged not worth a new lane. **Reopen when** door/garage contact sensors or an appliance power plug are added. Design sketch kept in the round-1 plan: rules in `.env` only, `last_changed` for the held duration (⚠ a re-stamp shortens it — safe direction), a pill in the fault pill's register |
 | **Distance-adaptive density** (mmWave) | Kinboard LD2410 support https://github.com/svenger87/kinboard ; Echo Show "adapts with distance" | Photo + sky from across the room, larger text within ~2 m — more useful glances with no touch | Owner **would buy** an LD2410 (2026-09-15). Round 2. Measure false presence from a ceiling fan / TV first |
 | **HA 2026.9 Active alerts** | https://www.home-assistant.io/blog/2026/09/02/release-20269/ | A user-curated "needs attention" set — a possible rule source for house exceptions | Not probed on this HA instance; check the HA version first |
 | **HA 2026.8 llama.cpp / OpenAI-compatible agents** | https://www.home-assistant.io/blog/2026/08/05/release-20268/ | A sanctioned local fallback via Mandragon instead of `llama3.2:1b` | llama.cpp #26663: Vulkan on 9070 XT 5–7× slower decode for hidden size ≥ 4096. Mandragon sleeps overnight |
@@ -56,6 +56,7 @@ dashboards. Round 1 chosen by the owner the same day: **camera "what did I miss"
 | **Next-hour rain line** | Timeframe | "Rain in ~20 min" matched to the rain-burst layer | Check whether the forecast week already carries this |
 | **Motion-burst grouping + one AI line** | Ring Video Descriptions https://ring.com/support/articles/97l0i | One caption per burst, not a popup per trigger | Folded into the camera caption lane |
 | **Per-speaker behaviour** | Alexa+ Voice ID; Apple home hub (**UNVERIFIED** rumour) | Once speaker ID lands: per-person agenda, reminders to the right person | Blocked on `docs/design/HANDOVER-SPEAKER-ID.md` |
+| **Family ETA while en route** | Waze Travel Time https://www.home-assistant.io/integrations/waze_travel_time/ | Shown only while someone is on the way; gone on arrival | ⚠ Corrected same day: the first sweep said no person entities exist — **wrong**; `server/services/occupancyDays.js` records two `person.*` entities measured on the G11, and `arrival.js` watches them; a live read of `/api/ha/states` on 2026-09-15 also shows 4 `device_tracker.*`. Measure first whether they carry GPS coordinates (companion app) or only home/not_home (router/zone) — ETA needs the former. Owner did not tick "HA app on phones" |
 | **Generated art for occasions only** | HA AI Task `generate_image`; Fraimic (CES 2026) | Rare = delightful; daily = noise | No local image model measured |
 
 ### DECLINED
@@ -64,7 +65,6 @@ dashboards. Round 1 chosen by the owner the same day: **camera "what did I miss"
 |---|---|---|
 | **QLD school-term awareness** | No children in the house (owner, 2026-09-15) | A school-age child in the house |
 | **Solar / Amber price nudge** | Owner did not tick "rooftop solar / Amber" when asked (2026-09-15) — confirm before treating as settled | Solar installed or an Amber account |
-| **Family ETA while en route** | Owner did not tick "HA app on family phones" (2026-09-15); repo has no `device_tracker`/`person.` use (grep) | `person.*` / `device_tracker.*` entities exist |
 | **Chore charts, streaks, rewards** (Skylight, Hearth) | Built for children and touch; a chore roster already exists | Children in the house |
 | **Speech-to-speech / realtime APIs** (Gemini Live, OpenAI Realtime) | Streams continuous room audio to a third party | Never on the guardrail as written |
 | **Wake-free proactive audio** | Same guardrail; the kitchen is noisy | Never on the guardrail as written |

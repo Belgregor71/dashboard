@@ -625,7 +625,10 @@ html, body {
 .timers[data-ringing="1"] {
   color: var(--ink);
   border-color: color-mix(in oklch, var(--warm) 70%, transparent);
-  animation: timers-ring 1.6s var(--ease) infinite alternate;
+  /* A COUNT, NOT `infinite` (tests/v3-archive.spec.js keeps unbound loops out of
+     this shared sheet). 58 × 1.6 s = 92.8 s, just past RING_TIMES × RING_EVERY_MS,
+     and even so `alternate` comes to rest at full opacity if it ever runs out. */
+  animation: timers-ring 1.6s var(--ease) 58 alternate;
 }
 /* Trough 0.75, not deeper: at 0.6 the sweep measured the words 3.72:1 at night
    (0-timers-ringing) — AA-large, but the thinnest margin on the wall for the one
