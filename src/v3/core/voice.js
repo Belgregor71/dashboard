@@ -31,6 +31,7 @@ import { showSubject } from "../subjects/index.js";
 import { renderVocabularyCard } from "./vocabulary-card.js";
 import { setSaidText } from "./spread.js";
 import { vetoCurrent, restoreLastVeto } from "./ground.js";
+import { handleTimerIntent } from "./timers.js";
 
 const LINGER_MS = 8_000;
 const DEIXIS_MS = 4_200;
@@ -565,7 +566,26 @@ export async function submit(text, { source = "unknown" } = {}) {
          to a wall with no picture on it is far more likely to be about
          something else, and pretending otherwise would answer the wrong
          question with a confident sentence. */
-      if (intent.id.startsWith("list.")) {
+      if (intent.id.startsWith("timer.") || intent.id === "reminder.set") {
+        /* Timers (features.voiceTimers). The same fall-through bargain the
+           veto makes: null means "not ours after all" — a bare "stop" with
+           nothing ringing is about the music — and the turn goes on to Assist.
+           An EMPTY string is the opposite: handled, and the right reply is
+           silence, because the thing that was asked for was quiet. */
+        const spoken = handleTimerIntent(intent);
+        if (spoken !== null) {
+          if (spoken) {
+            setPhase("speaking");
+            await say(spoken);
+            rememberReply(spoken);
+          } else {
+            setPhase("idle");
+          }
+          consecutiveFailures = 0;
+          endTurn(clean, spoken || undefined);
+          return { handled: true, lane: "local" };
+        }
+      } else if (intent.id.startsWith("list.")) {
         const spoken = await handleListWrite(intent, snap);
         if (spoken) {
           setPhase("speaking");

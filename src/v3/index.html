@@ -204,6 +204,17 @@
 
     <!-- What the house believes it heard, and the vocabulary it is teaching. -->
     <p class="heard" id="heard" hidden></p>
+
+    <!-- THE TIMER PILL (features.voiceTimers) — a running timer is a STATE, so
+         it takes the fault pill's idiom: measured, uppercase, its own ground.
+         Top-right, owner's choice 2026-09-15. ⚠ AFTER #heard ON PURPOSE: that
+         corner is the transcript's, and compose.css steps this pill out of the
+         way with a `.heard:not([hidden]) ~ .timers` rule, which only works for
+         a LATER sibling. core/timers.js is the only writer. -->
+    <p class="timers" id="timers" hidden>
+      <span class="timers__label" id="timers-label"></span>
+      <span class="timers__time" id="timers-time"></span>
+    </p>
     <div class="rail-slot"><p class="rail" id="rail" hidden></p></div>
   </main>
 

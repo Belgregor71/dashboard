@@ -76,6 +76,9 @@ const CANDIDATES = [
   { utterance: "show me the shopping list", weight: 1, when: (s) => (s.todos?.shopping?.length ?? 0) > 0 },
   { utterance: "show me the recipe", weight: 2, when: (s, d) => Boolean(s.menu) && d.hour >= 15 },
   { utterance: "what time is it", weight: 1 },
+  /* Cooking hours. Gated by features.voiceTimers through the matcher itself:
+     flag off, matchIntent claims nothing and the filter below drops it. */
+  { utterance: "set a timer for ten minutes", weight: 2, when: (s, d) => d.hour >= 16 && d.hour < 20 },
   { utterance: "brief me", weight: 2, when: (s, d) => d.hour < 10 }
 ];
 
@@ -92,7 +95,7 @@ function coolOut(s) {
 /* Utterances the lane cannot answer from data — they navigate or fire a
    routine — so answer() returns null for them by design and they must be
    allowed through the truth filter rather than silently dropped. */
-const ALWAYS_TRUE = new Set(["show.camera", "show.sky", "action.goodnight"]);
+const ALWAYS_TRUE = new Set(["show.camera", "show.sky", "action.goodnight", "timer.set"]);
 const NOT_DATA_BACKED = new Set(["brief me"]);
 
 /**

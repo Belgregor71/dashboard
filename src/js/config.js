@@ -924,6 +924,18 @@ window.CONFIG = {
     // Default-off pending the live round trip on the glass. One-line revert.
     voiceListWrites: false,
 
+    // Voice timers and reminders (src/v3/core/timers.js; docs/research/
+    // FIELD-SCAN.md round 1). "set a pasta timer for 12 minutes", "remind me
+    // in 20 minutes to check the oven", "how long left", "cancel the timer",
+    // and a bare "stop" while one is ringing. The local lane claims these
+    // BEFORE the mutation guard, because no other lane here can keep time.
+    // A running timer is a top-right pill at --t-rail; a finished one is said
+    // aloud, repeated every 30 s up to 3 times or until "stop" (owner's calls,
+    // 2026-09-15). Survives a reload via localStorage end times.
+    // Flag-off: the matcher never runs, "set a timer" falls through to Assist
+    // exactly as before, and the pill is never painted. One-line revert.
+    voiceTimers: false,
+
     // Living-window Phase 1 (plan: review-the-design-scheme) — rain on glass.
     // A shared episode runtime (services/atmoFx/) draws bounded droplet/streak
     // "moments" on a front canvas, then hides it: the GPU-0% ambient baseline

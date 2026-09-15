@@ -42,6 +42,7 @@ import { initAlerts, lastAlert } from "./core/alerts.js";
 import { initArrival, lastArrival } from "./core/arrival.js";
 import { initBriefingWindow, lastBriefing } from "./core/briefing-window.js";
 import { initHealth, lastHealth } from "./core/health.js";
+import { initTimers } from "./core/timers.js";
 import { initResolutions, lastResolution } from "./core/resolutions.js";
 import { initDisplay, onPanelDark, displayState } from "./core/display.js";
 import { initNowPlaying, nowPlayingState } from "./core/now-playing.js";
@@ -419,7 +420,7 @@ function boot() {
            through, and these are its four V3 callers. Literals, not the module
            names, for the reason this whole roster is assembled from literals:
            `grep -c bomCandidate dist/assets/v3-*.js` is 0. */
-        ...["alert", "arrival", "briefing", "voice"].map((lane) => `spoke:${lane}`)
+        ...["alert", "arrival", "briefing", "voice", "timer"].map((lane) => `spoke:${lane}`)
       ]
     });
   });
@@ -660,6 +661,12 @@ function boot() {
      where this one is the casualty is the boot with no voice to say so, which
      is why the console line in stage() is not redundant with it. */
   stage("health", () => initHealth());
+
+  /* Timers (features.voiceTimers). Its own pill, its own clock, no announce() —
+     so it needs nothing above it but the DOM. Initialised flag-off too, so the
+     `__v3Timers` seam exists for the contrast sweep; with the flag off it arms
+     nothing, restores nothing and the lane's handler declines every intent. */
+  stage("timers", () => initTimers({ enabled: flag("voiceTimers") }));
 
   /* The other half of the same story, and the opposite register. health.js says
      a thing is broken NOW, in a corner, as a state. This says a thing the house

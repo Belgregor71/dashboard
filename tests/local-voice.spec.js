@@ -483,7 +483,7 @@ test.describe("vocabulary — the house only offers what it can actually answer"
        tests/chore-roster.spec.js pins both directions of it. */
     const prior = globalThis.window;
     try {
-      globalThis.window = { CONFIG: { features: { choreRoster: true } } };
+      globalThis.window = { CONFIG: { features: { choreRoster: true, voiceTimers: true } } };
       const lost = ALL_CANDIDATES.filter((u) => !matchIntent(u) && u !== "brief me");
       expect(lost, `candidates the matcher cannot resolve: ${lost.join(", ")}`).toEqual([]);
     } finally {

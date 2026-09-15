@@ -638,6 +638,180 @@ function matchListWrite(text) {
   return null;
 }
 
+/* ── Timers and reminders ───────────────────────────────────────────────────
+   docs/research/FIELD-SCAN.md, round 1. The third principled exception to the
+   mutation guard, and the plainest of the three: "set a timer" and "remind me"
+   open with banned verbs, and NO other lane here can keep time. Assist's timers
+   live on voice satellites, not on a conversation posted from a browser, and
+   the model behind it would only sound like it had started one. The wall is
+   the only thing in this house with a clock it can ring.
+
+   ⚠ EVERY PATTERN NAMES A DURATION OR THE WORD TIMER/REMINDER, which is the
+   bound that makes taking these from Assist safe. "set the lounge to 22" names
+   neither and still goes to Assist.
+
+   ⚠ BARE "stop"/"ok"/"thanks" ARE CLAIMED AS `timer.cancel` WITH `bare: true`,
+   and the handler FALLS THROUGH unless a timer is actually ringing — the same
+   bargain the photograph veto makes with an empty ground. "stop" said while the
+   music plays must still reach Assist, and the matcher is pure, so it cannot
+   know which one was meant; the lane that owns the ringing does.
+
+   Relative durations only. "remind me at five" needs a wall clock and a day,
+   which is the day-slot machinery's problem — declined here, so it falls
+   through to a lane that can reason about it rather than being guessed. */
+
+const NUMBER_WORDS = {
+  a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
+  eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13,
+  fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18,
+  nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60,
+  seventy: 70, eighty: 80, ninety: 90
+};
+
+const UNIT_MS = { second: 1_000, minute: 60_000, hour: 3_600_000 };
+
+const NUM = "(?:\\d+|(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:[ -](?:one|two|three|four|five|six|seven|eight|nine))?|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen)";
+const UNIT = "(?:hours?|hrs?|minutes?|mins?|seconds?|secs?)";
+/* One or more "<n> <unit>" parts, optionally "and a half", joined by "and".
+   "half an hour" and "an hour and a half" are the two forms nobody says with
+   a number in them. */
+const DURATION = `(?:half an hour|(?:${NUM})(?:[ -]and a half)?[ -]${UNIT}(?: and a half)?(?:(?: and)? (?:${NUM})[ -]${UNIT})*)`;
+
+function wordNumber(raw) {
+  if (/^\d+$/.test(raw)) return Number(raw);
+  const parts = raw.split(/[ -]/);
+  let total = 0;
+  for (const p of parts) {
+    if (!(p in NUMBER_WORDS)) return null;
+    total += NUMBER_WORDS[p];
+  }
+  return total;
+}
+
+function unitMs(raw) {
+  if (raw.startsWith("h")) return UNIT_MS.hour;
+  if (raw.startsWith("m")) return UNIT_MS.minute;
+  return UNIT_MS.second;
+}
+
+/**
+ * "12 minutes", "an hour and a half", "1 hour 30 minutes" → milliseconds, or
+ * null for anything it cannot read exactly. Pure; exported for the tests.
+ */
+export function parseDuration(raw) {
+  const text = String(raw ?? "").trim();
+  if (!text) return null;
+  if (text === "half an hour") return 30 * UNIT_MS.minute;
+  const partRe = new RegExp(`(${NUM})([ -]and a half)?[ -](${UNIT})( and a half)?`, "g");
+  let total = 0;
+  let found = false;
+  for (const m of text.matchAll(partRe)) {
+    const n = wordNumber(m[1]);
+    if (n === null) return null;
+    const unit = unitMs(m[3]);
+    total += (n + (m[2] || m[4] ? 0.5 : 0)) * unit;
+    found = true;
+  }
+  return found && total > 0 ? Math.round(total) : null;
+}
+
+/* A name for the timer, if the room gave one: "a pasta timer", "a timer for
+   the pasta". Short on purpose — it is printed in an uppercase pill. */
+function timerLabel(raw) {
+  const label = cleanItem(raw).replace(/\s+timer$/, "");
+  if (!label || /^(?:a|an|the|my|new|another|it|that|this)$/.test(label)) return null;
+  if (label.split(" ").length > 3) return null;
+  return label;
+}
+
+const SET_VERB = `${POLITE}(?:set|start|make|put on)(?: me)?`;
+
+/* Group numbers per pattern, read by name — the four shapes put the duration
+   and the name in different places, and guessing from the captured text is how
+   "a 10 minute timer" once became a timer named "10 minute". */
+const TIMER_SET_PATTERNS = [
+  // "set a timer for 10 minutes (for the pasta)" · "start a pasta timer for 10 minutes"
+  { re: new RegExp(`^${SET_VERB} (?:a |an |the |another )?(?:(.{1,30}?) )?timer (?:for |of )?(${DURATION})(?: for (?:the )?(.{1,30}))?$`), name: 1, dur: 2, tail: 3 },
+  // "set a 10 minute timer (for the pasta)" · "set a 10 minute pasta timer"
+  { re: new RegExp(`^${SET_VERB} (?:a |an )?(${DURATION}) (?:(.{1,30}?) )?timer(?: for (?:the )?(.{1,30}))?$`), dur: 1, name: 2, tail: 3 },
+  // "timer for 10 minutes" · "10 minute timer"
+  { re: new RegExp(`^timer (?:for )?(${DURATION})(?: for (?:the )?(.{1,30}))?$`), dur: 1, tail: 2 },
+  { re: new RegExp(`^(${DURATION}) (?:(.{1,30}?) )?timer$`), dur: 1, name: 2 }
+];
+
+/* "set a timer" with no duration. Claimed rather than declined: the fall-through
+   is a lane that cannot keep time and would only sound like it had, and the
+   honest answer teaches the phrasing that works. */
+const TIMER_SET_BARE_RE = new RegExp(`^${SET_VERB} (?:a |an |the |another )?(?:(.{1,30}?) )?timer$`);
+
+const REMINDER_PATTERNS = [
+  // "remind me in 20 minutes to check the oven"
+  { re: new RegExp(`^${POLITE}remind (?:me|us) in (${DURATION}) (?:to |that |about )(.{1,80})$`), dur: 1, what: 2 },
+  // "remind me to check the oven in 20 minutes"
+  { re: new RegExp(`^${POLITE}remind (?:me|us) (?:to |that |about )(.{1,80}?) in (${DURATION})$`), dur: 2, what: 1 }
+];
+
+/* ⚠ NO "what's left on" and NO "how long on the": the first is the shopping
+   list's phrasing and the second is the commute's. Every alternative here says
+   "left"/"remaining" about time, or says "timer". */
+const TIMER_QUERY_RE =
+  /^(?:how (?:long|much time)(?:'s| is)?(?: is)? (?:left|remaining)|how long (?:left|to go)|what timers|how's the \w+ timer)\b|\btimers? (?:left|remaining|running|going|on)\b|\b(?:left|remaining) on (?:the |my )?(?:\w+ ){0,2}(?:timer|reminder)\b/;
+
+const TIMER_CANCEL_RE =
+  /^(?:please )?(?:cancel|stop|clear|delete|remove|turn off|kill|never mind|forget)(?: all)? (?:the |my |that |all )?(?:(.{1,30}?) )?(timers?|reminders?|alarm)(?: please)?$/;
+
+const TIMER_BARE_STOP_RE =
+  /^(?:stop|ok|okay|thanks|thank you|got it|alright|all right|shut up|quiet|enough|dismiss)(?: (?:thanks|thank you|please))?$/;
+
+function matchTimer(text) {
+  if (!featureOn("voiceTimers")) return null;
+
+  for (const { re, dur, name, tail } of TIMER_SET_PATTERNS) {
+    const m = text.match(re);
+    if (!m) continue;
+    const ms = parseDuration(m[dur]);
+    if (ms === null) continue;
+    const label = timerLabel((name && m[name]) || (tail && m[tail]) || "");
+    return { id: "timer.set", slots: { ms, label } };
+  }
+  const bare = text.match(TIMER_SET_BARE_RE);
+  if (bare) return { id: "timer.set", slots: { ms: null, label: timerLabel(bare[1] ?? "") } };
+
+  for (const { re, dur, what } of REMINDER_PATTERNS) {
+    const m = text.match(re);
+    if (!m) continue;
+    const ms = parseDuration(m[dur]);
+    const task = cleanItem(m[what]);
+    if (ms === null || !task) continue;
+    return { id: "reminder.set", slots: { ms, text: task } };
+  }
+
+  const cancel = text.match(TIMER_CANCEL_RE);
+  if (cancel) {
+    return {
+      id: "timer.cancel",
+      slots: {
+        all: /\ball\b|timers|reminders/.test(text),
+        label: timerLabel(cancel[1] ?? ""),
+        kind: /remind/.test(cancel[2]) ? "reminder" : "timer",
+        // "turn off the alarm" said with nothing running is not necessarily
+        // about this lane; "cancel the timer" is, and deserves an answer.
+        named: /timer|remind/.test(cancel[2]),
+        bare: false
+      }
+    };
+  }
+  if (TIMER_BARE_STOP_RE.test(text)) {
+    return { id: "timer.cancel", slots: { all: false, label: null, kind: "timer", named: false, bare: true } };
+  }
+
+  if (TIMER_QUERY_RE.test(text)) {
+    const named = text.match(/\b(?:the|my) (\w+(?: \w+)?) timer\b/);
+    return { id: "timer.query", slots: { label: named ? timerLabel(named[1]) : null } };
+  }
+  return null;
+}
+
 /* Which undo was meant. "bring back that photo" names a photograph; a bare
    "undo that" names whichever local change happened last, and the caller is the
    only thing that knows what that was. */
@@ -668,6 +842,10 @@ export function matchIntent(raw) {
   // After the photograph patterns: "delete this photo" is a photograph.
   const listWrite = matchListWrite(text);
   if (listWrite) return listWrite;
+  // After the list writes ("put on" is not a timer when a list is named) and
+  // before the guard, which would otherwise decline "set" and "remind".
+  const timer = matchTimer(text);
+  if (timer) return timer;
   if (MUTATION_RE.test(text)) return null;
 
   // "show me the driveway" and friends resolve first when a camera is named,
@@ -741,5 +919,9 @@ export const ACTING_INTENT_IDS = Object.freeze([
   "photo.veto",
   "photo.restore",
   ...new Set(LIST_WRITE_PATTERNS.map((p) => p.id)),
-  "list.undo"
+  "list.undo",
+  "timer.set",
+  "timer.cancel",
+  "timer.query",
+  "reminder.set"
 ]);

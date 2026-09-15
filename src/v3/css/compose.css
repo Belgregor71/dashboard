@@ -569,6 +569,72 @@ html, body {
   z-index: 1;                    /* above a subject's veil, never under it */
 }
 
+/* ── The timer pill (features.voiceTimers) ──────────────────────────────────
+   A running timer is a STATE the room asked for, so it takes the fault pill's
+   material — its own ground, measured face, uppercase — but NOT the fault's
+   24px FYI size. The owner shrank the fault because nobody asked for it; a
+   countdown somebody set is read from the stove, so it stays at --t-rail, the
+   floor, and the digits are tabular so a ticking second never shifts the box.
+
+   Top-right (owner, 2026-09-15). ⚠ THAT CORNER IS THE TRANSCRIPT'S, so the pill
+   steps out while `.heard` is on the glass and comes back when it lingers off —
+   seconds, against a timer's minutes. Stands down at depth 3 with the fault,
+   where a subject owns the frame.
+
+   `.timers[hidden]` is not redundant, for the reason `.fault[hidden]` gives:
+   `display: inline-flex` beats the UA sheet's `[hidden]`. */
+.timers {
+  position: absolute;
+  right: var(--safe);
+  top: var(--safe);
+  z-index: 1;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 16px;
+  margin: 0;
+  padding: 8px 20px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--surface-sunk) 92%, transparent);
+  border: 1px solid color-mix(in oklch, var(--ink-dim) 25%, transparent);
+  font-family: var(--font-measured);
+  font-optical-sizing: auto;
+  font-variation-settings: "GRAD" var(--grade);
+  font-size: var(--t-rail);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  white-space: nowrap;
+  max-width: calc(50% - var(--safe));
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.timers[hidden] { display: none; }
+.timers__time {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+/* Done: the border takes the warm signal, the words take full ink, and the
+   pill breathes (owner's choice, 2026-09-15: "the pill pulses"). ⚠ BOUNDED BY
+   CONSTRUCTION — ringing lasts at most RING_TIMES × RING_EVERY_MS (90 s) before
+   core/timers.js settles it, and a hidden pill runs no animation. Opacity only,
+   one small composited layer: nothing like the whole-document restyle a custom
+   property transition costs on the G11. */
+.timers[data-ringing="1"] {
+  color: var(--ink);
+  border-color: color-mix(in oklch, var(--warm) 70%, transparent);
+  animation: timers-ring 1.6s var(--ease) infinite alternate;
+}
+@keyframes timers-ring { from { opacity: 1; } to { opacity: 0.6; } }
+@media (prefers-reduced-motion: reduce) {
+  .timers[data-ringing="1"] { animation: none; }
+}
+/* `visibility`, not opacity: the ringing animation owns opacity and would win. */
+.heard:not([hidden]) ~ .timers { visibility: hidden; }
+:root[data-depth="3"] .timers { display: none; }
+
 /* ── The vocabulary rail ────────────────────────────────────────────────────
    One line. Never two, never a list. It teaches the house's vocabulary over
    weeks by example rather than dumping a menu nobody reads.
