@@ -1091,11 +1091,18 @@
    room is being told about in words at the same instant. An empty 74px band in a
    corner is invisible; a media block that jumps is not.
 
-   74 = the pill's own height (32 of type on a 1 line-height, 10 and 10 of
-   padding, 1 and 1 of border = 54) plus 20 of air. It moves with the pill's
-   padding in compose.css. */
-:root[data-arch-plane="1"][data-archive="1"][data-depth="0"] .now-playing {
-  bottom: calc(var(--safe) + 74px);
+   58 = the pill's own height (24 of type on a 1 line-height, 6 and 6 of
+   padding, 1 and 1 of border = 38) plus 20 of air. It moves with the pill's
+   type and padding in compose.css.
+
+   ⚠⚠ `.media-rooms` IS LISTED TOO, AND FOR A MONTH IT WAS NOT. v3MediaRooms
+   replaced `.now-playing` on the wall, so this lift had been moving an element
+   that never mounts while the live band sat at the bare safe inset — and the
+   pill painted over "S1 E5" on 09-14, twice. The spec that guarded it measured
+   the unmounted `.now-playing`, whose empty box passed. */
+:root[data-arch-plane="1"][data-archive="1"][data-depth="0"] .now-playing,
+:root[data-arch-plane="1"][data-archive="1"][data-depth="0"] .media-rooms {
+  bottom: calc(var(--safe) + 58px);
 }
 
 /* ── Night ──────────────────────────────────────────────────────────────────
@@ -1128,7 +1135,7 @@
                    moved, i.e. on top of it
      the hour      or it rides 62px high with nothing beneath it, for a caption
                    that is not on the glass
-     what's playing  or it floats 74px up for a pill that is elsewhere
+     what's playing  or it floats 58px up for a pill that is elsewhere
 
    ⚠ Found by asking what the flag-off surface looks like — the reduced-motion
    surface IS the flag-off surface, so anything this composition changes outside
@@ -1146,7 +1153,8 @@
   :root[data-arch-plane="1"][data-archive="1"][data-depth="0"] {
     --hour-lift: 0px;
   }
-  :root[data-arch-plane="1"][data-archive="1"][data-depth="0"] .now-playing {
+  :root[data-arch-plane="1"][data-archive="1"][data-depth="0"] .now-playing,
+  :root[data-arch-plane="1"][data-archive="1"][data-depth="0"] .media-rooms {
     bottom: var(--safe);
   }
 }

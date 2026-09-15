@@ -381,20 +381,30 @@ html, body {
      the message: 28px of side padding to 22, 12 to 10 above and below, the gap
      from 16 to 12 and the dot from 16 to 12. ~20% less pill for the same
      sentence, which is the half of "too big" that could honestly be given. The
-     other half was the CORNER, and archive.css answers that one. */
-  gap: 12px;
+     other half was the CORNER, and archive.css answers that one.
+
+     ⚠⚠ AND THEN THE TYPE DID MOVE, 2026-09-15 — BELOW THE FLOOR, ON PURPOSE.
+     Owner: "reduce the size of the pill - should be only an FYI". That is the
+     register call the floor argument above was guarding, made by the person
+     entitled to make it: an FYI does not have to be received from across the
+     room. The DOT still is, and a curious eye walks over to read the words.
+     This is the ONE element allowed under --t-rail; it earns it because it
+     carries its own ground (~6.7:1, clear of AA-normal's 4.5), not because the
+     floor has stopped mattering anywhere else. 24px on 6/14 padding, weight 400,
+     a quieter border and an 8px dot: 38px of pill against the old 54. */
+  gap: 8px;
   margin: 0;
-  padding: 10px 22px;
+  padding: 6px 14px;
   border-radius: 999px;
   background: color-mix(in oklch, var(--surface-sunk) 92%, transparent);
-  border: 1px solid color-mix(in oklch, var(--error) 42%, transparent);
+  border: 1px solid color-mix(in oklch, var(--error) 30%, transparent);
   font-family: var(--font-measured);
   font-optical-sizing: auto;
   font-variation-settings: "GRAD" var(--grade);
-  font-size: var(--t-rail);
-  font-weight: 500;
+  font-size: 24px;
+  font-weight: 400;
   line-height: 1;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-dim);
   /* One line, always. A wrapped pill has stopped being a pill, and health.js
@@ -414,8 +424,8 @@ html, body {
    grounds that a wall reporting lateness teaches the room to ignore it). */
 .fault__dot {
   flex: none;
-  width: 12px;
-  height: 12px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--error);
 }

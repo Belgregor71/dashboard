@@ -406,16 +406,17 @@ test.describe("the fault pill", () => {
 
     expect(type.family).toContain("Roboto Flex");
     expect(type.family).not.toBe(type.saidFamily);
-    // --t-rail, the floor of the whole system. Not below it, and not above it.
-    expect(type.size).toBe("32px");
+    // An FYI, not a rail label (owner 2026-09-15): the one element under
+    // --t-rail, which it can afford because it carries its own ground.
+    expect(type.size).toBe("24px");
     expect(type.transform).toBe("uppercase");
     // Top-left at the safe inset: the corner a subject's title owns at depth 3
     // and nothing owns at 0-2.
     expect(type.top).toBe(96);
     expect(type.left).toBe(96);
-    // One line. A wrapped pill has stopped being a pill — 32px of text plus
-    // 12px padding either side plus the hairline is 58.
-    expect(type.height).toBeLessThan(70);
+    // One line, and small. 24px of text plus 6px padding either side plus the
+    // hairline is 38; the old pill was 54, so this also fails if it grows back.
+    expect(type.height).toBeLessThan(46);
   });
 
   test("a healthy house shows no pill at all", async ({ page }) => {

@@ -1592,6 +1592,24 @@ test("the card's PAINTED rect clears the date above it and the hour below", asyn
      zero-height caption can never again satisfy a clearance check. */
   await expect.poll(() => page.evaluate(() => window.__archive().line)).not.toBeNull();
 
+  /* ⚠⚠ THE MEDIA BAND IS MOUNTED WITH A REAL ROOM BEFORE IT IS MEASURED.
+     FOUND ON THE WALL, 2026-09-14: this probe used to read `.now-playing`, which
+     v3MediaRooms stops mounting — so it measured an EMPTY box that the lift had
+     moved, and passed, while the band the room actually sees sat at the bare
+     safe inset under the pill ("S1 E5" covered, twice). The live tenant of the
+     corner is `.media-rooms`, and it has to have a row in it or its rect is the
+     same vacuous zero-height box. */
+  await page.evaluate(() =>
+    window.__v3MediaRoomsSet({
+      mediaRooms: [{
+        room: "Lounge Room", cell: "plex", kind: "video", contentType: "episode",
+        title: "High Potential", meta: "S1 E5", image: null,
+        position: 797.9, duration: 2560.5, readingAt: Date.now()
+      }]
+    })
+  );
+  await expect.poll(() => page.locator("#media-rooms .mroom").count()).toBe(1);
+
   const probe = await page.evaluate(() => {
     const fault = document.getElementById("fault");
     document.getElementById("fault-label").textContent = "MOTION COVERAGE DOWN";
@@ -1604,7 +1622,7 @@ test("the card's PAINTED rect clears the date above it and the hour below", asyn
       card: r(".archive__card-plane"),
       hour: r("#hour"),
       caption: r(".archive__plate"),
-      media: r(".now-playing")
+      media: r("#media-rooms")
     };
   });
 
@@ -1622,10 +1640,12 @@ test("the card's PAINTED rect clears the date above it and the hour below", asyn
   expect(probe.fault.left, "the pill is still in the left half of the wall")
     .toBeGreaterThan(960);
 
-  /* BELOW THE MEDIA, not on top of it. `.now-playing` is lifted by exactly the
+  /* BELOW THE MEDIA, not on top of it. The band is lifted by exactly the
      pill's height plus its air, whether or not there is a fault — a lift that
      depended on the pill being visible would move the artwork up the wall at the
-     moment a feed went down. */
+     moment a feed went down. The height guard first: an empty band's top IS its
+     bottom, and that satisfies this check at any position. */
+  expect(probe.media.height, "the media band has no row in it").toBeGreaterThan(40);
   expect(
     probe.fault.top,
     `pill starts at y${Math.round(probe.fault.top)}, media ends at y${Math.round(probe.media.bottom)}`
@@ -2226,17 +2246,19 @@ test("all THREE things the plane moves outside its layer are undone under reduce
        the pill        or it sits bottom-right on top of a media block that has
                        not moved
        the hour        or it rides 62px high for a caption that is not there
-       what's playing  or it floats 74px up for a pill that is elsewhere
+       what's playing  or it floats 58px up for a pill that is elsewhere
 
      The reduced-motion surface IS the flag-off surface. This test is the reason
-     the second and third were not forgotten: it had already caught the first. */
+     the second and third were not forgotten: it had already caught the first.
+     "What's playing" is TWO tenants — `.now-playing` and `.media-rooms`, the one
+     v3MediaRooms actually mounts — and both are lifted, so both are undone. */
   const reduced = css().slice(css().lastIndexOf("prefers-reduced-motion"));
   expect(reduced).toMatch(/\.fault\s*\{\s*top:\s*var\(--safe\)/);
   // Both axes: a pill returned to `top` but left on `right` is still in the
   // wrong corner, and `top: var(--safe)` alone would say it was fixed.
   expect(reduced).toMatch(/left:\s*var\(--safe\)/);
   expect(reduced).toMatch(/--hour-lift:\s*0px/);
-  expect(reduced).toMatch(/\.now-playing\s*\{\s*bottom:\s*var\(--safe\)/);
+  expect(reduced).toMatch(/\.now-playing,\s*[^{]*\.media-rooms\s*\{\s*bottom:\s*var\(--safe\)/);
 });
 
 /* ═══ A TALL PRINT GOES INTO THE MIDDLE, ON THE GLASS ═══════════════════════
