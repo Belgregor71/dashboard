@@ -284,6 +284,18 @@ current field changes this materially.
 |---|---|---|---|---|
 | 1 | **Smart Turn v3** as `CAPTURE_VAD=smart` | "it cuts me off / waits too long" | 8 MB file, no new stack | systemd drop-in, no deploy |
 | 2 | **STT shadow measurement**, then decode hardening, then Moonshine *if warranted* | "it mishears me" | none, then none, then a model swap behind an unchanged HTTP contract | env var + restart |
+
+> **2026-09-15 — the shadow has been read, and Moonshine is now a third opinion rather
+> than a rumour.** 47 comparisons in the journal since 08-22: **33 same, 14 DIFF**. The
+> live `base.en` heard *"show me the recipe for tonight"* as **"Shown me the rest of
+> people tonight"** and *"not this one"* as **"no at least one"** on three separate
+> nights — both utterances the local lane is meant to claim. `small.en` won those;
+> `base.en` won others, so **no live swap is warranted yet**. What changed is the
+> instrument: `STT_SHADOW_ENGINE=moonshine` (stt_server.py) runs moonshine-voice as the
+> shadow at **RTF 0.22–0.36 on ONE core** against small.en's 0.41–0.73 on two, so the
+> comparison stops costing 6–7 s of the box's CPU per turn. ⚠ It must be forced
+> single-threaded — see the measurement in `deploy/voice-stt.service` and
+> `docs/research/FIELD-SCAN.md`. Numbers are SPEED ONLY; accuracy stays the journal's job.
 | 3 | **Speaker ID** in `stt_server.py` | "it doesn't know who's talking" | 25 MB model, an enrolment flow, one optional response field threaded through 4 files | env var + restart |
 | 4 | **Retrain `hey mycroft` on livekit-wakeword**, then lower the barge bar from the probe | barge-in never fires | a training run; drop-in ONNX | keep both model files, env var |
 | 5 | **Spoken permission gate** on the tool lane | the house claims it turned on a light that ignored the call | copy + a state re-read | flag |

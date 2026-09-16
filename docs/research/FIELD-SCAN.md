@@ -34,9 +34,49 @@ dashboards. Round 1 chosen by the owner the same day: **camera "what did I miss"
 | Item | Source idea | Where it lands | Status |
 |---|---|---|---|
 | Voice timers & reminders | every commercial assistant; absent here (grep: no `timer`/`reminder` intents) | `voiceTimers` flag, local-intent lane | planned |
-| Moonshine v2 as a **shadow** STT engine | moonshine-ai/moonshine, arXiv 2602.12241 | `STT_SHADOW_ENGINE=moonshine` | planned |
+| Moonshine v2 as a **shadow** STT engine | moonshine-ai/moonshine, arXiv 2602.12241 | `STT_SHADOW_ENGINE=moonshine` | **built + measured on the G11**; awaiting the owner's service restart (see below) |
 | livekit-wakeword as a **shadow** wake model | livekit.com/blog/livekit-wakeword (2026-04-06) | `WAKE_SHADOW_MODEL_PATH` | planned — gated on the ONNX loading in `openwakeword.Model` |
 | Camera caption timeline + arrival recap | LLM Vision v1.7 Timeline, Gemini for Home "Home Brief" | `cameraCaptions` flag; **local vision model on Mandragon only** | planned — Phase 0 measurement first |
+
+### Measured on the box, 2026-09-15 — moonshine, and what the OLD shadow had been saying
+
+**🔑 The 24 days of shadow logs nobody had read.** `STT_SHADOW_MODEL=small.en` has been
+running since 2026-08-22 and the journal holds **47 comparisons: 33 same, 14 DIFF (30%)**.
+The disagreements are not cosmetic — the LIVE model (`base.en`) produced:
+
+- `"Shown me the rest of people tonight"` where the shadow had *"show me the recipe for tonight"*
+- `"no at least one"`, `"nope this one"`, `"not this"` for what is plainly *"not this one"* — the
+  photograph veto, three separate nights
+- `"showing what's flying"` for *"show me what's flying"*
+
+Two of those are utterances the local lane is supposed to claim, so a mishearing there is a
+turn that falls through to a slower lane or does nothing. `base.en` won some too
+(*"what's for dinner tomorrow"*, *"show me what's playing"*), so this is **not yet a verdict
+on which model to run live** — it is the first evidence that the transcriber, not the
+grammar, is a real limit. A third opinion is the cheapest next fact.
+
+**Moonshine, measured here** (two bundled human recordings, **speed only**; accuracy comes
+from the journal, never from a bench — the house rule about synthetic audio still stands):
+
+| engine | RTF | cores | RSS |
+|---|---|---|---|
+| moonshine base | 0.11–0.16 | 1 | ~550 MB |
+| moonshine small-streaming | 0.22–0.36 | 1 | ~630 MB |
+| whisper small.en (today's shadow) | 0.41–0.73 | 2 | ~865 MB |
+| whisper base.en (today's live) | 0.09–0.15 | 4 | ~365 MB |
+
+🔑🔑 **`MOONSHINE_ORT_SINGLE_THREAD=1` IS NOT A TUNING KNOB, IT IS A GUARDRAIL.** Left alone,
+ONNX Runtime took **~6.5 of this box's 8 cores** — and it **escaped `taskset -c 6,7`**,
+because it pins its own pool. Forced single-threaded it ran on exactly 1.0 core and was **no
+slower** (it had been spinning). On the box that also renders the wall, that is the whole
+difference between a safe shadow and a stutter. `stt_server.py` sets it before the library
+loads; `STT_SHADOW_THREADS` does not apply to this engine.
+
+⚠ `moonshine-voice` is installed in the G11's STT venv (adds only — numpy 2.5.2 and
+onnxruntime 1.28.0 untouched), and the new `stt_server.py` is staged there. **The shadow is
+NOT running yet**: the engine is chosen in a root-owned systemd drop-in, and `sudo` here is
+passwordless for four commands that do not include it. The owner's two lines are in the
+session handover.
 
 ### CANDIDATE
 

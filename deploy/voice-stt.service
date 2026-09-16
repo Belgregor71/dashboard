@@ -62,6 +62,32 @@ Environment=OMP_NUM_THREADS=4
 # base.en int8 is ~75 MB and small.en ~250 MB, so the pair is comfortable — but
 # check `systemctl status voice-stt` for an OOM kill after enabling it, because
 # the failure mode of that cap is a restart loop, i.e. a deaf house.
+#
+# ── The moonshine shadow (2026-09-15) ────────────────────────────────────────
+# A THIRD opinion, and a much cheaper one. STT_SHADOW_ENGINE=moonshine runs
+# moonshine-voice (pip, MIT) instead of a second faster-whisper; STT_SHADOW_MODEL
+# then names its arch (tiny · base · tiny-streaming · base-streaming ·
+# small-streaming · medium-streaming).
+#
+# Environment=STT_SHADOW_ENGINE=moonshine
+# Environment=STT_SHADOW_MODEL=small-streaming
+#
+# ⚠⚠ IT IS FORCED TO ONE CORE, and that is measured rather than tidy. The native
+# library exposes no thread count and ONNX Runtime took ~6.5 of this box's 8
+# cores by default — escaping `taskset` too, because it pins its own pool. With
+# MOONSHINE_ORT_SINGLE_THREAD=1 (stt_server.py sets it before the library loads)
+# the same files ran on exactly 1.0 core and were NO SLOWER. STT_SHADOW_THREADS
+# does not apply to this engine.
+#
+# Measured on this box, 2026-09-15, two bundled human recordings, SPEED ONLY —
+# accuracy is what the journal's agreement lines are for:
+#   moonshine base            RTF 0.11-0.16   1 core   ~550 MB RSS
+#   moonshine small-streaming RTF 0.22-0.36   1 core   ~630 MB RSS
+#   whisper small.en (today)  RTF 0.41-0.73   2 cores  ~865 MB RSS
+#
+# ⚠ THE 2 GB CAP IS THE THING TO WATCH: base.en + moonshine small-streaming is
+# roughly 1 GB resident. medium-streaming (~980 MB on its own) is the one to
+# think twice about.
 
 # Same bounding as voice-tts.service. Measured under a pathologically sustained
 # transcription loop: gpu-process 5.1, renderer 5.3, substrateFps 15, pressure

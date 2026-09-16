@@ -14,7 +14,7 @@ Config via env: STT_MODEL (base.en), STT_DEVICE (cpu), STT_COMPUTE (int8),
                 STT_HOST (0.0.0.0), STT_PORT (8123), STT_BEAM (5),
                 STT_CONDITION_PREV, STT_NO_SPEECH, STT_TEMPERATURE,
                 STT_HOTWORDS_FILE, STT_SHADOW_MODEL, STT_SHADOW_COMPUTE,
-                STT_SHADOW_THREADS.
+                STT_SHADOW_THREADS, STT_SHADOW_ENGINE.
 
 ⚠ EVERY KNOB ADDED AFTER STT_BEAM IS UNSET BY DEFAULT AND ADDS NOTHING TO THE
 DECODE CALL WHEN UNSET. That is deliberate: `decode_kwargs()` starts empty and
@@ -120,6 +120,23 @@ SHADOW_COMPUTE = os.environ.get("STT_SHADOW_COMPUTE", COMPUTE)
 # where base.en still runs comfortably under real time.
 SHADOW_THREADS = int(os.environ.get("STT_SHADOW_THREADS", "2"))
 
+# Which ENGINE the shadow runs. Unset (or "whisper") = faster-whisper, the only
+# engine this file knew before 2026-09-15, on the byte-identical code path.
+# "moonshine" = moonshine-voice (pip `moonshine-voice`), with STT_SHADOW_MODEL
+# naming its arch: tiny · base · tiny-streaming · base-streaming ·
+# small-streaming · medium-streaming (underscores accepted too).
+# docs/research/FIELD-SCAN.md round 1.
+#
+# ⚠⚠ MOONSHINE IS FORCED SINGLE-THREADED, AND THE REASON IS MEASURED. Its native
+# library exposes no thread count, and left alone ONNX Runtime took ~6.5 of the
+# G11's 8 cores — ESCAPING `taskset -c 6,7` too (it pins its own pool). With
+# MOONSHINE_ORT_SINGLE_THREAD=1 the same files ran on exactly 1.0 core and were
+# NO SLOWER (base RTF 0.11-0.16, small_streaming 0.22-0.36, against whisper
+# small.en's 0.41-0.73 on 2 threads — two bundled human recordings, SPEED ONLY).
+# The multi-thread default was spinning, and spinning on the box that renders the
+# wall. STT_SHADOW_THREADS does not apply to this engine; it is always one core.
+SHADOW_ENGINE = os.environ.get("STT_SHADOW_ENGINE", "").strip().lower() or "whisper"
+
 print(f"[stt] loading {MODEL_NAME} ({DEVICE}/{COMPUTE}) …", flush=True)
 _t0 = time.time()
 model = WhisperModel(MODEL_NAME, device=DEVICE, compute_type=COMPUTE)
@@ -224,6 +241,59 @@ def transcribe(wav_bytes: bytes) -> dict:
 # than a gap. The response is already sent before anything below runs.
 _shadow_q: "queue.Queue" = queue.Queue(maxsize=1)
 shadow = None
+SHADOW_LABEL = SHADOW_MODEL if SHADOW_ENGINE == "whisper" else f"{SHADOW_ENGINE}:{SHADOW_MODEL}"
+
+
+class MoonshineShadow:
+    """moonshine-voice behind the one method the shadow worker calls.
+
+    Imported lazily: the live venv does not carry the package unless the shadow
+    was switched to it, and a missing import must cost a log line (main() below
+    catches it), never the transcriber.
+    """
+
+    def __init__(self, arch_name: str):
+        # Before the native library is loaded — it reads the env at session setup.
+        os.environ["MOONSHINE_ORT_SINGLE_THREAD"] = "1"
+        import moonshine_voice as mv  # noqa: PLC0415 — lazy on purpose, see docstring
+        from moonshine_voice.transcriber import Transcriber  # noqa: PLC0415
+
+        # The library spells them with hyphens ("small-streaming"); a systemd
+        # line written with underscores should not be a silent load failure.
+        arch = mv.string_to_model_arch(arch_name.strip().lower().replace("_", "-") or "base")
+        path, arch = mv.get_model_for_language("en", arch, on_progress=lambda *_: None)
+        self._tr = Transcriber(model_path=path, model_arch=arch)
+
+    def run(self, wav_bytes: bytes) -> dict:
+        import wave  # noqa: PLC0415
+        import numpy as np  # noqa: PLC0415 — faster-whisper already depends on it
+
+        t0 = time.time()
+        with wave.open(io.BytesIO(wav_bytes)) as w:
+            sr, ch, width, n = w.getframerate(), w.getnchannels(), w.getsampwidth(), w.getnframes()
+            raw = w.readframes(n)
+        if width != 2:
+            raise ValueError(f"moonshine shadow expects 16-bit PCM, got {width * 8}-bit")
+        audio = np.frombuffer(raw, dtype="<i2").astype(np.float32) / 32768.0
+        if ch > 1:
+            audio = audio.reshape(-1, ch).mean(axis=1)
+        out = self._tr.transcribe_without_streaming(audio.tolist(), sample_rate=sr)
+        text = " ".join(line.text.strip() for line in out.lines if line.text).strip()
+        return {
+            "text": text,
+            "language": "en",
+            "audio_ms": round(len(audio) * 1000 / sr) if sr else 0,
+            "took_ms": round((time.time() - t0) * 1000),
+        }
+
+
+def run_shadow(wav_bytes: bytes) -> dict:
+    """The shadow's transcription, same {text, audio_ms, took_ms} shape as the
+    live leg. Whisper goes through run_model() so the two legs still share one
+    decode configuration."""
+    if isinstance(shadow, MoonshineShadow):
+        return shadow.run(wav_bytes)
+    return run_model(shadow, wav_bytes)
 
 _PUNCT = re.compile(r"[^\w\s']+")
 
@@ -237,7 +307,7 @@ def _shadow_worker():
     while True:
         wav, live = _shadow_q.get()
         try:
-            alt = run_model(shadow, wav)
+            alt = run_shadow(wav)
         except Exception as err:  # noqa: BLE001 — a shadow must never be fatal
             print(f"[stt] shadow failed: {err}", flush=True)
             continue
@@ -246,7 +316,7 @@ def _shadow_worker():
         # journal rather than inferred from the absence of disagreements.
         print(f"[stt] shadow {'same' if agree else 'DIFF'} "
               f"{MODEL_NAME} {live['took_ms']}ms / "
-              f"{SHADOW_MODEL} {alt['took_ms']}ms", flush=True)
+              f"{SHADOW_LABEL} {alt['took_ms']}ms", flush=True)
         if not agree:
             print(f"[stt]   live   {live['text']!r}", flush=True)
             print(f"[stt]   shadow {alt['text']!r}", flush=True)
@@ -285,6 +355,9 @@ class Handler(BaseHTTPRequestHandler):
                 "decode": sorted(DECODE),
                 "hotwords": len(HOTWORDS.split()) if HOTWORDS else 0,
                 "shadow": SHADOW_MODEL or None,
+                # Which engine ACTUALLY loaded, not which was asked for: a
+                # moonshine shadow whose import failed reports null here.
+                "shadow_engine": (SHADOW_ENGINE if shadow is not None else None),
             })
         else:
             self._send(404, {"error": "not found"})
@@ -328,16 +401,24 @@ def main():
         # Loaded HERE rather than at import: a shadow model that cannot be
         # downloaded must cost the house a log line, not its only transcriber.
         try:
-            print(f"[stt] loading shadow {SHADOW_MODEL} ({DEVICE}/{SHADOW_COMPUTE}) …",
-                  flush=True)
-            shadow = WhisperModel(SHADOW_MODEL, device=DEVICE,
-                                  compute_type=SHADOW_COMPUTE,
-                                  cpu_threads=SHADOW_THREADS)
+            if SHADOW_ENGINE == "moonshine":
+                print(f"[stt] loading shadow {SHADOW_LABEL} (1 core) …", flush=True)
+                shadow = MoonshineShadow(SHADOW_MODEL)
+                cores = "1 core"
+            elif SHADOW_ENGINE == "whisper":
+                print(f"[stt] loading shadow {SHADOW_MODEL} ({DEVICE}/{SHADOW_COMPUTE}) …",
+                      flush=True)
+                shadow = WhisperModel(SHADOW_MODEL, device=DEVICE,
+                                      compute_type=SHADOW_COMPUTE,
+                                      cpu_threads=SHADOW_THREADS)
+                cores = f"{SHADOW_THREADS} threads"
+            else:
+                raise ValueError(f"unknown STT_SHADOW_ENGINE {SHADOW_ENGINE!r}")
             # daemon=True so a shadow mid-transcription can never hold the
             # service open through a restart.
             threading.Thread(target=_shadow_worker, daemon=True).start()
-            print(f"[stt] shadow on → comparing every turn against {SHADOW_MODEL} "
-                  f"on {SHADOW_THREADS} threads", flush=True)
+            print(f"[stt] shadow on → comparing every turn against {SHADOW_LABEL} "
+                  f"on {cores}", flush=True)
         except Exception as err:  # noqa: BLE001
             shadow = None
             print(f"[stt] shadow unavailable, continuing without: {err}", flush=True)

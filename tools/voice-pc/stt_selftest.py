@@ -23,7 +23,8 @@ touching stt_server.py:
     tools/voice-pc/.venv/Scripts/python.exe tools/voice-pc/stt_selftest.py     (Windows)
     tools/voice-pc/.venv/bin/python tools/voice-pc/stt_selftest.py             (Linux)
 
-It spawns real servers on ports 8197-8199 and takes ~40 s.
+It spawns real servers on ports 8195-8199 and takes ~60 s. CASE 5 runs only
+where moonshine-voice is importable, and says so when it is not.
 """
 import json
 import math
@@ -75,7 +76,8 @@ def run(port, env_extra, label):
     # exactly the cp1252 crash this harness caught on its first run — the child
     # must survive its own banner on a pipe with no help from the parent.
     for stale in ("STT_CONDITION_PREV", "STT_NO_SPEECH", "STT_TEMPERATURE",
-                  "STT_HOTWORDS_FILE", "STT_SHADOW_MODEL", "STT_SHADOW_COMPUTE"):
+                  "STT_HOTWORDS_FILE", "STT_SHADOW_MODEL", "STT_SHADOW_COMPUTE",
+                  "STT_SHADOW_ENGINE"):
         if stale not in env_extra:
             env.pop(stale, None)   # a knob left in the ambient env would fake a pass
     proc = subprocess.Popen([sys.executable, str(SERVER)], env=env,
@@ -146,6 +148,37 @@ assert h["ok"] is True and h["hotwords"] == 0, h
 assert "unreadable" in log, log
 assert sorted(b) == SHAPE, sorted(b)
 print("  ✅ logged and carried on, still transcribing")
+
+print("=" * 72)
+print("CASE 4 — an unknown shadow engine must not be fatal")
+h, b, log = run(8196, {"STT_SHADOW_ENGINE": "nonsense", "STT_SHADOW_MODEL": "base"}, "bad-engine")
+assert h["ok"] is True and h["shadow_engine"] is None, h
+assert "shadow unavailable" in log and "nonsense" in log, log
+assert sorted(b) == SHAPE, sorted(b)
+assert "shadow same" not in log and "shadow DIFF" not in log, "a shadow ran that never loaded"
+print("  ✅ logged and carried on, no shadow, still transcribing")
+
+print("=" * 72)
+print("CASE 5 — the moonshine shadow (runs only where moonshine-voice is installed)")
+try:
+    import importlib.util
+    have_moonshine = importlib.util.find_spec("moonshine_voice") is not None
+except Exception:
+    have_moonshine = False
+if not have_moonshine:
+    # Not a silent skip: say so, and say how to make it run.
+    print("  ⏭  moonshine-voice not installed in this venv — `pip install moonshine-voice` to run")
+else:
+    h, b, log = run(8195, {"STT_SHADOW_ENGINE": "moonshine", "STT_SHADOW_MODEL": "tiny"}, "moonshine")
+    assert h["shadow_engine"] == "moonshine" and h["shadow"] == "tiny", h
+    assert sorted(b) == SHAPE, sorted(b)
+    # A tone: the two engines may well disagree about it, so either line counts.
+    # What matters is that a comparison was LOGGED under the moonshine label.
+    lines = [ln for ln in log.splitlines() if ("shadow same" in ln or "shadow DIFF" in ln)]
+    assert lines, "the moonshine shadow never logged a comparison:\n" + log
+    assert "moonshine:tiny" in lines[0], lines[0]
+    assert "1 core" in log, "moonshine was not reported single-threaded:\n" + log
+    print(f"  ✅ {lines[0].strip()}")
 
 print("=" * 72)
 print("ALL CASES PASSED")
