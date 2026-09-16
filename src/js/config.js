@@ -933,8 +933,19 @@ window.CONFIG = {
     // aloud, repeated every 30 s up to 3 times or until "stop" (owner's calls,
     // 2026-09-15). Survives a reload via localStorage end times.
     // Flag-off: the matcher never runs, "set a timer" falls through to Assist
-    // exactly as before, and the pill is never painted. One-line revert.
-    voiceTimers: false,
+    // exactly as before, and the pill is never painted.
+    //
+    // Shipped OFF c60f10b → verified on the wall over CDP 2026-09-16 (pill
+    // top-right x1592-1824 y96-146, clear of the archive year and the media
+    // band; inject-defect 7/7 RED) → FLIPPED ON 2026-09-16. ⏳ The spoken round
+    // trip (TTS timing as heard in the room) is the owner's, not yet done — the
+    // CDP proof covers the pill and the lane, not the sound.
+    // ⚠ The ON state opens an exemption in MUTATION_RE:
+    // "set a timer" is claimed by the local lane instead of falling through to
+    // Assist. Both directions are pinned in tests/photo-veto.spec.js.
+    // REVERT: voiceTimers: false  (rebuild + restart; the lane goes quiet and
+    // the pill is never painted — no data migration, localStorage is ignored).
+    voiceTimers: true,
 
     // Living-window Phase 1 (plan: review-the-design-scheme) — rain on glass.
     // A shared episode runtime (services/atmoFx/) draws bounded droplet/streak

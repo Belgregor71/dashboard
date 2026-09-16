@@ -45,14 +45,49 @@ test("the way back is heard, including the phrasing the guard would eat", () => 
   expect(matchIntent("put that back")?.id).toBe("photo.restore");
 });
 
+/* Pins the flag state rather than inheriting it. With no `window` at all every
+   gated lane reads as OFF, so an assertion written that way is green whatever
+   the shipped default says — and voiceTimers shipped default-ON on 2026-09-16,
+   which is exactly when "set a timer falls through" stopped being true of
+   production while still passing here. Both states are named below. */
+function withFlags(features, fn) {
+  const prior = globalThis.window;
+  try {
+    globalThis.window = { CONFIG: { features } };
+    return fn();
+  } finally {
+    if (prior === undefined) delete globalThis.window;
+    else globalThis.window = prior;
+  }
+}
+
 test("⚠⚠ the mutation guard is INTACT — the exemption is a door, not a hole", () => {
   /* The whole risk of matching before the guard is that something else slips
-     through with it. These are the utterances the guard exists for: they must
-     still fall through to the lane that owns them. */
-  expect(matchIntent("add oat milk to the shopping list")).toBeNull();
-  expect(matchIntent("turn on the backyard light")).toBeNull();
-  expect(matchIntent("remind me to call mum")).toBeNull();
-  expect(matchIntent("set a timer")).toBeNull();
+     through with it. These are the utterances the guard exists for, and they
+     must still fall through to the lane that owns them WITH EVERY LOCAL LANE
+     ARMED — an all-flags-off run cannot tell a guarded phrase from an
+     unimplemented one, because both are null. */
+  withFlags({ voiceTimers: true, voiceListWrites: true, choreRoster: true }, () => {
+    expect(matchIntent("turn on the backyard light")).toBeNull();
+    expect(matchIntent("set the lounge to twenty degrees")).toBeNull();
+    // No duration, so the reminder lane declines it and the guard takes it.
+    expect(matchIntent("remind me to call mum")).toBeNull();
+  });
+});
+
+test("⚠ the timer lane claims its phrasing THROUGH the guard, and only when armed", () => {
+  /* "set" is in MUTATION_RE, exactly like "delete" in the veto test above.
+     features.voiceTimers is what decides whether the exemption is open, so the
+     two directions are the test — the ON half alone would pass against a lane
+     wired to ignore the flag entirely. */
+  withFlags({ voiceTimers: true }, () => {
+    expect(matchIntent("set a timer")?.id).toBe("timer.set");
+    expect(matchIntent("set a pasta timer for 12 minutes")?.id).toBe("timer.set");
+  });
+  withFlags({ voiceTimers: false }, () => {
+    expect(matchIntent("set a timer")).toBeNull();
+    expect(matchIntent("set a pasta timer for 12 minutes")).toBeNull();
+  });
 });
 
 test("a veto phrase does not eat an ordinary question", () => {
