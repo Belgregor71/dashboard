@@ -732,6 +732,26 @@ const SET_VERB = `${POLITE}(?:set|start|make|put on)(?: me)?`;
 const TIMER_SET_PATTERNS = [
   // "set a timer for 10 minutes (for the pasta)" · "start a pasta timer for 10 minutes"
   { re: new RegExp(`^${SET_VERB} (?:a |an |the |another )?(?:(.{1,30}?) )?timer (?:for |of )?(${DURATION})(?: for (?:the )?(.{1,30}))?$`), name: 1, dur: 2, tail: 3 },
+  /* "set a timer for pasta for 30 seconds" — the label BEFORE the duration.
+     Said at the wall 2026-09-16 and heard correctly by the STT, but no shape
+     above can reach it: the first needs the name in front of "timer", and its
+     optional tail only comes AFTER the duration. It fell through to Assist,
+     which answered "I don't have a timer function".
+
+     The anchored `for (${DURATION})$` means two `for` groups are required, so
+     this shape cannot see "set a timer for 30 seconds" at all. Kept BELOW the
+     duration-first pattern so "set a timer for 10 minutes for the pasta" is
+     still claimed there, exactly as before.
+
+     ⚠ Neither of those is what actually protects "set a timer for 30 seconds"
+     from becoming a timer NAMED "30 seconds". MEASURED 2026-09-16 by injection:
+     hoisting a one-`for` version of this pattern to the TOP of the array still
+     did not produce the misread, because matchTimer does `if (ms === null)
+     continue` — a pattern that matches without a READABLE duration is skipped
+     and the next shape gets the sentence. That `continue` is the real guard;
+     the anchor and the ordering are belt and braces. Don't remove the
+     `continue` on the theory that the regexes are strict enough. */
+  { re: new RegExp(`^${SET_VERB} (?:a |an |the |another )?timer (?:for |of )(?:the )?(.{1,30}?) for (${DURATION})$`), name: 1, dur: 2 },
   // "set a 10 minute timer (for the pasta)" · "set a 10 minute pasta timer"
   { re: new RegExp(`^${SET_VERB} (?:a |an )?(${DURATION}) (?:(.{1,30}?) )?timer(?: for (?:the )?(.{1,30}))?$`), dur: 1, name: 2, tail: 3 },
   // "timer for 10 minutes" · "10 minute timer"

@@ -53,6 +53,48 @@ test.describe("matchIntent with voiceTimers ON", () => {
     });
   });
 
+  test("⚠ the NAME can come before the duration — said at the wall, and it fell through", () => {
+    /* REGRESSION, 2026-09-16. "set a timer for pasta for 30 seconds" was spoken
+       at the kiosk on the day voiceTimers was flipped on, transcribed CORRECTLY,
+       and matched nothing: every shape wanted the name in front of "timer" or
+       after the duration. Assist took it and answered "I don't have a timer
+       function". The flip's own CDP proof missed it because it used the
+       phrasing the patterns were written for — the fixture, not a person. */
+    withFlag(true, () => {
+      expect(matchIntent("set a timer for pasta for 30 seconds"))
+        .toEqual({ id: "timer.set", slots: { ms: 30_000, label: "pasta" } });
+      expect(matchIntent("set a timer for the pasta for 30 seconds"))
+        .toEqual({ id: "timer.set", slots: { ms: 30_000, label: "pasta" } });
+      expect(matchIntent("start a timer for the eggs for two minutes"))
+        .toEqual({ id: "timer.set", slots: { ms: 120_000, label: "eggs" } });
+
+      /* ⚠⚠ THE OTHER DIRECTION: a bare duration must never become the NAME of a
+         timer that has none — a silent, plausible-looking pill that never rings.
+         ⚠ Be honest about this pair's teeth: three things independently prevent
+         it (the `for (DURATION)$` anchor, this pattern sitting below the
+         duration-first one, and matchTimer's `if (ms === null) continue`), and
+         injection on 2026-09-16 could not turn these two lines red even with the
+         first two removed. They pin the BEHAVIOUR, not any one mechanism —
+         matchTimer's `continue` is what a rewrite must not drop. */
+      expect(matchIntent("set a timer for 30 seconds"))
+        .toEqual({ id: "timer.set", slots: { ms: 30_000, label: null } });
+      expect(matchIntent("set a timer for 12 minutes for the pasta"))
+        .toEqual({ id: "timer.set", slots: { ms: 720_000, label: "pasta" } });
+    });
+  });
+
+  test("the STT's own mishearing is NOT absorbed into the grammar", () => {
+    /* The same evening the box heard "Set a timer for 30 seconds" as "Send a
+       timer for 30 seconds" and the lane declined it — correctly. "send" is not
+       a timer verb, and widening SET_VERB to cover a transcription defect would
+       move the fix into the grammar and hide the STT problem this house is
+       already measuring (the moonshine shadow). Pinned so nobody "helpfully"
+       adds it later without re-reading that decision. */
+    withFlag(true, () => {
+      expect(matchIntent("send a timer for 30 seconds")).toBeNull();
+    });
+  });
+
   test("reminders need a relative duration; a wall-clock time is declined", () => {
     withFlag(true, () => {
       expect(matchIntent("remind me in 20 minutes to check the oven"))
