@@ -953,8 +953,11 @@ window.CONFIG = {
     // synthesised with Web Audio — no asset, no CSP change — then the line,
     // on every repeat. "stop" during the chime also silences the line.
     // Needs voiceTimers on; alone it does nothing.
+    // Shipped OFF 9c8246c (inject-defect 4/4 RED) → heard on the wall 2026-09-17
+    // 17:39 by the owner via an on-box config trial (chimes:1, AudioContext
+    // "running" with no gesture): "good as is" → FLIPPED ON.
     // REVERT: voiceTimerChime: false  (the line is spoken immediately, as before)
-    voiceTimerChime: false,
+    voiceTimerChime: true,
 
     // Living-window Phase 1 (plan: review-the-design-scheme) — rain on glass.
     // A shared episode runtime (services/atmoFx/) draws bounded droplet/streak
