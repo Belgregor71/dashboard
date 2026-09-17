@@ -947,6 +947,15 @@ window.CONFIG = {
     // the pill is never painted — no data migration, localStorage is ignored).
     voiceTimers: true,
 
+    // A short chime before each "Timer's done." (src/v3/core/chime.js). Owner,
+    // 2026-09-17, after hearing the first real ring: "it just said timer's
+    // done - no ring … I would do a short chime". Two soft bell notes (~0.9 s)
+    // synthesised with Web Audio — no asset, no CSP change — then the line,
+    // on every repeat. "stop" during the chime also silences the line.
+    // Needs voiceTimers on; alone it does nothing.
+    // REVERT: voiceTimerChime: false  (the line is spoken immediately, as before)
+    voiceTimerChime: false,
+
     // Living-window Phase 1 (plan: review-the-design-scheme) — rain on glass.
     // A shared episode runtime (services/atmoFx/) draws bounded droplet/streak
     // "moments" on a front canvas, then hides it: the GPU-0% ambient baseline

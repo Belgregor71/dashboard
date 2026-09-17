@@ -37,6 +37,7 @@
 import { speak } from "../../js/core/tts.js";
 import { setPhase, trackSpeech } from "./presence-light.js";
 import { record } from "./feature-census.js";
+import { playChime, chimesPlayed } from "./chime.js";
 import {
   MAX_TIMERS, MAX_MS, RING_EVERY_MS, RING_TIMES, LATE_RING_MS,
   durationPhrase, remainingPhrase, clockText
@@ -48,6 +49,7 @@ const LABEL_ID = "timers-label";
 const TIME_ID = "timers-time";
 
 let enabled = false;
+let chime = false;
 let nextId = 1;
 /** @type {Map<number, {id:number, kind:"timer"|"reminder", label:string|null, text:string|null, endsAt:number, handle:any}>} */
 const live = new Map();
@@ -136,8 +138,17 @@ function sayDone(entry) {
   entry.rung += 1;
   record("spoke", "timer", "said");
   setPhase("speaking");
-  speak(doneLine(entry), { onAudio: (audio) => trackSpeech(audio) })
-    .then(() => setPhase("idle"), () => setPhase("idle"));
+  const say = () => {
+    // "stop" can land during the chime; a silenced timer must not then speak.
+    if (!ringing.has(entry.id)) return setPhase("idle");
+    speak(doneLine(entry), { onAudio: (audio) => trackSpeech(audio) })
+      .then(() => setPhase("idle"), () => setPhase("idle"));
+  };
+  /* features.voiceTimerChime: a ding before the words, on every repeat. The
+     repeat clock below starts NOW either way, so the chime never stretches the
+     30 s cadence. */
+  if (chime) playChime().then(say, say);
+  else say();
   /* The next repeat, or — after the last — the moment the pill lets go. The
      same handle either way, so dismissal is one clearTimeout. */
   entry.handle = setTimeout(() => {
@@ -303,7 +314,9 @@ export function timersSnapshot() {
     enabled,
     live: [...live.values()].map(({ id, kind, label, text, endsAt }) => ({ id, kind, label, text, remainingMs: endsAt - now() })),
     ringing: [...ringing.values()].map(({ id, kind, label, rung }) => ({ id, kind, label, rung })),
-    ticking: tick !== null
+    ticking: tick !== null,
+    chime,
+    chimes: chimesPlayed()
   };
 }
 
@@ -319,8 +332,9 @@ export function resetTimers() {
   paint(null);
 }
 
-export function initTimers({ enabled: on = false } = {}) {
+export function initTimers({ enabled: on = false, chime: ding = false } = {}) {
   enabled = Boolean(on);
+  chime = Boolean(ding);
 
   /* Registered before anything async, and whether or not the flag is on: the
      contrast sweep has to be able to put this pill on the glass to measure it,

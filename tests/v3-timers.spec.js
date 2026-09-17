@@ -1,6 +1,7 @@
 import { test, expect } from "./fixtures/coverage.js";
 import { bootV3 } from "./fixtures/v3boot.js";
 import { RING_EVERY_MS, RING_TIMES } from "../src/v3/core/timer-words.js";
+import { CHIME_MS } from "../src/v3/core/chime.js";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    VOICE TIMERS ON THE SURFACE THAT SHIPS (features.voiceTimers).
@@ -22,9 +23,9 @@ import { RING_EVERY_MS, RING_TIMES } from "../src/v3/core/timer-words.js";
 test.use({ timezoneId: "Australia/Brisbane" });
 const MIDDAY = new Date("2026-07-06T02:00:00Z"); // 12:00 Mon 6 Jul, Brisbane
 
-async function boot(page, { on = true } = {}) {
+async function boot(page, { on = true, chime = false } = {}) {
   await page.clock.install({ time: MIDDAY });
-  const { pageErrors } = await bootV3(page, {}, { features: { voiceTimers: on } });
+  const { pageErrors } = await bootV3(page, {}, { features: { voiceTimers: on, voiceTimerChime: chime } });
   await page.waitForFunction(() => typeof window.__v3Transcript === "function" && !!window.__v3Timers);
   /* Registered AFTER bootV3's catch-all, so it wins (last-registered first).
      Answered 503 so speak() fails fast; the BODY is what the house tried to say. */
@@ -37,6 +38,14 @@ async function boot(page, { on = true } = {}) {
 }
 
 const snap = (page) => page.evaluate(() => window.__v3Timers.snapshot());
+
+/* clock.install() lets time keep flowing in real time, which is fine for a
+   2-minute timer and not for asserting inside a 1 s chime: a few polls of real
+   time would carry the page past it. Freeze it, so only runFor moves time. */
+async function freezeClock(page) {
+  const t = await page.evaluate(() => Date.now());
+  await page.clock.pauseAt(t + 1);
+}
 const transcript = (page, text) => page.evaluate((t) => window.__v3Transcript(t), text);
 
 test("flag off: the lane does not claim a timer and nothing is armed", async ({ page }) => {
@@ -110,6 +119,56 @@ test("it rings out loud, repeats, then lets go and stops ticking", async ({ page
   expect(s.ringing).toEqual([]);
   expect(s.ticking, "the 1 s interval outlived the last timer").toBe(false);
   expect(said.filter((t) => t === "The rice timer's done.").length).toBe(RING_TIMES);
+  // Chime flag off: no ding was scheduled, and the line above came without waiting for one.
+  expect(s.chime).toBe(false);
+  expect(s.chimes).toBe(0);
+  expect(pageErrors).toEqual([]);
+});
+
+/* features.voiceTimerChime. What would go wrong, and what catches it:
+   - no chime at all → `chimes` stays 0 (counted only once notes are SCHEDULED
+     on a real AudioContext, not when the function is merely called);
+   - the chime replaces the line instead of preceding it → the line never lands;
+   - the line does not wait for the chime → it lands before CHIME_MS elapses;
+   - repeats go silent → `chimes` stops at 1;
+   - "stop" during the ding still lets the words through → the silenced test. */
+test("chime on: a ding precedes every 'Timer's done', and the words wait for it", async ({ page }) => {
+  const { pageErrors, said } = await boot(page, { chime: true });
+  await freezeClock(page);
+  await transcript(page, "set a timer for 1 minute");
+  said.length = 0;
+  expect((await snap(page)).chime).toBe(true);
+
+  await page.clock.runFor(60_000 + 50);
+  await expect.poll(async () => (await snap(page)).chimes).toBe(1);
+  // Mid-chime: the words have NOT been said yet.
+  await page.clock.runFor(CHIME_MS / 2);
+  expect(said.filter((t) => t === "Timer's done.").length, "spoke over the chime").toBe(0);
+  await page.clock.runFor(CHIME_MS);
+  await expect.poll(() => said.filter((t) => t === "Timer's done.").length).toBe(1);
+
+  for (let n = 2; n <= RING_TIMES; n++) {
+    await page.clock.runFor(RING_EVERY_MS);
+    await expect.poll(async () => (await snap(page)).chimes).toBe(n);
+    await page.clock.runFor(CHIME_MS + 50);
+    await expect.poll(() => said.filter((t) => t === "Timer's done.").length).toBe(n);
+  }
+  expect(pageErrors).toEqual([]);
+});
+
+test("chime on: 'stop' during the ding silences the words too", async ({ page }) => {
+  const { pageErrors, said } = await boot(page, { chime: true });
+  await freezeClock(page);
+  await transcript(page, "set a timer for 1 minute");
+  said.length = 0;
+  await page.clock.runFor(60_000 + 50);
+  await expect.poll(async () => (await snap(page)).chimes).toBe(1);
+
+  const stopped = await transcript(page, "stop");
+  expect(stopped).toMatchObject({ handled: true, lane: "local" });
+  await page.clock.runFor(CHIME_MS + RING_EVERY_MS * RING_TIMES);
+  expect(said.filter((t) => t === "Timer's done.").length, "spoke after stop").toBe(0);
+  expect((await snap(page)).chimes, "chimed again after stop").toBe(1);
   expect(pageErrors).toEqual([]);
 });
 

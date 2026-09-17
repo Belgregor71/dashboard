@@ -666,7 +666,7 @@ function boot() {
      so it needs nothing above it but the DOM. Initialised flag-off too, so the
      `__v3Timers` seam exists for the contrast sweep; with the flag off it arms
      nothing, restores nothing and the lane's handler declines every intent. */
-  stage("timers", () => initTimers({ enabled: flag("voiceTimers") }));
+  stage("timers", () => initTimers({ enabled: flag("voiceTimers"), chime: flag("voiceTimerChime") }));
 
   /* The other half of the same story, and the opposite register. health.js says
      a thing is broken NOW, in a corner, as a state. This says a thing the house
