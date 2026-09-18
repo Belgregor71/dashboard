@@ -1768,11 +1768,31 @@ window.CONFIG = {
     // incumbent's 3.0-4.3: depth 0 sits at ~19-21 against §5.4's 25
     // live-ambient ceiling, and a 3.6s burst is a PEAK episode (≤35).
     //
+    // ✅ FLIPPED ON 2026-09-19, and it was SEEN on the wall first — the flip
+    // ceremony's own precondition, which this feature could not meet until
+    // daylight because `armBurst` correctly refuses at night. Live sighting,
+    // flag forced on in the served config with no deploy: memory
+    // `cc4ffb8d…` burst for 2854ms, readyState 4, 780x1040, 45 frames decoded,
+    // currentTime 0.49 -> 1.88 (it genuinely played), with the card's own moves
+    // `arch-breathe: running` and `arch-kenburns: running` — the clip decoding
+    // under a moving ancestor, as decided.
+    //
+    // Cost, measured the same morning against an identical no-video control
+    // (same forced-exchange churn, 40s windows): gpu 32.5 vs 29.4, renderer
+    // 29.9 vs 24.9 — so the decode is +3.1 gpu / +5.0 renderer at a 32% burst
+    // duty cycle. That worst case is INSIDE §5.4's ≤35 peak ceiling, and it is
+    // a storm rather than a state: in normal operation one ~3.6s burst per
+    // ten-minute rotation is ~0.6% duty, where the ambient cost is negligible.
+    //
+    // ⚠ WHAT THAT READING CANNOT SEPARATE: the cost of decoding from the cost
+    // of decoding UNDER A MOVING ANCESTOR. Isolating it needs the pause back,
+    // and the pause was removed on its own numbers. If a future reading shows
+    // the burst costing more than this, that is the first lever to try.
+    //
     // ONE-LINE REVERT (-> false): no <video> is built at all — no element, no
-    // timer, no listener, no fetch — and `data-arch-burst` is never written, so
-    // neither pause rule can match. The off state is the surface on the wall
-    // today.
-    v3ArchiveMotion: false,
+    // timer, no listener, no fetch. That is the rollback, and it is proven by
+    // scripts/verify/flag-reversibility.mjs at flip time.
+    v3ArchiveMotion: true,
 
     // ── A tall print goes into the middle ───────────────────────────────────
     // The plane above pins every card's LEFT edge at 88, which is honest for a
