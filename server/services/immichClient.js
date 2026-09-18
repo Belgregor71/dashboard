@@ -138,6 +138,30 @@ export function liveMotionEnabled() {
 }
 
 /**
+ * Warm clips for the WHOLE on-this-day pool, not just the frozen daily set —
+ * V3's archive half of the same feature.
+ *
+ * A SECOND switch rather than a widening of the one above, because the two buy
+ * different things at different prices. `IMMICH_LIVE_MOTION` warms the daily
+ * set: ≤12 assets a day, of which a third to a half carry motion. This warms
+ * the pool the V3 rotation actually draws from, measured on the live library
+ * 2026-09-18 at 57 assets with 27 carrying motion — roughly five times the
+ * transcode load, on someone's NAS, for a client feature that ships OFF
+ * (`v3ArchiveMotion`). Folding it into the existing switch would have turned
+ * that flag on for every box already running Live Photos, which is not what
+ * flipping a client flag is supposed to do.
+ *
+ * ⚠ SUBORDINATE, not independent: the pool warm is meaningless without the
+ * motionIds that `liveMotionEnabled` puts on the assets in the first place, so
+ * this is AND-ed with it rather than checked alone. Off → not one extra byte is
+ * fetched or encoded, and both this file and the on-this-day route are
+ * key-for-key what they were.
+ */
+export function poolMotionEnabled() {
+  return liveMotionEnabled() && String(process.env.IMMICH_POOL_MOTION || "").trim() === "1";
+}
+
+/**
  * A displayable still: a real image, not trashed/archived, with an id.
  *
  * ⚠ `type === "IMAGE"` is load-bearing and must stay. A Live Photo IS an IMAGE
@@ -281,6 +305,27 @@ export function slim(a) {
     // clip is on local disk right now". See routes/immich.js.
     ...(liveMotionEnabled() ? { motionId: a.livePhotoVideoId || null } : {})
   };
+}
+
+/**
+ * The public shape for a pool with NO transcode pass behind it — /api/immich/random
+ * and /api/immich/browse.
+ *
+ * Stripping is the whole job here, deliberately. The on-this-day and daily-set
+ * routes answer with a `motion` boolean because something actually warms clips
+ * for those pools; nothing warms these two, so `motion` would be false for every
+ * asset on every request forever. Publishing a boolean that is structurally
+ * always false tells the client nothing it can act on while looking exactly like
+ * a feature that is switched off — the next reader would go looking for the bug.
+ * Absent is honest; false is a promise.
+ *
+ * ⚠ Lives here rather than in routes/immich.js because THIS file is what adds
+ * `motionId` (see slim above), so the add and the strip are readable together.
+ * `publicPhoto`, the richer half, cannot join it: it needs liveMotion.js, which
+ * imports this module, and the cycle would be real.
+ */
+export function stripInternal(assets) {
+  return (assets || []).map(({ motionId, ...rest }) => rest);
 }
 
 /** Random still images, as a bare array — the long-standing shape. */

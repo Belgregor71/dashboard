@@ -1427,6 +1427,41 @@ test.describe("immich photo source (Phase 9.5)", () => {
     expect(Array.isArray(body.assets)).toBe(true);
   });
 
+  /* The V3 archive's pool, brought onto the same internal/public split the
+     daily set has had since the motion work landed. Measured on the live
+     library 2026-09-18: 57 assets, 27 of them Live Photos — so this route,
+     not the daily set, is where most of the house's motion actually is.
+
+     ⚠⚠ THESE THREE ARE SHAPE GUARDS, NOT THE TEST. With no IMMICH_URL/KEY —
+     every test machine — each route answers `{ assets: [] }` and every loop
+     below iterates zero times, which passes against the unstripped code too.
+     The assertion with teeth is the pure-function pair in immich.spec.js
+     ("the pool motion knob, and the strip..."), over a fixture that genuinely
+     carries a motion id. If you are here to prove the strip works, inject the
+     defect THERE — it will stay green here. */
+  test("GET /api/immich/on-this-day never leaks the internal motion id", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/immich/on-this-day");
+    for (const a of body.assets) {
+      expect(a).not.toHaveProperty("motionId");
+      if ("motion" in a) expect(typeof a.motion).toBe("boolean");
+      if ("motionPending" in a) expect(typeof a.motionPending).toBe("boolean");
+      if (a.motion === true) expect(a.motionPending).toBe(false);
+    }
+  });
+
+  test("GET /api/immich/random never leaks the internal motion id", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/immich/random?count=5");
+    for (const a of body.assets) expect(a).not.toHaveProperty("motionId");
+  });
+
+  test("GET /api/immich/browse never leaks the internal motion id", async ({ request }) => {
+    const { body } = await expectJson(
+      request,
+      "/api/immich/browse?after=2016-07-01T00:00:00.000Z&before=2016-08-01T00:00:00.000Z"
+    );
+    for (const a of body.assets) expect(a).not.toHaveProperty("motionId");
+  });
+
   test("GET /api/immich/random returns { assets: array }", async ({ request }) => {
     const { body } = await expectJson(request, "/api/immich/random?count=5");
     expect(Array.isArray(body.assets)).toBe(true);

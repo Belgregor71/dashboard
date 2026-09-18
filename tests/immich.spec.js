@@ -11,7 +11,7 @@ import {
   ambiguousGivenNames,
   displayName
 } from "../src/js/services/photoMemory.js";
-import { slim, liveMotionEnabled, displayAspect } from "../server/services/immichClient.js";
+import { slim, liveMotionEnabled, displayAspect, poolMotionEnabled, stripInternal } from "../server/services/immichClient.js";
 
 // Pure unit tests for the Immich on-this-day mapping — Phase 9.5
 // (docs/vision/photo-source-immich.md). photoMemory.js has no DOM/IO, so these
@@ -530,5 +530,90 @@ test.describe("slim — the motion id rides only when the knob is on", () => {
     withKnob(null, () => expect(liveMotionEnabled()).toBe(false));
     withKnob("1", () => expect(liveMotionEnabled()).toBe(true));
     withKnob(null, () => expect(liveMotionEnabled()).toBe(false));
+  });
+});
+
+/**
+ * The SECOND motion knob — warming clips for the whole on-this-day pool rather
+ * than only the frozen daily set (the V3 archive's half, features.v3ArchiveMotion).
+ *
+ * ⚠ These are unit tests ON PURPOSE, and the route-level shape test below them
+ * is not a substitute. With no IMMICH_URL/KEY — every test machine — the Immich
+ * routes answer `{ assets: [] }`, so a loop asserting "no asset carries motionId"
+ * iterates zero times and passes against any implementation, including the
+ * unfixed one. Three such assertions have shipped here. The strip is a pure
+ * function over a fixture that genuinely HAS the id, so it can fail.
+ */
+test.describe("the pool motion knob, and the strip that keeps ids off the wire", () => {
+  const withEnv = (vars, fn) => {
+    const prev = {};
+    for (const [k, v] of Object.entries(vars)) {
+      prev[k] = process.env[k];
+      if (v === null) delete process.env[k];
+      else process.env[k] = v;
+    }
+    try { fn(); } finally {
+      for (const [k, v] of Object.entries(prev)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  };
+
+  /* SUBORDINATE, not independent. The pool warm needs the motionIds that
+     IMMICH_LIVE_MOTION puts on the assets, so POOL alone must be inert — a box
+     that set only the second switch would otherwise run a warm pass over assets
+     that carry nothing to warm, once an hour, forever. All four corners, because
+     an `||` here instead of an `&&` passes three of them. */
+  test("both switches are required — POOL alone is inert", () => {
+    withEnv({ IMMICH_LIVE_MOTION: null, IMMICH_POOL_MOTION: null }, () =>
+      expect(poolMotionEnabled()).toBe(false));
+    withEnv({ IMMICH_LIVE_MOTION: "1", IMMICH_POOL_MOTION: null }, () =>
+      expect(poolMotionEnabled()).toBe(false));
+    withEnv({ IMMICH_LIVE_MOTION: null, IMMICH_POOL_MOTION: "1" }, () =>
+      expect(poolMotionEnabled()).toBe(false));
+    withEnv({ IMMICH_LIVE_MOTION: "1", IMMICH_POOL_MOTION: "1" }, () =>
+      expect(poolMotionEnabled()).toBe(true));
+  });
+
+  test("read per call, like every other knob — .env is not frozen at import", () => {
+    withEnv({ IMMICH_LIVE_MOTION: "1", IMMICH_POOL_MOTION: "1" }, () =>
+      expect(poolMotionEnabled()).toBe(true));
+    withEnv({ IMMICH_LIVE_MOTION: "1", IMMICH_POOL_MOTION: null }, () =>
+      expect(poolMotionEnabled()).toBe(false));
+  });
+
+  /* The fixture carries the id, so a strip that stopped working fails here. */
+  const POOL = [
+    { id: "a1", aspect: 1.5, motionId: "dfeab25a-2e67-4ec5-9288-153c530b33da" },
+    { id: "b2", aspect: 0.75, motionId: null },
+    { id: "c3", aspect: 1.5 }
+  ];
+
+  test("stripInternal removes the motion id and changes nothing else", () => {
+    const out = stripInternal(POOL);
+    expect(out).toHaveLength(3);
+    // The id is gone as a KEY, not merely nulled — and nowhere in the payload.
+    for (const a of out) expect(a).not.toHaveProperty("motionId");
+    expect(JSON.stringify(out)).not.toContain("dfeab25a");
+    // Everything the client actually renders survives untouched.
+    expect(out.map((a) => a.id)).toEqual(["a1", "b2", "c3"]);
+    expect(out.map((a) => a.aspect)).toEqual([1.5, 0.75, 1.5]);
+  });
+
+  /* ⚠ The input must not be mutated: these assets come out of the route's memo
+     and are shared between requests, so a strip that deleted the key in place
+     would empty the memo of the very ids the warm pass reads — the pool would
+     warm exactly once, on the first request after a restart, and silently never
+     again. Same hazard the `enrich` labellers carry a note about. */
+  test("stripInternal does not mutate the memoised assets it is given", () => {
+    const input = [{ id: "a1", motionId: "dfeab25a-2e67-4ec5-9288-153c530b33da" }];
+    stripInternal(input);
+    expect(input[0].motionId).toBe("dfeab25a-2e67-4ec5-9288-153c530b33da");
+  });
+
+  test("stripInternal tolerates an absent pool", () => {
+    expect(stripInternal(undefined)).toEqual([]);
+    expect(stripInternal([])).toEqual([]);
   });
 });

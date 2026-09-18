@@ -2,9 +2,9 @@ import express from "express";
 import { readFile, writeFile, mkdir, readdir, stat, unlink } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import { isConfigured, searchRandomResult, onThisDayResult, searchTakenResult, fetchRendition } from "../services/immichClient.js";
+import { isConfigured, searchRandomResult, onThisDayResult, searchTakenResult, fetchRendition, poolMotionEnabled, stripInternal } from "../services/immichClient.js";
 import { getDailySet, getMapTile, hasMapKey, initDailyMemories } from "../services/dailyMemories.js";
-import { clipPathFor, hasClip, hasSkip } from "../services/liveMotion.js";
+import { clipPathFor, hasClip, hasSkip, warmClip } from "../services/liveMotion.js";
 import { hiddenIds, hide, undo } from "../services/photoVeto.js";
 import { labelPeople, warmRoster } from "../services/photoNames.js";
 import { labelTrips } from "../services/photoTrips.js";
@@ -111,12 +111,53 @@ async function pruneCache() {
    what makes this safe against a cache shared between requests. */
 const enrich = (assets) => labelTrips(labelPeople(assets));
 
+/* ── Warming the pool the V3 archive actually rotates through ────────────────
+   Driven off the response rather than by a scheduler of its own, which is the
+   same self-gating shape as initDailyMemories and warmRoster: the surface that
+   needs the work is what starts it. V3 fetches this route on boot, so the warm
+   begins when V3 is actually running and never on a box that only serves the
+   incumbent.
+
+   ⚠ ONCE PER DAY PER PROCESS, keyed on the same string as the memo. Without
+   the latch this fires on EVERY request — warmClip is idempotent and would
+   short-circuit on a stat, but that is 57 stats a request forever to discover
+   there is nothing to do, and it makes the log read as though the pass kept
+   restarting.
+
+   ⚠ Fired with the RAW memoised assets, before `stripInternal` — the motionIds
+   are exactly what this needs and exactly what must not reach the browser. The
+   latch is set BEFORE the loop, so a warm that throws does not re-arm itself
+   into a retry storm; the next process start is the retry.
+
+   Never awaited: a sleeping NAS must not hold up the response that paints the
+   wall. */
+let warmedPoolKey = null;
+function warmPoolMotion(key, assets) {
+  if (!poolMotionEnabled() || warmedPoolKey === key) return;
+  warmedPoolKey = key;
+  void (async () => {
+    // Sequential, like warmSet — gentle on the NAS, and two encodes at once on
+    // a Vega 8 buys nothing.
+    for (const a of assets) {
+      if (a?.motionId) await warmClip(a.id, a.motionId);
+    }
+  })().catch(() => { /* best-effort — warmClip never throws, this is belt-and-braces */ });
+}
+
 router.get("/api/immich/on-this-day", async (_req, res) => {
   if (!isConfigured()) return res.json({ assets: [] });
   warmRoster(); // background, never awaited — see photoNames.js
   const key = `otd:${new Date().toDateString()}`;
   const assets = await memoised(key, ON_THIS_DAY_TTL_MS, () => onThisDayResult(new Date()));
-  res.json({ assets: enrich(assets) });
+  warmPoolMotion(key, assets);
+  /* publicPhoto runs OUTSIDE the memo, for the same reason enrich does and a
+     sharper one: `motion` means "a playable clip is on disk RIGHT NOW". Behind
+     an hour-long memo it would be frozen at whatever was true when the day's
+     pool was first fetched — which is the one moment it is guaranteed false for
+     every clip, because that request is what STARTS the warm. That is the
+     2026-08-03 defect publicPhoto's own comment describes, and memoising the
+     boolean would reintroduce it on this route. */
+  res.json({ assets: await Promise.all(enrich(assets).map(publicPhoto)) });
 });
 
 /* ── The veto ───────────────────────────────────────────────────────────────
@@ -169,7 +210,7 @@ router.get("/api/immich/random", async (req, res) => {
   const count = Math.min(Math.max(parseInt(req.query.count, 10) || 12, 1), 60);
   const key = `rnd:${count}`;
   const assets = await memoised(key, RANDOM_TTL_MS, () => searchRandomResult(count));
-  res.json({ assets: enrich(assets) });
+  res.json({ assets: stripInternal(enrich(assets)) });
 });
 
 // Browse assets by taken-date window — the authoring portal's month view. Params
@@ -186,7 +227,7 @@ router.get("/api/immich/browse", async (req, res) => {
 
   const key = `browse:${after}:${before}`;
   const assets = await memoised(key, BROWSE_TTL_MS, () => searchTakenResult(after, before, 250));
-  res.json({ assets });
+  res.json({ assets: stripInternal(assets) });
 });
 
 // The frozen Daily Memories set for today (features.dailyMemories). Builds on

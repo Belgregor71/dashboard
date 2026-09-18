@@ -38,7 +38,21 @@ export const CLIP_DIR = path.join(CACHE_DIR, "clips");
 // ceiling. Clips are ~5x larger and vary, so a count would make the real ceiling
 // anything between 25 MB and 150 MB — and would let a cold clip evict a warm
 // still. Different unit, deliberately.
-const CLIP_MAX_BYTES = 48 * 1024 * 1024;   // ≈ 5 days of daily sets, worst case
+/* ⚠⚠ RAISED 48 -> 128 MB (2026-09-18) IN THE SAME CHANGE THAT ADDED THE POOL
+   WARM, and the two must not be separated. The budget is shared between the
+   daily set and the on-this-day pool, and `pruneClips` below drops OLDEST
+   FIRST — so at 48 MB the pool's 27-odd fresh clips would evict the daily
+   set's, and the symptom would be the INCUMBENT screensaver quietly losing
+   motion after a change that never touched it. Measured on the box the day
+   this was written: 91 clips / 41 MB against the old 48 MB ceiling, i.e.
+   already inside eviction range before the pool warm adds anything.
+
+   Sizing: ~450 KB a clip, ~15 MB a day for pool + set together, so 128 MB is
+   about eight days of headroom on a 16 GB box with a real disk. Retention past
+   a day or two buys little — an on-this-day pool is keyed to a DATE and the
+   same one is 365 days away — so this is slack against a bad day, not a
+   working set. */
+const CLIP_MAX_BYTES = 128 * 1024 * 1024;
 
 // The burst the client plays is bounded by a timer, and this is the guarantee
 // that makes that timer the sole authority: the media can never outlast it.
@@ -194,10 +208,18 @@ function ffmpegArgs(src, out) {
  * Produce `clips/<stillId>.mp4` from a Live Photo's motion part, if it isn't
  * already there. Idempotent, sequential, and never throws into its caller.
  *
- * Called from the Daily Memories warm pass, which runs while the NAS is awake
- * and (via the evening tick) while the panel is DPMS-off. It is bounded at ≤12
- * assets/day of which roughly a third to a half carry motion, each ~3s of source
- * — single-digit seconds of one core per night, at nice 19.
+ * Called from TWO warm passes now, and they are bounded very differently:
+ *
+ *   · Daily Memories (`dailyMemories.js`), gated by IMMICH_LIVE_MOTION — ≤12
+ *     assets/day of which roughly a third to a half carry motion, each ~3s of
+ *     source. Single-digit seconds of one core per night, at nice 19.
+ *   · The on-this-day pool (`routes/immich.js`), gated by IMMICH_POOL_MOTION —
+ *     measured 2026-09-18 on the live library at 57 assets, 27 with motion.
+ *     Roughly five times the above, still sequential and still off the render
+ *     path, but it is no longer "single-digit seconds".
+ *
+ * Both run while the NAS is awake and (via the evening tick / the kiosk's first
+ * fetch of the day) while the panel is usually DPMS-off.
  */
 // Assets being transcoded right now. `buildDailySet` fires its warm pass and
 // does not await it, so two passes genuinely overlap — the hourly scheduler tick

@@ -655,7 +655,9 @@ lossless reference of the same filter chain:
 The fixed-function encoder is **strictly worse on rate-distortion** than x264 `veryfast`:
 quality-matched it wants ~qp30 and **+50% bytes**. It buys 1.3 s of one core per clip —
 **~5 s per night at `nice -n 19`, off the render path, panel DPMS-off** — and spends it in
-bytes that this panel then decodes **in software**, out of a byte-bounded 48 MB cache.
+bytes that this panel then decodes **in software**, out of a byte-bounded 128 MB cache
+(48 MB when this was measured; raised 2026-09-18 when the on-this-day pool joined the
+same budget — the conclusion is unaffected, the trade is about bytes-per-clip).
 Wrong trade. `liveMotion.js` is unchanged.
 
 ⚠ **Full-hardware transcode is BROKEN here and must never ship.** With
