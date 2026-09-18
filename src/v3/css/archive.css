@@ -455,9 +455,79 @@
   to { transform: scale(1); }
 }
 
+/* ── The Live Photo burst (features.v3ArchiveMotion) ────────────────────────
+   Same `object-fit` as `.archive__img` deliberately: the clip is encoded at its
+   SOURCE aspect, so the two crop identically and will follow the card together
+   if its geometry ever changes.
+
+   ⚠⚠ NO `animation` AND NO `transform` HERE, EVER. A transform on a DECODING
+   layer is precisely the defect class that cost 3.0-4.3 points of a core on the
+   incumbent (`ambient-archive.css` carries the same guardrail, and a spec pins
+   both). Opacity is the only property this element is allowed to move, and it
+   is faster in than the still's crossfade because the burst should feel like
+   part of the arrival rather than a second event after it. */
+.archive__clip {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+
+.archive__clip.is-shown { opacity: 1; }
+
+/* ⚠⚠ THE CARD STOPS MOVING WHILE THE PHOTOGRAPH DOES — owner's call 2026-09-18.
+   One thing moves at a time: the memory arrives, the frame goes still, the
+   picture itself comes alive for ~3.6s, then the frame breathes again.
+
+   All three of the card's own moves are named, because which ones are running
+   depends on `v3ArchivePlane`: with the plane ON the wrapper's `arch-pivot` is
+   switched off and `.archive__plane` breathes instead; with it OFF the wrapper
+   pivots and there is no plane element at all. Naming only the live pair would
+   leave the other composition decoding under a moving ancestor.
+
+   `animation-play-state` rather than `animation: none`: a paused animation
+   HOLDS its current transform, so the card stops where it is and resumes from
+   there. `none` would snap it back to the untransformed state and the pause
+   would read as a jump — the same reason the Ken Burns settle had to reverse
+   direction rather than simply end.
+
+   ⏳ COST NOT YET MEASURED. The settle work proved a FINISHED `forwards`
+   animation is free (21.1 settled vs 21.5 suppressed); a PAUSED one is inferred
+   to be the same and has not been read off the wall. /kiosk-metrics through a
+   real burst before this flag flips.
+
+   ⚠ THE PLANE HALF CARRIES `[data-arch-plane="1"]` and the other two do not,
+   which is not inconsistency: `.archive__plane` is a node the rebuild BUILDS,
+   so every rule naming it must be scoped to the flag that builds it or the
+   plane's rollback stops being provable by construction (the guardrail in
+   v3-archive.spec.js enforces exactly this, and caught this rule unscoped).
+   `.archive__card-wrap` and `.archive__img` exist in BOTH compositions, so
+   scoping them would switch the pause off on the shipped surface.
+
+   ⚠⚠ SPLIT INTO TWO RULES ON PURPOSE, and it must stay split. Written as one
+   comma-separated list the selector text contains BOTH `[data-arch-plane="1"]`
+   and `.archive__card-wrap`, which makes it a false match for the guardrail
+   that looks up "the rule that switches the pivot off in plane mode" by
+   scanning selector text — it found THIS rule, read `animation-play-state`
+   instead of `animation: none`, and went red. Two rules, each naming one
+   concern, and neither is ambiguous to a text scan. */
+:root[data-arch-burst="1"][data-arch-plane="1"] .archive__plane {
+  animation-play-state: paused;
+}
+
+:root[data-arch-burst="1"] .archive__card-wrap,
+:root[data-arch-burst="1"] .archive__img.is-top {
+  animation-play-state: paused;
+}
+
 .archive__lip {
   position: absolute;
   inset: 0;
+  z-index: 4;
   pointer-events: none;
   box-shadow: inset 0 1px 0 color-mix(in oklch, var(--ink) 14%, transparent);
 }

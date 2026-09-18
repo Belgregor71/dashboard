@@ -58,9 +58,43 @@ against a live-ambient ceiling of 25, and a 3.6 s burst is a **peak** episode
   set's — the incumbent screensaver silently losing motion from a change that
   never touched it.
 
-⏳ **Still owed: the entire client half** — `v3ArchiveMotion`, the `<video>`, the
-pause/resume, the teardown at step 4 below, and the `/kiosk-metrics` reading. The
-server groundwork alone changes nothing on the wall.
+### Shipped 2026-09-18 (client half, COMMITTED — flag OFF, not deployed)
+
+- `v3ArchiveMotion: false` in `config.js`; `ambientArchiveMotion` now reads
+  `· V3 lever: v3ArchiveMotion`.
+- `src/v3/core/archive.js`: the `<video>` is built **only when the flag is on**,
+  so flag-off there is no element, no resource and no decoder — that is the
+  rollback. `armBurst` / `stopClip` / `clearMotionTimers` mirror the incumbent.
+- **The start is derived from `settleMs`**, not the incumbent's flat 2800ms —
+  its crossfade is always 2.6s, V3's is 1.2s for a veto and 2.6s for the
+  rotation, so a constant would start a veto's burst 1.6s after its photograph
+  had finished arriving. At the clamp it lands on the incumbent's own 2800.
+- **Decision B is `data-arch-burst`**, set on the same tick as the reveal and
+  removed on every exit. Two CSS rules, deliberately **not** merged into one
+  comma-separated list — see below.
+- **The teardown V3 never had**: `stopArchiveMotion()` wired to `onDepthChange`
+  and to `onPanelDark`. `.archive` is only `visibility: hidden` above depth 0,
+  and a hidden `<video>` keeps decoding.
+
+🔑 **A guardrail collision worth knowing about.** Written as one rule, the pause
+selector contains both `[data-arch-plane="1"]` and `.archive__card-wrap`, which
+false-matched the existing "the pivot is switched OFF, not re-timed" test — it
+finds its rule by scanning selector text, read `animation-play-state` instead of
+`animation: none`, and went red. The pause is two rules for that reason.
+
+⚠⚠ **TWO OF THESE TESTS PASSED AGAINST THEIR OWN INJECTED DEFECT before they
+were rewritten**, and both failed the same way: they allowed enough time for the
+burst to end BY ITSELF (~4.5s), so they could not tell a teardown from a natural
+end. The depth test now reads synchronously after `setDepth` (which fires its
+listeners synchronously) while ~3.6s of hold remains; the exchange test uses a
+deliberately slow 1200ms crossfade to open a ~1.4s window in which the old burst
+must already be gone and the new one has not armed. **A generous timeout is not
+a safe default when the thing under test expires on its own.**
+
+⏳ **Still owed before any flip:** the `/kiosk-metrics` reading through a real
+burst — specifically whether a PAUSED animation costs what a FINISHED one costs,
+which is inferred and not measured. Then `/flag-flip v3ArchiveMotion`, which also
+needs `IMMICH_POOL_MOTION=1` on the G11 or there will be nothing to burst.
 
 ## How the incumbent does it (`src/js/modules/ambientArchive.js`)
 

@@ -111,6 +111,12 @@ const planeEnabled = () =>
 const portraitEnabled = () =>
   Boolean(globalThis.window?.CONFIG?.features?.v3ArchivePortrait);
 
+/* ⚠ READ PER CALL, and LATCHED AT BUILD like the two above — `motionMode` is
+   what decides whether the <video> exists at all, and a page that changed its
+   mind afterwards would be arming timers against an element it never built. */
+const motionEnabled = () =>
+  Boolean(globalThis.window?.CONFIG?.features?.v3ArchiveMotion);
+
 /* ── The stage ──────────────────────────────────────────────────────────── */
 const FRAME_W = 1920;
 
@@ -265,6 +271,27 @@ const EXCHANGE_BLUR_MS = 300;
    remove. */
 const PLATE_SWAP_RATIO = 0.92;
 
+/* ── The Live Photo burst (features.v3ArchiveMotion) ─────────────────────────
+   A memory's ~3s motion part over the still it belongs to, for a moment as the
+   memory arrives.
+
+   ⚠ THE START IS DERIVED FROM `settleMs`, NOT A CONSTANT, and that is the one
+   number that could not be ported from the incumbent. It uses a flat 2800ms
+   because its crossfade is always 2.6s — here the exchange is 1.2s for a veto
+   and 2.6s for the ambient rotation, so a flat 2800 would start a veto's burst
+   1.6s after its photograph had finished arriving: long enough to read as a
+   second, unexplained event rather than part of the arrival. `settleMs + pad`
+   lands the burst just past the crossfade whatever the crossfade was, and at
+   the clamp it is 2600+200 = the incumbent's own 2800.
+
+   The hold and the fade ARE constants, because they answer to the media rather
+   than to the exchange: the server bounds every clip at `-t 3.5`, so a 3.6s
+   hold guarantees the media ends before the hold does and the hold is the sole
+   authority on when the burst stops. */
+const MOTION_START_PAD_MS = 200;
+const MOTION_HOLD_MS = 3600;   // > the server's -t 3.5 bound, so the media ends first
+const MOTION_FADE_MS = 600;    // the fade back to the still, then drop the resource
+
 let root = null;
 let built = false;
 /* ⚠ LATCHED AT BUILD, not read per paint. The composition is decided once and
@@ -290,6 +317,17 @@ let plateEl = null;
 let plateRows = null;
 let yearEl = null;
 let planeEl = null;         // the ONE angled wrapper — plane mode only
+let motionMode = false;     // latched at build — see motionEnabled()
+let clipEl = null;          // the burst's <video>, built only when the flag is on
+let motionArmTimer = null;
+let motionEndTimer = null;
+let motionStopTimer = null;
+/* ⚠ NO BURST ON THE PAGE'S FIRST PHOTOGRAPH. That exchange coincides with boot
+   and is the one moment the panel may have just come back from DPMS, so a clip
+   there is a moving image arriving on a screen someone has only just looked at.
+   The incumbent gets this from its own `first` early-return; here the archive
+   has no entry event of its own, so it is counted. */
+let presented = false;
 let dayEl = null;           // "Thursday 4 September"
 let skyEl = null;           // "22° · partly cloudy · 14° / 25°"
 /* THE LAST SKY HANDED OVER, as the finished line rather than the payload.
@@ -672,6 +710,25 @@ function build(host) {
     card.append(img);
     cardImgs.push(img);
   }
+  /* ⚠⚠ BUILT ONLY WHEN THE FLAG IS ON, and this IS the rollback. Flag-off there
+     is no <video> in the document at all — no element, no resource, no decoder,
+     nothing for a timer to reach — rather than a hidden one that a later edit
+     could start feeding. `armBurst` and `stopClip` both guard on `clipEl`, so
+     with it null every path through them is an early return.
+
+     `preload="none"` and NO `src` at rest: the element costs nothing until a
+     burst sets its src, and `autoplay` is absent on purpose — playback is
+     started explicitly by `play()` so its promise is what reveals the clip. */
+  if (motionMode) {
+    clipEl = document.createElement("video");
+    clipEl.className = "archive__clip";
+    clipEl.muted = true;
+    clipEl.playsInline = true;
+    clipEl.preload = "none";
+    clipEl.setAttribute("aria-hidden", "true");
+    card.append(clipEl);
+  }
+
   const lip = document.createElement("div");
   lip.className = "archive__lip";
   card.append(lip);
@@ -882,6 +939,141 @@ export function archiveSky(weather) {
   paintSky();
 }
 
+/* ── The burst ───────────────────────────────────────────────────────────────
+   Mirrors `src/js/modules/ambientArchive.js`, which has run this on the wall
+   since 2026-08. What is NOT mirrored is called out where it differs; the rest
+   is deliberately the same shape so the two can be read side by side.
+─────────────────────────────────────────────────────────────────────────── */
+
+function isNightNow() {
+  return document.documentElement.dataset.night === "1";
+}
+
+function reducedMotion() {
+  return Boolean(globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
+}
+
+function clearMotionTimers() {
+  clearTimeout(motionArmTimer);
+  clearTimeout(motionEndTimer);
+  clearTimeout(motionStopTimer);
+  motionArmTimer = null;
+  motionEndTimer = null;
+  motionStopTimer = null;
+}
+
+/**
+ * Every terminal path goes through here — burst finished, memory replaced
+ * mid-burst, depth left 0, panel dark, full teardown. Idempotent.
+ *
+ * ⚠ `load()` AFTER `removeAttribute("src")` IS WHAT FREES THE DECODER. Without
+ * it Chromium holds the media resource and its decoder open for the life of the
+ * page, which on a wall that runs for weeks is the leak class this house has
+ * already paid for three times (CLAUDE.md, 24/7 Kiosk Memory Discipline).
+ *
+ * ⚠ The burst attribute comes off HERE and not in the hold's timer, so every
+ * exit — including the ones that skip the hold entirely — resumes the card's
+ * own motion. A pause that outlives its cause is a stopped wall.
+ */
+function stopClip() {
+  root?.removeAttribute("data-arch-burst");
+  if (!clipEl) return;
+  clipEl.classList.remove("is-shown");
+  clipEl.pause();
+  clipEl.removeAttribute("src");
+  clipEl.load();
+}
+
+/**
+ * Arm the burst for an arriving memory, if it has earned one.
+ *
+ * @param {object[]|undefined} assets the ONE asset now on the card
+ * @param {number} settleMs this exchange's crossfade — the start is derived from it
+ */
+function armBurst(assets, settleMs) {
+  if (!motionMode || !clipEl) return;
+
+  /* ⚠ `motion` IS THE SERVER'S stat() OF A FINISHED CLIP, not a claim Immich
+     made and not `motionId`. Every way this can fail — NAS asleep, HEVC source,
+     no ffmpeg, encode failed, clip pruned, IMMICH_POOL_MOTION off — collapses
+     into false upstream, so the card can never request a clip that 404s. */
+  const asset = assets?.[0];
+  if (!asset?.id || asset.motion !== true) return;
+
+  // The same three refusals the incumbent makes, plus depth: this surface is
+  // only ever looked at from depth 0, and `.archive` is visibility:hidden above
+  // it — which does NOT stop a <video> decoding.
+  if (document.documentElement.dataset.depth !== "0") return;
+  if (root?.dataset.panelDark === "1") return;
+  if (isNightNow() || reducedMotion()) return;
+
+  const startMs = settleMs + MOTION_START_PAD_MS;
+  const clipSrc = `/api/immich/asset/${encodeURIComponent(asset.id)}/clip`;
+
+  motionArmTimer = setTimeout(() => {
+    motionArmTimer = null;
+    clipEl.src = clipSrc;
+    /* Revealed only once playback has ACTUALLY begun, never on `src` alone. A
+       file can go missing between the page load and a burst hours later, and
+       this repo's scar tissue is a video that decodes nothing while reporting
+       no error at all. If play() never resolves the still simply stays — there
+       is nothing to fall back to, because it never left.
+
+       ⚠ Two-handler .then(fn, fn), NOT .catch/.finally: a rejection on a fresh
+       chain is exactly the uncaught-pageerror shape the suite exists to catch
+       (CLAUDE.md). */
+    clipEl.play().then(
+      () => {
+        // The burst may have been called off while play() was pending — a new
+        // memory, a depth change, the panel going dark. `motionEndTimer` still
+        // being armed is what says this burst is still wanted.
+        if (!motionEndTimer) return;
+        /* ⚠⚠ THE CARD STOPS MOVING HERE, not at arm time. Set on the same tick
+           as the reveal so the pause covers exactly the frames the clip is
+           visible for — arming it 1.4-2.8s earlier would hold the wall still
+           through the crossfade, which is the one moment it is supposed to be
+           moving. Owner's call 2026-09-18: one thing moves at a time. */
+        root?.setAttribute("data-arch-burst", "1");
+        clipEl.classList.add("is-shown");
+      },
+      () => {}
+    );
+  }, startMs);
+
+  /* Two plain timers, never `ended`/`canplay`/`transitionend`. This layer is
+     `display:none` under reduced motion and visibility:hidden at every depth
+     above 0, and those events do not fire for a hidden element (CLAUDE.md) —
+     nor is one needed, because the server bounds every clip to 3.5s, which
+     makes the hold the sole authority on when this stops. */
+  motionEndTimer = setTimeout(() => {
+    motionEndTimer = null;
+    clipEl.classList.remove("is-shown");
+    // The card moves again as the still comes back, not after the resource is
+    // dropped — the fade below is the still returning, and it should return to
+    // a living frame rather than to a frozen one that starts up 600ms later.
+    root?.removeAttribute("data-arch-burst");
+  }, startMs + MOTION_HOLD_MS);
+
+  motionStopTimer = setTimeout(() => {
+    motionStopTimer = null;
+    stopClip();
+  }, startMs + MOTION_HOLD_MS + MOTION_FADE_MS);
+}
+
+/**
+ * Stop any burst in flight and free the decoder. THE TEARDOWN V3 NEVER HAD.
+ *
+ * ⚠⚠ `.archive` is only `visibility: hidden` above depth 0 (archive.css), and
+ * a hidden <video> KEEPS DECODING. Before this existed there was no path at all
+ * by which a burst could be stopped by anything other than its own timer, so a
+ * depth change mid-burst left a clip playing behind the composed surface for
+ * the rest of its hold. Wired to onDepth in main.js.
+ */
+export function stopArchiveMotion() {
+  clearMotionTimers();
+  stopClip();
+}
+
 /**
  * Put ONE photograph of the held frame on the card.
  *
@@ -1032,6 +1224,26 @@ function present(index) {
       present(index + 1);
     }, halfHold);
   }
+
+  /* ── The burst, last ──────────────────────────────────────────────────────
+     ⚠ THE PREVIOUS BURST IS TORN DOWN BEFORE THE NEXT IS ARMED, unconditionally
+     and before any of the refusals inside armBurst can return early. A memory
+     replaced mid-burst is an ordinary state here — a veto answered inside the
+     hold, or half two of a pair arriving — and without this the old clip would
+     keep playing over the new photograph while its own stop timer, armed
+     against an exchange that is over, fired later and dropped the NEW burst's
+     resource. Same rule as every other timer in this function: cleared before
+     it is re-armed.
+
+     ⚠ `stopClip()` and not just `clearMotionTimers()`: the timers are what
+     WOULD have ended it, and clearing them alone would leave a playing video
+     and a paused card with nothing left to stop either. */
+  clearMotionTimers();
+  stopClip();
+
+  // Not on the page's first photograph — see `presented`.
+  if (presented) armBurst(assetsAt(index), settleMs);
+  presented = true;
 }
 
 /**
@@ -1131,6 +1343,7 @@ export function initArchive(host) {
      holding nodes the stylesheet is no longer positioning. */
   if (!built) planeMode = planeEnabled();
   if (!built) portraitMode = planeMode && portraitEnabled();
+  if (!built) motionMode = motionEnabled();
   if (!built) build(host);
 
   // The marker the stylesheet hangs everything off. On the root rather than the
@@ -1215,6 +1428,23 @@ export function initArchive(host) {
     ghosts: host.querySelectorAll(".archive__ghost").length,
     slots: host.querySelectorAll(".archive__img").length,
     shown: host.querySelectorAll(".archive__img.is-shown:not([data-blank='1'])").length,
+    /* The burst, as it actually IS rather than as the module believes it to be.
+       ⚠ `src` is the ATTRIBUTE, not `currentSrc` — currentSrc keeps the last
+       resolved URL after removeAttribute+load, so a probe reading it would
+       report a clip still loaded on an element whose decoder has been freed,
+       which is the exact opposite of what every teardown assertion needs.
+       ⚠ `paused` is read off the ROOT, not from a variable: the whole point of
+       decision B is that the pause reaches the stylesheet, and "the module set
+       a flag" and "the card stopped moving" came apart on this very surface
+       once before (see `lean` above). */
+    clip: clipEl
+      ? {
+          src: clipEl.getAttribute("src"),
+          shown: clipEl.classList.contains("is-shown"),
+          paused: document.documentElement.getAttribute("data-arch-burst") === "1",
+          armed: Boolean(motionArmTimer || motionEndTimer || motionStopTimer)
+        }
+      : null,
     /* ⚠ THE FOUR-ROW PLATE IS THE SHIPPED SURFACE'S, AND ONLY ITS. On the plane
        surface `plateRows` holds one `line` and no `eyebrow` at all, so reading
        `plateRows.eyebrow.textContent` unguarded throws inside the probe every

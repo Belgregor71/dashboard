@@ -474,6 +474,7 @@ async function bootArchive(
     v3Archive = true,
     v3ArchivePlane = false,
     v3ArchivePortrait = false,
+    v3ArchiveMotion = false,
     groundMemories = true,
     groundDiptych = false,
     pool = POOL,
@@ -494,6 +495,7 @@ async function bootArchive(
         `\nwindow.CONFIG.features.v3Archive = ${v3Archive};` +
         `\nwindow.CONFIG.features.v3ArchivePlane = ${v3ArchivePlane};` +
         `\nwindow.CONFIG.features.v3ArchivePortrait = ${v3ArchivePortrait};` +
+        `\nwindow.CONFIG.features.v3ArchiveMotion = ${v3ArchiveMotion};` +
         `\nwindow.CONFIG.features.groundMemories = ${groundMemories};` +
         `\nwindow.CONFIG.features.groundDiptych = ${groundDiptych};\n`
     });
@@ -2613,4 +2615,318 @@ test("the portrait flag ON leaves a LANDSCAPE memory exactly where it was", asyn
   expect(p.captionCap).toBe("1050px");
 
   expect(pageErrors).toEqual([]);
+});
+
+/* ── The Live Photo burst (features.v3ArchiveMotion) ─────────────────────────
+
+   A memory's ~3s motion part over the still it belongs to, as the memory
+   arrives. The incumbent has run this since 2026-08; this is the V3 half, and
+   these tests are deliberately shaped like `tests/ambient-archive.spec.js`'s so
+   the two can be read side by side.
+
+   ⚠⚠ TWO ENVIRONMENT TRAPS, BOTH ALREADY PAID FOR ON THE INCUMBENT. Re-read
+   that file's own notes before diagnosing a failure here as a product bug:
+
+   1. THE SSE STREAMS STARVE THE CLIP. `/api/ha/stream` and `/api/voice/stream`
+      are long-lived by design and hold their sockets for the life of the page.
+      With them open the <video>'s `Range: bytes=0-` is issued and NEVER
+      ANSWERED — no response, no failure, no timeout. readyState stays 0, so
+      `play()` resolves but nothing decodes and the burst correctly refuses to
+      reveal. Every assertion then fails as a timeout that reads exactly like
+      "the burst is broken". It is not. Both are cut loose below.
+
+   2. THE CLIP MUST BE REAL. A fake URL would let every assertion here pass
+      against a <video> that never decoded a frame — which is the failure this
+      feature is most likely to have in the field, so these tests must not be
+      blind to it. `/assets/weather_bg/clear.mp4` is a decodable H.264 the test
+      server already serves.
+─────────────────────────────────────────────────────────────────────────── */
+test.describe("the archive's Live Photo burst", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route(/\/api\/(ha|voice)\/stream/, (route) =>
+      route.fulfill({ status: 204, body: "" })
+    );
+  });
+
+  /* `motion: true` is what the SERVER says after stat()-ing a finished clip —
+     see publicPhoto() in server/routes/immich.js. The card reads that boolean
+     and nothing else, so a pool that carries it is the whole fixture. */
+  const MOTION_POOL = POOL.map((a) => ({ ...a, motion: true }));
+  const STILL_POOL = POOL.map((a) => ({ ...a, motion: false }));
+
+  const clipBytes = readFileSync(
+    fileURLToPath(new URL("../static/assets/weather_bg/clear.mp4", import.meta.url))
+  );
+
+  async function bootMotion(page, opts = {}) {
+    await page.route("**/api/immich/asset/*/clip", (route) =>
+      route.fulfill({ contentType: "video/mp4", body: clipBytes })
+    );
+    return bootArchive(page, { v3ArchiveMotion: true, pool: MOTION_POOL, ...opts });
+  }
+
+  const clip = (page) => page.evaluate(() => window.__archive().clip);
+
+  /* Drive the NEXT memory onto the card. The first photograph never bursts by
+     design, so every test that wants a burst goes through here at least once.
+
+     ⚠⚠ IT VERIFIES THE EXCHANGE RATHER THAN ASSUMING IT, and that is not
+     defensive padding — it is the bug this helper shipped with. `dissolve()`
+     returns TRUE as soon as it has picked an asset, but the frame only actually
+     changes inside its own `settle()`, which runs off the incoming image's load.
+     Called with `stallMs = 0` the load is treated as stalled immediately, so
+     settle never fires, the ground sits on the SAME photograph — and every
+     burst assertion below then failed as a timeout that read exactly like "the
+     burst is broken". It was not: nothing had arrived to burst for.
+     `60, 200` is the pairing every other spec in this file uses. */
+  const nextMemory = async (page, settleMs = 60) => {
+    const before = await page.evaluate(() => window.__ground().assetId);
+    await page.evaluate((ms) => window.__groundDissolve(ms, 200), settleMs);
+    await expect
+      .poll(() => page.evaluate(() => window.__ground().assetId), {
+        timeout: 10_000,
+        message: "the ground never changed photograph — there is nothing to burst for"
+      })
+      .not.toBe(before);
+  };
+
+  const burstShown = (page) =>
+    expect
+      .poll(() => page.evaluate(() => window.__archive().clip?.shown), { timeout: 15_000 })
+      .toBe(true);
+
+  /* The burst is an EVENT WITH AN END, and this is the end: the hold has
+     expired, the fade has run and the resource has been dropped. Asserted on
+     the `src` ATTRIBUTE being null — `currentSrc` keeps the last resolved URL
+     after removeAttribute+load, so a probe reading it would call a freed
+     decoder "still loaded". */
+  const settledStill = (page) =>
+    expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const c = window.__archive().clip;
+            return Boolean(c && !c.armed && c.src === null);
+          }),
+        { timeout: 20_000 }
+      )
+      .toBe(true);
+
+  test("flag OFF builds no video at all — that is the rollback", async ({ page }) => {
+    const pageErrors = await bootArchive(page, { pool: MOTION_POOL });
+    await groundShown(page);
+    await nextMemory(page);
+
+    // Not "a hidden video": none in the document. Nothing for a later edit to
+    // start feeding, and nothing holding a decoder.
+    expect(await page.evaluate(() => document.querySelectorAll(".archive__clip").length)).toBe(0);
+    expect(await page.evaluate(() => document.querySelectorAll("#archive video").length)).toBe(0);
+    expect(await clip(page)).toBeNull();
+    // And the card is never told to stop moving.
+    expect(
+      await page.evaluate(() => document.documentElement.hasAttribute("data-arch-burst"))
+    ).toBe(false);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("a memory with a motion part bursts, and the card STOPS while it plays", async ({ page }) => {
+    const pageErrors = await bootMotion(page);
+    await groundShown(page);
+    await nextMemory(page);
+    await burstShown(page);
+
+    const shown = await clip(page);
+    // The clip is really loaded, and it is THIS asset's.
+    expect(shown.src).toMatch(/\/api\/immich\/asset\/[a-z]\/clip$/);
+    /* ⚠⚠ THE PAUSE REACHED THE STYLESHEET, not merely a module variable. Those
+       two came apart on this very surface once before (the portrait lean was
+       written to the card instead of the root), so this reads the attribute the
+       CSS actually selects on. */
+    expect(shown.paused, "the card did not stop for the burst").toBe(true);
+
+    // And it really decoded — a <video> that shows nothing is the field failure
+    // this feature is most likely to have.
+    const decoded = await page.evaluate(() => {
+      const v = document.querySelector(".archive__clip");
+      return { readyState: v.readyState, paused: v.paused, w: v.videoWidth };
+    });
+    expect(decoded.readyState, "the clip never decoded a frame").toBeGreaterThan(0);
+    expect(decoded.w).toBeGreaterThan(0);
+    expect(decoded.paused).toBe(false);
+    expect(pageErrors).toEqual([]);
+  });
+
+  /* ⚠⚠ THE OFF DIRECTION, AND IT IS HALF THE TEST. A pause set unconditionally
+     passes the test above and freezes the card for the rest of the day — the
+     exact shape of the veil that dimmed every screen the house composed
+     (CLAUDE.md: "Inject BOTH directions whenever the behaviour has an off
+     state"). The card must be moving again once the burst is over. */
+  test("the burst ends, the card moves again, and the decoder is freed", async ({ page }) => {
+    const pageErrors = await bootMotion(page);
+    await groundShown(page);
+    await nextMemory(page);
+    await burstShown(page);
+    await settledStill(page);
+
+    const after = await clip(page);
+    expect(after.shown).toBe(false);
+    expect(after.src).toBeNull(); // the resource is dropped
+    expect(after.armed).toBe(false); // no timer left behind
+    expect(after.paused, "the card never started moving again").toBe(false);
+    expect(
+      await page.evaluate(() => document.documentElement.hasAttribute("data-arch-burst"))
+    ).toBe(false);
+    expect(pageErrors).toEqual([]);
+  });
+
+  /* The page's first photograph coincides with boot, and is the one moment the
+     panel may just have come back from DPMS. */
+  test("the FIRST photograph never bursts", async ({ page }) => {
+    const pageErrors = await bootMotion(page);
+    await groundShown(page);
+
+    // The still is up and the element exists — so this is not passing because
+    // nothing rendered.
+    expect(await page.evaluate(() => window.__archive().shown)).toBe(1);
+    const first = await clip(page);
+    expect(first, "the video was never built — the flag did not take").not.toBeNull();
+    expect(first.armed, "the first photograph armed a burst").toBe(false);
+    expect(first.src).toBeNull();
+    expect(first.shown).toBe(false);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("a memory with NO motion part never bursts", async ({ page }) => {
+    const pageErrors = await bootMotion(page, { pool: STILL_POOL });
+    await groundShown(page);
+    await nextMemory(page);
+
+    // Positive control: the exchange really happened, so this is a refusal
+    // rather than an inert page that never got as far as a second memory.
+    await expect
+      .poll(() => page.evaluate(() => window.__archive().frame), { timeout: 10_000 })
+      .toBeGreaterThan(0);
+
+    const c = await clip(page);
+    expect(c, "the video was never built — the flag did not take").not.toBeNull();
+    expect(c.armed).toBe(false);
+    expect(c.src).toBeNull();
+    expect(c.paused).toBe(false);
+    expect(pageErrors).toEqual([]);
+  });
+
+  /* ⚠⚠ THE TEARDOWN V3 NEVER HAD. `.archive` is only `visibility: hidden` above
+     depth 0, and a hidden <video> KEEPS DECODING — so before stopArchiveMotion
+     existed there was no path by which a depth change could stop a burst, and a
+     clip played on behind the composed surface for the rest of its hold. */
+  test("leaving depth 0 mid-burst releases the video", async ({ page }) => {
+    const pageErrors = await bootMotion(page);
+    await groundShown(page);
+    await nextMemory(page);
+    await burstShown(page);
+
+    /* ⚠⚠ READ SYNCHRONOUSLY, NOT POLLED, AND THIS IS THE WHOLE TEST. The first
+       version of this polled for `src === null` with a 10s timeout — and the
+       burst ENDS BY ITSELF after ~4.5s, so it passed with the teardown deleted
+       from onDepthChange. Injected and confirmed green, which is how it was
+       found. A poll generous enough to cover the natural end cannot tell "the
+       depth change released it" from "it finished on its own".
+
+       `setDepth` fires its listeners synchronously, so the release has already
+       happened by the time this next evaluate round-trips — while ~3.6s of the
+       hold remains. Nothing but the depth change can have done it. */
+    await page.evaluate(() => window.__setDepth(1, "spec"));
+    const after = await clip(page);
+    expect(after.src, "the depth change did not release the clip").toBeNull();
+    expect(after.shown).toBe(false);
+    expect(after.armed, "a timer survived the depth change").toBe(false);
+    expect(after.paused, "the card was left paused at another depth").toBe(false);
+    // The element itself is really stopped, not just un-styled.
+    expect(await page.evaluate(() => document.querySelector(".archive__clip").paused)).toBe(true);
+    expect(pageErrors).toEqual([]);
+  });
+
+  /* A memory replaced mid-burst is an ordinary state here — a veto answered
+     inside the hold, or half two of a pair. Without the unconditional teardown
+     at the top of the burst block in present(), the OLD clip keeps playing over
+     the NEW photograph and the old stop-timer later frees the new burst's
+     resource. */
+  test("the next memory ends the burst in flight, and the NEW burst survives", async ({ page }) => {
+    const pageErrors = await bootMotion(page);
+    await groundShown(page);
+    await nextMemory(page);
+    await burstShown(page);
+    expect((await clip(page)).src).not.toBeNull();
+
+    /* ⚠⚠ A SLOW EXCHANGE, AND THAT IS WHAT MAKES THIS FALSIFIABLE. The burst
+       arms at `settleMs + 200`, so a 1200ms crossfade opens a ~1.4s window in
+       which the previous burst must ALREADY be gone and the next has not armed
+       yet. Reading inside that window is a direct observation of the teardown
+       rather than an inference from timing.
+
+       Two earlier versions of this test passed against the defect injected.
+       The first polled for `src === null` with a 10s timeout — but the burst
+       ends by itself after ~4.5s, so the poll could not tell a teardown from a
+       natural end. The second asserted the SECOND burst survives, on the theory
+       that the first burst's orphaned stop timer would kill it — true, but it
+       fires ~4s after the exchange, well outside the window that test sampled.
+       Both were green with `clearMotionTimers()+stopClip()` deleted from
+       present(). This one is red. */
+    await nextMemory(page, 1200);
+    const between = await clip(page);
+    expect(between.src, "the previous burst was still loaded after the exchange").toBeNull();
+    expect(between.shown, "the previous burst was still on screen").toBe(false);
+    expect(between.paused, "the card was left stopped between bursts").toBe(false);
+
+    // …and the new memory then gets its own burst, so this is a teardown rather
+    // than the feature simply having stopped working after one exchange.
+    await burstShown(page);
+    expect((await clip(page)).src).not.toBeNull();
+    expect(pageErrors).toEqual([]);
+  });
+
+  /* ── The CSS guardrail ──────────────────────────────────────────────────── */
+  test("the clip carries NO animation and NO transform, ever", () => {
+    const css = readFileSync(
+      fileURLToPath(new URL("../src/v3/css/archive.css", import.meta.url)),
+      "utf8"
+    );
+    const rule = css.match(/\.archive__clip\s*\{[^}]*\}/);
+    expect(rule, ".archive__clip has no rule at all").toBeTruthy();
+
+    /* A transform on a DECODING layer is the measured 3.0-4.3-point defect class
+       (ambient-archive.css carries the same guardrail). Opacity is the only
+       property this element is allowed to move. */
+    expect(rule[0]).not.toMatch(/animation/);
+    expect(rule[0]).not.toMatch(/transform/);
+    expect(rule[0]).toMatch(/opacity/);
+  });
+
+  test("the pause names all three of the card's own moves", () => {
+    const css = readFileSync(
+      fileURLToPath(new URL("../src/v3/css/archive.css", import.meta.url)),
+      "utf8"
+    );
+    /* ⚠ ALL the burst rules, not the first one. The pause is deliberately TWO
+       rules — see archive.css: written as one comma-separated list its selector
+       text carries both `[data-arch-plane="1"]` and `.archive__card-wrap`, and
+       the "pivot is switched OFF" guardrail above finds its rule by scanning
+       selector text, so the combined form false-matched it and turned it red. */
+    const matched = css.match(/:root\[data-arch-burst="1"\][\s\S]*?\{[^}]*\}/g);
+    expect(matched, "nothing pauses the card during a burst").toBeTruthy();
+    const rule = [matched.join("\n")];
+
+    /* ⚠ WHICH MOVES ARE RUNNING DEPENDS ON `v3ArchivePlane`: with the plane on
+       the wrapper's pivot is switched off and `.archive__plane` breathes; with
+       it off the wrapper pivots and there is no plane element at all. Naming
+       only the live pair would leave the other composition decoding under a
+       moving ancestor. */
+    expect(rule[0]).toMatch(/\.archive__plane/);
+    expect(rule[0]).toMatch(/\.archive__card-wrap/);
+    expect(rule[0]).toMatch(/\.archive__img\.is-top/);
+    /* `animation-play-state`, NOT `animation: none` — a paused animation holds
+       its current transform, so the card stops where it is and resumes from
+       there. `none` would snap it back and the pause would read as a jump. */
+    expect(rule[0]).toMatch(/animation-play-state:\s*paused/);
+  });
 });

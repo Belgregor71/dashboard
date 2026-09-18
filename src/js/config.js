@@ -1201,7 +1201,7 @@ window.CONFIG = {
     // One-line revert (-> false) builds no <video> at all — no element, no
     // timer, no listener, no fetch. Proven green by
     // scripts/verify/flag-reversibility.mjs at flip time.
-    ambientArchiveMotion: true, // ⛔ INERT-ON-V3 (incumbent-only)
+    ambientArchiveMotion: true, // ⛔ INERT-ON-V3 · V3 lever: v3ArchiveMotion
 
     // THE BURST HOLDS FOR THE WHOLE DWELL. Raised on the panel 2026-08-04: the
     // burst plays once and the card then sits still for the remaining ~26s of
@@ -1727,6 +1727,42 @@ window.CONFIG = {
     // The off state is the surface that ran on the wall from 2026-08-20 to
     // 2026-09-05, and it is verified by the same spec file on every run.
     v3ArchivePlane: true,
+
+    // ── The Live Photo burst, on V3's card ──────────────────────────────────
+    // A memory's ~3s motion part plays over the still it belongs to, for a
+    // moment as the memory arrives. The incumbent has had this since
+    // `ambientArchiveMotion`; this is the V3 half, and it is the lever that flag
+    // names now that it is marked INERT-ON-V3.
+    //
+    // ⚠⚠ THE SERVER HALF IS A SEPARATE SWITCH AND IS NOT THIS FLAG.
+    // `IMMICH_POOL_MOTION` (AND-ed with `IMMICH_LIVE_MOTION`) is what warms
+    // clips for the on-this-day pool V3 rotates through. With this flag ON and
+    // that env OFF, `motion` is false for every asset and the card simply never
+    // bursts — no error, no video, no fetch. Measured on the live library
+    // 2026-09-18: the pool is 57 assets of which 27 carry a motion part (47%),
+    // so the supply is real and the two switches must BOTH be on to see it.
+    //
+    // ⚠ THE CARD STOPS MOVING FOR THE BURST — owner's call, 2026-09-18, and it
+    // is a design statement rather than a workaround: one thing moves at a time.
+    // `data-arch-burst` pauses the plane's breathe and the Ken Burns for the
+    // burst's ~3.6s. The plane breathes 0.45deg over 90s, so stopping it is
+    // imperceptible; what it buys is that the clip never decodes under a moving
+    // ancestor, which is the untested half of the incumbent's measured
+    // 3.0-4.3-point transform-on-a-decoding-layer defect.
+    //
+    // ⏳ NOT YET MEASURED, and it must be before this flips: whether a PAUSED
+    // animation costs what a FINISHED one costs. The settle measurement says a
+    // finished `forwards` animation is free (21.1 settled vs 21.5 suppressed);
+    // the paused case is inferred from it, not read. Run /kiosk-metrics at depth
+    // 0 through a real burst first. Headroom if the inference is wrong: depth 0
+    // sits at 21.1 against §5.4's 25 live-ambient ceiling, and a 3.6s burst is a
+    // PEAK episode (≤35), so it fits either way.
+    //
+    // ONE-LINE REVERT (-> false): no <video> is built at all — no element, no
+    // timer, no listener, no fetch — and `data-arch-burst` is never written, so
+    // neither pause rule can match. The off state is the surface on the wall
+    // today.
+    v3ArchiveMotion: false,
 
     // ── A tall print goes into the middle ───────────────────────────────────
     // The plane above pins every card's LEFT edge at 88, which is honest for a

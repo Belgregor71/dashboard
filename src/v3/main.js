@@ -25,7 +25,8 @@ import {
   archivePhoto,
   archiveFocusId,
   archiveDay,
-  archiveSky
+  archiveSky,
+  stopArchiveMotion
 } from "./core/archive.js";
 import { clearSubject, activeSubject, showSubject, subjectRoster } from "./subjects/index.js";
 import { clearVocabularyCard, vocabularyCardMounted } from "./core/vocabulary-card.js";
@@ -267,6 +268,14 @@ function onDepthChange(next, prev) {
     clearSpread();
     clearVocabularyCard();
   }
+  /* ⚠⚠ LEAVING DEPTH 0 MUST STOP A BURST, and nothing did this before
+     2026-09-18. `.archive` is only `visibility: hidden` above depth 0
+     (archive.css) and a hidden <video> KEEPS DECODING — so a depth change
+     inside a burst's hold left a clip playing behind the composed surface,
+     paying for a decode nobody could see. Unconditional and idempotent:
+     flag-off there is no element and this is an early return inside the
+     module. */
+  if (next !== DEPTH.FIELD) stopArchiveMotion();
 }
 
 /* ── Occupancy ──────────────────────────────────────────────────────────────
@@ -710,6 +719,11 @@ function boot() {
       onPanelDark((isDark) => {
         substratePause.dark = isDark;
         applySubstratePause();
+        /* The panel going dark mid-burst is the second path that has to free
+           the decoder — `armBurst` refuses to START while dark, but a burst
+           already in flight would otherwise keep decoding to a screen that is
+           physically off. Same reasoning as the depth exit in onDepthChange. */
+        if (isDark) stopArchiveMotion();
       });
     }
   });
