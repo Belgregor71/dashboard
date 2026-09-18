@@ -156,8 +156,20 @@ const KNOWN_OPEN = [
        is the first time the rim's real cost to a glyph has been measurable at
        all (see the withdrawn entry above). The next 0.02 of token would close it
        and would put faint 0.02 from dim at night, which is the ramp collapsing
-       to buy 2% — so it is recorded rather than spent. Floor 1.6 -> 2.8. */
-    match: (m) => m.token === "--ink-faint",
+       to buy 2% — so it is recorded rather than spent. Floor 1.6 -> 2.8.
+
+       ⚠⚠ NARROWED 2026-09-18 FROM `m.token === "--ink-faint"` TO `#heard`, and
+       the old matcher was a hole shaped like a debt — this file's own words for
+       it, three entries up. What is left is ONE node under ONE overlay, and the
+       entry has said so since the lift; the matcher did not. It excused EVERY
+       user of the token — `.rail`, `.archive__eyebrow`, `.heard` on every other
+       surface — at floor 2.8, while the token's own measured worst case is
+       3.12. So any of them could have decayed 3.12 -> 2.81, through AA-large at
+       3.0, and four green runs would have reported the debt as held.
+
+       Nothing about the decision changed here; only the blast radius of the
+       excuse. Those nodes are now gated at AA like anything else. */
+    match: (m) => m.token === "--ink-faint" && m.selector === "#heard",
     floor: 2.8,
     why: "--ink-faint under the presence rim (the token itself is lifted)"
   },
