@@ -906,6 +906,38 @@ return to the ≤ 8% quiescent row — `v3Archive: false`, one line, verified re
 ⏳ **Still owed: the 24 h and 72 h rows.** A surface that sits on the wall for hours is exactly
 the one whose reading must not be taken once.
 
+#### ⛔ PAUSING the card's moves buys NOTHING — measured 2026-09-18 (`2f2cff7`, `v3ArchiveMotion`)
+
+The Live Photo burst stops the card while the clip plays (owner's decision B). Shipping it
+rested on an **inference** — that a *paused* animation costs what a *finished* one costs,
+carried over from the settle row above. Read off the wall, A/B/A, 25 s windows, all pids over
+one shared window, depth 0, **night** (`--arch-day 0.32`), `data-arch-burst` set by hand:
+
+| state | gpu 1315896 | renderer 1443402 | animations |
+|---|---|---|---|
+| **A** running | 18.7 | 5.7 | breathe + drift + kenburns running |
+| **B** paused | **19.2** | 5.6 | breathe + kenburns **paused**, drift running |
+| **A′** running | 18.9 | 5.6 | all running again |
+
+🔑 **The safe half held and the interesting half did not.** Pausing does not *add* cost — which
+is all that shipping required — but it buys **0 ± 0.5 points**, with B reading *highest* of the
+three. That is the opposite shape from the settle row, where ending one loop was worth 6.3.
+
+**Why they differ, and it is not a contradiction.** The settle removed a *scaling texture* —
+`arch-kenburns` rasterising a full-bleed card every frame, which is real raster work. Pausing
+freezes a transform the compositor was already handling cheaply, and `arch-plane-drift` (the
+ghost, 130 s, infinite) keeps running in **both** halves. So the pause was never able to take
+the surface to rest; it only stops two of three moves.
+
+⚠ **So decision B is a DESIGN decision and must be defended as one** — "one thing moves at a
+time" — not as a performance win. Any future comment claiming the pause saves GPU is wrong.
+
+⚠ **Two things this reading does NOT cover.** It was taken at **night**, where `--arch-day` is
+0.32 and amplitude is a third of the daytime figure, and **without a clip decoding** —
+`armBurst` correctly refuses at night, so no organic burst was available. The daytime amplitude
+and the *clip-under-a-moving-ancestor* case — the whole reason decision B exists — are still
+unmeasured.
+
 #### ✅ V3 archive — depth 0: the fifth loop now SETTLES, and depth 0 is legal (2026-08-20, `b6a7d86`)
 
 `arch-kenburns` runs once per photograph and comes to rest — `96s ease-in-out 1 forwards`,

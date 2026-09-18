@@ -495,10 +495,18 @@
    would read as a jump — the same reason the Ken Burns settle had to reverse
    direction rather than simply end.
 
-   ⏳ COST NOT YET MEASURED. The settle work proved a FINISHED `forwards`
-   animation is free (21.1 settled vs 21.5 suppressed); a PAUSED one is inferred
-   to be the same and has not been read off the wall. /kiosk-metrics through a
-   real burst before this flag flips.
+   ✅ COST MEASURED 2026-09-18, and the interesting half of the guess was WRONG.
+   A/B/A on the wall, 25 s windows, depth 0 at night: gpu 18.7 running / 19.2
+   PAUSED / 18.9 running again. Pausing buys **nothing** — 0 ± 0.5 points, with
+   the paused sample reading highest of the three. It does not ADD cost either,
+   which is all that shipping required.
+
+   ⚠ So this is a DESIGN decision and must be defended as one — one thing moves
+   at a time — never as a performance win. It is NOT the settle row's 6.3-point
+   saving: that ended a scaling texture, this freezes a transform the compositor
+   already handled cheaply, and `arch-plane-drift` keeps running through both
+   halves either way. Full numbers and the two caveats (measured at night, and
+   with no clip actually decoding) are in docs/audit/HOST-BASELINES.md.
 
    ⚠ THE PLANE HALF CARRIES `[data-arch-plane="1"]` and the other two do not,
    which is not inconsistency: `.archive__plane` is a node the rebuild BUILDS,

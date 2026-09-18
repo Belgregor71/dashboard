@@ -1750,13 +1750,19 @@ window.CONFIG = {
     // ancestor, which is the untested half of the incumbent's measured
     // 3.0-4.3-point transform-on-a-decoding-layer defect.
     //
-    // ⏳ NOT YET MEASURED, and it must be before this flips: whether a PAUSED
-    // animation costs what a FINISHED one costs. The settle measurement says a
-    // finished `forwards` animation is free (21.1 settled vs 21.5 suppressed);
-    // the paused case is inferred from it, not read. Run /kiosk-metrics at depth
-    // 0 through a real burst first. Headroom if the inference is wrong: depth 0
-    // sits at 21.1 against §5.4's 25 live-ambient ceiling, and a 3.6s burst is a
-    // PEAK episode (≤35), so it fits either way.
+    // ✅ MEASURED 2026-09-18 and the guess was half wrong: A/B/A on the wall at
+    // depth 0, gpu 18.7 running / 19.2 PAUSED / 18.9 running. Pausing buys
+    // NOTHING (0 ± 0.5, paused reading highest) and costs nothing. So the pause
+    // is a DESIGN decision — one thing moves at a time — and not a performance
+    // win; it is not the settle row's 6.3-point saving. HOST-BASELINES.md holds
+    // the numbers.
+    //
+    // ⏳ WHAT IS STILL UNMEASURED IS THE THING THE PAUSE EXISTS FOR: a clip
+    // decoding under a MOVING ancestor. That reading needs an organic burst, and
+    // `armBurst` correctly refuses at night, so it waits for daylight with
+    // IMMICH_POOL_MOTION=1 on the box. Headroom if it turns out to cost the
+    // incumbent's 3.0-4.3: depth 0 sits at ~19-21 against §5.4's 25
+    // live-ambient ceiling, and a 3.6s burst is a PEAK episode (≤35).
     //
     // ONE-LINE REVERT (-> false): no <video> is built at all — no element, no
     // timer, no listener, no fetch — and `data-arch-burst` is never written, so
