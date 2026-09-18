@@ -2722,14 +2722,10 @@ test.describe("the archive's Live Photo burst", () => {
     expect(await page.evaluate(() => document.querySelectorAll(".archive__clip").length)).toBe(0);
     expect(await page.evaluate(() => document.querySelectorAll("#archive video").length)).toBe(0);
     expect(await clip(page)).toBeNull();
-    // And the card is never told to stop moving.
-    expect(
-      await page.evaluate(() => document.documentElement.hasAttribute("data-arch-burst"))
-    ).toBe(false);
     expect(pageErrors).toEqual([]);
   });
 
-  test("a memory with a motion part bursts, and the card STOPS while it plays", async ({ page }) => {
+  test("a memory with a motion part bursts, and the card KEEPS MOVING", async ({ page }) => {
     const pageErrors = await bootMotion(page);
     await groundShown(page);
     await nextMemory(page);
@@ -2738,22 +2734,31 @@ test.describe("the archive's Live Photo burst", () => {
     const shown = await clip(page);
     // The clip is really loaded, and it is THIS asset's.
     expect(shown.src).toMatch(/\/api\/immich\/asset\/[a-z]\/clip$/);
-    /* ⚠⚠⚠ THE COMPUTED PLAY STATE, NOT THE ATTRIBUTE — and this assertion is
-       the one that was wrong when decision B shipped. It used to read
-       `data-arch-burst` off the root, which is true the moment the module
-       writes it and says nothing about whether the card stopped. It did not:
-       the pause rule lost the cascade to the base `animation:` shorthand
-       (a shorthand also declares `animation-play-state`, at higher
-       specificity), so this test was GREEN while `arch-breathe` ran straight
-       through every burst on the live wall. /kiosk-metrics found it, the suite
-       did not.
+    /* ⛔ THE CARD KEEPS MOVING — owner's call 2026-09-19, reversing the pause
+       after it measured 0 ± 0.5 gpu points on the wall. This asserts the
+       reversal rather than leaving it as an absence, because "nothing stops the
+       card" and "the pause silently stopped working" look identical from the
+       outside — and the pause DID silently stop working once, by losing the
+       cascade to the base `animation:` shorthand.
 
-       `moves` guards the other direction: "everything is paused" is trivially
-       true of an element with no animation at all, so assert there was
-       something to pause before believing it stopped. */
-    expect(shown.attr, "the module never wrote the burst attribute").toBe(true);
-    expect(shown.moves, "nothing was animating — a vacuous pause").toBeGreaterThan(0);
-    expect(shown.paused, `the card did not stop: ${JSON.stringify(shown.states)}`).toBe(true);
+       ⚠ So the state is read off the real ancestors, and `name` is asserted
+       alongside `state`: "not paused" is trivially true of an element with no
+       animation, which is the same vacuous pass one layer down. There must be
+       a move, and it must be running. */
+    expect(shown.cardMoves.length, "nothing was animating — a vacuous assertion").toBeGreaterThan(0);
+    expect(
+      shown.cardMoves.every((m) => m.state === "running"),
+      `the card stopped during the burst: ${JSON.stringify(shown.cardMoves)}`
+    ).toBe(true);
+    // The clip itself must never be one of the things moving — that IS the
+    // measured defect class, and it is the guardrail the pause's removal leaves
+    // as the only protection.
+    expect(
+      await page.evaluate(() => {
+        const cs = getComputedStyle(document.querySelector(".archive__clip"));
+        return { anim: cs.animationName, tf: cs.transform };
+      })
+    ).toEqual({ anim: "none", tf: "none" });
 
     // And it really decoded — a <video> that shows nothing is the field failure
     // this feature is most likely to have.
@@ -2783,10 +2788,6 @@ test.describe("the archive's Live Photo burst", () => {
     expect(after.shown).toBe(false);
     expect(after.src).toBeNull(); // the resource is dropped
     expect(after.armed).toBe(false); // no timer left behind
-    expect(after.paused, "the card never started moving again").toBe(false);
-    expect(
-      await page.evaluate(() => document.documentElement.hasAttribute("data-arch-burst"))
-    ).toBe(false);
     expect(pageErrors).toEqual([]);
   });
 
@@ -2822,7 +2823,6 @@ test.describe("the archive's Live Photo burst", () => {
     expect(c, "the video was never built — the flag did not take").not.toBeNull();
     expect(c.armed).toBe(false);
     expect(c.src).toBeNull();
-    expect(c.paused).toBe(false);
     expect(pageErrors).toEqual([]);
   });
 
@@ -2851,7 +2851,6 @@ test.describe("the archive's Live Photo burst", () => {
     expect(after.src, "the depth change did not release the clip").toBeNull();
     expect(after.shown).toBe(false);
     expect(after.armed, "a timer survived the depth change").toBe(false);
-    expect(after.paused, "the card was left paused at another depth").toBe(false);
     // The element itself is really stopped, not just un-styled.
     expect(await page.evaluate(() => document.querySelector(".archive__clip").paused)).toBe(true);
     expect(pageErrors).toEqual([]);
@@ -2887,7 +2886,6 @@ test.describe("the archive's Live Photo burst", () => {
     const between = await clip(page);
     expect(between.src, "the previous burst was still loaded after the exchange").toBeNull();
     expect(between.shown, "the previous burst was still on screen").toBe(false);
-    expect(between.paused, "the card was left stopped between bursts").toBe(false);
 
     // …and the new memory then gets its own burst, so this is a teardown rather
     // than the feature simply having stopped working after one exchange.
@@ -2913,31 +2911,36 @@ test.describe("the archive's Live Photo burst", () => {
     expect(rule[0]).toMatch(/opacity/);
   });
 
-  test("the pause names all three of the card's own moves", () => {
+  /* ⛔ THE PAUSE IS GONE, AND THIS ASSERTS ITS ABSENCE ON PURPOSE. It was
+     removed 2026-09-19 after measuring 0 ± 0.5 gpu points (HOST-BASELINES.md),
+     so the clip now decodes under a MOVING ancestor by decision rather than by
+     oversight. An absence that nothing asserts is indistinguishable from a
+     pause that silently stopped working — which is exactly what happened to
+     this feature once, when the rule lost the cascade and every test stayed
+     green. If a future session re-adds a pause, this test is what makes that a
+     deliberate act with a number behind it. */
+  test("nothing pauses the card during a burst — the pause was measured and removed", () => {
     const css = readFileSync(
       fileURLToPath(new URL("../src/v3/css/archive.css", import.meta.url)),
       "utf8"
     );
-    /* ⚠ ALL the burst rules, not the first one. The pause is deliberately TWO
-       rules — see archive.css: written as one comma-separated list its selector
-       text carries both `[data-arch-plane="1"]` and `.archive__card-wrap`, and
-       the "pivot is switched OFF" guardrail above finds its rule by scanning
-       selector text, so the combined form false-matched it and turned it red. */
-    const matched = css.match(/:root\[data-arch-burst="1"\][\s\S]*?\{[^}]*\}/g);
-    expect(matched, "nothing pauses the card during a burst").toBeTruthy();
-    const rule = [matched.join("\n")];
+    /* ⚠ COMMENTS STRIPPED FIRST. The removal note in archive.css necessarily
+       QUOTES the declaration it is recording the removal of, so a match against
+       the raw file finds the prose and fails — which it did on the first run of
+       this test. The assertion is about rules, not about whether the file is
+       allowed to discuss them. */
+    const rules = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(
+      rules.match(/:root\[data-arch-burst="1"\][\s\S]*?\{[^}]*\}/g),
+      "a burst pause rule is back — see the removal note in archive.css"
+    ).toBeNull();
+    expect(rules).not.toMatch(/animation-play-state:\s*paused/);
 
-    /* ⚠ WHICH MOVES ARE RUNNING DEPENDS ON `v3ArchivePlane`: with the plane on
-       the wrapper's pivot is switched off and `.archive__plane` breathes; with
-       it off the wrapper pivots and there is no plane element at all. Naming
-       only the live pair would leave the other composition decoding under a
-       moving ancestor. */
-    expect(rule[0]).toMatch(/\.archive__plane/);
-    expect(rule[0]).toMatch(/\.archive__card-wrap/);
-    expect(rule[0]).toMatch(/\.archive__img\.is-top/);
-    /* `animation-play-state`, NOT `animation: none` — a paused animation holds
-       its current transform, so the card stops where it is and resumes from
-       there. `none` would snap it back and the pause would read as a jump. */
-    expect(rule[0]).toMatch(/animation-play-state:\s*paused/);
+    // And the module must not be writing an attribute nothing styles.
+    const js = readFileSync(
+      fileURLToPath(new URL("../src/v3/core/archive.js", import.meta.url)),
+      "utf8"
+    );
+    expect(js).not.toMatch(/setAttribute\(\s*"data-arch-burst"/);
   });
 });

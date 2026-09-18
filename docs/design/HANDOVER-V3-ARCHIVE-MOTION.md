@@ -16,7 +16,16 @@ against 91 clips already on disk at 41 MB and **zero `.none` tombstones**, i.e. 
 100% transcode success rate. The supply is there and the encoder already works on
 it. Sequential warm on the same lane as `warmSet`.
 
-**B. The card stops for the burst.** ⚠ **The "never stops moving" premise below
+**B. ⛔ REVERSED 2026-09-19 — THE CARD DOES NOT STOP.** The pause shipped, was
+found inert (it lost the cascade), was fixed, and was then **measured at 0 ± 0.5
+gpu points** — A/B/A on the wall, 18.7 running / 19.2 paused / 18.9 running.
+It bought nothing, so the owner removed it. The clip now decodes under a moving
+ancestor by decision. `tests/v3-archive.spec.js` asserts the pause's absence so a
+re-add is deliberate; the lever is four lines if a burst ever costs real points.
+The original reasoning is kept below because it is still the right reasoning —
+it was simply answered by a number.
+
+**B (original). The card stops for the burst.** ⚠ **The "never stops moving" premise below
 is also stale**: `v3ArchivePlane` has been default-ON since the rebuild, and
 `archive.css` sets `arch-pivot` to `animation: none` under it. What actually
 moves at depth 0 is `arch-breathe` — **0.45deg** of yaw over 90 s on

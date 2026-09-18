@@ -479,78 +479,29 @@
 
 .archive__clip.is-shown { opacity: 1; }
 
-/* ⚠⚠ THE CARD STOPS MOVING WHILE THE PHOTOGRAPH DOES — owner's call 2026-09-18.
-   One thing moves at a time: the memory arrives, the frame goes still, the
-   picture itself comes alive for ~3.6s, then the frame breathes again.
+/* ⛔ THE CARD DOES NOT STOP FOR THE BURST — owner's call 2026-09-19, reversing
+   the decision of 2026-09-18. It was here as `data-arch-burst` +
+   `animation-play-state: paused` on the plane, the card-wrap and the top image.
 
-   All three of the card's own moves are named, because which ones are running
-   depends on `v3ArchivePlane`: with the plane ON the wrapper's `arch-pivot` is
-   switched off and `.archive__plane` breathes instead; with it OFF the wrapper
-   pivots and there is no plane element at all. Naming only the live pair would
-   leave the other composition decoding under a moving ancestor.
+   ⚠⚠ IT WAS REMOVED BECAUSE IT WAS MEASURED, NOT BECAUSE IT WAS DISLIKED, and
+   the measurement is the reason not to re-propose it. A/B/A on the wall, 25 s
+   windows, depth 0: gpu **18.7 running / 19.2 paused / 18.9 running**. Pausing
+   two of the card's three moves bought 0 ± 0.5 points, with the paused sample
+   reading highest of the three. It is NOT the settle row's 6.3-point saving —
+   that ended a scaling TEXTURE, this froze a transform the compositor already
+   handled cheaply, and `arch-plane-drift` kept running through both halves
+   regardless. Full numbers in docs/audit/HOST-BASELINES.md.
 
-   `animation-play-state` rather than `animation: none`: a paused animation
-   HOLDS its current transform, so the card stops where it is and resumes from
-   there. `none` would snap it back to the untransformed state and the pause
-   would read as a jump — the same reason the Ken Burns settle had to reverse
-   direction rather than simply end.
+   ⚠⚠⚠ SO THE CLIP NOW DECODES UNDER A MOVING ANCESTOR, which is the untested
+   half of the 3.0-4.3-point defect class the incumbent measured
+   (`ambient-archive.css`). The guardrail that still applies is the one below on
+   `.archive__clip` itself: NO animation and NO transform on the decoding
+   element, ever. That one is measured and is not a judgement call.
 
-   ✅ COST MEASURED 2026-09-18, and the interesting half of the guess was WRONG.
-   A/B/A on the wall, 25 s windows, depth 0 at night: gpu 18.7 running / 19.2
-   PAUSED / 18.9 running again. Pausing buys **nothing** — 0 ± 0.5 points, with
-   the paused sample reading highest of the three. It does not ADD cost either,
-   which is all that shipping required.
-
-   ⚠ So this is a DESIGN decision and must be defended as one — one thing moves
-   at a time — never as a performance win. It is NOT the settle row's 6.3-point
-   saving: that ended a scaling texture, this freezes a transform the compositor
-   already handled cheaply, and `arch-plane-drift` keeps running through both
-   halves either way. Full numbers and the two caveats (measured at night, and
-   with no clip actually decoding) are in docs/audit/HOST-BASELINES.md.
-
-   ⚠ THE PLANE HALF CARRIES `[data-arch-plane="1"]` and the other two do not,
-   which is not inconsistency: `.archive__plane` is a node the rebuild BUILDS,
-   so every rule naming it must be scoped to the flag that builds it or the
-   plane's rollback stops being provable by construction (the guardrail in
-   v3-archive.spec.js enforces exactly this, and caught this rule unscoped).
-   `.archive__card-wrap` and `.archive__img` exist in BOTH compositions, so
-   scoping them would switch the pause off on the shipped surface.
-
-   ⚠⚠ SPLIT INTO TWO RULES ON PURPOSE, and it must stay split. Written as one
-   comma-separated list the selector text contains BOTH `[data-arch-plane="1"]`
-   and `.archive__card-wrap`, which makes it a false match for the guardrail
-   that looks up "the rule that switches the pivot off in plane mode" by
-   scanning selector text — it found THIS rule, read `animation-play-state`
-   instead of `animation: none`, and went red. Two rules, each naming one
-   concern, and neither is ambiguous to a text scan.
-
-   ⚠⚠⚠ EVERY CONDITION OF THE RULE BEING PAUSED IS REPEATED HERE, PLUS THE
-   BURST, AND THAT IS NOT REDUNDANCY — IT IS THE WHOLE FIX. The first version of
-   this was `:root[data-arch-burst="1"] .archive__plane`, and it NEVER PAUSED
-   ANYTHING on the wall. `animation:` is a SHORTHAND, so the base rule at
-   `[data-archive][data-depth]:not([data-panel-dark])` also declares
-   `animation-play-state` (resetting it to `running`) at a HIGHER specificity
-   than a bare burst selector — so the longhand lost the cascade on all three
-   targets and the card kept moving under the clip.
-
-   Read off the live G11 2026-09-18, attribute genuinely on the root:
-   `animationName: "arch-breathe"`, `animationPlayState: "running"` — and the
-   same declaration injected with `!important` computed `paused`. That is the
-   cascade, not a missing rule.
-
-   ⚠ So each pause selector must out-specify the rule it is pausing. If a base
-   rule above gains or loses a condition, its pause partner has to move with it;
-   `v3-archive.spec.js` asserts the computed play state on the real page, which
-   is what catches the drift. Matching on the attribute alone does NOT — that is
-   how this shipped broken. */
-:root[data-arch-burst="1"][data-arch-plane="1"][data-archive="1"][data-depth="0"]:not([data-panel-dark="1"]) .archive__plane {
-  animation-play-state: paused;
-}
-
-:root[data-arch-burst="1"][data-archive="1"][data-depth="0"]:not([data-panel-dark="1"]) .archive__card-wrap,
-:root[data-arch-burst="1"][data-archive="1"][data-depth="0"]:not([data-panel-dark="1"]) .archive__img.is-top {
-  animation-play-state: paused;
-}
+   ⚠ If a future reading shows the burst costing real points, the lever to try
+   FIRST is this pause — it is four lines and it is known to work (it lost the
+   cascade once; every pause selector has to out-specify the `animation:`
+   shorthand it is pausing). Do not re-derive that from scratch. */
 
 .archive__lip {
   position: absolute;

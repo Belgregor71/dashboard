@@ -972,11 +972,8 @@ function clearMotionTimers() {
  * already paid for three times (CLAUDE.md, 24/7 Kiosk Memory Discipline).
  *
  * ⚠ The burst attribute comes off HERE and not in the hold's timer, so every
- * exit — including the ones that skip the hold entirely — resumes the card's
- * own motion. A pause that outlives its cause is a stopped wall.
  */
 function stopClip() {
-  root?.removeAttribute("data-arch-burst");
   if (!clipEl) return;
   clipEl.classList.remove("is-shown");
   clipEl.pause();
@@ -1028,12 +1025,11 @@ function armBurst(assets, settleMs) {
         // memory, a depth change, the panel going dark. `motionEndTimer` still
         // being armed is what says this burst is still wanted.
         if (!motionEndTimer) return;
-        /* ⚠⚠ THE CARD STOPS MOVING HERE, not at arm time. Set on the same tick
-           as the reveal so the pause covers exactly the frames the clip is
-           visible for — arming it 1.4-2.8s earlier would hold the wall still
-           through the crossfade, which is the one moment it is supposed to be
-           moving. Owner's call 2026-09-18: one thing moves at a time. */
-        root?.setAttribute("data-arch-burst", "1");
+        /* ⛔ THE CARD KEEPS MOVING — owner's call 2026-09-19, reversing the
+           2026-09-18 decision after it was measured at 0 ± 0.5 gpu points.
+           This is where `data-arch-burst` used to be written; see the removal
+           note in archive.css for the numbers and for the one lever to try
+           first if a burst ever does cost real points. */
         clipEl.classList.add("is-shown");
       },
       () => {}
@@ -1048,10 +1044,6 @@ function armBurst(assets, settleMs) {
   motionEndTimer = setTimeout(() => {
     motionEndTimer = null;
     clipEl.classList.remove("is-shown");
-    // The card moves again as the still comes back, not after the resource is
-    // dropped — the fade below is the still returning, and it should return to
-    // a living frame rather than to a frozen one that starts up 600ms later.
-    root?.removeAttribute("data-arch-burst");
   }, startMs + MOTION_HOLD_MS);
 
   motionStopTimer = setTimeout(() => {
@@ -1433,33 +1425,30 @@ export function initArchive(host) {
        resolved URL after removeAttribute+load, so a probe reading it would
        report a clip still loaded on an element whose decoder has been freed,
        which is the exact opposite of what every teardown assertion needs.
-       ⚠⚠⚠ `paused` IS THE COMPUTED PLAY STATE OF A REAL ANIMATION, NOT THE
-       ATTRIBUTE — and reading the attribute is exactly how decision B shipped
-       broken. The first version answered
-       `getAttribute("data-arch-burst") === "1"`, which is true the instant the
-       module writes it and says NOTHING about whether the card stopped. It did
-       not: the pause rule lost the cascade to the base `animation:` shorthand,
-       so every test was green while `arch-breathe` ran straight through the
-       burst on the live wall. Found by /kiosk-metrics, not by the suite.
+       ⚠⚠ `cardMoves` IS THE COMPUTED STATE OF THE CLIP'S OWN ANCESTORS, and it
+       is kept now that the pause is gone rather than in spite of it: since
+       2026-09-19 the clip decodes UNDER a moving card, which is the untested
+       half of the incumbent's transform-on-a-decoding-layer defect. This is
+       what a live probe reads to say which moves were actually running while a
+       burst was on the glass, so a future GPU reading can be attributed instead
+       of guessed at.
 
-       `animationName` rides along so a reading of "paused" cannot come from an
-       element that simply has no animation — that would be the same false pass
-       one layer down. `moves` is what the pause is supposed to be acting on. */
+       ⚠ `name` rides along with `state` deliberately. A bare state is
+       meaningless on an element with no animation — "not running" and "nothing
+       to run" are different answers, and only one of them is a finding. */
     clip: clipEl
       ? (() => {
-          const moving = [cardEl?.parentElement, planeEl, cardImgs[slot]].filter(Boolean);
-          const states = moving.map((n) => {
-            const cs = getComputedStyle(n);
-            return { name: cs.animationName, state: cs.animationPlayState };
-          });
-          const real = states.filter((s) => s.name && s.name !== "none");
+          const ancestry = [cardEl?.parentElement, planeEl, cardImgs[slot]].filter(Boolean);
+          const cardMoves = ancestry
+            .map((n) => {
+              const cs = getComputedStyle(n);
+              return { name: cs.animationName, state: cs.animationPlayState };
+            })
+            .filter((s) => s.name && s.name !== "none");
           return {
             src: clipEl.getAttribute("src"),
             shown: clipEl.classList.contains("is-shown"),
-            attr: document.documentElement.getAttribute("data-arch-burst") === "1",
-            moves: real.length,
-            paused: real.length > 0 && real.every((s) => s.state === "paused"),
-            states: real,
+            cardMoves,
             armed: Boolean(motionArmTimer || motionEndTimer || motionStopTimer)
           };
         })()

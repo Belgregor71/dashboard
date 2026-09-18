@@ -932,6 +932,13 @@ the surface to rest; it only stops two of three moves.
 ⚠ **So decision B is a DESIGN decision and must be defended as one** — "one thing moves at a
 time" — not as a performance win. Any future comment claiming the pause saves GPU is wrong.
 
+⛔ **AND ON 2026-09-19 THE OWNER REVERSED IT ON THESE NUMBERS: the pause was removed.** It
+bought nothing, so it went, and the clip now decodes under a moving ancestor by decision.
+The measurement above is why, and `tests/v3-archive.spec.js` asserts the pause's ABSENCE so
+that re-adding it is a deliberate act rather than a drift. **The lever still exists and is
+known to work** — four lines, and every pause selector must out-specify the `animation:`
+shorthand it is pausing — if a burst ever does show a real cost.
+
 ⚠ **Two things this reading does NOT cover.** It was taken at **night**, where `--arch-day` is
 0.32 and amplitude is a third of the daytime figure, and **without a clip decoding** —
 `armBurst` correctly refuses at night, so no organic burst was available. The daytime amplitude

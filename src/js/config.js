@@ -1742,13 +1742,17 @@ window.CONFIG = {
     // 2026-09-18: the pool is 57 assets of which 27 carry a motion part (47%),
     // so the supply is real and the two switches must BOTH be on to see it.
     //
-    // ⚠ THE CARD STOPS MOVING FOR THE BURST — owner's call, 2026-09-18, and it
-    // is a design statement rather than a workaround: one thing moves at a time.
-    // `data-arch-burst` pauses the plane's breathe and the Ken Burns for the
-    // burst's ~3.6s. The plane breathes 0.45deg over 90s, so stopping it is
-    // imperceptible; what it buys is that the clip never decodes under a moving
-    // ancestor, which is the untested half of the incumbent's measured
-    // 3.0-4.3-point transform-on-a-decoding-layer defect.
+    // ⛔ THE CARD KEEPS MOVING — owner's call 2026-09-19, reversing the pause of
+    // 2026-09-18 once it was measured. A/B/A on the wall: gpu 18.7 running /
+    // 19.2 paused / 18.9 running, i.e. 0 ± 0.5 points with the paused sample
+    // highest. It bought nothing, so it went.
+    //
+    // ⚠⚠ THAT MEANS THE CLIP DECODES UNDER A MOVING ANCESTOR, by decision. The
+    // guardrail that still holds is on `.archive__clip` itself — no animation,
+    // no transform on the decoding element — which is the form the incumbent
+    // actually measured at 3.0-4.3 points. The ancestor form has never been
+    // measured; if a burst ever does cost real points, the pause is four lines
+    // and known to work (see the removal note in archive.css).
     //
     // ✅ MEASURED 2026-09-18 and the guess was half wrong: A/B/A on the wall at
     // depth 0, gpu 18.7 running / 19.2 PAUSED / 18.9 running. Pausing buys
