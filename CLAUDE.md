@@ -81,10 +81,17 @@ happened; a glance at the wall did.
   public bundle** — never put a secret or an address in it.
 - ⛔ **A flag marked `INERT-ON-V3` is not a lever on the wall.** No module V3 loads
   reads it (almost all are gated only in `src/js/core/app.js`), so flipping it off
-  changes nothing on `/` and is **not** a rollback — the flag-off half of
-  `/flag-flip` passes while proving nothing. For those, the rollback is the
+  changes nothing on `/` and is **not** a rollback. For those, the rollback is the
   surface rollback (`V3_DEFAULT=0`) or a revert. The marks are derived, not
   maintained: `tests/flag-surface.spec.js` goes red on a missing or a stale one.
+  **`/flag-flip` now REFUSES a marked flag** at step 0, and so does
+  `scripts/verify/flag-reversibility.mjs --flag <marked>` — exit 1, naming the
+  `V3 lever:` from the flag's own comment, without touching `config.js`. Its
+  `--incumbent-only` escape hatch means "I mean the incumbent surface" (the Pi 4
+  rollback host, a kiosk pinned to `V3_DEFAULT=0`) and its green is an incumbent
+  proof, never a wall one. Both directions live in
+  `tests/flag-reversibility-gate.spec.js` — a gate that refused *everything*
+  would pass the refusal test and block every real flip.
 
 ### Testing & Pre-Push Gate
 
