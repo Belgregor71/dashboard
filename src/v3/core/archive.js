@@ -322,6 +322,17 @@ let clipEl = null;          // the burst's <video>, built only when the flag is 
 let motionArmTimer = null;
 let motionEndTimer = null;
 let motionStopTimer = null;
+/* ⚠⚠ MONOTONIC, AND THAT IS THE WHOLE POINT. A burst is ~3.6 s inside a ten-
+   minute rotation, so any single sample lands in a legitimately quiet moment
+   almost every time — "is it working?" is unanswerable from one reading of the
+   live state. A counter that only ever goes up makes the DIFF the assertion:
+   two samples a day apart with the same `bursts` says nothing played all day,
+   however healthy every other counter looks. This is exactly what the incumbent
+   added in 2026-08 after a soak missed sixteen hours of dead motion, and V3
+   shipped without it — so `scripts/kiosk/heap-metrics.cjs` was reporting "V3 has
+   no ambient archive" about a surface that had one. */
+let burstCount = 0;
+let lastBurstAt = null;
 /* ⚠ NO BURST ON THE PAGE'S FIRST PHOTOGRAPH. That exchange coincides with boot
    and is the one moment the panel may have just come back from DPMS, so a clip
    there is a moving image arriving on a screen someone has only just looked at.
@@ -1031,6 +1042,11 @@ function armBurst(assets, settleMs) {
            note in archive.css for the numbers and for the one lever to try
            first if a burst ever does cost real points. */
         clipEl.classList.add("is-shown");
+        /* Counted where the clip is REVEALED, not where it is armed. An arm that
+           never resolves is not a burst, and counting it would make the
+           liveness probe say the wall is playing memories it never showed. */
+        burstCount += 1;
+        lastBurstAt = Date.now();
       },
       () => {}
     );
@@ -1449,7 +1465,21 @@ export function initArchive(host) {
             src: clipEl.getAttribute("src"),
             shown: clipEl.classList.contains("is-shown"),
             cardMoves,
-            armed: Boolean(motionArmTimer || motionEndTimer || motionStopTimer)
+            armed: Boolean(motionArmTimer || motionEndTimer || motionStopTimer),
+            // Monotonic — see the note at the declaration. DIFF these across
+            // samples; a single reading cannot tell quiet from dead.
+            bursts: burstCount,
+            lastBurstAt,
+            /* ⚠ THE GATES ARE PUBLISHED, NOT RE-DERIVED BY THE PROBE. Every one
+               of these is a reason `armBurst` REFUSES, and a refusal is correct
+               behaviour rather than a fault — so the reader has to be able to
+               tell "it did not play" from "it was right not to play". A probe
+               that recomputed them from the DOM would be a second opinion that
+               can disagree with the code it is judging. */
+            night: isNightNow(),
+            reduced: reducedMotion(),
+            depth: document.documentElement.dataset.depth ?? null,
+            panelDark: root?.dataset.panelDark === "1"
           };
         })()
       : null,

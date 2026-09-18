@@ -2,7 +2,7 @@ import { test, expect } from "./fixtures/coverage.js";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { judgeGround, SETTLE_GRACE_MS } = require("../scripts/kiosk/heap-metrics.cjs");
+const { judgeGround, judgeV3Motion, SETTLE_GRACE_MS, BURST_SILENCE_MS } = require("../scripts/kiosk/heap-metrics.cjs");
 
 /* ═══════════════════════════════════════════════════════════════════════════
    THE SETTLE DEADLINE — and the detector that could not see it.
@@ -208,4 +208,97 @@ test("the page arms a deadline for the settle, and clears it when cleanup runs",
   expect(settleFaults({ ...after, dayKey: TODAY })).toEqual([]);
 
   expect(pageErrors).toEqual([]);
+});
+
+/* ── The V3 burst's liveness verdict ─────────────────────────────────────────
+   `heap-metrics.cjs` answered the literal string "not on this surface — V3 has
+   no ambient archive" until 2026-09-19. That was true when it was written and
+   silently false from the day `v3ArchiveMotion` shipped — a liveness probe that
+   had stopped watching the feature, which is the precise failure the liveness
+   half was added to catch in the first place.
+
+   ⚠⚠ THE REFUSALS MATTER AS MUCH AS THE FAULTS. Every not-assessable branch
+   below is a state in which `armBurst` is CORRECT to do nothing, and reporting
+   any of them as a fault would train the reader to ignore the block — which is
+   how a probe stops being read at all.
+─────────────────────────────────────────────────────────────────────────── */
+const OK_CLIP = {
+  depth: "0", panelDark: false, night: false, reduced: false,
+  bursts: 3, lastBurstAt: Date.now(), armed: false
+};
+const CLIPS = { total: 51, withClip: 24, pending: 0 };
+
+test("no <video> is not a fault — it is the flag's rollback", () => {
+  const v = judgeV3Motion(null, CLIPS, 60);
+  expect(v.assessable).toBe(false);
+  expect(v.why).toMatch(/v3ArchiveMotion is off/);
+  expect(v.faults).toEqual([]);
+});
+
+test("every gate armBurst honours is a REFUSAL, never a fault", () => {
+  const cases = [
+    [{ ...OK_CLIP, depth: "1" }, /depth 1/],
+    [{ ...OK_CLIP, panelDark: true }, /panel is dark/],
+    [{ ...OK_CLIP, night: true }, /after sunset/],
+    [{ ...OK_CLIP, reduced: true }, /reduced-motion/]
+  ];
+  for (const [clip, why] of cases) {
+    const v = judgeV3Motion(clip, CLIPS, 60);
+    expect(v.assessable, `${why} should not be assessable`).toBe(false);
+    expect(v.why).toMatch(why);
+    expect(v.faults).toEqual([]);
+  }
+});
+
+test("nothing to play is a warm-pass story, not a page fault", () => {
+  const v = judgeV3Motion(OK_CLIP, { total: 51, withClip: 0, pending: 17 }, 60);
+  expect(v.assessable).toBe(false);
+  // And it names the switch, because that is the thing to go and look at.
+  expect(v.why).toMatch(/IMMICH_POOL_MOTION/);
+  expect(v.why).toMatch(/17 still transcoding/);
+  expect(v.faults).toEqual([]);
+});
+
+test("an unreachable server is a refusal, never a silent pass", () => {
+  const v = judgeV3Motion(OK_CLIP, null, 60);
+  expect(v.assessable).toBe(false);
+  expect(v.faults).toEqual([]);
+});
+
+/* ⚠ A FRESH PAGE HAS NOT HAD TIME. The rotation is ~10 min and only part of the
+   pool carries a clip, so zero bursts two minutes after a deploy is the EXPECTED
+   reading. Judging it would make every post-deploy sample red, and a probe that
+   cries wolf on every deploy is one nobody reads. */
+test("a freshly loaded page is too early to judge", () => {
+  const v = judgeV3Motion({ ...OK_CLIP, bursts: 0, lastBurstAt: null }, CLIPS, 2);
+  expect(v.assessable).toBe(false);
+  expect(v.why).toMatch(/too early/);
+  expect(v.faults).toEqual([]);
+});
+
+/* ── The two findings it exists to make ──────────────────────────────────── */
+
+test("clips on disk, daylight, depth 0, and NOTHING has ever played → fault", () => {
+  const v = judgeV3Motion({ ...OK_CLIP, bursts: 0, lastBurstAt: null }, CLIPS, 90);
+  expect(v.assessable).toBe(true);
+  expect(v.faults).toHaveLength(1);
+  expect(v.faults[0]).toMatch(/NO BURST EVER/);
+  // The numbers are IN the fault, so the reader does not have to go and get them.
+  expect(v.faults[0]).toMatch(/24\/51/);
+});
+
+test("it played once and then went quiet for too long → fault", () => {
+  const v = judgeV3Motion(
+    { ...OK_CLIP, bursts: 2, lastBurstAt: Date.now() - (BURST_SILENCE_MS + 60_000) },
+    CLIPS,
+    90
+  );
+  expect(v.assessable).toBe(true);
+  expect(v.faults).toHaveLength(1);
+  expect(v.faults[0]).toMatch(/STALE/);
+});
+
+test("a healthy surface reports assessable with NO faults", () => {
+  const v = judgeV3Motion(OK_CLIP, CLIPS, 90);
+  expect(v).toEqual({ assessable: true, why: null, faults: [] });
 });

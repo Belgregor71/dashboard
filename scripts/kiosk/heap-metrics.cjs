@@ -63,6 +63,12 @@ const SETTLE_GRACE_MS = 2000;
 // perfectly flat.
 const GROUND_SOURCES = ["/api/immich/on-this-day", "/api/immich/random?count=2"];
 
+/* How long a freshly-loaded page is given before "no burst yet" is a finding.
+   The ground rotates every ~10 min (ground.js CHECK_MS) and only part of the
+   pool carries a clip, so anything shorter makes every post-deploy sample red —
+   and a probe that cries wolf on every deploy is a probe nobody reads. */
+const V3_BURST_GRACE_MIN = 25;
+
 /** What the server believes is on offer for the ground today. Same principle as
  *  serverClips(): asked of the box, not of the page, because the failure worth
  *  catching lives in the gap between them. */
@@ -83,6 +89,81 @@ function serverGround() {
     req.setTimeout(5000, () => { req.destroy(); resolve({ path, count: null }); });
   });
   return Promise.all(GROUND_SOURCES.map(ask));
+}
+
+/** What the server can actually play on the V3 ground today. The sibling of
+ *  serverClips(), asked of the box for the same reason: the failure worth
+ *  catching lives in the gap between what the server offers and what the page
+ *  shows. `motionPending` is carried because "the transcoder has not finished"
+ *  and "there is no motion part" are different answers and only one of them
+ *  means come back later. */
+function serverV3Clips() {
+  return new Promise((resolve) => {
+    const req = http.get(`${ORIGIN}/api/immich/on-this-day`, (res) => {
+      let body = "";
+      res.on("data", (c) => (body += c));
+      res.on("end", () => {
+        try {
+          const a = JSON.parse(body)?.assets ?? [];
+          resolve({
+            total: a.length,
+            withClip: a.filter((x) => x.motion === true).length,
+            pending: a.filter((x) => x.motionPending === true).length
+          });
+        } catch { resolve(null); }
+      });
+    });
+    req.on("error", () => resolve(null));
+    req.setTimeout(5000, () => { req.destroy(); resolve(null); });
+  });
+}
+
+/**
+ * ⚠⚠ THE V3 BURST VERDICT — added 2026-09-19, and the thing it replaces is the
+ * reason it exists. This block used to answer the literal string "not on this
+ * surface — V3 has no ambient archive", which was true when it was written and
+ * became false the day `v3ArchiveMotion` shipped. A liveness probe that has
+ * stopped watching the feature is the exact failure the liveness half was added
+ * to catch, wearing one more set of clothes.
+ *
+ * Three outcomes like its siblings. Every refusal below is a state in which
+ * `armBurst` is CORRECT to do nothing, so calling any of them a fault would
+ * train the reader to ignore the block.
+ */
+function judgeV3Motion(clip, clips, uptimeMin) {
+  if (!clip) {
+    return { assessable: false, why: "no <video> is built — features.v3ArchiveMotion is off (that is its rollback)", faults: [] };
+  }
+  if (clip.depth !== "0") return { assessable: false, why: `depth ${clip.depth} — the archive is not on the glass, and a burst there would be decoding to a hidden layer`, faults: [] };
+  if (clip.panelDark) return { assessable: false, why: "the panel is dark — bursts are refused by design", faults: [] };
+  if (clip.night) return { assessable: false, why: "after sunset — the night gate refuses bursts by design", faults: [] };
+  if (clip.reduced) return { assessable: false, why: "prefers-reduced-motion is set", faults: [] };
+  if (!clips) return { assessable: false, why: `could not reach ${ORIGIN} to ask what is playable`, faults: [] };
+  if (clips.withClip === 0) {
+    return {
+      assessable: false,
+      // Not a page fault: nothing to play is a transcoder/NAS story, and a page
+      // showing stills because none was offered is behaving correctly.
+      why: `no playable clip today (${clips.total} memories, 0 with a clip${clips.pending ? `, ${clips.pending} still transcoding` : ""}) — look at the warm pass and IMMICH_POOL_MOTION, not the page`,
+      faults: []
+    };
+  }
+
+  const faults = [];
+  const silentMs = clip.lastBurstAt ? Date.now() - clip.lastBurstAt : null;
+  /* ⚠ A FRESH PAGE HAS NOT HAD TIME. The rotation is ten minutes and only some
+     of the pool carries a clip, so zero bursts at two minutes uptime is the
+     expected reading, not a finding. Judging it would make every post-deploy
+     sample red. */
+  if (uptimeMin != null && uptimeMin < V3_BURST_GRACE_MIN) {
+    return { assessable: false, why: `only ${uptimeMin} min since load — too early to expect a burst (rotation is ~10 min, ${clips.withClip}/${clips.total} carry a clip)`, faults: [] };
+  }
+  if (clip.bursts === 0) {
+    faults.push(`NO BURST EVER: daylight, depth 0, ${clips.withClip}/${clips.total} memories have a clip on disk, uptime ${uptimeMin} min, and the page has played none. Check that the pool's assets carry motion:true before looking at the burst code.`);
+  } else if (silentMs != null && silentMs > BURST_SILENCE_MS) {
+    faults.push(`STALE: last burst was ${Math.round(silentMs / 60000)} min ago in daylight at depth 0, with ${clips.withClip}/${clips.total} clips available.`);
+  }
+  return { assessable: true, why: null, faults };
 }
 
 /**
@@ -366,6 +447,16 @@ async function main() {
   const onV3 = ground !== null;
   const clips = onV3 ? null : await serverClips();
   const pool = onV3 ? await serverGround() : null;
+  /* ⚠ TWO INDEPENDENT QUESTIONS ON V3, and they must not be merged. The ground
+     verdict asks "is there a photograph on the wall"; the motion verdict asks
+     "is the Live Photo burst still playing". The first can be perfectly healthy
+     while the second is dead — which is the whole reason the liveness half
+     exists — so a single `faults` array that mixed them would let a green
+     ground vouch for silent motion. */
+  const v3Clips = onV3 ? await serverV3Clips() : null;
+  const motionVerdict = onV3
+    ? judgeV3Motion(archive?.clip ?? null, v3Clips, archive?.__uptimeMin ?? null)
+    : null;
   const verdict = onV3
     ? judgeGround(ground, pool, ground?.__todayKey ?? null)
     : judge(archive, clips);
@@ -386,16 +477,14 @@ async function main() {
       // was legitimately quiet. `photo` differing between samples is the cheapest
       // possible proof the rotation itself is still turning.
       //
-      // On V3 `assetId` plays that role: two samples a day apart showing the
-      // same asset means the day boundary never turned over. There is no
-      // `bursts` equivalent because there is no Live Photo motion on this
-      // surface at all — stated as its own key rather than left as a null that
-      // reads like a feature which failed.
+      // On V3 `assetId` plays that role for the rotation, and `bursts` plays it
+      // for the motion — both monotonic, both meaningless in one sample and
+      // decisive across two.
       active: archive?.active ?? null,
       photo: archive?.photo ?? null,
-      bursts: archive?.motion?.bursts ?? null,
-      lastBurstAt: archive?.motion?.lastBurstAt ?? null,
-      night: archive?.motion?.night ?? null,
+      bursts: archive?.motion?.bursts ?? archive?.clip?.bursts ?? null,
+      lastBurstAt: archive?.motion?.lastBurstAt ?? archive?.clip?.lastBurstAt ?? null,
+      night: archive?.motion?.night ?? archive?.clip?.night ?? null,
       clips,
       assetId: ground?.assetId ?? null,
       assetIds: ground?.assetIds ?? null,
@@ -403,7 +492,13 @@ async function main() {
       layers: ground?.layers ?? null,
       pair: ground?.pair ?? null,
       dark: ground?.__dark ?? null,
-      motion: onV3 ? "not on this surface — V3 has no ambient archive" : undefined,
+      /* The V3 burst's own verdict, beside the ground's rather than folded into
+         it. Was the literal string "not on this surface — V3 has no ambient
+         archive" until 2026-09-19, which was true when written and silently
+         false from the day v3ArchiveMotion shipped. */
+      motion: onV3
+        ? { ...motionVerdict, clips: v3Clips, armed: archive?.clip?.armed ?? null }
+        : undefined,
       pool
     }
   }));
@@ -417,7 +512,13 @@ async function main() {
   // ⚠ A fault fails; NOT-assessable does not. "I could not look" must never read
   // as "I looked and it was broken" — the samples are taken at bedtime, when not
   // assessable is the expected and correct answer.
-  if (gate && verdict.faults.length) process.exitCode = 1;
+  /* ⚠ THE MOTION FAULTS GATE TOO. They are reported in their own block, and a
+     verdict that prints a fault the gate ignores is decoration — the reader
+     learns the exit code is the real answer and stops reading the JSON. A
+     not-assessable motion verdict still never gates, for the same reason its
+     siblings do not: "I could not look" is not "I looked and it was broken". */
+  const motionFaults = motionVerdict?.faults?.length ?? 0;
+  if (gate && (verdict.faults.length || motionFaults)) process.exitCode = 1;
 }
 
 // Exported so the verdict can be exercised against synthetic states in
@@ -426,7 +527,10 @@ async function main() {
 // no-op for weeks, and the leak regression it was meant to catch went unwatched
 // the whole time. This one is only ever assessable in daylight Mode 0, so
 // waiting for the real conditions to test it is how it would go the same way.
-module.exports = { judge, judgeGround, BURST_SILENCE_MS, SETTLE_GRACE_MS };
+module.exports = {
+  judge, judgeGround, judgeV3Motion,
+  BURST_SILENCE_MS, SETTLE_GRACE_MS, V3_BURST_GRACE_MIN
+};
 
 if (require.main === module) {
   main().catch((err) => { console.error("ERROR:", err.message); process.exit(1); });
