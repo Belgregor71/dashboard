@@ -2738,11 +2738,22 @@ test.describe("the archive's Live Photo burst", () => {
     const shown = await clip(page);
     // The clip is really loaded, and it is THIS asset's.
     expect(shown.src).toMatch(/\/api\/immich\/asset\/[a-z]\/clip$/);
-    /* ⚠⚠ THE PAUSE REACHED THE STYLESHEET, not merely a module variable. Those
-       two came apart on this very surface once before (the portrait lean was
-       written to the card instead of the root), so this reads the attribute the
-       CSS actually selects on. */
-    expect(shown.paused, "the card did not stop for the burst").toBe(true);
+    /* ⚠⚠⚠ THE COMPUTED PLAY STATE, NOT THE ATTRIBUTE — and this assertion is
+       the one that was wrong when decision B shipped. It used to read
+       `data-arch-burst` off the root, which is true the moment the module
+       writes it and says nothing about whether the card stopped. It did not:
+       the pause rule lost the cascade to the base `animation:` shorthand
+       (a shorthand also declares `animation-play-state`, at higher
+       specificity), so this test was GREEN while `arch-breathe` ran straight
+       through every burst on the live wall. /kiosk-metrics found it, the suite
+       did not.
+
+       `moves` guards the other direction: "everything is paused" is trivially
+       true of an element with no animation at all, so assert there was
+       something to pause before believing it stopped. */
+    expect(shown.attr, "the module never wrote the burst attribute").toBe(true);
+    expect(shown.moves, "nothing was animating — a vacuous pause").toBeGreaterThan(0);
+    expect(shown.paused, `the card did not stop: ${JSON.stringify(shown.states)}`).toBe(true);
 
     // And it really decoded — a <video> that shows nothing is the field failure
     // this feature is most likely to have.

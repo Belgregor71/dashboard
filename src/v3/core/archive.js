@@ -1433,17 +1433,36 @@ export function initArchive(host) {
        resolved URL after removeAttribute+load, so a probe reading it would
        report a clip still loaded on an element whose decoder has been freed,
        which is the exact opposite of what every teardown assertion needs.
-       ⚠ `paused` is read off the ROOT, not from a variable: the whole point of
-       decision B is that the pause reaches the stylesheet, and "the module set
-       a flag" and "the card stopped moving" came apart on this very surface
-       once before (see `lean` above). */
+       ⚠⚠⚠ `paused` IS THE COMPUTED PLAY STATE OF A REAL ANIMATION, NOT THE
+       ATTRIBUTE — and reading the attribute is exactly how decision B shipped
+       broken. The first version answered
+       `getAttribute("data-arch-burst") === "1"`, which is true the instant the
+       module writes it and says NOTHING about whether the card stopped. It did
+       not: the pause rule lost the cascade to the base `animation:` shorthand,
+       so every test was green while `arch-breathe` ran straight through the
+       burst on the live wall. Found by /kiosk-metrics, not by the suite.
+
+       `animationName` rides along so a reading of "paused" cannot come from an
+       element that simply has no animation — that would be the same false pass
+       one layer down. `moves` is what the pause is supposed to be acting on. */
     clip: clipEl
-      ? {
-          src: clipEl.getAttribute("src"),
-          shown: clipEl.classList.contains("is-shown"),
-          paused: document.documentElement.getAttribute("data-arch-burst") === "1",
-          armed: Boolean(motionArmTimer || motionEndTimer || motionStopTimer)
-        }
+      ? (() => {
+          const moving = [cardEl?.parentElement, planeEl, cardImgs[slot]].filter(Boolean);
+          const states = moving.map((n) => {
+            const cs = getComputedStyle(n);
+            return { name: cs.animationName, state: cs.animationPlayState };
+          });
+          const real = states.filter((s) => s.name && s.name !== "none");
+          return {
+            src: clipEl.getAttribute("src"),
+            shown: clipEl.classList.contains("is-shown"),
+            attr: document.documentElement.getAttribute("data-arch-burst") === "1",
+            moves: real.length,
+            paused: real.length > 0 && real.every((s) => s.state === "paused"),
+            states: real,
+            armed: Boolean(motionArmTimer || motionEndTimer || motionStopTimer)
+          };
+        })()
       : null,
     /* ⚠ THE FOUR-ROW PLATE IS THE SHIPPED SURFACE'S, AND ONLY ITS. On the plane
        surface `plateRows` holds one `line` and no `eyebrow` at all, so reading

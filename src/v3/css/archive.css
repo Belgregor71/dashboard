@@ -514,13 +514,33 @@
    that looks up "the rule that switches the pivot off in plane mode" by
    scanning selector text — it found THIS rule, read `animation-play-state`
    instead of `animation: none`, and went red. Two rules, each naming one
-   concern, and neither is ambiguous to a text scan. */
-:root[data-arch-burst="1"][data-arch-plane="1"] .archive__plane {
+   concern, and neither is ambiguous to a text scan.
+
+   ⚠⚠⚠ EVERY CONDITION OF THE RULE BEING PAUSED IS REPEATED HERE, PLUS THE
+   BURST, AND THAT IS NOT REDUNDANCY — IT IS THE WHOLE FIX. The first version of
+   this was `:root[data-arch-burst="1"] .archive__plane`, and it NEVER PAUSED
+   ANYTHING on the wall. `animation:` is a SHORTHAND, so the base rule at
+   `[data-archive][data-depth]:not([data-panel-dark])` also declares
+   `animation-play-state` (resetting it to `running`) at a HIGHER specificity
+   than a bare burst selector — so the longhand lost the cascade on all three
+   targets and the card kept moving under the clip.
+
+   Read off the live G11 2026-09-18, attribute genuinely on the root:
+   `animationName: "arch-breathe"`, `animationPlayState: "running"` — and the
+   same declaration injected with `!important` computed `paused`. That is the
+   cascade, not a missing rule.
+
+   ⚠ So each pause selector must out-specify the rule it is pausing. If a base
+   rule above gains or loses a condition, its pause partner has to move with it;
+   `v3-archive.spec.js` asserts the computed play state on the real page, which
+   is what catches the drift. Matching on the attribute alone does NOT — that is
+   how this shipped broken. */
+:root[data-arch-burst="1"][data-arch-plane="1"][data-archive="1"][data-depth="0"]:not([data-panel-dark="1"]) .archive__plane {
   animation-play-state: paused;
 }
 
-:root[data-arch-burst="1"] .archive__card-wrap,
-:root[data-arch-burst="1"] .archive__img.is-top {
+:root[data-arch-burst="1"][data-archive="1"][data-depth="0"]:not([data-panel-dark="1"]) .archive__card-wrap,
+:root[data-arch-burst="1"][data-archive="1"][data-depth="0"]:not([data-panel-dark="1"]) .archive__img.is-top {
   animation-play-state: paused;
 }
 
