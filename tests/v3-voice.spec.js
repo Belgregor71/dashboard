@@ -933,3 +933,118 @@ test("the cannot cue waits for the reply to finish speaking", async ({ page }) =
 
   expect(pageErrors).toEqual([]);
 });
+
+/* ── The transcript's own veil (compose.css `.heard::before`) ────────────────
+   `.heard` sits at top: var(--safe), where --scrim is transparent by design, so
+   48px --ink-faint had nothing between it and the photograph: 2.90:1 over the
+   sweep's sky ground, under AA-large. The veil is the payment.
+
+   The contrast sweep measures whether it is ENOUGH. These two measure whether
+   it is THERE and whether it knows when to stop — the sweep only ever drives a
+   transcript that is on the glass, so a veil that outlived the transcript and
+   dimmed the corner of every resting photograph would not cost it a single
+   point. That off direction is the half the media band's own veil still
+   carries untested, and it is a live hazard here rather than a hypothetical:
+   `.heard` survives `[hidden]` only because it sets no `display`. The moment
+   anyone gives it one — the way `.fault` and `.timers` both have — author style
+   beats the UA sheet's `[hidden] { display: none }` and the veil is permanent.
+─────────────────────────────────────────────────────────────────────────── */
+const veilProbe = () => {
+  const el = document.getElementById("heard");
+  if (!el) return { missing: true };
+  const box = el.getBoundingClientRect();
+  const own = getComputedStyle(el);
+  const veil = getComputedStyle(el, "::before");
+  const safe = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--safe"));
+  return {
+    text: el.textContent,
+    hidden: el.hidden,
+    display: own.display,
+    rects: el.getClientRects().length,
+    isolation: own.isolation,
+    w: box.width,
+    h: box.height,
+    safe,
+    content: veil.content,
+    zIndex: veil.zIndex,
+    image: veil.backgroundImage,
+    veilW: parseFloat(veil.width),
+    veilH: parseFloat(veil.height)
+  };
+};
+
+test("the transcript carries its own veil, sized from its own box", async ({ page }) => {
+  const pageErrors = await boot(page);
+  await page.evaluate(() => window.__v3Transcript("what time is it"));
+  await expect(page.locator("#heard")).toHaveText("what time is it");
+
+  const p = await page.evaluate(veilProbe);
+
+  /* ⚠ THE NODE FIRST. An absent or empty #heard reports a 0x0 box, and every
+     proportion below is then 0 === 0 — a check that can never fail. */
+  expect(p.missing, "#heard was not in the document").toBeUndefined();
+  expect(p.text, "the probe measured a #heard with nothing in it").toBe("what time is it");
+  expect(p.w).toBeGreaterThan(0);
+  expect(p.h).toBeGreaterThan(0);
+  expect(p.safe).toBeGreaterThan(0);
+
+  // It exists, it is a gradient, and it is BEHIND the words rather than over them.
+  expect(p.content, "the veil generates no box").not.toBe("none");
+  expect(p.image).toContain("radial-gradient");
+  expect(p.zIndex).toBe("-1");
+  expect(p.isolation, "without isolation the veil is not guaranteed to stay in this box").toBe("isolate");
+
+  /* ⚠ THE COLOUR MUST ACTUALLY LAND. `color-mix(... calc(var(--scrim-opacity) *
+     100%) ...)` resolves to a real rgba here; if --scrim-opacity were ever
+     unreadable the mix would collapse to transparent, the gradient string would
+     still contain "radial-gradient", and every assertion above would pass over a
+     veil that paints nothing at all. */
+  const stops = p.image.match(/(?:oklch|oklab|rgba?|hsla?)\([^)]*\)/g) ?? [];
+  expect(stops.length, `no colour stops at all: ${p.image}`).toBeGreaterThan(1);
+  const opaque = stops.filter((s) => {
+    /* ⚠ THE SERIALISED FORM IS NOT rgba(). Chromium keeps the authored colour
+       space, so the stops come back as `oklch(0.08 0.01 65 / 0.55)` and only
+       the final transparent one is an rgba — a matcher that reads alpha from
+       the 4th comma argument alone sees ONE stop, finds it transparent, and
+       reports the veil dead while it is painting perfectly well. */
+    const slash = s.match(/\/\s*([\d.]+%?)\s*\)/);
+    if (slash) return parseFloat(slash[1]) / (slash[1].endsWith("%") ? 100 : 1) > 0.05;
+    const args = s.slice(s.indexOf("(") + 1, -1).split(",");
+    return args.length < 4 || parseFloat(args[3]) > 0.05;
+  });
+  expect(opaque.length, `every gradient stop was transparent: ${p.image}`).toBeGreaterThan(0);
+
+  /* Sized from the box + the safe inset, times 2, so a wrapped 40ch transcript
+     grows its own veil and nothing has to be re-measured by hand. Injecting a
+     fixed px size passes the checks above and fails here. */
+  expect(p.veilW).toBeCloseTo((p.w + p.safe) * 2, 0);
+  expect(p.veilH).toBeCloseTo((p.h + p.safe) * 2, 0);
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("the veil cannot outlive the transcript", async ({ page }) => {
+  const pageErrors = await boot(page);
+  await page.evaluate(() => window.__v3Transcript("what time is it"));
+  await expect(page.locator("#heard")).toHaveText("what time is it");
+
+  // A positive control in the same page: it really was painting a moment ago.
+  const on = await page.evaluate(veilProbe);
+  expect(on.rects, "the veil was never up, so putting it away proves nothing").toBeGreaterThan(0);
+  expect(on.display).not.toBe("none");
+
+  // The transcript lingers seconds and then puts itself away; drive it directly
+  // rather than waiting out LINGER_MS, which would make this a clock test.
+  await page.evaluate(() => { document.getElementById("heard").hidden = true; });
+
+  const off = await page.evaluate(veilProbe);
+  expect(off.hidden).toBe(true);
+  /* THE LOAD-BEARING LINE. `.heard` sets no `display`, so the UA sheet's
+     `[hidden] { display: none }` wins and neither the element nor its ::before
+     generates a box. Give `.heard` a display and this is the assertion that
+     goes red — before the corner of every resting photograph is dimmed. */
+  expect(off.display, "#heard paints while hidden, so its veil is permanent").toBe("none");
+  expect(off.rects, "#heard still has boxes while hidden").toBe(0);
+
+  expect(pageErrors).toEqual([]);
+});

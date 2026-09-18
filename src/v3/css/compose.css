@@ -567,6 +567,71 @@ html, body {
   max-width: 40ch;
   text-align: right;
   z-index: 1;                    /* above a subject's veil, never under it */
+  /* The veil below paints inside this box and nowhere else. `z-index: 1` above
+     already opens a stacking context, so this is belt and braces — but the
+     guarantee must not quietly depend on a line whose comment is about
+     something else entirely. */
+  isolation: isolate;
+}
+
+/* ── The transcript's own veil ──────────────────────────────────────────────
+   ⚠⚠ PAID 2026-09-19, AND THE DEBT'S RECORDED CAUSE WAS WRONG. KNOWN_OPEN
+   carried this node as "--ink-faint under the presence rim" from 2026-08-10.
+   It is not. `.presence` is `inset: auto 0 0 0` — the bottom 260px — and this
+   element has been at `top: var(--safe)` since 9f2ecbc, two days BEFORE that
+   entry was written; the sweep's own "painted OVER" block has never once named
+   `#heard` on any ground. The rim looked like the cause only because
+   `0-field-listening` was the ONLY depth-0 surface that had a transcript on the
+   glass, so the number had nowhere else to appear. Measured as an A/B on the
+   same node, same depth, same string, phase the only difference:
+
+       0-heard            idle,      rim off    2.90:1 day / 2.91:1 night
+       0-field-listening  listening, rim on     2.90:1 day / 2.91:1 night
+
+   🔑 The cause is the one this file already names 200 lines up, for .fault:
+   --scrim is `to top` and fully transparent by 88%, so at top: var(--safe)
+   there is NOTHING between the text and the photograph. .fault and .timers
+   answer that by carrying their own ground. This one cannot: it is a 48px
+   readout of the recogniser, not a pill, and a third pill in the corner the
+   timer already yields would say the house is announcing what it heard rather
+   than showing its working.
+
+   So it takes the media band's answer instead (media.css, `62a551a`, owner's
+   call: a scrim, not the ink) mirrored into this corner:
+
+   · Sized from this box + the safe inset, times 2, so it grows with a wrapped
+     40ch transcript and never has to be re-measured by hand.
+   · `ellipse 100% 100%` at 100% 0% puts the gradient's 100% EXACTLY on the box
+     edges, so it is transparent where the box ends. ⚠ A radius that overshot
+     would be clipped mid-alpha, and a clipped edge shows on the wall as a line.
+   · The far corner of the text sits at √2/2 ≈ 0.71 of the radius; the plateau
+     holds full strength to 0.74, so every glyph is under the solved opacity.
+
+   The SOLVED opacity, never an invented one — it is the same --scrim-opacity
+   core/scrim.js computed for this photograph, so a bright frame veils more and
+   a dark one veils almost nothing.
+
+   ⚠ THE OFF DIRECTION IS FREE AND IS TESTED ANYWAY: `.heard[hidden]` is
+   display:none, so the veil cannot outlive the transcript. A veil that painted
+   on the resting wall with nothing heard would dim the top-right corner of
+   every photograph the house shows, which is the failure the media band's
+   untested off direction still carries.
+─────────────────────────────────────────────────────────────────────────── */
+.heard::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  right: calc(-1 * var(--safe));
+  top: calc(-1 * var(--safe));
+  width: calc((100% + var(--safe)) * 2);
+  height: calc((100% + var(--safe)) * 2);
+  background: radial-gradient(
+    ellipse 100% 100% at 100% 0%,
+    color-mix(in oklch, var(--scrim-base) calc(var(--scrim-opacity) * 100%), transparent) 0%,
+    color-mix(in oklch, var(--scrim-base) calc(var(--scrim-opacity) * 100%), transparent) 74%,
+    transparent 100%
+  );
+  pointer-events: none;
 }
 
 /* ── The timer pill (features.voiceTimers) ──────────────────────────────────

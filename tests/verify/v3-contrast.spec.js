@@ -142,37 +142,38 @@ const KNOWN_OPEN = [
      decayed to 1.16:1 and four green runs would have said the debt was held.
      🔑 A debt recorded at a number the surface never occupied is not a debt,
      it is a hole shaped like one. */
-  {
-    /* MOSTLY PAID 2026-08-10 by lifting the token, which is what this entry
-       always said the fix was: --ink-faint's CEILING — its contrast against a
-       fully opaque scrim, the best it could ever reach over any photograph at
-       any opacity — was 4.29 day / 3.16 night at L 0.55/0.48, so no scrim was
-       ever going to be the answer. Lifted to 0.62 in both phases: 2.33 -> 3.12
-       by day, 1.72 -> 3.12 at night, ceiling 5.74.
+  /* ── CLOSED 2026-09-19: `#heard`, and THE RECORDED CAUSE WAS WRONG ──────────
+     Opened 2026-08-10 as "--ink-faint under the presence rim", mostly paid the
+     same day by lifting the token (--ink-faint's ceiling against a fully opaque
+     scrim was 4.29 day / 3.16 night at L 0.55/0.48; lifted to 0.62, giving 3.12
+     in both phases and a ceiling of 5.74). What was left — 2.93:1, about 2%
+     under the bar — was attributed to the rim, narrowed to `#heard` on 09-18,
+     and carried at floor 2.8.
 
-       ⚠ WHAT IS LEFT IS ONLY WHERE THE PRESENCE RIM OVERLAYS IT — `#heard` at
-       depth 0 while the house is listening, 2.93:1, about 2% under the bar. The
-       lift was calibrated against a backdrop measured without the rim, and this
-       is the first time the rim's real cost to a glyph has been measurable at
-       all (see the withdrawn entry above). The next 0.02 of token would close it
-       and would put faint 0.02 from dim at night, which is the ramp collapsing
-       to buy 2% — so it is recorded rather than spent. Floor 1.6 -> 2.8.
+     ⚠⚠ THE RIM WAS NEVER TOUCHING IT. `.presence` is `inset: auto 0 0 0` — the
+     bottom 260px — and `.heard` has been at `top: var(--safe)` since 9f2ecbc,
+     two days BEFORE this entry was written. The "painted OVER" block above has
+     never named `#heard` on any ground, which is this file's own instrument
+     saying so on every run for six weeks.
 
-       ⚠⚠ NARROWED 2026-09-18 FROM `m.token === "--ink-faint"` TO `#heard`, and
-       the old matcher was a hole shaped like a debt — this file's own words for
-       it, three entries up. What is left is ONE node under ONE overlay, and the
-       entry has said so since the lift; the matcher did not. It excused EVERY
-       user of the token — `.rail`, `.archive__eyebrow`, `.heard` on every other
-       surface — at floor 2.8, while the token's own measured worst case is
-       3.12. So any of them could have decayed 3.12 -> 2.81, through AA-large at
-       3.0, and four green runs would have reported the debt as held.
+     🔑 THE TELL WAS THAT ONE SURFACE OWNED THE NUMBER. `0-field-listening` was
+     the ONLY depth-0 surface with a transcript on the glass, so the reading had
+     nowhere else to appear, and the surface's theme — the rim — was read as the
+     cause. A number that only ever appears on one surface is a statement about
+     that surface's fixture before it is a statement about the node. The control
+     that settles it is `0-heard`, added the same day: same node, same depth,
+     same string, phase the only difference.
 
-       Nothing about the decision changed here; only the blast radius of the
-       excuse. Those nodes are now gated at AA like anything else. */
-    match: (m) => m.token === "--ink-faint" && m.selector === "#heard",
-    floor: 2.8,
-    why: "--ink-faint under the presence rim (the token itself is lifted)"
-  },
+         0-heard            idle,      rim off    2.90:1 day / 2.91:1 night
+         0-field-listening  listening, rim on     2.90:1 day / 2.91:1 night
+
+     The real cause was the top band's total absence of ground — `--scrim` is
+     `to top` and transparent by 88%, the same exposure that made `.fault` and
+     `.timers` carry their own. PAID, not excused: compose.css `.heard::before`,
+     the media band's corner wash (`62a551a`) mirrored into the top-right corner
+     at the solved --scrim-opacity. 2.90 -> 4.01 day, 2.91 -> 4.14 night. The row
+     is DELETED rather than re-floored, so `#heard` is now gated at AA like
+     anything else and a veil that stops working fails the run. */
   /* ── CLOSED 2026-09-14: the depth-0 media room's --ink-dim lines ────────────
      Opened 2026-09-13, found (not caused) by the v3AtmoTextures flip: one room's
      room line read 2.78:1 at night over white; two rooms put the upper room line
@@ -1005,6 +1006,31 @@ const SURFACES = [
         window.__setDepth(3, "sweep");
       })
   },
+  /* ⚠ THE TRANSCRIPT AT DEPTH 0, IDLE — THE STATE THAT WAS NEVER MEASURED, and
+     the control that settles what `#heard`'s debt is actually caused by.
+
+     `.heard` lingers seconds AFTER the turn ends (voice.js LINGER_MS), and the
+     phase is back to `idle` for most of that window — so the resting wall with
+     a transcript still on it is a production state, and until this surface
+     existed the only depth-0 reading of `#heard` came from `0-field-listening`,
+     where the rim is on. That made the rim look like the cause. It is the
+     PAIR to the surface below: same node, same depth, same string, differing
+     only in the phase.
+
+     The text is written here rather than inherited from whichever transcript
+     surface ran last, for the reason this file gives everywhere else: a number
+     that depends on the previous surface's leftovers is not a measurement. */
+  {
+    id: "0-heard",
+    requires: "#heard",
+    drive: (page) =>
+      page.evaluate(() => {
+        window.__setDepth(0, "sweep");
+        const h = document.getElementById("heard");
+        h.textContent = "show me the year";
+        h.hidden = false;
+      })
+  },
   /* ⚠ THE HOUSE'S OWN LIGHT IS PAINTED OVER THE TEXT, NOT UNDER IT.
      `.presence` is z-index 20 and `.stage` is 10, so the warm rim — a radial
      gradient up to alpha 0.55 across the bottom 260px — composites ON TOP of
@@ -1025,6 +1051,11 @@ const SURFACES = [
     drive: (page) =>
       page.evaluate(() => {
         window.__setDepth(0, "sweep");
+        /* Pinned to the same string as `0-heard` above rather than inherited,
+           so the two surfaces differ ONLY in the phase. */
+        const h = document.getElementById("heard");
+        h.textContent = "show me the year";
+        h.hidden = false;
         /* Written directly rather than through __presenceLevel(), which starts
            a decay rAF: the rim's scaleY would then be a function of how long
            the screenshot took, and a number that moves with the harness is not
