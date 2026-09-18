@@ -145,8 +145,14 @@ function syncSun() {
   const s = sun();
   const root = document.documentElement;
 
-  // Night begins as the sun goes down, and the transition is a ramp rather
-  // than a switch so nothing snaps in the corner of your eye.
+  // Night begins as the sun goes down. It is a SWITCH, not a ramp: one
+  // threshold on altitude, stamped as an attribute, and every token under
+  // `:root[data-night="1"]` (tokens.css) changes in a single frame. Nothing
+  // transitions them and nothing should — a transition on an inherited :root
+  // custom property is a whole-document restyle per frame, measured at gpu
+  // 51 / renderer 68 on the G11 (docs/audit/HOST-BASELINES.md, the
+  // `v3AtmoAccent` row). What keeps it from snapping in the corner of your
+  // eye is when it fires, not how: dusk, with the room already changing.
   const night = s.altitudeDeg < -2;
   if (night) root.dataset.night = "1";
   else delete root.dataset.night;
