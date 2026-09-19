@@ -1163,9 +1163,17 @@ test.describe("archive css guardrail", () => {
     // The reference drifts its strips ±80px, which was fine when they were
     // decoration. This one carries the hour axis: ±80px on it is a ~50-minute lie.
     const rules = css().match(/[^{}@]+\{[^}]*\}/g) || [];
-    for (const rule of rules) {
+    const ruler = rules.filter((r) => /\.archive__ruler\b/.test(r.slice(0, r.indexOf("{"))));
+    /* ⚠ THE FILTER USED TO BE A BARE `continue`, WITH NOTHING ASSERTING IT EVER
+       MATCHED. Renaming the class in the stylesheet — which is a real defect,
+       the ruler loses every style it has — emptied the loop and this test went
+       green, proven by a mutation sweep on 2026-09-19. A guard that cannot tell
+       "correctly static" from "not there at all" is not a guard. Its neighbour
+       three tests up has always counted first (`looping.length > 0`); so does
+       atmo-fx.spec.js's own version. This now does too. */
+    expect(ruler.length, ".archive__ruler has no rules at all — renamed, or gone").toBeGreaterThan(0);
+    for (const rule of ruler) {
       const selector = rule.slice(0, rule.indexOf("{"));
-      if (!/\.archive__ruler\b/.test(selector)) continue;
       expect(rule, `a ruler must not animate: ${selector.trim()}`).not.toMatch(/animation\s*:/);
     }
   });
@@ -1176,9 +1184,13 @@ test.describe("archive css guardrail", () => {
   // expensive on a moving one. The clip is composited, never animated.
   test("the motion clip never animates — it sits over a still that already moves", () => {
     const rules = css().match(/[^{}@]+\{[^}]*\}/g) || [];
-    for (const rule of rules) {
+    const clip = rules.filter((r) => /\.archive__clip\b/.test(r.slice(0, r.indexOf("{"))));
+    // Same empty-filter hazard as the ruler guard above. Here a rename is caught
+    // by the burst's own geometry tests too, but a guard should not depend on a
+    // different test noticing for it.
+    expect(clip.length, ".archive__clip has no rules at all — renamed, or gone").toBeGreaterThan(0);
+    for (const rule of clip) {
       const selector = rule.slice(0, rule.indexOf("{"));
-      if (!/\.archive__clip\b/.test(selector)) continue;
       expect(rule, `the clip must not animate: ${selector.trim()}`).not.toMatch(/animation\s*:/);
       expect(rule, `the clip must not transform: ${selector.trim()}`).not.toMatch(/transform\s*:/);
     }

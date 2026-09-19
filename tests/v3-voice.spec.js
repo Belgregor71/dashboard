@@ -576,6 +576,35 @@ function sse(frames) {
   return frames.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join("");
 }
 
+/* The blob ledger, for the STREAMED leg. tts.js revokes a chunk's object URL on
+   three separate paths — the `ended`/`error` handler, the `cancelled` early
+   return, and a `finally` backstop — and none of the three was counted: a
+   2026-09-19 mutation sweep deleted the handler revoke and the backstop
+   independently and the whole suite stayed green. The non-streamed leg is
+   covered in voice-session.spec.js; this is the one that makes a URL per
+   SENTENCE, so it leaks fastest on a page that runs for weeks. */
+async function countObjectUrls(page) {
+  await page.addInitScript(() => {
+    const create = URL.createObjectURL.bind(URL);
+    const revoke = URL.revokeObjectURL.bind(URL);
+    window.__blobLedger = { created: [], revoked: [] };
+    URL.createObjectURL = (obj) => {
+      const url = create(obj);
+      window.__blobLedger.created.push(url);
+      return url;
+    };
+    URL.revokeObjectURL = (url) => {
+      window.__blobLedger.revoked.push(url);
+      return revoke(url);
+    };
+  });
+}
+
+const blobLedger = (page) => page.evaluate(() => {
+  const { created, revoked } = window.__blobLedger;
+  return { created: created.length, outstanding: created.filter((u) => !revoked.includes(u)).length };
+});
+
 async function bootStreaming(page, { body, spoken }) {
   await page.route("**/js/config.js", async (route) => {
     const res = await route.fetch();
@@ -622,6 +651,31 @@ test("streamed: each sentence is synthesised separately, in order", async ({ pag
   // The glass shows the authoritative full reply, not the last chunk.
   await expect(page.locator("#glance-said")).toContainText("nineteen degrees");
   await expect(page.locator("#glance-said")).toContainText("twenty minutes");
+  expect(pageErrors).toEqual([]);
+});
+
+test("streamed: every sentence's WAV releases its object URL", async ({ page }) => {
+  await countObjectUrls(page);
+  const spoken = [];
+  const pageErrors = await bootStreaming(page, {
+    spoken,
+    body: sse([
+      ["chunk", { text: "It's nineteen degrees and clear." }],
+      ["chunk", { text: "Rain's coming in about twenty minutes." }],
+      ["chunk", { text: "Worth taking a coat." }],
+      ["done", { reply: "It's nineteen degrees and clear. Rain's coming in about twenty minutes. Worth taking a coat.", source: "claude" }]
+    ])
+  });
+
+  await page.evaluate(() => window.__v3Transcript("zzz how's it looking out there"));
+  await expect.poll(() => spoken.length, { timeout: 10_000 }).toBe(3);
+
+  /* Non-zero FIRST. A ledger that balances at 0 = 0 proves only that the page
+     never spoke, which is how a leak test rots into a tautology. */
+  await expect.poll(async () => (await blobLedger(page)).created, { timeout: 10_000 })
+    .toBeGreaterThanOrEqual(3);
+  await expect.poll(async () => (await blobLedger(page)).outstanding, { timeout: 10_000 })
+    .toBe(0);
   expect(pageErrors).toEqual([]);
 });
 

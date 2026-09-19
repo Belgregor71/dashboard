@@ -2097,9 +2097,14 @@ test("the year strip NEVER moves", () => {
   /* Once the plane means "which years this date reaches", sliding it is a lie
      about what it measures. The reference drifts its strips +-80px, which was
      fine when they were texture and is not fine now. */
-  for (const rule of rules()) {
+  /* ⚠ A bare `continue` with nothing asserting the filter matched. Renaming the
+     class empties the loop and this goes green on a strip that has lost every
+     style it had — the same shape as the ruler guard in ambient-archive.spec.js,
+     both found by a mutation sweep on 2026-09-19. Count first, then judge. */
+  const strip = rules().filter((r) => /\.archive__strip\b/.test(r.slice(0, r.indexOf("{"))));
+  expect(strip.length, ".archive__strip has no rules at all — renamed, or gone").toBeGreaterThan(0);
+  for (const rule of strip) {
     const selector = rule.slice(0, rule.indexOf("{"));
-    if (!/\.archive__strip\b/.test(selector)) continue;
     expect(rule, `the strip must not animate: ${selector.trim()}`).not.toMatch(/animation\s*:/);
   }
 });

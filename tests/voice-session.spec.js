@@ -252,6 +252,106 @@ async function stubVoiceLanes(page, speaking) {
   });
 }
 
+/* ═══ THE BLOB LEDGER ════════════════════════════════════════════════════════
+   Every utterance the house speaks arrives as a WAV blob and is played through
+   `new Audio(URL.createObjectURL(blob))`. An object URL pins the whole buffer
+   for the life of the document, and blob memory does not show in the JS heap —
+   so on a kiosk that runs for weeks without a reload, a missed revoke is
+   invisible until the tab dies. The 2026-07 audit found every TTS WAV still
+   pinned; tts.js was rewritten to revoke on all four terminal paths.
+
+   ⚠ NOTHING COUNTED THEM. A mutation sweep on 2026-09-19 deleted the revoke
+   from the single-shot path, from the streamed path, and from the `finally`
+   backstop, one at a time, and the whole suite stayed green each time: these
+   specs DO reach the playback path (they serve a real audio/wav), they simply
+   never asked what happened to the URL afterwards.
+
+   So this counts. The ledger is created-minus-revoked, which is the only
+   question that matters and the only one a heap snapshot cannot answer.
+─────────────────────────────────────────────────────────────────────────── */
+async function countObjectUrls(page) {
+  await page.addInitScript(() => {
+    const create = URL.createObjectURL.bind(URL);
+    const revoke = URL.revokeObjectURL.bind(URL);
+    window.__blobLedger = { created: [], revoked: [] };
+    URL.createObjectURL = (obj) => {
+      const url = create(obj);
+      window.__blobLedger.created.push(url);
+      return url;
+    };
+    URL.revokeObjectURL = (url) => {
+      window.__blobLedger.revoked.push(url);
+      return revoke(url);
+    };
+  });
+}
+
+const ledger = (page) => page.evaluate(() => {
+  const { created, revoked } = window.__blobLedger;
+  const outstanding = created.filter((u) => !revoked.includes(u));
+  return { created: created.length, revoked: revoked.length, outstanding };
+});
+
+test("every spoken WAV releases its object URL — the ledger balances", async ({ page, voiceBus }) => {
+  await countObjectUrls(page);
+  const speaking = [];
+  await stubVoiceLanes(page, speaking);
+  const pageErrors = await boot(page, { voiceSession: true, halfDuplex: true });
+
+  for (const line of ["tell me something interesting", "and another thing", "one more"]) {
+    await page.evaluate((t) => window.__voiceTranscript(t), line);
+    await expect.poll(() => speaking.includes(false), { timeout: 10_000 }).toBe(true);
+    speaking.length = 0;
+  }
+
+  // The count must be non-zero first: a ledger that balances at 0 = 0 is a test
+  // that proves the page never spoke, which is exactly how this would rot.
+  await expect.poll(async () => (await ledger(page)).created, { timeout: 10_000 }).toBeGreaterThan(0);
+  await expect
+    .poll(async () => (await ledger(page)).outstanding.length, { timeout: 10_000 })
+    .toBe(0);
+
+  const final = await ledger(page);
+  expect(final.revoked, `${final.outstanding.length} WAV(s) still pinned`).toBe(final.created);
+  expect(pageErrors).toEqual([]);
+});
+
+test("a reply interrupted mid-sentence still releases its WAV", async ({ page, request, voiceBus }) => {
+  /* The terminal path that is NOT "the audio finished": silence() cuts the
+     playback when someone barges in, and an interrupted utterance leaks exactly
+     as readily as a completed one — more so, because it is the path nobody
+     reaches by hand. */
+  await countObjectUrls(page);
+  const speaking = [];
+  await stubVoiceLanes(page, speaking);
+  const pageErrors = await boot(page, { voiceSession: true, halfDuplex: true });
+
+  await page.route("**/api/tts/speak", (route) =>
+    route.fulfill({ contentType: "audio/wav", body: silentWav(30) })
+  );
+  await page.evaluate(() => window.__voiceTranscript("say something long"));
+  await expect.poll(async () => (await ledger(page)).created, { timeout: 10_000 }).toBeGreaterThan(0);
+
+  // Cut it off mid-sentence, then let the teardown settle.
+  await page.evaluate(() => window.__voiceTranscript("stop"));
+  await expect
+    .poll(async () => (await ledger(page)).outstanding.length, { timeout: 10_000 })
+    .toBe(0);
+  expect(pageErrors).toEqual([]);
+});
+
+/* ⛔ NOT COVERED, DELIBERATELY LEFT UNCOVERED RATHER THAN COVERED BADLY:
+   tts.js's `voiceschanged` listener in ensureVoices(). Without { once: true }
+   that is one permanent listener per browser-fallback utterance on a page that
+   never reloads, and the 2026-09-19 sweep removed the flag with nothing going
+   red. A first attempt at a test here counted REGISTRATIONS and passed at zero
+   in both directions — headless Chromium already has voices, so ensureVoices()
+   returns before it ever listens — which is precisely the vacuous assertion
+   this sweep exists to find, so it was deleted rather than shipped.
+   Observing it needs getVoices() forced empty AND a voiceschanged dispatched
+   per utterance to keep the promise from pending; worth doing, not worth a
+   flaky gate. See the session's harden-tests report. */
+
 test("half duplex on: the page tells the mic when it starts and stops talking", async ({ page, voiceBus }) => {
   const speaking = [];
   await stubVoiceLanes(page, speaking);

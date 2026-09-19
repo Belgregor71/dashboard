@@ -238,3 +238,128 @@ test("real kitchen motion moves the surface, end to end", async ({ page }) => {
   expect(r.depth).toBe(1);
   expect(pageErrors).toEqual([]);
 });
+
+/* ═══ core/depth.js — the module, rather than the surfaces that ride it ══════
+   A mutation sweep on 2026-09-19 found this file was the weakest in the house:
+   of six semantic mutations to core/depth.js, five survived the WHOLE suite.
+   Recession-to-an-inhabited-depth was covered (v3-alerts.spec.js) and nothing
+   else was — the clamp, the hold teardown and the hold DURATIONS were all
+   reachable only through surfaces that never looked at them.
+
+   That matters here more than the coverage number suggests: depth is the only
+   navigation V3 has, and the half of it that runs with nobody watching is
+   exactly the half that had no test.
+─────────────────────────────────────────────────────────────────────────── */
+
+test.describe("depth is clamped, held once, and held for the documented time", () => {
+  test("a depth outside 0..3 is clamped, never stored raw", async ({ page }) => {
+    const pageErrors = await bootV3(page);
+
+    // Past the deepest: SUBJECT, and still a legal depth the CSS has a rule for.
+    // Unclamped, `data-depth` would read "9" and every `[data-depth]` selector
+    // would stop matching — a blank wall with no error anywhere.
+    const over = await page.evaluate(() => {
+      window.__setDepth(9, "spec");
+      return { depth: window.__depth().depth, attr: document.documentElement.dataset.depth };
+    });
+    expect(over).toEqual({ depth: 3, attr: "3" });
+
+    const under = await page.evaluate(() => {
+      window.__setDepth(-2, "spec");
+      return { depth: window.__depth().depth, attr: document.documentElement.dataset.depth };
+    });
+    expect(under).toEqual({ depth: 0, attr: "0" });
+
+    // Fractional causes land on a real depth rather than between two.
+    const fractional = await page.evaluate(() => {
+      window.__setDepth(2.7, "spec");
+      return { depth: window.__depth().depth, attr: document.documentElement.dataset.depth };
+    });
+    expect(fractional).toEqual({ depth: 2, attr: "2" });
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("a second cause REPLACES the first one's hold rather than adding to it", async ({ page }) => {
+    const pageErrors = await bootV3(page);
+
+    /* The failure this guards: if clearHold() stops clearing, every setDepth
+       leaves its timer armed. On a page that runs for weeks that is an
+       unbounded pile of timers, and — visible long before the memory is — the
+       FIRST cause's short hold still fires and drags the wall down out of a
+       depth a later, longer cause had just asked for.
+
+       Armed short, then re-armed long. After the short one would have fired,
+       the wall must still be where the second cause put it. */
+    const landed = await page.evaluate(async () => {
+      window.__setDepth(3, "spec:short", { holdMs: 150 });
+      window.__setDepth(3, "spec:long", { holdMs: 30_000 });
+      await new Promise((r) => setTimeout(r, 600));
+      return { depth: window.__depth().depth, reason: window.__depth().reason, held: window.__depth().held };
+    });
+    expect(landed.depth, "the replaced hold still fired and pulled the wall down").toBe(3);
+    expect(landed.reason).toBe("spec:long");
+    expect(landed.held).toBe(true);
+
+    // The same rule through sustain(), which is the path motion takes: a fresh
+    // cause for the depth we are already in must re-arm, not stack.
+    const sustained = await page.evaluate(async () => {
+      window.__setDepth(2, "spec:short2", { holdMs: 150 });
+      window.__setDepth(2, "spec:sustain", { holdMs: 30_000 });
+      await new Promise((r) => setTimeout(r, 600));
+      return window.__depth().depth;
+    });
+    expect(sustained).toBe(2);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("each depth holds for its own documented time, not some other depth's", async ({ page }) => {
+    /* ⚠ THE HOLDS ARE THE ONLY THING DECIDING HOW LONG THE ROOM STAYS
+       INTERESTING, and nothing pinned them: the sweep stretched SPREAD from 45 s
+       to 450 s and the suite was green. 45 s is generous on purpose — a person
+       cooking is present but not looking, and snapping them back to one line
+       mid-task is the wrong read — so it is a design number, and a design number
+       that can drift by 10x silently is not a design number.
+
+       Driven on a fake clock: real time would make this a 45-second test, and a
+       45-second test is one that gets deleted. */
+    /* Installed BEFORE the boot, the way tests/v3-timers.spec.js does it: a
+       clock installed after navigation does not own the timers that already
+       exist, and the hold is armed by code that ran at boot. Pinned to midday
+       so the screensaver and the briefing window cannot take the surface
+       while the clock is being wound forward. Built from LOCAL components
+       rather than a Z timestamp: this file pins no timezoneId, so a fixed UTC
+       instant would be the middle of the night on a UTC runner. */
+    await page.clock.install({ time: new Date(2026, 6, 6, 12, 0, 0) });
+    const pageErrors = await bootV3(page);
+
+    // SPREAD: 45 s. Just under, the wall is still there; just over, it has gone.
+    await page.evaluate(() => window.__setDepth(2, "spec:hold"));
+    await page.clock.runFor(44_000);
+    expect(await page.evaluate(() => window.__depth().depth), "receded before 45 s").toBe(2);
+    await page.clock.runFor(2_000);
+    await expect.poll(() => page.evaluate(() => window.__depth().depth), { timeout: 5_000 })
+      .toBeLessThan(2);
+
+    // GLANCE: 90 s — twice the spread, deliberately. One line is cheap to leave up.
+    await page.evaluate(() => window.__setDepth(1, "spec:hold"));
+    await page.clock.runFor(89_000);
+    expect(await page.evaluate(() => window.__depth().depth), "receded before 90 s").toBe(1);
+    await page.clock.runFor(2_000);
+    await expect.poll(() => page.evaluate(() => window.__depth().depth), { timeout: 5_000 }).toBe(0);
+
+    // SUBJECT: 30 s — the shortest, because a subject is the most intrusive.
+    await page.evaluate(() => window.__setDepth(3, "spec:hold"));
+    await page.clock.runFor(29_000);
+    expect(await page.evaluate(() => window.__depth().depth), "receded before 30 s").toBe(3);
+    await page.clock.runFor(2_000);
+    await expect.poll(() => page.evaluate(() => window.__depth().depth), { timeout: 5_000 })
+      .toBeLessThan(3);
+
+    // FIELD holds itself — nothing is armed there, or the wall would recede
+    // off the floor it is supposed to rest on.
+    await page.evaluate(() => window.__setDepth(0, "spec:hold"));
+    expect(await page.evaluate(() => window.__depth().held)).toBe(false);
+    expect(await page.evaluate(() => window.__depth().recedesTo)).toBeNull();
+    expect(pageErrors).toEqual([]);
+  });
+});

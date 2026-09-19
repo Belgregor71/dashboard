@@ -46,6 +46,36 @@ test("compositing happens in gamma space, the way the browser does it", () => {
   const mid = compositeOver(BLACK, WHITE, 0.5);
   expect(mid[0]).toBeCloseTo(0.5, 6);
   expect(relLuminance(mid)).toBeCloseTo(0.2140, 3);
+
+  /* The alpha clamp, which nothing reached: a 2026-09-19 mutation sweep removed
+     it and the suite stayed green, because every fixture passed an alpha that
+     was already in range. Out of range must SATURATE, not extrapolate — an
+     un-clamped 1.4 produces channel values below 0, which read as a colour
+     brighter than either input and make every ratio above a fiction. */
+  expect(compositeOver(BLACK, WHITE, 1.4)).toEqual(compositeOver(BLACK, WHITE, 1));
+  expect(compositeOver(BLACK, WHITE, -0.3)).toEqual(compositeOver(BLACK, WHITE, 0));
+  for (const ch of compositeOver(BLACK, WHITE, 1.4)) expect(ch).toBeGreaterThanOrEqual(0);
+  for (const ch of compositeOver(WHITE, BLACK, 1.4)) expect(ch).toBeLessThanOrEqual(1);
+});
+
+/* ⚠ THE BOUNDS AND THE TARGET ARE ASSERTED AGAINST THEMSELVES EVERYWHERE ELSE
+   IN THIS FILE — `expect(alpha).toBe(SCRIM_MIN)` passes whatever SCRIM_MIN is.
+   The sweep dropped the floor from 0.30 to 0 and nothing noticed. Each of these
+   numbers is a design statement with a consequence on the wall, so each is
+   pinned as a literal alongside the statement. */
+test("the bounds and the target are the measured numbers, not whatever is exported", () => {
+  // 7:1, not WCAG's 4.5: that ratio was derived for near reading and this is a
+  // 32" panel at 3-4 m, where distance eats contrast.
+  expect(CONTRAST_TARGET, "V3 targets 7:1 at 3-4 m, not WCAG's near-reading 4.5").toBe(7);
+  // Below the floor the scrim stops being a shape and the composition loses its
+  // base; above the ceiling the photograph is gone from the bottom of the wall.
+  expect(SCRIM_MIN, "the floor keeps the scrim a shape").toBe(0.30);
+  expect(SCRIM_MAX, "the ceiling keeps the photograph a photograph").toBe(0.85);
+  // 0.6 is the height at which the gradient is actually doing its work. At 0.25
+  // the band took in cells the scrim barely covers, and those pinned the
+  // opacity at the ceiling for every photograph from a dark one upward.
+  expect(BAND_MIN_COVERAGE, "the band is where the scrim actually works").toBe(0.6);
+  expect(SCRIM_MIN).toBeLessThan(SCRIM_MAX);
 });
 
 test("coverage follows the gradient's own stops, and dies above the last one", () => {
@@ -159,6 +189,35 @@ test("one bright cell does not black out the whole photograph", () => {
   // gets the opacity it needs.
   const blown = chooseAlpha(cellsAt(WHITE, 1), { scrim: SCRIM, ink: WHITE });
   expect(blown.alpha).toBeGreaterThan(SCRIM_MIN);
+});
+
+test("the representative cell is the p90 of BRIGHTNESS, not the middle of the band", () => {
+  /* ⚠ THE PERCENTILE ITSELF WAS NEVER PINNED. A 2026-09-19 sweep replaced the
+     p90 index with the median index and every scrim test stayed green: the
+     fixtures elsewhere are either flat (every percentile agrees) or assert
+     inequalities loose enough to hold under both.
+
+     Ten cells at one coverage, so brightness is the only variable. The p90 index
+     is `ceil(0.9 * 10) - 1 = 8` — the second brightest — and the median is index
+     5. The two greys below are far enough apart that the chosen opacity is a
+     different number for each, so this test names WHICH cell decided. */
+  const grey = (v) => [v, v, v];
+  const levels = [0.02, 0.04, 0.06, 0.08, 0.10, 0.12, 0.14, 0.16, 0.72, 0.95];
+  const cells = levels.map((v) => ({ rgb: grey(v), coverage: 1 }));
+
+  const { alpha } = chooseAlpha(cells, { scrim: SCRIM, ink: WHITE });
+  const forP90 = requiredAlpha(grey(levels[8]), SCRIM, WHITE, { coverage: 1 });
+  const forMedian = requiredAlpha(grey(levels[5]), SCRIM, WHITE, { coverage: 1 });
+
+  // The fixture is only a test of the percentile if the two answers differ.
+  expect(forP90, "fixture is degenerate — p90 and median want the same opacity")
+    .not.toBeCloseTo(forMedian, 3);
+  expect(alpha).toBeCloseTo(Math.min(SCRIM_MAX, Math.max(SCRIM_MIN, forP90)), 4);
+
+  // And the brightest cell is still NOT the one that decides — that is the
+  // specular highlight the p90 exists to ignore.
+  const forBrightest = requiredAlpha(grey(levels[9]), SCRIM, WHITE, { coverage: 1 });
+  expect(alpha).toBeLessThan(forBrightest);
 });
 
 test("the opacity tracks how bright the photograph is", () => {

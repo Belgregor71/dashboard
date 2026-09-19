@@ -82,6 +82,18 @@ test("no template ever prints one cell on top of another", () => {
   expect(overlaps(RECTS.dominant, RECTS.full)).toBe(true);
   expect(overlaps(RECTS.dominant, RECTS.tall)).toBe(false);
   expect(overlaps(RECTS.wide, RECTS.side)).toBe(false);
+
+  /* ⚠ THE OVERLAP CASE ABOVE WAS THE ONLY WAY validate() WAS EVER MADE TO FAIL,
+     so its other three rules were unreached: a 2026-09-19 mutation sweep deleted
+     the dominant-first check and this test stayed green. Each rule now has a
+     case that fails for that rule and no other — none of these overlap. */
+  expect(validate({ name: "no-dominant", cells: ["tall", "wide"] }), "slot 0 must be the dominant").toBe(false);
+  expect(validate({ name: "too-few", cells: ["dominant"] }), "one cell is a glance, not a spread").toBe(false);
+  expect(validate({ name: "too-many", cells: ["dominant", "tall", "wide", "side"] }), "past MAX_CELLS").toBe(false);
+  expect(validate({ name: "dupe", cells: ["dominant", "tall", "tall"] }), "a repeated rectangle").toBe(false);
+  expect(validate({ name: "ghost", cells: ["dominant", "nosuchrect"] }), "a rectangle that is not in RECTS").toBe(false);
+  expect(validate(null), "no template at all").toBe(false);
+  expect(validate({ name: "empty", cells: [] })).toBe(false);
 });
 
 test("cell--rail is deliberately not a composition rectangle", () => {
@@ -197,6 +209,55 @@ test("the composer places words, it does not write them", () => {
 
   expect(composition.cells[0].text).toBe(messy);   // verbatim, untidied
   expect(JSON.stringify(input)).toBe(before);      // and the input is untouched
+});
+
+/* ⚠ NO FIXTURE IN THIS FILE HAD EVER CARRIED A `title` OR A `sub`, so the
+   composer's loudest warning — "`text` STAYS the line, rendering the title
+   instead would silently throw the house's own voice away" — was untested:
+   a 2026-09-19 mutation sweep changed the cell to render `title` and every test
+   here stayed green, because every candidate had only a `text` to render.
+
+   Production candidates carry all three. attentionEngine rewrites `text`
+   through personality.phrase() and leaves `title` untouched, so the difference
+   between them IS the house's voice, and this is the only place that says so. */
+test("the cell renders the PHRASED line, never the raw title, and labels with `sub`", () => {
+  const rich = {
+    id: "commute", source: "commute", score: 42,
+    title: "Commute",                        // the raw upstream label
+    text: "You'll want to leave in ten.",    // what personality.phrase() made of it
+    sub: "11 min · 18 min"                   // the context line
+  };
+  const composition = compose({ stack: [rich, cand({ id: "b", text: "Chicken fajitas" })] });
+  const cell = composition.cells[0];
+
+  expect(cell.text, "the raw title reached the glass instead of the house's line").toBe(rich.text);
+  expect(cell.text).not.toBe(rich.title);
+  expect(cell.label, "the context line is the candidate's `sub`, never its title").toBe(rich.sub);
+  expect(cell.label).not.toBe(rich.title);
+
+  // A candidate with no `sub` renders exactly as it did before `label` existed.
+  expect(compose({ stack: [cand({ id: "a" }), cand({ id: "b" })] }).cells[0].label).toBeNull();
+});
+
+test("the deixis address is the candidate's SOURCE, with a named fallback", () => {
+  /* When the voice names something on screen, that cell answers — so the
+     address has to be the source, not the slot, or "what about the weather"
+     would light whichever rectangle the weather happened to land in today. */
+  const composition = compose({
+    stack: [
+      cand({ id: "w", source: "weather", text: "Rain by four." }),
+      cand({ id: "m", source: "menu", text: "Chicken fajitas" })
+    ]
+  });
+  expect(composition.cells.map((c) => c.ref)).toEqual(["weather", "menu"]);
+  expect(composition.cells.map((c) => c.rect)).not.toEqual(composition.cells.map((c) => c.ref));
+
+  // The fallback exists for a candidate that names no source; it is "house",
+  // not undefined, because the deixis lookup has to find something addressable.
+  const anon = compose({
+    stack: [{ id: "a", text: "Something true", score: 50 }, cand({ id: "b" })]
+  });
+  expect(anon.cells[0].ref).toBe("house");
 });
 
 test("grammar and composer stay pure — no DOM, no IO, no model", () => {

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { matchIntent, parseDuration, ACTING_INTENT_IDS } from "../src/js/services/localIntents.js";
-import { durationPhrase, remainingPhrase, clockText } from "../src/v3/core/timer-words.js";
+import { durationPhrase, remainingPhrase, clockText, MAX_TIMERS, LATE_RING_MS } from "../src/v3/core/timer-words.js";
 
 /* The timer matcher (features.voiceTimers) — pure, so node-side. The two things
    that matter most are the COLLISIONS: these patterns run before the mutation
@@ -160,5 +160,61 @@ test.describe("the words", () => {
     expect(clockText(725_000)).toBe("12:05");
     expect(clockText(3_725_000)).toBe("1:02:05");
     expect(clockText(0)).toBe("0:00");
+  });
+
+  /* ⚠ EVERY VALUE ABOVE IS A WHOLE NUMBER OF SECONDS, so `ceil`, `floor` and
+     `round` all agree on it, and none of the three roundings this module
+     actually chose was being asserted. A mutation sweep (2026-09-19) turned
+     every one of them the wrong way and the suite stayed green:
+
+       remainingPhrase  ceil → floor   "1 second" left becomes "0 seconds"
+       clockText        ceil → floor   the pill shows 0:00 for a whole second
+       durationPhrase   `s && !h` → `s`  an hours-long timer reads its seconds
+
+     The fixtures below are chosen so the roundings DISAGREE. If one of these
+     ever needs "fixing" by changing the expected string, the rounding changed. */
+  test("the roundings, at the values where they actually differ", () => {
+    // Spoken: round UP, because "0 seconds left" on a running timer is a lie.
+    expect(remainingPhrase(1)).toBe("1 second");
+    expect(remainingPhrase(500)).toBe("1 second");
+    expect(remainingPhrase(1_400)).toBe("2 seconds");
+    expect(remainingPhrase(59_999)).toBe("60 seconds");
+    expect(remainingPhrase(60_001)).toBe("2 minutes");
+    expect(remainingPhrase(3_599_999)).toBe("60 minutes");
+
+    // The pill: also round UP, so it never reads 0:00 while time remains.
+    expect(clockText(1)).toBe("0:01");
+    expect(clockText(999)).toBe("0:01");
+    expect(clockText(1_001)).toBe("0:02");
+    expect(clockText(725_400)).toBe("12:06");
+
+    // Seconds are dropped once there is an hour — "2 hours 3 seconds" is not
+    // how a person says it, and the `!h` clause is the only thing stopping it.
+    expect(durationPhrase(3_723_000)).toBe("1 hour 2 minutes");
+    expect(durationPhrase(3_603_000)).toBe("1 hour");
+    expect(durationPhrase(7_263_000)).toBe("2 hours 1 minute");
+  });
+
+  test("the plural is a real plural, not an 's' on everything", () => {
+    // A house that says "1 minutes" out loud has stopped sounding like a house.
+    expect(durationPhrase(60_000)).toBe("1 minute");
+    expect(durationPhrase(1_000)).toBe("1 second");
+    expect(durationPhrase(3_600_000)).toBe("1 hour");
+    expect(remainingPhrase(1_000)).toBe("1 second");
+    expect(remainingPhrase(60_000)).toBe("1 minute");
+    expect(remainingPhrase(3_600_000)).toBe("1 hour");
+    expect(durationPhrase(0)).toBe("0 seconds");
+  });
+
+  /* The two numbers nothing reached. Both are policy the house speaks or acts
+     on, and both survived being changed by 10x in the sweep. MAX_TIMERS is
+     asserted against the REFUSAL LINE as well as the number, because the line
+     interpolates it — a cap raised silently would otherwise still read as five. */
+  test("the ceiling and the late-ring window are pinned, not merely exported", () => {
+    expect(MAX_TIMERS).toBe(5);
+    expect(LATE_RING_MS).toBe(120_000);
+    // Two minutes covers a deploy restart plus the kiosk's slow first fetch;
+    // shorter and a timer that ended during a deploy is silently swallowed.
+    expect(LATE_RING_MS).toBeGreaterThanOrEqual(90_000);
   });
 });

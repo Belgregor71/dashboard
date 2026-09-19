@@ -580,6 +580,38 @@ test.describe("attentionRank: ranking + presence gate", () => {
     expect(q.map((c) => c.id)).toEqual(["live"]);
   });
 
+  /* ⚠ NOTHING IN THE SUITE HAD EVER PASSED `weights`. Phase 8's learned
+     per-source tilt (docs/vision/phase-8-learn.md) could be deleted from
+     rankQueue entirely and every test stayed green — found by mutation sweep
+     2026-09-19. Both halves of its contract are asserted here, because the
+     dangerous half is the second: a tilt that leaked into the DISPLAYED score
+     would show the house a number it did not earn. */
+  test("learned weights tilt the ORDER and never touch the score", () => {
+    const rows = () => [
+      { id: "a", source: "commute", score: 50, cooldownMs: 0 },
+      { id: "b", source: "weather", score: 52, cooldownMs: 0 }
+    ];
+
+    // No weights, and an empty map, are both the pre-Phase-8 sort exactly.
+    expect(rankQueue(rows(), now).map((c) => c.id)).toEqual(["b", "a"]);
+    expect(rankQueue(rows(), now, { weights: {} }).map((c) => c.id)).toEqual(["b", "a"]);
+    expect(rankQueue(rows(), now, { weights: null }).map((c) => c.id)).toEqual(["b", "a"]);
+
+    // A nudge big enough to cross the two-point gap flips the order…
+    const tilted = rankQueue(rows(), now, { weights: { commute: 5 } });
+    expect(tilted.map((c) => c.id)).toEqual(["a", "b"]);
+    // …and one too small to cross it does not. A tilt that always wins is not
+    // a tilt, it is an override.
+    expect(rankQueue(rows(), now, { weights: { commute: 1 } }).map((c) => c.id)).toEqual(["b", "a"]);
+
+    // The displayed score is untouched — this is the half that reaches the wall.
+    expect(tilted.map((c) => c.score)).toEqual([50, 52]);
+    // A weight for a source that is not in the queue changes nothing.
+    expect(rankQueue(rows(), now, { weights: { nosuch: 99 } }).map((c) => c.id)).toEqual(["b", "a"]);
+    // A negative nudge pushes a source down.
+    expect(rankQueue(rows(), now, { weights: { weather: -5 } }).map((c) => c.id)).toEqual(["a", "b"]);
+  });
+
   test("GLANCE shows the top 1; DWELL reveals the top 3", () => {
     const glance = selectForMode(queue(), MODE.GLANCE, { now });
     expect(glance.stack).toHaveLength(1);

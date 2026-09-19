@@ -56,6 +56,35 @@ test.describe("the curve", () => {
   test("an unknown sky reads as day — never a dimmed clock", () => {
     for (const alt of [NaN, undefined, null, Infinity]) expect(clockDim(alt)).toBe(CLOCK_DIM_DAY);
   });
+
+  /* ⚠ EVERY ASSERTION ABOVE IS WRITTEN IN TERMS OF THE CONSTANTS IT IMPORTS, so
+     it pins the SHAPE of the curve and not one of its values. A mutation sweep
+     on 2026-09-19 moved the night floor back to the 0.3 that was measured at
+     1.59-2.08:1 (under AA-large on every night ground) and moved the night
+     anchor from astronomical to civil twilight, and the entire `npm test` suite
+     stayed green through both — 2133 passed, twice.
+
+     The floor is caught one gate later, by tests/verify/v3-contrast.spec.js
+     reading real pixels — but `npm test` is where a person looks first, and the
+     anchor is caught by neither. Both are pinned as LITERALS here, with the
+     measurement that chose them, so moving one is a decision rather than a typo. */
+  test("the curve's own numbers, as literals", () => {
+    // 0.7, not the incumbent's 0.3: at 0.3 the night hour read 1.59-2.08:1 and
+    // could never clear AA-large over any ground. 0.55 still failed white
+    // (2.53); 0.7 reads 3.11 white / 4.03 sky. Its margin is 0.11 — lowering it
+    // is a contrast change and tests/verify/v3-contrast.spec.js will say so.
+    expect(CLOCK_DIM_NIGHT, "the night floor is a MEASURED contrast value").toBe(0.7);
+    expect(CLOCK_DIM_DAY, "full strength is V3's own hour, not the incumbent's 0.9").toBe(1);
+    expect(CLOCK_ALT_NIGHT, "the floor is reached at astronomical twilight").toBe(-18);
+    expect(CLOCK_ALT_DAY, "full strength once the sun is 6 degrees up").toBe(6);
+
+    // And the curve read at absolute altitudes, so that moving either anchor
+    // changes an expected number here rather than sliding silently underneath.
+    expect(clockDim(-12)).toBeCloseTo(0.775, 4);
+    expect(clockDim(-6)).toBeCloseTo(0.85, 4);
+    expect(clockDim(0)).toBeCloseTo(0.925, 4);
+    expect(clockDim(3)).toBeCloseTo(0.9625, 4);
+  });
 });
 
 async function bootAt(page, { at, on }) {
