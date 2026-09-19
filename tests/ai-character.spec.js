@@ -49,6 +49,23 @@ function withFlag(value, fn) {
   }
 }
 
+/* BRIEFING_TOPIC_LOCK changes the same two prompts from the other direction, so
+   any assertion here about the ordering sentence or the no-line guard has to say
+   which lock state it is describing. Everything else in this file is about the
+   exemplars and the register, which the lock does not touch. */
+function withoutTopicLock(fn) {
+  const KEY = "BRIEFING_TOPIC_LOCK";
+  const had = Object.prototype.hasOwnProperty.call(process.env, KEY);
+  const prev = process.env[KEY];
+  delete process.env[KEY];
+  try {
+    return fn();
+  } finally {
+    if (had) process.env[KEY] = prev;
+    else delete process.env[KEY];
+  }
+}
+
 test.describe("HOUSE_CHARACTER_BRIEFINGS — the flag-off build is unchanged", () => {
   /* The house rule: a flag-off build is behaviourally identical to before the
      flag existed. For a prompt that means byte-identical, because the prompt
@@ -118,6 +135,13 @@ test.describe("HOUSE_CHARACTER_BRIEFINGS=1 — all three lanes move together", (
   });
 
   test("the no-invention rules survive the swap", () => {
+    /* ⚠ Unlocked wording. BRIEFING_TOPIC_LOCK keeps this rule and restates it —
+       "a subject with no line there is one you know NOTHING about" — because the
+       old sentence was satisfied by the live 2026-09-19 dismissal ("the bins are
+       out and gone tonight, so that's clear"): a topic can be written off as
+       non-existent in words that still put it on the wall. The locked wording is
+       pinned in tests/ai-topic-lock.spec.js. */
+    withoutTopicLock(() => {
     withFlag("1", () => {
       for (const type of ["morning", "evening"]) {
         const text = systemPromptFor(type);
@@ -129,6 +153,7 @@ test.describe("HOUSE_CHARACTER_BRIEFINGS=1 — all three lanes move together", (
       // The concierge must not talk about the family at all.
       expect(systemPromptFor("concierge"))
         .toMatch(/Do not mention people, children, school, work, family/i);
+    });
     });
   });
 });
@@ -328,7 +353,23 @@ test.describe("the rewritten exemplars are in the house's voice", () => {
        entirely, which would delete the line that TELLS the house to mention
        bins when there IS a Bins line — trading a false claim for a missing
        true one. This pins the instructions the other test must not take with
-       it. */
+       it.
+
+       ⚠ THIS IS THE UNLOCKED PROMPT'S GUARANTEE ONLY, and the explicit
+       `withoutTopicLock` is load-bearing rather than tidiness. BRIEFING_TOPIC_LOCK
+       (2026-09-19) removes exactly these two sentences on purpose: naming bins in
+       the ordering sentence turned out to be the last standing invitation to
+       invent one. Without the wrapper this test passes today and goes red the
+       hour the flag is flipped, which is the "a flip broke a test that assumed
+       the old default" trap in CLAUDE.md, found at the worst moment.
+
+       The locked prompt keeps the same promise by a different mechanism: the
+       Bins LABEL is printed in buildPrompt's closing list whenever a Bins line
+       exists, so a real bin night is still named to the model. That is pinned by
+       `a full payload names all of them` in tests/ai-topic-lock.spec.js — the
+       two tests are one guarantee under two flag states, and neither alone
+       covers the wall. */
+    withoutTopicLock(() => {
     for (const value of [undefined, "1"]) {
       withFlag(value, () => {
         for (const type of ["morning", "evening"]) {
@@ -341,6 +382,7 @@ test.describe("the rewritten exemplars are in the house's voice", () => {
         }
       });
     }
+    });
   });
 
   test("the character block owns no clock time, and still demonstrates counting", () => {

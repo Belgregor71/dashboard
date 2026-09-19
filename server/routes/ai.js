@@ -212,38 +212,108 @@ const EXEMPLARS = {
     "Clear and dead still. The best sort of winter morning.",
 };
 
-const CHARACTER_PROMPTS = {
-  morning: [
-    houseCharacter(),
-    TIME_GROUNDING,
-    "Respond in 3-4 short sentences of plain prose, no markdown, no lists.",
-    `Match this tone: '${EXEMPLARS.morningQuiet}'`,
-    `Or, on a busier day, the same voice: '${EXEMPLARS.morningBusy}'`,
-    "Those examples show CADENCE ONLY. Never reuse their wording and never carry a number, a time or a fact across from them — every figure in your answer must come from the data below. You are given today only: you hold no record of other days here, so never say how something compares with last week, the rest of the month, or how long you have been watching it.",
-    "Use only the real details given below. Mention the practical stuff first — weather warnings, bins, calendar events, unusual traffic — then, if there's room, one dry aside about a news headline or the fuel price.",
-    "If a topic has no line in the data below (no Bins line, no Traffic line, etc.), it does not exist today — do not mention it at all.",
-    "The Chores line, when present, states whose turn it is — say the name as given, never swap it, and never invent a chore that has no line.",
-  ].join(" "),
-  evening: [
-    houseCharacter(),
-    TIME_GROUNDING,
-    "Respond in 3-4 short sentences of plain prose, no markdown, no lists.",
-    `Match this tone: '${EXEMPLARS.eveningClear}'`,
-    `Or, with something still on, the same voice: '${EXEMPLARS.eveningBusy}'`,
-    "Those examples show CADENCE ONLY. Never reuse their wording and never carry a number, a time or a fact across from them — every figure in your answer must come from the data below. You are given today only: you hold no record of other days here, so never say how something compares with last week, the rest of the month, or how long you have been watching it.",
-    "Use only the real details given below. Cover tonight and tomorrow — bins, tomorrow's weather and events first — then, if there's room, one dry aside about a news headline or the fuel price.",
-    "If a topic has no line in the data below (no Bins line, no Traffic line, etc.), it does not exist today — do not mention it at all.",
-    "The Chores line, when present, states whose turn it is — say the name as given, never swap it, and never invent a chore that has no line.",
-  ].join(" "),
-  concierge: [
-    "You are an ambient one-line observation on a wall dashboard. Output ONLY one short sentence, 12 words maximum, about the weather or time of day.",
-    houseCharacter(),
-    "Do not mention people, children, school, work, family, or events — only weather and the day itself. Do not greet.",
-    TIME_GROUNDING,
-    "Use only the weather facts provided below — never predict or invent conditions (no guessing about tomorrow, heat or rain). If no weather is given, riff on the time of day and the given season alone.",
-    `Match this tone: '${EXEMPLARS.conciergeWarm}' Or, on a winter morning in the same voice: '${EXEMPLARS.conciergeWinter}'`,
-  ].join(" "),
+/* ⚠⚠⚠ NAMING A TOPIC IN THE ORDERING SENTENCE IS AN INVITATION TO INVENT IT.
+   BRIEFING_TOPIC_LOCK, found live on the kiosk 2026-09-19, 18:03, and it is the
+   THIRD time this lane has produced a bin claim out of nothing. The owner, on a
+   Saturday evening: "briefing mentioned the bins again even though it's not bin
+   night." The house had said, recovered by transcribing its own spoken WAV out
+   of server/tts-cache/ through voice-stt:
+
+     "The bins are out and gone tonight, so that's clear. Greg's on the dogs,
+      which leaves the rest of the evening to itself."
+
+   The data was right again. /api/bins answered {configured:true, due:false} all
+   evening — collection is Thursday, the next out-night is Wednesday — so
+   aiBriefing.js:80 returned null and THERE WAS NO BINS LINE IN THE PROMPT. The
+   bin candidate never fired either (no `bin-night:` key in the kiosk's own
+   insight-cooldowns), and no hand-written pool reaches the wall with a bin line
+   in it. The model wrote the sentence.
+
+   🔑🔑🔑 THE REMAINING INVITATION WAS THE ORDERING SENTENCE ITSELF. The 09-05
+   fix deleted the bin claim from the EXEMPLARS, which is why this is a passing
+   dismissal rather than a nag — but both prompt sets still said "Cover tonight
+   and tomorrow — BINS, tomorrow's weather and events first". Told to cover bins
+   first, with nothing to cover, the house wrote a sentence that closes the
+   topic. That is what "out and gone, so that's clear" IS: not a reminder, a
+   tidy-up of an instruction it could not otherwise satisfy. Hence the locked
+   guard below bans the dismissal by name — "not that it is clear, not that it
+   is done" — because banning only the REMINDER leaves this exact sentence legal.
+
+   ⚠⚠ MEASURED, and the bins are the small half. 58 live generations against the
+   real evening and morning prompts produced 0 bin mentions, so the bin instance
+   is rare and was NOT reproduced on demand — but strip the Weather line out of
+   the same prompt and the house invents a forecast 24 OUT OF 24: "twenty-three
+   and clear", "a shower mid-arvo", and twice a house detail nobody owns ("the
+   side gate latch is still sticking"). ai.js's own note above predicted exactly
+   that residual for weather and said this paragraph is where to look. So the
+   defect is not about bins: ANY named topic with no line is a target, and a
+   weather-upstream outage — one of which is in the journal at 17:07 the same
+   evening — points it straight at the forecast.
+
+   🔑 THE FIX IS DERIVED, NOT DESCRIBED. A standing list of topic words in the
+   system prompt cannot know what tonight's payload holds; buildPrompt does. So
+   the locked ordering sentence names no topic at all (the printed order is
+   already practical-first), and buildPrompt closes the DATA with the labels it
+   actually printed. A positive statement next to the evidence, instead of a
+   negative rule three hundred words away — which is the form that has now
+   failed here three times running. Pinned by tests/ai-topic-lock.spec.js. */
+const TOPIC_ORDER = {
+  morning: "Use only the real details given below. Mention the practical stuff first — weather warnings, bins, calendar events, unusual traffic — then, if there's room, one dry aside about a news headline or the fuel price.",
+  evening: "Use only the real details given below. Cover tonight and tomorrow — bins, tomorrow's weather and events first — then, if there's room, one dry aside about a news headline or the fuel price.",
 };
+
+const TOPIC_ORDER_LOCKED = {
+  morning: "Use only the real details given below, and take them in the order they are printed — that order is already the practical things first. If there is room at the end, one dry aside about the last line or two.",
+  evening: "Use only the real details given below, and take them in the order they are printed — that order is already the practical things first. If there is room at the end, one dry aside about the last line or two.",
+};
+
+const ABSENT_TOPIC = "If a topic has no line in the data below (no Bins line, no Traffic line, etc.), it does not exist today — do not mention it at all.";
+
+const ABSENT_TOPIC_LOCKED = "The lines below are the whole of what you have been told. A subject with no line there is one you know NOTHING about — not that it is clear, not that it is done, not that it has been dealt with, not that there is nothing to worry about. Say nothing about it in any form.";
+
+function characterPrompts({ locked }) {
+  const order  = locked ? TOPIC_ORDER_LOCKED : TOPIC_ORDER;
+  const absent = locked ? ABSENT_TOPIC_LOCKED : ABSENT_TOPIC;
+  return {
+    morning: [
+      houseCharacter(),
+      TIME_GROUNDING,
+      "Respond in 3-4 short sentences of plain prose, no markdown, no lists.",
+      `Match this tone: '${EXEMPLARS.morningQuiet}'`,
+      `Or, on a busier day, the same voice: '${EXEMPLARS.morningBusy}'`,
+      "Those examples show CADENCE ONLY. Never reuse their wording and never carry a number, a time or a fact across from them — every figure in your answer must come from the data below. You are given today only: you hold no record of other days here, so never say how something compares with last week, the rest of the month, or how long you have been watching it.",
+      order.morning,
+      absent,
+      "The Chores line, when present, states whose turn it is — say the name as given, never swap it, and never invent a chore that has no line.",
+    ].join(" "),
+    evening: [
+      houseCharacter(),
+      TIME_GROUNDING,
+      "Respond in 3-4 short sentences of plain prose, no markdown, no lists.",
+      `Match this tone: '${EXEMPLARS.eveningClear}'`,
+      `Or, with something still on, the same voice: '${EXEMPLARS.eveningBusy}'`,
+      "Those examples show CADENCE ONLY. Never reuse their wording and never carry a number, a time or a fact across from them — every figure in your answer must come from the data below. You are given today only: you hold no record of other days here, so never say how something compares with last week, the rest of the month, or how long you have been watching it.",
+      order.evening,
+      absent,
+      "The Chores line, when present, states whose turn it is — say the name as given, never swap it, and never invent a chore that has no line.",
+    ].join(" "),
+    concierge: [
+      "You are an ambient one-line observation on a wall dashboard. Output ONLY one short sentence, 12 words maximum, about the weather or time of day.",
+      houseCharacter(),
+      "Do not mention people, children, school, work, family, or events — only weather and the day itself. Do not greet.",
+      TIME_GROUNDING,
+      "Use only the weather facts provided below — never predict or invent conditions (no guessing about tomorrow, heat or rain). If no weather is given, riff on the time of day and the given season alone.",
+      `Match this tone: '${EXEMPLARS.conciergeWarm}' Or, on a winter morning in the same voice: '${EXEMPLARS.conciergeWinter}'`,
+    ].join(" "),
+  };
+}
+
+/* Both built at module load — these are pure string joins, and the env read that
+   CHOOSES between them is the per-call one below. The unlocked map is assembled
+   from the same strings in the same order it always was, so the flag-off prompt
+   is byte-identical to the one this block replaced. */
+const CHARACTER_PROMPTS = characterPrompts({ locked: false });
+const CHARACTER_PROMPTS_LOCKED = characterPrompts({ locked: true });
 
 /* Both maps must offer the same three types: the route validates an incoming
    `type` against SYSTEM_PROMPTS (the contract) and then resolves the text
@@ -268,30 +338,76 @@ function characterBriefings() {
   return process.env.HOUSE_CHARACTER_BRIEFINGS === "1";
 }
 
+/* Same per-call rule, same reason (dotenv runs after the static imports), and
+   the same rollback: delete the line from the kiosk's .env, restart
+   dashboard.service, no deploy. Default OFF and off is byte-identical — the
+   unlocked map is the string this file shipped before, and buildPrompt adds
+   nothing.
+
+   ⚠ It deliberately does NOT touch SYSTEM_PROMPTS. That map is the rollback
+   target for HOUSE_CHARACTER_BRIEFINGS and the prompt the Pi 4 serves; leaving
+   it frozen keeps "flip the character flag off" a return to a known string
+   rather than to a second new one. The lock's own half of the fix — the derived
+   topic list in buildPrompt — applies to both maps, so the legacy prompt is
+   strictly better off under the lock too, never worse. */
+function briefingTopicLock() {
+  return process.env.BRIEFING_TOPIC_LOCK === "1";
+}
+
 export function systemPromptFor(type) {
-  return characterBriefings()
-    ? (CHARACTER_PROMPTS[type] ?? SYSTEM_PROMPTS[type])
-    : SYSTEM_PROMPTS[type];
+  if (!characterBriefings()) return SYSTEM_PROMPTS[type];
+  const map = briefingTopicLock() ? CHARACTER_PROMPTS_LOCKED : CHARACTER_PROMPTS;
+  return map[type] ?? SYSTEM_PROMPTS[type];
 }
 
 /* Exported for the spec only — it asserts the two maps stay key-identical and
    that the rewritten exemplars carry no old-register copy. */
 export const __CHARACTER_PROMPTS = CHARACTER_PROMPTS;
+export const __CHARACTER_PROMPTS_LOCKED = CHARACTER_PROMPTS_LOCKED;
 export const __EXEMPLARS = EXEMPLARS;
 
+/* Every line but Time is conditional, and the LABELS are the only thing that
+   knows which ones survived tonight. So the lock's closing sentence is built
+   from the labels actually pushed — never from a list written here, which is
+   the same standing-list mistake one file down. A payload of Time + Chores
+   closes with "Time, Chores" and nothing else, and a model that has just been
+   handed two lines and told those two are everything has no gap to tidy.
+
+   ⚠ The labels are collected beside each push rather than re-derived from the
+   arguments afterwards: a second pass with its own `if (weather)` chain is a
+   second definition of what counts as present, and the two drift the first time
+   a falsy-but-real value (an empty string, a 0) reaches one of them. */
 function buildPrompt({ type, time, weather, events, bins, chores, commute, fuel, news, home }) {
   const lines = [`Time: ${time ?? "unknown"}`];
-  if (weather) lines.push(`Weather: ${weather}`);
-  if (events)  lines.push(`Calendar: ${events}`);
-  if (bins)    lines.push(`Bins: ${bins}`);
-  if (chores)  lines.push(`Chores: ${chores}`);
-  if (commute) lines.push(`Traffic: ${commute}`);
-  if (fuel)    lines.push(`Fuel: ${fuel}`);
-  if (news)    lines.push(`News headlines: ${news}`);
-  if (home)    lines.push(`Home: ${home}`);
+  const labels = ["Time"];
+  const add = (label, value) => {
+    if (!value) return;
+    lines.push(`${label}: ${value}`);
+    labels.push(label);
+  };
+  add("Weather", weather);
+  add("Calendar", events);
+  add("Bins", bins);
+  add("Chores", chores);
+  add("Traffic", commute);
+  add("Fuel", fuel);
+  add("News headlines", news);
+  add("Home", home);
   const verb = type === "evening" ? "the rest of the evening and tomorrow" : "the day ahead";
+  if (briefingTopicLock()) {
+    lines.push(
+      `Those lines are everything the house knows right now — ${labels.join(", ")}. ` +
+      "There is no other subject you have been told about, so do not raise one, " +
+      "not even to say it is clear or sorted or nothing to worry about."
+    );
+  }
   return `Briefly summarise ${verb} for this family:\n${lines.join("\n")}`;
 }
+
+/* Exported for the spec only. The 09-05 tests could all pass while the lane
+   shipped a defect because they asserted on the SYSTEM prompt and the fault was
+   in the USER one — the data half was never addressable from a test at all. */
+export const __buildPrompt = buildPrompt;
 
 const MAX_TOKENS = { morning: 300, evening: 300, concierge: 60 };
 
