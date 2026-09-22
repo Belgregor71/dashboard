@@ -2110,7 +2110,11 @@ window.CONFIG = {
     // is measured again on the wall before any flip.
     // Off: the v2 program on the 480x270 store at 66 ms, as measured.
     // Rollback: -> false (read every minute; the store resizes in place).
-    v3FieldRender: false,
+    // FLIPPED ON 2026-09-22 by the owner ("flip all", with v3FieldWeather).
+    // Seen live over CDP 18:29-18:59 (clear night) and in the slice-2 trial;
+    // lift-on windows read gpu 22.1 / 22.5 at 14.7 fps, depth pinned. ⚠ Clouds
+    // not yet seen on the panel on a real cloudy day.
+    v3FieldRender: true,
 
     // THE WEATHER IN THE FIELD (src/v3/substrate/gl.js, SHADER_VERSION 4).
     // Living Window 2.0 Stage 2, second slice. The lifted program draws what the
@@ -2134,7 +2138,10 @@ window.CONFIG = {
     // and the owner ACCEPTED it there (2026-09-22) rather than drop rain to
     // 20 fps. Any cost added to a rainy depth 0 now has no headroom left.
     // Rollback: -> false (read every minute, like the lift).
-    v3FieldWeather: false,
+    // FLIPPED ON 2026-09-22 by the owner ("flip all"). Live trial: rain 29.5
+    // fps, strike 96 frames / 1.6 s then dark, clear-night field stars with the
+    // mat's stood down, one rain (the pane stood down).
+    v3FieldWeather: true,
 
     // ── The Living Window on V3 (src/v3/core/atmosphere-fx.js,
     // css/atmosphere.css): a thin weather layer at z4 — above the archive card
