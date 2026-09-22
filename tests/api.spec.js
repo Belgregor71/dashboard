@@ -1897,7 +1897,12 @@ test.describe("ai + tts", () => {
     }
   });
 
-  test("POST /api/voice/speaking accepts a boolean and answers 204 with no body", async ({ request }) => {
+  /* ⚠ The three tests that WRITE the speaking state hold `voiceBus`. It is one
+     process-wide value on a server every worker shares, so a parallel
+     `speaking:false` lands between another test's `true` and its connect —
+     measured 2026-09-23: 1 of 3 failed at --repeat-each=3 with two workers, 3/3
+     green with one, and once in a full pre-push run. */
+  test("POST /api/voice/speaking accepts a boolean and answers 204 with no body", async ({ request, voiceBus }) => {
     for (const speaking of [true, false]) {
       const res = await request.post("/api/voice/speaking", { data: { speaking } });
       expect(res.status()).toBe(204);
@@ -1911,7 +1916,7 @@ test.describe("ai + tts", () => {
     expect(body.ok).toBe(true);
   });
 
-  test("the agent stream states the CURRENT speaking state on connect", async ({ request }) => {
+  test("the agent stream states the CURRENT speaking state on connect", async ({ request, voiceBus }) => {
     // The agent reconnects after every deploy. A subscriber that learns
     // nothing until the next CHANGE sits on a stale default through whatever
     // is already playing as it connects — which is the exact window the fix
@@ -1937,7 +1942,7 @@ test.describe("ai + tts", () => {
     expect(received).toContain('"speaking":true');
   });
 
-  test("the agent stream carries speaking and NOT the level firehose", async ({ request }) => {
+  test("the agent stream carries speaking and NOT the level firehose", async ({ request, voiceBus }) => {
     // ~12.5 level frames a second, pushed at the process that generated them.
     // Harmless-looking, and the reason this route takes a flavour at all.
     const http = await import("node:http");
