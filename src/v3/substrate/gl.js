@@ -67,9 +67,10 @@ export const LIFT_FRAME_MS = 60;
    vsyncs so jitter either way lands on the same one.
 
      rain    25 ms — between the 1st and 2nd vsync, a steady 30. Rain can last
-             all afternoon, so this is a SUSTAINED row: ~+2-3 over the lift's
-             15, against a settled wall near 20 and a ≤25 ceiling. Measured on
-             the wall before any flip; this is the prediction, not the number.
+             all afternoon, so this is a SUSTAINED row. Measured on the wall
+             2026-09-22, A/B/A/B: +2.85 gpu over the lift's 15, landing 24.9-25.4
+             against the ≤25 ceiling. The owner kept 30 at the ceiling over 20
+             fps at roughly half the cost — so a rainy depth 0 has no headroom.
      strike   8 ms — every vsync, 60, for the 1.6 s decay only. A peak episode
              (§5.4 ≤35, 32.7 measured at 60 fps full-panel) that must decay, and
              does: the cap falls back the frame the envelope reaches 0.

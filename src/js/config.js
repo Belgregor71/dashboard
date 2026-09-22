@@ -2130,8 +2130,9 @@ window.CONFIG = {
     // flash stays (the pane and the sky flash together, one curve).
     // Cost, measured live 2026-09-22 (depth pinned, rain forced, A/B/A/B on the
     // same bundle): gpu 22.1/22.5 weather off -> 25.4/24.9 on, +2.85; renderer
-    // +1.75; field 14.7 -> 29.5 fps. That is AT the <=25 sustained ceiling —
-    // rain's 30 fps cap is the open question before any flip.
+    // +1.75; field 14.7 -> 29.5 fps. That is AT the <=25 sustained ceiling,
+    // and the owner ACCEPTED it there (2026-09-22) rather than drop rain to
+    // 20 fps. Any cost added to a rainy depth 0 now has no headroom left.
     // Rollback: -> false (read every minute, like the lift).
     v3FieldWeather: false,
 
