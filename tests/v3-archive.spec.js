@@ -2307,6 +2307,17 @@ test("all THREE things the plane moves outside its layer are undone under reduce
 
 const leanProbe = (page) =>
   page.evaluate(() => {
+    /* ⚠ The archive's loops DRIFT at depth 0 (the ghosts, the year, the pivot,
+       the Ken Burns — arch-*), and leanShown has just set depth 0 — so every
+       matrix is the resting placement PLUS however far its loop has run by the
+       time this reads. Under a loaded suite the ghost read 0.516px past a
+       toBeCloseTo(-180, 0) on 2026-09-23; with 8 s added, the year's dy read
+       124.7 for 122. Rewound and held at the start, each matrix IS the
+       placement the assertions are about. Keyframe loops only — transitions
+       carry no animationName. */
+    for (const a of document.getAnimations()) {
+      if (/^arch-/.test(a.animationName ?? "")) { a.pause(); a.currentTime = 0; }
+    }
     const r = (sel) => {
       const el = document.querySelector(sel);
       return el ? el.getBoundingClientRect().toJSON() : null;
