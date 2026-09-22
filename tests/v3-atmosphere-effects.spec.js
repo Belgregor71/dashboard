@@ -132,7 +132,15 @@ async function boot(page, on = []) {
   await page.route("**/api/**", (route) =>
     route.fulfill({ status: 503, contentType: "application/json", body: "{}" })
   );
-  const lines = ["window.CONFIG.features.v3AtmoOverlay = true;"];
+  /* v3FieldWeather PINNED OFF. This file proves the OVERLAY's CSS effects — the
+     mat's painted stars, the pane's rain, the flash — and with the field's
+     weather on, those stand down on purpose (css/atmosphere.css). Inheriting a
+     flipped default would turn the rollback path's whole coverage red for a
+     change in a different feature; v3-field-weather.spec owns the field's half.
+     (Found by the flipped-suite run, 2026-09-22: the lightning test also timed
+     out 3/3 — each strike holds the field at 60 fps for 1.6 s of installed
+     clock, ~85 ms a lifted draw in SwiftShader. HYPOTHESIS, not probed.) */
+  const lines = ["window.CONFIG.features.v3AtmoOverlay = true;", "window.CONFIG.features.v3FieldWeather = false;"];
   for (const [k, name] of Object.entries(FLAG_NAMES)) lines.push(`window.CONFIG.features.${name} = ${on.includes(k)};`);
   await page.route("**/js/config.js", async (route) => {
     const res = await route.fetch();

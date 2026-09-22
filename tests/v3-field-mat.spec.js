@@ -166,7 +166,10 @@ test("flag OFF: byte-for-byte the wall as it was — opaque mat, ground up, fiel
 });
 
 test("⚠ the night sky SURVIVES — background-color, never the `background` shorthand", async ({ page }) => {
-  const errors = await bootV3(page, { v3FieldMat: true, v3SubstrateCoveredPause: true, v3Archive: true });
+  /* v3FieldWeather pinned OFF: with it on, the mat's painted stars stand down
+     on purpose (the field draws its own), and this test would be measuring
+     that design rather than the shorthand it exists to catch. */
+  const errors = await bootV3(page, { v3FieldMat: true, v3SubstrateCoveredPause: true, v3Archive: true, v3FieldWeather: false });
 
   /* The stars are painted onto `.archive` itself as a background-IMAGE
      (css/atmosphere.css, the night sky). Forced here rather than driven through

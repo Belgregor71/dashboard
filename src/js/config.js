@@ -2122,12 +2122,16 @@ window.CONFIG = {
     // draws once, wind 15 fps, rain 30, a strike 60 for its 1.6 s decay only.
     // NEEDS v3FieldRender — on the v2 program it draws nothing (and with
     // v3AtmoOverlay/v3AtmoLightning off, no strike ever reaches it).
-    // While on, with v3FieldMat, the mat's painted starfield and twinkle stand
-    // down (css/atmosphere.css) — two star patterns on one wall otherwise.
-    // The overlay's pane rain and flash STAY: rain on the glass and rain in the
-    // sky are both true; folding them in is Stage 4, after re-measuring.
-    // Cost: UNMEASURED — rain at 30 fps is predicted ~+2-3 gpu over the lift's
-    // 15, a sustained row. Measure on the wall before any flip.
+    // While on, with v3FieldMat, the mat's painted starfield and twinkle AND
+    // the overlay's pane rain stand down (css/atmosphere.css). The pane rain
+    // was kept at first ("rain on the glass and in the sky are both true"); the
+    // owner saw it on the wall 2026-09-22 as two rains leaning OPPOSITE ways —
+    // its lean is baked into the texture, the field's follows the wind. The
+    // flash stays (the pane and the sky flash together, one curve).
+    // Cost, measured live 2026-09-22 (depth pinned, rain forced, A/B/A/B on the
+    // same bundle): gpu 22.1/22.5 weather off -> 25.4/24.9 on, +2.85; renderer
+    // +1.75; field 14.7 -> 29.5 fps. That is AT the <=25 sustained ceiling —
+    // rain's 30 fps cap is the open question before any flip.
     // Rollback: -> false (read every minute, like the lift).
     v3FieldWeather: false,
 

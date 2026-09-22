@@ -297,6 +297,45 @@ test("flag OFF: the same strike flashes the pane but NOT the field", async ({ pa
   expect(Math.abs(mean(r.during) - mean(r.before)), "the field flashed with the flag off").toBeLessThan(1.5);
 });
 
+/* ONE RAIN, NOT TWO. Seen by the owner on the live wall, 2026-09-22: the
+   field's rain leaning with the wind and the pane's rain — its lean baked into
+   its texture — leaning the other way. The pane stands down while the field
+   draws rain, and ONLY then: flag off, or the mat opaque, it is the only rain. */
+const paneRain = () => {
+  const r = document.querySelector(".atmo-overlay__rain");
+  return {
+    present: Boolean(r),
+    display: r ? getComputedStyle(r).display : null,
+    raining: document.documentElement.dataset.atmoRaining ?? null
+  };
+};
+
+test("ONE rain: the pane's stands down under the field's — and stays when the field cannot show it", async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const read = async (flags) => {
+    const p = await ctx.newPage();
+    await bootV3(p, { ...PLAIN, v3AtmoOverlay: true, v3Archive: true, v3FieldMat: true, ...flags }, { weather: HEAVY });
+    await p.waitForFunction(() => document.documentElement.dataset.atmoRaining === "1", null, { timeout: 5000 });
+    const r = await p.evaluate(paneRain);
+    await p.close();
+    return r;
+  };
+  const field = await read({ v3FieldWeather: true });
+  const pane = await read({ v3FieldWeather: false });
+  const opaque = await read({ v3FieldWeather: true, v3FieldMat: false });
+  const unlifted = await read({ v3FieldWeather: true, v3FieldRender: false });
+  await ctx.close();
+
+  for (const r of [field, pane, opaque, unlifted]) {
+    expect(r.present, "the pane's rain node is not there — nothing below measures anything").toBe(true);
+    expect(r.raining).toBe("1");
+  }
+  expect(pane.display, "control: flag off, the pane's rain is the only rain").not.toBe("none");
+  expect(field.display, "TWO rains: the pane still falls over the field's").toBe("none");
+  expect(opaque.display, "the mat is opaque — the field's rain is hidden, so the pane's must stay").not.toBe("none");
+  expect(unlifted.display, "no lift, no field rain — the pane's must stay").not.toBe("none");
+});
+
 /* The mat's painted starfield stands down only when the field can show its own. */
 const NIGHT_SKY = { v3AtmoOverlay: true, v3AtmoNightSky: true, v3Archive: true, v3FieldMat: true };
 const matStars = () => {
