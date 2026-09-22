@@ -71,6 +71,12 @@ spatial detail. It was a correct trade on a Pi and is the wrong one here.
 ⚠ The 15 fps cap delivers **12 fps**, not 15: `FRAME_MS = 66` against a 60 Hz vsync skips to
 every 5th frame as often as every 4th. If 15 is wanted, the cap is 64 ms, not 66.
 
+> **⚠ CORRECTED 2026-09-22 (Stage 2):** the 12 fps was **this probe's own loop**, not the
+> substrate's. The real substrate on the same wall read 1105 frames / 74.7 s (14.8 fps) and
+> 325 / 22.9 s (14.2 fps). A vsync-jitter model (`tests/v3-field-render.spec.js`) shows the
+> 66 ms cap sheds 0.1–1.7 fps to jitter and never reaches 12. The render lift's cap is 60 ms,
+> which holds a steady 15; the base tier keeps 66.
+
 ## Finding 2 — the shader, not the resolution, is what limits how good this looks
 
 Screenshots of the same scene at 480×270 and 1920×1080 are **nearly indistinguishable to the
