@@ -453,11 +453,19 @@ Regardless of the table, three invariants hold:
   views are most of the time. Always pair with a `setTimeout` fallback longer than the transition
   (`CLAUDE.md`, and the 709-zombie-lottie audit).
 
-### 5.6 Two tests still encode the repealed law — read this before building continuous weather
+### 5.6 Two tests encoded the repealed law — ✅ RESOLVED, both rewritten to "bound to a cause"
 
-The old law was not only prose; it was asserted in the suite. **Neither test was changed by this
-rewrite** (2026-08-01 was a docs-only pass), so the first continuous-motion feature will fail the
-pre-push gate until they are deliberately revised:
+> **Status (checked 2026-09-22, Living Window 2.0 Stage 4):** both tests below WERE rewritten
+> on 2026-08-01 — each carries a *"Rewritten 2026-08-01 for law 1"* header — and now assert the
+> new rule this section asks for: an infinite animation is legal only when it hangs off a
+> condition token, so it ends when the weather does (`tests/insights.spec.js` ~l.748-800,
+> `tests/atmo-fx.spec.js` ~l.293). The paragraph below said *"neither test was changed"* and had
+> gone stale; it is kept as the record of why they were rewritten. The line numbers in the table
+> are the originals and have drifted.
+
+The old law was not only prose; it was asserted in the suite. **Neither test was changed by the
+2026-08-01 docs rewrite itself**, so the first continuous-motion feature would have failed the
+pre-push gate until they were deliberately revised:
 
 | Test | Asserts | Blocks |
 |---|---|---|
