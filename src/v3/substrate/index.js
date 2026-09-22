@@ -92,7 +92,7 @@ const INERT = {
   renderer: "none",
   update() {},
   setPaused() {},
-  stats: () => ({ frames: 0, seconds: 0, animating: false, paused: false }),
+  stats: () => ({ frames: 0, seconds: 0, animating: false, paused: false, inkGuard: 0 }),
   destroy() {}
 };
 

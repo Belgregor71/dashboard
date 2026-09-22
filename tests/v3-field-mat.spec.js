@@ -108,9 +108,15 @@ const read = () => {
     why: window.__v3().substratePause ?? null,
     paused: s ? s.paused : null,
     animating: s ? s.animating : null,
-    frames: s ? s.frames : null
+    frames: s ? s.frames : null,
+    inkGuard: s ? s.inkGuard : null
   };
 };
+
+/* The strength main.js sends when the mat is live. Deliberately NOT imported:
+   a spec that imports the constant it checks cannot notice the constant
+   changing, which is how the sun-clock and scrim specs went blind. */
+const GUARD_ON = 0.7;
 
 const TRANSPARENT = "rgba(0, 0, 0, 0)";
 
@@ -133,6 +139,11 @@ test("flag ON: the mat is the field — transparent, ground down, and the field 
   expect(r.why).toEqual({ dark: false, covered: false });
   expect(r.paused).toBe(false);
   expect(r.frames, "the field is unpaused but has never drawn").toBeGreaterThan(0);
+
+  /* The ink guard reaches the shader. Without it the sweep measured the 168px
+     hour at 1.61:1 over a lit midday field, so this number is the difference
+     between a legible wall and an illegible one — it is not a detail. */
+  expect(r.inkGuard, "the field is the mat but the shader was told to guard nothing").toBe(GUARD_ON);
   expect(errors).toEqual([]);
 });
 
@@ -147,6 +158,10 @@ test("flag OFF: byte-for-byte the wall as it was — opaque mat, ground up, fiel
   expect(r.scrimVis).toBe("visible");
   expect(r.why).toEqual({ dark: false, covered: true });
   expect(r.paused).toBe(true);
+  /* The other direction, and it is the half that matters: a guard applied
+     unconditionally would darken the field on every surface that shows it,
+     for a mat that is not live. One direction is half a test. */
+  expect(r.inkGuard, "the field is guarding text it is not behind").toBe(0);
   expect(errors).toEqual([]);
 });
 

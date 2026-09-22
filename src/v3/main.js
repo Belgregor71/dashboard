@@ -118,6 +118,24 @@ function applySubstratePause() {
 const archiveCovers = () =>
   document.documentElement.dataset.archive === "1" && !flag("v3FieldMat");
 
+/* How hard the field darkens itself under the words. The geometry is in gl.js.
+
+   SET BY MEASUREMENT, NOT BY EYE, and the ladder is worth keeping because the
+   first two rungs would both have shipped a defect:
+
+     none  the 168px hour at 1.61:1 over a lit midday field (AA-large floor 3.0)
+     0.55  the archive plate's date at 2.34:1 — better, still failing
+     0.70  worst 4.05 day / 4.14 night, and the worst NODE is `3-camera #heard`
+           — the same node, at the same number, as the flat-mat control. The
+           field has stopped being the limiting factor anywhere on the wall.
+
+   0.70 is chosen because it is where the mat's numbers CONVERGE ON THE
+   CONTROL'S, not because it clears the bar: a guard tuned to just clear AA
+   would leave the field as the worst thing on the wall and put the margin at
+   the mercy of the next photograph. Going lower makes the field the limit
+   again; going higher only darkens the room for nothing. */
+const INK_GUARD = 0.70;
+
 function syncSubstrateCover() {
   const covered = flag("v3SubstrateCoveredPause")
     && archiveCovers()
@@ -222,7 +240,7 @@ function pushCauses() {
   // them. Also what makes a live flag flip land within a minute either way.
   syncFieldMat();
   syncSubstrateCover();
-  substrate.update(toCauses({
+  substrate.update({ ...toCauses({
     sunAltitudeDeg: s.altitudeDeg,
     sunAzimuthRad: s.azimuthRad,
     windKph: weather?.now?.wind_kph ?? 0,
@@ -239,7 +257,11 @@ function pushCauses() {
     // string ("clear", "cloudy", "rain"...). `code` is the raw numeric code.
     category: weather?.now?.condition?.icon ?? null,
     intensity: weather?.now?.condition?.intensity ?? null
-  }));
+  }),
+  /* Not a weather cause, so it rides beside them rather than through
+     toCauses: the field darkens itself under the words only while it IS the
+     matting. Flag off sends 0, and 0 is a real off inside the shader. */
+  inkGuard: flag("v3FieldMat") ? INK_GUARD : 0 });
 }
 
 async function loadWeather() {

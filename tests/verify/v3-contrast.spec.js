@@ -351,13 +351,47 @@ const PINNED_FLAGS = {
   v3SunClock: true
 };
 
-async function bootV3(page, { ground, phase }) {
+/* ── The variants ───────────────────────────────────────────────────────────
+   `off` is this sweep as it has always been: the archive pinned OFF so the
+   ground caption stays measurable (the trade argued at length above).
+
+   `mat` is the wall's actual default surface, which this gate has NEVER
+   measured. v3FieldMat hands the matting to the living WebGL field, so at depth
+   0 every word sits over a shaded, sun-placed gradient instead of a flat
+   `--surface`. The photograph is HIDDEN there, which is why this variant sweeps
+   one ground rather than both: with no photograph on the glass the ground axis
+   cannot change a single pixel, and running it twice would only claim coverage
+   it does not have.
+
+   ⚠ The field is STILL during the sweep, and that is load-bearing rather than
+   lucky. MEASURE takes three screenshots of what it assumes is one frame; a
+   drifting field would give each of them a different backdrop and the ratio
+   would be an artifact. `/api/weather/now` is not in ROUTES, so wind is 0,
+   `moving()` is false and the field draws once — and the mat variant asserts
+   below that it really did stop, rather than trusting that.
+
+   `archive` is the CONTROL, and it is not optional. The mat variant measures a
+   whole surface this gate had never seen — the archive's own plate lines and
+   its engraved year — so every number it reports is a first sighting, and a
+   first sighting says nothing about whether the FIELD caused it. This house has
+   the scar: the depth-0 media room read 1.50:1 with textures forced and 3.46:1
+   with them off, and the textures were the cause; the same card also failed at
+   night with textures OFF, and that was the card's own debt. The only way to
+   tell those apart is to run the same surfaces with the archive on and the
+   field off. Any mat number must be read against its archive twin. */
+const VARIANTS = {
+  off: { flags: {}, grounds: () => Object.keys(GROUNDS), title: (g, p) => `${g} ground, ${p}` },
+  archive: { flags: { v3Archive: true, v3FieldMat: false }, grounds: () => ["sky"], title: (g, p) => `the archive on a FLAT mat (control), ${p}` },
+  mat: { flags: { v3Archive: true, v3FieldMat: true }, grounds: () => ["sky"], title: (g, p) => `the LIVING MAT, ${p}` }
+};
+
+async function bootV3(page, { ground, phase, variant = "off" }) {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
 
   await page.route("**/js/config.js", async (route) => {
     const res = await route.fetch();
-    const body = Object.entries(PINNED_FLAGS)
+    const body = Object.entries({ ...PINNED_FLAGS, ...VARIANTS[variant].flags })
       .map(([k, v]) => `window.CONFIG.features.${k} = ${v};`)
       .join("\n");
     await route.fulfill({ response: res, body: `${await res.text()}\n${body}\n` });
@@ -462,6 +496,39 @@ async function bootV3(page, { ground, phase }) {
   // a hue that silently stayed at 65 cannot pass as measured.
   expect(weatherLayer.hue, "the accent hue was not moved by the force").toBe(weatherLayer.night ? "40" : "240");
 
+  /* ⚠ THE MAT VARIANT MUST PROVE ITSELF, for exactly the reason every other pin
+     in this function does. A v3FieldMat that silently did not take leaves the
+     ordinary opaque wall on the glass, and this sweep would measure it, pass,
+     and report the living mat as covered — a gate green BECAUSE the thing it
+     was added for is absent. Four independent facts, because any one of them
+     alone has a way of being true while the mat is not live. */
+  if (variant === "mat") {
+    const mat = await page.evaluate(() => {
+      const a = document.querySelector(".archive");
+      const p = document.querySelector(".photo");
+      const s = window.__substrate?.() ?? null;
+      return {
+        depth: document.documentElement.dataset.depth ?? null,
+        matAttr: document.documentElement.dataset.fieldMat ?? null,
+        matColor: a ? getComputedStyle(a).backgroundColor : null,
+        photoVis: p ? getComputedStyle(p).visibility : null,
+        paused: s ? s.paused : null,
+        animating: s ? s.animating : null,
+        frames: s ? s.frames : null,
+        backend: s ? s.backend : null
+      };
+    });
+    expect(mat.matAttr, "v3FieldMat's pin did not take").toBe("1");
+    expect(mat.depth, "the mat only exists at depth 0").toBe("0");
+    expect(mat.matColor, "the mat is still opaque — this would measure the old wall").toBe("rgba(0, 0, 0, 0)");
+    expect(mat.photoVis, "the full-bleed ground is still up behind a transparent mat").toBe("hidden");
+    expect(mat.paused, "the field is paused — every ratio below would be over a black rectangle").toBe(false);
+    expect(mat.frames, "the field never drew a frame").toBeGreaterThan(0);
+    /* And it must be STILL, or MEASURE's three screenshots each catch a
+       different frame and every ratio is an artifact of the drift. */
+    expect(mat.animating, "the field is DRIFTING — the three-shot measurement is invalid while it moves").toBe(false);
+  }
+
   await page.evaluate(() => window.__v3Refresh?.());
 
   /* ⚠ PIN THE COLOUR RESOLUTION. Every ratio in this file rests on it, and the
@@ -549,6 +616,23 @@ const COLLECT = () => {
       (n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim().length > 0
     );
     if (!hasOwnText) continue;
+
+    /* ⚠ ONE DECORATIVE ENGRAVING, EXCLUDED BY NAME — not a class of node.
+       `.archive__year` is a 400px year at 5.5% ink, aria-hidden, whose entire
+       design is to be barely perceptible: core/archive.js says so where it is
+       built ("aria-hidden and never a measured selector"), and css/archive.css
+       says it "must never appear in a selector the contrast sweep reads".
+       Measuring a watermark as prose is a category error, and it produced the
+       only failure in the archive control run: 1.28:1, on the wall as it ships
+       today, for a node nobody is meant to read.
+
+       ⚠ It is named rather than skipped by `[aria-hidden]`, and that
+       distinction is load-bearing: index.html marks the WHOLE `.archive`
+       aria-hidden, so a blanket rule would also drop the plate line — "On this
+       day · 2025 · Nudgee" — which is real text the room does read, and which
+       this sweep had never measured until the mat variant arrived. A blanket
+       rule would have silently deleted the coverage it was added to gain. */
+    if (el.classList.contains("archive__year")) continue;
 
     const s = getComputedStyle(el);
     if (s.visibility === "hidden" || s.display === "none") continue;
@@ -1169,11 +1253,12 @@ const line = (m) =>
   `    ${String(m.contrast).padStart(6)}:1  ${m.surface} ${m.selector} @${Math.round(m.fontSize)}px` +
   ` ${m.token ?? m.color} over ${m.worstBg}  "${m.sample}"`;
 
-for (const ground of Object.keys(GROUNDS)) {
+for (const variant of Object.keys(VARIANTS)) {
+for (const ground of VARIANTS[variant].grounds()) {
   for (const phase of Object.keys(PHASES)) {
-    test(`v3 contrast: ${ground} ground, ${phase} — every surface clears WCAG AA worst-case`, async ({ page }) => {
+    test(`v3 contrast: ${VARIANTS[variant].title(ground, phase)} — every surface clears WCAG AA worst-case`, async ({ page }) => {
       test.setTimeout(240_000);
-      const { pageErrors } = await bootV3(page, { ground, phase });
+      const { pageErrors } = await bootV3(page, { ground, phase, variant });
 
       const all = [];
       for (const surface of SURFACES) all.push(...(await sweepSurface(page, surface)));
@@ -1209,7 +1294,16 @@ for (const ground of Object.keys(GROUNDS)) {
          that stops rendering, restores the exact blind spot this gate just
          closed — and it restores it GREEN. Night is exempt because the caption
          is opacity:0 after dark by design, which COLLECT correctly skips. */
-      if (phase === "day") {
+      /* ⚠ MAT IS EXEMPT, AND THAT IS THE WHOLE REASON THIS VARIANT EXISTS
+         RATHER THAN A CHANGED PIN. With the archive owning depth 0 the caption
+         is opacity:0 / visibility:hidden by design (css/archive.css — the plate
+         says the same thing one layer up, and the same fact twice is
+         furniture), so COLLECT correctly never sees it. Flipping the pin to
+         measure the mat would have bought the plate's words and lost the
+         caption's, which is precisely the trade the note above refuses. Two
+         variants keep both surfaces measured instead of trading one for the
+         other. */
+      if (phase === "day" && variant === "off") {
         expect(
           measured.filter((m) => m.selector === "#ground-caption").length,
           "the ground caption was never measured — the groundMemories pin did not take"
@@ -1258,7 +1352,7 @@ for (const ground of Object.keys(GROUNDS)) {
         .sort((a, b) => b.overlay - a.overlay);
 
       console.log(
-        `\n  v3 ${ground}/${phase}: ${measured.length} text nodes across ${SURFACES.length} surfaces` +
+        `\n  v3 ${variant}/${ground}/${phase}: ${measured.length} text nodes across ${SURFACES.length} surfaces` +
           (unpainted.length
             ? `\n    ⚠ ${unpainted.length} node(s) reported a rect but painted nothing: ` +
               unpainted.map((m) => `${m.surface} ${m.selector}`).join(", ")
@@ -1284,7 +1378,7 @@ for (const ground of Object.keys(GROUNDS)) {
 
       expect(
         failures,
-        `${ground}/${phase}: ${failures.length} element(s) below WCAG AA.\n` +
+        `${variant}/${ground}/${phase}: ${failures.length} element(s) below WCAG AA.\n` +
           failures
             .map((f) => line(f) + (f.regressed ? `\n         ↳ REGRESSED past its known-open floor of ${f.regressed.floor}:1` : ""))
             .join("\n")
@@ -1293,4 +1387,5 @@ for (const ground of Object.keys(GROUNDS)) {
       expect(pageErrors, `uncaught page errors:\n${pageErrors.join("\n")}`).toHaveLength(0);
     });
   }
+}
 }

@@ -13,9 +13,17 @@
    makes hardware VIDEO decode impossible on this X11+ANGLE stack does not
    affect WebGL — different path entirely.
 
-   THE SHADER BELOW IS BYTE-FOR-BYTE WHAT WAS MEASURED. If it changes, the
-   measurement is void and must be retaken.
+   ⚠ A READING NAMES THE SHADER IT MEASURED. This used to say the shader was
+   byte-for-byte what was measured and that any change voided the measurement —
+   true, and unmaintainable across a design arc that has to change it. Instead
+   SHADER_VERSION goes up with every edit to VERT or FRAG, and the ceiling probe
+   records it beside every number (docs/audit/G11-GPU-CEILING-2026-09-22.md). A
+   measurement that does not name a version is the one to distrust.
+
+   v2 (2026-09-22): the ink guard, for v3FieldMat. Costs nothing at strength 0.
    ═══════════════════════════════════════════════════════════════════════════ */
+
+export const SHADER_VERSION = 2;
 
 const VERT = `#version 300 es
 in vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }`;
@@ -30,6 +38,7 @@ uniform float uSunAz;
 uniform vec2  uWind;
 uniform float uCloud;
 uniform float uRain;
+uniform float uInkGuard;
 
 float hash(vec2 v){ return fract(sin(dot(v, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 v){
@@ -63,6 +72,35 @@ void main(){
   col = mix(col, vec3(0.09, 0.10, 0.12), uRain * 0.5);
   col *= 1.0 - smoothstep(0.35, 1.15, distance(uv, vec2(0.5))) * 0.55;
 
+  /* THE INK GUARD. When this field is the matting (features.v3FieldMat) the
+     words sit ON it rather than on a flat --surface, and the sweep measured the
+     168px hour at 1.61:1 over a lit midday field — a real failure, found by
+     measuring rather than predicted.
+
+     The field darkens itself under the words. It is done HERE, per pixel, and
+     not as a veil over the top, because there is nothing behind the mat to mask
+     back to: a veil would be a second full-screen layer to composite, and this
+     is three cheap smoothsteps inside a shader that is already running.
+
+     Geometry is lifted verbatim from css/atmosphere.css's texture mask, which
+     is gate-proven at forced-worst weather on every ground and phase: a 170->400
+     px top ramp, an ellipse 760x400 at (300,920) for the clock and caption, and
+     an ellipse 820x400 at (1590,910) for the media corner. That file's hard-won
+     lesson is why they are ellipses and ramps rather than boxes — the first
+     masked build cut rectangles and they read on the wall as a banner line and
+     a notch, as geometry rather than as weather.
+
+     uInkGuard is a STRENGTH, and 0 is a real off: the guard costs nothing and
+     changes nothing until the mat is live. */
+  if (uInkGuard > 0.0) {
+    // CSS space: y down, on the fixed 1920x1080 stage. uv is y-up.
+    vec2 px = vec2(uv.x, 1.0 - uv.y) * vec2(1920.0, 1080.0);
+    float g = 1.0 - smoothstep(170.0, 400.0, px.y);
+    g = max(g, 1.0 - smoothstep(0.45, 1.0, length((px - vec2(300.0, 920.0)) / vec2(760.0, 400.0))));
+    g = max(g, 1.0 - smoothstep(0.45, 1.0, length((px - vec2(1590.0, 910.0)) / vec2(820.0, 400.0))));
+    col *= 1.0 - uInkGuard * g;
+  }
+
   // Dither. Large near-black gradients band visibly on an 8-bit panel, and the
   // banding is far more noticeable than the effect it interrupts.
   float dq = (hash(gl_FragCoord.xy + fract(uTime)) - 0.5) / 255.0;
@@ -73,7 +111,7 @@ void main(){
    make the surface move on its own; uTime only advances the wind's drift, and
    wind is a thing the room can look out of a window and verify. That is the
    one clause of the calm law that survives V3 intact. */
-const DEFAULTS = { sunAlt: 0, sunAz: 0, wind: [0, 0], cloud: 0.3, rain: 0 };
+const DEFAULTS = { sunAlt: 0, sunAz: 0, wind: [0, 0], cloud: 0.3, rain: 0, inkGuard: 0 };
 
 export function createGlSubstrate(canvas) {
   const gl = canvas.getContext("webgl2", {
@@ -115,7 +153,7 @@ export function createGlSubstrate(canvas) {
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
 
   const U = {};
-  for (const n of ["uRes", "uTime", "uSunAlt", "uSunAz", "uWind", "uCloud", "uRain"]) {
+  for (const n of ["uRes", "uTime", "uSunAlt", "uSunAz", "uWind", "uCloud", "uRain", "uInkGuard"]) {
     U[n] = gl.getUniformLocation(prog, n);
   }
   gl.viewport(0, 0, canvas.width, canvas.height);
@@ -155,6 +193,7 @@ export function createGlSubstrate(canvas) {
     gl.uniform2f(U.uWind, causes.wind[0], causes.wind[1]);
     gl.uniform1f(U.uCloud, causes.cloud);
     gl.uniform1f(U.uRain, causes.rain);
+    gl.uniform1f(U.uInkGuard, causes.inkGuard);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     frames++;
   }
@@ -202,7 +241,7 @@ export function createGlSubstrate(canvas) {
       draw();
       if (moving() && raf === null) raf = requestAnimationFrame(loop);
     },
-    stats: () => ({ frames, seconds: (performance.now() - t0) / 1000, animating: raf !== null, paused }),
+    stats: () => ({ frames, seconds: (performance.now() - t0) / 1000, animating: raf !== null, paused, inkGuard: causes.inkGuard }),
     destroy() {
       if (raf) cancelAnimationFrame(raf);
       raf = null;
