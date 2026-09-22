@@ -339,11 +339,15 @@ const paneRain = () => {
 
 test("ONE rain: the pane's stands down under the field's — and stays when the field cannot show it", async ({ browser }) => {
   const ctx = await browser.newContext();
-  const read = async (flags) => {
+  const read = async (flags, depth = 0) => {
     const p = await ctx.newPage();
     await bootV3(p, { ...PLAIN, v3AtmoOverlay: true, v3Archive: true, v3FieldMat: true, ...flags }, { weather: HEAVY });
     await p.waitForFunction(() => document.documentElement.dataset.atmoRaining === "1", null, { timeout: 5000 });
-    const r = await p.evaluate(paneRain);
+    if (depth) {
+      await p.evaluate((d) => window.__setDepth(d, "spec"), depth);
+      await p.waitForFunction((d) => document.documentElement.dataset.depth === String(d), depth, { timeout: 5000 });
+    }
+    const r = { ...(await p.evaluate(paneRain)), depth: await p.evaluate(() => document.documentElement.dataset.depth) };
     await p.close();
     return r;
   };
@@ -351,9 +355,20 @@ test("ONE rain: the pane's stands down under the field's — and stays when the 
   const pane = await read({ v3FieldWeather: false });
   const opaque = await read({ v3FieldWeather: true, v3FieldMat: false });
   const unlifted = await read({ v3FieldWeather: true, v3FieldRender: false });
+  /* ⚠ Depth 1+ brings the full-bleed photograph back over the field
+     (css/archive.css), so the field's rain is HIDDEN there. Keyed on the flag
+     markers alone, the pane stood down anyway: rain outside, none on the glass.
+     Found by the contrast gate's archive-off variants on the flip, 2026-09-22. */
+  const deep = await read({ v3FieldWeather: true }, 1);
+  const noArchive = await read({ v3FieldWeather: true, v3Archive: false });
   await ctx.close();
 
-  for (const r of [field, pane, opaque, unlifted]) {
+  expect(field.depth).toBe("0");
+  expect(deep.depth, "the depth change never landed — the deep read measures depth 0").toBe("1");
+  expect(deep.display, "depth 1: the photograph covers the field, so the pane's rain must stay").not.toBe("none");
+  expect(noArchive.display, "no archive: the field is never the backdrop, so the pane's rain must stay").not.toBe("none");
+
+  for (const r of [field, pane, opaque, unlifted, deep, noArchive]) {
     expect(r.present, "the pane's rain node is not there — nothing below measures anything").toBe(true);
     expect(r.raining).toBe("1");
   }
@@ -361,6 +376,39 @@ test("ONE rain: the pane's stands down under the field's — and stays when the 
   expect(field.display, "TWO rains: the pane still falls over the field's").toBe("none");
   expect(opaque.display, "the mat is opaque — the field's rain is hidden, so the pane's must stay").not.toBe("none");
   expect(unlifted.display, "no lift, no field rain — the pane's must stay").not.toBe("none");
+});
+
+/* RAIN UNDER THE WORDS. The contrast gate cannot measure the field's rain —
+   it animates, and MEASURE needs one still frame — so its `weather` variant
+   measures the field DRY. This is the bound that makes that honest: under the
+   hour, with the ink guard on as on the wall, heavy rain must never make the
+   ground brighter than the dry field the gate measured. Rain streaks add light,
+   but the reading also greys the sky (uRain) and the guard multiplies both.
+   Measured 2026-09-22 (46k px, SwiftShader): dry max 20.4, heavy rain 16.0-16.2
+   — rain DARKENS it here. Injected 12x streaks read 56.6 and went red. */
+const UNDER_HOUR = [0.05, 0.77, 0.16, 0.14];   // #hour's box on the stage, as fractions
+async function underHour(page) {
+  const { lum: L } = await page.evaluate((r) => window.__substrateSampleRect(...r), UNDER_HOUR);
+  const sorted = [...L].sort((a, b) => a - b);
+  return { max: sorted[sorted.length - 1], p99: sorted[Math.floor(sorted.length * 0.99)], n: L.length };
+}
+
+test("rain never brightens the ground under the hour past the DRY field the gate measured", async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const read = async (weather) => {
+    const p = await ctx.newPage();
+    await bootV3(p, { ...ON, v3FieldMat: true }, { weather });
+    const guard = (await p.evaluate(stats)).inkGuard;
+    const r = await underHour(p);
+    await p.close();
+    return { ...r, guard };
+  };
+  const dry = await read(reading({ cloudPct: 3 }));
+  const wet = await read(HEAVY);
+  await ctx.close();
+  expect(dry.guard, "the ink guard is off — this would measure a ground the wall never shows").toBeGreaterThan(0);
+  expect(dry.n).toBeGreaterThan(1000);
+  expect(wet.max, `heavy rain brightened the ground under the hour (dry max ${dry.max.toFixed(1)})`).toBeLessThanOrEqual(dry.max + 1);
 });
 
 /* The mat's painted starfield stands down only when the field can show its own. */

@@ -287,8 +287,13 @@
    leaning with the real wind, and this one — held still between bursts, its
    lean BAKED into the texture (atmo/overlay.js rainTexture) — leaning the
    other way. Not depth: a contradiction. display:none, not opacity:0 — an
-   invisible layer still runs its fall keyframe and composites every frame. */
-:root[data-atmo="overlay"][data-field-weather="1"][data-field-mat="1"] .atmo-overlay__rain {
+   invisible layer still runs its fall keyframe and composites every frame.
+   ⚠ ONLY WHERE THE FIELD IS SEEN — the exact condition css/archive.css uses to
+   make the mat transparent (archive on, depth 0). Keyed on the two flag
+   markers alone, this stood the pane down at depth 1+ too, where the
+   full-bleed photograph covers the field again: rain on the wall, and none on
+   the glass. Caught by the contrast gate's archive-off variants on the flip. */
+:root[data-atmo="overlay"][data-field-weather="1"][data-field-mat="1"][data-archive="1"][data-depth="0"] .atmo-overlay__rain {
   display: none;
 }
 

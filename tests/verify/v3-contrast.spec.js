@@ -387,7 +387,16 @@ const VARIANTS = {
      horizon, cloud decks, a rounder sun. Its light envelope was held to v2's
      on purpose, and this is the variant that checks it — read against `mat`,
      its twin, for the same reason `mat` is read against `archive`. */
-  render: { flags: { v3Archive: true, v3FieldMat: true, v3FieldRender: true }, grounds: () => ["sky"], title: (g, p) => `the LIFTED living mat, ${p}` }
+  render: { flags: { v3Archive: true, v3FieldMat: true, v3FieldRender: true, v3FieldWeather: false }, grounds: () => ["sky"], title: (g, p) => `the LIFTED living mat, ${p}` },
+  /* The weather in the field (v3FieldWeather) — the wall as flipped. Its one
+     visible change at depth 0 under forced weather is that the overlay's PANE
+     rain stands down (the field owns rain there), so this asserts the pane is
+     GONE rather than painting. The field itself stays dry and STILL: its rain
+     animates, and MEASURE's three screenshots are only valid on one frame.
+     Rain under the words is bounded by pixels instead, in
+     tests/v3-field-weather.spec.js ("rain never brightens the ground under the
+     hour"). Read against `render`, its twin. */
+  weather: { flags: { v3Archive: true, v3FieldMat: true, v3FieldRender: true, v3FieldWeather: true }, grounds: () => ["sky"], title: (g, p) => `the LIFTED mat with the WEATHER in the field, ${p}` }
 };
 
 async function bootV3(page, { ground, phase, variant = "off" }) {
@@ -487,13 +496,25 @@ async function bootV3(page, { ground, phase, variant = "off" }) {
       night: document.documentElement.dataset.night === "1"
     };
   });
-  await expect.poll(async () => (await layerState())?.rainOpacity ?? 0, { timeout: 5000 }).toBeGreaterThan(0);
+  /* The field owns the rain on the `weather` variant: there the pane must be
+     STOOD DOWN, and asserting that is the pin check (a pane still painting
+     means v3FieldWeather did not take). Everywhere else it must paint. */
+  const fieldOwnsRain = variant === "weather";
+  if (fieldOwnsRain) {
+    await expect.poll(async () => (await layerState())?.warmOpacity ?? 0, { timeout: 5000 }).toBeGreaterThan(0);
+  } else {
+    await expect.poll(async () => (await layerState())?.rainOpacity ?? 0, { timeout: 5000 }).toBeGreaterThan(0);
+  }
   const weatherLayer = await layerState();
   // A pin that silently did nothing is the failure this whole block exists to
   // stop: assert the layer is THERE before measuring anything through it.
   expect(weatherLayer, "the weather layer never mounted — v3AtmoOverlay's pin did not take").not.toBeNull();
-  expect(weatherLayer.rain, "the rain pane is not painting").toBe("block");
-  expect(weatherLayer.rainOpacity).toBeGreaterThan(0);
+  if (fieldOwnsRain) {
+    expect(weatherLayer.rain, "the pane still paints over the field's rain — v3FieldWeather's pin did not take").toBe("none");
+  } else {
+    expect(weatherLayer.rain, "the rain pane is not painting").toBe("block");
+    expect(weatherLayer.rainOpacity).toBeGreaterThan(0);
+  }
   expect(weatherLayer.warmOpacity).toBeGreaterThan(0);
   expect(weatherLayer.textureLayers, "the textures are not painting — v3AtmoTextures' pin or force did not take").toBe(5);
   expect(weatherLayer.textureOpacity).toBeGreaterThan(0);
@@ -507,7 +528,7 @@ async function bootV3(page, { ground, phase, variant = "off" }) {
      and report the living mat as covered — a gate green BECAUSE the thing it
      was added for is absent. Four independent facts, because any one of them
      alone has a way of being true while the mat is not live. */
-  if (variant === "mat" || variant === "render") {
+  if (variant === "mat" || variant === "render" || variant === "weather") {
     const mat = await page.evaluate(() => {
       const a = document.querySelector(".archive");
       const p = document.querySelector(".photo");
@@ -527,7 +548,7 @@ async function bootV3(page, { ground, phase, variant = "off" }) {
     });
     /* Both directions: `mat` must measure v2 and `render` the lift, or the two
        twins silently measure the same field and every comparison is empty. */
-    const lifted = variant === "render";
+    const lifted = variant === "render" || variant === "weather";
     expect(mat.backend, "the field is not on WebGL — a compile failure drops to 2D").toBe("webgl2");
     expect(mat.lift, `v3FieldRender's pin did not take (${variant})`).toBe(lifted ? 1 : 0);
     expect(mat.store).toEqual(lifted ? [1920, 1080] : [480, 270]);
