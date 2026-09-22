@@ -676,6 +676,10 @@ export function createGlSubstrate(canvas) {
       inkGuard: causes.inkGuard, lift: causes.lift ? 1 : 0, store: [canvas.width, canvas.height],
       shader: SHADER_VERSION, weather: weatherOn() ? 1 : 0, causes: causesOn() ? 1 : 0,
       gust: causesOn() ? causes.gust : 0, humid: causesOn() ? causes.humid : -1, moon: causes.moon, driftT,
+      /* When driftT was last advanced — the last DRAW, not now. `seconds` is
+         read at call time, so comparing driftT to it measures how stale the
+         frame is, which under load exceeded 0.5 s (2026-09-23). */
+      drawT: lastT,
       striking: striking(performance.now()), capMs: capMs(performance.now()), lastStrike
     }),
     sample,

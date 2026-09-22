@@ -256,8 +256,13 @@ test("a GUST stretches the drift's clock — never shrinks it — and adds no fr
   await ctx.close();
   expect(none.gust).toBe(0);
   expect(gusty.gust).toBe(1);
-  expect(Math.abs(none.driftT - none.seconds), "no gust reading, yet the drift ran off real time").toBeLessThan(0.5);
-  expect(gusty.driftT, "a gust must run the drift AHEAD of real time").toBeGreaterThan(gusty.seconds + 0.5);
+  /* Against drawT — the clock at the last draw, which is where driftT was last
+     advanced — not `seconds`, which is read now. Their gap is only how stale
+     the frame is, and a suite under load once stalled it 0.576 s past the old
+     0.5 s tolerance (2026-09-23). Against drawT it is exact. */
+  expect(none.drawT, "the field never drew").toBeGreaterThan(t);
+  expect(Math.abs(none.driftT - none.drawT), "no gust reading, yet the drift ran off real time").toBeLessThan(1e-6);
+  expect(gusty.driftT, "a gust must run the drift AHEAD of real time").toBeGreaterThan(gusty.drawT + 0.5);
   expect(gusty.capMs, "a gust must ride the wind's own frame rate").toBe(LIFT_FRAME_MS);
   expect(none.capMs).toBe(LIFT_FRAME_MS);
 });
