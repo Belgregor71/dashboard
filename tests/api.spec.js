@@ -466,6 +466,12 @@ test.describe("weather", () => {
       expect(body.now.cloud_pct).toBeGreaterThanOrEqual(0);
       expect(body.now.cloud_pct).toBeLessThanOrEqual(100);
     }
+    // Gusts (v3FieldCauses) — present on every path, same reason. ⚠ A schema
+    // miss here does not error: getWeatherNormalized swaps in the "Unavailable"
+    // fallback and the whole wall loses its weather. Null = no gusts known.
+    expect(body.now).toHaveProperty("wind_gust_kph");
+    expect(["number", "object"]).toContain(typeof body.now.wind_gust_kph);
+    if (typeof body.now.wind_gust_kph === "number") expect(body.now.wind_gust_kph).toBeGreaterThanOrEqual(0);
   });
 
   test("GET /api/weather/forecast", async ({ request }) => {

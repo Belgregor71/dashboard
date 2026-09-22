@@ -28,7 +28,7 @@
 /**
  * @typedef {Object} WeatherNowNormalized
  * @property {{name:string,tz:string}} location
- * @property {{temp_c:number|null,feels_like_c:number|null,condition:{code:number|null,label:string|null,icon:string|null,intensity:"light"|"moderate"|"heavy"|null,thunder:boolean},wind_kph:number|null,humidity_pct:number|null,uv:number|null,rain_chance_pct:number|null}} now
+ * @property {{temp_c:number|null,feels_like_c:number|null,condition:{code:number|null,label:string|null,icon:string|null,intensity:"light"|"moderate"|"heavy"|null,thunder:boolean},wind_kph:number|null,wind_bearing:number|null,wind_gust_kph:number|null,cloud_pct:number|null,humidity_pct:number|null,uv:number|null,rain_chance_pct:number|null}} now
  * @property {{high_c:number|null,low_c:number|null,sunrise:string|null,sunset:string|null}} day
  */
 

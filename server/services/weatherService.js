@@ -72,7 +72,8 @@ export async function fetchWeatherRaw({ lat, lon }) {
   url.searchParams.set("daily", "temperature_2m_max,temperature_2m_min,weathercode,sunrise,sunset,precipitation_probability_max");
   // cloudcover feeds the V3 substrate's cloud term. It rides the hourly block
   // we already request, so this costs no extra upstream call.
-  url.searchParams.set("hourly", "apparent_temperature,relativehumidity_2m,precipitation_probability,uv_index,windspeed_10m,cloudcover");
+  // windgusts_10m feeds the field's gust term (v3FieldCauses) — same block, no extra call.
+  url.searchParams.set("hourly", "apparent_temperature,relativehumidity_2m,precipitation_probability,uv_index,windspeed_10m,cloudcover,windgusts_10m");
   // Short-range nowcast (Phase 3): 15-min precip for the next ~3h. Ignored by
   // the now/forecast normalizers; read only by normalizeNowcast.
   url.searchParams.set("minutely_15", "precipitation,precipitation_probability");
@@ -121,6 +122,9 @@ export function normalizeWeatherNow(raw) {
       // being discarded. The substrate needs it to drift the right way, and a
       // default bearing would make that drift decoration rather than a cause.
       wind_bearing: current?.winddirection ?? null,
+      // Gusts, km/h, this hour. Null when absent — the field reads null as "no
+      // gusts known" and adds no surge, never a plausible default one.
+      wind_gust_kph: timeIndex >= 0 ? raw?.hourly?.windgusts_10m?.[timeIndex] ?? null : null,
       cloud_pct: timeIndex >= 0 ? raw?.hourly?.cloudcover?.[timeIndex] ?? null : null,
       humidity_pct: timeIndex >= 0 ? raw?.hourly?.relativehumidity_2m?.[timeIndex] ?? null : null,
       uv: timeIndex >= 0 ? raw?.hourly?.uv_index?.[timeIndex] ?? null : null,
@@ -197,6 +201,7 @@ export function weatherFallbackNow() {
       condition: { code: null, label: "Unavailable", icon: null, intensity: null, thunder: false },
       wind_kph: null,
       wind_bearing: null,
+      wind_gust_kph: null,
       cloud_pct: null,
       humidity_pct: null,
       uv: null,
@@ -241,6 +246,7 @@ export function normalizeBomNow(bom) {
       condition: conditionFor(haConditionToWmoCode(bom?.current?.condition)),
       wind_kph: bom?.current?.wind_kph ?? null,
       wind_bearing: bom?.current?.wind_bearing ?? null,
+      wind_gust_kph: null, // BOM's HA entity carries no gust reading
       cloud_pct: bom?.current?.cloud_pct ?? null,
       humidity_pct: bom?.current?.humidity_pct ?? null,
       uv: null,

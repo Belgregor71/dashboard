@@ -16,7 +16,7 @@ export const weatherNowSchema = {
     },
     now: {
       type: "object",
-      required: ["temp_c", "feels_like_c", "condition", "wind_kph", "wind_bearing", "cloud_pct", "humidity_pct", "uv", "rain_chance_pct"],
+      required: ["temp_c", "feels_like_c", "condition", "wind_kph", "wind_bearing", "wind_gust_kph", "cloud_pct", "humidity_pct", "uv", "rain_chance_pct"],
       properties: {
         temp_c: nullableNumber,
         feels_like_c: nullableNumber,
@@ -36,6 +36,7 @@ export const weatherNowSchema = {
         // additionalProperties is false on this object, so these must be
         // DECLARED here or a response carrying them fails validation outright.
         wind_bearing: nullableNumber,
+        wind_gust_kph: nullableNumber,
         cloud_pct: nullableNumber,
         humidity_pct: nullableNumber,
         uv: nullableNumber,
