@@ -2170,7 +2170,9 @@ window.CONFIG = {
     // the only emitter, so the moment has been impossible on the wall since the
     // cutover. A celebration scores 47 (Low band): it surfaces in the dwell
     // spread, never the glance. Rollback: -> false (read per arrival).
-    v3ArrivalDelight: false,
+    // FLIPPED ON 2026-09-23 by the owner ("do both"). Deployed off first
+    // (ee0caec); spec pins both states; inject-defect 5/5 red.
+    v3ArrivalDelight: true,
 
     // V3's attention tick passes routineRuntime.attentionWeights() to the
     // ranker, as the incumbent's focusHero always did. A per-source nudge,
