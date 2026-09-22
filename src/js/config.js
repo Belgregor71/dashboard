@@ -2155,7 +2155,11 @@ window.CONFIG = {
     // the moon and haze draw once per minute's cause tick.
     // NEEDS v3FieldRender (drawn only by the lifted program).
     // Rollback: -> false (read every minute).
-    v3FieldCauses: false,
+    // FLIPPED ON 2026-09-22 by the owner ("deploy then flip"). Suite green both
+    // states; contrast `causes` variant (humid 95 + moon forced) day 4.07 = twin,
+    // night 3.84 on #hour (moon behind the digits; AA-large 3.0). ⚠ Flipped with
+    // the panel dark — the on-glass look was not yet seen live.
+    v3FieldCauses: true,
 
     // ── The Living Window on V3 (src/v3/core/atmosphere-fx.js,
     // css/atmosphere.css): a thin weather layer at z4 — above the archive card
