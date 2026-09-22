@@ -2180,7 +2180,11 @@ window.CONFIG = {
     // tilts sort ORDER, never the displayed score, so it changes WHICH line
     // wins the glance. Needs routineLearning. Rollback: -> false (read every
     // tick).
-    v3AttentionWeights: false,
+    // FLIPPED ON 2026-09-23 by the owner ("do both"). Live weights at the
+    // flip: commute +7, delight +10, arrival -5, cameraTrigger -8, nowPlaying
+    // -12 (only 4 shown). ⚠ Specs that do not stub /api/routines rank against
+    // the machine's own data/routines/aggregates.json (untracked).
+    v3AttentionWeights: true,
 
     // ── The Living Window on V3 (src/v3/core/atmosphere-fx.js,
     // css/atmosphere.css): a thin weather layer at z4 — above the archive card
