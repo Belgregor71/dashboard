@@ -269,6 +269,19 @@
   50%  { opacity: calc(0.7 * var(--atmo-amp, 1)); }
   100% { opacity: 0; }
 }
+/* …and stood DOWN when the GPU field draws the stars itself (v3FieldWeather,
+   stamped by main.js syncFieldMat) and the mat is transparent enough to show
+   them (v3FieldMat). The field's stars sit behind its cloud decks; this field
+   would print a second, different pattern over the top of them, clear or not.
+   Both markers, never one: with the mat opaque, the field's stars are hidden
+   and these are the only stars there are. The twinkle goes too — it lands on
+   stars from THIS painting, which would no longer be on the glass. */
+:root[data-atmo="overlay"][data-atmo-night-sky="1"][data-field-weather="1"][data-field-mat="1"] .archive {
+  background-image: none;
+}
+:root[data-atmo="overlay"][data-atmo-night-sky="1"][data-field-weather="1"][data-field-mat="1"] .archive::before {
+  display: none;
+}
 
 /* ── v3AtmoRainEpisodes: bursts, a still pane between ─────────────────────────
    While it rains the pane stays up and visible — the glass is wet — but the

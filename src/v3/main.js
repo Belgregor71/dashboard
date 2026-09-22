@@ -56,7 +56,7 @@ import { initIntent } from "../js/core/intentEngine.js";
 import { initContextFeed, pushContext, feedWeather } from "./core/context-feed.js";
 import { initCommands } from "./core/commands.js";
 import { clockDim } from "./core/sun-clock.js";
-import { initAtmosphereFx, atmosphereSun } from "./core/atmosphere-fx.js";
+import { initAtmosphereFx, atmosphereSun, onStrike } from "./core/atmosphere-fx.js";
 
 /* ⚠ `/js/config.js` is a separate <script> in index.html, so window.CONFIG is
    populated before this module runs — but read it LATE anyway (per call, not at
@@ -153,7 +153,16 @@ function syncFieldMat() {
   const on = flag("v3FieldMat");
   if (on) document.documentElement.dataset.fieldMat = "1";
   else delete document.documentElement.dataset.fieldMat;
+  /* And whether the FIELD now draws the night sky (v3FieldWeather, on the
+     lifted program). css/atmosphere.css stands the mat's painted starfield and
+     its twinkle down on this — together with data-field-mat, because only a
+     transparent mat lets the field's own stars be seen. Two star patterns on
+     one wall is the failure this prevents; no stars at all is the one the
+     data-field-mat half prevents. */
+  if (fieldWeather()) document.documentElement.dataset.fieldWeather = "1";
+  else delete document.documentElement.dataset.fieldWeather;
 }
+const fieldWeather = () => flag("v3FieldRender") && flag("v3FieldWeather");
 
 /* ── The hour ───────────────────────────────────────────────────────────────
    Depth 0's only text. Ticks on the minute rather than the second: a seconds
@@ -266,7 +275,11 @@ function pushCauses() {
      store at a real 15 fps. Rides here for the same reason as the guard — it is
      how the field is drawn, not a reading — and for the same payoff: this runs
      every minute, so a live flag flip lands within one either way. */
-  lift: flag("v3FieldRender") ? 1 : 0 });
+  lift: flag("v3FieldRender") ? 1 : 0,
+  /* The weather in the field (features.v3FieldWeather): rain, stars and
+     lightning drawn by the lifted program, each on its own cause's frame cap.
+     Needs the lift — the substrate draws none of it on the v2 program. */
+  weather: flag("v3FieldWeather") ? 1 : 0 });
 }
 
 async function loadWeather() {
@@ -763,6 +776,10 @@ function boot() {
     // first causes tick — up to 60s of the wall showing the old opaque surface.
     syncFieldMat();
     onDepth(() => { syncFieldMat(); syncSubstrateCover(); });
+    /* The house's lightning lane lights the field too (v3FieldWeather). Always
+       registered; the substrate refuses a strike unless its weather tier is
+       on, so the flag is read in ONE place — the causes below. */
+    onStrike((peak) => substrate?.strike(peak));
   });
 
   /* ── Step 5.1 · the panel ─────────────────────────────────────────────────

@@ -24,6 +24,10 @@
    v3 (2026-09-22): the render lift, for v3FieldRender — a real horizon with
        altitude-dependent scattering and two cloud decks in perspective. Behind
        uLift; at 0 the v2 program runs unchanged, on the 480x270 store.
+   v4 (2026-09-22): the weather in the field, for v3FieldWeather — rain at
+       depth with the wind's lean, stars behind the cloud decks, lightning that
+       lights the cloud it is in. Behind uWeather, inside the lifted program
+       only; at 0 the v3 program runs unchanged.
 
    ⚠ THE 480x270 ARGUMENT ABOVE WAS RIGHT ON A PI AND IS WRONG ON THE G11.
    Stage 0 measured it: 480x270 -> 1920x1080 at the same frame cap costs +0.4
@@ -32,7 +36,7 @@
    program has almost no detail for the extra pixels to resolve.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-export const SHADER_VERSION = 3;
+export const SHADER_VERSION = 4;
 
 /* The backing store per render tier. Base is the store that was measured and
    shipped; lifted is the panel. Exported so the fallback path can put a cloned
@@ -54,7 +58,52 @@ export const LIFT_RES = [1920, 1080];
    either direction still lands on the fourth: 15, steadily. */
 export const FRAME_MS = 66;
 export const LIFT_FRAME_MS = 60;
-export const frameDue = (now, last, lift) => now - last >= (lift ? LIFT_FRAME_MS : FRAME_MS);
+
+/* ── Per-cause frame caps (features.v3FieldWeather) ─────────────────────────
+   15 fps is right for a drifting sky and wrong for rain and lightning — but a
+   frame is the one thing this box charges for (≈0.13-0.21 gpu points per fps,
+   G11-GPU-CEILING-2026-09-22.md), so each cause earns its own rate and only
+   while it is live. Same placement rule as the lift's 60: aim BETWEEN two
+   vsyncs so jitter either way lands on the same one.
+
+     rain    25 ms — between the 1st and 2nd vsync, a steady 30. Rain can last
+             all afternoon, so this is a SUSTAINED row: ~+2-3 over the lift's
+             15, against a settled wall near 20 and a ≤25 ceiling. Measured on
+             the wall before any flip; this is the prediction, not the number.
+     strike   8 ms — every vsync, 60, for the 1.6 s decay only. A peak episode
+             (§5.4 ≤35, 32.7 measured at 60 fps full-panel) that must decay, and
+             does: the cap falls back the frame the envelope reaches 0.
+
+   Only on the lifted program with the weather drawn: without uWeather nothing
+   in the field is drawn at rain rate, and a frame nobody asked for is cost. */
+export const RAIN_FRAME_MS = 25;
+export const STRIKE_FRAME_MS = 8;
+export function frameMsFor({ lift = 0, weather = 0, rain = 0, striking = false } = {}) {
+  if (!lift) return FRAME_MS;
+  if (weather && striking) return STRIKE_FRAME_MS;
+  if (weather && rain > 0.02) return RAIN_FRAME_MS;
+  return LIFT_FRAME_MS;
+}
+export const frameDue = (now, last, lift) => now - last >= frameMsFor({ lift });
+
+/* The strike, as a brightness over time. The incumbent's curve, the same one
+   css/atmosphere.css plays on the overlay's flash (attack at 5%, a flicker
+   bump at 20%, decayed by 100%) — so the pane and the sky flash TOGETHER, on
+   one curve, from one strike() call. Pure, so a spec can read the shape. */
+export const STRIKE_MS = 1600;
+const STRIKE_KEYS = [[0, 0], [0.05, 0.9], [0.12, 0.4], [0.2, 0.68], [1, 0]];
+export function strikeEnvelope(ageMs, peak = 1) {
+  if (!(ageMs >= 0) || ageMs >= STRIKE_MS) return 0;
+  const t = ageMs / STRIKE_MS;
+  for (let i = 1; i < STRIKE_KEYS.length; i++) {
+    const [t1, v1] = STRIKE_KEYS[i];
+    if (t <= t1) {
+      const [t0, v0] = STRIKE_KEYS[i - 1];
+      return (v0 + ((v1 - v0) * (t - t0)) / (t1 - t0)) * peak;
+    }
+  }
+  return 0;
+}
 
 const VERT = `#version 300 es
 in vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }`;
@@ -71,6 +120,9 @@ uniform float uCloud;
 uniform float uRain;
 uniform float uInkGuard;
 uniform float uLift;
+uniform float uWeather;
+uniform float uStrike;
+uniform vec2  uStrikePos;
 
 float hash(vec2 v){ return fract(sin(dot(v, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 v){
@@ -125,6 +177,31 @@ vec3 liftedSky(vec2 uv, vec2 drift, vec2 sunPos){
   float fall = exp(-max(h, 0.0) * 3.4);
   vec3 col = mix(zen, hor, fall);
 
+  /* STARS (uWeather). Drawn HERE — after the sky, before the decks — so the
+     cloud mixes below cover them with no extra work: a star behind a cloud is
+     simply not there, which is the one thing the CSS field on the mat could
+     never do (it painted 110 stars over an overcast night as readily as a
+     clear one). One hashed candidate per 24 px cell of the panel, most of them
+     empty and most of the rest faint, fading out into the horizon's haze.
+     Fixed on the sky: nothing twinkles and nothing wheels — a star that moved
+     would be motion with no cause the room can see. */
+  if (uWeather > 0.5 && h > 0.0) {
+    float night = 1.0 - smoothstep(-0.25, -0.05, alt);
+    if (night > 0.0) {
+      vec2 sp = vec2(uv.x, 1.0 - uv.y) * vec2(1920.0, 1080.0) / 24.0;
+      vec2 cell = floor(sp);
+      float r = hash(cell + 7.3);
+      if (r > 0.90) {
+        vec2 at = vec2(hash(cell + 1.7), hash(cell + 4.1));
+        float dpx = length((fract(sp) - at) * 24.0);
+        float mag = (r - 0.90) * 10.0;                  // 0..1, uniform
+        float bright = 0.18 + 0.62 * mag * mag * mag;   // most stars faint
+        col += vec3(0.92, 0.94, 1.0) * bright * (1.0 - smoothstep(0.4, 1.6, dpx))
+             * night * smoothstep(0.02, 0.22, h);
+      }
+    }
+  }
+
   // Forward scatter: the horizon under the sun, not the horizon everywhere.
   // Squared by hand: pow() of a negative base is undefined in GLSL.
   float ux = (uv.x - sunPos.x) * 1.8;
@@ -157,6 +234,19 @@ vec3 liftedSky(vec2 uv, vec2 drift, vec2 sunPos){
     vec3 rim  = mix(body * 1.25, vec3(0.34, 0.20, 0.11), gold) + vec3(0.05) * day;
     col = mix(col, mix(body, rim, edge), dens * 0.92);
 
+    /* LIGHTNING (uWeather, uStrike). The strike lights the cloud it is INSIDE:
+       brightest where the low deck is dense near the strike point, a little
+       through thin cloud, and a faint lift of the whole sky — not a glow div on
+       the horizon. uStrike is the incumbent's curve × the strike's size, so it
+       is 0 between strikes and this whole term is skipped. */
+    if (uWeather > 0.5 && uStrike > 0.0) {
+      vec2 a = vec2(1.7778, 1.0);
+      float sd = distance(uv * a, uStrikePos * a);
+      float glow = exp(-sd * sd * 5.0);
+      col += vec3(0.50, 0.55, 0.70) * uStrike * glow * (0.20 + dens * 0.80);
+      col += vec3(0.035, 0.040, 0.055) * uStrike;
+    }
+
     // The high deck: thin, streaked, slower. Drawn under the low one's shadow.
     vec2 highP = plane * vec2(1.6, 4.5) + drift * 0.8;
     float c = smoothstep(cover + 0.05, cover + 0.40, fbm(highP)) * haze * (1.0 - dens);
@@ -171,6 +261,35 @@ vec3 liftedSky(vec2 uv, vec2 drift, vec2 sunPos){
   return col;
 }
 
+/* RAIN IN THE FIELD (uWeather, uRain). Three sheets at three distances: the
+   far ones finer, denser and slower, which is the depth cue a single tiled PNG
+   cannot give. Each sheet is sheared by the wind before it is gridded, so
+   every streak leans the way the real wind is blowing and falls along its own
+   lean — the drop's path is a straight line in the sheared space, so the lean
+   costs one multiply and no per-frame work. Coverage follows the reading: a
+   light shower is a few streaks, heavy rain is most cells.
+
+   Brightness is small on purpose — the luminance envelope rule above holds,
+   and the ink guard darkens this with everything else under the words. */
+float rainSheet(vec2 uv, float fi){
+  float scale = 1.0 + fi * 0.9;
+  /* ⚠ The SIGN. The decks sample at uv + drift, so what the eye sees move goes
+     toward -uWind (east is on the LEFT of this wall — see toCauses). The drop
+     must travel the same way the cloud does as it falls: x - lean*y constant
+     means x DEcreases as y falls when the wind's x is positive. */
+  float lean = clamp(uWind.x, -1.0, 1.0) * 0.45;
+  vec2 q = vec2(uv.x * 1.7778 - lean * uv.y, uv.y) * vec2(38.0, 6.0) * scale;
+  float colm = floor(q.x);
+  q.y += hash(vec2(colm, fi * 13.0)) * 9.0 + uTime * (7.0 - fi * 1.9);
+  vec2 cell = vec2(colm, floor(q.y));
+  vec2 f = fract(q);
+  float present = step(1.0 - uRain * 0.55, hash(cell + fi * 17.0));
+  float x0 = 0.2 + 0.6 * hash(cell.yx + 3.1 + fi);
+  float sx = 1.0 - smoothstep(0.0, 0.07, abs(f.x - x0));
+  float sy = smoothstep(0.0, 0.15, f.y) * (1.0 - smoothstep(0.35, 0.9, f.y));
+  return present * sx * sy * (0.55 - fi * 0.14);
+}
+
 void main(){
   vec2 uv = gl_FragCoord.xy / uRes;
   vec2 drift = uWind * uTime * 0.015;
@@ -179,6 +298,11 @@ void main(){
 
   if (uLift > 0.5) {
     col = liftedSky(uv, drift, sunPos);
+    if (uWeather > 0.5 && uRain > 0.02) {
+      float streaks = rainSheet(uv, 0.0) + rainSheet(uv, 1.0) + rainSheet(uv, 2.0);
+      float light = 0.10 + 0.08 * smoothstep(-0.05, 0.45, uSunAlt);
+      col += vec3(0.62, 0.68, 0.78) * streaks * light;
+    }
   } else {
     // v2, unchanged in every term.
     float f = fbm(uv * 3.0 + drift + fbm(uv * 1.7 - drift * 0.5) * 0.6);
@@ -237,7 +361,7 @@ void main(){
    make the surface move on its own; uTime only advances the wind's drift, and
    wind is a thing the room can look out of a window and verify. That is the
    one clause of the calm law that survives V3 intact. */
-const DEFAULTS = { sunAlt: 0, sunAz: 0, wind: [0, 0], cloud: 0.3, rain: 0, inkGuard: 0, lift: 0 };
+const DEFAULTS = { sunAlt: 0, sunAz: 0, wind: [0, 0], cloud: 0.3, rain: 0, inkGuard: 0, lift: 0, weather: 0 };
 
 export function createGlSubstrate(canvas) {
   const gl = canvas.getContext("webgl2", {
@@ -279,7 +403,8 @@ export function createGlSubstrate(canvas) {
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
 
   const U = {};
-  for (const n of ["uRes", "uTime", "uSunAlt", "uSunAz", "uWind", "uCloud", "uRain", "uInkGuard", "uLift"]) {
+  for (const n of ["uRes", "uTime", "uSunAlt", "uSunAz", "uWind", "uCloud", "uRain", "uInkGuard", "uLift",
+    "uWeather", "uStrike", "uStrikePos"]) {
     U[n] = gl.getUniformLocation(prog, n);
   }
 
@@ -326,8 +451,30 @@ export function createGlSubstrate(canvas) {
   const moving = () => !stillness?.matches
     && (causes.rain > 0.02 || Math.hypot(causes.wind[0], causes.wind[1]) > 0.05);
 
+  /* The weather is drawn only by the lifted program, so both must be on. */
+  const weatherOn = () => Boolean(causes.lift && causes.weather);
+
+  /* A strike in flight (features.v3FieldWeather). `strikeAt` is null between
+     strikes; while it is set the loop is held open at STRIKE_FRAME_MS even on a
+     still day, and it is cleared — with one last, dark draw — the frame the
+     envelope reaches 0. That settle draw is the whole point: without it a
+     still field would hold the flash's last lit frame until the next minute. */
+  let strikeAt = null;
+  let strikePeak = 0;
+  let strikePos = [0.5, 0.5];
+  /* The flash in the frame that is ON THE GLASS — what the last draw() sent.
+     sample() cannot answer "did the sky go dark again", because it draws a
+     fresh frame first; this is the only read of the frame the room is seeing. */
+  let lastStrike = 0;
+  const striking = (now) => strikeAt !== null && now - strikeAt < STRIKE_MS;
+
   function draw() {
-    gl.uniform1f(U.uTime, (performance.now() - t0) / 1000);
+    const now = performance.now();
+    gl.uniform1f(U.uTime, (now - t0) / 1000);
+    gl.uniform1f(U.uWeather, weatherOn() ? 1 : 0);
+    lastStrike = weatherOn() && strikeAt !== null ? strikeEnvelope(now - strikeAt, strikePeak) : 0;
+    gl.uniform1f(U.uStrike, lastStrike);
+    gl.uniform2f(U.uStrikePos, strikePos[0], strikePos[1]);
     gl.uniform1f(U.uSunAlt, causes.sunAlt);
     gl.uniform1f(U.uSunAz, causes.sunAz);
     gl.uniform2f(U.uWind, causes.wind[0], causes.wind[1]);
@@ -349,9 +496,21 @@ export function createGlSubstrate(canvas) {
      attached is driver-dependent; pausing makes the answer ours instead. */
   let paused = false;
 
+  const capMs = (now) => frameMsFor({
+    lift: causes.lift, weather: weatherOn(), rain: causes.rain, striking: striking(now)
+  });
+
   function loop(now) {
-    if (paused || !moving()) { raf = null; return; }
-    if (frameDue(now, last, causes.lift)) { last = now; draw(); }
+    if (paused) { raf = null; return; }
+    const lit = striking(now);
+    if (strikeAt !== null && !lit) {
+      // The strike just decayed: put the sky back dark before anything else.
+      strikeAt = null;
+      last = now;
+      draw();
+    }
+    if (!moving() && !lit) { raf = null; return; }
+    if (now - last >= capMs(now)) { last = now; draw(); }
     raf = requestAnimationFrame(loop);
   }
 
@@ -395,6 +554,7 @@ export function createGlSubstrate(canvas) {
       if (paused) {
         if (raf) cancelAnimationFrame(raf);
         raf = null;
+        strikeAt = null;   // a flash cannot outlive the panel it was on
         return;
       }
       // Waking: the field has to catch up in one frame, because the causes it
@@ -402,12 +562,50 @@ export function createGlSubstrate(canvas) {
       draw();
       if (moving() && raf === null) raf = requestAnimationFrame(loop);
     },
+    /* One strike at `peak` (0..1), from the house's own lightning lane
+       (core/atmosphere-fx.js strike) — the field never decides WHEN, it only
+       lights up when the lane that also flashes the pane says so. Refused
+       without the weather tier, while dark, and under reduced motion (the
+       overlay's flash is `animation: none` there too). A strike landing inside
+       an earlier one's decay is its aftershock and keeps that cloud; a new
+       sequence picks a new one, somewhere in the low deck. */
+    strike(peak = 1) {
+      if (!weatherOn() || paused || stillness?.matches) return false;
+      const now = performance.now();
+      if (!striking(now)) strikePos = [0.2 + Math.random() * 0.6, 0.45 + Math.random() * 0.3];
+      strikeAt = now;
+      strikePeak = Math.max(0, Math.min(1, Number(peak) || 0));
+      draw();
+      if (raf === null) raf = requestAnimationFrame(loop);
+      return true;
+    },
     stats: () => ({
       frames, seconds: (performance.now() - t0) / 1000, animating: raf !== null, paused,
       inkGuard: causes.inkGuard, lift: causes.lift ? 1 : 0, store: [canvas.width, canvas.height],
-      shader: SHADER_VERSION
+      shader: SHADER_VERSION, weather: weatherOn() ? 1 : 0,
+      striking: striking(performance.now()), capMs: capMs(performance.now()), lastStrike
     }),
     sample,
+    /* A whole rectangle in ONE readPixels — for texture that single points
+       cannot see (a star is two pixels wide). Fractions of the panel, y down;
+       rows come back top-first, as luminance. Same draw-then-read rule. */
+    sampleRect(fx, fy, fw, fh) {
+      draw();
+      const x = Math.floor(fx * canvas.width), w = Math.max(1, Math.floor(fw * canvas.width));
+      const h = Math.max(1, Math.floor(fh * canvas.height));
+      const y = Math.max(0, canvas.height - Math.floor(fy * canvas.height) - h);
+      const px = new Uint8Array(w * h * 4);
+      gl.readPixels(x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      const lum = new Array(w * h);
+      for (let row = 0; row < h; row++) {
+        const src = (h - 1 - row) * w;   // GL rows are bottom-first
+        for (let i = 0; i < w; i++) {
+          const o = (src + i) * 4;
+          lum[row * w + i] = 0.2126 * px[o] + 0.7152 * px[o + 1] + 0.0722 * px[o + 2];
+        }
+      }
+      return { w, h, lum };
+    },
     destroy() {
       if (raf) cancelAnimationFrame(raf);
       raf = null;

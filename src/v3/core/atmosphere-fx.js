@@ -436,11 +436,29 @@ export function atmosphereSun(altitudeDeg) {
   paint();
 }
 
+/* Who else sees a strike. The GPU field (features.v3FieldWeather) lights the
+   cloud the strike is in, and it must flash on the SAME call the pane does —
+   the pacing (planner.js bands, aftershocks) lives here once, and a second
+   timer in the substrate would be a second storm that disagreed with this one.
+   Not cleared by __resetAtmosphereFx: main.js registers once at boot, for the
+   life of the page. */
+const strikeListeners = new Set();
+export function onStrike(fn) {
+  strikeListeners.add(fn);
+  return () => strikeListeners.delete(fn);
+}
+
 /** One strike at `peak` (0..1). A one-shot the stylesheet plays; cleanup is a
     TIMER, never animationend, which does not fire under display:none. */
 export function strike(peak = 1) {
   if (!renderer) return false;
   const root = document.documentElement;
+  // The night amplitude the stylesheet multiplies its flash by (--atmo-amp),
+  // so the sky is exactly as calm after dark as the pane is.
+  const amp = Number.isFinite(sunAlt) ? unit(clockDim(sunAlt)) : 1;
+  for (const fn of strikeListeners) {
+    try { fn(unit(peak) * amp); } catch (err) { console.warn("atmosphere: strike listener threw", err); }
+  }
   root.style.setProperty("--atmo-strike-peak", unit(peak).toFixed(3));
   delete root.dataset.atmoStrike;
   void root.offsetWidth; // restart the one-shot if one is already in flight

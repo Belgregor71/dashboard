@@ -168,9 +168,13 @@ export function initSubstrate(canvas, { forceBackend = null } = {}) {
   /* Pixels, not counters: [[fx, fy], ...] as fractions of the panel, y down.
      null on a backend that cannot answer (canvas 2D reads its own context). */
   window.__substrateSample = (points) => impl.sample?.(points) ?? null;
+  window.__substrateSampleRect = (fx, fy, fw, fh) => impl.sampleRect?.(fx, fy, fw, fh) ?? null;
 
   return {
     update: (causes) => impl.update(causes),
+    // Optional on the backend: canvas 2D and INERT draw no weather, so a strike
+    // there is a no-op rather than a TypeError from the lightning lane.
+    strike: (peak) => impl.strike?.(peak) ?? false,
     setPaused(next) {
       paused = Boolean(next);
       impl.setPaused(paused);

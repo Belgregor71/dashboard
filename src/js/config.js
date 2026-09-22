@@ -2112,6 +2112,25 @@ window.CONFIG = {
     // Rollback: -> false (read every minute; the store resizes in place).
     v3FieldRender: false,
 
+    // THE WEATHER IN THE FIELD (src/v3/substrate/gl.js, SHADER_VERSION 4).
+    // Living Window 2.0 Stage 2, second slice. The lifted program draws what the
+    // CSS layers fake: rain in three sheets at three depths, leaning with the
+    // real wind; stars behind the cloud decks (an overcast night shows none);
+    // lightning that lights the cloud it is in, on the SAME strike() call and
+    // curve as the overlay's flash (core/atmosphere-fx.js onStrike), so the
+    // pacing is still the incumbent planner's. Per-cause frame caps: still sky
+    // draws once, wind 15 fps, rain 30, a strike 60 for its 1.6 s decay only.
+    // NEEDS v3FieldRender — on the v2 program it draws nothing (and with
+    // v3AtmoOverlay/v3AtmoLightning off, no strike ever reaches it).
+    // While on, with v3FieldMat, the mat's painted starfield and twinkle stand
+    // down (css/atmosphere.css) — two star patterns on one wall otherwise.
+    // The overlay's pane rain and flash STAY: rain on the glass and rain in the
+    // sky are both true; folding them in is Stage 4, after re-measuring.
+    // Cost: UNMEASURED — rain at 30 fps is predicted ~+2-3 gpu over the lift's
+    // 15, a sustained row. Measure on the wall before any flip.
+    // Rollback: -> false (read every minute, like the lift).
+    v3FieldWeather: false,
+
     // ── The Living Window on V3 (src/v3/core/atmosphere-fx.js,
     // css/atmosphere.css): a thin weather layer at z4 — above the archive card
     // and its mat, BELOW every word — carrying rain, the sky's warmth and a
