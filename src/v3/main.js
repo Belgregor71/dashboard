@@ -105,13 +105,36 @@ function applySubstratePause() {
    uncovers it at once, and setPaused(false) draws a frame on the way out, so
    leaving depth 0 never shows a stale field. Flag off: `covered` never leaves
    false, and the pause is exactly the panel's, as it was. */
+/* ── The field as the matting (features.v3FieldMat) ───────────────────────
+   The archive stops counting as a cover, because with this on its mat is
+   transparent and the field IS what the room sees around the card. The flag's
+   own comment in config.js predicted this direction and said what it must do:
+   "must narrow covered, or this hides it".
+
+   Narrowed, not removed. The DARK-PANEL reason is untouched — a transparent mat
+   in front of a powered-down panel is still nothing anyone can see, and the
+   05:00 wake must not start a field for it. Flag off, `covered` is computed
+   exactly as it was and the behaviour is identical. */
+const archiveCovers = () =>
+  document.documentElement.dataset.archive === "1" && !flag("v3FieldMat");
+
 function syncSubstrateCover() {
   const covered = flag("v3SubstrateCoveredPause")
-    && document.documentElement.dataset.archive === "1"
+    && archiveCovers()
     && getDepth() === DEPTH.FIELD;
   if (covered === substratePause.covered) return;
   substratePause.covered = covered;
   applySubstratePause();
+}
+
+/* The root marker the mat's CSS hangs off. Stamped beside the cover sync so the
+   attribute and the pause can never disagree about whether the mat is live —
+   they are two halves of one state, and a flip must move both or the wall shows
+   a transparent mat over a paused field (a flat black rectangle). */
+function syncFieldMat() {
+  const on = flag("v3FieldMat");
+  if (on) document.documentElement.dataset.fieldMat = "1";
+  else delete document.documentElement.dataset.fieldMat;
 }
 
 /* ── The hour ───────────────────────────────────────────────────────────────
@@ -197,6 +220,7 @@ function pushCauses() {
   if (!substrate) return;
   // Before the update, so a covered field takes its causes without drawing
   // them. Also what makes a live flag flip land within a minute either way.
+  syncFieldMat();
   syncSubstrateCover();
   substrate.update(toCauses({
     sunAltitudeDeg: s.altitudeDeg,
@@ -708,7 +732,10 @@ function boot() {
   stage("substrate", () => {
     const forceBackend = new URLSearchParams(location.search).get("__backend");
     substrate = initSubstrate(el.substrate, { forceBackend });
-    onDepth(syncSubstrateCover);
+    // Stamped once at boot as well as per minute, or the mat is flat until the
+    // first causes tick — up to 60s of the wall showing the old opaque surface.
+    syncFieldMat();
+    onDepth(() => { syncFieldMat(); syncSubstrateCover(); });
   });
 
   /* ── Step 5.1 · the panel ─────────────────────────────────────────────────

@@ -131,8 +131,22 @@ export function createGlSubstrate(canvas) {
      actually moving — wind or rain. On a still, clear day the substrate is
      drawn once and then costs literally nothing, which is what the <=8%
      quiescent budget is for. A 60fps loop that nobody asked for is the single
-     most common way an ambient surface becomes expensive. */
-  const moving = () => causes.rain > 0.02 || Math.hypot(causes.wind[0], causes.wind[1]) > 0.05;
+     most common way an ambient surface becomes expensive.
+
+     ⚠ REDUCED MOTION IS HONOURED HERE, IN JS, BECAUSE IT CANNOT BE HONOURED IN
+     CSS. §5.5 says `prefers-reduced-motion: reduce` is honoured in full, and
+     every other surface does it in a @media block — but a media block cannot
+     reach a rAF loop driving a canvas, so this field ignored the preference
+     completely until 2026-09-22. It STILL PAINTS: the weather is information,
+     and a still field showing rain is the reduced-motion answer, not a blank
+     one. update() draws on every cause change exactly as before; only the loop
+     is refused. Same shape as `paused` — the field holds its last frame.
+     (canvas2d.js carries the same guard; the two backends already duplicate
+     moving() and FRAME_MS, and one predicate in two places beats a new module
+     in V3's import closure for two lines.) */
+  const stillness = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)") ?? null;
+  const moving = () => !stillness?.matches
+    && (causes.rain > 0.02 || Math.hypot(causes.wind[0], causes.wind[1]) > 0.05);
 
   function draw() {
     gl.uniform1f(U.uTime, (performance.now() - t0) / 1000);

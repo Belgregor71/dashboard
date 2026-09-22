@@ -2060,7 +2060,31 @@ window.CONFIG = {
     // minute and on every depth change, so an in-page flip needs no reload).
     // ⚠ A Living Window direction that lets the substrate SHOW through the
     // archive's mat (variant C) must narrow "covered", or this hides it.
+    // → v3FieldMat below is that direction, and it does exactly that.
     v3SubstrateCoveredPause: true,
+
+    // THE FIELD BECOMES THE MATTING (src/v3/main.js syncSubstrateCover,
+    // css/archive.css). At depth 0 the archive paints an opaque --surface over
+    // the whole wall, so the WebGL field underneath is not merely unseen, it is
+    // deliberately PAUSED — measured live 2026-09-22 as `paused: true` in the
+    // wall's default state, which is where it sits ~8.5 of every 10 minutes.
+    // On: the mat's background-color goes transparent and the field shows
+    // through as the matting the photo card floats on; the full-bleed ground
+    // and the scrim beneath it stand down, because the archive already owns the
+    // depth-0 face and neither can be seen through a transparent mat without
+    // showing the photograph twice.
+    // Cost: the field runs again at depth 0 — the ~1.4 gpu-process
+    // v3SubstrateCoveredPause was added to save, taking the settled wall from
+    // 19.9 to ~21.4 against §5.4's ≤25 (G11-GPU-CEILING-2026-09-22.md).
+    // ⚠ background-COLOR, never the `background` shorthand: v3AtmoNightSky
+    // paints its 110 stars as `background-image` on this same element
+    // (css/atmosphere.css), and a shorthand would silently delete them.
+    // ⚠ Inert under prefers-reduced-motion, where the archive stands down to
+    // `display: none` and depth 0 falls back to the full-bleed photograph —
+    // hiding the ground there would leave the wall with no photograph at all.
+    // Rollback: -> false (read every minute and on every depth change, so an
+    // in-page flip needs no reload).
+    v3FieldMat: false,
 
     // ── The Living Window on V3 (src/v3/core/atmosphere-fx.js,
     // css/atmosphere.css): a thin weather layer at z4 — above the archive card

@@ -123,6 +123,36 @@
   visibility: hidden;
 }
 
+/* ── THE FIELD AS THE MATTING (features.v3FieldMat) ─────────────────────────
+   The mat above is an opaque fill, and the living WebGL field is one layer
+   under it — not merely unseen but deliberately PAUSED (main.js,
+   syncSubstrateCover), in the state the wall sits in ~8.5 of every 10 minutes.
+   This hands the matting to the field: the card still floats on a mat, but the
+   mat is now the weather.
+
+   ⚠⚠ `background-color`, NOT the `background` shorthand. v3AtmoNightSky paints
+   110 stars onto this very element as `background-image` (css/atmosphere.css,
+   the night sky), and a shorthand here resets that to `none` — a silent
+   deletion the suite would not see, because the star test reads the custom
+   property rather than the computed layer. Same family as the `animation:`
+   shorthand that shipped the archive's motion pause inert.
+
+   The ground and the scrim stand down because the archive already owns the
+   depth-0 face. Leaving them up would show the SAME photograph twice — once
+   full-bleed behind a transparent mat and once on the card in front of it.
+
+   ⚠ `visibility`, never `display`: core/scrim.js measures naturalWidth and a
+   rect off those <img> nodes to solve legibility, and core/ground.js compares
+   live <img> identity on every exchange. A hidden node still answers both; a
+   display:none one answers zero, which a correct guard reads as "no photo". */
+:root[data-field-mat="1"][data-archive="1"][data-depth="0"] .archive {
+  background-color: transparent;
+}
+:root[data-field-mat="1"][data-archive="1"][data-depth="0"] .photo,
+:root[data-field-mat="1"][data-archive="1"][data-depth="0"] .scrim {
+  visibility: hidden;
+}
+
 .archive__scene {
   position: absolute;
   inset: 0;
@@ -653,6 +683,15 @@
   .archive { display: none; }
   :root[data-archive="1"][data-depth="0"] .ground-caption {
     opacity: 1;
+    visibility: visible;
+  }
+  /* ⚠ AND THE MAT STANDS DOWN WITH IT. `data-archive` is still "1" here — the
+     attribute says the flag is on, not that the surface is painting — so the
+     v3FieldMat rules above still match while `.archive` itself is gone. Without
+     this the wall would fall back to a photograph that had been hidden for the
+     archive's benefit, and show no photograph at all: the substrate, bare. */
+  :root[data-field-mat="1"][data-archive="1"][data-depth="0"] .photo,
+  :root[data-field-mat="1"][data-archive="1"][data-depth="0"] .scrim {
     visibility: visible;
   }
 }

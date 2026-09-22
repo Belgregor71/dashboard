@@ -41,7 +41,12 @@ export function createCanvasSubstrate(canvas) {
   let frames = 0;
   const t0 = performance.now();
 
-  const moving = () => causes.rain > 0.02 || Math.hypot(causes.wind[0], causes.wind[1]) > 0.05;
+  /* Reduced motion, honoured in JS because a @media block cannot reach a rAF
+     loop — see the long note on the same predicate in gl.js. The field still
+     paints on every cause change; only the loop is refused. */
+  const stillness = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)") ?? null;
+  const moving = () => !stillness?.matches
+    && (causes.rain > 0.02 || Math.hypot(causes.wind[0], causes.wind[1]) > 0.05);
 
   function draw() {
     const t = (performance.now() - t0) / 1000;
