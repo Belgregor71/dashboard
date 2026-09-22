@@ -115,6 +115,28 @@ of real headroom, which — per Finding 1 — it comfortably can be.
 sustained-thermal claim needs a soak, not this sweep. Ryzen `Tctl` also swings ~10 °C instantly,
 so 48.4 is one sample, not a trend.
 
+## Finding 5 — the living mat costs +0.3, because it REPLACES layers as well as adding one
+
+Measured the same day, 12:32–12:35, with `v3FieldMat` served to the real kiosk over CDP
+(`field-trial.cjs`, no deploy) and the field genuinely animating — 1105 frames in 74.7 s, ≈15 fps,
+driven by real Brisbane wind rather than a forced cause.
+
+| | gpu-process | renderer |
+|---|---|---|
+| settled control cluster (3 windows, this morning) | 19.8 / 19.9 / 20.1 | 13.7 / 14.0 / 14.1 |
+| **mat live, field animating** | **20.2** | **14.9** |
+
+**+0.3 gpu-process**, against a predicted ~1.5 — the ~1.4 the covered pause was added to save.
+The prediction was too pessimistic because it counted only what the mat ADDS. Turning the mat on
+also stands down the full-bleed photograph and the scrim, so two full-screen composited layers
+leave the stack as the field joins it. The field very nearly pays for itself.
+
+`tempC` 48.4 °C, `/proc/pressure/cpu` `avg10` 0.00 throughout.
+
+So the wall with a live GPU-native mat sits at **20.2 against §5.4's ≤25 sustained** — in the
+live-ambient row, with the field actually running, and with roughly the same headroom the flat
+mat had.
+
 ## Proposed §5.4 — for the owner's sign-off
 
 The surprise is that **the existing table already accommodates the whole ambition**, because the
