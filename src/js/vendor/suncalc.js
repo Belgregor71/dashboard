@@ -112,6 +112,57 @@ export function getPosition(date, lat, lon) {
   return { altitude: altitude(H, phi, dec), azimuth: azimuth(H, phi, dec) };
 }
 
+/* ── The moon — restored from upstream SunCalc (MIT) for the field's moon
+   (features.v3FieldCauses, Living Window 2.0 Stage 3). Same conventions as
+   getPosition above: radians, azimuth from SOUTH going west. Upstream's `atan`
+   is atan2. Nothing here is new maths; it is the part of the file the trim
+   had dropped. */
+function sunCoords(d) {
+  const M = solarMeanAnomaly(d);
+  const L = eclipticLongitude(M);
+  return { dec: declination(L, 0), ra: rightAscension(L, 0) };
+}
+
+// Geocentric ecliptic coordinates of the moon.
+function moonCoords(d) {
+  const L = rad * (218.316 + 13.176396 * d); // ecliptic longitude
+  const M = rad * (134.963 + 13.064993 * d); // mean anomaly
+  const F = rad * (93.272 + 13.229350 * d);  // mean distance
+  const l = L + rad * 6.289 * sin(M);         // longitude
+  const b = rad * 5.128 * sin(F);             // latitude
+  const dt = 385001 - 20905 * cos(M);         // distance to the moon, km
+  return { ra: rightAscension(l, b), dec: declination(l, b), dist: dt };
+}
+
+// Atmospheric refraction near the horizon (radians in, radians out).
+function astroRefraction(h) {
+  if (h < 0) h = 0;
+  return 0.0002967 / tan(h + 0.00312536 / (h + 0.08901179));
+}
+
+export function getMoonPosition(date, lat, lon) {
+  const lw = rad * -lon;
+  const phi = rad * lat;
+  const d = toDays(date);
+  const c = moonCoords(d);
+  const H = siderealTime(d, lw) - c.ra;
+  let h = altitude(H, phi, c.dec);
+  h += astroRefraction(h);
+  return { azimuth: azimuth(H, phi, c.dec), altitude: h, distance: c.dist };
+}
+
+/** fraction: 0 new .. 1 full. phase: 0 new, 0.25 first quarter, 0.5 full, 0.75 last quarter. */
+export function getMoonIllumination(date) {
+  const d = toDays(date);
+  const s = sunCoords(d);
+  const m = moonCoords(d);
+  const sdist = 149598000; // distance from Earth to the sun, km
+  const phi = acos(sin(s.dec) * sin(m.dec) + cos(s.dec) * cos(m.dec) * cos(s.ra - m.ra));
+  const inc = atan2(sdist * sin(phi), m.dist - sdist * cos(phi));
+  const angle = atan2(cos(s.dec) * sin(s.ra - m.ra), sin(s.dec) * cos(m.dec) - cos(s.dec) * sin(m.dec) * cos(s.ra - m.ra));
+  return { fraction: (1 + cos(inc)) / 2, phase: 0.5 + 0.5 * inc * (angle < 0 ? -1 : 1) / PI, angle };
+}
+
 export function getTimes(date, lat, lon, height = 0) {
   const lw = rad * -lon;
   const phi = rad * lat;

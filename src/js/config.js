@@ -2143,6 +2143,20 @@ window.CONFIG = {
     // mat's stood down, one rain (the pane stood down).
     v3FieldWeather: true,
 
+    // THE FIELD'S NEW CAUSES (src/v3/substrate/gl.js SHADER_VERSION 5,
+    // substrate/index.js toCauses). Living Window 2.0 Stage 3, scoped by the
+    // owner 2026-09-22 to exactly three: GUSTS (wind_gust_kph, new on
+    // /api/weather/now) surge the cloud drift and the rain's lean; the MOON at
+    // its real altitude/azimuth and phase (vendored suncalc, moon functions
+    // restored), lit toward the sun, with moonlight on the cloud rims; HUMIDITY
+    // hazes the low sky and softens distant cloud. UV skipped (invisible);
+    // presence/media rooms deliberately not yet. Each is NO effect when its
+    // reading is unknown. Gusts add no frames (they ride the wind's own rate);
+    // the moon and haze draw once per minute's cause tick.
+    // NEEDS v3FieldRender (drawn only by the lifted program).
+    // Rollback: -> false (read every minute).
+    v3FieldCauses: false,
+
     // ── The Living Window on V3 (src/v3/core/atmosphere-fx.js,
     // css/atmosphere.css): a thin weather layer at z4 — above the archive card
     // and its mat, BELOW every word — carrying rain, the sky's warmth and a

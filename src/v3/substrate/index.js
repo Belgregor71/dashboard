@@ -38,7 +38,12 @@ export function toCauses({
   windBearingDeg = null,
   cloudPct = null,
   category = null,
-  intensity = null
+  intensity = null,
+  // Stage 3 (v3FieldCauses). Each is null when unknown, and unknown is NO
+  // effect — the same rule the bearing below has always followed.
+  windGustKph = null,
+  humidityPct = null,
+  moon = null   // { altitudeDeg, azimuthRad, fraction } from suncalc
 } = {}) {
   // Altitude normalised so the interesting band (horizon to ~35 degrees, which
   // is the whole of a Brisbane winter day's useful light) uses most of the range.
@@ -73,12 +78,36 @@ export function toCauses({
     ? Math.max(0, Math.min(1, cloudPct / 100))
     : (BY_CATEGORY[category] ?? 0.3);
 
+  /* GUST: how far the gusts rise above the mean wind, 0..1 — 2.5x the mean is
+     the top. Needs a known bearing and a real wind as well as a gust reading:
+     with no drift there is nothing for a gust to speed up, and a gust with no
+     mean to be a gust OF is not a number the room can check. */
+  const num = (v) => typeof v === "number" && Number.isFinite(v);
+  const gust = known && num(windGustKph) && windKph > 0
+    ? Math.max(0, Math.min(1, (windGustKph / windKph - 1) / 1.5))
+    : 0;
+
+  /* HUMIDITY: 0..1, or -1 for unknown — which the shader reads as no haze.
+     Never 0 for unknown: 0 would mean "bone dry", a claim nobody measured. */
+  const humid = num(humidityPct) ? Math.max(0, Math.min(1, humidityPct / 100)) : -1;
+
+  /* MOON: altitude as a fraction of 90° (its own scale — see gl.js), azimuth through the sun's quarter-turn
+     (so it rises where the sun rises on this wall), and the lit fraction — or
+     -1 if suncalc gave nothing, which draws no moon. */
+  const moonKnown = moon && num(moon.altitudeDeg) && num(moon.azimuthRad) && num(moon.fraction);
+  const moonOut = moonKnown
+    ? [Math.max(-1, Math.min(1, moon.altitudeDeg / 90)), moon.azimuthRad - Math.PI / 2, Math.max(0, Math.min(1, moon.fraction))]
+    : [0, 0, -1];
+
   return {
     sunAlt,
     sunAz,
     wind: [Math.sin(rad) * speed, Math.cos(rad) * speed],
     cloud,
-    rain
+    rain,
+    gust,
+    humid,
+    moon: moonOut
   };
 }
 

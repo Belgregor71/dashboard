@@ -28,6 +28,11 @@
        depth with the wind's lean, stars behind the cloud decks, lightning that
        lights the cloud it is in. Behind uWeather, inside the lifted program
        only; at 0 the v3 program runs unchanged.
+   v5 (2026-09-22): three more causes, for v3FieldCauses (Stage 3, owner-scoped
+       to exactly these) — gusts surge the drift and the rain's lean, the moon
+       at its real place and phase with moonlight on the rims, humidity's haze
+       on the low sky. Behind uCauses; each is skipped when its reading is
+       unknown. At 0 the v4 program runs unchanged.
 
    ⚠ THE 480x270 ARGUMENT ABOVE WAS RIGHT ON A PI AND IS WRONG ON THE G11.
    Stage 0 measured it: 480x270 -> 1920x1080 at the same frame cap costs +0.4
@@ -36,7 +41,7 @@
    program has almost no detail for the extra pixels to resolve.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-export const SHADER_VERSION = 4;
+export const SHADER_VERSION = 5;
 
 /* The backing store per render tier. Base is the store that was measured and
    shipped; lifted is the panel. Exported so the fallback path can put a cloned
@@ -87,6 +92,17 @@ export function frameMsFor({ lift = 0, weather = 0, rain = 0, striking = false }
 }
 export const frameDue = (now, last, lift) => now - last >= frameMsFor({ lift });
 
+/* Where the gust pattern is at time t (seconds): 0 in the lulls, up to 1 at a
+   gust's peak. Two incommensurate sines, thresholded, so gusts arrive
+   irregularly — every ~10-25 s, a few seconds each — and never on a beat the
+   eye can learn. The PATTERN is invented; its SIZE (uGust) is the reading, and
+   with no reading the size is 0 and nothing surges. Pure, for the spec. */
+export function surgeAt(t) {
+  const s = Math.sin(t * 0.45) + Math.sin(t * 0.71 + 1.3);
+  const u = Math.max(0, Math.min(1, (s - 0.9) / 0.9));
+  return u * u * (3 - 2 * u);
+}
+
 /* The strike, as a brightness over time. The incumbent's curve, the same one
    css/atmosphere.css plays on the overlay's flash (attack at 5%, a flicker
    bump at 20%, decayed by 100%) — so the pane and the sky flash TOGETHER, on
@@ -124,6 +140,12 @@ uniform float uLift;
 uniform float uWeather;
 uniform float uStrike;
 uniform vec2  uStrikePos;
+uniform float uCauses;   // features.v3FieldCauses: gusts, moon, humidity
+uniform float uGust;     // 0..1 gust ratio above the mean wind; 0 = unknown
+uniform float uSurge;    // 0..1 where the gust pattern is right now (JS)
+uniform float uDriftT;   // the drift's clock — uTime, stretched by gusts
+uniform float uHumid;    // 0..1 relative humidity; < 0 = unknown
+uniform vec3  uMoon;     // (altitude norm, azimuth rotated, lit fraction); z < 0 = unknown
 
 float hash(vec2 v){ return fract(sin(dot(v, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 v){
@@ -178,6 +200,14 @@ vec3 liftedSky(vec2 uv, vec2 drift, vec2 sunPos){
   float fall = exp(-max(h, 0.0) * 3.4);
   vec3 col = mix(zen, hor, fall);
 
+  /* HUMIDITY (uCauses, uHumid). Wet air scatters the horizon's light higher up
+     the sky and swallows what is far away: a muggy afternoon's milky low sky,
+     distant cloud going soft. Pulled TOWARD the horizon's own colour, never
+     past it — the haze redistributes light, it does not add any. Nothing below
+     ~55% (a dry day has no haze to show); unknown is no haze at all. */
+  float humid = (uCauses > 0.5 && uHumid >= 0.0) ? smoothstep(0.55, 0.95, uHumid) : 0.0;
+  if (humid > 0.0) col = mix(col, hor, humid * 0.65 * exp(-max(h, 0.0) * 1.6));
+
   /* STARS (uWeather). Drawn HERE — after the sky, before the decks — so the
      cloud mixes below cover them with no extra work: a star behind a cloud is
      simply not there, which is the one thing the CSS field on the mat could
@@ -198,9 +228,37 @@ vec3 liftedSky(vec2 uv, vec2 drift, vec2 sunPos){
         float mag = (r - 0.90) * 10.0;                  // 0..1, uniform
         float bright = 0.18 + 0.62 * mag * mag * mag;   // most stars faint
         col += vec3(0.92, 0.94, 1.0) * bright * (1.0 - smoothstep(0.4, 1.6, dpx))
-             * night * smoothstep(0.02, 0.22, h);
+             * night * smoothstep(0.02, 0.22, h) * (1.0 - humid * 0.6 * exp(-h * 3.0));
       }
     }
+  }
+
+  /* THE MOON (uCauses, uMoon). Placed by the same mapping as the sun (so it
+     rises where the sun rises on this wall), lit to its real phase, with the
+     lit limb turned TOWARD the sun's place on the wall — the one direction a
+     real moon's light can come from. Drawn before the decks, so cloud covers
+     it. Faint by day, as a daytime moon is; gone below the horizon. */
+  float moonlight = 0.0;
+  if (uCauses > 0.5 && uMoon.z >= 0.0 && uMoon.x > -0.02) {
+    vec2 ma = vec2(1.7778, 1.0);
+    /* Height on its OWN scale, 0-90° onto the sky between just above the
+       horizon and just below the ink guard's top band. The sun's 35° scale
+       pinned every moon above 35° INTO that band, where the guard dims it to 30%
+       — tonight's 74° moon read as a grey smudge under the date. */
+    vec2 mp = vec2(0.5 + cos(uMoon.y) * 0.42, 0.14 + clamp(uMoon.x, -0.05, 1.0) * 0.48);
+    vec2 sunAt = vec2(0.5 + cos(uSunAz) * 0.42, uSunAlt * 0.7 + 0.12);
+    vec2 ld = normalize((sunAt - mp) * ma + vec2(1e-4, 0.0));
+    vec2 q = (uv - mp) * ma / 0.021;                          // disc of ~23 px radius
+    float x = dot(q, ld), y = dot(q, vec2(-ld.y, ld.x));
+    float disc = 1.0 - smoothstep(0.9, 1.05, length(q));
+    float term = (1.0 - 2.0 * uMoon.z) * sqrt(max(0.0, 1.0 - y * y));
+    float litPart = smoothstep(term - 0.10, term + 0.10, x);
+    float up = smoothstep(-0.01, 0.01, uMoon.x);
+    float vis = up * (1.0 - day * 0.8);
+    col = mix(col, vec3(0.78, 0.78, 0.74), disc * litPart * vis * 0.85);
+    float md = length((uv - mp) * ma);
+    moonlight = uMoon.z * up * (1.0 - day);
+    col += vec3(0.07, 0.075, 0.09) * exp(-md * md * 30.0) * moonlight * (1.0 - uCloud * 0.6);
   }
 
   // Forward scatter: the horizon under the sun, not the horizon everywhere.
@@ -228,11 +286,15 @@ vec3 liftedSky(vec2 uv, vec2 drift, vec2 sunPos){
     float warp = fbm(lowP * 0.5) * 0.7;
     float n = fbm(lowP + warp);
     float dens = smoothstep(cover, cover + 0.18, n) * haze;
+    // Humid air swallows what is far away: distant (low) cloud goes soft.
+    dens *= 1.0 - humid * 0.6 * (1.0 - smoothstep(0.0, 0.30, h));
     float toSun = fbm(lowP + vec2(sunPos.x - 0.5, 0.25) * 0.35 + warp);
     float edge = clamp((n - toSun) * 3.0 + 0.5, 0.0, 1.0);
 
     vec3 body = mix(vec3(0.075, 0.078, 0.092), vec3(0.235, 0.232, 0.236), day) * (1.0 - uCloud * 0.35);
     vec3 rim  = mix(body * 1.25, vec3(0.34, 0.20, 0.11), gold) + vec3(0.05) * day;
+    // Moonlight silvers the cloud edges at night — how a full-moon sky has form.
+    rim += vec3(0.055, 0.06, 0.075) * moonlight;
     col = mix(col, mix(body, rim, edge), dens * 0.92);
 
     /* LIGHTNING (uWeather, uStrike). The strike lights the cloud it is INSIDE:
@@ -279,6 +341,9 @@ float rainSheet(vec2 uv, float fi){
      must travel the same way the cloud does as it falls: x - lean*y constant
      means x DEcreases as y falls when the wind's x is positive. */
   float lean = clamp(uWind.x, -1.0, 1.0) * 0.45;
+  // A gust leans the rain harder while it lasts (uCauses) — the same surge
+  // that is speeding the cloud up. uGust is 0 when gusts are unknown.
+  if (uCauses > 0.5) lean *= 1.0 + 0.7 * uGust * uSurge;
   vec2 q = vec2(uv.x * 1.7778 - lean * uv.y, uv.y) * vec2(38.0, 6.0) * scale;
   float colm = floor(q.x);
   q.y += hash(vec2(colm, fi * 13.0)) * 9.0 + uTime * (7.0 - fi * 1.9);
@@ -293,7 +358,9 @@ float rainSheet(vec2 uv, float fi){
 
 void main(){
   vec2 uv = gl_FragCoord.xy / uRes;
-  vec2 drift = uWind * uTime * 0.015;
+  // uDriftT is uTime with the gusts folded in (JS integrates it, so the cloud
+  // speeds up in a gust and never runs backwards); exactly uTime without them.
+  vec2 drift = uWind * (uCauses > 0.5 ? uDriftT : uTime) * 0.015;
   vec2 sunPos = vec2(0.5 + cos(uSunAz) * 0.42, clamp(uSunAlt, -0.2, 1.0) * 0.7 + 0.12);
   vec3 col;
 
@@ -362,7 +429,11 @@ void main(){
    make the surface move on its own; uTime only advances the wind's drift, and
    wind is a thing the room can look out of a window and verify. That is the
    one clause of the calm law that survives V3 intact. */
-const DEFAULTS = { sunAlt: 0, sunAz: 0, wind: [0, 0], cloud: 0.3, rain: 0, inkGuard: 0, lift: 0, weather: 0 };
+const DEFAULTS = {
+  sunAlt: 0, sunAz: 0, wind: [0, 0], cloud: 0.3, rain: 0, inkGuard: 0, lift: 0, weather: 0,
+  // Stage 3 causes: unknown by default, and unknown means no effect.
+  causes: 0, gust: 0, humid: -1, moon: [0, 0, -1]
+};
 
 export function createGlSubstrate(canvas) {
   const gl = canvas.getContext("webgl2", {
@@ -405,7 +476,7 @@ export function createGlSubstrate(canvas) {
 
   const U = {};
   for (const n of ["uRes", "uTime", "uSunAlt", "uSunAz", "uWind", "uCloud", "uRain", "uInkGuard", "uLift",
-    "uWeather", "uStrike", "uStrikePos"]) {
+    "uWeather", "uStrike", "uStrikePos", "uCauses", "uGust", "uSurge", "uDriftT", "uHumid", "uMoon"]) {
     U[n] = gl.getUniformLocation(prog, n);
   }
 
@@ -454,6 +525,10 @@ export function createGlSubstrate(canvas) {
 
   /* The weather is drawn only by the lifted program, so both must be on. */
   const weatherOn = () => Boolean(causes.lift && causes.weather);
+  /* Same rule for the Stage 3 causes (v3FieldCauses). */
+  const causesOn = () => Boolean(causes.lift && causes.causes);
+  let driftT = 0;
+  let lastT = 0;
 
   /* A strike in flight (features.v3FieldWeather). `strikeAt` is null between
      strikes; while it is set the loop is held open at STRIKE_FRAME_MS even on a
@@ -483,6 +558,22 @@ export function createGlSubstrate(canvas) {
     gl.uniform1f(U.uRain, causes.rain);
     gl.uniform1f(U.uInkGuard, causes.inkGuard);
     gl.uniform1f(U.uLift, causes.lift ? 1 : 0);
+    /* Stage 3 causes (v3FieldCauses), on the lifted program only. The drift's
+       clock is integrated HERE, one step per draw: the gust stretches time, so
+       the cloud speeds up in a gust and eases after — and never runs backwards,
+       which a gust term added straight onto uTime would do in the lull. With
+       no gust reading, gust is 0 and driftT advances exactly as uTime does. */
+    const on = causesOn();
+    const t = (now - t0) / 1000;
+    const surge = on ? surgeAt(t) : 0;
+    driftT += Math.max(0, t - lastT) * (1 + (on ? causes.gust : 0) * 1.4 * surge);
+    lastT = t;
+    gl.uniform1f(U.uCauses, on ? 1 : 0);
+    gl.uniform1f(U.uGust, on ? causes.gust : 0);
+    gl.uniform1f(U.uSurge, surge);
+    gl.uniform1f(U.uDriftT, driftT);
+    gl.uniform1f(U.uHumid, on ? causes.humid : -1);
+    gl.uniform3f(U.uMoon, causes.moon[0], causes.moon[1], on ? causes.moon[2] : -1);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     frames++;
   }
@@ -583,7 +674,8 @@ export function createGlSubstrate(canvas) {
     stats: () => ({
       frames, seconds: (performance.now() - t0) / 1000, animating: raf !== null, paused,
       inkGuard: causes.inkGuard, lift: causes.lift ? 1 : 0, store: [canvas.width, canvas.height],
-      shader: SHADER_VERSION, weather: weatherOn() ? 1 : 0,
+      shader: SHADER_VERSION, weather: weatherOn() ? 1 : 0, causes: causesOn() ? 1 : 0,
+      gust: causesOn() ? causes.gust : 0, humid: causesOn() ? causes.humid : -1, moon: causes.moon, driftT,
       striking: striking(performance.now()), capMs: capMs(performance.now()), lastStrike
     }),
     sample,

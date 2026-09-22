@@ -7,7 +7,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import lottie from "lottie-web/build/player/lottie_light.js";
-import { getPosition } from "../js/vendor/suncalc.js";
+import { getPosition, getMoonPosition, getMoonIllumination } from "../js/vendor/suncalc.js";
 import { stage, guard, bootReport } from "./core/boot.js";
 import { initSubstrate, toCauses } from "./substrate/index.js";
 import { initDepth, setDepth, getDepth, onDepth, DEPTH } from "./core/depth.js";
@@ -191,6 +191,20 @@ function sun() {
   return { altitudeDeg: (p.altitude * 180) / Math.PI, azimuthRad: p.azimuth };
 }
 
+/* The moon, for the field (v3FieldCauses). Same city-level coordinates as the
+   sun — the moon's place differs by far less than its own width across the
+   metro area, and this repo is public. Null if suncalc throws, never a guess. */
+function moonNow() {
+  try {
+    const d = new Date();
+    const p = getMoonPosition(d, CITY.lat, CITY.lon);
+    const i = getMoonIllumination(d);
+    return { altitudeDeg: (p.altitude * 180) / Math.PI, azimuthRad: p.azimuth, fraction: i.fraction };
+  } catch {
+    return null;
+  }
+}
+
 function syncSun() {
   const s = sun();
   const root = document.documentElement;
@@ -265,7 +279,14 @@ function pushCauses() {
     // position 1 into a field it calls `icon`, but the value is the CATEGORY
     // string ("clear", "cloudy", "rain"...). `code` is the raw numeric code.
     category: weather?.now?.condition?.icon ?? null,
-    intensity: weather?.now?.condition?.intensity ?? null
+    intensity: weather?.now?.condition?.intensity ?? null,
+    /* Stage 3 causes (features.v3FieldCauses) — computed whether or not the
+       flag is on, because they are readings, not effects: the substrate draws
+       none of them unless its causes tier is on. Null stays null all the way
+       down, and null is no effect. */
+    windGustKph: weather?.now?.wind_gust_kph ?? null,
+    humidityPct: weather?.now?.humidity_pct ?? null,
+    moon: moonNow()
   }),
   /* Not a weather cause, so it rides beside them rather than through
      toCauses: the field darkens itself under the words only while it IS the
@@ -279,7 +300,10 @@ function pushCauses() {
   /* The weather in the field (features.v3FieldWeather): rain, stars and
      lightning drawn by the lifted program, each on its own cause's frame cap.
      Needs the lift — the substrate draws none of it on the v2 program. */
-  weather: flag("v3FieldWeather") ? 1 : 0 });
+  weather: flag("v3FieldWeather") ? 1 : 0,
+  /* Stage 3 (features.v3FieldCauses): gusts, the moon, humidity — owner-scoped
+     to exactly those three. Needs the lift, like the weather tier. */
+  causes: flag("v3FieldCauses") ? 1 : 0 });
 }
 
 async function loadWeather() {

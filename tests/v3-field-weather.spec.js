@@ -120,7 +120,7 @@ test("flag ON: the v4 program compiles and the weather tier is live", async ({ p
   const s = await page.evaluate(stats);
   // A GLSL error drops the wall to canvas 2D silently, so "still webgl2" IS the compile check.
   expect(s.backend, "the v4 shader failed to compile").toBe("webgl2");
-  expect(s.shader).toBe(4);
+  expect(s.shader).toBe(5);
   expect(s.weather).toBe(1);
   expect(errors).toEqual([]);
 });

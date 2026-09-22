@@ -82,7 +82,7 @@ test("flag ON: the lifted program compiles, and draws on the full-panel store", 
   // A GLSL error is only discoverable at runtime, and the wall's answer to one
   // is a silent drop to canvas 2D — so "still webgl2" IS the compile check.
   expect(r.backend, "the lifted shader failed to compile — the wall fell back to 2D").toBe("webgl2");
-  expect(r.shader).toBe(4);
+  expect(r.shader).toBe(5);
   expect(r.lift).toBe(1);
   expect(r.store).toEqual([1920, 1080]);
   expect(r.el, "the stats say lifted but the element is still the base store").toEqual([1920, 1080]);
