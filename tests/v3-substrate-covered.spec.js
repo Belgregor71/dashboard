@@ -24,6 +24,16 @@ import { test, expect } from "@playwright/test";
      · flag flipped off live                  → uncovers on the next depth change
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ⚠ EVERY CASE BELOW PINS `v3FieldMat: false`, AND THAT PIN IS THE POINT OF THE
+   FILE, not boilerplate to tidy away. v3FieldMat went default-ON 2026-09-22 and
+   it NARROWS "covered": with the field serving as the archive's matting the
+   archive is no longer a cover, so `covered` never becomes true and four of
+   these went red the moment the default moved. They are not wrong — they are
+   the legacy path's tests, and the legacy path is the rollback. Pinning the new
+   flag off is what keeps the rollback under test after the flip.
+
+   Inheriting the shipped default here instead would quietly delete the coverage
+   for the whole covered-pause feature, in the same green voice. */
 const MIDDAY = new Date("2026-09-11T02:00:00Z"); // local noon in Brisbane (+10)
 
 async function bootV3(page, flags) {
@@ -57,7 +67,7 @@ const read = () => {
 };
 
 test("flag on, archive on, depth 0: the covered field is paused", async ({ page }) => {
-  const errors = await bootV3(page, { v3SubstrateCoveredPause: true, v3Archive: true });
+  const errors = await bootV3(page, { v3FieldMat: false, v3SubstrateCoveredPause: true, v3Archive: true });
   const r = await page.evaluate(read);
   // The node the claim is about must exist before its state means anything.
   expect(r.paused, "no substrate to measure").not.toBeNull();
@@ -69,7 +79,7 @@ test("flag on, archive on, depth 0: the covered field is paused", async ({ page 
 });
 
 test("leaving depth 0 uncovers it at once, and draws before anything can see it", async ({ page }) => {
-  const errors = await bootV3(page, { v3SubstrateCoveredPause: true, v3Archive: true });
+  const errors = await bootV3(page, { v3FieldMat: false, v3SubstrateCoveredPause: true, v3Archive: true });
   const before = await page.evaluate(read);
   expect(before.paused).toBe(true);
 
@@ -88,7 +98,7 @@ test("leaving depth 0 uncovers it at once, and draws before anything can see it"
 });
 
 test("the panel coming back does NOT restart a field the archive still covers", async ({ page }) => {
-  const errors = await bootV3(page, { v3SubstrateCoveredPause: true, v3Archive: true, v3EnergySaver: true });
+  const errors = await bootV3(page, { v3FieldMat: false, v3SubstrateCoveredPause: true, v3Archive: true, v3EnergySaver: true });
   await page.evaluate(() => window.__v3PanelDark(true));
   expect(await page.evaluate(read)).toMatchObject({ why: { dark: true, covered: true }, paused: true });
 
@@ -101,7 +111,7 @@ test("the panel coming back does NOT restart a field the archive still covers", 
 });
 
 test("leaving depth 0 does NOT wake a field on a dark panel", async ({ page }) => {
-  const errors = await bootV3(page, { v3SubstrateCoveredPause: true, v3Archive: true, v3EnergySaver: true });
+  const errors = await bootV3(page, { v3FieldMat: false, v3SubstrateCoveredPause: true, v3Archive: true, v3EnergySaver: true });
   await page.evaluate(() => window.__v3PanelDark(true));
 
   // A doorbell at 3am takes the wall to depth 1 while the panel is still down.
@@ -113,7 +123,7 @@ test("leaving depth 0 does NOT wake a field on a dark panel", async ({ page }) =
 });
 
 test("the archive off: never covered, at depth 0 or anywhere", async ({ page }) => {
-  const errors = await bootV3(page, { v3SubstrateCoveredPause: true, v3Archive: false });
+  const errors = await bootV3(page, { v3FieldMat: false, v3SubstrateCoveredPause: true, v3Archive: false });
   const r = await page.evaluate(read);
   expect(r.paused, "no substrate to measure").not.toBeNull();
   expect(r.depth).toBe("0");
@@ -124,7 +134,7 @@ test("the archive off: never covered, at depth 0 or anywhere", async ({ page }) 
 });
 
 test("flag off: the field is never covered — the pause is the panel's alone, as it was", async ({ page }) => {
-  const errors = await bootV3(page, { v3SubstrateCoveredPause: false, v3Archive: true });
+  const errors = await bootV3(page, { v3FieldMat: false, v3SubstrateCoveredPause: false, v3Archive: true });
   const r = await page.evaluate(read);
   expect(r.paused, "no substrate to measure").not.toBeNull();
   // Same conditions as the first test — archive on, depth 0 — so the only
@@ -137,7 +147,7 @@ test("flag off: the field is never covered — the pause is the panel's alone, a
 });
 
 test("flipped off live, it uncovers on the next depth change — the rollback needs no reload", async ({ page }) => {
-  const errors = await bootV3(page, { v3SubstrateCoveredPause: true, v3Archive: true });
+  const errors = await bootV3(page, { v3FieldMat: false, v3SubstrateCoveredPause: true, v3Archive: true });
   expect((await page.evaluate(read)).paused).toBe(true);
 
   await page.evaluate(() => {

@@ -2082,9 +2082,21 @@ window.CONFIG = {
     // ⚠ Inert under prefers-reduced-motion, where the archive stands down to
     // `display: none` and depth 0 falls back to the full-bleed photograph —
     // hiding the ground there would leave the wall with no photograph at all.
+    // FLIPPED ON 2026-09-22, after the wall proved it. Served to the live kiosk
+    // over CDP with no deploy (field-trial.cjs): mat `rgba(0, 0, 0, 0)`, ground
+    // `hidden`, field `animating: true` — 1105 frames in 74.7 s, ~15 fps, on
+    // real Brisbane wind rather than a forced cause. Cost, 60 s window with the
+    // field running: gpu 20.2 / renderer 14.9 against a settled control cluster
+    // of 19.8 / 19.9 / 20.1 — **+0.3**, because the mat also stands DOWN the
+    // full-bleed photograph and the scrim, so two composited layers leave the
+    // stack as the field joins it. §5.4 sustained ceiling is 25.
+    // Contrast: the sweep gained a `mat` variant AND an `archive` control, and
+    // the control is what made the numbers mean anything — worst 4.05 day /
+    // 4.14 night, the same node and value as the control, i.e. the field is not
+    // the limiting factor anywhere (docs/audit/G11-GPU-CEILING-2026-09-22.md).
     // Rollback: -> false (read every minute and on every depth change, so an
     // in-page flip needs no reload).
-    v3FieldMat: false,
+    v3FieldMat: true,
 
     // ── The Living Window on V3 (src/v3/core/atmosphere-fx.js,
     // css/atmosphere.css): a thin weather layer at z4 — above the archive card

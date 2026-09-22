@@ -46,7 +46,17 @@ async function boot(page, on) {
   );
   await page.route("**/js/config.js", async (route) => {
     const res = await route.fetch();
-    await route.fulfill({ response: res, body: (await res.text()) + `\nwindow.CONFIG.features.v3AtmoOverlay = ${on};\n` });
+    /* ⚠ `v3FieldMat` is pinned OFF, not inherited. It went default-ON 2026-09-22
+       and it legitimately restyles the two things the flag-off case below reads
+       as proof that NOTHING was restyled — the archive's mat colour and the
+       ground's visibility. Inheriting the shipped default would make this file
+       fail for a change in a different feature, and "the wall that shipped" is
+       a claim about the ATMOSPHERE layer alone. */
+    await route.fulfill({
+      response: res,
+      body: (await res.text()) +
+        `\nwindow.CONFIG.features.v3AtmoOverlay = ${on};\nwindow.CONFIG.features.v3FieldMat = false;\n`
+    });
   });
   await page.goto("/v3/");
   await page.waitForFunction(() => typeof window.__v3 === "function");
