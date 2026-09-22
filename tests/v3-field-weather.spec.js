@@ -323,10 +323,12 @@ test("the mat's painted stars stand DOWN under the field's — and stay up when 
   const standDown = await read({ v3FieldWeather: true });
   const keep = await read({ v3FieldWeather: false });
   const opaque = await read({ v3FieldWeather: true, v3FieldMat: false });
+  // The weather flag on but the LIFT off: the v2 program draws no stars.
+  const unlifted = await read({ v3FieldWeather: true, v3FieldRender: false });
   await ctx.close();
 
   // Assert the node and the night-sky state are THERE before what they paint.
-  for (const r of [standDown, keep, opaque]) {
+  for (const r of [standDown, keep, opaque, unlifted]) {
     expect(r.present).toBe(true);
     expect(r.nightSky).toBe("1");
   }
@@ -335,4 +337,6 @@ test("the mat's painted stars stand DOWN under the field's — and stay up when 
   expect(standDown.image, "two star patterns: the mat still paints its own over the field's").toBe("none");
   expect(standDown.twinkle).toBe("none");
   expect(opaque.image, "the mat is opaque — the field's stars are hidden, so these must stay").toMatch(/^url\(/);
+  expect(unlifted.fieldWeather, "stamped without the lift").toBe(null);
+  expect(unlifted.image, "no lift, no field stars — the mat's must stay").toMatch(/^url\(/);
 });
