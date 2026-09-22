@@ -413,6 +413,23 @@ Two consequences worth stating rather than discovering:
   recorded; the 24 h and 72 h rows are still owed**, and they belong to the *settled* state,
   which is where the wall actually spends its time.
 
+**Amended 2026-09-22 — signed off by the owner** against the Stage 0 measurements in
+`docs/audit/G11-GPU-CEILING-2026-09-22.md`. No ceiling was relaxed; all three are additions.
+
+1. **Frame rate is the expensive axis, not resolution.** A full-panel layer costs ≈0.13–0.21
+   gpu points per fps, largely independent of its backing store: 480×270 → 1920×1080 at the
+   same cap measured +0.4, while 960×540 at 60 fps cost four times 1920×1080 at 12 on
+   near-identical pixel throughput. Budget a field in **frames**, and let it have the pixels.
+2. **The ≤ 35 peak is genuinely reachable now** — 1920×1080 @60 measured 32.7. A 60 fps
+   full-panel episode has ~2 points of margin, so a peak episode must be **capped
+   deliberately** (a frame cap and a decay, stated in its code), never assumed cheap.
+3. **Renderer-column ceiling: ≤ 25 % sustained**, the same number as gpu-process. It tracked
+   gpu closely across the whole sweep (13.7 settled → 22.5 at the extreme), and
+   `HOST-BASELINES.md` had called its absence "a gap in the budget, not a free pass".
+
+Law 1 is untouched by any of this: a field that can afford 60 fps must still earn every
+frame it draws (§5.1).
+
 Regardless of the table, three invariants hold:
 
 - **Never pin a core.** `/proc/pressure/cpu` `avg10` stays near 0 (currently 0.00).

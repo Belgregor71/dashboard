@@ -105,20 +105,24 @@ const HORIZON = [0.5, 0.84];
 const LAND = [0.5, 0.97];
 const lum = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
 
-test("the lift reaches the SHADER: land darker than the horizon — v2 is brightest at the bottom", async ({ page }) => {
+test("the lift reaches the SHADER: land darker than the horizon — and v2 has no such horizon", async ({ page }) => {
   /* The discriminating read. Both programs are warm-low / cool-high, so a
      warm-vs-cool assertion passes on v2 as well and cannot see a lift that
      never reached the GPU. Only the lift has a horizon with land under it. */
-  await bootV3(page, { ...PLAIN, v3FieldRender: true }, { weather: weatherWith(5) });
+  await bootV3(page, { ...PLAIN, v3FieldRender: true }, { weather: weatherWith(5, 0) });
   const [hor, land] = await page.evaluate((pts) => window.__substrateSample(pts), [HORIZON, LAND]);
   expect(lum(land), `land ${land} vs horizon ${hor}`).toBeLessThan(lum(hor) * 0.8);
 
-  // …and the same read on v2 goes the other way, which is what makes the
-  // assertion above about the lift rather than about the fixture.
+  /* …and v2 must FAIL that same test, which is what makes the assertion above
+     about the lift rather than about the fixture. ⚠ Not "v2's land is
+     brighter": v2 reads land ≈ horizon (71,49,32 vs 70,50,34), so that
+     version was a coin flip — it went red 1 in 5 on clean code and once
+     under an unrelated injection. The inverse of the lift's own threshold
+     has margin (v2 sits near 1.0 against 0.8). */
   const page2 = await page.context().newPage();
-  await bootV3(page2, { ...PLAIN, v3FieldRender: false }, { weather: weatherWith(5) });
+  await bootV3(page2, { ...PLAIN, v3FieldRender: false }, { weather: weatherWith(5, 0) });
   const [hor2, land2] = await page2.evaluate((pts) => window.__substrateSample(pts), [HORIZON, LAND]);
-  expect(lum(land2), `v2 land ${land2} vs horizon ${hor2}`).toBeGreaterThan(lum(hor2));
+  expect(lum(land2), `v2 land ${land2} vs horizon ${hor2}`).toBeGreaterThanOrEqual(lum(hor2) * 0.8);
   await page2.close();
 });
 
