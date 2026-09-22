@@ -396,7 +396,20 @@ const VARIANTS = {
      Rain under the words is bounded by pixels instead, in
      tests/v3-field-weather.spec.js ("rain never brightens the ground under the
      hour"). Read against `render`, its twin. */
-  weather: { flags: { v3Archive: true, v3FieldMat: true, v3FieldRender: true, v3FieldWeather: true }, grounds: () => ["sky"], title: (g, p) => `the LIFTED mat with the WEATHER in the field, ${p}` }
+  weather: { flags: { v3Archive: true, v3FieldMat: true, v3FieldRender: true, v3FieldWeather: true }, grounds: () => ["sky"], title: (g, p) => `the LIFTED mat with the WEATHER in the field, ${p}` },
+  /* Stage 3's causes (v3FieldCauses), FORCED, not merely pinned — a pinned
+     flag with no reading behind it draws nothing and measures the twin again.
+     Humidity 95 (the haze at its heaviest) and NO wind, so the field stays
+     still for MEASURE. The moon needs no forcing: at this sweep's pinned night
+     (2026-07-06 23:30) it is 8° up in the east, 62% lit — which on this wall is
+     low on the LEFT, directly behind the hour's digits. Its worst case, for
+     free. By day it is below the horizon. Read against `weather`, its twin. */
+  causes: {
+    flags: { v3Archive: true, v3FieldMat: true, v3FieldRender: true, v3FieldWeather: true, v3FieldCauses: true },
+    routes: { "/api/weather/now": () => ({ now: { wind_kph: 0, wind_bearing: null, wind_gust_kph: null, cloud_pct: 20, humidity_pct: 95, uv: null, rain_chance_pct: null, temp_c: 14, feels_like_c: null, condition: { code: 1, label: "Mostly clear", icon: "clear", intensity: null, thunder: false } }, day: {} }) },
+    grounds: () => ["sky"],
+    title: (g, p) => `the field's CAUSES forced (humid 95, the moon), ${p}`
+  }
 };
 
 async function bootV3(page, { ground, phase, variant = "off" }) {
@@ -418,12 +431,14 @@ async function bootV3(page, { ground, phase, variant = "off" }) {
     if (IMAGE_PATH.test(url.pathname) || url.pathname.startsWith("/api/plex/image")) {
       return route.fulfill({ status: 200, contentType: "image/png", body: png });
     }
-    const key = Object.keys(ROUTES).find((k) => url.pathname.startsWith(k));
+    // A variant's own readings win over the shared table (the `causes` variant's weather).
+    const routes = { ...ROUTES, ...(VARIANTS[variant].routes || {}) };
+    const key = Object.keys(routes).find((k) => url.pathname.startsWith(k));
     if (key) {
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(ROUTES[key](url))
+        body: JSON.stringify(routes[key](url))
       });
     }
     return route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
@@ -441,6 +456,18 @@ async function bootV3(page, { ground, phase, variant = "off" }) {
   await page.addStyleTag({
     content: "*, *::before, *::after { transition: none !important; animation: none !important; }"
   });
+  /* ⚠ The `causes` variant is the FIRST in this sweep to serve a real weather
+     reading, and a reading makes the archive's sky line ("14° · mostly clear")
+     appear top-right — ON TOP of the ringing-timer label the fixture puts in the
+     same corner. Measured 2026-09-22: 9 elements at 1.61-2.29, IDENTICAL with
+     v3FieldCauses OFF (1.62) — text measured over text, not the field. That
+     collision is a pre-existing layout finding, recorded for the owner beside
+     the open `.archive__sky` over `#heard` call (memory: project-field-causes);
+     it is not what this variant is for. So here, and ONLY here, the sky line is
+     taken out and the field under the other words is what gets measured. */
+  if (variant === "causes") {
+    await page.addStyleTag({ content: ".archive__sky { display: none !important; }" });
+  }
 
   // The photograph has to be ON THE GLASS and SAMPLED before anything is
   // measured: until the scrim has solved, --scrim-opacity is still the 0.55
@@ -499,7 +526,7 @@ async function bootV3(page, { ground, phase, variant = "off" }) {
   /* The field owns the rain on the `weather` variant: there the pane must be
      STOOD DOWN, and asserting that is the pin check (a pane still painting
      means v3FieldWeather did not take). Everywhere else it must paint. */
-  const fieldOwnsRain = variant === "weather";
+  const fieldOwnsRain = variant === "weather" || variant === "causes";
   if (fieldOwnsRain) {
     await expect.poll(async () => (await layerState())?.warmOpacity ?? 0, { timeout: 5000 }).toBeGreaterThan(0);
   } else {
@@ -528,7 +555,7 @@ async function bootV3(page, { ground, phase, variant = "off" }) {
      and report the living mat as covered — a gate green BECAUSE the thing it
      was added for is absent. Four independent facts, because any one of them
      alone has a way of being true while the mat is not live. */
-  if (variant === "mat" || variant === "render" || variant === "weather") {
+  if (variant === "mat" || variant === "render" || variant === "weather" || variant === "causes") {
     const mat = await page.evaluate(() => {
       const a = document.querySelector(".archive");
       const p = document.querySelector(".photo");
@@ -548,7 +575,7 @@ async function bootV3(page, { ground, phase, variant = "off" }) {
     });
     /* Both directions: `mat` must measure v2 and `render` the lift, or the two
        twins silently measure the same field and every comparison is empty. */
-    const lifted = variant === "render" || variant === "weather";
+    const lifted = variant === "render" || variant === "weather" || variant === "causes";
     expect(mat.backend, "the field is not on WebGL — a compile failure drops to 2D").toBe("webgl2");
     expect(mat.lift, `v3FieldRender's pin did not take (${variant})`).toBe(lifted ? 1 : 0);
     expect(mat.store).toEqual(lifted ? [1920, 1080] : [480, 270]);
@@ -561,6 +588,22 @@ async function bootV3(page, { ground, phase, variant = "off" }) {
     /* And it must be STILL, or MEASURE's three screenshots each catch a
        different frame and every ratio is an artifact of the drift. */
     expect(mat.animating, "the field is DRIFTING — the three-shot measurement is invalid while it moves").toBe(false);
+  }
+
+  /* The causes FORCED, not merely pinned — read off the substrate, both the
+     haze and (at night) a moon that is actually up. A variant whose reading
+     never landed would measure its twin and report the causes as covered. */
+  if (variant === "causes") {
+    const c = await page.evaluate(() => {
+      const s = window.__substrate();
+      return { causes: s.causes, humid: s.humid, moon: s.moon };
+    });
+    expect(c.causes, "v3FieldCauses' pin did not take").toBe(1);
+    expect(c.humid, "the forced 95% humidity never reached the field").toBeCloseTo(0.95, 5);
+    if (phase === "night") {
+      expect(c.moon[0], "fixture: the pinned night's moon must be UP (8° east)").toBeGreaterThan(0);
+      expect(c.moon[2], "fixture: the pinned night's moon is ~62% lit").toBeGreaterThan(0.5);
+    }
   }
 
   await page.evaluate(() => window.__v3Refresh?.());

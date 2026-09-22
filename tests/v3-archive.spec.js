@@ -468,6 +468,27 @@ const MIDDAY = new Date("2026-07-06T12:00:00");
    and the off state has to keep being tested after the default moves. Every
    test above the plane block runs the composition that is on the wall today;
    every test that passes `v3ArchivePlane: true` runs the rebuild. */
+/* ⚠ A FIXED WAIT CANNOT PROMISE A TRANSITION HAS ENDED. Two tests here count
+   `document.getAnimations()` after a 3.4s sleep, betting the card's 2.8s
+   un-blur is over by then. Under load it is not: a transition only STARTS on
+   the next style update after its class changes, and a starved frame starts
+   it late. Root-caused 2026-09-22 — the extras were the card's own
+   filter/opacity transitions caught 1.0-2.3s into their run (frame gaps of
+   737-873ms from a SwiftShader-heavy neighbour worker); later seen again, 1 in
+   36, with the page's own field drawing a single frame. So: sleep for the
+   cleanup, then WAIT FOR THE TRANSITIONS, then count. The forever-loop
+   regression these tests guard is still caught — by `loops`, which this wait
+   cannot change — and `anims` is still asserted exactly. */
+async function transitionsSettled(page) {
+  await expect
+    .poll(
+      () => page.evaluate(() =>
+        document.getAnimations().filter((a) => a instanceof CSSTransition && a.playState === "running").length),
+      { timeout: 10_000, message: "a CSS transition is still running 10s after the exchanges — one that never ends?" }
+    )
+    .toBe(0);
+}
+
 async function bootArchive(
   page,
   {
@@ -829,6 +850,7 @@ test("nothing grows across exchanges, and one timer never becomes many", async (
      a number that means "we happened to look while the card was un-blurring",
      which is the timing-dependence the `anims` comment below warns about. */
   await page.waitForTimeout(3400);
+  await transitionsSettled(page);
 
   /* A page that runs for weeks may not grow. Every node the archive will ever
      have is built once; an exchange swaps `src` and two class names. */
@@ -2004,6 +2026,7 @@ test("the plane recedes with everything else, and nothing grows across exchanges
   // Past the exchange cleanup (settle 20 + 2000 buffer) and past the blur's
   // 2.8s recovery, which getAnimations() counts as a transition until it ends.
   await page.waitForTimeout(3400);
+  await transitionsSettled(page);
   expect(await nodes()).toBe(before);
 
   const probe = await page.evaluate(() => ({
