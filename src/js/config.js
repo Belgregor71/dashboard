@@ -2098,6 +2098,20 @@ window.CONFIG = {
     // in-page flip needs no reload).
     v3FieldMat: true,
 
+    // THE RENDER LIFT (src/v3/substrate/gl.js liftedSky, main.js pushCauses).
+    // Living Window 2.0 Stage 2, first slice. The field gets a real horizon
+    // (altitude-dependent scattering, forward scatter under the sun) and two
+    // cloud decks in perspective with parallax at their own heights, drawn on
+    // the full 1920x1080 store at a steady 15 fps (the base tier's 66 ms sheds
+    // frames to vsync jitter — 14.2-14.8 measured live).
+    // Same five causes; the lift adds form, not causes, and moves nothing new.
+    // Cost basis: 480x270 -> 1920x1080 at the same cap measured +0.4 gpu
+    // (G11-GPU-CEILING-2026-09-22.md) — that was the v2 program, so the lift
+    // is measured again on the wall before any flip.
+    // Off: the v2 program on the 480x270 store at 66 ms, as measured.
+    // Rollback: -> false (read every minute; the store resizes in place).
+    v3FieldRender: false,
+
     // ── The Living Window on V3 (src/v3/core/atmosphere-fx.js,
     // css/atmosphere.css): a thin weather layer at z4 — above the archive card
     // and its mat, BELOW every word — carrying rain, the sky's warmth and a

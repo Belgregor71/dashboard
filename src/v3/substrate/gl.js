@@ -21,9 +21,40 @@
    measurement that does not name a version is the one to distrust.
 
    v2 (2026-09-22): the ink guard, for v3FieldMat. Costs nothing at strength 0.
+   v3 (2026-09-22): the render lift, for v3FieldRender — a real horizon with
+       altitude-dependent scattering and two cloud decks in perspective. Behind
+       uLift; at 0 the v2 program runs unchanged, on the 480x270 store.
+
+   ⚠ THE 480x270 ARGUMENT ABOVE WAS RIGHT ON A PI AND IS WRONG ON THE G11.
+   Stage 0 measured it: 480x270 -> 1920x1080 at the same frame cap costs +0.4
+   gpu points, because the box charges per FRAME, not per pixel. The lift takes
+   the full panel for that reason — and only with the lift, because the v2
+   program has almost no detail for the extra pixels to resolve.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-export const SHADER_VERSION = 2;
+export const SHADER_VERSION = 3;
+
+/* The backing store per render tier. Base is the store that was measured and
+   shipped; lifted is the panel. Exported so the fallback path can put a cloned
+   canvas BACK to the base store — canvas 2D at 1920x1080 is a CPU fill. */
+export const BASE_RES = [480, 270];
+export const LIFT_RES = [1920, 1080];
+
+/* The frame cap, and why 66 is not quite 15.
+
+   `now - last >= 66` against a 60 Hz vsync: four vsyncs are 66.67 ms, a margin
+   of 0.67 ms, and rAF timestamps jitter by about that much — so some gaps
+   miss and wait for the fifth vsync. Measured on the wall: 14.2 and 14.8 fps,
+   asked 15. (The "asked 15, got 12" in G11-GPU-CEILING-2026-09-22.md was the
+   ceiling PROBE's own loop, not this one — see tests/v3-field-render.spec.js.)
+
+   Pure so a spec can drive it with synthetic vsyncs instead of a real clock.
+   The base tier keeps 66 exactly — flag off is the measured behaviour. The
+   lift aims BETWEEN the third and fourth vsync (50 and 66.7 ms), so jitter in
+   either direction still lands on the fourth: 15, steadily. */
+export const FRAME_MS = 66;
+export const LIFT_FRAME_MS = 60;
+export const frameDue = (now, last, lift) => now - last >= (lift ? LIFT_FRAME_MS : FRAME_MS);
 
 const VERT = `#version 300 es
 in vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }`;
@@ -39,6 +70,7 @@ uniform vec2  uWind;
 uniform float uCloud;
 uniform float uRain;
 uniform float uInkGuard;
+uniform float uLift;
 
 float hash(vec2 v){ return fract(sin(dot(v, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 v){
@@ -53,22 +85,116 @@ float fbm(vec2 v){
   return s;
 }
 
+/* ── THE LIFTED SKY (uLift = 1, features.v3FieldRender) ─────────────────────
+   Everything here is still a function of the same five causes — the lift adds
+   FORM, not causes (Stage 3 adds causes). Nothing new moves: uTime still only
+   advances the wind's drift, and on a still day this is drawn once.
+
+   Three things the v2 program faked with a two-colour mix:
+
+   · A HORIZON, at HZ. The sky above it is an exponential falloff from a
+     horizon colour to a zenith colour, and BOTH are picked by the sun's
+     altitude — day, a gold band either side of zero, and night. Scattering is
+     brightest along the horizon under the sun (forward scatter), so the
+     sunward side of the wall is warmer than the other, as it is outside.
+   · TWO CLOUD DECKS IN PERSPECTIVE. Sampled on a plane seen from below, so
+     cells shrink and crowd toward the horizon — the depth cue the flat fbm
+     never had. The low deck drifts at the wind's rate, the high one at under
+     half of it: parallax at each deck's own height, from one wind reading.
+     Coverage is uCloud's threshold on the noise, so a clear reading is a clear
+     sky, not a thinner fog.
+   · LIGHT ON THE CLOUD. One offset sample toward the sun: the edge facing it
+     is lit (and gold near the horizon hours), the body is shaded.
+
+   ⚠ THE LUMINANCE ENVELOPE IS THE v2 ONE, ON PURPOSE. The words sit on this
+   field when it is the matting, and the ink guard was measured against the v2
+   brightness (worst 4.05:1 day). The lift may redistribute light, not add it —
+   the brightest thing on the wall is still the sun's glow, at 80% of v2's. */
+const float HZ = 0.12;
+
+vec3 liftedSky(vec2 uv, vec2 drift, vec2 sunPos){
+  float alt = clamp(uSunAlt, -1.0, 1.0);
+  float day = smoothstep(-0.05, 0.45, alt);
+  float gold = smoothstep(-0.45, 0.0, alt) * (1.0 - smoothstep(0.05, 0.5, alt));
+
+  vec3 zen = mix(vec3(0.020, 0.024, 0.046), vec3(0.060, 0.090, 0.150), day);
+  vec3 hor = mix(vec3(0.052, 0.056, 0.082), vec3(0.245, 0.222, 0.198), day);
+  hor = mix(hor, vec3(0.330, 0.180, 0.092), gold);
+
+  float h = uv.y - HZ;
+  float fall = exp(-max(h, 0.0) * 3.4);
+  vec3 col = mix(zen, hor, fall);
+
+  // Forward scatter: the horizon under the sun, not the horizon everywhere.
+  // Squared by hand: pow() of a negative base is undefined in GLSL.
+  float ux = (uv.x - sunPos.x) * 1.8;
+  float under = exp(-ux * ux);
+  col += (vec3(0.22, 0.12, 0.05) * gold + vec3(0.08, 0.06, 0.04) * day)
+       * under * fall * (1.0 - uCloud * 0.6);
+
+  // The sun's glow, aspect-corrected so it is round on a 16:9 panel.
+  vec2 a = vec2(1.7778, 1.0);
+  float d = distance(uv * a, sunPos * a);
+  float lit = smoothstep(-0.15, 0.35, uSunAlt);
+  col += vec3(0.42, 0.28, 0.14) * 0.8 * (exp(-d * d * 5.0) * 0.8 + exp(-d * d * 60.0) * 0.2)
+       * lit * (1.0 - uCloud * 0.7);
+
+  if (h > 0.0) {
+    // A plane seen from below: x spreads and depth grows toward the horizon.
+    float z = 1.0 / (h + 0.10);
+    vec2 plane = vec2((uv.x - 0.5) * 1.7778 * z, z);
+    float cover = 0.78 - uCloud * 0.58;
+    float haze = smoothstep(0.0, 0.10, h);
+
+    vec2 lowP = plane * 1.25 + drift * 2.0;
+    float warp = fbm(lowP * 0.5) * 0.7;
+    float n = fbm(lowP + warp);
+    float dens = smoothstep(cover, cover + 0.18, n) * haze;
+    float toSun = fbm(lowP + vec2(sunPos.x - 0.5, 0.25) * 0.35 + warp);
+    float edge = clamp((n - toSun) * 3.0 + 0.5, 0.0, 1.0);
+
+    vec3 body = mix(vec3(0.075, 0.078, 0.092), vec3(0.235, 0.232, 0.236), day) * (1.0 - uCloud * 0.35);
+    vec3 rim  = mix(body * 1.25, vec3(0.34, 0.20, 0.11), gold) + vec3(0.05) * day;
+    col = mix(col, mix(body, rim, edge), dens * 0.92);
+
+    // The high deck: thin, streaked, slower. Drawn under the low one's shadow.
+    vec2 highP = plane * vec2(1.6, 4.5) + drift * 0.8;
+    float c = smoothstep(cover + 0.05, cover + 0.40, fbm(highP)) * haze * (1.0 - dens);
+    col = mix(col, hor * 1.05 + vec3(0.03) * day, c * 0.45);
+  } else {
+    /* Below the horizon: the land, lit only by what the sky above is doing.
+       CONTINUOUS at the line — it darkens the sky's own horizon value rather
+       than switching to a new colour, because a step here read on the first
+       render as a letterbox bar across the bottom of the wall, not as land. */
+    col *= mix(0.45, 1.0, smoothstep(-0.10, 0.0, h));
+  }
+  return col;
+}
+
 void main(){
   vec2 uv = gl_FragCoord.xy / uRes;
   vec2 drift = uWind * uTime * 0.015;
-  float f = fbm(uv * 3.0 + drift + fbm(uv * 1.7 - drift * 0.5) * 0.6);
-
-  vec3 warm = vec3(0.29, 0.20, 0.13);
-  vec3 cool = vec3(0.08, 0.09, 0.13);
-  float horizon = smoothstep(0.0, 0.85, uv.y + (f - 0.5) * 0.22);
-  vec3 col = mix(warm, cool, horizon);
-
   vec2 sunPos = vec2(0.5 + cos(uSunAz) * 0.42, clamp(uSunAlt, -0.2, 1.0) * 0.7 + 0.12);
-  float d = distance(uv, sunPos);
-  float glow = exp(-d * d * 9.0) * smoothstep(-0.15, 0.35, uSunAlt);
-  col += vec3(0.42, 0.28, 0.14) * glow * (1.0 - uCloud * 0.7);
+  vec3 col;
 
-  col = mix(col, vec3(0.13, 0.13, 0.15), uCloud * (0.25 + f * 0.35));
+  if (uLift > 0.5) {
+    col = liftedSky(uv, drift, sunPos);
+  } else {
+    // v2, unchanged in every term.
+    float f = fbm(uv * 3.0 + drift + fbm(uv * 1.7 - drift * 0.5) * 0.6);
+
+    vec3 warm = vec3(0.29, 0.20, 0.13);
+    vec3 cool = vec3(0.08, 0.09, 0.13);
+    float horizon = smoothstep(0.0, 0.85, uv.y + (f - 0.5) * 0.22);
+    col = mix(warm, cool, horizon);
+
+    float d = distance(uv, sunPos);
+    float glow = exp(-d * d * 9.0) * smoothstep(-0.15, 0.35, uSunAlt);
+    col += vec3(0.42, 0.28, 0.14) * glow * (1.0 - uCloud * 0.7);
+
+    col = mix(col, vec3(0.13, 0.13, 0.15), uCloud * (0.25 + f * 0.35));
+  }
+
   col = mix(col, vec3(0.09, 0.10, 0.12), uRain * 0.5);
   col *= 1.0 - smoothstep(0.35, 1.15, distance(uv, vec2(0.5))) * 0.55;
 
@@ -111,7 +237,7 @@ void main(){
    make the surface move on its own; uTime only advances the wind's drift, and
    wind is a thing the room can look out of a window and verify. That is the
    one clause of the calm law that survives V3 intact. */
-const DEFAULTS = { sunAlt: 0, sunAz: 0, wind: [0, 0], cloud: 0.3, rain: 0, inkGuard: 0 };
+const DEFAULTS = { sunAlt: 0, sunAz: 0, wind: [0, 0], cloud: 0.3, rain: 0, inkGuard: 0, lift: 0 };
 
 export function createGlSubstrate(canvas) {
   const gl = canvas.getContext("webgl2", {
@@ -153,11 +279,25 @@ export function createGlSubstrate(canvas) {
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
 
   const U = {};
-  for (const n of ["uRes", "uTime", "uSunAlt", "uSunAz", "uWind", "uCloud", "uRain", "uInkGuard"]) {
+  for (const n of ["uRes", "uTime", "uSunAlt", "uSunAz", "uWind", "uCloud", "uRain", "uInkGuard", "uLift"]) {
     U[n] = gl.getUniformLocation(prog, n);
   }
-  gl.viewport(0, 0, canvas.width, canvas.height);
-  gl.uniform2f(U.uRes, canvas.width, canvas.height);
+
+  /* The store follows the tier. Setting width/height clears the drawing
+     buffer and keeps the context, so a live flag flip resizes in place — the
+     caller draws immediately after, and nothing ever shows the cleared frame.
+     Only a CHANGE touches the element: re-assigning the same width still
+     clears the buffer, and update() arrives every minute. */
+  function fitStore(lift) {
+    const [w, h] = lift ? LIFT_RES : BASE_RES;
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.uniform2f(U.uRes, canvas.width, canvas.height);
+  }
+  fitStore(0);
 
   let causes = { ...DEFAULTS };
   let raf = null;
@@ -194,13 +334,14 @@ export function createGlSubstrate(canvas) {
     gl.uniform1f(U.uCloud, causes.cloud);
     gl.uniform1f(U.uRain, causes.rain);
     gl.uniform1f(U.uInkGuard, causes.inkGuard);
+    gl.uniform1f(U.uLift, causes.lift ? 1 : 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     frames++;
   }
 
   // 15fps ceiling. The field is a slow atmosphere; above ~15 nothing in it is
-  // perceptibly different and every extra frame is pure cost.
-  const FRAME_MS = 66;
+  // perceptibly different and every extra frame is pure cost. FRAME_MS and
+  // frameDue (top of file) say why the base tier actually delivered 12.
 
   /* Paused means the PANEL is off (core/display.js), not that the page is
      hidden — DPMS does not fire visibilitychange, so nothing else stops this
@@ -210,8 +351,24 @@ export function createGlSubstrate(canvas) {
 
   function loop(now) {
     if (paused || !moving()) { raf = null; return; }
-    if (now - last >= FRAME_MS) { last = now; draw(); }
+    if (frameDue(now, last, causes.lift)) { last = now; draw(); }
     raf = requestAnimationFrame(loop);
+  }
+
+  /* Read the field back, for the specs and for CDP on the wall. The buffer is
+     not preserved, so the only honest read is in the same task as a draw —
+     this draws and reads before the compositor can clear it. Coordinates are
+     fractions of the panel, y DOWN like the page, so a caller never needs to
+     know which store the tier is using. */
+  function sample(points) {
+    draw();
+    const px = new Uint8Array(4);
+    return points.map(([fx, fy]) => {
+      const x = Math.min(canvas.width - 1, Math.floor(fx * canvas.width));
+      const y = Math.min(canvas.height - 1, Math.floor((1 - fy) * canvas.height));
+      gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      return [px[0], px[1], px[2]];
+    });
   }
 
   return {
@@ -221,7 +378,11 @@ export function createGlSubstrate(canvas) {
       return dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
     })(),
     update(next) {
+      const wasLift = Boolean(causes.lift);
       causes = { ...causes, ...next };
+      // Resized even while paused: the store is state, not a frame, and the
+      // wake draw must land on the right one.
+      if (Boolean(causes.lift) !== wasLift) fitStore(causes.lift);
       // Causes keep accruing while dark — the sun still moves and the weather
       // still changes — but nothing is drawn for them until the panel is back.
       if (paused) return;
@@ -241,7 +402,12 @@ export function createGlSubstrate(canvas) {
       draw();
       if (moving() && raf === null) raf = requestAnimationFrame(loop);
     },
-    stats: () => ({ frames, seconds: (performance.now() - t0) / 1000, animating: raf !== null, paused, inkGuard: causes.inkGuard }),
+    stats: () => ({
+      frames, seconds: (performance.now() - t0) / 1000, animating: raf !== null, paused,
+      inkGuard: causes.inkGuard, lift: causes.lift ? 1 : 0, store: [canvas.width, canvas.height],
+      shader: SHADER_VERSION
+    }),
+    sample,
     destroy() {
       if (raf) cancelAnimationFrame(raf);
       raf = null;

@@ -261,7 +261,12 @@ function pushCauses() {
   /* Not a weather cause, so it rides beside them rather than through
      toCauses: the field darkens itself under the words only while it IS the
      matting. Flag off sends 0, and 0 is a real off inside the shader. */
-  inkGuard: flag("v3FieldMat") ? INK_GUARD : 0 });
+  inkGuard: flag("v3FieldMat") ? INK_GUARD : 0,
+  /* The render tier (features.v3FieldRender): the lifted sky on the full-panel
+     store at a real 15 fps. Rides here for the same reason as the guard — it is
+     how the field is drawn, not a reading — and for the same payoff: this runs
+     every minute, so a live flag flip lands within one either way. */
+  lift: flag("v3FieldRender") ? 1 : 0 });
 }
 
 async function loadWeather() {

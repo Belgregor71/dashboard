@@ -382,7 +382,12 @@ const PINNED_FLAGS = {
 const VARIANTS = {
   off: { flags: {}, grounds: () => Object.keys(GROUNDS), title: (g, p) => `${g} ground, ${p}` },
   archive: { flags: { v3Archive: true, v3FieldMat: false }, grounds: () => ["sky"], title: (g, p) => `the archive on a FLAT mat (control), ${p}` },
-  mat: { flags: { v3Archive: true, v3FieldMat: true }, grounds: () => ["sky"], title: (g, p) => `the LIVING MAT, ${p}` }
+  mat: { flags: { v3Archive: true, v3FieldMat: true, v3FieldRender: false }, grounds: () => ["sky"], title: (g, p) => `the LIVING MAT, ${p}` },
+  /* The render lift (v3FieldRender) redraws the field the words sit on: a
+     horizon, cloud decks, a rounder sun. Its light envelope was held to v2's
+     on purpose, and this is the variant that checks it — read against `mat`,
+     its twin, for the same reason `mat` is read against `archive`. */
+  render: { flags: { v3Archive: true, v3FieldMat: true, v3FieldRender: true }, grounds: () => ["sky"], title: (g, p) => `the LIFTED living mat, ${p}` }
 };
 
 async function bootV3(page, { ground, phase, variant = "off" }) {
@@ -502,7 +507,7 @@ async function bootV3(page, { ground, phase, variant = "off" }) {
      and report the living mat as covered — a gate green BECAUSE the thing it
      was added for is absent. Four independent facts, because any one of them
      alone has a way of being true while the mat is not live. */
-  if (variant === "mat") {
+  if (variant === "mat" || variant === "render") {
     const mat = await page.evaluate(() => {
       const a = document.querySelector(".archive");
       const p = document.querySelector(".photo");
@@ -515,9 +520,17 @@ async function bootV3(page, { ground, phase, variant = "off" }) {
         paused: s ? s.paused : null,
         animating: s ? s.animating : null,
         frames: s ? s.frames : null,
-        backend: s ? s.backend : null
+        backend: s ? s.backend : null,
+        lift: s ? s.lift : null,
+        store: s ? s.store : null
       };
     });
+    /* Both directions: `mat` must measure v2 and `render` the lift, or the two
+       twins silently measure the same field and every comparison is empty. */
+    const lifted = variant === "render";
+    expect(mat.backend, "the field is not on WebGL — a compile failure drops to 2D").toBe("webgl2");
+    expect(mat.lift, `v3FieldRender's pin did not take (${variant})`).toBe(lifted ? 1 : 0);
+    expect(mat.store).toEqual(lifted ? [1920, 1080] : [480, 270]);
     expect(mat.matAttr, "v3FieldMat's pin did not take").toBe("1");
     expect(mat.depth, "the mat only exists at depth 0").toBe("0");
     expect(mat.matColor, "the mat is still opaque — this would measure the old wall").toBe("rgba(0, 0, 0, 0)");

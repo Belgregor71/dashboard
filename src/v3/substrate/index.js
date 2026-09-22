@@ -13,7 +13,7 @@
    ?__boom= does.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { createGlSubstrate } from "./gl.js";
+import { createGlSubstrate, BASE_RES } from "./gl.js";
 import { createCanvasSubstrate } from "./canvas2d.js";
 
 /**
@@ -109,6 +109,11 @@ const INERT = {
  */
 function freshCanvas(old) {
   const next = old.cloneNode(false);
+  /* ⚠ AND PUT IT BACK TO THE BASE STORE. The render lift (v3FieldRender)
+     resizes the GL canvas to the full panel, and a shallow clone copies the
+     width/height attributes with it — so without this the fallback would be a
+     1920x1080 canvas 2D field: a CPU fill, on the night the GPU already failed. */
+  [next.width, next.height] = BASE_RES;
   old.replaceWith(next);
   return next;
 }
@@ -160,6 +165,9 @@ export function initSubstrate(canvas, { forceBackend = null } = {}) {
   if (impl.backend === "webgl2") surface.addEventListener("webglcontextlost", onLost);
 
   window.__substrate = () => ({ backend: impl.backend, renderer: impl.renderer, ...impl.stats() });
+  /* Pixels, not counters: [[fx, fy], ...] as fractions of the panel, y down.
+     null on a backend that cannot answer (canvas 2D reads its own context). */
+  window.__substrateSample = (points) => impl.sample?.(points) ?? null;
 
   return {
     update: (causes) => impl.update(causes),
