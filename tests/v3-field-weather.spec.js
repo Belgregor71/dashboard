@@ -175,9 +175,16 @@ test("rain follows the READING and the FLAG — streaks with both, none without 
 
 /* The lean. Two 1-px rows 24 px apart; along a streak, the lower row is the
    upper one SHIFTED by the lean. The best-matching shift says which way. */
-const UP = 0.38, DN = UP + 24 / 1080;
-const rowAt = (fy) => Array.from({ length: 360 }, (_, i) => [0.55 + i / 1920, fy]);
-function bestShift(a, b, span = 20) {
+const UP = 0.38, GAP = 24;
+/* ⚠ THE SPAN IS BELOW THE STREAK GRID'S COMMON PERIOD, AND THAT IS THE WHOLE
+   TEST. The sheets' columns repeat every 28.4 px (near), 15 px (mid) and
+   10.1 px (far) — and 1x, 2x and 3x of those all land at ~29-30 px. So ~29 px
+   from the true shift, all three sheets line up AGAIN: an aliased peak as
+   strong as the real one. At ±20 that alias (-11 + 29 = +18) was in range and
+   won on some random layouts — pre-push red 2026-09-22, "west" read +18 where
+   every clean run reads exactly -11. ±15 excludes it with margin; the aliases
+   left in range are single-sheet, so the three-sheet true peak outvotes them. */
+function bestShift(a, b, span = 15) {
   let best = 0, bestScore = -Infinity;
   for (let s = -span; s <= span; s++) {
     let score = 0;
@@ -191,21 +198,41 @@ async function leanUnder(page, bearing) {
   /* ⚠ Both rows in ONE draw. Two draws are tens of ms apart and the rain
      FALLS between them, so the lower row would be compared with streaks that
      have already moved on — the correlation would measure the fall, not the lean. */
-  const both = await page.evaluate((pts) => window.__substrateSample(pts), [...rowAt(UP), ...rowAt(DN)]);
-  const a = both.slice(0, both.length / 2), b = both.slice(both.length / 2);
+  /* ⚠ And ONE readPixels, not 720. Point sampling syncs the GPU per pixel,
+     and on a page raining at 30 fps in SwiftShader that ran past the 30 s
+     timeout under worker contention. One rect spanning both rows is one sync. */
+  const { w, lum: L } = await page.evaluate(([fy, h]) => window.__substrateSampleRect(0.55, fy, 360 / 1920, h), [UP, (GAP + 1) / 1080]);
+  const a = L.slice(0, w), b = L.slice(GAP * w, GAP * w + w);
   // Mean-removed, so the sky's gradient does not vote.
-  const norm = (px) => { const l = px.map(lum); const m = l.reduce((x, y) => x + y) / l.length; return l.map((v) => v - m); };
+  const norm = (l) => { const m = l.reduce((x, y) => x + y) / l.length; return l.map((v) => v - m); };
   return bestShift(norm(a), norm(b));
 }
 
 test("rain LEANS WITH THE WIND — the way the cloud drifts, both directions", async ({ browser }) => {
   /* East is on the LEFT of this wall (toCauses). A wind FROM the east (90)
      blows west, to the right: a drop's lower end is further right. From the
-     west (270), the mirror. Predicted shift at 45 kph: ~11 px over 24. */
-  const ctx = await browser.newContext();
+     west (270), the mirror. Predicted shift at 45 kph: ~11 px over 24.
+
+     ⚠ REDUCED MOTION, so the rain is PAINTED but not LOOPED. The lean is a
+     property of one frame; a page raining at 30 fps in SwiftShader queued the
+     read behind its own draws and timed out under worker contention. Reduced
+     motion is the designed "still field that still shows the weather" (gl.js),
+     so the read is of a real state, and asserted to be one — not assumed: this
+     repo has seen Playwright's reducedMotion do nothing. */
+  const ctx = await browser.newContext({ reducedMotion: "reduce" });
   const east = await leanUnder(await ctx.newPage(), 90);
   const west = await leanUnder(await ctx.newPage(), 270);
+  const still = await (async () => {
+    const p = await ctx.newPage();
+    await bootV3(p, ON, { weather: HEAVY });
+    const s = await p.evaluate(() => ({ ...window.__substrate(), rm: matchMedia("(prefers-reduced-motion: reduce)").matches }));
+    await p.close();
+    return s;
+  })();
   await ctx.close();
+  expect(still.rm, "reducedMotion never reached matchMedia — the loop is still running").toBe(true);
+  expect(still.animating, "reduced motion: rain must be painted, not looped").toBe(false);
+  expect(still.weather).toBe(1);
   expect(east, "wind from the east: rain should lean toward the west (right)").toBeGreaterThan(3);
   expect(west, "wind from the west: rain should lean toward the east (left)").toBeLessThan(-3);
 });
