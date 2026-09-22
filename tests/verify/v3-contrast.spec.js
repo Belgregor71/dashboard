@@ -1223,43 +1223,89 @@ const IDLE = () => {
   delete document.documentElement.dataset.fail;
 };
 
-/** Drive one surface, measure it, and put the glyphs back. */
+/* What is on the glass, as far as the three frames care: the depth, and every
+   word on the page. FORCE only recolours, so this is identical across `lit` and
+   `dark` unless the SCREEN changed between them. */
+const SCREEN = () => `${document.documentElement.dataset.depth}|${document.body.innerText}`;
+const DEPTH_NOW = () => document.documentElement.dataset.depth;
+
+/** Drive one surface, measure it, and put the glyphs back.
+
+   ⚠⚠ THE THREE FRAMES MUST BE ONE SCREEN, AND FOR MONTHS NOTHING CHECKED THAT.
+   MEASURE solves `lit`/`dark`/`bare` as the same pixels under three ink
+   colours. But the page is live: attention ticks every 30 s in REAL time
+   (core/attention.js TICK_MS; page.clock.setFixedTime freezes Date, not
+   timers) and depth recedes on its own hold timers — so a tick landing between
+   two screenshots swaps the whole screen out from under the sweep. Caught
+   2026-09-22 with the frames saved: `lit` was the depth-0 archive, `dark` was
+   a depth-2 spread ("Rain likely from about four", this file's own fixture).
+   The glyph's white-minus-black then read as an ~85% "overlay" and failed at
+   1.2-1.5:1, or the photo card read as the date's background (2.34:1) — on the
+   flat mat, the living mat and the lift alike, only under load, so it read as
+   a flake of whichever variant was new. It blocked two pushes.
+
+   The frames are now taken as a set and the set is refused unless the screen
+   held still across it; a moved screen is re-driven and re-taken. Not a retry
+   of a failed ASSERTION — a measurement whose precondition was false is not a
+   measurement, and nothing is judged until one is valid. Three moves in a row
+   fails loudly, because a surface that cannot hold still for three frames is
+   itself the finding. */
 async function sweepSurface(page, surface) {
-  await page.evaluate(IDLE);
-  await surface.drive(page);
-  await expect
-    .poll(() => page.locator(surface.requires).count(), { timeout: 10_000 })
-    .toBeGreaterThan(0);
+  const TRIES = 3;
+  for (let attempt = 1; ; attempt++) {
+    await page.evaluate(IDLE);
+    await surface.drive(page);
+    await expect
+      .poll(() => page.locator(surface.requires).count(), { timeout: 10_000 })
+      .toBeGreaterThan(0);
 
-  const items = await page.evaluate(COLLECT);
-  expect(items.length, `${surface.id}: nothing visible to measure`).toBeGreaterThan(0);
+    const items = await page.evaluate(COLLECT);
+    expect(items.length, `${surface.id}: nothing visible to measure`).toBeGreaterThan(0);
 
-  /* Three frames of one screen: glyphs white, glyphs black, glyphs gone. See
-     MEASURE — the pair solves whatever is painted over the text, and their
-     difference is a background-independent coverage mask. */
-  await page.evaluate(SHADOWLESS);
-  await page.evaluate(FORCE, "#fff");
-  const lit = await page.screenshot({ type: "png" });
-  await page.evaluate(FORCE, "#000");
-  const dark = await page.screenshot({ type: "png" });
+    /* Three frames of one screen: glyphs white, glyphs black, glyphs gone. See
+       MEASURE — the pair solves whatever is painted over the text, and their
+       difference is a background-independent coverage mask. */
+    const before = await page.evaluate(SCREEN);
+    await page.evaluate(SHADOWLESS);
+    await page.evaluate(FORCE, "#fff");
+    const lit = await page.screenshot({ type: "png" });
+    await page.evaluate(FORCE, "#000");
+    const dark = await page.screenshot({ type: "png" });
+    const between = await page.evaluate(SCREEN);
 
-  const stillPainted = await page.evaluate(STRIP);
-  expect(
-    stillPainted,
-    `${surface.id}: text strip failed on ${stillPainted.join(", ")} — measurements would be self-referential`
-  ).toHaveLength(0);
+    const stillPainted = await page.evaluate(STRIP);
+    expect(
+      stillPainted,
+      `${surface.id}: text strip failed on ${stillPainted.join(", ")} — measurements would be self-referential`
+    ).toHaveLength(0);
 
-  const bare = await page.screenshot({ type: "png" });
-  const b64 = (b) => `data:image/png;base64,${b.toString("base64")}`;
-  const measured = await page.evaluate(MEASURE, {
-    lit: b64(lit),
-    dark: b64(dark),
-    bare: b64(bare),
-    items
-  });
-  await page.evaluate(RESTORE);
+    const bare = await page.screenshot({ type: "png" });
+    const after = await page.evaluate(DEPTH_NOW);
 
-  return measured.map((m) => ({ ...m, surface: surface.id }));
+    // STRIP empties the words, so `bare` is checked on depth alone.
+    const held = before === between && before.split("|")[0] === after;
+    if (!held) {
+      console.log(`  RETAKE ${surface.id}: screen moved mid-capture (depth ${before.split("|")[0]} -> ${between.split("|")[0]} -> ${after}), attempt ${attempt}`);
+      await page.evaluate(RESTORE);
+      expect(
+        attempt,
+        `${surface.id}: the screen changed mid-capture ${TRIES} times running ` +
+        `(depth ${before.split("|")[0]} -> ${between.split("|")[0]} -> ${after}) — nothing measurable`
+      ).toBeLessThan(TRIES);
+      continue;
+    }
+
+    const b64 = (b) => `data:image/png;base64,${b.toString("base64")}`;
+    const measured = await page.evaluate(MEASURE, {
+      lit: b64(lit),
+      dark: b64(dark),
+      bare: b64(bare),
+      items
+    });
+    await page.evaluate(RESTORE);
+
+    return measured.map((m) => ({ ...m, surface: surface.id }));
+  }
 }
 
 const line = (m) =>
