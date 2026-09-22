@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -83,6 +84,47 @@ function flags() {
   }
   return out;
 }
+
+/**
+ * Run the gate against a THROWAWAY COPY of config.js, in a throwaway cwd.
+ *
+ * The script resolves `src/js/config.js` relative to its cwd, so a fixture dir
+ * holding one file is a whole alternate repo as far as it is concerned — which
+ * is the only way to test its behaviour on a config.js state the real tree must
+ * never be put into.
+ *
+ * ⚠ This is the ONE runner in this file that does not force --plan-only, so
+ * every caller owes a reason the write path is unreachable for its fixture —
+ * see each test. `mutate` must change something: a fixture whose regex silently
+ * missed is a test that proves nothing, which is the failure mode this whole
+ * file exists to avoid.
+ */
+function inFixture(mutate, args) {
+  const src = readFileSync(CONFIG, "utf8");
+  const config = mutate(src);
+  if (config === src) throw new Error("fixture mutation changed nothing — the test below would prove nothing");
+
+  const dir = mkdtempSync(join(tmpdir(), "flag-rev-"));
+  try {
+    mkdirSync(join(dir, "src", "js"), { recursive: true });
+    writeFileSync(join(dir, "src", "js", "config.js"), config);
+    try {
+      const stdout = execFileSync(process.execPath, [join(root, GATE), ...args], {
+        cwd: dir,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        timeout: 60_000
+      });
+      return { code: 0, out: stdout, config };
+    } catch (e) {
+      return { code: e.status ?? 1, out: `${e.stdout ?? ""}${e.stderr ?? ""}`, config };
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const MARKER = "TEMPORARILY FLIPPED";
 
 test.describe("flag reversibility gate — INERT-ON-V3 is refused", () => {
   test("config.js still offers both cases to test", () => {
@@ -174,5 +216,71 @@ test.describe("flag reversibility gate — INERT-ON-V3 is refused", () => {
     expect(r.out).toContain(`${marked.length} of these are ${MARK}`);
     expect(r.out).toContain("not a wall rollback proof");
     expect(r.out).toContain(marked[0].name);
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE GATE SPEC RUNS INSIDE THE THING IT TESTS.
+
+   A real `--flag X` run writes `false, // TEMPORARILY FLIPPED BY …` into
+   config.js and then runs `npm test` to prove the off state passes. That suite
+   contains THIS FILE, which spawns the gate again. So every assertion above is
+   made while config.js carries the outer run's own marker.
+
+   Between 7a181c6 and the fix below, the script's start-up self-heal check —
+   "config.js still holds a TEMPORARILY FLIPPED flag from an interrupted run" —
+   fired on that marker and exited 1 with that message instead of the refusal,
+   turning 4-5 tests above red for EVERY flag. `/flag-flip` step 4b could not
+   complete at all, and its failure read as "your flag is not reversible" when
+   nothing about the flag was involved.
+
+   The guard is now scoped to a run that will WRITE. These two tests hold that
+   scoping in both directions, because a guard deleted outright would pass the
+   first one alone — and the guard is what stops a resumed run restoring
+   config.js TO the wreckage it started on.
+   ═══════════════════════════════════════════════════════════════════════════ */
+test.describe("flag reversibility gate — it can run inside its own suite", () => {
+  test("a --plan-only run reads a marker-bearing config.js instead of aborting", () => {
+    /* Safe without the forced --plan-only of gate(): it is passed explicitly
+       here, and --plan-only exits before the first write. */
+    const on = flags().filter((f) => f.on && !f.inert);
+    expect(on.length, "need two ON unmarked flags to model an outer run").toBeGreaterThan(1);
+    const [outer, target] = on;
+
+    const r = inFixture(
+      (src) =>
+        src.replace(
+          new RegExp(`^(\\s{4}${outer.name}:\\s*)true,`, "m"),
+          `$1false, // ${MARKER} BY flag-reversibility.mjs`
+        ),
+      ["--flag", target.name, "--plan-only"]
+    );
+
+    expect(r.config, "the fixture never got a marker").toContain(MARKER);
+    expect(r.code, `plan-only aborted on an outer run's own marker:\n${r.out}`).toBe(0);
+    expect(r.out, "no plan was resolved").toContain(`1 target(s): ${target.name}`);
+    /* And it says so, rather than resolving a plan off a mutated config in
+       silence: the flipped flag reads as already-off to anyone reading this. */
+    expect(r.out, "the marker passed unmentioned").toContain(`${MARKER} marker`);
+  });
+
+  test("a run that WILL write still refuses a marker-bearing config.js", () => {
+    /* Safe without --plan-only ONLY because every flag in this fixture is off:
+       --all selects ON flags, so targets is empty and the flip loop, the build
+       and `npm test` are unreachable even with the guard deleted — the
+       regression shows up as "nothing to verify", not as a suite inside a
+       suite. Do not reuse this runner with a fixture that has an ON flag. */
+    const r = inFixture(
+      (src) =>
+        src
+          .replace(/^(\s{4}[a-zA-Z][a-zA-Z0-9]*:\s*)true,/gm, "$1false,")
+          .replace(/^(\s{4}[a-zA-Z][a-zA-Z0-9]*:\s*)false,/m, `$1false, // ${MARKER} BY flag-reversibility.mjs`),
+      ["--all"]
+    );
+
+    expect(r.config, "the fixture never got a marker").toContain(MARKER);
+    expect(r.code, "the write path no longer refuses a marker-bearing config.js").toBe(1);
+    expect(r.out).toContain(`still holds a ${MARKER} flag`);
+    expect(r.out, "it went on to resolve targets instead of stopping").not.toContain("nothing to verify");
   });
 });

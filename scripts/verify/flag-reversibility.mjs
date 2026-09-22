@@ -197,14 +197,38 @@ async function runSuite(label) {
 // Self-heal: nothing can restore config.js after a SIGKILL or a power cut, so
 // refuse to start on top of a previous run's wreckage. The marker comment makes
 // that state unambiguous rather than a mysterious flag sitting at false.
+//
+// ⚠⚠ SCOPED TO A RUN THAT WILL WRITE — do not widen it back to every run.
+// This guard protects the `original` snapshot below: starting on top of a
+// marker means restoring TO the wreckage. A --plan-only run takes no snapshot
+// and writes nothing, so it has nothing to protect, and aborting it here made
+// the tool UNABLE TO COMPLETE FOR ANY FLAG between 7a181c6 and this commit:
+// the real run writes the marker, then runs `npm test`, and the suite contains
+// tests/flag-reversibility-gate.spec.js, which re-invokes this script
+// (--plan-only, always) to prove the INERT-ON-V3 refusal. The inner run read
+// the OUTER run's own marker and exited with this message instead of the
+// refusal the gate asserts — 4-5 red in the gate spec, on every flag, and none
+// of them a reversibility failure of the flag being flipped. Regression cover:
+// "a --plan-only run reads a marker-bearing config.js instead of aborting" in
+// that same spec.
 const onDisk = readFileSync(CONFIG, "utf8");
 if (onDisk.includes("TEMPORARILY FLIPPED")) {
-  console.error(
-    "[reversibility] config.js still holds a TEMPORARILY FLIPPED flag from an\n" +
-      "  interrupted run. Restore it before continuing:\n\n" +
-      "    git checkout src/js/config.js && npm run build\n"
+  if (!PLAN_ONLY) {
+    console.error(
+      "[reversibility] config.js still holds a TEMPORARILY FLIPPED flag from an\n" +
+        "  interrupted run. Restore it before continuing:\n\n" +
+        "    git checkout src/js/config.js && npm run build\n"
+    );
+    process.exit(1);
+  }
+  // Say it out loud anyway: a plan resolved from a mutated config.js reads the
+  // flipped flag as already-off, and a human running --plan-only by hand should
+  // know the plan is not the one a clean tree would give.
+  console.log(
+    "[reversibility] note: config.js carries a TEMPORARILY FLIPPED marker — an outer\n" +
+      "  run is in flight (or was interrupted). --plan-only reads it as-is and writes\n" +
+      "  nothing; the flipped flag reads as already-off."
   );
-  process.exit(1);
 }
 
 const flags = readFlags();
