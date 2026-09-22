@@ -651,6 +651,12 @@ function boot() {
      appearances of a source before it moves at all, so nothing changes on the
      wall today; it drifts in over a week.
 
+     ⚠⚠ CORRECTED 2026-09-22: the second half was NOT true on V3. The weights
+     were computed here and never handed to the ranker — core/attention.js
+     called getSelection() without them. It is now behind its own flag,
+     `v3AttentionWeights` (docs/design/HOUSE-MIND.md, S0), because it changes
+     which candidate wins. Arming routines alone still tilts nothing.
+
      AFTER initMemoryRuntime and BEFORE initAttention, for the same reason the
      memory stage is: the engine reads the weights on its first tick, and armed
      late it would run that tick without them. */

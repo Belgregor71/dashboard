@@ -76,6 +76,7 @@ import { collectSources } from "../../js/services/candidateSources.js";
 import { initAttentionEngine, getSelection } from "../../js/services/attentionEngine.js";
 import { houseSnapshot } from "../../js/services/houseSnapshot.js";
 import { MODE } from "../../js/services/attentionRank.js";
+import { attentionWeights } from "../../js/core/routineRuntime.js";
 import { record } from "./feature-census.js";
 import { DEPTH, deepen, sustain, setDepth, getDepth, getReason, onDepth } from "./depth.js";
 import { initPresence, onPresence, isPresent, isDwelling } from "./presence.js";
@@ -278,7 +279,13 @@ export function tickAttention(now = new Date()) {
     ...announced
   ];
   const mode = modeForPresence();
-  const sel = getSelection({ sources, now, mode });
+  /* The learned per-source nudge (routineRuntime, clamped −15…+10, ORDER only —
+     never the displayed score). The incumbent's focusHero has always passed it;
+     this tick never did, so the "routines tilt ranking" main.js promised was
+     false on V3 (docs/design/HOUSE-MIND.md, S0). Flag-gated because it changes
+     which candidate wins: off → null, exactly the call as it shipped. */
+  const weights = flag("v3AttentionWeights") ? attentionWeights() : null;
+  const sel = getSelection({ sources, now, mode, weights });
 
   const hero = sel.hero;
   const earned = earnsGlance(hero);

@@ -2161,6 +2161,25 @@ window.CONFIG = {
     // the panel dark — the on-glass look was not yet seen live.
     v3FieldCauses: true,
 
+    // ── HOUSE-MIND S0 (docs/design/HOUSE-MIND.md §5): two levers that were
+    // wired on the incumbent and dead on V3.
+    //
+    // V3's arrival (src/v3/core/arrival.js) emits `arrival:home`, so the
+    // personality runtime's home-after-away delight (a >=2-day absence,
+    // budgeted once per return) can fire. The incumbent's arrivalGreeting was
+    // the only emitter, so the moment has been impossible on the wall since the
+    // cutover. A celebration scores 47 (Low band): it surfaces in the dwell
+    // spread, never the glance. Rollback: -> false (read per arrival).
+    v3ArrivalDelight: false,
+
+    // V3's attention tick passes routineRuntime.attentionWeights() to the
+    // ranker, as the incumbent's focusHero always did. A per-source nudge,
+    // clamped -15..+10, from the dwell/shown ratio after 4+ appearances: it
+    // tilts sort ORDER, never the displayed score, so it changes WHICH line
+    // wins the glance. Needs routineLearning. Rollback: -> false (read every
+    // tick).
+    v3AttentionWeights: false,
+
     // ── The Living Window on V3 (src/v3/core/atmosphere-fx.js,
     // css/atmosphere.css): a thin weather layer at z4 — above the archive card
     // and its mat, BELOW every word — carrying rain, the sky's warmth and a

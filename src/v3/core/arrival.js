@@ -31,7 +31,7 @@
    it happened.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { on } from "../../js/core/eventBus.js";
+import { on, emit } from "../../js/core/eventBus.js";
 import { getAllEntities } from "../../js/services/homeAssistant/state.js";
 import { speak } from "../../js/core/tts.js";
 import { setPhase, trackSpeech } from "./presence-light.js";
@@ -121,6 +121,17 @@ function onStateUpdated(entity) {
 
   const name = firstName(entity);
   const text = greeting(name, othersHome(entityId));
+
+  /* Tell the personality runtime how long they were out, so a ≥2-day absence can
+     fire the budgeted home-after-away delight. Only the incumbent's
+     arrivalGreeting ever emitted this, so since the cutover the moment could not
+     happen on the wall (docs/design/HOUSE-MIND.md, S0). After the too-brief
+     guard, so a flapping phone never reaches it; an unknown absence is 0, which
+     the runtime ignores — a delight about being away needs a measured away.
+     Read per arrival: flipping the flag needs no reload. */
+  if (globalThis.window?.CONFIG?.features?.v3ArrivalDelight) {
+    emit("arrival:home", { name, awayMs: awayAt != null ? Date.now() - awayAt : 0 });
+  }
 
   announce({
     // Keyed on the person, not the moment: a second arrival for the same person

@@ -6,7 +6,7 @@
    ════════════════════════════════════════════════════════════════════════ */
 
 import { get as getContext, set as setContext } from "./contextStore.js";
-import { on, emit } from "./eventBus.js";
+import { on } from "./eventBus.js";
 import { getAllEntities } from "../services/homeAssistant/state.js";
 import { deriveIntent, settleCategory, NEUTRAL_INTENT } from "../services/houseModel.js";
 import { learnedDeparture } from "./routineRuntime.js";
@@ -75,7 +75,9 @@ function apply(next, reason) {
   setContext({ intent: next });
   document.body.dataset.intent = next.activity;
   document.body.dataset.tempo = next.tempo;
-  if (catChanged) emit("intent:changed", { intent: next, prev, reason });
+  /* `intent:changed` used to be emitted here and had no subscriber on either
+     surface; removed 2026-09-22 (docs/design/HOUSE-MIND.md, S0). The posture's
+     channel is contextStore — every reader already takes it from there. */
 }
 
 function recompute() {
