@@ -2208,7 +2208,10 @@ window.CONFIG = {
     v3HouseStoreGlance: true,
     // voiceSnapshot, the fast lane and the house voice's digest (weather,
     // forecast, nowcast, calendar, bins, commute). Fuel and chores stay fetched.
-    v3HouseStoreVoice: false,
+    // FLIPPED ON 2026-09-23 by the owner, third of the three (after Field
+    // 80761a9 and Glance 77b5c2f). Inert on the incumbent, which never opens
+    // the stream. Rollback: v3HouseStoreVoice: false (+ hard reload).
+    v3HouseStoreVoice: true,
     // V3's field weather (src/v3/main.js loadWeather): the substrate's causes,
     // the Living Window's slice and the archive's sky line.
     // FLIPPED ON 2026-09-23 by the owner, first of the three. Deployed off first
