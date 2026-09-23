@@ -127,6 +127,7 @@ const SHARED_BOTH = [
   "js/services/homeAssistant/state.js",
   "js/services/homeAssistant/todoEntities.js",
   "js/services/houseModel.js",
+  "js/services/houseStream.js",
   "js/services/insightRules.js",
   "js/services/localAnswers.js",
   "js/services/localIntents.js",

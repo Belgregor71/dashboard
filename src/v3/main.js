@@ -36,8 +36,9 @@ import { voiceSnapshot, refreshVoiceCache } from "../js/services/voiceSnapshot.j
 import { connectHA, isHAConnected } from "../js/services/homeAssistant/client.js";
 import { registerEntityFeed } from "../js/services/homeAssistant/entityFeed.js";
 import { getAllEntities, updateEntity } from "../js/services/homeAssistant/state.js";
-import { emit as emitBus } from "../js/core/eventBus.js";
-import { refreshHouseCache, houseCacheAge } from "../js/services/houseSnapshot.js";
+import { emit as emitBus, on as onBus } from "../js/core/eventBus.js";
+import { refreshHouseCache, houseCacheAge, houseSnapshot } from "../js/services/houseSnapshot.js";
+import { connectHouseStream, storeFresh, houseStreamState } from "../js/services/houseStream.js";
 import { initAttention, lastSelection, tickAttention, announcements } from "./core/attention.js";
 import { initAlerts, lastAlert } from "./core/alerts.js";
 import { initArrival, lastArrival } from "./core/arrival.js";
@@ -306,11 +307,35 @@ function pushCauses() {
   causes: flag("v3FieldCauses") ? 1 : 0 });
 }
 
+/* HOUSE-MIND S2 (features.v3HouseStoreField): the field reads its weather from
+   the observation store, so the sky and the glance's weather line are the SAME
+   reading rather than two fetches minutes apart. The poll below skips its fetch
+   while the store is fresh and resumes on its own when it is not
+   (services/houseStream.js). Flag off: never attached, the poll always fetches. */
+function onFieldObservation({ key, value } = {}) {
+  if (key !== "weather" || !value || !flag("v3HouseStoreField")) return;
+  applyWeather(value);
+}
+
 async function loadWeather() {
+  const viaStore = flag("v3HouseStoreField");
+  if (viaStore && storeFresh("weather")) return;
   try {
     const res = await fetch("/api/weather/now");
     if (!res.ok) return;
-    weather = await res.json();
+    const reading = await res.json();
+    // The store delivered while this was in flight: its reading stands.
+    if (viaStore && storeFresh("weather")) return;
+    applyWeather(reading);
+  } catch {
+    // Upstreams are allowed to be down. The substrate keeps its last causes;
+    // an atmosphere that freezes is far better than one that lies.
+  }
+}
+
+function applyWeather(reading) {
+  try {
+    weather = reading;
     pushCauses();
     /* The code, not the icon — see feedWeatherCode. The substrate above wants
        the server's finer category; contextStore wants the collapsed one, and
@@ -322,8 +347,8 @@ async function loadWeather() {
        would stay blank until the ten-minute poll came round. */
     archiveSky(weather);
   } catch {
-    // Upstreams are allowed to be down. The substrate keeps its last causes;
-    // an atmosphere that freezes is far better than one that lies.
+    // Same swallow the fetch path always had around these three: a painter
+    // that throws must not take the reading's other consumers down with it.
   }
 }
 
@@ -543,7 +568,10 @@ function boot() {
      personalityRuntime's dry-streak takes its first reading a second or two
      into boot, and a null condition reads there as "it did not rain today" —
      which is a wrong day in a counter that only moves once per day. */
-  stage("weather", () => loadWeather());
+  stage("weather", () => {
+    if (flag("v3HouseStoreField")) onBus("house:observation", onFieldObservation);
+    loadWeather();
+  });
 
   /* ── contextStore gets a writer at last ───────────────────────────────────
      See core/context-feed.js. Before every runtime below, because the store is
@@ -894,6 +922,17 @@ function boot() {
     setInterval(guard("rail", () => { railTick += 1; paintRail(); }), 90_000);
   });
 
+  /* HOUSE-MIND S2: the observation store's stream. AFTER every consumer has
+     attached (the weather, ha-feed and rail stages above), so the held
+     snapshot it opens with lands on listeners that exist. Opened only when a
+     consumer is flagged on: all three off is no stream and no server polling,
+     the build that shipped before S2. Init-once; see services/houseStream.js. */
+  stage("house-stream", () => {
+    if (flag("v3HouseStoreGlance") || flag("v3HouseStoreVoice") || flag("v3HouseStoreField")) {
+      connectHouseStream();
+    }
+  });
+
   // Last, and outside everything that could have failed: whatever else did or
   // did not come up, the field is the floor and the wall shows it.
   stage("field", () => setDepth(DEPTH.FIELD, "boot"));
@@ -936,6 +975,9 @@ function registerHandles() {
       entities: Object.keys(getAllEntities()).length,
       houseCacheAgeMs: houseCacheAge()
     },
+    // HOUSE-MIND S2: is the observation store feeding this page, and when did
+    // each key last arrive. `started: false` is every store flag off.
+    houseStream: houseStreamState(),
     // The shared store and the posture derived from it, in the same read as the
     // selection they shaped. Kept together on purpose: "why did the wall stay
     // quiet?" is a question about all three at one instant, and three separate
@@ -1026,6 +1068,15 @@ function registerHandles() {
     await Promise.all([refreshVoiceCache(), refreshHouseCache()]);
     return { houseCacheAgeMs: houseCacheAge() };
   };
+
+  /* HOUSE-MIND S2: what each of the store's three consumers is holding for the
+     weather, read at the consumer and not at the wire — a push that arrived and
+     was never applied must read as the old value here. Read-only. */
+  window.__v3HouseReadings = () => ({
+    glance: houseSnapshot().weatherCondition,
+    voice: voiceSnapshot({ lat: CITY.lat, lon: CITY.lon }).weather?.now?.condition?.label ?? null,
+    field: weather?.now?.condition?.label ?? null
+  });
 
   /* Mount any subject directly, optionally against an INJECTED snapshot.
 

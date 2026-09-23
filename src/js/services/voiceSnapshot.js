@@ -30,6 +30,8 @@ import { getTodoEntityIds, openTodoSummaries, getShoppingEntityId } from "./home
 import { menuFrom } from "./mealEvent.js";
 import { isTvAudio } from "./mediaSource.js";
 import { getTimes } from "../vendor/suncalc.js";
+import { on } from "../core/eventBus.js";
+import { storeFresh } from "./houseStream.js";
 
 /* Refreshed on a timer; never fetched at answer time. */
 const cache = {
@@ -84,26 +86,64 @@ function flag(name) {
  * `/api/fuel` has held a 2-hour cache since it was written.
  */
 export async function refreshVoiceCache() {
+  const viaStore = flag(VOICE_FLAG);
+  // Attached before the first await, so no push can arrive unheard.
+  if (viaStore && !storeAttached) {
+    storeAttached = true;
+    on("house:observation", onObservation);
+  }
+  // Skipped while fresh, dropped if the store delivered mid-flight — the same
+  // rule as houseSnapshot's, for the same reason.
+  const read = async (key, url) => {
+    if (viaStore && storeFresh(key)) return null;
+    const value = await getJson(url);
+    return viaStore && storeFresh(key) ? null : value;
+  };
   const [weather, forecast, nowcast, calendar, bins, commute, fuel, chores] = await Promise.all([
-    getJson("/api/weather/now"),
-    getJson("/api/weather/forecast"),
-    getJson("/api/weather/nowcast"),
-    getJson("/api/calendar/all"),
-    getJson("/api/bins"),
-    getJson("/api/commute/all"),
+    read("weather", "/api/weather/now"),
+    read("forecast", "/api/weather/forecast"),
+    read("nowcast", "/api/weather/nowcast"),
+    read("calendar", "/api/calendar/all"),
+    read("bins", "/api/bins"),
+    read("commute", "/api/commute/all"),
     getJson("/api/fuel"),
     // Flag-off is NO FETCH, not a discarded one — the off state has to be the
     // network behaviour the lane had before the roster existed.
     flag("choreRoster") ? getJson("/api/chores") : Promise.resolve(null)
   ]);
-  if (weather) cache.weather = weather;
-  if (forecast) cache.forecast = forecast;
-  if (nowcast) cache.nowcast = nowcast.nowcast ?? null;
-  if (calendar) cache.calendar = Array.isArray(calendar) ? calendar : calendar.events ?? [];
-  if (bins) cache.bins = bins;
-  if (commute) cache.commute = commute;
+  applyVoice("weather", weather);
+  applyVoice("forecast", forecast);
+  applyVoice("nowcast", nowcast);
+  applyVoice("calendar", calendar);
+  applyVoice("bins", bins);
+  applyVoice("commute", commute);
   if (fuel) cache.fuel = fuel;
   if (chores) cache.chores = chores;
+  cache.fetchedAt = Date.now();
+}
+
+/* ── HOUSE-MIND S2: the observation store (features.v3HouseStoreVoice) ───────
+   Same contract as houseSnapshot's: pushes land here as they arrive, a refresh
+   skips a key the store delivered recently, and a stale or absent stream falls
+   back to this module's own fetch (services/houseStream.js). Fuel and chores
+   are not in the store and are always fetched here.
+   ⚠ Shared with the incumbent, which never connects the stream: nothing is
+   ever fresh there, so its fetches are exactly what they were. */
+const VOICE_FLAG = "v3HouseStoreVoice";
+const VOICE_KEYS = ["weather", "forecast", "nowcast", "calendar", "bins", "commute"];
+let storeAttached = false;
+
+/* One writer per key for both paths; only a good value overwrites. */
+function applyVoice(key, value) {
+  if (!value) return;
+  if (key === "nowcast") cache.nowcast = value.nowcast ?? null;
+  else if (key === "calendar") cache.calendar = Array.isArray(value) ? value : value.events ?? [];
+  else cache[key] = value;
+}
+
+function onObservation({ key, value } = {}) {
+  if (!flag(VOICE_FLAG) || !VOICE_KEYS.includes(key)) return;
+  applyVoice(key, value);
   cache.fetchedAt = Date.now();
 }
 

@@ -21,6 +21,7 @@ import { createHaRouter } from "./server/ha/haRoutes.js";
 import haSnapshotRoutes from "./server/routes/haSnapshot.js";
 import systemRoutes from "./server/routes/system.js";
 import houseRoutes from "./server/routes/house.js";
+import houseStreamRoutes from "./server/routes/houseStream.js";
 import weatherRoutes from "./server/routes/weather.js";
 import calendarRoutes from "./server/routes/calendar.js";
 import commuteRoutes from "./server/routes/commute.js";
@@ -130,6 +131,9 @@ app.use(systemRoutes);
 // Unconditional: the house observes its own devices whether or not the
 // knowledge base is on, and an empty list reads exactly as it does today.
 app.use(houseRoutes);
+// HOUSE-MIND S2: the observation store. Inert until a page subscribes, and
+// only a flagged consumer does (services/houseStore.js).
+app.use(houseStreamRoutes);
 app.use(weatherRoutes);
 app.use(calendarRoutes);
 app.use(commuteRoutes);

@@ -2186,6 +2186,30 @@ window.CONFIG = {
     // the machine's own data/routines/aggregates.json (untracked).
     v3AttentionWeights: true,
 
+    // ── HOUSE-MIND S2 (docs/design/HOUSE-MIND.md §5): the observation store.
+    // The server reads weather, forecast, nowcast, calendar, commute, bins and
+    // Plex ONCE per 5 min (server/services/houseStore.js) and pushes each good
+    // read over /api/house/stream; the page re-publishes it as
+    // `house:observation` (src/js/services/houseStream.js). One flag PER
+    // CONSUMER, so they move over one at a time. With a consumer's flag on it
+    // takes the pushes and skips its own fetch of a key while the store is
+    // fresh (11 min); stale or absent, it fetches for itself as before. The
+    // stream opens (and the server polls) only when at least one is on.
+    // Rollback for each: -> false + hard reload (read per refresh and per push).
+    // ⚠ At flip time: a spec that stubs /api/weather/now etc. with page.route
+    // cannot stub the SERVER's loopback read, so the stream would overwrite
+    // its fixture with the test server's live answer. Stub /api/house/stream too.
+    //
+    // houseSnapshot, the attention engine's HTTP half (weather, calendar,
+    // commute, Plex).
+    v3HouseStoreGlance: false,
+    // voiceSnapshot, the fast lane and the house voice's digest (weather,
+    // forecast, nowcast, calendar, bins, commute). Fuel and chores stay fetched.
+    v3HouseStoreVoice: false,
+    // V3's field weather (src/v3/main.js loadWeather): the substrate's causes,
+    // the Living Window's slice and the archive's sky line.
+    v3HouseStoreField: false,
+
     // ── The Living Window on V3 (src/v3/core/atmosphere-fx.js,
     // css/atmosphere.css): a thin weather layer at z4 — above the archive card
     // and its mat, BELOW every word — carrying rain, the sky's warmth and a

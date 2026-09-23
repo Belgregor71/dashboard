@@ -49,6 +49,8 @@ import { isTvAudio } from "./mediaSource.js";
 import { getBomWarnings } from "./weather/bom.js";
 import { robotAttentionFrom, cameraSnapshotUrl } from "./candidateSources.js";
 import { CONFIG } from "../core/config.js";
+import { on } from "../core/eventBus.js";
+import { storeFresh } from "./houseStream.js";
 
 /* Read per-call off `window.CONFIG`, never off the imported `CONFIG` and never
    at module load. Two separate traps, both already paid for in this repo:
@@ -104,8 +106,7 @@ async function getJson(url) {
    rendered as "Unavailable" — display copy has no business becoming a scored
    candidate's text — so the surviving leg stays NAMED instead of silently
    becoming "the" commute. */
-async function fetchCommute() {
-  const data = await getJson("/api/commute/all");
+function commuteFrom(data) {
   const legs = Array.isArray(data?.legs) ? data.legs : [];
   const parts = legs
     .filter((leg) => typeof leg?.seconds === "number")
@@ -113,26 +114,68 @@ async function fetchCommute() {
   return parts.length ? parts.join(" · ") : null;
 }
 
+/* ── HOUSE-MIND S2: the observation store (features.v3HouseStoreGlance) ──────
+   With the flag on, the store's pushes land in this cache as they arrive, and
+   a refresh skips any key the store delivered recently (services/houseStream.js
+   has the fallback rule). The parse per key is the SAME code the fetch path
+   runs, because the store relays the same route's bytes. Flag off: the listener
+   is never attached and every key is fetched, as before. */
+const GLANCE_FLAG = "v3HouseStoreGlance";
+const STORE_KEYS = ["weather", "calendar", "commute", "plex"];
+let storeAttached = false;
+
+/* One writer per key, shared by both paths, so "only overwrite on success" is
+   one rule and not two. A momentary upstream failure leaves the last known good
+   value standing rather than blanking the queue. Same reason the substrate
+   keeps its last causes — a stale reading beats a lie. */
+function applyHouse(key, value, at) {
+  if (!value) return;
+  if (key === "weather") cache.weather = value;
+  else if (key === "calendar") cache.calendar = Array.isArray(value) ? value : value.events ?? [];
+  else if (key === "commute") {
+    const text = commuteFrom(value);
+    if (text) cache.commute = text;
+  } else if (key === "plex") {
+    cache.plex = Array.isArray(value.sessions) ? value.sessions : null;
+    cache.plexAt = at;
+  }
+}
+
+function onObservation({ key, value, at } = {}) {
+  if (!flag(GLANCE_FLAG) || !STORE_KEYS.includes(key)) return;
+  applyHouse(key, value, at);
+  cache.fetchedAt = Date.now();
+}
+
 /** Refresh the HTTP-backed half. Call on an init-once interval. */
 export async function refreshHouseCache() {
+  const viaStore = flag(GLANCE_FLAG);
+  // Attached before the first await, so no push can arrive unheard.
+  if (viaStore && !storeAttached) {
+    storeAttached = true;
+    on("house:observation", onObservation);
+  }
+  /* Skipped while the store is fresh, and DROPPED if the store delivered while
+     this fetch was in flight: a boot fetch resolving after the stream's first
+     snapshot must not overwrite the one reading everybody else now holds. */
+  const read = async (key, url) => {
+    if (viaStore && storeFresh(key)) return null;
+    const value = await getJson(url);
+    return viaStore && storeFresh(key) ? null : value;
+  };
   const [weather, calendar, commute, plex] = await Promise.all([
-    getJson("/api/weather/now"),
-    getJson("/api/calendar/all"),
-    fetchCommute(),
-    getJson("/api/plex/sessions")
+    read("weather", "/api/weather/now"),
+    read("calendar", "/api/calendar/all"),
+    read("commute", "/api/commute/all"),
+    read("plex", "/api/plex/sessions")
   ]);
 
-  // Only overwrite on success: a momentary upstream failure should leave the
-  // last known good value standing rather than blanking the queue. Same reason
-  // the substrate keeps its last causes — a stale reading beats a lie.
-  if (weather) cache.weather = weather;
-  if (calendar) cache.calendar = Array.isArray(calendar) ? calendar : calendar.events ?? [];
-  if (commute) cache.commute = commute;
-  if (plex) {
-    cache.plex = Array.isArray(plex.sessions) ? plex.sessions : null;
-    cache.plexAt = Date.now();
-  }
-  cache.fetchedAt = Date.now();
+  const at = Date.now();
+  applyHouse("weather", weather, at);
+  applyHouse("calendar", calendar, at);
+  applyHouse("commute", commute, at);
+  applyHouse("plex", plex, at);
+  cache.fetchedAt = at;
 }
 
 /* ── Weather ───────────────────────────────────────────────────────────────

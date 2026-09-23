@@ -149,6 +149,16 @@ export const EVENTS = {
     publishers: ["src/js/services/homeAssistant/client.js"],
     consumers: ["src/js/services/homeAssistant/entityFeed.js"]
   },
+  /* HOUSE-MIND S2: the observation store's reads, relayed from
+     /api/house/stream. Each consumer is behind its own v3HouseStore* flag. */
+  "house:observation": {
+    publishers: ["src/js/services/houseStream.js"],
+    consumers: [
+      "src/js/services/houseSnapshot.js",
+      "src/js/services/voiceSnapshot.js",
+      "src/v3/main.js"
+    ]
+  },
   "presence:changed": {
     publishers: ["src/js/core/presence.js", "src/v3/core/presence.js"],
     consumers: [
