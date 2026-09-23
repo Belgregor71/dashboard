@@ -106,6 +106,49 @@ test.describe("the store — read once, lazily, last good value wins", () => {
   });
 });
 
+/* The route's close handler, against a PRIVATE app. The suite's test server is
+   shared with every V3 page in other specs, so a subscriber count read there
+   can never isolate one connection. Here the worker's own store instance has no
+   other subscriber, so "back to zero" means THIS socket was released — the leak
+   that would otherwise grow by one per kiosk reconnect for weeks. */
+test.describe("the route — a closed stream releases its subscriber", () => {
+  test("open two, close both: the store is back to no subscribers and no polling", async () => {
+    const http = await import("node:http");
+    const express = (await import("express")).default;
+    const router = (await import("../server/routes/houseStream.js")).default;
+    const store = await import("../server/services/houseStore.js");
+    const savedPort = process.env.PORT;
+    process.env.PORT = "1"; // reads fail fast; this test is about sockets, not data
+    const app = express();
+    app.use(router);
+    const server = await new Promise((resolve) => {
+      const s = app.listen(0, "127.0.0.1", () => resolve(s));
+    });
+    const open = () => new Promise((resolve, reject) => {
+      const req = http.get(`http://127.0.0.1:${server.address().port}/api/house/stream`, (res) => {
+        res.once("data", () => resolve(req)); // the snapshot frame: subscribed
+      });
+      req.on("error", (err) => { if (err.code !== "ECONNRESET") reject(err); });
+    });
+    try {
+      expect(store.storeStatus().subscribers).toBe(0);
+      const a = await open();
+      const b = await open();
+      expect(store.storeStatus()).toMatchObject({ subscribers: 2, polling: true });
+      a.destroy();
+      await expect.poll(() => store.storeStatus().subscribers).toBe(1);
+      expect(store.storeStatus().polling).toBe(true);
+      b.destroy();
+      await expect.poll(() => store.storeStatus()).toMatchObject({ subscribers: 0, polling: false });
+    } finally {
+      if (savedPort === undefined) delete process.env.PORT;
+      else process.env.PORT = savedPort;
+      server.closeAllConnections?.();
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+});
+
 test.describe("contract — /api/house/store and /api/house/stream", () => {
   test("store status: the seven sources, no values", async ({ request }) => {
     const res = await request.get("/api/house/store");
@@ -123,43 +166,60 @@ test.describe("contract — /api/house/store and /api/house/stream", () => {
     }
   });
 
-  test("stream: held snapshot first, then a relayed read equal to the route's own answer", async ({ request }) => {
+  /* ⚠ THE STORE IS PROCESS-WIDE, and the suite shares one test server. Once any
+     v3HouseStore* flag is default-on, V3 pages in other specs subscribe to it,
+     so this test can meet a WARM store: `bins` already held and fresh, sent in
+     the opening snapshot, with no new read due for five minutes. Measured at the
+     v3HouseStoreField flip (2026-09-23): the first version waited for a
+     `house_obs` only and timed out holding a snapshot that already had the
+     answer. So the relayed value is accepted from WHICHEVER frame carries it,
+     and nothing here asserts a global subscriber count — "last one out stops
+     polling" is proven against a private fixture server in the store test. */
+  test("stream: held snapshot first, and the relayed value equals the route's own answer", async ({ request }) => {
     // Raw node http: an SSE response never ends, so the request fixture would
     // time out awaiting its body. /api/bins answers 200 on any machine
     // (`configured:false` when unset), so it is the relay's positive control.
     const http = await import("node:http");
     let contentType = null;
-    const received = await new Promise((resolve, reject) => {
+    const frames = [];
+    const binsFrom = (frame) =>
+      frame.event === "house_snapshot" ? frame.data?.bins
+        : frame.event === "house_obs" && frame.data?.key === "bins" ? { value: frame.data.value, at: frame.data.at }
+          : undefined;
+    const timedOut = await new Promise((resolve, reject) => {
       let buf = "";
       const req = http.get(`${TEST_ORIGIN}/api/house/stream`, (res) => {
         contentType = res.headers["content-type"];
         res.setEncoding("utf8");
         res.on("data", (chunk) => {
           buf += chunk;
-          if (/event: house_obs\ndata: \{"key":"bins"/.test(buf)) {
+          let cut;
+          while ((cut = buf.indexOf("\n\n")) !== -1) {
+            const block = buf.slice(0, cut);
+            buf = buf.slice(cut + 2);
+            const event = /^event: (.+)$/m.exec(block)?.[1];
+            const data = /^data: (.+)$/m.exec(block)?.[1];
+            if (event && data) frames.push({ event, data: JSON.parse(data) });
+          }
+          if (frames.some(binsFrom)) {
             req.destroy();
-            resolve(buf);
+            resolve(false);
           }
         });
       });
       req.on("error", (err) => { if (err.code !== "ECONNRESET") reject(err); });
-      setTimeout(() => { req.destroy(); resolve(`TIMEOUT\n${buf}`); }, 20_000);
+      setTimeout(() => { req.destroy(); resolve(true); }, 20_000);
     });
 
     expect(contentType).toContain("text/event-stream");
-    expect(received.startsWith("TIMEOUT"), received.slice(0, 400)).toBe(false);
-    // The held state comes first, before any delta.
-    expect(received.indexOf("event: house_snapshot")).toBe(0);
+    expect(timedOut, JSON.stringify(frames).slice(0, 400)).toBe(false);
+    // The held state comes first, before any delta — warm store or cold.
+    expect(frames[0]?.event).toBe("house_snapshot");
 
-    const line = received.split("\n").find((l) => l.startsWith('data: {"key":"bins"'));
-    const obs = JSON.parse(line.slice("data: ".length));
-    expect(Number.isFinite(obs.at)).toBe(true);
+    const bins = frames.map(binsFrom).find(Boolean);
+    expect(Number.isFinite(bins.at)).toBe(true);
     const direct = await (await request.get("/api/bins")).json();
-    expect(obs.value).toEqual(direct);
-
-    // The subscriber is released on close: nobody listening, nothing polled.
-    await expect.poll(async () => (await (await request.get("/api/house/store")).json()), { timeout: 5_000 })
-      .toMatchObject({ subscribers: 0, polling: false });
+    expect(bins.value).toEqual(direct);
   });
 });
 

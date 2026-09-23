@@ -2208,7 +2208,10 @@ window.CONFIG = {
     v3HouseStoreVoice: false,
     // V3's field weather (src/v3/main.js loadWeather): the substrate's causes,
     // the Living Window's slice and the archive's sky line.
-    v3HouseStoreField: false,
+    // FLIPPED ON 2026-09-23 by the owner, first of the three. Deployed off first
+    // (2323d71: store inert live, 4 /api/weather/now per page load at baseline).
+    // Rollback: v3HouseStoreField: false (+ hard reload).
+    v3HouseStoreField: true,
 
     // ── The Living Window on V3 (src/v3/core/atmosphere-fx.js,
     // css/atmosphere.css): a thin weather layer at z4 — above the archive card
