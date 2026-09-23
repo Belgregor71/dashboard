@@ -280,6 +280,24 @@ Each slice ships on its own, default-off, with its own rollback.
   the SERVER's loopback read. `bootV3` specs are safe, because the stream gets a 503 and
   the consumers fall back to their fixtures. A spec that serves the real stream would see
   the test server's answer.
+- ⛔ **Loopback is load-bearing, not only convenient.** The health watchdog marks the
+  weather (45 minutes) and calendar (2 hours) feeds healthy **only when their routes are
+  hit** (`src/v3/core/health.js:11-18`). The store reads through those routes, so the
+  watchdog stays fed even with every consumer moved over. If the store is ever changed to
+  call the route internals, it starves the watchdog into a false alarm.
+- **`v3HouseStoreField` flipped ON 2026-09-23 (`80761a9`).**
+  - The rollback was proven at boot on the wall: `config.js` was served with the flag false
+    through CDP Fetch interception. The stream never started and the store dropped to 0
+    subscribers with polling stopped.
+  - Counted over 11 live minutes with CDP `Network.requestWillBeSent`: the field's
+    10-minute poll made no request. `/api/weather/now` fell from 6 to 5 per 10 minutes.
+  - The same count found **three V3 fetchers the first map missed**. They are the next
+    consumers for this slice:
+    - `briefingData.js`, which is in V3's closure: weather now, forecast, calendar and
+      bins, every 10 minutes.
+    - the calendar polls in `intentEngine.js:44` and `personalityRuntime.js:136`.
+  - ⚠ An open EventSource never gets a resource-timing entry. Prove the stream with
+    `houseStream.started`/`readyState`, never with a resource count.
 - **Open for the live proof:**
   - `/api/house/store` should show one read per source per 5 minutes.
   - The kiosk's resource timing should show `/api/weather/now` and `/api/calendar/all`
