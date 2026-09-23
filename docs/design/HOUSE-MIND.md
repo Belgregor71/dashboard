@@ -197,11 +197,40 @@ Each slice ships on its own, default-off, with its own rollback.
 | Slice | What | Flag / rollback | It worked when | Retires |
 |---|---|---|---|---|
 | **S0 — dead wiring** | Emit `arrival:home` from `v3/core/arrival.js`. Pass `weights: attentionWeights()` at `attention.js:281`. Delete `intent:changed` or give it a consumer. | The weights change **alters ranking**, so it gets its own flag and `/flag-flip`. The arrival emit goes behind a flag. | `window.__routines().weights` is non-empty **and** the ranked order tilts on the wall. A home-after-away delight fires after a real return. | 3 dead events. The false comment at `main.js:647` |
-| **S1 — event registry** | One declared table: every event, its publisher and its V3 consumers. A spec goes red on orphans, derived like `flag-surface.spec.js`. | None; it is test-only. | Inject an orphan event and the spec goes red. Remove it and the spec is green. | Silent dead events as a class |
+| **S1 — event registry** ✅ built 2026-09-23 | One declared table: every event, its publisher and its V3 consumers. A spec goes red on orphans, derived like `flag-surface.spec.js`. | None; it is test-only. | Inject an orphan event and the spec goes red. Remove it and the spec is green. | Silent dead events as a class |
 | **S2 — observation store** | Server keeps a sticky last value per source (weather, calendar, commute, bins, media) and pushes it over one SSE, `/api/house/stream`. Consumers move over one at a time. | One flag per consumer. Off = its own fetch, as today. | Fetches of `/api/weather/now` and `/api/calendar/all` per 5 min drop, measured in the server log. Glance and field agree. `/kiosk-metrics` shows no heap growth. | About 6 duplicate fetchers per source |
 | **S3 — capability arbiter** | One owner of depth and speech. A declared **reflex lane** (doorbell, timers, commands, barge-in) goes straight through, then notifies. | Flag. Off = direct calls, as today. | Two simultaneous authors resolve by policy, not by call order. Doorbell latency is unchanged, measured. | The collision class in §4 pro 2 |
 | **S4 — prediction** | Rules fed by routine distributions and the store, ranking through S0's weights. | Flag. | A predicted card earns the glance with a data line behind it. | Three hand rules as the whole of "prediction" |
 | *Deferred* | Merge the client and server minds. | — | Only if S2 and S3 show the split still hurts. | — |
+
+### S1 as built (2026-09-23)
+
+- **The table** is `tests/fixtures/event-registry.js`: 24 events, each with its publishing
+  and consuming files. **The spec** is `tests/event-registry.spec.js` (8 tests). It derives
+  the same facts from source, using the comment stripper and closure walk that
+  `flag-surface.spec.js` now shares from `tests/fixtures/source-scan.js`.
+- **It goes red on:**
+  - an undeclared event or a stale row
+  - a publisher or consumer list that drifted from the source
+  - an event published and never heard, or heard and never published, within either
+    surface's import closure
+  - a declared orphan whose cause is gone
+  - a computed event name, or a bus wrapper it does not know about
+- **Proven by injection, all RED for the named reason, each restore diff clean:**
+  - a V3 emit of an unheard event
+  - S0's `arrival:home` emit removed from `v3/core/arrival.js`
+  - a computed name in `client.js`
+  - a V3 listener that ends a declared orphan
+- **Five orphans on V3, declared with reasons, all published-and-unheard:**
+  - `ha:connected` and `ha:disconnected`: the shared client announces the stream either
+    way, and no V3 module subscribes.
+  - `command:executed` and `command:unknown`: V3 records these in `commands.js`'s `last`
+    instead.
+  - `delight:fired`: its only listener arms the incumbent's arrival card. V3 gets the
+    delight by polling `collectDelight()`.
+- **On the incumbent:** no orphans.
+- **Out of scope:** the `document` CustomEvent channel (`ha:state-updated` is re-dispatched
+  there). It is a second bus, and it has no registry.
 
 ---
 

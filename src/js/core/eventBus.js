@@ -5,6 +5,10 @@
    docs/design/V3-CUTOVER.md §1 · guarded by tests/v3-closure.spec.js
    ════════════════════════════════════════════════════════════════════════ */
 
+/* Every event on this bus has a row in tests/fixtures/event-registry.js, and
+   tests/event-registry.spec.js goes red on one published and never heard, or
+   heard and never published, on either surface (HOUSE-MIND S1). Name events
+   with a literal — a computed name is reported, not skipped. */
 const listeners = {};
 
 // Returns an unsubscribe function (audit 2026-07-26, P3/H8). Nothing calls it
