@@ -10,8 +10,9 @@ the code). The claims that carry the argument were **re-verified by reading the 
 before this was written**. Those are marked **[V]**. Anything taken from the subagent
 report and not re-read is marked **[I]**.
 
-**Status: a design record. NOTHING in it is built.** Slices S0–S4 below are owed. Each
-one ships on its own.
+**Status (2026-09-23):** S0 is live with both flags on. S1 is live (test-only). S2 is built
+with its three flags off. S3 and S4 are owed. Each slice ships on its own; §5 has the
+detail.
 
 ---
 
@@ -198,7 +199,7 @@ Each slice ships on its own, default-off, with its own rollback.
 |---|---|---|---|---|
 | **S0 — dead wiring** | Emit `arrival:home` from `v3/core/arrival.js`. Pass `weights: attentionWeights()` at `attention.js:281`. Delete `intent:changed` or give it a consumer. | The weights change **alters ranking**, so it gets its own flag and `/flag-flip`. The arrival emit goes behind a flag. | `window.__routines().weights` is non-empty **and** the ranked order tilts on the wall. A home-after-away delight fires after a real return. | 3 dead events. The false comment at `main.js:647` |
 | **S1 — event registry** ✅ built 2026-09-23 | One declared table: every event, its publisher and its V3 consumers. A spec goes red on orphans, derived like `flag-surface.spec.js`. | None; it is test-only. | Inject an orphan event and the spec goes red. Remove it and the spec is green. | Silent dead events as a class |
-| **S2 — observation store** | Server keeps a sticky last value per source (weather, calendar, commute, bins, media) and pushes it over one SSE, `/api/house/stream`. Consumers move over one at a time. | One flag per consumer. Off = its own fetch, as today. | Fetches of `/api/weather/now` and `/api/calendar/all` per 5 min drop, measured in the server log. Glance and field agree. `/kiosk-metrics` shows no heap growth. | About 6 duplicate fetchers per source |
+| **S2 — observation store** ✅ built 2026-09-23, flags off | Server keeps a sticky last value per source (weather, calendar, commute, bins, media) and pushes it over one SSE, `/api/house/stream`. Consumers move over one at a time. | One flag per consumer. Off = its own fetch, as today. | Fetches of `/api/weather/now` and `/api/calendar/all` per 5 min drop, measured in the server log. Glance and field agree. `/kiosk-metrics` shows no heap growth. | About 6 duplicate fetchers per source |
 | **S3 — capability arbiter** | One owner of depth and speech. A declared **reflex lane** (doorbell, timers, commands, barge-in) goes straight through, then notifies. | Flag. Off = direct calls, as today. | Two simultaneous authors resolve by policy, not by call order. Doorbell latency is unchanged, measured. | The collision class in §4 pro 2 |
 | **S4 — prediction** | Rules fed by routine distributions and the store, ranking through S0's weights. | Flag. | A predicted card earns the glance with a data line behind it. | Three hand rules as the whole of "prediction" |
 | *Deferred* | Merge the client and server minds. | — | Only if S2 and S3 show the split still hurts. | — |
@@ -231,6 +232,59 @@ Each slice ships on its own, default-off, with its own rollback.
 - **On the incumbent:** no orphans.
 - **Out of scope:** the `document` CustomEvent channel (`ha:state-updated` is re-dispatched
   there). It is a second bus, and it has no registry.
+
+### S2 as built (2026-09-23, `c040dfc`, all three flags OFF)
+
+- **The server half** is `server/services/houseStore.js` + `server/routes/houseStream.js`.
+  - Seven sources, 5-minute cadence: weather, forecast, nowcast, calendar, commute, bins,
+    Plex. That covers every key V3's two pollers fetched, except fuel and chores.
+  - **It reads the house's own routes over loopback** instead of refactoring them. The
+    payload is byte-identical to what the clients parsed, and route-level behaviour
+    (commute's 4-minute bound, health reporting) is kept. Loopback is exempt from the
+    flood ceiling.
+  - **It is lazy.** It polls only while a page subscribes, so the flag-off server makes no
+    request. A failed read keeps the last good value and pushes nothing.
+  - `/api/house/stream` sends the held snapshot first, then one `house_obs` per good read.
+    `/api/house/store` reports per-source read and failure counts, never values. This is
+    the number that proves "once, not six times" on the box.
+- **The page half** is `src/js/services/houseStream.js`. It opens one EventSource for the
+  page's life and re-publishes each read as `house:observation` (a row in the S1 table).
+  V3 opens it only when one of the three flags is on.
+- **Three consumers, one flag each, all default OFF:**
+
+  | Flag | Consumer | Keys |
+  |---|---|---|
+  | `v3HouseStoreGlance` | `houseSnapshot` (the attention engine's HTTP half) | weather, calendar, commute, Plex |
+  | `v3HouseStoreVoice` | `voiceSnapshot` (fast lane + digest) | weather, forecast, nowcast, calendar, bins, commute |
+  | `v3HouseStoreField` | V3's `loadWeather` (substrate, Living Window, sky line) | weather |
+
+- **The fallback is per key, and it is the safety net.** A consumer skips its own fetch
+  of a key only while the store delivered that key within 11 minutes. A dead stream, a
+  stalled source or the incumbent (which never connects) is "not fresh", so the consumer
+  fetches exactly as before. A fetch that resolves after the store delivered is dropped,
+  so a boot fetch cannot overwrite the shared reading.
+- **The spec** is `tests/house-store.spec.js` (9 tests). Each asserts the READING the
+  consumer holds: the store says "Fixture Drizzle", the direct route says "Fixture Sun".
+  - It covers the store against a fixture server, both routes' contracts, both flag
+    states, the stream being down, and each flag alone.
+  - **Inject-defect: 6/6 RED for the named reason.** The six defects:
+    - the store not lazy
+    - a failed read overwriting the last good value
+    - a refresh that ignores the store
+    - voice gated on the glance's flag
+    - the stream opened with every flag off
+    - pushes applied with the flag off
+  - ⚠ **Not covered:** the in-flight drop (a boot fetch resolving after the snapshot). The
+    stubbed routes answer too fast to order the race deterministically.
+- ⚠ **At flip time:** a spec that stubs `/api/weather/now` with `page.route` cannot stub
+  the SERVER's loopback read. `bootV3` specs are safe, because the stream gets a 503 and
+  the consumers fall back to their fixtures. A spec that serves the real stream would see
+  the test server's answer.
+- **Open for the live proof:**
+  - `/api/house/store` should show one read per source per 5 minutes.
+  - The kiosk's resource timing should show `/api/weather/now` and `/api/calendar/all`
+    dropping from about 2–3 per 5 minutes to 0 while the store stays fresh.
+  - `/kiosk-metrics` should show no heap growth.
 
 ---
 
