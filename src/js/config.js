@@ -2202,7 +2202,10 @@ window.CONFIG = {
     //
     // houseSnapshot, the attention engine's HTTP half (weather, calendar,
     // commute, Plex).
-    v3HouseStoreGlance: false,
+    // FLIPPED ON 2026-09-23 by the owner, second of the three (after Field,
+    // 80761a9, whose poll skip was measured live: /api/weather/now 6 -> 5 per
+    // 10 min). Rollback: v3HouseStoreGlance: false (+ hard reload).
+    v3HouseStoreGlance: true,
     // voiceSnapshot, the fast lane and the house voice's digest (weather,
     // forecast, nowcast, calendar, bins, commute). Fuel and chores stay fetched.
     v3HouseStoreVoice: false,
