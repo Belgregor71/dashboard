@@ -169,7 +169,7 @@ async function open(meal) {
        reads. Passing CITY down through this module would couple it to the
        geography for a field it never touches. */
     const snap = voiceSnapshot();
-    const shown = await showSubject({ id: "show.recipe" }, snap);
+    const shown = await showSubject({ id: "show.recipe" }, snap, { author: "dinner" });
 
     if (!shown) {
       nextRetryAt.set(meal.key, Date.now() + RETRY_BACKOFF_MS);
@@ -240,7 +240,7 @@ export function initDinner({ enabled = false } = {}) {
   window.__v3Dinner = async (dish = null) => {
     if (dish) await warm(dish);
     const snap = voiceSnapshot();
-    const shown = await showSubject({ id: "show.recipe" }, dish ? { ...snap, menu: dish } : snap);
+    const shown = await showSubject({ id: "show.recipe" }, dish ? { ...snap, menu: dish } : snap, { author: "dinner" });
     if (shown) setDepth(DEPTH.SUBJECT, "dinner", { holdMs: DINNER_HOLD_MS });
     return { shown: Boolean(shown), dish: dish ?? snap?.menu ?? null };
   };

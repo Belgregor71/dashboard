@@ -40,9 +40,17 @@ import { showMedia } from "./media.js";
 import { showBriefing } from "./briefing.js";
 import { showStatus } from "./status.js";
 import { record } from "../core/feature-census.js";
+import { arbiterOn, mayTakeStage, claimStage, releaseStage, noteSuperseded } from "../../js/core/arbiter.js";
 
 let mount = null;
 let active = null;      // { id, teardown }
+/* HOUSE-MIND S3 (js/core/arbiter.js). Advanced by every showSubject and every
+   clearSubject, so a build that was overtaken while it awaited — by a newer
+   subject, or by depth leaving 3 — can tell. Before this, two overlapping
+   shows both mounted in turn and the first one's teardown never ran: a doorbell
+   camera replaced by a late recipe kept its MJPEG connection open. Checked only
+   with features.v3Arbiter on. */
+let showGen = 0;
 
 function ensureMount() {
   if (!mount) mount = document.getElementById("subject-mount");
@@ -52,6 +60,8 @@ function ensureMount() {
 /** Tear down whatever is showing. Idempotent, and safe to call on a mount that
  *  was never populated. */
 export function clearSubject() {
+  showGen += 1;
+  releaseStage();
   if (active?.teardown) {
     try { active.teardown(); } catch { /* a broken teardown must not wedge depth */ }
   }
@@ -218,8 +228,15 @@ const REGISTRY = {
  *          screen empty and confident. A truthy result carries whatever the
  *          subject wants said about itself, which is usually nothing.
  */
-export async function showSubject(intent, snapshot) {
+export async function showSubject(intent, snapshot, { author = null } = {}) {
+  /* HOUSE-MIND S3: a scheduled author (briefing, dinner) does not displace a
+     doorbell, a person's request or anything else it ranks under. Checked
+     BEFORE clearSubject, because clearing is itself the displacement. */
+  if (!mayTakeStage(author)) return false;
+
   clearSubject();
+  const mine = ++showGen;
+  claimStage(author, mine);
 
   const build = REGISTRY[intent?.id];
   /* Feature census (docs/AUGUST-IMPROVEMENTS.md §1). A no-op until
@@ -238,6 +255,17 @@ export async function showSubject(intent, snapshot) {
     // A subject that throws is a subject that cannot be shown. It must not be
     // able to take the depth machinery — or the voice turn — down with it.
     built = null;
+  }
+
+  /* Overtaken while it built: a newer subject has the stage, or depth left 3.
+     This build is torn down, never mounted — its caller reads false and backs
+     off, exactly as for a subject with nothing to show. */
+  if (arbiterOn() && mine !== showGen) {
+    if (built?.teardown) {
+      try { built.teardown(); } catch { /* never mounted; still clean up */ }
+    }
+    noteSuperseded("stage", author);
+    return false;
   }
 
   if (!built?.node || !built?.teardown) {

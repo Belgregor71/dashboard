@@ -151,7 +151,7 @@ function onStateUpdated(entity) {
 
   setPhase("speaking");
   record("spoke", "arrival", "said");
-  speak(text, { onAudio: (audio) => trackSpeech(audio) })
+  speak(text, { author: "arrival", onAudio: (audio) => trackSpeech(audio) })
     .then(() => setPhase("idle"), () => setPhase("idle"));
 
   last = { name, text, awayMs: awayAt ? Date.now() - awayAt : null, at: new Date().toISOString() };

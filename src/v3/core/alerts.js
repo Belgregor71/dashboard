@@ -123,7 +123,8 @@ export async function raiseAlert(entity, { now = Date.now() } = {}) {
      something mounted is read here. */
   const shown = await showSubject(
     { id: "show.camera", slots: { camera: location.camera } },
-    null
+    null,
+    { author: "doorbell" }
   );
 
   if (shown) {
@@ -139,7 +140,7 @@ export async function raiseAlert(entity, { now = Date.now() } = {}) {
   if (line) {
     setPhase("speaking");
     record("spoke", "alert", "said");
-    speak(line, { rate: ALERT_TTS_RATE, onAudio: (audio) => trackSpeech(audio) })
+    speak(line, { rate: ALERT_TTS_RATE, author: "doorbell", onAudio: (audio) => trackSpeech(audio) })
       .then(() => setPhase("idle"), () => setPhase("idle"));
   }
 

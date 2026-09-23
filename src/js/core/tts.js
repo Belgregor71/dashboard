@@ -5,8 +5,17 @@
    docs/design/V3-CUTOVER.md §1 · guarded by tests/v3-closure.spec.js
    ════════════════════════════════════════════════════════════════════════ */
 
+import { arbiterOn, maySpeak, claimSpeech, releaseSpeech, quiet } from "./arbiter.js";
+
 let currentAudio = null;
 let currentAudioUrl = null;
+/* HOUSE-MIND S3 (core/arbiter.js). Advanced by every new utterance AND by every
+   silence(), so an utterance can tell, after its synthesis round trip, whether
+   anything superseded or silenced it while it waited. Without that check a
+   barge-in during Kokoro's fetch stopped nothing — there was no audio yet to
+   pause — and the reply played anyway, over the person who had just cut in.
+   Checked only with features.v3Arbiter on; counting is harmless either way. */
+let speechGen = 0;
 /* Settles the in-flight speak() promise. Load-bearing for barge-in: silence()
    PAUSES the element, and pause fires no 'ended', so without this the awaiting
    caller waits forever. V3 awaits say() with its `busy` latch held — one
@@ -120,10 +129,18 @@ async function speakWithBrowserTts(text, { rate, pitch, volume }) {
  * from it. Additive: callers that omit it are unaffected, and it is never
  * invoked on the browser-TTS fallback path, which has no element to give.
  */
-export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0, onAudio = null } = {}) {
+export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0, onAudio = null, author = null } = {}) {
   if (!text) return;
 
+  /* HOUSE-MIND S3: a lower-priority speaker does not cut the one in the air.
+     It resolves when the air is free, so its caller's setPhase("idle") cannot
+     drop the rim under the higher voice. Unauthored: always allowed. */
+  if (!maySpeak(author)) return quiet();
+
   silence();
+  const mine = ++speechGen;
+  claimSpeech(author, mine);
+  const superseded = () => arbiterOn() && mine !== speechGen;
 
   try {
     const res = await fetch("/api/tts/speak", {
@@ -135,6 +152,12 @@ export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0, onAu
     if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);
 
     const blob = await res.blob();
+    /* Something newer spoke, or the room barged in, while Kokoro was working.
+       The blob never becomes a URL, so there is nothing to revoke. */
+    if (superseded()) {
+      releaseSpeech(mine);
+      return;
+    }
     const audioUrl = URL.createObjectURL(blob);
     const audio = new Audio(audioUrl);
     audio.volume = volume;
@@ -150,6 +173,7 @@ export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0, onAu
         if (currentFinish === finish) currentFinish = null;
         announce(false);
         releaseAudioUrl(audioUrl);
+        releaseSpeech(mine);
         resolve(value);
       };
       currentFinish = finish;
@@ -165,8 +189,16 @@ export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0, onAu
   } catch (err) {
     // Non-fatal — fall back to robotic browser TTS rather than going silent.
     // Kept at warn level so a primary-TTS (Kokoro) outage is still visible.
+    // Superseded while the request failed: the newer speaker has the air, and
+    // a robotic fallback of the old line over it is the collision S3 retires.
+    if (superseded()) {
+      releaseSpeech(mine);
+      return;
+    }
     console.warn("[TTS] Kokoro unavailable, using browser fallback:", err?.message);
-    return speakWithBrowserTts(text, { rate, pitch, volume });
+    const result = await speakWithBrowserTts(text, { rate, pitch, volume });
+    releaseSpeech(mine);
+    return result;
   }
 }
 
@@ -203,8 +235,17 @@ let activeQueue = null;
  *
  * @returns {{ push(text: string): void, close(): void, cancel(): void, done: Promise<void> }}
  */
-export function createSpeech({ rate = 0.92, volume = 1.0, onAudio = null } = {}) {
+export function createSpeech({ rate = 0.92, volume = 1.0, onAudio = null, author = null } = {}) {
+  /* HOUSE-MIND S3: dropped under a higher speaker. An inert queue whose `done`
+     settles when the air is free — the caller's await must always settle, for
+     the busy-latch reason in (3) above. */
+  if (!maySpeak(author)) {
+    return { push() {}, close() {}, cancel() {}, done: quiet() };
+  }
+
   silence();                       // a new utterance supersedes the old one
+  const mine = ++speechGen;
+  claimSpeech(author, mine);
 
   const pending = [];
   let closed = false;
@@ -295,6 +336,7 @@ export function createSpeech({ rate = 0.92, volume = 1.0, onAudio = null } = {})
     } finally {
       if (activeQueue === self) activeQueue = null;
       announce(false);
+      releaseSpeech(mine);
       resolveDone();
     }
   })();
@@ -304,6 +346,12 @@ export function createSpeech({ rate = 0.92, volume = 1.0, onAudio = null } = {})
 }
 
 export function silence() {
+  /* Anything still synthesising is now stale (see speechGen), and the air is
+     free. Before the teardown below, so a speaker whose finish() runs during it
+     releases nothing that belongs to someone else. */
+  speechGen += 1;
+  releaseSpeech();
+
   /* Cancel the queue FIRST. Its pump loops until told to stop, so pausing the
      audio without cancelling would settle the current chunk and then serenely
      start the next one — a barge-in that interrupts a sentence and continues

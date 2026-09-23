@@ -2212,6 +2212,18 @@ window.CONFIG = {
     // 80761a9 and Glance 77b5c2f). Inert on the incumbent, which never opens
     // the stream. Rollback: v3HouseStoreVoice: false (+ hard reload).
     v3HouseStoreVoice: true,
+    // ── HOUSE-MIND S3 (docs/design/HOUSE-MIND.md §5): the arbiter
+    // (src/js/core/arbiter.js). One owner of who may SPEAK and who may take
+    // the depth-3 STAGE. Speech by priority (voice 50, doorbell 40, timer 30,
+    // briefing 20, arrival 10): a lower speaker is dropped, never cuts a
+    // higher one, and a reply superseded or barged-in DURING synthesis never
+    // plays. Stage: doorbell, voice and command are the reflex lane and always
+    // take it; briefing and dinner only take a free stage, and an overtaken
+    // mount is torn down rather than left open. Unauthored calls (the
+    // incumbent, debug hooks) are never arbitrated.
+    // Rollback: v3Arbiter: false (+ hard reload) — read per call.
+    v3Arbiter: false,
+
     // V3's field weather (src/v3/main.js loadWeather): the substrate's causes,
     // the Living Window's slice and the archive's sky line.
     // FLIPPED ON 2026-09-23 by the owner, first of the three. Deployed off first

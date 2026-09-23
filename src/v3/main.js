@@ -39,6 +39,7 @@ import { getAllEntities, updateEntity } from "../js/services/homeAssistant/state
 import { emit as emitBus, on as onBus } from "../js/core/eventBus.js";
 import { refreshHouseCache, houseCacheAge, houseSnapshot } from "../js/services/houseSnapshot.js";
 import { connectHouseStream, storeFresh, houseStreamState } from "../js/services/houseStream.js";
+import { arbiterState } from "../js/core/arbiter.js";
 import { initAttention, lastSelection, tickAttention, announcements } from "./core/attention.js";
 import { initAlerts, lastAlert } from "./core/alerts.js";
 import { initArrival, lastArrival } from "./core/arrival.js";
@@ -978,6 +979,8 @@ function registerHandles() {
     // HOUSE-MIND S2: is the observation store feeding this page, and when did
     // each key last arrive. `started: false` is every store flag off.
     houseStream: houseStreamState(),
+    // HOUSE-MIND S3: who holds the air and the stage, and the last decisions.
+    arbiter: arbiterState(),
     // The shared store and the posture derived from it, in the same read as the
     // selection they shaped. Kept together on purpose: "why did the wall stay
     // quiet?" is a question about all three at one instant, and three separate

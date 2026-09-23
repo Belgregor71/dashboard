@@ -39,6 +39,7 @@ import { DEPTH, setDepth } from "./depth.js";
 import { isPresent, onPresence } from "./presence.js";
 import { setPhase, trackSpeech } from "./presence-light.js";
 import { speak } from "../../js/core/tts.js";
+import { mayTakeStage } from "../../js/core/arbiter.js";
 import { record } from "./feature-census.js";
 
 /* Its own record, deliberately. Both surfaces are served from the same origin,
@@ -91,6 +92,12 @@ export async function checkBriefingWindow({ now = new Date(), force = false } = 
     // stays open until someone walks in or it expires.
     if (!isPresent()) return null;
 
+    /* HOUSE-MIND S3: the stage is held by something this ranks under (a
+       doorbell, a person's request). Asked BEFORE markFired, so the window stays
+       open and the next tick tries again — refused after marking, the day's
+       briefing would simply be lost. */
+    if (!mayTakeStage("briefing")) return null;
+
     markFired(FIRED_KEY, due.schedule.name, now);
     last = { name: due.schedule.name, type: due.schedule.type, at: now.toISOString(), shown: false };
   } else {
@@ -101,7 +108,8 @@ export async function checkBriefingWindow({ now = new Date(), force = false } = 
   try {
     const shown = await showSubject(
       { id: "show.briefing", slots: {} },
-      null
+      null,
+      { author: "briefing" }
     );
     if (!shown) return last;
 
@@ -113,7 +121,7 @@ export async function checkBriefingWindow({ now = new Date(), force = false } = 
     if (shown.speech) {
       setPhase("speaking");
       record("spoke", "briefing", "said");
-      speak(shown.speech, { onAudio: (audio) => trackSpeech(audio) })
+      speak(shown.speech, { author: "briefing", onAudio: (audio) => trackSpeech(audio) })
         .then(() => setPhase("idle"), () => setPhase("idle"));
     }
     return last;

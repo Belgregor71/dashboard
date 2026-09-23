@@ -141,7 +141,7 @@ function sayDone(entry) {
   const say = () => {
     // "stop" can land during the chime; a silenced timer must not then speak.
     if (!ringing.has(entry.id)) return setPhase("idle");
-    speak(doneLine(entry), { onAudio: (audio) => trackSpeech(audio) })
+    speak(doneLine(entry), { author: "timer", onAudio: (audio) => trackSpeech(audio) })
       .then(() => setPhase("idle"), () => setPhase("idle"));
   };
   /* features.voiceTimerChime: a ding before the words, on every repeat. The

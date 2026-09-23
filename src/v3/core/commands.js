@@ -154,7 +154,7 @@ function normalizeViewId(view) {
  * only from deeper than a glance.
  */
 async function showFor(command, subjectId) {
-  const shown = await showSubject({ id: subjectId }, voiceSnapshot(coords));
+  const shown = await showSubject({ id: subjectId }, voiceSnapshot(coords), { author: "command" });
 
   if (shown) {
     deepen(DEPTH.SUBJECT, `command-${subjectId}`);

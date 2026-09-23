@@ -174,7 +174,7 @@ function say(text, refs, opts = {}) {
   record("spoke", "voice", "said");
   // The sweep is driven by real playback position, so it arrives at the last
   // word rather than at a guess about it.
-  return speak(text, { ...opts, onAudio: (audio) => trackSpeech(audio) })
+  return speak(text, { author: "voice", ...opts, onAudio: (audio) => trackSpeech(audio) })
     .then(() => setPhase("idle"), () => setPhase("idle"));
 }
 
@@ -458,7 +458,8 @@ async function handleListWrite(intent, snap) {
     const key = which === "todo" ? "tasks" : "shopping";
     const shown = await showSubject(
       { id: "show.list", slots: { list: which } },
-      { ...snap, todos: { ...(snap?.todos ?? {}), [key]: res.items ?? [] } }
+      { ...snap, todos: { ...(snap?.todos ?? {}), [key]: res.items ?? [] } },
+      { author: "voice" }
     );
     if (shown) deepen(DEPTH.SUBJECT, `voice-${intent.id}`);
 
@@ -646,7 +647,7 @@ export async function submit(text, { source = "unknown" } = {}) {
         }
       } else if (intent.id.startsWith("show.")) {
         setPhase("idle");
-        const shown = await showSubject(intent, snap);
+        const shown = await showSubject(intent, snap, { author: "voice" });
         if (shown) {
           deepen(DEPTH.SUBJECT, `voice-${intent.id}`);
 
@@ -797,7 +798,7 @@ export async function submit(text, { source = "unknown" } = {}) {
     if (flag("voiceStreaming")) {
       setPhase("speaking");
       deepen(DEPTH.GLANCE, "voice-converse");
-      const speech = createSpeech({ onAudio: (audio) => trackSpeech(audio) });
+      const speech = createSpeech({ author: "voice", onAudio: (audio) => trackSpeech(audio) });
       const { reply, spoke, toolFailed } = await converseStreamed(body, speech);
       speech.close();
       await speech.done;             // let the queue finish what it is saying
