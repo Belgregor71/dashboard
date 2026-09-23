@@ -200,7 +200,7 @@ Each slice ships on its own, default-off, with its own rollback.
 | **S0 — dead wiring** | Emit `arrival:home` from `v3/core/arrival.js`. Pass `weights: attentionWeights()` at `attention.js:281`. Delete `intent:changed` or give it a consumer. | The weights change **alters ranking**, so it gets its own flag and `/flag-flip`. The arrival emit goes behind a flag. | `window.__routines().weights` is non-empty **and** the ranked order tilts on the wall. A home-after-away delight fires after a real return. | 3 dead events. The false comment at `main.js:647` |
 | **S1 — event registry** ✅ built 2026-09-23 | One declared table: every event, its publisher and its V3 consumers. A spec goes red on orphans, derived like `flag-surface.spec.js`. | None; it is test-only. | Inject an orphan event and the spec goes red. Remove it and the spec is green. | Silent dead events as a class |
 | **S2 — observation store** ✅ built 2026-09-23, flags off | Server keeps a sticky last value per source (weather, calendar, commute, bins, media) and pushes it over one SSE, `/api/house/stream`. Consumers move over one at a time. | One flag per consumer. Off = its own fetch, as today. | Fetches of `/api/weather/now` and `/api/calendar/all` per 5 min drop, measured in the server log. Glance and field agree. `/kiosk-metrics` shows no heap growth. | About 6 duplicate fetchers per source |
-| **S3 — capability arbiter** | One owner of depth and speech. A declared **reflex lane** (doorbell, timers, commands, barge-in) goes straight through, then notifies. | Flag. Off = direct calls, as today. | Two simultaneous authors resolve by policy, not by call order. Doorbell latency is unchanged, measured. | The collision class in §4 pro 2 |
+| **S3 — capability arbiter** ✅ built 2026-09-24, flag off | One owner of depth and speech. A declared **reflex lane** (doorbell, timers, commands, barge-in) goes straight through, then notifies. | Flag. Off = direct calls, as today. | Two simultaneous authors resolve by policy, not by call order. Doorbell latency is unchanged, measured. | The collision class in §4 pro 2 |
 | **S4 — prediction** | Rules fed by routine distributions and the store, ranking through S0's weights. | Flag. | A predicted card earns the glance with a data line behind it. | Three hand rules as the whole of "prediction" |
 | *Deferred* | Merge the client and server minds. | — | Only if S2 and S3 show the split still hurts. | — |
 
@@ -303,6 +303,47 @@ Each slice ships on its own, default-off, with its own rollback.
   - The kiosk's resource timing should show `/api/weather/now` and `/api/calendar/all`
     dropping from about 2–3 per 5 minutes to 0 while the store stays fresh.
   - `/kiosk-metrics` should show no heap growth.
+
+### S3 as built (2026-09-24, `9031694`, flag `v3Arbiter` OFF)
+
+- **The policy is one file**, `src/js/core/arbiter.js`. It sits in `src/js` because the
+  speech chokepoint (`core/tts.js`) is shared runtime. The two chokepoints only ask.
+- **Speech, by priority:** voice 50 · doorbell 40 · timer 30 · briefing 20 · arrival 10.
+  - A new utterance pre-empts when its priority is equal or higher. A lower one is
+    **dropped** and resolves when the air is free, so its caller's `setPhase("idle")`
+    cannot drop the rim under the higher voice.
+  - A claim holds from the request, so a doorbell line still being synthesised is
+    already the doorbell's.
+  - Barge-in (`silence()`) stays the unconditional reflex.
+  - A timer ring that gets dropped comes back: the ring repeats every 30 s.
+- **Stage, by lane:**
+  - Reflex authors always take the stage: doorbell, voice, command.
+  - Scheduled authors take only a free stage, or one held by a lower scheduled author:
+    briefing 20, dinner 10.
+  - The briefing asks **before** marking itself fired, so a refused briefing keeps its
+    window.
+- **Three defects this retires**, each found by reading the code and each reproduced
+  by the spec with the flag OFF:
+  1. A barge-in during Kokoro's synthesis stopped nothing, because there was no audio
+     yet to pause. The reply played over the person who had cut in.
+  2. Two speakers in flight both played. `silence()` ran only before each fetch.
+  3. A subject resolving after a newer one had started still mounted, and the older
+     one's `teardown` never ran. A recipe that landed after the door rang replaced the
+     camera and left its MJPEG open.
+- **Unauthored calls are never arbitrated.** The incumbent names no authors, so it is
+  unchanged even with the flag on.
+- **The spec** is `tests/house-arbiter.spec.js` (15 tests). Every race runs in both
+  orders and both flag states.
+  - Doorbell → TTS request median: **off 1.1 ms · on 1.2 ms**.
+  - Inject-defect: 7/7 RED for the named reason, including the flag being ignored,
+    which turns all four OFF tests red.
+- **Not in scope, still open:**
+  - The presence rim has no owner. A superseded speaker's `.then` can set `idle` under
+    the new one.
+  - The timer chime plays on Web Audio, outside the TTS channel, so a barge-in does not
+    stop it.
+  - The flip is the owner's call, because the priority table decides who wins in the
+    room.
 
 ---
 
