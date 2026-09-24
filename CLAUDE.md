@@ -76,7 +76,7 @@ happened; a glance at the wall did.
   half. This is the single most common place a session ends in a live defect: a flip has
   made the house invent a bin time, and a poisoned cache once blanked the whole wall.
   Record both the flip and the rollback proof in the session memory entry.
-- Flags live in `src/js/config.js` under `features:` (101 flags), copied to
+- Flags live in `src/js/config.js` under `features:` (102 flags), copied to
   `static/js/config.js` on every build. That file is **tracked and shipped in the
   public bundle** — never put a secret or an address in it.
 - ⛔ **A flag marked `INERT-ON-V3` is not a lever on the wall.** No module V3 loads
@@ -95,7 +95,7 @@ happened; a glance at the wall did.
 
 ### Testing & Pre-Push Gate
 
-- `npm test` runs the Playwright suite — 134 spec files in `tests/` (plus 2 in `tests/verify/`,
+- `npm test` runs the Playwright suite — 135 spec files in `tests/` (plus 2 in `tests/verify/`,
   which `npm test` ignores), spanning API
   contracts (`api.spec.js`), a browser smoke test (`ui.spec.js`), and per-feature specs.
   Browser specs need `npm run build` first. Test server runs on port 3210 with AI

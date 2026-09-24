@@ -201,7 +201,7 @@ Each slice ships on its own, default-off, with its own rollback.
 | **S1 — event registry** ✅ built 2026-09-23 | One declared table: every event, its publisher and its V3 consumers. A spec goes red on orphans, derived like `flag-surface.spec.js`. | None; it is test-only. | Inject an orphan event and the spec goes red. Remove it and the spec is green. | Silent dead events as a class |
 | **S2 — observation store** ✅ built 2026-09-23, flags off | Server keeps a sticky last value per source (weather, calendar, commute, bins, media) and pushes it over one SSE, `/api/house/stream`. Consumers move over one at a time. | One flag per consumer. Off = its own fetch, as today. | Fetches of `/api/weather/now` and `/api/calendar/all` per 5 min drop, measured in the server log. Glance and field agree. `/kiosk-metrics` shows no heap growth. | About 6 duplicate fetchers per source |
 | **S3 — capability arbiter** ✅ built 2026-09-24, flag off | One owner of depth and speech. A declared **reflex lane** (doorbell, timers, commands, barge-in) goes straight through, then notifies. | Flag. Off = direct calls, as today. | Two simultaneous authors resolve by policy, not by call order. Doorbell latency is unchanged, measured. | The collision class in §4 pro 2 |
-| **S4 — prediction** | Rules fed by routine distributions and the store, ranking through S0's weights. | Flag. | A predicted card earns the glance with a data line behind it. | Three hand rules as the whole of "prediction" |
+| **S4 — prediction** ✅ first rule built 2026-09-24, flag off | Rules fed by routine distributions and the store, ranking through S0's weights. | Flag. | A predicted card earns the glance with a data line behind it. | Three hand rules as the whole of "prediction" |
 | *Deferred* | Merge the client and server minds. | — | Only if S2 and S3 show the split still hurts. | — |
 
 ### S1 as built (2026-09-23)
@@ -344,6 +344,43 @@ Each slice ships on its own, default-off, with its own rollback.
     stop it.
   - The flip is the owner's call, because the priority table decides who wins in the
     room.
+
+### S4 as built (2026-09-24, `c11eda9`, flag `v3PredictDeparture` OFF)
+
+- **The owner's rule, decided 2026-09-24: learned timing, live words.**
+  - A learned routine may decide WHEN a card appears. Its words cite live facts only:
+    never the learned clock time, "usually" or "leave by".
+  - `routineRuntime.js`'s pull-only comment was stricter than its own source,
+    `phase-8-learn.md`. It is now narrowed to that source: the phrasing is banned, the
+    timing is not.
+- **The first rule is `departureCandidate`**, in `candidateSources.js`, as its own source
+  `departure`.
+  - The learned weekday or weekend departure, above its confidence bar, opens a window
+    from 45 min before to 5 min after.
+  - While someone is present, the card shows each driver's **live** drive time. It
+    scores 74, which earns the glance.
+  - Its data line (`sub`) names live rain from the nowcast (≥ 50%) or a live traffic
+    delay (≥ 2 min).
+  - No live drive time, no card.
+  - `interrupt` applies in the last 30 min. At that moment the intent engine reads the
+    house as "rushed", and the ranker then admits interrupts only.
+  - While the card shows, the plain commute line stands down.
+- **The spec** is `tests/house-predict.spec.js` (11 tests).
+  - The central assertion: the words are identical at every minute of the window and
+    contain no clock time or habit words.
+  - On the V3 glance, with a seeded 8:00 departure:
+    - 7:40 with the flag on → `attention:departure`
+    - 6:30 → no card
+    - 7:40 with the flag off → no card
+  - Inject-defect: 8/8 RED.
+- **Not yet, and why:**
+  - Departure is household-wide. The legs are per person, but the routine is not.
+  - There are no per-weekday buckets; only weekday and weekend.
+  - There is no bedtime routine, so there is no bins-before-bed rule.
+  - The async predictive lane (`predictiveRules.js`) still reads `briefingData`'s own
+    fetches rather than the S2 store.
+  - The insight rules emit no `source`, so learned weights cannot reach them.
+  - Each of these is a separate rule or slice, not a gap in this one.
 
 ---
 
