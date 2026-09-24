@@ -2734,16 +2734,37 @@ test.describe("the archive's Live Photo burst", () => {
      settle never fires, the ground sits on the SAME photograph — and every
      burst assertion below then failed as a timeout that read exactly like "the
      burst is broken". It was not: nothing had arrived to burst for.
-     `60, 200` is the pairing every other spec in this file uses. */
+     `60, 200` is the pairing every other spec in this file uses.
+
+     ⚠ BUT NOT HERE, since 2026-09-25: under full-suite load it failed twice in
+     four runs ("never changed photograph") and passed 108/108 alone. A 200 ms
+     stall budget sends any incoming photograph slower than that down `fail()`,
+     which keeps the old frame; and `dissolve()` returns false without trying
+     when the page's own rotation is already in flight. Neither is what these
+     tests are about — the burst is — so the stall gets 5 s and a refused
+     dissolve is retried. Which of the two it was is NOT established; the
+     return value is in the failure message so a recurrence names its own. */
   const nextMemory = async (page, settleMs = 60) => {
     const before = await page.evaluate(() => window.__ground().assetId);
-    await page.evaluate((ms) => window.__groundDissolve(ms, 200), settleMs);
-    await expect
-      .poll(() => page.evaluate(() => window.__ground().assetId), {
-        timeout: 10_000,
-        message: "the ground never changed photograph — there is nothing to burst for"
-      })
-      .not.toBe(before);
+    const tries = [];
+    try {
+      await expect
+        .poll(
+          async () => {
+            const now = await page.evaluate(() => window.__ground().assetId);
+            if (now !== before) return now;
+            tries.push(await page.evaluate((ms) => window.__groundDissolve(ms, 5_000), settleMs));
+            return now;
+          },
+          { timeout: 15_000, intervals: [0, 1_000] }
+        )
+        .not.toBe(before);
+    } catch (err) {
+      throw new Error(
+        `the ground never changed photograph — there is nothing to burst for ` +
+          `(dissolve returned ${JSON.stringify(tries)}; false = refused, in flight or no asset)\n${err.message}`
+      );
+    }
   };
 
   const burstShown = (page) =>
