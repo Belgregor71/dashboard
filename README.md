@@ -1,153 +1,192 @@
 # Family Dashboard
 
-Always-on home dashboard for a Raspberry Pi 4 + 32-inch landscape display.
+An always-on home display on a 32-inch landscape screen. It runs as a kiosk and
+spends most of its time quiet. It puts one thing on the wall when something
+deserves attention, and it talks when spoken to.
+
+It ran on a Raspberry Pi 4 until 2026-08-01. It now runs on a **GMKtec G11 mini PC**
+(AMD Ryzen Embedded R2514, Vega 8, 16 GB, Debian 13 + X11). The Pi is kept, code-current,
+as a warm rollback host. The repo name and the package description still say "pi"
+for historical reasons.
 
 ## Stack
 
 | Layer | Tech |
 |---|---|
-| Server | Node.js / Express (ES modules) — `server.js` entry point |
-| Frontend | Vanilla JS (~50 modules), no framework |
-| Build | Vite 6 — `src/` → `dist/` |
-| Display | Chromium in `--kiosk` mode via systemd |
+| Server | Node.js / Express (ES modules): `server.js` mounts 32 route modules from `server/routes/` under `/api` |
+| Frontend | Vanilla JS, no framework. Two surfaces (see below) |
+| Rendering | DOM + CSS, with a WebGL/Canvas2D substrate (`src/v3/substrate/`) for the living weather field |
+| Build | Vite 6: `src/` → `dist/`, plus `static/js/config.js` copied on every build |
+| Display | Chromium in `--kiosk` mode under systemd, CDP on `127.0.0.1:9222` |
+| Voice | On-device wake word + faster-whisper STT + Kokoro TTS, all on the kiosk host |
+| Tests | Playwright: 136 spec files, API contracts through browser specs |
 
-The server runs on port **3000** and serves the Vite-built `dist/` folder. All external API calls are proxied through the server so the browser never talks to outside services directly.
+The server listens on port **3000** and serves the built `dist/` folder. Every external
+call goes through the server, so the browser never talks to an outside service directly.
 
-## Project layout
+## Two frontends
 
-```
-server.js              # Express entry point
-server/
-  routes/              # One file per feature (weather, calendar, cameras, …)
-  ha/                  # Home Assistant WebSocket bridge + REST helpers
-  utils/               # fetchWithTimeout
-config/
-  cameras.js           # Static camera config (entities, snapshot sources)
-  ha.js                # HA connection settings
-src/                   # Vite source (edit here)
-  index.html
-  js/
-    core/              # app.js, config.js, viewManager.js, voiceCommands.js, …
-    modules/           # One file per widget/feature
-    services/          # Home Assistant SSE client, calendar, weather parsers
-  css/
-    base/              # variables.css (design tokens), reset.css
-    layout/            # background.css, grid.css, top-bar.css
-    components/        # One file per component
-    views/             # One file per full-screen view
-    utils/             # helpers.css, weather-fx.css, view-switching.css, …
-    main.css           # Imports everything in order
-dist/                  # Vite build output (served by Express, git-ignored)
-static/                # Non-built assets: photos, icons, weather videos, data/
-```
+- **`src/v3/`** is the current surface and is what `/` serves
+  (`DEFAULT_ROOT_SURFACE` in `server/config.js`). It is a single composed wall rather
+  than a set of pages: `core/` (attention, composer, presence, archive, voice, timers…),
+  `subjects/` (what can be said: calendar, forecast, briefing, media, memories…),
+  `substrate/` (the GPU field) and `css/`.
+- **`src/js/`** is the incumbent dashboard. It is still reachable at `/index.html`, and it
+  is **not dead code**: V3 imports a closure of modules from it. The authoritative list is
+  the manifest in `tests/v3-closure.spec.js`.
+
+The same feature often exists in both trees. Check which surface a change targets before
+editing it.
+
+**Surface rollback without a deploy:** set `V3_DEFAULT=0` in the host's `.env` and restart
+`dashboard.service` to put the incumbent back on `/`. `V3_DEFAULT=1` forces V3, and
+leaving it unset falls through to the committed default.
+
+## Presence and the House Mind
+
+The dashboard has a **presence-first behavioural layer** that decides *what deserves the
+screen right now* and gets out of the way when nothing does.
+
+- **Presence modes.** Ambient (nobody near: the photo archive, weather-tinted light, a dim
+  clock), then Glance (motion: one hero), Lean-in (dwell: the next few things) and
+  Conversation (voice).
+- **One attention engine, one ranked queue.** Every source emits scored candidates with
+  decay and cooldowns, and the presence mode sets the floor. Most of the time the screen
+  stays calm.
+- **The House Mind** is an event registry, a shared observation store (one poll feeds the
+  field, the glance and the voice) and an arbiter over what speaks. Reflexes such as the
+  doorbell, timers and barge-in stay local and fast. Design and slice status:
+  [`docs/design/HOUSE-MIND.md`](docs/design/HOUSE-MIND.md).
+- **On-device learning** folds household rhythms into bounded aggregates. A routine may
+  decide *when* a card appears (the weekday departure card, for example). Its words cite
+  only live facts.
+- **One temperament** (`personality.js`, [`docs/design/CHARACTER.md`](docs/design/CHARACTER.md),
+  [`docs/design/VOICE.md`](docs/design/VOICE.md)) governs every line, silence and
+  celebration.
+
+The broader direction is in [`docs/vision/`](docs/vision/) and the design track in
+[`docs/design/`](docs/design/). An interactive architecture diagram is at
+[`docs/architecture/`](docs/architecture/).
 
 ## Active integrations
 
-- **Eufy cameras** (front_door, front_yard, driveway, backyard, patio, side_gate, tilt_pan) via HA HACS + go2rtc RTSP
-- **Home Assistant** — WebSocket bridge for live state, camera/image proxy
-- **Plex** — now-playing status
-- **Sonos** — media status via HA WebSocket
-- **Sonarr / Radarr** — active download progress + disk usage
-- **Weather** — Open-Meteo forecasts, BOM radar + severe-weather warnings
-- **Calendars** — iCal URLs (direct, no Google API)
-- **Commute** — travel-time panel
-- **Fuel prices** — local station pricing
-- **NRL** — live scores / ladder
-- **Bins** — council collection reminder
-- **ABC news ticker** — RSS
-- **AI briefing** — morning + evening scheduled summaries and an ambient one-line concierge, generated by Claude Haiku with local Ollama as automatic fallback (`server/routes/ai.js`)
-- **Kokoro TTS** — self-hosted text-to-speech (`bf_emma`, en-GB); falls back to browser `speechSynthesis`
-- **Voice commands** — Web Speech API, spacebar toggle, `en-AU`
-- **Screensaver** — photo slideshow with slow zoom, OLED burn-in drift protection
+- **Home Assistant**: WebSocket bridge for live state, camera/image proxy, calendars,
+  bins, Sonos, the BOM weather fallback, and assist for voice
+- **Eufy cameras** via HA (HACS) + go2rtc RTSP, with doorbell/motion wake
+- **Immich**: the ambient photo archive and memories
+- **Plex, Sonos**: now playing
+- **Sonarr / Radarr**: download progress + disk usage
+- **Weather**: Open-Meteo forecasts, with BOM via HA as an optional fallback; drives the GPU field (rain, gusts, haze, moon)
+- **Calendars**: iCal URLs (no Google API)
+- **Commute, fuel prices, bins, NRL, ABC news**
+- **AI briefings**: morning and evening summaries plus an ambient one-line concierge,
+  written by Claude Haiku, with local Ollama as the automatic fallback (`server/routes/ai.js`)
+- **Voice**: see below
 
-## Presence & the Home OS layer
+## Voice
 
-Beyond the widgets, the dashboard runs a **presence-first behavioural layer** — the
-"Home OS" — that decides _what deserves the screen right now_ and disappears when
-nothing does. Instead of navigating pages, the display has one job at any moment, and
-presence picks it. The full direction lives in [`docs/vision/`](docs/vision/); the spine:
+Everything runs on the kiosk host, and nothing leaves it until the wake word fires.
 
-- **Four presence modes** — Ambient (nobody near: slow photography, weather-tinted light, a dim clock) → Glance (motion: one hero) → Lean-in (dwell: the next few things) → Conversation (voice, reserved — no mic on the Pi yet).
-- **One attention engine, one ranked queue** — every source (insights, predictions, memory, delight) emits scored **candidates** with decay + cooldowns; the presence mode sets the floor, so ~95% of the time the screen stays calm. See `src/js/services/attentionEngine.js` + `attentionRank.js`.
-- **A House Model** infers activity / tempo / time-budget from signals already flowing (`houseModel.js` → `intentEngine.js`), so the attention gate can tell someone sprinting past their keys from one leaning in with a coffee.
-- **An ambient substrate** carries a slow weather/light tint across every mode (`atmosphere.js`); **on-device learning** folds household rhythms into bounded aggregates (`routineStore.js`, `data/routines/`); a **structured memory engine** surfaces rare, context-matched moments (`memoryEngine.js`, `data/memories/`, Immich photos); and **one temperament authority** (`personality.js`) routes every line, silence, motion-timing and celebration through a single restraint-first voice, with a hard-budgeted **delight registry** (`delight.js`, `data/delight/`) for the two-or-three-times-a-year magic.
+| Service | Source | What it does |
+|---|---|---|
+| `voice-agent` | `tools/voice-agent/` | USB mic → openWakeWord → endpointed capture → STT → `/api/voice/transcript` |
+| `voice-stt` | `tools/voice-pc/stt_server.py` | faster-whisper `base.en` int8, loopback only |
+| `voice-tts` | `tools/voice-pc/tts_server.py` | Kokoro TTS; the dashboard falls back to browser `speechSynthesis` |
 
-This shipped as **ten independently-deployable, feature-flagged phases** ("the Dissolve"),
-every one reversible from `src/js/config.js` (`features.*`) and verified live on the Pi.
-The pure reasoning cores (`atmosphere`, `houseModel`, `routineStore`, `memoryEngine`,
-`personality`, `delight`) carry no DOM or IO, so they unit-test in plain node
-(`tests/*.spec.js`). See the phase plans in `docs/vision/` and the roadmap in
-[`docs/vision/home-os-vision.md`](docs/vision/home-os-vision.md).
+Transcripts go through local commands first, then Home Assistant assist, then Claude.
+Units live in [`deploy/`](deploy/). Transcripts are logged in
+`journalctl -u voice-agent` and are deliberately not stored on disk.
 
-## Design system
+## Feature flags
 
-All styling goes through CSS custom properties defined in `src/css/base/variables.css`. See `docs/STYLE_GUIDE.md` for the full token reference. Key rules:
+New behaviour ships **flag-gated and default-off**. The flags live in `src/js/config.js`
+under `features:` (102 of them) and are copied to `static/js/config.js` on build. **That
+file is public and bundled, so never put a secret or an address in it.**
 
-- **Glass surfaces** — use `--glass-blur`, `--glass-bg`, `--glass-border`, `--glass-shadow`, `--glass-sheen` together, never piecemeal.
-- **Text color** — use `--ink` / `--ink-dim` / `--ink-faint` on dark/glass backgrounds; `color: #fff` only on saturated status-coloured badge backgrounds.
-- **Border radius** — `--radius-pill` (999px), `--glass-radius` (18px), `--glass-radius-sm` (14px), `--radius-modal` (22px), `--radius-modal-xl` (32px). Never hard-code `999px`.
-- **Status colors** — `--status-ok/warn/error/info`; use `color-mix(in oklch, var(--status-X) N%, transparent)` for tinted badge backgrounds.
-- **Fonts** — `--font-display` (Barlow Condensed), `--font-body` (Inter), `--font-mono` (JetBrains Mono). Never hard-code a font stack.
-- **Animation** — JS toggles CSS classes; never mutates `element.style.*`. Shared `@keyframes` live in `helpers.css`.
+- A flag is flipped on only after it has been verified on the live wall. Each flip is its
+  own deploy, and the rollback (flipping it back) is proven straight away.
+  `npm run verify:flags -- --flag <name>` runs the suite in both states.
+- A flag marked **`INERT-ON-V3`** is read only by the incumbent, so flipping it changes
+  nothing on `/`. `tests/flag-surface.spec.js` derives these marks and keeps them honest.
+- A flag change never changes a URL, so the kiosk needs a hard reload
+  (`Page.reload({ignoreCache:true})`) before the change shows up.
 
 ## Setup
 
 ```bash
-# Install all dependencies
 npm install
 
-# Development (Vite HMR on :5173, server on :3000)
+# Development
 npm run dev        # Vite dev server
-node server.js     # Run in a second terminal
+npm start          # Express on :3000 (second terminal)
 
 # Production build
-npm run build      # Outputs to dist/
-npm start          # Serves dist/ on :3000
+npm run build      # vite build + copy-static-config → dist/
+npm start
 ```
 
-Copy `.env.example` to `.env` and fill in — see that file for the full list
-(fuel, commute, bins, TTS). The essentials:
+Copy `.env.example` to `.env` and fill it in. That file documents every variable. The
+essentials are:
 
 ```env
-HA_HOST=http://192.168.0.x:8123
+HA_HOST=http://homeassistant.local:8123
 HA_TOKEN=your_long_lived_token
-GO2RTC_HOST=http://192.168.0.x:1984
-# Required for weather (and the AI briefing/concierge context) — the frontend
-# has its own copy of these coordinates in src/js/config/config.js, but the
-# server does not read that file, so this is a separate, easy-to-forget setting.
-WEATHER_LAT=-27.3691
-WEATHER_LON=153.0847
+GO2RTC_HOST=http://<go2rtc-host>:1984
+# Server-side location. Required for weather and AI context. The frontend has its
+# own copy in src/js/config.js, and the server does NOT read it.
+WEATHER_LAT=<lat>
+WEATHER_LON=<lon>
 ```
 
-AI text (briefing + concierge) works out of the box via local Ollama; add
-`ANTHROPIC_API_KEY` to upgrade to Claude Haiku, which is used automatically
-whenever it's set and falls back to Ollama on any API error.
+If `HA_HOST` or `HA_TOKEN` is blank, HA turns itself off and `/api/ha/*` answers 503, but
+the rest of the dashboard still runs. AI text works out of the box on local Ollama. If you
+add `ANTHROPIC_API_KEY`, Claude Haiku is used whenever it is set, and any API error falls
+back to Ollama.
 
-## Pi deployment
-
-Dashboard lives at `/home/dashboard/dashboard` on the Pi, run as two separate
-systemd services — never start it under PM2 as well; a second process fighting
-over port 3000 will crash-loop forever (`EADDRINUSE`) without ever actually
-restarting the live server.
-
-Browser-based shell and live screen viewing (Cockpit + noVNC, replacing
-Raspberry Pi Connect) are installed separately — see
-[`deploy/REMOTE-ACCESS.md`](deploy/REMOTE-ACCESS.md).
+## Testing
 
 ```bash
-git pull
-npm install
-npm run build      # vite is a local devDependency — use npm run build, not vite directly
-sudo systemctl restart dashboard
+npm run build                          # browser specs need a build
+npm test                               # full Playwright suite (test server on :3210, AI upstreams stubbed)
+npx playwright test tests/<name>.spec.js
+npm run verify:contrast                # contrast sweep over real backdrops
+npm run verify:contracts               # route ↔ contract-test scan
+npm run verify:patterns                # known-defect pattern scan
+npm run verify:v3-coverage
 ```
 
-`/etc/systemd/system/dashboard.service` — the Node server (runs as the
-dedicated `dashboard` user):
+- Contract tests assert known status sets and JSON shapes, never live data, because any
+  upstream may be down on any machine. A new route gets its contract test in the same
+  change.
+- **Pre-push gate:** `git config core.hooksPath .githooks` wires up six gates (~60 s): a
+  guard against a leftover temporary flag flip, the contract scan, the build, `npm test`,
+  the pattern scan and the contrast sweep.
+- Every new test should be able to fail. Inject the wrong answer the test is meant to
+  catch, confirm the suite goes red, then restore it. Several green-but-blind tests have
+  been caught this way.
+
+## Deployment
+
+Deploys are **pull-based**. A push to `origin/main` is picked up by the host's
+`dashboard-deploy.timer` within 5 minutes. `deploy/update-dashboard.sh` pulls, runs
+`npm run build` and restarts `dashboard.service`. To deploy immediately:
+
+```bash
+sudo systemctl start dashboard-deploy.service   # oneshot; blocks until done
+```
+
+After a deploy, the kiosk keeps running the old bundle until it reloads.
+
+The dashboard lives at `/home/dashboard/dashboard` and runs as the `dashboard` user under
+two systemd units. **Do not also run it under PM2.** A second process fighting over port
+3000 crash-loops forever on `EADDRINUSE` and never actually restarts the live server.
+
+`/etc/systemd/system/dashboard.service`, as captured from the live host:
 
 ```ini
 [Unit]
 Description=Dashboard Web Server
-After=network-online.target calendar.service
+After=network-online.target
 Wants=network-online.target
 
 [Service]
@@ -163,10 +202,8 @@ Environment=PORT=3000
 WantedBy=multi-user.target
 ```
 
-`/etc/systemd/system/dashboard-kiosk.service` — Chromium kiosk (runs as
-`dashboard`, the same user lightdm auto-logs into seat0 on `:0`). Note the
-binary is `/usr/bin/chromium`, not `chromium-browser` — current Debian/
-Raspberry Pi OS (trixie) dropped the `chromium-browser` package name:
+`/etc/systemd/system/dashboard-kiosk.service`. Runs as `dashboard`, the user lightdm
+auto-logs into on `:0`. The binary is `/usr/bin/chromium`, not `chromium-browser`:
 
 ```ini
 [Unit]
@@ -196,44 +233,58 @@ RestartSec=10
 WantedBy=graphical.target
 ```
 
-**The last three flags are load-bearing and were missing from this block until
-2026-08-01** (a Phase 0 capture of the live unit found them):
+**The last three flags are load-bearing:**
 
-- `--autoplay-policy=no-user-gesture-required` — on a kiosk with no pointer,
-  losing this silently kills weather background MP4s **and all TTS audio**. The
-  concierge simply stops speaking, with no error anywhere.
-- `--remote-debugging-port=9222` / `--remote-debugging-address=127.0.0.1` — every
-  script in `scripts/kiosk/` drives CDP on `127.0.0.1:9222`. Without these, the
-  whole measurement and verification toolchain is inert.
+- `--autoplay-policy=no-user-gesture-required`: the kiosk has no pointer. Without this
+  flag, weather video **and all TTS audio** stop silently, with no error anywhere.
+- `--remote-debugging-port=9222` / `--remote-debugging-address=127.0.0.1`: every script in
+  `scripts/kiosk/` drives CDP on localhost, so without these the whole measurement and
+  verification toolchain does nothing.
 
-Install units from a capture of the running host, never from a doc — this block
-is the cautionary example.
+Install units from a capture of the running host, never from a doc. This block was
+missing those three flags until 2026-08-01.
 
-This must be the **only** thing launching the kiosk Chromium. Raspberry Pi
-OS can leave behind a separate per-user `~/.config/systemd/user/kiosk.service`
-(check with `systemctl --user list-units --all | grep -i kiosk`) that points
-Chromium at the same URL — if that's also enabled, both instances fight over
-the single Chromium profile lock at every boot, restart-looping forever with
-"Opening in existing browser session" and a gray/blank kiosk screen. Disable
-it if present:
+This unit must be the **only** thing that launches the kiosk Chromium. Older Raspberry Pi
+OS images can leave a per-user `~/.config/systemd/user/kiosk.service` pointing at the same
+URL. If both run, they fight over the profile lock and restart-loop on a grey screen.
+Check with `systemctl --user list-units --all | grep -i kiosk` and disable any you find.
 
-```bash
-systemctl --user disable --now kiosk.service
-rm -f ~/.config/systemd/user/kiosk.service
-```
+Other units on the host: `voice-agent`, `voice-stt`, `voice-tts`, and
+`kiosk-x11vnc` + `kiosk-novnc`, which give a browser shell and a live view of the screen
+([`deploy/REMOTE-ACCESS.md`](deploy/REMOTE-ACCESS.md)).
 
-Useful checks after deploying:
+Useful checks:
 
 ```bash
-systemctl status dashboard --no-pager
-systemctl status dashboard-kiosk --no-pager
+systemctl status dashboard dashboard-kiosk --no-pager
 journalctl -u dashboard -n 100 --no-pager
+curl -s localhost:3000/api/system/metrics     # temps, load (no vcgencmd on the G11)
 ```
 
-## Adding a widget
+The CSP can be enforced per host (`CSP_ENFORCE=1` in `.env`). If an asset, font or stream
+goes blank, check `curl -s localhost:3000/api/csp-report` first.
 
-1. Add a route file in `server/routes/` and mount it in `server.js`
-2. Add a module in `src/js/modules/` that calls the endpoint
-3. Wire it into `src/js/core/app.js`
-4. Add CSS in `src/css/components/` using design tokens from `variables.css`
-5. Run `npm run build` to update `dist/`
+## Running 24/7
+
+The page runs for weeks without a reload, so slow leaks are the main way it fails. The
+house rules:
+
+- Never rely on `transitionend`/`animationend` for cleanup alone. They never fire under
+  `display:none`, so always pair them with a `setTimeout` fallback.
+- Revoke every `URL.createObjectURL` on every terminal path. Blob memory doesn't show up
+  in the JS heap.
+- Per-event code paths need symmetric teardown, and on-disk caches keyed by dynamic text
+  need pruning.
+- Measure, don't reason: the `scripts/kiosk/` CDP probes compare the live heap, DOM,
+  listeners and GPU cost against known baselines.
+
+## Adding a feature
+
+1. Add a route in `server/routes/`, mount it in `server.js`, and add its contract test in
+   the same change.
+2. Build the V3 side in `src/v3/` (a subject or a core module). Only touch `src/js/` if the
+   incumbent needs it too, or if V3 already imports the module from there.
+3. Put it behind a default-off flag in `src/js/config.js`.
+4. Style it with design tokens (`src/v3/css/tokens.css`, `src/css/base/variables.css`,
+   [`docs/STYLE_GUIDE.md`](docs/STYLE_GUIDE.md)).
+5. `npm run build && npm test`, deploy, verify on the wall, then flip the flag.
