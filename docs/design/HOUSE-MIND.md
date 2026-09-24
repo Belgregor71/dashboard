@@ -304,7 +304,16 @@ Each slice ships on its own, default-off, with its own rollback.
     dropping from about 2–3 per 5 minutes to 0 while the store stays fresh.
   - `/kiosk-metrics` should show no heap growth.
 
-### S3 as built (2026-09-24, `9031694`, flag `v3Arbiter` OFF)
+### S3 as built (2026-09-24, `9031694`; flag `v3Arbiter` FLIPPED ON `cfa8af6` + `a067b3f`)
+
+- **Flipped on 2026-09-24 by the owner.**
+  - The first flip push was refused by the contrast sweep. The sweep forces the briefing
+    right after a voice subject, and the arbiter refused the briefing's *scheduled*
+    author.
+  - A forced briefing is now the operator, and unauthored.
+  - The rollback was proven at boot on the wall: `config.js` was served with the flag
+    false, and the arbiter read `on:false`, then `on:true` once restored. There were 0
+    exceptions.
 
 - **The policy is one file**, `src/js/core/arbiter.js`. It sits in `src/js` because the
   speech chokepoint (`core/tts.js`) is shared runtime. The two chokepoints only ask.
