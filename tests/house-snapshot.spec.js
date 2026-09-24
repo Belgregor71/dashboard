@@ -35,7 +35,9 @@ const READ_STATE_KEYS = [
   "menuActive", "menuName",
   "cameraTriggerName", "cameraTriggerAt", "cameraTriggerLabel", "cameraTriggerImage",
   // V3's per-room media surface. focusHero returns [] for it — see the note there.
-  "mediaRooms"
+  "mediaRooms",
+  // HOUSE-MIND S4: the commute legs as numbers. focusHero returns null — see there.
+  "commuteLegs"
 ];
 
 const NOW = new Date("2026-08-08T18:30:00+10:00");

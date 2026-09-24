@@ -174,7 +174,13 @@ function readState() {
        honest answer is "no rooms" rather than a guess — the media candidates
        then carry `media: null` here, which is exactly what they carried before
        the field existed. tests/house-snapshot.spec.js pins the key sets equal. */
-    mediaRooms: []
+    mediaRooms: [],
+    /* ⚠ SHAPE PARITY again, for HOUSE-MIND S4 (2026-09-24). houseSnapshot keeps
+       the commute legs as numbers for V3's departure card; the rendered panels
+       here hold only display strings, so the honest answer is "not known".
+       null makes departureCandidate return nothing — and it is V3-only anyway,
+       gated by a flag and a learned time this surface never computes. */
+    commuteLegs: null
   };
 }
 
