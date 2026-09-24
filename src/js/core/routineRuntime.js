@@ -145,13 +145,21 @@ export function learnedDeparture(now = new Date()) {
  * bucket — `{ wake, departure, return }` in minutes-of-day, each null until
  * `predict()` clears CONF_THRESHOLD.
  *
- * ⚠⚠ THIS IS PULL-ONLY DATA AND MUST STAY THAT WAY. `docs/vision/phase-8-learn.md:81`
- * makes it an absolute rule that learning is NEVER announced — "a half-learned
- * routine that announces itself would be worse than silence" — and
- * `personality.js:39-48` enforces it by stripping "I noticed…" from every
- * candidate. This exists so the house can ANSWER "what time do we usually
- * leave?", which is a question someone chose to ask. It must never become an
- * attention candidate, a glance line, or anything the house volunteers.
+ * ⚠⚠ LEARNING IS NEVER PHRASED. `docs/vision/phase-8-learn.md:81` makes it an
+ * absolute rule that learning is NEVER announced — "a half-learned routine that
+ * announces itself would be worse than silence" — and `personality.js:39-48`
+ * enforces it by stripping "I noticed…" from every candidate. These values
+ * exist so the house can ANSWER "what time do we usually leave?", which is a
+ * question someone chose to ask; that pull path is the only place a learned
+ * time may be put into words.
+ *
+ * Narrowed 2026-09-24 by the owner for HOUSE-MIND S4 ("learned timing, live
+ * words"), matching phase-8-learn.md:11/:25, which always let learned values
+ * sharpen the house model and ranking. A learned time MAY decide WHEN a card
+ * appears (learnedDeparture → candidateSources.departureCandidate). It may
+ * NEVER appear in a card's words: no clock time, no "usually", no "I noticed".
+ * A volunteered card must be buildable with the learned value deleted, and
+ * tests/house-predict.spec.js asserts exactly that.
  *
  * No threshold is applied here: learnedTime() already returns null below
  * CONF_THRESHOLD, and re-implementing that bar would give the house two

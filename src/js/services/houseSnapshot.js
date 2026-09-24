@@ -69,6 +69,7 @@ const cache = {
   weather: null,
   calendar: null,
   commute: null,
+  commuteLegs: null,
   plex: null,
   /* WHEN the Plex sessions were read. A Plex payload carries a position with
      no timestamp, so this is the only anchor a progress reading has. Separate
@@ -134,7 +135,20 @@ function applyHouse(key, value, at) {
   else if (key === "calendar") cache.calendar = Array.isArray(value) ? value : value.events ?? [];
   else if (key === "commute") {
     const text = commuteFrom(value);
-    if (text) cache.commute = text;
+    if (text) {
+      cache.commute = text;
+      /* HOUSE-MIND S4: the legs as numbers, beside the string. The string is
+         display copy with the seconds already rounded away, and a departure
+         card must be able to state the traffic delay it is standing on. Only
+         legs with a real time survive, exactly as in commuteFrom. */
+      cache.commuteLegs = (Array.isArray(value.legs) ? value.legs : [])
+        .filter((leg) => typeof leg?.seconds === "number" && leg?.label)
+        .map((leg) => ({
+          label: leg.label,
+          seconds: leg.seconds,
+          delaySeconds: Number.isFinite(leg.trafficDelaySeconds) ? leg.trafficDelaySeconds : 0
+        }));
+    }
   } else if (key === "plex") {
     cache.plex = Array.isArray(value.sessions) ? value.sessions : null;
     cache.plexAt = at;
@@ -648,6 +662,8 @@ export function houseSnapshot({
 
     commuteActive: Boolean(cache.commute),
     commuteText: cache.commute,
+    // HOUSE-MIND S4: the same legs as numbers (label, seconds, delaySeconds).
+    commuteLegs: cache.commuteLegs,
 
     nextEventActive: Boolean(nextEvent),
     nextEventText: nextEvent?.text ?? null,
@@ -689,6 +705,7 @@ export function __resetHouseCache() {
   cache.weather = null;
   cache.calendar = null;
   cache.commute = null;
+  cache.commuteLegs = null;
   cache.plex = null;
   cache.plexAt = 0;
   cache.fetchedAt = 0;

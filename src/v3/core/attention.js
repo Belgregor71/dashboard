@@ -76,7 +76,8 @@ import { collectSources } from "../../js/services/candidateSources.js";
 import { initAttentionEngine, getSelection } from "../../js/services/attentionEngine.js";
 import { houseSnapshot } from "../../js/services/houseSnapshot.js";
 import { MODE } from "../../js/services/attentionRank.js";
-import { attentionWeights } from "../../js/core/routineRuntime.js";
+import { attentionWeights, learnedDeparture } from "../../js/core/routineRuntime.js";
+import { heldNowcast } from "../../js/services/voiceSnapshot.js";
 import { record } from "./feature-census.js";
 import { DEPTH, deepen, sustain, setDepth, getDepth, getReason, onDepth } from "./depth.js";
 import { initPresence, onPresence, isPresent, isDwelling } from "./presence.js";
@@ -255,6 +256,22 @@ export function laneState(state, isOn = flag) {
  * engine's own synchronous read — the async half (the briefing context and the
  * AI phrasing) runs on the engine's internal 5-minute refresh, never here.
  */
+/* HOUSE-MIND S4 (features.v3PredictDeparture): WHEN the departure card may
+   appear. The learned time is used as a clock and nothing else — it never
+   reaches the card's words (candidateSources.departureCandidate). null with
+   the flag off, with nobody in the room, or below the routine's confidence
+   bar (learnedDeparture returns null there). */
+function departureState(now) {
+  if (!flag("v3PredictDeparture")) return null;
+  const at = learnedDeparture(now);
+  if (at == null) return null;
+  return {
+    minutesToGo: at - (now.getHours() * 60 + now.getMinutes()),
+    present: isPresent(),
+    rain: heldNowcast()
+  };
+}
+
 export function tickAttention(now = new Date()) {
   const state = houseSnapshot({ now });
   /* Announcements ride in as sources so the engine treats them exactly like
@@ -274,7 +291,8 @@ export function tickAttention(now = new Date()) {
       timely: Boolean(globalThis.window?.CONFIG?.features?.timelyCandidates),
       /* Same reason as `timely`: candidateSources is import-free, so the flag
          rides in with the state rather than being read there. */
-      bomSeverity: Boolean(globalThis.window?.CONFIG?.features?.bomWarningSeverity)
+      bomSeverity: Boolean(globalThis.window?.CONFIG?.features?.bomWarningSeverity),
+      departure: departureState(now)
     }),
     ...announced
   ];

@@ -198,8 +198,72 @@ function inWindow(now, { fromMin, toMin, weekdaysOnly }) {
  * ⚠ The whole gate is behind `timely`, which is the rollback path: with the
  * flag off this is the flat score-42 readout it always was.
  */
-export function commuteCandidate({ commuteActive, commuteText, now, timely } = {}) {
+/* ═══ HOUSE-MIND S4 — the drive, at the moment someone usually leaves ═══════
+   docs/design/HOUSE-MIND.md §5 S4, and the owner's rule for it (2026-09-24):
+   LEARNED TIMING, LIVE WORDS.
+
+   The learned departure (routineRuntime, null below its confidence bar) decides
+   only WHEN this card may appear: a window from 45 min before to 5 min after.
+   Every word on it is a live observation — each driver's drive time now, the
+   traffic delay now, rain the radar can see now. Nothing here says "usually",
+   names the learned clock time or says "leave by": a half-learned routine that
+   phrases itself is the failure docs/vision/phase-8-learn.md:81 bans, and a
+   card whose words are all checkable against the moment cannot commit it.
+   tests/house-predict.spec.js asserts the words are IDENTICAL with the learned
+   time moved anywhere inside the window.
+
+   No live drive time, no card: timing alone never speaks.
+
+   `interrupt` in the last 30 min, because that is exactly when the intent
+   engine reads the house as "rushed" and the ranker admits interrupts only
+   (attentionRank.js). Without it the card would vanish at the one moment it is
+   for. `departure` is null with features.v3PredictDeparture off, so the flag
+   off is no card and the plain commute line exactly as before.
+─────────────────────────────────────────────────────────────────────────── */
+export const DEPARTURE_WINDOW = Object.freeze({ beforeMin: 45, afterMin: 5, interruptMin: 30 });
+const DEPARTURE_SCORE = 74;
+const RAIN_MIN_PROBABILITY = 50;
+const NOTABLE_DELAY_S = 120;
+
+export function departureCandidate({ departure, commuteLegs } = {}) {
+  if (!departure?.present) return null;
+  const toGo = departure.minutesToGo;
+  if (!Number.isFinite(toGo)) return null;
+  if (toGo > DEPARTURE_WINDOW.beforeMin || toGo < -DEPARTURE_WINDOW.afterMin) return null;
+
+  const legs = (Array.isArray(commuteLegs) ? commuteLegs : [])
+    .filter((leg) => Number.isFinite(leg?.seconds) && leg?.label);
+  if (!legs.length) return null;
+
+  const text = legs.map((leg) => `${leg.label} ${Math.round(leg.seconds / 60)} min`).join(" · ");
+
+  // The data line: what the drive is standing on right now, most urgent first.
+  const facts = [];
+  const rain = departure.rain;
+  if (rain && Number.isFinite(rain.startsInMin) && (rain.probabilityPct ?? 0) >= RAIN_MIN_PROBABILITY) {
+    facts.push(rain.startsInMin <= 0 ? "Raining now" : `Rain in ${Math.round(rain.startsInMin)} min`);
+  }
+  const delay = Math.max(0, ...legs.map((leg) => leg.delaySeconds ?? 0));
+  if (delay >= NOTABLE_DELAY_S) facts.push(`Traffic +${Math.round(delay / 60)} min`);
+
+  return {
+    id: "departure",
+    source: "departure",
+    icon: "🚗",
+    text,
+    title: text,
+    sub: facts.length ? facts.join(" · ") : "Drive to work",
+    score: DEPARTURE_SCORE,
+    interrupt: toGo <= DEPARTURE_WINDOW.interruptMin,
+    cooldownMs: 0
+  };
+}
+
+export function commuteCandidate({ commuteActive, commuteText, now, timely, departure, commuteLegs } = {}) {
   if (!commuteActive || !commuteText) return null;
+  // The departure card is carrying these same drive times; two lines saying
+  // one thing is the duplication the spread has been caught doing before.
+  if (departureCandidate({ departure, commuteLegs })) return null;
   if (Boolean(timely) && !inWindow(now, COMMUTE_WINDOW)) return null;
   return {
     id: `commute:${commuteText}`,
@@ -537,6 +601,7 @@ export const SOURCES = [
   weatherSevereCandidate,
   nextEventCandidate,
   commuteCandidate,
+  departureCandidate,
   cameraTriggerCandidate,
   robotCandidate,
   nowPlayingCandidate,
@@ -570,6 +635,7 @@ export const SOURCE_NAMES = [
   "weather",
   "nextEvent",
   "commute",
+  "departure",
   "cameraTrigger",
   "robot",
   "nowPlaying",

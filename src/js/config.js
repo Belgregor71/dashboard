@@ -2224,6 +2224,17 @@ window.CONFIG = {
     // Rollback: v3Arbiter: false (+ hard reload) — read per call.
     v3Arbiter: false,
 
+    // ── HOUSE-MIND S4 (docs/design/HOUSE-MIND.md §5): prediction, under the
+    // owner's rule "learned timing, live words" (2026-09-24). The learned
+    // departure (routineLearning, above its confidence bar) opens a window from
+    // 45 min before to 5 min after; while someone is in the room, a card with
+    // each driver's LIVE drive time earns the glance, its data line naming
+    // live rain or traffic. Its words never contain the learned time,
+    // "usually" or "leave by". Interrupt in the last 30 min, so the "rushed"
+    // tempo cannot hide it. The plain commute line stands down while it shows.
+    // Rollback: v3PredictDeparture: false (+ hard reload) — read per tick.
+    v3PredictDeparture: false,
+
     // V3's field weather (src/v3/main.js loadWeather): the substrate's causes,
     // the Living Window's slice and the archive's sky line.
     // FLIPPED ON 2026-09-23 by the owner, first of the three. Deployed off first

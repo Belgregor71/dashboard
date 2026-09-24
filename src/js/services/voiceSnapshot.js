@@ -344,6 +344,13 @@ export function voiceSnapshot({ lat, lon } = {}) {
   };
 }
 
+/** The held nowcast (`{ startsInMin, probabilityPct, mm }` or null), without
+ *  building the whole snapshot. HOUSE-MIND S4's departure card reads it on the
+ *  attention tick, which runs every 30 s. */
+export function heldNowcast() {
+  return cache.nowcast;
+}
+
 export function voiceCacheAge() {
   return cache.fetchedAt ? Date.now() - cache.fetchedAt : null;
 }
