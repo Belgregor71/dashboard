@@ -146,6 +146,25 @@ function frameLatch(count = 1) {
   };
 }
 
+/**
+ * Detach a frame's load/error handlers once its latch has fired.
+ *
+ * ⚠⚠ THE HANDLERS ARE A CHAIN BACK TO THE FIRST FRAME OF THE DAY. dissolve()'s
+ * `onload`/`onerror` close over the scope that holds `old` — the frame being
+ * replaced — and `old`'s own imgs still carry THEIR handlers, which hold the frame
+ * before that. Removing a node from the DOM frees none of it. Measured on the
+ * G11 2026-09-24: every rotated-out <img> survived two forced GCs with both
+ * handlers attached, +2 listeners per rotation (+4 on a pair), and clearing the
+ * handlers in the live page collapsed 5 detached imgs to 2 and 36 listeners to 26.
+ * A page that runs for weeks would carry every photograph it ever showed.
+ */
+function dropHandlers(imgs) {
+  for (const el of imgs) {
+    el.onload = null;
+    el.onerror = null;
+  }
+}
+
 /* ── On this day ────────────────────────────────────────────────────────────
    One photograph a day was deliberate and it was wrong in practice: a day spent
    with a picture you don't much like has no way out, and the wall stops being
@@ -688,6 +707,7 @@ async function loadFirst(stallMs = STALL_MS) {
       inFlight = false;
     };
     const settle = () => {
+      dropHandlers(imgs);
       for (const el of imgs) el.dataset.shown = "1";
       current = { imgs, assets, assetId: assets[0].id, dayKey: localDayKey() };
       paintCaption();
@@ -753,6 +773,7 @@ async function dissolve(settleMs = DISSOLVE_MS, stallMs = STALL_MS) {
 
     const shot = frameLatch(imgs.length);
     const settle = () => {
+      dropHandlers(imgs);
       for (const el of imgs) el.dataset.shown = "1";
       current = { imgs, assets, assetId: assets[0].id, dayKey: localDayKey() };
       paintCaption();
@@ -780,6 +801,9 @@ async function dissolve(settleMs = DISSOLVE_MS, stallMs = STALL_MS) {
 
         // ⚠ EVERY element of the outgoing frame. Removing only the first is how
         // a diptych leaks one <img> per rotation on a page that runs for weeks.
+        // Handlers first: a frame painted by loadFirst, or one whose settle
+        // never ran, may still hold its chain. See dropHandlers.
+        dropHandlers(old.imgs);
         for (const el of old.imgs) el.remove();
         // #ground names whatever photograph is currently the ground. Carrying
         // the id across keeps that true for the life of the page, so nothing
@@ -808,6 +832,7 @@ async function dissolve(settleMs = DISSOLVE_MS, stallMs = STALL_MS) {
     // A dead incoming frame must not take the live one with it: drop the
     // half-built nodes and leave the day key as it was so the tick retries.
     const fail = () => {
+      dropHandlers(imgs);
       for (const el of imgs) el.remove();
       syncDiptychAttr();
       inFlight = false;
