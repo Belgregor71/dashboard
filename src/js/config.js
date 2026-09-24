@@ -2228,8 +2228,10 @@ window.CONFIG = {
     // personalityRuntime's 6-hourly birthday read. With it on the birthday is
     // re-derived on every calendar push instead. Live witness is
     // __v3HouseCalendar().personality.from, not a request count.
+    // FLIPPED ON 2026-09-25, last of the six (deployed off first in
+    // baa3e13/bbda34b: inert live, 0 exceptions).
     // Rollback: v3HouseStorePersonality: false (+ hard reload).
-    v3HouseStorePersonality: false,
+    v3HouseStorePersonality: true,
     // ── HOUSE-MIND S3 (docs/design/HOUSE-MIND.md §5): the arbiter
     // (src/js/core/arbiter.js). One owner of who may SPEAK and who may take
     // the depth-3 STAGE. Speech by priority (voice 50, doorbell 40, timer 30,
