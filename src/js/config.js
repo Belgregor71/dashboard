@@ -2236,7 +2236,11 @@ window.CONFIG = {
     // "usually" or "leave by". Interrupt in the last 30 min, so the "rushed"
     // tempo cannot hide it. The plain commute line stands down while it shows.
     // Rollback: v3PredictDeparture: false (+ hard reload) — read per tick.
-    v3PredictDeparture: false,
+    // FLIPPED ON 2026-09-24 by the owner ("flip v3PredictDeparture on").
+    // Deployed off first (5370ae9: inert live, 0 exceptions). The live house's
+    // learned weekday departure at the flip: 475 min (7:55), so the card's
+    // window is 7:10–8:00 on weekdays.
+    v3PredictDeparture: true,
 
     // V3's field weather (src/v3/main.js loadWeather): the substrate's causes,
     // the Living Window's slice and the archive's sky line.
