@@ -45,11 +45,11 @@ function countPeopleHome() {
    delivered is dropped. Flag read per push and per refresh, never at load:
    ES imports hoist above /js/config.js. Flag off: every refresh fetches, and a
    push is ignored, exactly as before. */
-const STORE_FLAG = "v3HouseStoreIntent";
+
 let calendarFrom = null; // "store" | "fetch" — where the held events came from
 
 function storeOn() {
-  return Boolean(globalThis.window?.CONFIG?.features?.[STORE_FLAG]);
+  return Boolean(globalThis.window?.CONFIG?.features?.v3HouseStoreIntent);
 }
 
 // Today's still-upcoming events, so timeBudget can name the next thing that

@@ -154,6 +154,9 @@ export const EVENTS = {
   "house:observation": {
     publishers: ["src/js/services/houseStream.js"],
     consumers: [
+      "src/js/core/intentEngine.js",
+      "src/js/core/personalityRuntime.js",
+      "src/js/modules/briefingData.js",
       "src/js/services/houseSnapshot.js",
       "src/js/services/voiceSnapshot.js",
       "src/v3/main.js"

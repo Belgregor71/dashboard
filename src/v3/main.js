@@ -310,15 +310,16 @@ function pushCauses() {
 }
 
 /* HOUSE-MIND S2: one flag per consumer of the observation store. Any one on
-   opens the stream; all off is no stream and no server polling. */
-const HOUSE_STORE_FLAGS = [
-  "v3HouseStoreGlance",
-  "v3HouseStoreVoice",
-  "v3HouseStoreField",
-  "v3HouseStoreBriefing",
-  "v3HouseStoreIntent",
-  "v3HouseStorePersonality"
-];
+   opens the stream; all off is no stream and no server polling. Literal
+   flag("…") calls, not a list: tests/flag-surface.spec.js finds a V3 read by
+   its read form, and a name in an array is invisible to it. */
+const anyHouseStoreFlag = () =>
+  flag("v3HouseStoreGlance") ||
+  flag("v3HouseStoreVoice") ||
+  flag("v3HouseStoreField") ||
+  flag("v3HouseStoreBriefing") ||
+  flag("v3HouseStoreIntent") ||
+  flag("v3HouseStorePersonality");
 
 /* HOUSE-MIND S2 (features.v3HouseStoreField): the field reads its weather from
    the observation store, so the sky and the glance's weather line are the SAME
@@ -941,7 +942,7 @@ function boot() {
      consumer is flagged on: all three off is no stream and no server polling,
      the build that shipped before S2. Init-once; see services/houseStream.js. */
   stage("house-stream", () => {
-    if (HOUSE_STORE_FLAGS.some((name) => flag(name))) {
+    if (anyHouseStoreFlag()) {
       // briefingData is pulled, not polled, so it has no refresh to attach
       // from: its listener goes on here, before the stream's first snapshot.
       holdHouseObservations();

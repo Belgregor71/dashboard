@@ -136,11 +136,11 @@ function updateDryStreak(now) {
    own fetch while the store is fresh (services/houseStream.js). A fetch that
    resolves after the store delivered is dropped. Flag read per push and per
    refresh. Flag off: a push is ignored and the 6-hourly fetch runs as before. */
-const STORE_FLAG = "v3HouseStorePersonality";
+
 let calendarFrom = null; // "store" | "fetch" — where the held birthday came from
 
 function storeOn() {
-  return Boolean(globalThis.window?.CONFIG?.features?.[STORE_FLAG]);
+  return Boolean(globalThis.window?.CONFIG?.features?.v3HouseStorePersonality);
 }
 
 // One writer for both paths.

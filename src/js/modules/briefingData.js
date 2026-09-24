@@ -42,14 +42,14 @@ async function getJson(url) {
    in place. A push drops the context cache so the next gather cannot serve a
    context built from an older reading. Flag read per push and per gather.
    Flag off: pushes are ignored and every key is fetched, as before. */
-const STORE_FLAG = "v3HouseStoreBriefing";
+
 const STORE_KEYS = ["weather", "forecast", "nowcast", "calendar", "bins"];
 const held = new Map();
 let holding = false;
 let calendarFrom = null; // "store" | "fetch" — for __v3HouseReadings
 
 function onObservation({ key, value } = {}) {
-  if (!flag(STORE_FLAG) || !STORE_KEYS.includes(key) || !value) return;
+  if (!flag("v3HouseStoreBriefing") || !STORE_KEYS.includes(key) || !value) return;
   held.set(key, value);
   cached = null;
 }
@@ -65,7 +65,7 @@ export function holdHouseObservations() {
    that resolves after the store delivered (the held reading is the one
    everybody else now holds). Rejects like getJson, so allSettled is unchanged. */
 async function readHouse(key, url) {
-  const viaStore = flag(STORE_FLAG);
+  const viaStore = flag("v3HouseStoreBriefing");
   if (viaStore && storeFresh(key) && held.has(key)) return { value: held.get(key), from: "store" };
   const value = await getJson(url);
   if (viaStore && storeFresh(key) && held.has(key)) return { value: held.get(key), from: "store" };
