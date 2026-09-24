@@ -7,6 +7,8 @@
 
 import { getAllEntities } from "../services/homeAssistant/state.js";
 import { sleepSummary } from "../services/sleepSummary.js";
+import { on } from "../core/eventBus.js";
+import { storeFresh } from "../services/houseStream.js";
 
 // Single gatherer for everything the briefing needs — the view's fact tiles
 // and the AI prompt both render from this one context object, so what's
@@ -28,6 +30,57 @@ async function getJson(url) {
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) throw new Error(`${url} HTTP ${res.status}`);
   return res.json();
+}
+
+/* ── HOUSE-MIND S2: the observation store (features.v3HouseStoreBriefing) ─────
+   Weather, forecast, nowcast, calendar and bins come off the store's pushes
+   while it is fresh (services/houseStream.js has the fallback rule); fuel,
+   news, chores and the per-leg commute stay fetched (the store does not hold
+   them, and its commute is /all, not ?leg=). The parse below is unchanged: the
+   store relays the route's own bytes. This module is PULLED on demand, so it
+   holds the last pushed value per key: bounded, one entry per key, overwritten
+   in place. A push drops the context cache so the next gather cannot serve a
+   context built from an older reading. Flag read per push and per gather.
+   Flag off: pushes are ignored and every key is fetched, as before. */
+const STORE_FLAG = "v3HouseStoreBriefing";
+const STORE_KEYS = ["weather", "forecast", "nowcast", "calendar", "bins"];
+const held = new Map();
+let holding = false;
+let calendarFrom = null; // "store" | "fetch" — for __v3HouseReadings
+
+function onObservation({ key, value } = {}) {
+  if (!flag(STORE_FLAG) || !STORE_KEYS.includes(key) || !value) return;
+  held.set(key, value);
+  cached = null;
+}
+
+/** Init-once: listen for the store's pushes. V3 calls this before it opens the stream. */
+export function holdHouseObservations() {
+  if (holding) return;
+  holding = true;
+  on("house:observation", onObservation);
+}
+
+/* The held value while the store is fresh; otherwise fetch, and drop a fetch
+   that resolves after the store delivered (the held reading is the one
+   everybody else now holds). Rejects like getJson, so allSettled is unchanged. */
+async function readHouse(key, url) {
+  const viaStore = flag(STORE_FLAG);
+  if (viaStore && storeFresh(key) && held.has(key)) return { value: held.get(key), from: "store" };
+  const value = await getJson(url);
+  if (viaStore && storeFresh(key) && held.has(key)) return { value: held.get(key), from: "store" };
+  return { value, from: "fetch" };
+}
+
+async function readHouseValue(key, url) {
+  const { value, from } = await readHouse(key, url);
+  if (key === "calendar") calendarFrom = from;
+  return value;
+}
+
+/** Read-only, for __v3HouseReadings and specs. */
+export function briefingStoreState() {
+  return { calendarFrom, keys: [...held.keys()] };
 }
 
 // ── Weather ────────────────────────────────────────────────────
@@ -260,13 +313,13 @@ export async function gatherBriefingContext(type) {
 
   const [weatherRes, forecastRes, calRes, binsRes, fuelRes, newsRes, nowcastRes, gregRes, brettRes, choresRes] =
     await Promise.allSettled([
-      getJson("/api/weather/now"),
-      getJson("/api/weather/forecast"),
-      getJson("/api/calendar/all"),
-      getJson("/api/bins"),
+      readHouseValue("weather", "/api/weather/now"),
+      readHouseValue("forecast", "/api/weather/forecast"),
+      readHouseValue("calendar", "/api/calendar/all"),
+      readHouseValue("bins", "/api/bins"),
       getJson("/api/fuel"),
       getJson("/api/news"),
-      getJson("/api/weather/nowcast"),
+      readHouseValue("nowcast", "/api/weather/nowcast"),
       wantCommute ? fetchLeg("greg")  : Promise.resolve(null),
       wantCommute ? fetchLeg("brett") : Promise.resolve(null),
       // Flag-off is NO FETCH, not a discarded one: the off state has to be the

@@ -10,6 +10,7 @@ import { on } from "./eventBus.js";
 import { getAllEntities } from "../services/homeAssistant/state.js";
 import { deriveIntent, settleCategory, NEUTRAL_INTENT } from "../services/houseModel.js";
 import { learnedDeparture } from "./routineRuntime.js";
+import { storeFresh } from "../services/houseStream.js";
 
 // The intent runtime — Phase 6 (docs/vision/phase-6-intent.md). It gathers the
 // live inputs (context store + calendar + person.* state), calls the pure House
@@ -37,18 +38,47 @@ function countPeopleHome() {
   ).length;
 }
 
+/* ── HOUSE-MIND S2: the observation store (features.v3HouseStoreIntent) ──────
+   With the flag on, the store's calendar pushes land here as they arrive, and
+   the 5-min refresh skips its own fetch while the store is fresh (the fallback
+   rule is services/houseStream.js's). A fetch that resolves after the store
+   delivered is dropped. Flag read per push and per refresh, never at load:
+   ES imports hoist above /js/config.js. Flag off: every refresh fetches, and a
+   push is ignored, exactly as before. */
+const STORE_FLAG = "v3HouseStoreIntent";
+let calendarFrom = null; // "store" | "fetch" — where the held events came from
+
+function storeOn() {
+  return Boolean(globalThis.window?.CONFIG?.features?.[STORE_FLAG]);
+}
+
 // Today's still-upcoming events, so timeBudget can name the next thing that
-// matters. Mirrors arrivalGreeting's read; keeps the last-known list on failure.
+// matters. Mirrors arrivalGreeting's read. One writer for both paths.
+function setEventsFrom(data, from) {
+  if (!data) return;
+  const now = new Date();
+  const dayStr = now.toDateString();
+  events = (data.events ?? data ?? [])
+    .map((ev) => ({ start: new Date(ev.start ?? ev.startDate ?? ev.date) }))
+    .filter((ev) => !Number.isNaN(ev.start.getTime()) && ev.start.toDateString() === dayStr && ev.start > now);
+  calendarFrom = from;
+}
+
+function onObservation({ key, value } = {}) {
+  if (key !== "calendar" || !storeOn()) return;
+  setEventsFrom(value, "store");
+}
+
+// Keeps the last-known list on failure.
 async function refreshEvents() {
+  const viaStore = storeOn();
+  if (viaStore && storeFresh("calendar")) return;
   try {
     const res = await fetch("/api/calendar/all", { signal: AbortSignal.timeout(8_000) });
     if (!res.ok) return;
     const data = await res.json();
-    const now = new Date();
-    const dayStr = now.toDateString();
-    events = (data.events ?? data ?? [])
-      .map((ev) => ({ start: new Date(ev.start ?? ev.startDate ?? ev.date) }))
-      .filter((ev) => !Number.isNaN(ev.start.getTime()) && ev.start.toDateString() === dayStr && ev.start > now);
+    if (viaStore && storeFresh("calendar")) return;
+    setEventsFrom(data, "fetch");
   } catch {
     /* keep the last-known events */
   }
@@ -125,7 +155,7 @@ export function initIntent(options = {}) {
   enabled = options.enabled === true;
 
   // Read-only debug hook exists in both states so CDP can confirm the flag.
-  window.__intent = () => ({ enabled, intent: committed, inputs: lastInputs, override });
+  window.__intent = () => ({ enabled, intent: committed, inputs: lastInputs, override, calendarFrom, events: events.length });
 
   if (!enabled) return; // flag off → exact Phase 5 behaviour
 
@@ -133,8 +163,14 @@ export function initIntent(options = {}) {
   document.body.dataset.tempo = committed.tempo;
   setContext({ intent: committed });
 
+  // Attached before the first fetch and before V3 opens the stream, so the
+  // held snapshot never arrives unheard. Checks its flag per push.
+  on("house:observation", onObservation);
   refreshEvents();
   setInterval(refreshEvents, CAL_REFRESH_MS);
+  // Run the 5-min calendar refresh now, for CDP and specs: the boot read always
+  // precedes the stream, so only a refresh can show the store-fresh skip.
+  window.__intentRefreshCalendar = () => refreshEvents();
 
   recompute();
   setInterval(recompute, RECOMPUTE_MS);

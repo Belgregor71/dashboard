@@ -55,6 +55,7 @@ import { initMemoryRuntime } from "../js/core/memoryRuntime.js";
 import { initRoutineRuntime } from "../js/core/routineRuntime.js";
 import { initPersonalityRuntime } from "../js/core/personalityRuntime.js";
 import { initIntent } from "../js/core/intentEngine.js";
+import { holdHouseObservations, briefingStoreState, gatherBriefingContext } from "../js/modules/briefingData.js";
 import { initContextFeed, pushContext, feedWeather } from "./core/context-feed.js";
 import { initCommands } from "./core/commands.js";
 import { clockDim } from "./core/sun-clock.js";
@@ -307,6 +308,17 @@ function pushCauses() {
      to exactly those three. Needs the lift, like the weather tier. */
   causes: flag("v3FieldCauses") ? 1 : 0 });
 }
+
+/* HOUSE-MIND S2: one flag per consumer of the observation store. Any one on
+   opens the stream; all off is no stream and no server polling. */
+const HOUSE_STORE_FLAGS = [
+  "v3HouseStoreGlance",
+  "v3HouseStoreVoice",
+  "v3HouseStoreField",
+  "v3HouseStoreBriefing",
+  "v3HouseStoreIntent",
+  "v3HouseStorePersonality"
+];
 
 /* HOUSE-MIND S2 (features.v3HouseStoreField): the field reads its weather from
    the observation store, so the sky and the glance's weather line are the SAME
@@ -929,7 +941,10 @@ function boot() {
      consumer is flagged on: all three off is no stream and no server polling,
      the build that shipped before S2. Init-once; see services/houseStream.js. */
   stage("house-stream", () => {
-    if (flag("v3HouseStoreGlance") || flag("v3HouseStoreVoice") || flag("v3HouseStoreField")) {
+    if (HOUSE_STORE_FLAGS.some((name) => flag(name))) {
+      // briefingData is pulled, not polled, so it has no refresh to attach
+      // from: its listener goes on here, before the stream's first snapshot.
+      holdHouseObservations();
       connectHouseStream();
     }
   });
@@ -1080,6 +1095,22 @@ function registerHandles() {
     voice: voiceSnapshot({ lat: CITY.lat, lon: CITY.lon }).weather?.now?.condition?.label ?? null,
     field: weather?.now?.condition?.label ?? null
   });
+  /* The calendar consumers (HOUSE-MIND S2's second half): where each one's
+     last calendar reading came from, and what it made of it. Async because
+     the briefing is pulled — this gathers once (a 5-min cache, as the glance's
+     own gather). `from` is the live witness for personality, whose 6-hour
+     cadence rules out counting its requests. */
+  window.__v3HouseCalendar = async () => {
+    // "evening": the same store keys as morning, without the weekday commute legs.
+    const ctx = await gatherBriefingContext("evening").catch(() => null);
+    const intent = window.__intent?.() ?? {};
+    const personality = window.__personality?.() ?? {};
+    return {
+      briefing: { from: briefingStoreState().calendarFrom, today: (ctx?.calendar?.today ?? []).map((e) => e.title ?? e.summary ?? null) },
+      intent: { from: intent.calendarFrom ?? null, events: intent.events ?? null },
+      personality: { from: personality.calendarFrom ?? null, birthday: personality.birthdayName ?? null }
+    };
+  };
 
   /* Mount any subject directly, optionally against an INJECTED snapshot.
 

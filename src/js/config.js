@@ -2212,6 +2212,20 @@ window.CONFIG = {
     // 80761a9 and Glance 77b5c2f). Inert on the incumbent, which never opens
     // the stream. Rollback: v3HouseStoreVoice: false (+ hard reload).
     v3HouseStoreVoice: true,
+    // briefingData (the briefing, insight and attention context, and S4's
+    // predictive lane): weather, forecast, nowcast, calendar and bins. Fuel,
+    // news, chores and the per-leg commute stay fetched. Pulled, not polled,
+    // so it holds the last push per key (bounded, one per key).
+    // Rollback: v3HouseStoreBriefing: false (+ hard reload).
+    v3HouseStoreBriefing: false,
+    // intentEngine's 5-min calendar read (today's upcoming events).
+    // Rollback: v3HouseStoreIntent: false (+ hard reload).
+    v3HouseStoreIntent: false,
+    // personalityRuntime's 6-hourly birthday read. With it on the birthday is
+    // re-derived on every calendar push instead. Live witness is
+    // __v3HouseCalendar().personality.from, not a request count.
+    // Rollback: v3HouseStorePersonality: false (+ hard reload).
+    v3HouseStorePersonality: false,
     // ── HOUSE-MIND S3 (docs/design/HOUSE-MIND.md §5): the arbiter
     // (src/js/core/arbiter.js). One owner of who may SPEAK and who may take
     // the depth-3 STAGE. Speech by priority (voice 50, doorbell 40, timer 30,

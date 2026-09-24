@@ -237,7 +237,8 @@ function streamBody() {
 
 const STREAM = { __fulfill: { status: 200, contentType: "text/event-stream", body: streamBody() } };
 const ALL_ON = { v3HouseStoreGlance: true, v3HouseStoreVoice: true, v3HouseStoreField: true };
-const ALL_OFF = { v3HouseStoreGlance: false, v3HouseStoreVoice: false, v3HouseStoreField: false };
+const CAL_OFF = { v3HouseStoreBriefing: false, v3HouseStoreIntent: false, v3HouseStorePersonality: false };
+const ALL_OFF = { v3HouseStoreGlance: false, v3HouseStoreVoice: false, v3HouseStoreField: false, ...CAL_OFF };
 
 function countRequests(page) {
   const seen = [];
@@ -326,6 +327,208 @@ test.describe("v3HouseStore* — the consumers hold the store's reading", () => 
       // Held, not passed through: still true after the others have settled.
       await page.waitForTimeout(500);
       expect(await readings(page)).toEqual(expected);
+      expect(pageErrors).toEqual([]);
+    });
+  }
+});
+
+/* ── The calendar consumers: briefingData, intentEngine, personalityRuntime ──
+   Same method as above, on the CALENDAR: the store's today holds "Storey's
+   birthday" and two events still to come; the route's holds "Routey's
+   birthday" and one. Whichever a consumer made its reading from is named by
+   the text (and, for intent, the count) — never by the wire alone.
+
+   The events still to come sit at 23:59 today: always later than now, always
+   today, except inside the last minute of the day. */
+function calendarFixture(name, upcoming) {
+  const midnight = new Date();
+  midnight.setHours(0, 0, 0, 0);
+  const late = (s) => { const d = new Date(); d.setHours(23, 59, s, 0); return d.toISOString(); };
+  return {
+    events: [
+      { title: `${name}'s birthday`, start: midnight.toISOString() },
+      ...Array.from({ length: upcoming }, (_, i) => ({ title: `${name} errand ${i + 1}`, start: late(i * 10) }))
+    ]
+  };
+}
+
+const STORE_CAL = calendarFixture("Storey", 2);
+const ROUTE_CAL = calendarFixture("Routey", 1);
+const FORECAST = { days: [] };
+const BINS = { configured: false };
+const NOWCAST = { nowcast: null };
+
+function calStreamBody() {
+  const at = Date.now();
+  const held = {
+    weather: { value: DRIZZLE, at },
+    calendar: { value: STORE_CAL, at },
+    forecast: { value: FORECAST, at },
+    bins: { value: BINS, at },
+    nowcast: { value: NOWCAST, at }
+  };
+  return `retry: 600000\n\nevent: house_snapshot\ndata: ${JSON.stringify(held)}\n\n`;
+}
+
+const CAL_STREAM = { __fulfill: { status: 200, contentType: "text/event-stream", body: calStreamBody() } };
+const CAL_ON = { v3HouseStoreBriefing: true, v3HouseStoreIntent: true, v3HouseStorePersonality: true };
+/* The three that moved first stay OFF here, so each of THESE flags is the only
+   reason a calendar read comes off the store. */
+const OLD_OFF = { v3HouseStoreGlance: false, v3HouseStoreVoice: false, v3HouseStoreField: false };
+
+const FROM_STORE = {
+  briefing: { from: "store", first: "Storey's birthday" },
+  intent: { from: "store", events: 2 },
+  personality: { from: "store", birthday: "Storey" }
+};
+const FROM_ROUTE = {
+  briefing: { from: "fetch", first: "Routey's birthday" },
+  intent: { from: "fetch", events: 1 },
+  personality: { from: "fetch", birthday: "Routey" }
+};
+
+async function bootCal(page, features, { stream = CAL_STREAM, calendar = ROUTE_CAL } = {}) {
+  const count = countRequests(page);
+  const { pageErrors } = await bootV3(page, {
+    "/api/house/stream": stream,
+    "/api/weather/now": SUN,
+    "/api/weather/forecast": FORECAST,
+    "/api/weather/nowcast": NOWCAST,
+    "/api/calendar/all": calendar,
+    "/api/bins": BINS,
+    "/api/fuel": { stations: [] }
+  }, { features: { ...OLD_OFF, ...features } });
+  await page.waitForFunction(() => typeof window.__v3HouseCalendar === "function"
+    && typeof window.__intent === "function" && typeof window.__personality === "function");
+  return { pageErrors, count };
+}
+
+/* Drops the briefing's 5-min context cache first (the probe's documented side
+   effect), so every read is a fresh gather rather than the last one replayed. */
+const calReadings = (page) => page.evaluate(async () => {
+  window.__nowcastProbe(null);
+  const r = await window.__v3HouseCalendar();
+  return {
+    briefing: { from: r.briefing.from, first: r.briefing.today[0] ?? null },
+    intent: { from: r.intent.from, events: r.intent.events },
+    personality: { from: r.personality.from, birthday: r.personality.birthday }
+  };
+});
+
+test.describe("v3HouseStore{Briefing,Intent,Personality} — the calendar consumers hold the store's reading", () => {
+  test("ON: all three hold the store's calendar, and a fresh gather fetches none of the store's keys", async ({ page }) => {
+    const { pageErrors, count } = await bootCal(page, CAL_ON);
+
+    await expect.poll(() => calReadings(page), { timeout: 10_000 }).toEqual(FROM_STORE);
+    expect(await page.evaluate(() => window.__v3().houseStream.started)).toBe(true);
+
+    const before = Object.fromEntries(
+      ["/api/calendar/all", "/api/weather/forecast", "/api/bins", "/api/weather/nowcast", "/api/fuel"].map((p) => [p, count(p)])
+    );
+    expect(await calReadings(page)).toEqual(FROM_STORE);
+
+    // The gather ran (fuel is never in the store) and fetched nothing the store holds.
+    expect(count("/api/fuel")).toBeGreaterThan(before["/api/fuel"]);
+    expect(count("/api/calendar/all")).toBe(before["/api/calendar/all"]);
+    expect(count("/api/weather/forecast")).toBe(before["/api/weather/forecast"]);
+    expect(count("/api/bins")).toBe(before["/api/bins"]);
+    expect(count("/api/weather/nowcast")).toBe(before["/api/weather/nowcast"]);
+
+    /* The intent (5-min) and personality (6-h) refreshes skip while the store
+       is fresh. Their BOOT reads always precede the stream, so only a refresh
+       can show the skip — a boot-only assertion is green with it deleted. */
+    const calBefore = count("/api/calendar/all");
+    await page.evaluate(() => Promise.all([window.__intentRefreshCalendar(), window.__personalityRefreshCalendar()]));
+    expect(count("/api/calendar/all")).toBe(calBefore);
+    expect(await calReadings(page)).toEqual(FROM_STORE);
+    expect(pageErrors).toEqual([]);
+  });
+
+  /* OFF counterpart of the skip above: the same refreshes DO fetch, or the
+     count assertion there could be passing because the hooks do nothing. */
+  test("OFF: the intent and personality refreshes fetch for themselves", async ({ page }) => {
+    const { pageErrors, count } = await bootCal(page, CAL_OFF);
+    await expect.poll(() => calReadings(page), { timeout: 10_000 }).toEqual(FROM_ROUTE);
+
+    const calBefore = count("/api/calendar/all");
+    await page.evaluate(() => Promise.all([window.__intentRefreshCalendar(), window.__personalityRefreshCalendar()]));
+    expect(count("/api/calendar/all")).toBe(calBefore + 2);
+    expect(pageErrors).toEqual([]);
+  });
+
+  /* The briefing is PULLED, so its drop-late case is a gather already in
+     flight when the store's first push lands: the stream is held back 2.5 s,
+     the calendar route 4.5 s, and a gather started at once must still come back
+     holding the store's calendar, not the route's late answer. */
+  test("ON: a briefing gather in flight when the store delivers returns the store's reading", async ({ page }) => {
+    const { pageErrors } = await bootCal(page, CAL_ON, {
+      stream: { ...CAL_STREAM, __delayMs: 2_500 },
+      calendar: { __delayMs: 4_500, __body: ROUTE_CAL }
+    });
+
+    const first = await page.evaluate(async () => {
+      window.__nowcastProbe(null);
+      const fresh = window.__v3().houseStream.keys.calendar == null;
+      const r = await window.__v3HouseCalendar();
+      return { fresh, first: r.briefing.today[0] ?? null };
+    });
+    // Precondition: the gather really started before the store had delivered.
+    expect(first.fresh).toBe(true);
+    expect(first.first).toBe("Storey's birthday");
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("OFF: no stream, and every calendar consumer holds its own fetch — the flags are the rollback", async ({ page }) => {
+    const { pageErrors, count } = await bootCal(page, CAL_OFF);
+
+    await expect.poll(() => calReadings(page), { timeout: 10_000 }).toEqual(FROM_ROUTE);
+    await page.waitForTimeout(500);
+    expect(count("/api/house/stream")).toBe(0);
+    expect(await page.evaluate(() => window.__v3().houseStream.started)).toBe(false);
+
+    const before = count("/api/calendar/all");
+    expect(await calReadings(page)).toEqual(FROM_ROUTE);
+    expect(count("/api/calendar/all")).toBe(before + 1);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("ON with the stream down: each falls back to its own fetch", async ({ page }) => {
+    const { pageErrors, count } = await bootCal(page, CAL_ON, { stream: null });
+
+    await expect.poll(() => calReadings(page), { timeout: 10_000 }).toEqual(FROM_ROUTE);
+    expect(count("/api/house/stream")).toBeGreaterThan(0);
+    expect(pageErrors).toEqual([]);
+  });
+
+  /* The boot reads of intent and personality run BEFORE V3 opens the stream,
+     so with a slow calendar route they resolve AFTER the store has delivered.
+     That late answer must be dropped, not written over the store's reading. */
+  test("ON: a fetch that resolves after the store delivered is dropped", async ({ page }) => {
+    const { pageErrors, count } = await bootCal(page, CAL_ON, {
+      calendar: { __delayMs: 2_500, __body: ROUTE_CAL }
+    });
+
+    await expect.poll(() => calReadings(page), { timeout: 10_000 }).toEqual(FROM_STORE);
+    // The slow boot fetches were made, and have now all come back.
+    expect(count("/api/calendar/all")).toBeGreaterThan(0);
+    await page.waitForTimeout(3_000);
+    expect(await calReadings(page)).toEqual(FROM_STORE);
+    expect(pageErrors).toEqual([]);
+  });
+
+  /* Each flag is its OWN lever: one on moves exactly one consumer. */
+  for (const [flagName, moved] of [
+    ["v3HouseStoreBriefing", "briefing"],
+    ["v3HouseStoreIntent", "intent"],
+    ["v3HouseStorePersonality", "personality"]
+  ]) {
+    test(`ONLY ${flagName}: the ${moved} holds the store's calendar, the others their own`, async ({ page }) => {
+      const { pageErrors } = await bootCal(page, { ...CAL_OFF, [flagName]: true });
+      const expected = { ...FROM_ROUTE, [moved]: FROM_STORE[moved] };
+
+      await expect.poll(() => calReadings(page), { timeout: 10_000 }).toEqual(expected);
+      await page.waitForTimeout(500);
+      expect(await calReadings(page)).toEqual(expected);
       expect(pageErrors).toEqual([]);
     });
   }

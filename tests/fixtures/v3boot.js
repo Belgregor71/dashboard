@@ -63,8 +63,12 @@ export async function bootV3(page, routes = {}, { features: overrides = null } =
     if (key) {
       const body = routes[key];
       if (body === null) return route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
-      // A raw reply for a route that is not JSON (an SSE stream, for one).
-      if (body && typeof body === "object" && body.__fulfill) return route.fulfill(body.__fulfill);
+      // A raw reply for a route that is not JSON (an SSE stream, for one),
+      // optionally held back by __delayMs like the JSON form below.
+      if (body && typeof body === "object" && body.__fulfill) {
+        if (body.__delayMs) await new Promise((resolve) => setTimeout(resolve, body.__delayMs));
+        return route.fulfill(body.__fulfill);
+      }
       // A JSON reply held back, to keep a build in flight while a spec acts.
       if (body && typeof body === "object" && body.__delayMs) {
         await new Promise((resolve) => setTimeout(resolve, body.__delayMs));

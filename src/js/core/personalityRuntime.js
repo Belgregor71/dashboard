@@ -18,6 +18,7 @@ import {
 import { detectOccasion } from "../services/occasions.js";
 import { isRealRainCode } from "../weatherPrompts.js";
 import { isGamingQuiet } from "../services/quietMode.js";
+import { storeFresh } from "../services/houseStream.js";
 
 // The personality runtime — Phase 10 (docs/vision/phase-10-temperament.md). The
 // temperament (personality.js) is PURE and needs no runtime; the surfacing paths
@@ -129,29 +130,57 @@ function updateDryStreak(now) {
   return { rainNow: raining, dryStreakDays: st.dryDays, dryBreakKey: today };
 }
 
+/* ── HOUSE-MIND S2: the observation store (features.v3HouseStorePersonality) ─
+   With the flag on, each calendar push re-derives the birthday (every 5 min at
+   no request cost, where the fetch ran every 6 h), and the refresh skips its
+   own fetch while the store is fresh (services/houseStream.js). A fetch that
+   resolves after the store delivered is dropped. Flag read per push and per
+   refresh. Flag off: a push is ignored and the 6-hourly fetch runs as before. */
+const STORE_FLAG = "v3HouseStorePersonality";
+let calendarFrom = null; // "store" | "fetch" — where the held birthday came from
+
+function storeOn() {
+  return Boolean(globalThis.window?.CONFIG?.features?.[STORE_FLAG]);
+}
+
+// One writer for both paths.
+function setBirthdayFrom(data, from) {
+  if (!data) return;
+  const now = new Date();
+  const dayStr = now.toDateString();
+  calendarFrom = from;
+  const match = (data.events ?? data ?? []).find((ev) => {
+    const d = new Date(ev.start ?? ev.startDate ?? ev.date);
+    if (Number.isNaN(d.getTime()) || d.toDateString() !== dayStr) return false;
+    return /birthday|\bbday\b|🎂/i.test(String(ev.title ?? ev.summary ?? ""));
+  });
+  if (!match) { birthdayName = null; return; }
+  const raw = String(match.title ?? match.summary ?? "").trim();
+  // "Greg's birthday" / "Birthday: Greg" → "Greg"; fall back to the raw title.
+  const name = raw
+    .replace(/'s\s+birthday/i, "")
+    .replace(/birthday\s*[:-]?\s*/i, "")
+    .replace(/🎂/g, "")
+    .trim();
+  birthdayName = name || null;
+}
+
+function onObservation({ key, value } = {}) {
+  if (key !== "calendar" || !storeOn()) return;
+  setBirthdayFrom(value, "store");
+}
+
 // Birthday-morning: one bounded read of today's calendar for a birthday marker,
 // mirroring intentEngine's event read. Fail-soft — no calendar → no moment.
 async function refreshBirthday() {
+  const viaStore = storeOn();
+  if (viaStore && storeFresh("calendar")) return;
   try {
     const res = await fetch("/api/calendar/all", { signal: AbortSignal.timeout(8_000) });
     if (!res.ok) return;
     const data = await res.json();
-    const now = new Date();
-    const dayStr = now.toDateString();
-    const match = (data.events ?? data ?? []).find((ev) => {
-      const d = new Date(ev.start ?? ev.startDate ?? ev.date);
-      if (Number.isNaN(d.getTime()) || d.toDateString() !== dayStr) return false;
-      return /birthday|\bbday\b|🎂/i.test(String(ev.title ?? ev.summary ?? ""));
-    });
-    if (!match) { birthdayName = null; return; }
-    const raw = String(match.title ?? match.summary ?? "").trim();
-    // "Greg's birthday" / "Birthday: Greg" → "Greg"; fall back to the raw title.
-    const name = raw
-      .replace(/'s\s+birthday/i, "")
-      .replace(/birthday\s*[:-]?\s*/i, "")
-      .replace(/🎂/g, "")
-      .trim();
-    birthdayName = name || null;
+    if (viaStore && storeFresh("calendar")) return;
+    setBirthdayFrom(data, "fetch");
   } catch {
     /* keep the last-known value */
   }
@@ -258,7 +287,7 @@ export function initPersonalityRuntime(options = {}) {
     return { id, budgetKey: key, blocked: false, surface };
   };
 
-  window.__personality = () => ({ enabled, budgets, pending: pendingCelebration?.id ?? null, birthdayName });
+  window.__personality = () => ({ enabled, budgets, pending: pendingCelebration?.id ?? null, birthdayName, calendarFrom });
 
   if (!enabled) return; // flag off → no timing var, no delight, every path keeps its tone
 
@@ -272,8 +301,13 @@ export function initPersonalityRuntime(options = {}) {
   setInterval(() => writeJson(HEARTBEAT_KEY, Date.now()), HEARTBEAT_MS);
 
   loadBudgets().then(() => evaluate());
+  // Before V3 opens the stream, so the held snapshot never arrives unheard.
+  on("house:observation", onObservation);
   refreshBirthday();
   setInterval(refreshBirthday, CAL_REFRESH_MS);
+  // Run the 6-hourly birthday read now, for CDP and specs (see intentEngine's
+  // __intentRefreshCalendar: only a refresh can show the store-fresh skip).
+  window.__personalityRefreshCalendar = () => refreshBirthday();
   setInterval(evaluate, TICK_MS);
   on("arrival:home", onArrivalHome);
 }
