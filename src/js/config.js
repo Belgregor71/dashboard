@@ -2222,7 +2222,10 @@ window.CONFIG = {
     // mount is torn down rather than left open. Unauthored calls (the
     // incumbent, debug hooks) are never arbitrated.
     // Rollback: v3Arbiter: false (+ hard reload) — read per call.
-    v3Arbiter: false,
+    // FLIPPED ON 2026-09-24 by the owner ("flip v3Arbiter on"). Deployed off
+    // first (9031694/764a5b5: inert live, 0 exceptions); spec pins both
+    // states, doorbell→TTS median off 1.1 ms / on 1.2 ms, inject-defect 7/7.
+    v3Arbiter: true,
 
     // ── HOUSE-MIND S4 (docs/design/HOUSE-MIND.md §5): prediction, under the
     // owner's rule "learned timing, live words" (2026-09-24). The learned
