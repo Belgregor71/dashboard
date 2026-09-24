@@ -2221,8 +2221,10 @@ window.CONFIG = {
     // Rollback: v3HouseStoreBriefing: false (+ hard reload).
     v3HouseStoreBriefing: true,
     // intentEngine's 5-min calendar read (today's upcoming events).
+    // FLIPPED ON 2026-09-25, fifth of the six (deployed off first in
+    // baa3e13/bbda34b: inert live, 0 exceptions).
     // Rollback: v3HouseStoreIntent: false (+ hard reload).
-    v3HouseStoreIntent: false,
+    v3HouseStoreIntent: true,
     // personalityRuntime's 6-hourly birthday read. With it on the birthday is
     // re-derived on every calendar push instead. Live witness is
     // __v3HouseCalendar().personality.from, not a request count.
