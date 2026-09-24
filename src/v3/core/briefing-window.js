@@ -109,7 +109,12 @@ export async function checkBriefingWindow({ now = new Date(), force = false } = 
     const shown = await showSubject(
       { id: "show.briefing", slots: {} },
       null,
-      { author: "briefing" }
+      /* FORCED is an operator saying "now" (the __v3Briefing hook), not the
+         schedule — so it is unauthored and never arbitrated, like every other
+         debug hook. Found by the contrast sweep at the v3Arbiter flip: it
+         forces the briefing straight after a voice subject, and the scheduled
+         author was (correctly, for a schedule) refused the stage. */
+      { author: force ? null : "briefing" }
     );
     if (!shown) return last;
 

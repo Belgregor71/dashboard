@@ -274,6 +274,21 @@ test.describe("stage — the door outranks dinner and the briefing", () => {
   }
 });
 
+/* A FORCED briefing is an operator saying "now" (the __v3Briefing hook), not
+   the schedule, so it is never arbitrated. Found at the v3Arbiter flip: the
+   contrast sweep forces the briefing straight after a voice subject, and the
+   scheduled author was refused the stage, blanking 14 of 23 sweeps. */
+test("ON: a forced briefing is not the schedule — it mounts over the door", async ({ page }) => {
+  const pageErrors = await boot(page, true);
+  await page.evaluate(() => window.__v3Alert());
+  expect((await stage(page)).subject).toBe("show.camera");
+
+  const r = await page.evaluate(() => window.__v3Briefing({ force: true }));
+  expect(r?.shown).toBe(true);
+  expect((await stage(page)).subject).toBe("show.briefing");
+  expect(pageErrors).toEqual([]);
+});
+
 /* ── Doorbell latency, both states ──────────────────────────────────────── */
 
 test("the doorbell reaches the speaker as fast with the arbiter as without", async ({ page, browser }) => {
