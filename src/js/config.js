@@ -2216,8 +2216,10 @@ window.CONFIG = {
     // predictive lane): weather, forecast, nowcast, calendar and bins. Fuel,
     // news, chores and the per-leg commute stay fetched. Pulled, not polled,
     // so it holds the last push per key (bounded, one per key).
+    // FLIPPED ON 2026-09-24, fourth of the six (deployed off first in
+    // baa3e13/bbda34b: inert live, 0 exceptions).
     // Rollback: v3HouseStoreBriefing: false (+ hard reload).
-    v3HouseStoreBriefing: false,
+    v3HouseStoreBriefing: true,
     // intentEngine's 5-min calendar read (today's upcoming events).
     // Rollback: v3HouseStoreIntent: false (+ hard reload).
     v3HouseStoreIntent: false,
