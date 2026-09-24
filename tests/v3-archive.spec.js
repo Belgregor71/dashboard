@@ -994,8 +994,25 @@ test("the partner takes the card on its own timer, and the words go with it", as
     }).observe(title, { subtree: true, childList: true, characterData: true });
   });
 
-  // A fresh frame, briskly, so the recorded sequence starts at a known point.
-  await page.evaluate(() => window.__groundDissolve(60, 200));
+  /* A fresh frame, briskly, so the recorded sequence starts at a known point.
+
+     ⚠⚠ "FRESH" MUST BE PROVEN, NOT ASSUMED. Root-caused 2026-09-24 (1 in 24–40
+     loaded runs; it refused a push twice). With a two-pair pool the dissolve can
+     hand back the SAME pair, and archivePhoto() deliberately swallows a same-key
+     hand-off (ground fires onPhoto twice per exchange; re-seating would restart
+     the pair). Then present() never runs, the 2 s hold set above is never armed,
+     and the only pending timer is the BOOT frame's — at the default five-minute
+     hold. The product is right (a pair re-handed mid-unfold keeps its clock); the
+     test's premise was not. Tell: the card's src observer recorded nothing. So:
+     dissolve until the card has actually presented a new photograph. */
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await page.evaluate(() => window.__groundDissolve(60, 200));
+    const presented = await page
+      .waitForFunction(() => window.__cardIds.length >= 1, null, { timeout: 3_000 })
+      .then(() => true, () => false);
+    if (presented) break;
+  }
+  expect(await page.evaluate(() => window.__cardIds.length), "the card never presented a fresh frame").toBeGreaterThanOrEqual(1);
 
   await expect.poll(() => page.evaluate(() => window.__archive().half), {
     timeout: 10_000,
