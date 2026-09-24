@@ -10,9 +10,11 @@ the code). The claims that carry the argument were **re-verified by reading the 
 before this was written**. Those are marked **[V]**. Anything taken from the subagent
 report and not re-read is marked **[I]**.
 
-**Status (2026-09-23):** S0 is live with both flags on. S1 is live (test-only). S2 is built
-with its three flags off. S3 and S4 are owed. Each slice ships on its own; §5 has the
-detail.
+**Status (2026-09-25):** S0 is live with both flags on. S1 is live (test-only). **S2 is
+complete: all six consumers read the store, every flag is on, and each rollback was proven
+on the wall.** The wall's 5-minute poll now fetches none of the store's keys; fuel and
+news are all that remain. S3 (arbiter) and S4 (departure card) are live with their flags
+on. Each slice ships on its own; §5 has the detail.
 
 ---
 
@@ -199,7 +201,7 @@ Each slice ships on its own, default-off, with its own rollback.
 |---|---|---|---|---|
 | **S0 — dead wiring** | Emit `arrival:home` from `v3/core/arrival.js`. Pass `weights: attentionWeights()` at `attention.js:281`. Delete `intent:changed` or give it a consumer. | The weights change **alters ranking**, so it gets its own flag and `/flag-flip`. The arrival emit goes behind a flag. | `window.__routines().weights` is non-empty **and** the ranked order tilts on the wall. A home-after-away delight fires after a real return. | 3 dead events. The false comment at `main.js:647` |
 | **S1 — event registry** ✅ built 2026-09-23 | One declared table: every event, its publisher and its V3 consumers. A spec goes red on orphans, derived like `flag-surface.spec.js`. | None; it is test-only. | Inject an orphan event and the spec goes red. Remove it and the spec is green. | Silent dead events as a class |
-| **S2 — observation store** ✅ built 2026-09-23, flags off | Server keeps a sticky last value per source (weather, calendar, commute, bins, media) and pushes it over one SSE, `/api/house/stream`. Consumers move over one at a time. | One flag per consumer. Off = its own fetch, as today. | Fetches of `/api/weather/now` and `/api/calendar/all` per 5 min drop, measured in the server log. Glance and field agree. `/kiosk-metrics` shows no heap growth. | About 6 duplicate fetchers per source |
+| **S2 — observation store** ✅ complete 2026-09-25, all six consumer flags ON | Server keeps a sticky last value per source (weather, calendar, commute, bins, media) and pushes it over one SSE, `/api/house/stream`. Consumers move over one at a time. | One flag per consumer. Off = its own fetch, as today. | Fetches of `/api/weather/now` and `/api/calendar/all` per 5 min drop, measured in the server log. Glance and field agree. `/kiosk-metrics` shows no heap growth. | About 6 duplicate fetchers per source |
 | **S3 — capability arbiter** ✅ built 2026-09-24, flag off | One owner of depth and speech. A declared **reflex lane** (doorbell, timers, commands, barge-in) goes straight through, then notifies. | Flag. Off = direct calls, as today. | Two simultaneous authors resolve by policy, not by call order. Doorbell latency is unchanged, measured. | The collision class in §4 pro 2 |
 | **S4 — prediction** ✅ first rule built 2026-09-24, flag off | Rules fed by routine distributions and the store, ranking through S0's weights. | Flag. | A predicted card earns the glance with a data line behind it. | Three hand rules as the whole of "prediction" |
 | *Deferred* | Merge the client and server minds. | — | Only if S2 and S3 show the split still hurts. | — |
@@ -304,6 +306,57 @@ Each slice ships on its own, default-off, with its own rollback.
     dropping from about 2–3 per 5 minutes to 0 while the store stays fresh.
   - `/kiosk-metrics` should show no heap growth.
 
+### S2 second half: the three missed consumers (2026-09-24/25)
+
+Built in `baa3e13` + `bbda34b` and deployed with all three flags off (inert live). Each
+was then flipped on its own, with a live rollback proof.
+
+| Flag | Consumer | Keys from the store | Still fetched |
+|---|---|---|---|
+| `v3HouseStoreBriefing` | `briefingData.gatherBriefingContext` (briefing, insight and attention context, S4's predictive lane) | weather, forecast, nowcast, calendar, bins | fuel, news, chores, the per-leg `?leg=` commute, leave-by drive |
+| `v3HouseStoreIntent` | `intentEngine` 5-min calendar read | calendar | — |
+| `v3HouseStorePersonality` | `personalityRuntime` 6-hourly birthday read | calendar | — |
+
+- **Same four rules as the first three:** apply the push, skip the fetch while fresh,
+  drop a late fetch, last good value wins. briefingData is PULLED, not polled, so it holds
+  the last push per key (bounded, one per key). A push drops its 5-minute context cache.
+- **Intent and personality read at boot BEFORE the stream opens,** so only their
+  interval refresh can show the skip. `__intentRefreshCalendar()` and
+  `__personalityRefreshCalendar()` run it now. `__v3HouseCalendar()` reports where each
+  consumer's last calendar reading came from. That is personality's only live witness,
+  because at a 6-hour cadence a request count proves nothing.
+- **Spec:** `tests/house-store.spec.js` +10 tests (19 in total). The calendar fixture
+  names the path: "Storey's birthday" and 2 later events from the store, "Routey's
+  birthday" and 1 from the route. **Inject-defect 12/13 RED**, each on the test named
+  for it.
+  - The first pass found 3 GREEN: the interval skips and the briefing's drop-late were
+    unreached. Tests were added for both.
+  - The one GREEN left is the briefing's `readHouse` gate alone. The push-handler gate
+    covers it, and removing both is RED.
+- ⚠ **A flag name in a constant or an array is invisible to `flag-surface.spec.js`.** The
+  first build replaced main.js's literal `flag("v3HouseStoreGlance") || …` with a list.
+  Glance and Voice then read as INERT-ON-V3. Use literal `flag("x")` / `features?.x`.
+- **`v3HouseStoreBriefing` flipped ON 2026-09-25 (`16ab9f3`), rollback proven on the
+  wall.** CDP counts over 11 minutes, starting 30 s after each boot:
+
+  | Boot | forecast | bins | nowcast | weather/now | calendar | reads from |
+  |---|---|---|---|---|---|---|
+  | ON | 0 | 0 | 0 | 0 | 2 | store |
+  | forced OFF (rollback) | 1 | 1 | 1 | 1 | 3 | fetch |
+  | restored ON | 0 | 0 | 0 | 0 | 2 | store |
+
+  Fuel and news kept fetching in every boot (the positive control), with 0 exceptions.
+  A preview with the flag forced ON through CDP before the deploy gave the same numbers.
+- **`v3HouseStoreIntent` flipped ON 2026-09-25 (`5708410`), rollback proven on the wall.**
+  `/api/calendar/all` per 11 minutes: ON 0, forced OFF 2 (its 5-minute poll), restored ON
+  0. It read 1 event later today either way, with 0 exceptions.
+- **`v3HouseStorePersonality` flipped ON 2026-09-25 (`7a20d42`), rollback proven on the
+  wall** by `from` rather than a count: `store` → forced OFF `fetch` → restored `store`,
+  with 0 exceptions. Intent and briefing stayed on `store` through personality's rollback,
+  which shows on the real wall that each flag is its own lever.
+- **S2 done.** All six consumer flags are ON. The one remaining observation fetch in the
+  wall's poll is fuel, which the store does not hold. News is fetched only by the briefing.
+
 ### S3 as built (2026-09-24, `9031694`; flag `v3Arbiter` FLIPPED ON `cfa8af6` + `a067b3f`)
 
 - **Flipped on 2026-09-24 by the owner.**
@@ -386,8 +439,9 @@ Each slice ships on its own, default-off, with its own rollback.
   - Departure is household-wide. The legs are per person, but the routine is not.
   - There are no per-weekday buckets; only weekday and weekend.
   - There is no bedtime routine, so there is no bins-before-bed rule.
-  - The async predictive lane (`predictiveRules.js`) still reads `briefingData`'s own
-    fetches rather than the S2 store.
+  - ~~The async predictive lane (`predictiveRules.js`) still reads `briefingData`'s own
+    fetches rather than the S2 store.~~ Closed 2026-09-25: `v3HouseStoreBriefing` is ON,
+    so `briefingData` reads the store.
   - The insight rules emit no `source`, so learned weights cannot reach them.
   - Each of these is a separate rule or slice, not a gap in this one.
 
