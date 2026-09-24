@@ -186,7 +186,16 @@ const ROUTES = {
   "/api/ai/brief": { summary: "Good morning. This is the fixture briefing." }
 };
 
+/* ⚠ MIDDAY, PINNED. The briefing window runs on the REAL clock too: presence
+   (forced below) fires briefing-window's own onPresence check, and at
+   18:00–18:30 every day that opens the real EVENING briefing — whose `opening`
+   latch then makes the spec's own call return null. Caught by the pre-push gate
+   at 18:15 on 2026-09-24 and reproduced live at 18:24. Midday is inside no
+   briefing window; the briefing test passes its own explicit 05:35. */
+const MIDDAY = new Date("2026-07-06T12:00:00");
+
 async function boot(page, on, extra = {}) {
+  await page.clock.install({ time: MIDDAY });
   const { pageErrors } = await bootV3(page, { ...extra, ...ROUTES }, { features: { v3Arbiter: on } });
   await page.waitForFunction(() => typeof window.__v3Alert === "function" && typeof window.__v3Dinner === "function");
   return pageErrors;
