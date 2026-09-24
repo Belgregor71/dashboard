@@ -400,6 +400,15 @@ test("rain bursts: the pane stays up while it rains, moves only in a burst, and 
     };
   });
 
+  /* ⚠ PAUSED, so only runFor moves time. boot() installs the clock FLOWING,
+     and `inMs` below is dueAt − performance.now(): every CDP round trip between
+     the burst ending and the read leaked real time into it. Four of them under
+     full-suite load took 340 ms against the 200 ms tolerance (pre-push,
+     2026-09-24), a red that said nothing about rain.
+     Paused 500 ms AHEAD and BEFORE the rain is forced: pausing at "now" races
+     the flowing clock ("cannot fast-forward to the past", 1 in 20), and the
+     half-second jump lands on a pane with no rain in it yet. */
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 500);
   await force(page, { rain: "moderate" });
   // The first burst starts with the rain.
   await page.clock.runFor(50);
