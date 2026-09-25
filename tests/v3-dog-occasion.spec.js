@@ -116,6 +116,64 @@ async function recordFrames(page) {
   });
 }
 
+/* Run mode: on every frame change, record where the sheet sits relative to the
+   box (in cells, so the centroid placement can be checked against the config),
+   the painted window, and where the wrapper is on the glass. */
+async function recordRun(page) {
+  await page.evaluate(() => {
+    window.__runRec = {};
+    const watch = (dog) => {
+      const id = dog.dataset.dog;
+      const rec = (window.__runRec[id] = []);
+      const sample = () => {
+        const t = performance.now();
+        const f = Number(dog.dataset.frame);
+        if (Number.isNaN(f)) return;
+        const frameEl = dog.querySelector(".dog__frame");
+        const box = frameEl.getBoundingClientRect();
+        const sheet = dog.querySelector(".dog__sheet").getBoundingClientRect();
+        const cellW = sheet.width / 4;
+        const cellH = sheet.height / 4;
+        const inner = frameEl.style.clipPath.match(/^inset\((.*)\)$/)?.[1];
+        const v = inner ? inner.trim().split(/\s+/).map((s) => (s === "0" || s === "0px" ? 0 : s.endsWith("%") ? Number(s.slice(0, -1)) : NaN)) : [];
+        const [T, R, B, L] = [v[0], v[1] ?? v[0], v[2] ?? v[0], v[3] ?? v[1] ?? v[0]];
+        const col = f % 4;
+        const row = Math.floor(f / 4);
+        rec.push({
+          frame: f,
+          t,
+          phase: dog.dataset.phase,
+          box: window.dogOccasion.state().dogs.find((d) => d.id === id)?.box,
+          // Cells from the sheet's origin to the box's top-left corner.
+          offX: (box.left - sheet.left) / cellW,
+          offY: (box.top - sheet.top) / cellH,
+          boxW: box.width / cellW,
+          boxH: box.height / cellH,
+          clipParsed: [T, R, B, L].every(Number.isFinite),
+          // The visible window in the frame's own cell units.
+          win: {
+            top: (box.top + (T / 100) * box.height - (sheet.top + row * cellH)) / cellH,
+            base: (box.bottom - (B / 100) * box.height - (sheet.top + row * cellH)) / cellH,
+            left: (box.left + (L / 100) * box.width - (sheet.left + col * cellW)) / cellW,
+            right: (box.right - (R / 100) * box.width - (sheet.left + col * cellW)) / cellW
+          },
+          // Where the wrapper is on the glass.
+          x: { left: box.left, right: box.right, top: box.top, bottom: box.bottom, height: box.height }
+        });
+      };
+      sample();
+      new MutationObserver(sample).observe(dog, { attributes: true, attributeFilter: ["data-frame"] });
+    };
+    const mount = new MutationObserver(() => {
+      const dogs = document.querySelectorAll(".dogs .dog");
+      if (!dogs.length) return;
+      mount.disconnect();
+      dogs.forEach(watch);
+    });
+    mount.observe(document.body, { childList: true });
+  });
+}
+
 test.describe("dog occasion", () => {
   test.describe.configure({ timeout: 60_000 });
 
@@ -127,7 +185,7 @@ test.describe("dog occasion", () => {
           expect(DOGS[id], `${occ}/${mode}/${id}`).toBeTruthy();
           expect(DOGS[id].timing[mode]).toHaveLength(n);
           expect(art.frames).toHaveLength(n);
-          expect(MOTION[DOGS[id].motion]).toBeTruthy();
+          expect(MOTION[DOGS[id].motion]?.[mode], `${occ}/${mode}/${id} motion`).toBeTruthy();
         }
       }
     }
@@ -341,7 +399,7 @@ test.describe("dog occasion", () => {
     const { errors, sheetRequests } = await open(page);
     const ask = (occ, opts) => page.evaluate(([o, p]) => window.dogOccasion.show(o, p), [occ, opts]);
     expect(await ask("halloween", {})).toEqual({ shown: false, reason: "unknown-occasion" });
-    expect(await ask("christmas", { mode: "run" })).toEqual({ shown: false, reason: "unknown-occasion" });
+    expect(await ask("christmas", { mode: "gallop" })).toEqual({ shown: false, reason: "unknown-occasion" });
     expect(await ask("christmas", { dogs: ["rex"] })).toEqual({ shown: false, reason: "unknown-dog:rex" });
     expect(await ask("christmas", { dogs: [] })).toEqual({ shown: false, reason: "no-dogs" });
     expect(await page.locator(".dogs").count()).toBe(0);
@@ -370,6 +428,229 @@ test.describe("dog occasion", () => {
     const rec = await page.evaluate(() => window.__dogRec);
     expect(rec.benji.map((f) => f.frame)).toEqual([11]);
     expect(rec.teddy.map((f) => f.frame)).toEqual([11]);
+    expect(await page.locator(".dogs").count()).toBe(0);
+    expect(errors).toEqual([]);
+  });
+
+  /* ── Run ──────────────────────────────────────────────────────────────────
+     What is asserted, and why:
+       · the gait loops 0..15 in order, each frame placed by its own centroid
+         and clipped to its own window                  → a paw-anchored or
+                                                           plain-cropped frame
+                                                           jumps the dog
+       · the wrapper enters from fully off-left, moves right only, and leaves
+         off-right, ONCE, in crossMs                    → travel baked into the
+                                                           frames, or a looping
+                                                           path
+       · Teddy starts a beat after Benji, smaller, on a higher ground line, and
+         painted behind him                              → one dog dragged along
+                                                           by the other
+       · the lower third, fixed, no layout shift; the frame loop stops when a
+         dog has left, nothing survives the run         → a timer spinning for
+                                                           weeks on a 24/7 kiosk */
+
+  test("run: the pair crosses once, left to right, each on its own gait", async ({ page }) => {
+    const { errors } = await open(page);
+    await page.evaluate(() => {
+      window.__cls = 0;
+      new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__cls += e.value; })
+        .observe({ type: "layout-shift", buffered: false });
+    });
+    await recordRun(page);
+    const done = page.evaluate(() => window.dogOccasion.show("christmas", { mode: "run", dogs: ["benji", "teddy"] }));
+
+    // Mid-run, both on the glass: stacking, order, travel animation.
+    await page.waitForFunction(() => {
+      const d = window.dogOccasion.state().dogs;
+      return d.length === 2 && d.every((x) => x.phase === "running");
+    }, null, { timeout: 8_000 });
+    const mid = await page.evaluate(() => {
+      const root = document.querySelector(".dogs");
+      const anim = (id) => {
+        const a = document.querySelector(`.dog--${id}`).getAnimations().find((x) => x.animationName?.startsWith("dog-run-"));
+        if (!a) return null;
+        const t = a.effect.getTiming();
+        const kf = a.effect.getKeyframes();
+        return { name: a.animationName, duration: t.duration, iterations: t.iterations, first: kf[0].transform, last: kf.at(-1).transform };
+      };
+      return {
+        order: [...root.children].map((d) => d.dataset.dog),
+        mode: root.dataset.mode,
+        position: getComputedStyle(root).position,
+        pointer: getComputedStyle(root).pointerEvents,
+        z: Number(getComputedStyle(root).zIndex),
+        stageZ: Number(getComputedStyle(document.querySelector(".stage")).zIndex),
+        presenceZ: Number(getComputedStyle(document.querySelector(".presence")).zIndex),
+        benji: anim("benji"),
+        teddy: anim("teddy"),
+        sheet: getComputedStyle(document.querySelector(".dog--benji .dog__sheet")).backgroundImage,
+        timers: window.dogOccasion.state().timers,
+        vw: innerWidth
+      };
+    });
+    expect(mid.mode).toBe("run");
+    expect(mid.position).toBe("fixed");
+    expect(mid.pointer).toBe("none");
+    expect(mid.z).toBeGreaterThan(mid.stageZ);
+    expect(mid.z).toBeLessThan(mid.presenceZ);
+    expect(mid.sheet).toContain("/assets/dogs/christmas/benji_christmas_run_basic.png");
+    expect(mid.order, "Teddy painted first, so Benji passes in front").toEqual(["teddy", "benji"]);
+    // One frame timer and one end-of-crossing timer per dog, nothing else.
+    expect(mid.timers).toBe(4);
+    for (const id of ["benji", "teddy"]) {
+      const a = mid[id];
+      expect(a, `${id} travel animation`).toBeTruthy();
+      expect(a.name).toBe(MOTION[DOGS[id].motion].run.path);
+      expect(a.duration).toBe(MOTION[DOGS[id].motion].run.crossMs);
+      expect(a.iterations, `${id} crosses ONCE`).toBe(1);
+      // Chromium re-serialises translateX(v) as translate(v), and resolves vw.
+      expect(a.first).toMatch(/^translateX?\(-100%\)$/);
+      expect(a.last).toMatch(new RegExp(`^translateX?\\(${mid.vw}px\\)$`));
+    }
+
+    expect(await done).toEqual({ shown: true });
+    const rec = await page.evaluate(() => window.__runRec);
+    const vw = await page.evaluate(() => innerWidth);
+    const vh = await page.evaluate(() => innerHeight);
+    const staged = OCCASIONS.christmas.run;
+
+    for (const id of ["benji", "teddy"]) {
+      const frames = rec[id].filter((f) => f.phase === "running");
+      const m = MOTION[DOGS[id].motion].run;
+      const timing = DOGS[id].timing.run;
+      // Enough to have seen the whole cycle more than twice.
+      expect(frames.length, `${id} frames`).toBeGreaterThan(40);
+      expect(frames[0].frame).toBe(0);
+      for (let i = 1; i < frames.length; i++) {
+        expect(frames[i].frame, `${id} sample ${i}`).toBe((frames[i - 1].frame + 1) % 16);
+        const gap = frames[i].t - frames[i - 1].t;
+        expect(gap, `${id} gap before sample ${i}`).toBeGreaterThanOrEqual(timing[frames[i - 1].frame] - 2);
+        expect(gap, `${id} gap before sample ${i}`).toBeLessThan(timing[frames[i - 1].frame] + 250);
+      }
+      // Loop lasts the crossing, not less and not a stride more.
+      const span = frames.at(-1).t - frames[0].t;
+      expect(span, `${id} loop span`).toBeLessThan(m.crossMs + 50);
+      expect(span, `${id} loop span`).toBeGreaterThan(m.crossMs - 350);
+
+      for (const f of frames) {
+        const w = staged.dogs[id].frames[f.frame];
+        const at = `${id} frame ${f.frame}`;
+        expect(f.box, `${at} box`).toBeTruthy();
+        // Centroid on the anchor point: the body travels level.
+        expect(f.offX, `${at} x`).toBeCloseTo((f.frame % 4) + w.cx - f.box.ax, 2);
+        expect(f.offY, `${at} y`).toBeCloseTo(Math.floor(f.frame / 4) + w.cy - f.box.ay, 2);
+        expect(f.boxW, `${at} box w`).toBeCloseTo(f.box.w, 2);
+        expect(f.boxH, `${at} box h`).toBeCloseTo(f.box.h, 2);
+        // The window is this frame's own rectangle.
+        expect(f.clipParsed, `${at} clip`).toBe(true);
+        expect(f.win.top, `${at} window top`).toBeCloseTo(w.top, 2);
+        expect(f.win.base, `${at} window base`).toBeCloseTo(w.base, 2);
+        expect(f.win.left, `${at} window left`).toBeCloseTo(w.left, 2);
+        expect(f.win.right, `${at} window right`).toBeCloseTo(w.right, 2);
+        // The lower third, and on the glass vertically.
+        expect(f.x.height, `${at} present`).toBeGreaterThan(150);
+        expect(f.x.top, `${at} lower third`).toBeGreaterThan(vh * 0.6);
+        expect(f.x.bottom, `${at} on the glass`).toBeLessThanOrEqual(vh);
+      }
+      // Enters fully off-left, moves right only, gets (almost) off-right by
+      // its last frame — the rest is the ~83ms before the end timer.
+      expect(frames[0].x.right, `${id} starts off-glass`).toBeLessThanOrEqual(1);
+      for (let i = 1; i < frames.length; i++) {
+        expect(frames[i].x.left, `${id} never steps back (sample ${i})`).toBeGreaterThanOrEqual(frames[i - 1].x.left - 0.5);
+      }
+      expect(frames.at(-1).x.left, `${id} reaches the far edge`).toBeGreaterThan(vw * 0.9);
+    }
+
+    // Two characters, not one pasted twice.
+    const b = rec.benji.filter((f) => f.phase === "running");
+    const t = rec.teddy.filter((f) => f.phase === "running");
+    const lag = t[0].t - b[0].t;
+    // The brief's window (350-650ms). Not delayMs exactly: both start timers
+    // are set together, and Benji's 0ms one lands ~30ms late behind the mount.
+    expect(lag, "Teddy follows").toBeGreaterThanOrEqual(350);
+    expect(lag, "Teddy follows").toBeLessThanOrEqual(650);
+    expect(t[0].x.height / b[0].x.height).toBeCloseTo((0.88 * t[0].box.h) / b[0].box.h, 2);
+    expect(t[0].x.bottom, "Teddy on a higher ground line").toBeLessThan(b[0].x.bottom - 8);
+
+    expect(await page.locator(".dogs").count()).toBe(0);
+    expect(await page.evaluate(() => window.dogOccasion.state())).toEqual(
+      expect.objectContaining({ running: false, timers: 0, dogs: [] })
+    );
+    expect(await page.evaluate(() => window.__cls)).toBe(0);
+    expect(errors).toEqual([]);
+  });
+
+  test("run: a dog that has left stops cycling while the other runs on", async ({ page }) => {
+    const { errors } = await open(page);
+    const done = page.evaluate(() => window.dogOccasion.show("christmas", { mode: "run", dogs: ["benji", "teddy"] }));
+    await page.waitForFunction(() => window.dogOccasion.state().dogs.find((d) => d.id === "benji")?.phase === "gone", null, { timeout: 10_000 });
+    const a = await page.evaluate(() => ({ st: window.dogOccasion.state(), f: document.querySelector(".dog--benji").dataset.frame }));
+    await page.waitForTimeout(300);
+    const b = await page.evaluate(() => ({ st: window.dogOccasion.state(), f: document.querySelector(".dog--benji").dataset.frame }));
+    expect(a.st.dogs.find((d) => d.id === "teddy").phase).toBe("running");
+    expect(b.f, "Benji's loop cancelled").toBe(a.f);
+    // Teddy's frame + end timers only.
+    expect(a.st.timers).toBe(2);
+    expect(await done).toEqual({ shown: true });
+    expect(errors).toEqual([]);
+  });
+
+  test("run: either dog alone; a peek and a run never stack; hide() mid-run", async ({ page }) => {
+    const { errors } = await open(page);
+    for (const id of ["benji", "teddy"]) {
+      await recordRun(page);
+      const done = page.evaluate((id) => window.dogOccasion.show("christmas", { mode: "run", dogs: [id] }), id);
+      await page.waitForFunction((id) => window.dogOccasion.state().dogs[0]?.id === id && window.dogOccasion.state().dogs[0].phase === "running", id);
+      expect(await page.locator(".dogs .dog").count()).toBe(1);
+      expect(await page.evaluate(() => window.dogOccasion.show("christmas", { mode: "peek" }))).toEqual({ shown: false, reason: "busy" });
+      expect(await done).toEqual({ shown: true });
+      const frames = (await page.evaluate((id) => window.__runRec[id], id)).filter((f) => f.phase === "running");
+      expect(frames.length, `${id} ran`).toBeGreaterThan(40);
+      expect(frames[0].x.right).toBeLessThanOrEqual(1);
+    }
+    // A peek in progress refuses a run too.
+    const peek = page.evaluate(() => window.dogOccasion.show("christmas", { dogs: ["benji"] }));
+    await page.waitForFunction(() => window.dogOccasion.state().running);
+    expect(await page.evaluate(() => window.dogOccasion.show("christmas", { mode: "run" }))).toEqual({ shown: false, reason: "busy" });
+    expect(await peek).toEqual({ shown: true });
+    // hide() mid-run: gone at once, no timer left behind.
+    const run = page.evaluate(() => window.dogOccasion.show("christmas", { mode: "run" }));
+    await page.waitForFunction(() => Number(document.querySelector(".dog--benji")?.dataset.frame) >= 5);
+    await page.evaluate(() => window.dogOccasion.hide());
+    expect(await run).toEqual({ shown: false, reason: "hidden" });
+    expect(await page.locator(".dogs").count()).toBe(0);
+    expect(await page.evaluate(() => window.dogOccasion.state().timers)).toBe(0);
+    expect(errors).toEqual([]);
+  });
+
+  test("run, reduced motion: a still portrait near the bottom, no travel, then gone", async ({ page }) => {
+    const { errors } = await open(page);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(true);
+    await recordRun(page);
+    const done = page.evaluate(() => window.dogOccasion.show("christmas", { mode: "run", dogs: ["benji", "teddy"] }));
+    await page.waitForSelector(".dogs .dog");
+    await page.waitForTimeout(200);
+    const mid = await page.evaluate(() => ({
+      still: document.querySelector(".dogs").dataset.still,
+      phases: [...document.querySelectorAll(".dogs .dog")].map((d) => d.dataset.phase),
+      travel: [...document.querySelectorAll(".dogs .dog")].flatMap((d) => d.getAnimations().map((a) => a.animationName)),
+      rects: [...document.querySelectorAll(".dogs .dog__frame")].map((f) => f.getBoundingClientRect().toJSON()),
+      vw: innerWidth, vh: innerHeight
+    }));
+    expect(mid.still).toBe("1");
+    expect(mid.phases).toEqual(["still", "still"]);
+    expect(mid.travel.filter((n) => n.startsWith("dog-run-") || n === "dog-stride")).toEqual([]);
+    for (const r of mid.rects) {
+      expect(r.height).toBeGreaterThan(150);
+      expect(r.left).toBeGreaterThan(0);
+      expect(r.right).toBeLessThan(mid.vw);
+      expect(r.top).toBeGreaterThan(mid.vh * 0.6);
+    }
+    expect(await done).toEqual({ shown: true });
+    const rec = await page.evaluate(() => window.__runRec);
+    expect(rec.benji.map((f) => f.frame)).toEqual([OCCASIONS.christmas.run.stillFrame]);
+    expect(rec.teddy.map((f) => f.frame)).toEqual([OCCASIONS.christmas.run.stillFrame]);
     expect(await page.locator(".dogs").count()).toBe(0);
     expect(errors).toEqual([]);
   });

@@ -1043,7 +1043,8 @@ function registerHandles() {
   // API rejects.
   window.__v3Tick = (now) => tickAttention(now == null ? new Date() : new Date(now));
 
-  /* Benji and Teddy, by hand: `dogOccasion.show("christmas", { dogs: ["benji"] })`
+  /* Benji and Teddy, by hand: `dogOccasion.show("christmas", { dogs: ["benji"] })`,
+     or `{ mode: "run", dogs: ["benji", "teddy"] }` for the run across,
      from the console or a CDP eval. Nothing calls it automatically yet, and
      until something does it costs nothing — no DOM, no timers, no decoded
      sheets. Named without the `__` because it is the module's real API, not

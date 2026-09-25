@@ -1,5 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   V3 DOG OCCASION — Benji and Teddy peeking up from the bottom of the glass.
+   V3 DOG OCCASION — Benji and Teddy peeking up from the bottom of the glass,
+   or running across its lower third.
    Driven by core/dog-occasion.js, which owns every duration; this file owns
    only how each phase LOOKS. The overlay exists only while a run is live.
 
@@ -38,7 +39,9 @@
   position: absolute;
   bottom: calc(var(--dog-height) * -0.04);
   left: var(--dog-x, 50%);
-  height: var(--dog-height);
+  /* The box is --dog-box-h cells tall (1 for a peek; a run's box is the
+     cycle's reach around the body, derived in the JS). */
+  height: calc(var(--dog-height) * var(--dog-box-h, 1));
   aspect-ratio: var(--dog-aspect, 1);
   transform: translateX(-50%);
 }
@@ -167,8 +170,76 @@
   to   { opacity: 0; }
 }
 
+/* ── Run ─────────────────────────────────────────────────────────────────────
+   Two layers, never one: the JS cycles the gait on the sheet IN PLACE, and
+   the .dog wrapper alone travels — one pass of --dog-path, off-glass left
+   (translateX(-100%) from left 0: its own width) to off-glass right (100vw).
+   The stride bounce is on .dog__body so it composes with the travel.
+
+   One cell's height is 29vh ≈ 313px on the 1080 panel — the run sheets' own
+   313.5px cell, so the art is shown at ~1:1. The dogs cross the lower third:
+   Benji's box top sits about 30% up the glass. */
+.dogs[data-mode="run"] {
+  --dog-h: 29vh;
+}
+
+.dogs[data-mode="run"] .dog {
+  bottom: var(--dog-ground, 4vh);
+}
+
+.dogs[data-mode="run"]:not([data-still]) .dog {
+  left: 0;
+  transform: translateX(-100%);
+  will-change: transform;
+}
+
+.dog[data-phase="running"] {
+  animation: var(--dog-path) var(--dog-cross-ms) linear both;
+}
+
+.dog[data-phase="running"] .dog__body {
+  animation: dog-stride var(--dog-bob-ms) ease-in-out infinite alternate;
+}
+
+.dog[data-phase="gone"] { visibility: hidden; }
+
+/* Positions along the crossing as calc(p·(100vw + 100%) − 100%): p = 0 is
+   just off the left edge, p = 1 just off the right, at any viewport width.
+
+   Benji: away fast, a surge past the middle, then he checks himself for a
+   beat (the stumble) and goes again — eager, a little clumsy. */
+@keyframes dog-run-eager {
+  0%   { transform: translateX(-100%); }
+  16%  { transform: translateX(calc(20vw - 80%)); }
+  38%  { transform: translateX(calc(43vw - 57%)); }
+  50%  { transform: translateX(calc(57.5vw - 42.5%)); }
+  57%  { transform: translateX(calc(60vw - 40%)); }
+  78%  { transform: translateX(calc(82vw - 18%)); }
+  100% { transform: translateX(100vw); }
+}
+
+/* Teddy: nearly even, a gentle pick-up in the middle — he gains a little
+   while Benji checks himself, then settles back to his own pace. */
+@keyframes dog-run-deliberate {
+  0%   { transform: translateX(-100%); }
+  25%  { transform: translateX(calc(24vw - 76%)); }
+  60%  { transform: translateX(calc(62vw - 38%)); }
+  100% { transform: translateX(100vw); }
+}
+
+@keyframes dog-stride {
+  from { transform: translateY(0); }
+  to   { transform: translateY(calc(-1 * var(--dog-bob-px, 3px))); }
+}
+
+/* Reduced motion, run: the still portrait stands where the pair would. */
+.dogs[data-mode="run"][data-still] .dog {
+  transform: translateX(-50%);
+}
+
 /* The JS already takes the still path under reduced motion; this is the
    floor if the preference flips mid-run. */
 @media (prefers-reduced-motion: reduce) {
-  .dog__frame { animation: none !important; }
+  .dog__frame,
+  .dog[data-phase="running"] .dog__body { animation: none !important; }
 }
