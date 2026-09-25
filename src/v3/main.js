@@ -60,6 +60,7 @@ import { initContextFeed, pushContext, feedWeather } from "./core/context-feed.j
 import { initCommands } from "./core/commands.js";
 import { clockDim } from "./core/sun-clock.js";
 import { initAtmosphereFx, atmosphereSun, onStrike } from "./core/atmosphere-fx.js";
+import { dogOccasion } from "./core/dog-occasion.js";
 
 /* ⚠ `/js/config.js` is a separate <script> in index.html, so window.CONFIG is
    populated before this module runs — but read it LATE anyway (per call, not at
@@ -1023,6 +1024,7 @@ function registerHandles() {
     // REFUSAL leaves nothing on the wall to look at by definition, so without
     // this row the channel is only observable when it succeeds.
     command: window.__v3Commands?.() ?? null,
+    dogs: dogOccasion.state(),
     // Cutover §4. `failed: []` is the assertion worth making on a healthy
     // wall — a stage that started throwing in production is otherwise silent
     // by construction, because isolation is the thing hiding it.
@@ -1040,6 +1042,13 @@ function registerHandles() {
   // until a spec noticed, which is the same class of no-op as a font axis the
   // API rejects.
   window.__v3Tick = (now) => tickAttention(now == null ? new Date() : new Date(now));
+
+  /* Benji and Teddy, by hand: `dogOccasion.show("christmas", { dogs: ["benji"] })`
+     from the console or a CDP eval. Nothing calls it automatically yet, and
+     until something does it costs nothing — no DOM, no timers, no decoded
+     sheets. Named without the `__` because it is the module's real API, not
+     a readout; the future scheduler will import the same object. */
+  window.dogOccasion = dogOccasion;
 
   /* Push one entity onto the bus exactly as the SSE would deliver it. The way
      to drive motion, or any other cause, without walking into the kitchen —

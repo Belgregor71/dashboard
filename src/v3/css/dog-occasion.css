@@ -1,0 +1,171 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   V3 DOG OCCASION — Benji and Teddy peeking up from the bottom of the glass.
+   Driven by core/dog-occasion.js, which owns every duration; this file owns
+   only how each phase LOOKS. The overlay exists only while a run is live.
+
+   Stacking: z 15 — over .stage (10, every word on the wall) and under
+   .presence (20), so the house's listening/speaking light still washes over
+   the dogs rather than being cut off by them. Fixed, zero-height, appended to
+   <body>: it cannot move anything in the layout. There is no pointer on this
+   wall, and pointer-events:none keeps it that way for any future one.
+
+   Only transform, opacity and clip-path change — each dog is its own
+   composited layer, so a frame change repaints nothing else on the wall.
+   Frames are NOT a steps() animation: each dog has its own per-frame timing,
+   and the JS timer is what gives the expressions time to read.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.dogs {
+  /* One cell's height at scale 1. 34vh ≈ 367px on the 1080 panel — the
+     sheets' own 362px cell, so the art is shown at ~1:1, not upscaled. */
+  --dog-h: 34vh;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
+  z-index: 15;
+  pointer-events: none;
+  contain: layout style;
+}
+
+/* The art's bodies end in a flat cut (each frame's `base`). Sunk below the
+   edge by more than the largest lift — Benji's -4% overshoot plus the bob —
+   so that cut is never on the glass and the dog always rises from BEHIND it. */
+.dog {
+  --dog-height: calc(var(--dog-h) * var(--dog-scale, 1));
+  position: absolute;
+  bottom: calc(var(--dog-height) * -0.06);
+  left: var(--dog-x, 50%);
+  height: var(--dog-height);
+  aspect-ratio: var(--dog-aspect, 1);
+  transform: translateX(-50%);
+}
+
+.dog__body {
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 100%;
+  will-change: transform, opacity;
+}
+
+.dog__frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  will-change: transform;
+}
+
+/* The whole sheet, columns × rows boxes large (sized inline from the grid);
+   the JS translates it so the current frame sits in the box. */
+.dog__sheet {
+  position: absolute;
+  left: 0;
+  top: 0;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  will-change: transform;
+}
+
+/* ── Phases ───────────────────────────────────────────────────────────────── */
+
+.dog[data-phase="waiting"] { visibility: hidden; }
+
+.dog[data-phase="entering"] .dog__body {
+  animation: var(--dog-enter) var(--dog-enter-ms) cubic-bezier(0.25, 0.8, 0.35, 1) both;
+}
+
+/* Breathing lives on the frame, not the body, so the exit's transform on the
+   body composes with it instead of snapping it back to zero. */
+.dog[data-phase="idle"] .dog__frame,
+.dog[data-phase="exiting"] .dog__frame {
+  animation: dog-bob var(--dog-bob-ms) ease-in-out infinite alternate;
+}
+
+.dog[data-phase="exiting"] .dog__body {
+  animation: var(--dog-exit) var(--dog-exit-ms) cubic-bezier(0.55, 0, 0.8, 0.3) forwards;
+}
+
+.dog[data-phase="still"] .dog__body {
+  animation: dog-fade-in var(--dog-fade-in-ms) ease-out both;
+}
+.dog[data-phase="fading"] .dog__body {
+  animation: dog-fade-out var(--dog-fade-out-ms) ease-in forwards;
+}
+
+/* ── Characters ──────────────────────────────────────────────────────────── */
+
+/* Benji: up fast, a touch too far, settles back. Eager. */
+@keyframes dog-pop-benji {
+  0% {
+    transform: translateY(110%) scale(0.94);
+    opacity: 0;
+  }
+  55% {
+    opacity: 1;
+  }
+  68% {
+    transform: translateY(-4%) scale(1.025);
+  }
+  84% {
+    transform: translateY(1%) scale(0.995);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* Teddy: slower, controlled, barely an overshoot. He meant to do that. */
+@keyframes dog-pop-teddy {
+  0% {
+    transform: translateY(110%) scale(0.97);
+    opacity: 0;
+  }
+  65% {
+    opacity: 1;
+  }
+  78% {
+    transform: translateY(-1.5%) scale(1.01);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes dog-exit {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110%);
+    opacity: 0;
+  }
+}
+
+@keyframes dog-bob {
+  from { transform: translateY(0); }
+  to   { transform: translateY(calc(-1 * var(--dog-bob-px, 2px))); }
+}
+
+@keyframes dog-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes dog-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* The JS already takes the still path under reduced motion; this is the
+   floor if the preference flips mid-run. */
+@media (prefers-reduced-motion: reduce) {
+  .dog__frame { animation: none !important; }
+}

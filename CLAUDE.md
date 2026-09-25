@@ -95,7 +95,7 @@ happened; a glance at the wall did.
 
 ### Testing & Pre-Push Gate
 
-- `npm test` runs the Playwright suite — 135 spec files in `tests/` (plus 2 in `tests/verify/`,
+- `npm test` runs the Playwright suite — 138 spec files in `tests/` (plus 2 in `tests/verify/`,
   which `npm test` ignores), spanning API
   contracts (`api.spec.js`), a browser smoke test (`ui.spec.js`), and per-feature specs.
   Browser specs need `npm run build` first. Test server runs on port 3210 with AI
