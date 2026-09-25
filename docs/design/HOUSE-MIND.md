@@ -204,6 +204,7 @@ Each slice ships on its own, default-off, with its own rollback.
 | **S2 — observation store** ✅ complete 2026-09-25, all six consumer flags ON | Server keeps a sticky last value per source (weather, calendar, commute, bins, media) and pushes it over one SSE, `/api/house/stream`. Consumers move over one at a time. | One flag per consumer. Off = its own fetch, as today. | Fetches of `/api/weather/now` and `/api/calendar/all` per 5 min drop, measured in the server log. Glance and field agree. `/kiosk-metrics` shows no heap growth. | About 6 duplicate fetchers per source |
 | **S3 — capability arbiter** ✅ built 2026-09-24, flag off | One owner of depth and speech. A declared **reflex lane** (doorbell, timers, commands, barge-in) goes straight through, then notifies. | Flag. Off = direct calls, as today. | Two simultaneous authors resolve by policy, not by call order. Doorbell latency is unchanged, measured. | The collision class in §4 pro 2 |
 | **S4 — prediction** ✅ first rule built 2026-09-24, flag off | Rules fed by routine distributions and the store, ranking through S0's weights. | Flag. | A predicted card earns the glance with a data line behind it. | Three hand rules as the whole of "prediction" |
+| **S5 — one decision for the room** ⏳ proposed 2026-09-25, nothing built | A candidate must carry its evidence (a store key or entity, plus its age). A spoken author speaks only when its candidate won the ranking. The arbiter picks the surface, not the source. | S5a: test-only first, then a flag for the runtime gate. S5b: one flag per migrated author. | Every candidate names its evidence, and a spec goes red on one that does not. A lost arrival stays silent, and a won one speaks as it does today. | "A module decides to speak, and the arbiter can only veto it" |
 | *Deferred* | Merge the client and server minds. | — | Only if S2 and S3 show the split still hurts. | — |
 
 ### S1 as built (2026-09-23)
@@ -445,6 +446,79 @@ was then flipped on its own, with a live rollback proof.
   - The insight rules emit no `source`, so learned weights cannot reach them.
   - Each of these is a separate rule or slice, not a gap in this one.
 
+### S5 — one decision for the room (proposed 2026-09-25, nothing built)
+
+**The proposal (owner, 2026-09-25):** make the arbiter the one authority for who deserves
+the room. It would take a richer candidate (`priority`, `urgency`, `confidence`,
+`freshness`, `reason`, `presentation`, `expiry`) and decide screen, voice and action from
+it.
+
+**Verdict: YES-BUT.** The direction is right: one place should decide what earns the
+room, across the glass and the voice. Most of the pipeline already exists, though, and
+the proposed object would bring back the scored-lane problem this repo keeps paying for.
+
+**What already exists:**
+- **Sources → candidates:** `candidateSources.js` builds
+  `{id, source, score, sub, interrupt, expiresAt}`.
+- **Attention engine:** the V3 ranker (`src/v3/core/attention.js`), with learned weights
+  (S0), presence mode and intent gating.
+- **Arbiter:** S3 owns speech by priority and the stage by lane, with a reflex lane.
+
+**The real gap: there are two deciders, and speech sits outside the ranking.** The ranker
+decides the glance. A spoken author starts speech itself and then only *asks* the
+arbiter. The arrival greeting is the plainest case:
+- `arrival.js:136` calls `announce()`. The function returns the resulting selection
+  (`attention.js:438`: "so the caller can see whether it landed").
+- `arrival.js:154` ignores that result and calls `speak()` anyway.
+- So the greeting is spoken whether or not it won the room. The arbiter can drop it
+  (priority 10), but nothing ever asks whether it *deserved* the room.
+
+The briefing, the timer and the doorbell speak the same way, from their own modules.
+
+**How S5 departs from the proposal, and why:**
+1. **One score, not four blended numbers.** Once `priority`, `urgency`, `confidence` and
+   `freshness` are blended, the blending function becomes the real priority, and nobody
+   can reason about it. The same kind of hidden ranking already bit this repo once:
+   health's `announce()` at 72 replaced a spec's own fixture for a month. **Confidence
+   and freshness are gates**: below the bar, the candidate does not exist.
+   `departureCandidate` already works this way (no confident routine, no live drive time,
+   no card).
+2. **A source declares what it *can* do, never where it goes.** A source declaring
+   `presentation: {surface: "glance", speech: false}` would still be deciding how it is
+   shown. A source says `speakable`, and whether it has a data line. The arbiter picks
+   the surface.
+3. **`evidence` is mandatory, and it points at something that can be checked.** It names
+   an S2 store key (`weather`, `forecast`, `nowcast`, `calendar`, `commute`, `bins`,
+   `plex`) or an HA entity, and the observation's age. No evidence, no candidate. This
+   turns the "8:41" lesson and the forecast invented 24/24 times into a structural rule
+   instead of a prompt rule. It is the most valuable part of the proposal.
+4. **The reflex lane stays outside.** The doorbell, timers, barge-in and commands do not
+   wait for a ranking. S3 measured the doorbell → TTS path at a 1.1 ms median, and that
+   is the bar.
+5. **ACTION is out of scope.** A ranker that fires HA service calls means the house acting
+   on its own. That is a different class of risk, and it needs its own decision
+   (§6 item 4). It is not a side effect of an attention refactor.
+
+**Precondition: see the arbiter decide something real first.** As of 2026-09-25, no real
+arbitration decision has been seen live (`__v3().arbiter.decisions` is still owed from a
+voice turn or a doorbell). Two S3 gaps are also still open: the presence rim has no
+owner, and the timer chime plays outside the TTS channel. Read a week of real decisions
+before making the arbiter the single authority.
+
+**The slices:**
+
+| Slice | What | Flag / rollback | It worked when |
+|---|---|---|---|
+| **S5a — evidence** | Every candidate carries `evidence: {key, at}`, an S2 key or an HA entity. First, a spec derives the inventory the way `event-registry.spec.js` does, with an explicit exempt list, and goes red on an undeclared candidate. Then, behind a flag, the ranker drops a candidate with no evidence or stale evidence. | The spec is test-only. The runtime gate gets its own flag; off = today's queue. | Inject a candidate without evidence: the spec goes red, and with the gate on the ranker drops it. Nothing on the wall changes with the gate off. |
+| **S5b — arrival speaks only if it won** | `arrival.js` reads the selection `announce()` returns and calls `speak()` only when its own id is the hero. Arrival is the lowest-risk spoken author: priority 10, and not reflex. | A flag, read per arrival (no reload). Off = speak unconditionally, as today. | Both directions, forced at boot: a higher candidate holding the glance means the greeting is shown in the queue but not spoken; an empty room means it is spoken exactly as before. Both are injected RED. |
+| **S5c — the next authors** | The briefing, then dinner, one at a time, if S5b's live decisions hold up. The timer and doorbell stay reflex. | One flag per author. | The same as S5b, per author. |
+
+**Not yet inventoried, and not guessed here:**
+- How many live candidate sources already have a data line that could become `evidence`.
+- Which candidate sources have no `source` at all (the insight rules, per S4).
+- Whether the V3 closure pulls in any candidate producers from `src/js/` that the
+  incumbent also ranks. If it does, S5a's gate must keep the incumbent green.
+
 ---
 
 ## 6. Open decisions for the owner
@@ -455,3 +529,7 @@ was then flipped on its own, with a live rollback proof.
 2. **Where does the mind live?** Recommended: defer. Share the store, not the mind.
 3. **Is S3 wanted at all?** It is the biggest architectural change on the list, and the
    collisions it retires have been fixed one by one so far.
+4. **May the house ACT, not only show and speak?** (S5, 2026-09-25) The proposal's third
+   output is HA actions chosen by the ranker. It is out of S5 on purpose: acting
+   unprompted is a different risk class from a line on the glass, and it needs its own
+   yes or no.
