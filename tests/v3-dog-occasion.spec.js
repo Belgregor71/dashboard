@@ -348,15 +348,20 @@ test.describe("dog occasion", () => {
       // Timing: every expression is held AT LEAST its own duration — the
       // floor is the promise (a frame cut short is an expression that does not
       // read; in the full suite an absolute schedule once gave a 140ms frame
-      // 58ms). The ceiling allows a loaded runner's late timer, and is still
-      // too tight for any constant rate: nothing fits both Benji's 100ms frame
-      // (< 350) and Teddy's 1100ms one.
+      // 58ms). Then the MEDIAN frame is on time — not a per-frame ceiling: the
+      // pre-push suite held single frames 290-370ms late (runner load, three
+      // looks' runs at once), as it did the run gait (43fb9f6). The median
+      // still refuses any constant rate: the slowest one that clears every
+      // floor (Benji 220ms, Teddy 320ms) leaves the median frame 50-80ms late.
       const timing = DOGS[id].timing.peek;
+      const late = [];
       for (let i = 1; i < frames.length; i++) {
         const gap = frames[i].t - frames[i - 1].t;
         expect(gap, `${id} gap before frame ${i}`).toBeGreaterThanOrEqual(timing[i - 1] - 2);
-        expect(gap, `${id} gap before frame ${i}`).toBeLessThan(timing[i - 1] + 250);
+        late.push(gap - timing[i - 1]);
       }
+      const median = [...late].sort((a, b) => a - b)[Math.floor(late.length / 2)];
+      expect(median, `${id} median lateness ${JSON.stringify(late.map(Math.round))}`).toBeLessThan(30);
     }
 
     // Gone, and nothing moved.
