@@ -637,6 +637,34 @@ forbids. The draft did not notice. The amended S6 splits the log in two:
 | **S6b — the people's counters** | Per source, per day: shown while someone was present, cut off by a barge-in, followed by a question on the same topic within N minutes. Counts only, alongside the existing census counters, with no times and no row ids. | Rides S6a's flag. | Forced: rain card, then a rain question inside N → `followed` +1. The same question outside N, or a different topic → no change. Both directions injected. The stored file holds only counts, which a spec asserts. |
 | **S6c — the weekly digest** | Per source: shown (from the rows), total seconds on the glass (from the rows), shown while present, cut off, followed by a question (from the counters). Read by the owner, e.g. "Rain card shown 9×, followed by a rain question 3×, cut off once." | A read-only route; it changes nothing. | The digest reconciles with the rows and the counters, and one day is spot-checked against the wall. |
 
+**S6-0 as done (2026-09-25, `2136bb0`, LIVE):**
+- **How `test` and `spec` got in: CDP probes.** `getSelection` emitted every hero change,
+  including heroes forced by `__forceCandidate`, and `routineRuntime.onHero` recorded
+  them. Specs run on the dev machine against their own ignored `data/routines/`, so the
+  box's rows came from probes on the kiosk. A spec had also *relied* on this:
+  `v3-routines.spec.js` built its dwell test on a forced hero.
+- **Fixed:** a forced hero now carries `injected: true` on `attention:hero`, and the
+  learner skips it. The dwell test now uses a real hero (a V3 arrival), and a sibling test
+  runs the same steps with a forced hero. Inject-defect 3/3 RED. No flag, because only
+  what a probe teaches changes.
+- **Purged live:** `test` (8 shown / 0 dwell) and `spec` (1 / 0) were removed from the page's
+  copy and from `aggregates.json`, in that order, because the page PUTs the whole blob
+  every 10 minutes. The backup is `aggregates.json.bak-s6-0-1790323941566` on the box.
+- **What "dwelt" means, from the code** (read, not measured):
+  - **"shown" = became the RANKER'S hero, whether or not it reached the glass.** On V3,
+    only an interrupt or a candidate over the bar (70, or 50 with someone present) takes
+    the glance. Anything else is shown only as a spread cell, when the room is already
+    dwelling.
+  - **"dwelt" = presence reached DWELL at any moment while it was the hero.** So a
+    low-band hero's dwell may be partly circular (the dwell caused the spread that
+    showed it). **HYPOTHESIS until measured.**
+  - No sensor on the wall can say whether anyone *looked at* the card. The measurable
+    question is how often a "shown" hero was actually on the glass, and whether the
+    dwell happened with it there.
+- ⏳ **Measuring it:** a read-only sampler (`~/s6-dwell/` on the G11) logs presence,
+  depth, the hero, `earned`, `acted` and the glance text on every change, for 24 hours
+  from 2026-09-25 18:00 AEST.
+
 **What would reopen automatic learning:** only a digest showing a stable pattern that
 points one way, over weeks. Even then it would feed ranking alone (the existing nudge
 path), never the words.
