@@ -205,6 +205,7 @@ Each slice ships on its own, default-off, with its own rollback.
 | **S3 — capability arbiter** ✅ built 2026-09-24, flag off | One owner of depth and speech. A declared **reflex lane** (doorbell, timers, commands, barge-in) goes straight through, then notifies. | Flag. Off = direct calls, as today. | Two simultaneous authors resolve by policy, not by call order. Doorbell latency is unchanged, measured. | The collision class in §4 pro 2 |
 | **S4 — prediction** ✅ first rule built 2026-09-24, flag off | Rules fed by routine distributions and the store, ranking through S0's weights. | Flag. | A predicted card earns the glance with a data line behind it. | Three hand rules as the whole of "prediction" |
 | **S5 — one decision for the room** ⏳ proposed 2026-09-25, nothing built | A candidate must carry its evidence (a store key or entity, plus its age). A spoken author speaks only when its candidate won the ranking. The arbiter picks the surface, not the source. | S5a: test-only first, then a flag for the runtime gate. S5b: one flag per migrated author. | Every candidate names its evidence, and a spec goes red on one that does not. A lost arrival stays silent, and a won one speaks as it does today. | "A module decides to speak, and the arbiter can only veto it" |
+| **S6 — the presentation log** ⏳ proposed 2026-09-25, nothing built | A bounded server-side log with one row per presentation (what, where, how long, presence, cut off or not), joined to later voice questions, and read by the owner as a weekly digest. Nothing feeds back into ranking or wording. | A flag for the page's writes. Off = nothing written. | "Why was X on the wall at 07:12?" is answered from the log. The digest's counts match what the wall did, spot-checked. | "History" existing only as per-source counters |
 | *Deferred* | Merge the client and server minds. | — | Only if S2 and S3 show the split still hurts. | — |
 
 ### S1 as built (2026-09-23)
@@ -519,6 +520,78 @@ before making the arbiter the single authority.
 - Whether the V3 closure pulls in any candidate producers from `src/js/` that the
   incumbent also ranks. If it does, S5a's gate must keep the incumbent green.
 
+### S6 — the presentation log (proposed 2026-09-25, nothing built)
+
+**The proposal (owner, 2026-09-25):** build the missing loop, presentation → history →
+mind. The house should know what it showed, for how long, who was there, whether it was
+ignored, interrupted, asked about or acted on, and it should learn from that. For example,
+it might phrase a rain warning differently if someone asked "is it going to rain?" after
+the card had shown.
+
+**Verdict: YES-BUT.** Build the log. It is cheap, and "why did the wall show X at 07:12?"
+(§4, pro 7) still has no answer. But what it produces should be a **report the owner
+reads**, not something the house learns from on its own. One household gives too few
+samples to learn phrasing from, and the proposal's own example can be read either way.
+
+**A crude form of the loop already exists, and it is live:**
+- `routineRuntime.js:51-115` records every glance hero as `{source, dwelt}`.
+  - "dwelt" = the room reached DWELL presence while it was showing.
+  - The record is finalised when the hero changes or the room goes ambient.
+- `routineStore.js:154` turns the dwell/shown ratio into a score nudge. It needs 4
+  appearances, the baseline is 0.4, and it is clamped −15…+10.
+- S0's `v3AttentionWeights` (ON) applies that nudge on the wall.
+- The aggregates are counters only, kept in `aggregates.json` on the server and written
+  whole by the page through `PUT /api/routines`. They record no rows and no times, so they
+  cannot answer "when" or "why".
+
+**Audit that loop before building a larger one:**
+- The live aggregates contain `"test"` and `"spec"` sources (seen at S0's deploy). The
+  nudge is being learned partly from probes and specs.
+- Whether "dwelt" means *attended to* has never been checked against reality. It could
+  just mean someone was standing in the kitchen. HYPOTHESIS, not probed: in a busy room,
+  dwell is mostly about the room and hardly about the card.
+
+**How S6 departs from the proposal, and why:**
+1. **"Asked about it later" is ambiguous, so it is recorded, not judged.** A rain question
+   after a rain card could mean the card failed. It could equally mean the card worked and
+   the person wanted the detail. A learner cannot tell these apart; a person reading a
+   week of rows can.
+2. **The log never names someone the wall did not identify.** Presence is room-level
+   (glance / dwell), and `person.*` is only home or away. Only a voice turn can name a
+   person, and only where speaker ID is live. A row that says "Greg saw it" would be an
+   invented fact, the same class as "8:41". Rows record the room's presence mode and who
+   was *home*, labelled as such.
+3. **Wording never changes because of the log.** Learning phrasing from inferred failure
+   means generating copy from a guess. That conflicts with the S4 rule: learned timing,
+   live words. The owner changes wording; the house does not.
+4. **The samples are tiny.** A rain card shows a handful of times a week, and the
+   per-source nudge already needs 4 appearances just to move. Learning per phrasing would
+   take months and still be mostly noise.
+5. **It lives on the server, bounded, and it is private.** Per-person presence history is
+   a privacy log and, in the browser, a leak surface (§4.3). The page sends a row and keeps
+   nothing. The server keeps a fixed retention. None of it goes near the public repo or
+   the shipped `config.js`.
+
+**The slices:**
+
+| Slice | What | Flag / rollback | It worked when |
+|---|---|---|---|
+| **S6-0 — audit the existing loop** | Clear the `test` / `spec` sources out of the live aggregates, and find out how they got there (probe, spec or `PUT`). Spot-check a sample of "dwelt" presentations against what the wall and the room were actually doing. | None; it is a probe and a data fix. | No non-product source in `__routines().weights`. A stated, measured answer to what "dwelt" means. |
+| **S6a — the log** | One row per presentation: candidate id, source, evidence key (from S5a), surface (glance / stage / voice), start and end, presence mode during it, who was home, whether a barge-in cut it off, and the arbiter decision if there was one. Append-only, server-side, fixed retention. The page's writes are fire-and-forget. **Nothing reads the log back into ranking.** | A flag for the page's writes. Off = no requests, byte-identical. | A forced presentation produces exactly one row with the right fields. Retention drops the oldest rows. `/kiosk-metrics` is flat. Inject: a missing end time and a double row both go RED. |
+| **S6b — "asked about it after"** | When a voice turn's topic matches a source shown in the last N minutes, add a `followedBy` note (the topic, and the minutes after) to that row. | Rides S6a's flag. | Forced: rain card, then a rain question inside N → noted. The same question outside N, or a different topic → not noted. Both directions injected. |
+| **S6c — the weekly digest** | Per source: shown, total seconds on the glass, cut off, followed by a question. Read by the owner, e.g. "Rain card shown 9×, followed by a rain question 3×, cut off once." | A read-only route; it changes nothing. | The digest's counts reconcile with the raw rows, and one day is spot-checked against the wall. |
+
+**What would reopen automatic learning:** only a digest showing a stable pattern that
+points one way, over weeks. Even then it would feed ranking alone (the existing nudge
+path), never the words.
+
+**Not inventoried, and not guessed here:**
+- How a voice turn's topic is classified today, and whether that maps cleanly onto
+  candidate sources (S6b depends on it).
+- What retention is right. The briefing's TTS cache and the census have their own; neither
+  has been compared yet.
+- Whether speaker ID is live enough to name anyone, and on which turns.
+
 ---
 
 ## 6. Open decisions for the owner
@@ -533,3 +606,7 @@ before making the arbiter the single authority.
    output is HA actions chosen by the ranker. It is out of S5 on purpose: acting
    unprompted is a different risk class from a line on the glass, and it needs its own
    yes or no.
+5. **May the house learn from its own presentations automatically?** (S6, 2026-09-25)
+   Recommended: not yet. The log and a weekly digest come first, and the owner decides
+   what changes. Automatic learning would affect ranking only, never wording, and only
+   after the digest shows a stable pattern over weeks.
