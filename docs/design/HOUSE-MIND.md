@@ -207,6 +207,7 @@ Each slice ships on its own, default-off, with its own rollback.
 | **S5 — one decision for the room** ⏳ proposed 2026-09-25, nothing built | A candidate must carry its evidence (a store key or entity, plus its age). A spoken author speaks only when its candidate won the ranking. The arbiter picks the surface, not the source. | S5a: test-only first, then a flag for the runtime gate. S5b: one flag per migrated author. | Every candidate names its evidence, and a spec goes red on one that does not. A lost arrival stays silent, and a won one speaks as it does today. | "A module decides to speak, and the arbiter can only veto it" |
 | **S6 — the presentation log** ⏳ proposed 2026-09-25 (amended the same day), nothing built | Rows about the WALL (what was shown, where, how long, on what evidence), and COUNTERS about the people (present, cut off, asked about it after), never joined. The owner reads a weekly digest. Nothing feeds back into ranking or wording. | A flag for the page's writes. Off = nothing written. | "Why was X on the wall at 07:12?" is answered from the log. No row carries a person. The digest's counts match what the wall did, spot-checked. | The wall having no history of itself |
 | **S7 — today, answered** ⏳ proposed 2026-09-25, nothing built | A server-side fold of today's timed WORLD events (weather changes, rain crossings), handed to `/converse` next to House Lately. Answered, never announced; never about people. | Its own flag. Off = nothing folded. | A forced day yields exactly its entries. A live `/converse` answer cites only times in the fold. | "What's the day been like?" having no times to answer with |
+| **S8 — the house's tool manifest** ⏳ proposed 2026-09-25, nothing built | A declared, server-side table of what an AI may read and do (name, read or act, route, safety gate, callers), checked by a spec in the style of S1. `/converse` reads its context from it. It is **not** a runtime facade over the page. | S8a is test-only. S8b gets a flag (off = today's hand assembly). S8c has its own flag, off. | The spec goes red on an undeclared AI input, an ungated act, and an unused capability. The converse prompt is byte-identical with the flag on and off. | "Teach the next AI the whole codebase" |
 | *Deferred* | Merge the client and server minds. | — | Only if S2 and S3 show the split still hurts. | — |
 
 ### S1 as built (2026-09-23)
@@ -689,6 +690,92 @@ or "the storm arrived at 17:31".
   source.
 - How `/converse` currently phrases House Lately's claims. S7's entries would have to
   follow the same "answered" path, not a new one.
+
+### S8 — the house's tool manifest (proposed 2026-09-25, nothing built)
+
+**The proposal (owner, 2026-09-25):** a House Capability API. It would have verbs
+(`observe`, `remember`, `attend`, `speak`, `display`, `act`, `explain`, `predict`) over
+per-domain capabilities (`house.weather.current()`, `house.media.pause()`,
+`house.cameras.show("front-door")` …). V3, voice, AI and automation would all use it,
+so that another AI could be added "without teaching it the entire codebase".
+
+**Verdict: NO to a runtime layer next; YES to one narrow piece.** The goal is real. But
+a browser namespace wrapping every service does not serve it, and most of the verbs
+name slices that are not built yet. The narrow piece is a declared, server-side
+manifest of what an AI may read and do, checked by a spec.
+
+**What already exists:**
+- **Chokepoints, which is where enforcement happens.** `speak()` goes through
+  `core/tts.js`, which asks the arbiter. `showSubject` asks the arbiter for the stage.
+  The collision defects were fixed at those points (S3), not by naming. A facade over
+  them adds a layer of indirection and enforces nothing new.
+- **A curated AI tool surface:** `server/services/voiceTools.js` provides `set_light`,
+  `set_switch`, `run_routine` and `control_media`. Every call is validated against
+  `SAFE_SERVICES` (`server/ha/haRoutes.js:10`), the set that guards `/api/ha/services`.
+  Only named entities are ever sent upstream, so the house's device inventory does not
+  leave the LAN. That curation is the security boundary, and the repo is public.
+- **The AI context, assembled by hand in one place:** `POST /api/voice/converse`
+  (`server/routes/voice.js:377`) builds its system prompt from:
+  - `lately.js` weather claims
+  - `houseLately.js` claims
+  - the page's `houseDigest()`
+  - `armedTools()`
+
+  Each input is wired in separately.
+- **32 route modules under `/api`**, which are already a typed read surface. The S2
+  store is, in effect, `observe()`.
+
+**Why not the full facade:**
+1. **Two frontends share `src/js`.** A facade must serve both V3 and the incumbent, or
+   the rollback surface (`V3_DEFAULT=0`) drifts. Migrating every call site means a flag
+   per site. A flag name inside a constant or an array is invisible to
+   `flag-surface.spec.js` (S2), so a facade that routes by name hides its own levers.
+2. **The verbs are slices, not an interface:**
+   - `act()` is §6 item 4, still undecided.
+   - `explain()` needs S6a.
+   - `predict()` is S4.
+   - `remember()` is House Lately and S7.
+   - `attend()` is S5.
+
+   A namespace laid down ahead of them names things that do not exist yet. That is how
+   dead levers are made here: S1 found five events published and never heard.
+3. **It is the god object §4.7 warns against.** Memory, attention, personality and
+   routines run at different cadences, and one `house` object in front of them hides
+   which one answered.
+4. **Another AI talks over HTTP, not browser JS.** `/converse`, voice lane 3, or a future
+   Codex or Gemini agent never imports `house.weather.current()` from the page. They need
+   a tool list served by the server. The standard way to expose house *control* to an
+   outside AI is Home Assistant's own MCP server (`/api/mcp`), which is not enabled on
+   this instance (see CLAUDE.md).
+
+**S8 — what it is:**
+
+| Slice | What | Flag / rollback | It worked when |
+|---|---|---|---|
+| **S8a — the manifest** | One declared table on the server, shaped like S1's `tests/fixtures/event-registry.js`. It has one row per capability: name, kind (**read** or **act**), backing route or function, safety gate (`SAFE_SERVICES`, `loopbackOnly`, the curated roster), and its callers (converse, the voice tools, the briefing). A spec derives the truth from the source, sharing S1's `tests/fixtures/source-scan.js`, and goes red on: an AI-facing input the manifest does not declare; an **act** not behind `SAFE_SERVICES`; a declared capability that nothing calls. | None; it is test-only. | Inject each of the three and the spec goes red; remove it and it goes green. |
+| **S8b — converse reads from the manifest** | `/converse` builds its read context from the manifest's **read** rows instead of wiring each input by hand. The prompt must stay byte-identical for the same inputs, so this is a refactor, not a behaviour change. S7's day is added as one more row, not one more hand-wired call. | A flag. Off = today's hand assembly. | For a fixed set of inputs, the assembled system prompt is byte-identical with the flag on and off (spec). A live `/converse` turn answers as before. |
+| **S8c — an outside AI, read-only** *(only if wanted)* | The manifest's **read** rows served to an outside agent: the loopback route, or HA's own MCP once it is enabled. **No act rows are exposed** until §6 item 4 is answered. | Its own flag, off by default. | An outside agent answers "what's the weather and what's next on the calendar" from the manifest alone, and cannot reach any act. |
+
+**What stays where it is:**
+- **Acts** stay in `voiceTools.js`'s curated roster, behind `SAFE_SERVICES`, until §6
+  item 4 is answered. The manifest *describes* them; it does not widen them.
+- **The page's chokepoints** (`tts.js`, `showSubject`, the arbiter) stay the enforcement
+  points. The manifest does not wrap them in the browser.
+- **Nothing** from the manifest goes into the shipped `config.js` or the public bundle.
+  Entity ids and roster names are house data, and they stay on the box.
+
+**Order:** S8a is cheap and test-only, and it can go at any time. S8b is worth doing once
+S7 exists, because that is when a hand-wired converse context gets a fourth input. S8c
+is the owner's call. Before any of it: S5a and S6-0 are the first things to build and
+measure. S5 through S8 each came out much narrower once checked against the code, so
+more layers should wait for evidence from those.
+
+**Not inventoried, and not guessed here:**
+- Every AI-facing input beyond `/converse`. The briefing prompt (`routes/ai.js`) and the
+  recipe route (`routes/recipe.js`, which also defines tools) assemble their own. S8a's
+  first run is what finds them.
+- Whether `houseDigest()` (the page's snapshot, sent in the request body) belongs in the
+  manifest as a read row, or stays a separate, client-supplied input.
 
 ---
 
