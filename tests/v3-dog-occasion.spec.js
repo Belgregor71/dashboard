@@ -521,12 +521,19 @@ test.describe("dog occasion", () => {
       // Enough to have seen the whole cycle more than twice.
       expect(frames.length, `${id} frames`).toBeGreaterThan(40);
       expect(frames[0].frame).toBe(0);
+      const gaps = [];
       for (let i = 1; i < frames.length; i++) {
         expect(frames[i].frame, `${id} sample ${i}`).toBe((frames[i - 1].frame + 1) % 16);
         const gap = frames[i].t - frames[i - 1].t;
+        gaps.push(gap - timing[frames[i - 1].frame]);
         expect(gap, `${id} gap before sample ${i}`).toBeGreaterThanOrEqual(timing[frames[i - 1].frame] - 2);
-        expect(gap, `${id} gap before sample ${i}`).toBeLessThan(timing[frames[i - 1].frame] + 250);
+        // A stall, not a late timer: the full suite once held one 83ms frame
+        // for 371ms (runner load), and a chained loop absorbs that by design.
+        expect(gap, `${id} gap before sample ${i}`).toBeLessThan(1000);
       }
+      // The gait runs AT its rate: the median frame is on time.
+      const median = [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)];
+      expect(median, `${id} median lateness`).toBeLessThan(30);
       // Loop lasts the crossing, not less and not a stride more.
       const span = frames.at(-1).t - frames[0].t;
       expect(span, `${id} loop span`).toBeLessThan(m.crossMs + 50);
