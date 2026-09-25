@@ -9,6 +9,14 @@
 
      dogOccasion.show("christmas", { mode: "peek", dogs: ["benji", "teddy"] })
      dogOccasion.show("christmas", { mode: "run",  dogs: ["benji", "teddy"] })
+     dogOccasion.show("christmas", { looks: { benji: 1 } })   // pin a look
+
+   Looks: a dog may have several sheets for one occasion and mode — the same
+   expressions in a different outfit (Christmas peek: Benji in a Santa hat,
+   reindeer antlers or an elf hat; Teddy in a Santa hat, a holly cape or a
+   crown).
+   Every show() picks one per dog, independently and at random, unless the
+   caller pins it. Each look is a full sheet with its OWN measured windows.
 
    Modes:
      peek   up from the bottom edge, a sequence of expressions, back down.
@@ -174,7 +182,9 @@ const windows = ({ top, base, left, right, cx, cy }, { cellPx, baseAir = 0 }) =>
 }));
 
 /* ── Occasions ──────────────────────────────────────────────────────────────
-   occasion → mode → { grid, anchor, stillFrame, holdMs?, dogs: { id → { src, frames } } }.
+   occasion → mode → { grid, anchor, stillFrame, holdMs?, dogs: { id → [look…] } },
+   each look `{ name, src, frames }`. Every look of one mode shares the grid
+   and the dog's timing — a look is an outfit, not a different performance.
    `anchor` is how a frame is placed in its box: "base" (paws on the bottom
    edge) or "centroid" (body level). `stillFrame` is the reduced-motion
    portrait. A dog absent from an occasion simply cannot be asked for in it. */
@@ -185,26 +195,85 @@ export const OCCASIONS = {
       anchor: "base",
       stillFrame: 11,               // the final, settled portrait
       holdMs: 2000,                 // after the last frame's own 1000/1100ms
+      // All six sheets 1448×1086 → 362px cells. Looks 1 and 2 measured
+      // 2026-09-26; a trimmed edge below is noted where the art touches a
+      // neighbour's, and every final window (AIR included) holds ≤ 9 foreign
+      // fringe px > alpha 24 — the same as look 0 always has.
       dogs: {
-        benji: {
-          src: "/assets/dogs/christmas/benji_christmas_popup_sprite.png",
-          // 1448×1086 sheet → 362px cells.
-          frames: windows({
-            top: [133, 97, 17, 28, -4, -7, -13, -10, -25, -20, -18, -24],
-            base: [331, 335, 337, 338, 327, 324, 332, 333, 334, 334, 334, 335],
-            left: [9, 11, 6, 21, 15, 13, 18, 17, 13, 10, 9, 16],
-            right: [358, 346, 346, 359, 358, 354, 346, 353, 354, 352, 353, 351]
-          }, { cellPx: 362 })
-        },
-        teddy: {
-          src: "/assets/dogs/christmas/teddy_christmas_popup_sprite.png",
-          frames: windows({
-            top: [194, 114, 35, 45, 11, 14, 10, 4, -14, -14, -26, -28],
-            base: [346, 356, 357, 356, 326, 326, 326, 326, 304, 307, 304, 306],
-            left: [32, 25, 21, 20, 32, 30, 24, 20, 30, 27, 16, 19],
-            right: [367, 352, 352, 346, 390, 373, 360, 345, 376, 375, 358, 348]
-          }, { cellPx: 362 })
-        }
+        benji: [
+          {
+            name: "santa",
+            src: "/assets/dogs/christmas/benji_christmas_popup_sprite.png",
+            frames: windows({
+              top: [133, 97, 17, 28, -4, -7, -13, -10, -25, -20, -18, -24],
+              base: [331, 335, 337, 338, 327, 324, 332, 333, 334, 334, 334, 335],
+              left: [9, 11, 6, 21, 15, 13, 18, 17, 13, 10, 9, 16],
+              right: [358, 346, 346, 359, 358, 354, 346, 353, 354, 352, 353, 351]
+            }, { cellPx: 362 })
+          },
+          {
+            name: "antlers",
+            src: "/assets/dogs/christmas/benji_christmas_popup_sprite1.png",
+            // Frame 10's antler tips reach the row above's paws (-35, alpha
+            // 87): its top is -32 (measured -35), 7 own px.
+            frames: windows({
+              top: [161, 65, 13, 24, -5, 24, 9, 9, -26, -32, -9, -22],
+              base: [353, 353, 354, 355, 329, 328, 330, 329, 308, 313, 311, 309],
+              left: [25, 23, 11, 40, 23, 23, 18, 37, 26, 10, 35, 42],
+              right: [349, 345, 342, 338, 356, 336, 339, 344, 348, 356, 343, 346]
+            }, { cellPx: 362 })
+          },
+          {
+            name: "elf",
+            src: "/assets/dogs/christmas/benji_christmas_popup_sprite2.png",
+            frames: windows({
+              top: [174, 26, 30, 58, 18, 18, 20, 19, -3, 8, 65, 0],
+              base: [356, 356, 356, 356, 347, 347, 347, 344, 325, 325, 315, 325],
+              left: [23, 14, 18, 24, 37, 18, 33, 33, 37, 31, 26, 23],
+              right: [355, 350, 349, 340, 370, 358, 365, 352, 362, 352, 375, 347]
+            }, { cellPx: 362 })
+          }
+        ],
+        teddy: [
+          {
+            name: "santa",
+            src: "/assets/dogs/christmas/teddy_christmas_popup_sprite.png",
+            frames: windows({
+              top: [194, 114, 35, 45, 11, 14, 10, 4, -14, -14, -26, -28],
+              base: [346, 356, 357, 356, 326, 326, 326, 326, 304, 307, 304, 306],
+              left: [32, 25, 21, 20, 32, 30, 24, 20, 30, 27, 16, 19],
+              right: [367, 352, 352, 346, 390, 373, 360, 345, 376, 375, 358, 348]
+            }, { cellPx: 362 })
+          },
+          {
+            name: "holly",
+            src: "/assets/dogs/christmas/teddy_christmas_popup_sprite1.png",
+            // Frame 10's ear reaches the row above's paws: top -6 (measured -9).
+            frames: windows({
+              top: [205, 86, 34, 44, 22, 33, 30, 34, -2, -6, 5, -6],
+              base: [375, 377, 377, 378, 354, 354, 354, 354, 332, 332, 333, 332],
+              left: [17, 19, 24, 26, 28, 25, 17, 17, 29, 13, 18, 19],
+              right: [364, 354, 360, 344, 380, 359, 355, 345, 362, 357, 353, 344]
+            }, { cellPx: 362 })
+          },
+          {
+            name: "crown",
+            src: "/assets/dogs/christmas/teddy_christmas_popup_sprite2.png",
+            // The crowded one: row 2's paws REST ON row 3's crowns, so frames
+            // 5+9 and 6+10 are one blob. Cut at row 2's own base line (333):
+            // 5 and 6 end there, 9 and 10 start below it. Row 3's crowns and
+            // frames 6/7's tips also reach the paws above (tops -9, -11, -26,
+            // -27, -27 from -13, -13, -181, -28, -32; ≤ 36 own px each), and
+            // a crown finial pokes up into frame 8's paws — its base is 330
+            // (measured 333), 3 px rows of paw at the glass edge.
+            frames: windows({
+              top: [117, 14, 6, 14, -4, -9, -11, 2, -27, -26, -27, -27],
+              base: [348, 351, 349, 350, 333, 333, 333, 330, 332, 332, 331, 333],
+              left: [9, 12, 6, 8, 9, 18, 23, 23, 9, 21, 9, 23],
+              right: [355, 360, 338, 347, 359, 353, 356, 349, 354, 355, 356, 355]
+            }, { cellPx: 362 })
+          }
+        ]
       }
     },
     run: {
@@ -212,7 +281,8 @@ export const OCCASIONS = {
       anchor: "centroid",
       stillFrame: 0,
       dogs: {
-        benji: {
+        benji: [{
+          name: "basic",
           src: "/assets/dogs/christmas/benji_christmas_run_basic.png",
           // 1254×1254 sheet → 313.5px cells; measured 2026-09-25. Frames 11
           // and 12 touch across their shared cell line — 11's forepaw is in
@@ -227,8 +297,9 @@ export const OCCASIONS = {
             cx: [167.9, 174.3, 152.8, 153.4, 170.1, 173.1, 155.5, 155.3, 174.6, 162.7, 169.2, 155.4, 167.0, 168.2, 163.1, 158.5],
             cy: [171.8, 167.1, 172.2, 168.4, 143.5, 139.0, 148.1, 141.1, 138.8, 140.5, 153.0, 136.9, 121.2, 123.4, 124.8, 126.2]
           }, { cellPx: 313.5, baseAir: AIR })
-        },
-        teddy: {
+        }],
+        teddy: [{
+          name: "basic",
           src: "/assets/dogs/christmas/teddy_christmas_run_basic.png",
           frames: windows({
             top: [61, 49, 53, 46, 50, 48, 46, 48, 39, 39, 52, 50, 18, 28, 28, 32],
@@ -238,7 +309,7 @@ export const OCCASIONS = {
             cx: [175.0, 176.6, 165.9, 170.0, 181.9, 184.1, 177.6, 173.1, 179.3, 176.2, 178.1, 175.1, 183.3, 177.6, 175.7, 169.2],
             cy: [168.4, 167.6, 170.7, 163.5, 163.5, 157.2, 162.3, 161.8, 153.3, 156.4, 160.8, 163.1, 129.3, 133.1, 137.3, 138.5]
           }, { cellPx: 313.5, baseAir: AIR })
-        }
+        }]
       }
     }
   }
@@ -264,12 +335,40 @@ function loadSheet(src) {
   return sheets.get(src);
 }
 
-/** Warm an occasion's sheets so the next show() mounts without waiting. */
-export function preload(occasionId, { mode = "peek" } = {}) {
+/**
+ * Choose a look for each dog: one draw per dog, so Benji's outfit says nothing
+ * about Teddy's. `pinned` ({ id → index }) wins over the draw. Returns
+ * { id → index }, or null if a pinned index is not a look this dog has.
+ */
+export function pickLooks(occasionId, { mode = "peek", dogs, pinned = {}, random = Math.random } = {}) {
+  const staged = OCCASIONS[occasionId]?.[mode];
+  if (!staged) return null;
+  const picks = {};
+  for (const id of dogs ?? Object.keys(staged.dogs)) {
+    const looks = staged.dogs[id];
+    if (!looks) return null;
+    const i = pinned[id] ?? Math.min(looks.length - 1, Math.floor(random() * looks.length));
+    if (!Number.isInteger(i) || !looks[i]) return null;
+    picks[id] = i;
+  }
+  return picks;
+}
+
+const allSrcs = (staged) => Object.values(staged.dogs).flat().map((l) => l.src);
+
+/**
+ * Warm an occasion's sheets so the next show() mounts without waiting. With
+ * `looks` ({ id → index }, e.g. from pickLooks — then pass the same to
+ * show()), only those; without, EVERY look — several MB of bitmap each.
+ */
+export function preload(occasionId, { mode = "peek", looks } = {}) {
   const staged = OCCASIONS[occasionId]?.[mode];
   if (!staged) return Promise.resolve(false);
-  return Promise.all(Object.values(staged.dogs).map((d) => loadSheet(d.src)))
-    .then((all) => all.every(Boolean));
+  const srcs = looks
+    ? Object.entries(looks).map(([id, i]) => staged.dogs[id]?.[i]?.src)
+    : allSrcs(staged);
+  if (srcs.some((s) => !s)) return Promise.resolve(false);
+  return Promise.all(srcs.map(loadSheet)).then((all) => all.every(Boolean));
 }
 
 /* ── Run state ──────────────────────────────────────────────────────────── */
@@ -443,7 +542,8 @@ function build(ids, staged, sizes) {
 
   const dogs = ordered.map((id) => {
     const def = DOGS[id];
-    const art = staged.dogs[id];
+    const look = run.looks[id];
+    const art = staged.dogs[id][look];
     const { width, height } = sizes.get(art.src);
     const { columns, rows } = staged.grid;
     const m = MOTION[def.motion][run.mode];
@@ -490,8 +590,10 @@ function build(ids, staged, sizes) {
     el.append(body);
     root.append(el);
 
+    el.dataset.look = art.name;
+
     return {
-      id, el, frame, sheet, layout, pad: layout.pad, phase: "waiting",
+      id, el, frame, sheet, layout, pad: layout.pad, phase: "waiting", look, lookName: art.name,
       grid: staged.grid, frames: art.frames, timing: def.timing[run.mode], motion: m
     };
   });
@@ -506,7 +608,9 @@ function teardown() {
   for (const id of run.timers) clearTimeout(id);
   run.root?.remove();
   run.cancel?.();
-  // Release the decoded bitmaps; a later show re-reads them from HTTP cache.
+  // Release the decoded bitmaps — every look of this mode, not just the ones
+  // shown: a preload() of all looks must not leave the unpicked ones decoded
+  // until next year. A later show re-reads them from HTTP cache.
   for (const src of run.srcs) sheets.delete(src);
   run = null;
 }
@@ -518,9 +622,10 @@ function teardown() {
  * `{ shown: true }`, or at once with `{ shown: false, reason }`. Never throws
  * and never rejects — a caller on a 24/7 kiosk must not need a catch.
  * A call while a run is live — in either mode — is IGNORED (reason "busy"),
- * never stacked.
+ * never stacked. Each dog wears a look drawn at random per call, unless
+ * `looks` ({ id → index }) pins it.
  */
-export async function show(occasionId, { mode = "peek", dogs } = {}) {
+export async function show(occasionId, { mode = "peek", dogs, looks: pinned } = {}) {
   if (run) return { shown: false, reason: "busy" };
   if (typeof document === "undefined") return { shown: false, reason: "no-document" };
 
@@ -529,17 +634,23 @@ export async function show(occasionId, { mode = "peek", dogs } = {}) {
   const ids = [...new Set(dogs ?? Object.keys(staged.dogs))];
   if (!ids.length) return { shown: false, reason: "no-dogs" };
   for (const id of ids) {
-    if (!DOGS[id] || !staged.dogs[id]) return { shown: false, reason: `unknown-dog:${id}` };
+    if (!DOGS[id] || !staged.dogs[id]?.length) return { shown: false, reason: `unknown-dog:${id}` };
     const frameCount = staged.grid.columns * staged.grid.rows;
-    if (DOGS[id].timing[mode]?.length !== frameCount || staged.dogs[id].frames.length !== frameCount
+    if (DOGS[id].timing[mode]?.length !== frameCount
+        || staged.dogs[id].some((l) => l.frames.length !== frameCount)
         || !MOTION[DOGS[id].motion]?.[mode]) {
       return { shown: false, reason: `bad-config:${id}` };
     }
+    if (pinned?.[id] != null && !staged.dogs[id][pinned[id]]) return { shown: false, reason: `unknown-look:${id}` };
   }
+  const looks = pickLooks(occasionId, { mode, dogs: ids, pinned });
 
   const gen = generation;
-  const srcs = ids.map((id) => staged.dogs[id].src);
-  run = { occasion: occasionId, mode, timers: new Set(), root: null, dogs: [], srcs, started: Date.now() };
+  const srcs = ids.map((id) => staged.dogs[id][looks[id]].src);
+  run = {
+    occasion: occasionId, mode, looks, timers: new Set(), root: null, dogs: [],
+    srcs: allSrcs(staged), started: Date.now()
+  };
 
   const loaded = await Promise.all(srcs.map(loadSheet));
   if (gen !== generation) return { shown: false, reason: "hidden" };
@@ -583,6 +694,8 @@ export function state() {
     dogs: (run?.dogs ?? []).map((d) => ({
       id: d.id,
       phase: d.phase,
+      look: d.look,
+      lookName: d.lookName,
       frame: Number(d.el.dataset.frame ?? -1),
       pad: d.pad,
       paintedAt: d.paintedAt ?? null,
@@ -593,4 +706,4 @@ export function state() {
   };
 }
 
-export const dogOccasion = { show, hide, preload, state };
+export const dogOccasion = { show, hide, preload, pickLooks, state };

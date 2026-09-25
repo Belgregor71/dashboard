@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { DOGS, MOTION, OCCASIONS } from "../src/v3/core/dog-occasion.js";
+import { readFileSync } from "node:fs";
+import { DOGS, MOTION, OCCASIONS, pickLooks } from "../src/v3/core/dog-occasion.js";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    DOG OCCASION — Benji and Teddy peeking up for Christmas.
@@ -23,6 +24,12 @@ import { DOGS, MOTION, OCCASIONS } from "../src/v3/core/dog-occasion.js";
        mid-run                                            overlay on a 24/7 kiosk
      · reduced motion: last portrait only, no frames    → the still path must not
                                                           animate the sheet
+     · looks: every look's windows painted in a real
+       browser; one independent draw per dog, only the
+       drawn sheets fetched                             → a new outfit with a
+                                                          neighbour's sliver, both
+                                                          dogs always matched, or
+                                                          every sheet decoded
 
    Real timers throughout: a run is ~5 s (Benji) / ~6.5 s (Teddy). The clock
    is fixed at local midday so the screensaver cannot engage mid-run.
@@ -183,14 +190,47 @@ test.describe("dog occasion", () => {
     for (const [occ, modes] of Object.entries(OCCASIONS)) {
       for (const [mode, staged] of Object.entries(modes)) {
         const n = staged.grid.columns * staged.grid.rows;
-        for (const [id, art] of Object.entries(staged.dogs)) {
+        for (const [id, looks] of Object.entries(staged.dogs)) {
           expect(DOGS[id], `${occ}/${mode}/${id}`).toBeTruthy();
           expect(DOGS[id].timing[mode]).toHaveLength(n);
-          expect(art.frames).toHaveLength(n);
           expect(MOTION[DOGS[id].motion]?.[mode], `${occ}/${mode}/${id} motion`).toBeTruthy();
+          expect(looks.length, `${occ}/${mode}/${id} looks`).toBeGreaterThan(0);
+          expect(new Set(looks.map((l) => l.name)).size).toBe(looks.length);
+          expect(new Set(looks.map((l) => l.src)).size).toBe(looks.length);
+          for (const look of looks) {
+            const at = `${occ}/${mode}/${id}/${look.name}`;
+            expect(look.frames, at).toHaveLength(n);
+            // The sheet is shipped, and its grid divides it the way the
+            // windows were measured (PNG IHDR: width, height at bytes 16, 20).
+            const png = readFileSync(new URL(`../static${look.src}`, import.meta.url));
+            expect(png.toString("latin1", 12, 16), at).toBe("IHDR");
+            const [w, h] = [png.readUInt32BE(16), png.readUInt32BE(20)];
+            expect(w / staged.grid.columns, `${at} square cells`).toBeCloseTo(h / staged.grid.rows, 6);
+          }
         }
       }
     }
+  });
+
+  test("pickLooks: one independent draw per dog, pins win, a bad pin refuses", () => {
+    const seq = (...v) => { let i = 0; return () => v[i++]; };
+    const peek = OCCASIONS.christmas.peek.dogs;
+    expect(peek.benji.length).toBe(3);
+    expect(peek.teddy.length).toBe(3);
+    // One draw each, in the order asked: Benji's outfit says nothing about Teddy's.
+    expect(pickLooks("christmas", { dogs: ["benji", "teddy"], random: seq(0.5, 0.9) })).toEqual({ benji: 1, teddy: 2 });
+    expect(pickLooks("christmas", { dogs: ["benji", "teddy"], random: seq(0.99, 0) })).toEqual({ benji: 2, teddy: 0 });
+    // The whole [0, 1) range lands on a real look; 1 - ε never overruns.
+    expect(pickLooks("christmas", { dogs: ["benji"], random: () => 0.9999999 })).toEqual({ benji: 2 });
+    // Every look is reachable for each dog.
+    for (const id of ["benji", "teddy"]) {
+      const seen = new Set([0, 0.34, 0.67].map((r) => pickLooks("christmas", { dogs: [id], random: () => r })[id]));
+      expect([...seen].sort(), id).toEqual([0, 1, 2]);
+    }
+    expect(pickLooks("christmas", { dogs: ["benji", "teddy"], pinned: { teddy: 0 }, random: () => 0.9 })).toEqual({ benji: 2, teddy: 0 });
+    expect(pickLooks("christmas", { dogs: ["benji"], pinned: { benji: 3 } })).toBeNull();
+    // Run has one look: every draw is it.
+    expect(pickLooks("christmas", { mode: "run", random: () => 0.9 })).toEqual({ benji: 0, teddy: 0 });
   });
 
   test("inert until called: no overlay and no sheet fetched", async ({ page }) => {
@@ -204,7 +244,9 @@ test.describe("dog occasion", () => {
     expect(errors).toEqual([]);
   });
 
-  test("the pair: every frame on its own cell, in order, on each dog's timing", async ({ page }) => {
+  // Once per look: each is its own sheet with its own measured windows, so a
+  // look that is never painted here is a look whose windows are unchecked.
+  for (const look of [0, 1, 2]) test(`the pair, look ${look}: every frame on its own cell, in order, on each dog's timing`, async ({ page }) => {
     const { errors } = await open(page);
     // The wall settles after boot on its own — measured: #hour 799.7 → 770.8
     // within 700ms with no dog ever called. "Before" must be the settled wall,
@@ -226,7 +268,8 @@ test.describe("dog occasion", () => {
     });
     await recordFrames(page);
 
-    const done = page.evaluate(() => window.dogOccasion.show("christmas", { mode: "peek", dogs: ["benji", "teddy"] }));
+    const done = page.evaluate((look) => window.dogOccasion.show("christmas",
+      { mode: "peek", dogs: ["benji", "teddy"], looks: { benji: look, teddy: look } }), look);
 
     // Mid-run: staging, stacking, pointer, layout.
     // Length first: `[].every()` is true, and before the mount dogs is [].
@@ -249,6 +292,7 @@ test.describe("dog occasion", () => {
         benji: r(".dog--benji .dog__frame").toJSON(),
         teddy: r(".dog--teddy .dog__frame").toJSON(),
         benjiSheet: getComputedStyle(document.querySelector(".dog--benji .dog__sheet")).backgroundImage,
+        teddySheet: getComputedStyle(document.querySelector(".dog--teddy .dog__sheet")).backgroundImage,
         vh: innerHeight, vw: innerWidth
       };
     });
@@ -258,7 +302,10 @@ test.describe("dog occasion", () => {
     expect(staged.pointer).toBe("none");
     expect(staged.z).toBeGreaterThan(staged.stageZ);
     expect(staged.z).toBeLessThan(staged.presenceZ);
-    expect(staged.benjiSheet).toContain("/assets/dogs/christmas/benji_christmas_popup_sprite.png");
+    // The pinned look's sheet, up to the closing quote so no other file name
+    // can match by prefix.
+    expect(staged.benjiSheet).toContain(`${OCCASIONS.christmas.peek.dogs.benji[look].src}"`);
+    expect(staged.teddySheet).toContain(`${OCCASIONS.christmas.peek.dogs.teddy[look].src}"`);
     // Present before placed: a 0-size box satisfies every check below.
     expect(staged.benji.height).toBeGreaterThan(200);
     expect(staged.teddy.height).toBeGreaterThan(200);
@@ -277,12 +324,12 @@ test.describe("dog occasion", () => {
     for (const id of ["benji", "teddy"]) {
       const frames = rec[id];
       expect(frames.map((f) => f.frame), id).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
-      const art = OCCASIONS.christmas.peek.dogs[id];
-      // The pad is what lets a frame reach past its cell. Teddy's scarf tails
-      // do (frame 4 to 390px of a 362 cell); none of Benji's does.
+      const art = OCCASIONS.christmas.peek.dogs[id][look];
+      // The pad is what lets a frame reach past its cell. In look 0 Teddy's
+      // scarf tails do (frame 4 to 390px of a 362 cell); none of Benji's does.
       const expectedPad = Math.max(0, ...art.frames.map((w) => Math.max(-w.left, w.right - 1)));
       expect(frames[0].pad, `${id} pad`).toBeCloseTo(expectedPad, 6);
-      expect(frames[0].pad > 0, `${id} padded`).toBe(id === "teddy");
+      if (look === 0) expect(frames[0].pad > 0, `${id} padded`).toBe(id === "teddy");
       for (const f of frames) {
         const w = art.frames[f.frame];
         const at = `${id} frame ${f.frame}`;
@@ -348,6 +395,46 @@ test.describe("dog occasion", () => {
     expect(errors).toEqual([]);
   });
 
+  test("unpinned, each dog wears its own drawn look, and only that sheet is fetched", async ({ page }) => {
+    const { errors, sheetRequests } = await open(page);
+    const peek = OCCASIONS.christmas.peek.dogs;
+    // Two calls, two different draws, with the dogs NOT matched in either: a
+    // single shared draw, or a show() that ignores the draw, cannot pass both.
+    for (const [draws, want] of [[[0.5, 0.9], { benji: 1, teddy: 2 }], [[0.99, 0.1], { benji: 2, teddy: 0 }]]) {
+      sheetRequests.length = 0;
+      // Stub, call, restore in one synchronous turn: show() draws before its
+      // first await, so no app timer can take a queued draw in between.
+      await page.evaluate((draws) => {
+        const real = Math.random;
+        const queue = [...draws];
+        Math.random = () => (queue.length ? queue.shift() : real());
+        window.__dogDone = window.dogOccasion.show("christmas", { dogs: ["benji", "teddy"] });
+        Math.random = real;
+      }, draws);
+      const done = page.evaluate(() => window.__dogDone);
+      await page.waitForFunction(() => window.dogOccasion.state().dogs.length === 2);
+      const seen = await page.evaluate(() => Object.fromEntries(window.dogOccasion.state().dogs.map((d) => [d.id, {
+        look: d.look,
+        name: document.querySelector(`.dog--${d.id}`).dataset.look,
+        sheet: getComputedStyle(document.querySelector(`.dog--${d.id} .dog__sheet`)).backgroundImage
+      }])));
+      for (const id of ["benji", "teddy"]) {
+        const art = peek[id][want[id]];
+        expect(seen[id].look, id).toBe(want[id]);
+        expect(seen[id].name, id).toBe(art.name);
+        expect(seen[id].sheet, id).toContain(`${art.src}"`);
+      }
+      await page.evaluate(() => window.dogOccasion.hide());
+      expect(await done).toEqual({ shown: false, reason: "hidden" });
+      // The drawn sheets and nothing else: all six decoded would be ~38 MB of
+      // bitmap for one peek.
+      const fetched = [...new Set(sheetRequests.map((u) => new URL(u).pathname))].sort();
+      expect(fetched).toEqual([peek.benji[want.benji].src, peek.teddy[want.teddy].src].sort());
+    }
+    expect(await page.locator(".dogs").count()).toBe(0);
+    expect(errors).toEqual([]);
+  });
+
   test("a second call while running is ignored, never stacked", async ({ page }) => {
     const { errors } = await open(page);
     const first = page.evaluate(() => window.dogOccasion.show("christmas", { dogs: ["benji"] }));
@@ -404,6 +491,8 @@ test.describe("dog occasion", () => {
     expect(await ask("christmas", { mode: "gallop" })).toEqual({ shown: false, reason: "unknown-occasion" });
     expect(await ask("christmas", { dogs: ["rex"] })).toEqual({ shown: false, reason: "unknown-dog:rex" });
     expect(await ask("christmas", { dogs: [] })).toEqual({ shown: false, reason: "no-dogs" });
+    expect(await ask("christmas", { looks: { teddy: 3 } })).toEqual({ shown: false, reason: "unknown-look:teddy" });
+    expect(await ask("christmas", { mode: "run", looks: { benji: 1 } })).toEqual({ shown: false, reason: "unknown-look:benji" });
     expect(await page.locator(".dogs").count()).toBe(0);
     expect(await page.evaluate(() => window.dogOccasion.state().running)).toBe(false);
     expect(sheetRequests).toEqual([]);
@@ -542,7 +631,7 @@ test.describe("dog occasion", () => {
       expect(span, `${id} loop span`).toBeGreaterThan(m.crossMs - 350);
 
       for (const f of frames) {
-        const w = staged.dogs[id].frames[f.frame];
+        const w = staged.dogs[id][0].frames[f.frame];
         const at = `${id} frame ${f.frame}`;
         expect(f.box, `${at} box`).toBeTruthy();
         // Centroid on the anchor point: the body travels level.
