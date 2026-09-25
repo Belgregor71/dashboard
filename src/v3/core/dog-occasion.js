@@ -17,16 +17,21 @@
    The sheets are an exact 4×3 grid, and frames ARE indexed on that grid. But
    the artwork does not respect its own cells (measured 2026-09-25, alpha > 24
    on the 1448×1086 sheets): row 1's dogs stand on y≈352 of a 362 cell, rows 2
-   and 3 on y≈320-328, and the row below's hat tips reach up into the bottom of
-   the row above. A plain crop would drop the dog ~24px between frames 3 and 4
-   and paint a neighbour's hat under frames 4-7.
+   and 3 higher, the row below's hats reach up to 47px into the row above,
+   and a few of Teddy's scarf tails cross into the next column. A plain crop
+   would jump the dog between rows and paint slivers of neighbours.
 
-   So every frame carries two measured numbers, as fractions of its cell:
-     base  where THIS dog's body ends. It is anchored to the bottom of the
-           viewport, so everything below it (the neighbour's hat tips) is
-           off-glass and the dog never jumps between rows.
-     top   where the visible window starts. Everything above it is clipped.
-   Fractions, not pixels, so a proportionally re-rendered sheet stays valid.
+   So every frame carries its OWN DOG's measured rectangle — the bounding box
+   of that frame's connected blob (alpha > 24), which on the 2026-09-25 sheets
+   isolates every frame with at most 9 stray fringe pixels of anyone else:
+     base         where this dog ends. Anchored to the bottom of the glass,
+                  so the dog never jumps between rows and anything below it
+                  (the next row's hats) is off-glass.
+     top          everything above is clipped.
+     left, right  likewise; may reach past the cell, and the box is padded
+                  (computed from these, never configured) so they fit.
+   Fractions of a cell, not pixels, so a proportionally re-rendered sheet
+   stays valid. Re-measure (scratch `cc2.mjs` method) whenever art changes.
 
    ── 24/7 discipline ─────────────────────────────────────────────────────────
    Every step is a setTimeout with a known duration — never animationend,
@@ -41,11 +46,11 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Characters ─────────────────────────────────────────────────────────────
-   `timing` is per mode: one entry per frame, in ms. A constant frame rate
-   would make every expression last the same time, and the expressions are
-   the point — Benji's last look lingers 900ms, Teddy's side-eye (frames 1-3)
-   is held long enough to read as an assessment. `motion` names a profile
-   below; `side` decides who stands left when both are on the glass. */
+   `timing` is per mode: one entry per frame, in ms, indexed exactly as the
+   sheet is drawn (owner's arrays, 2026-09-25, for these sheets). A constant
+   frame rate would make every expression last the same time, and the
+   expressions are the point. `motion` names a profile below; `side` decides
+   who stands left when both are on the glass. */
 export const DOGS = {
   benji: {
     personality: "enthusiastic",   // friendly, boof head, a bull in a china shop
@@ -53,7 +58,20 @@ export const DOGS = {
     side: "left",
     motion: "eager",
     timing: {
-      peek: [140, 110, 140, 180, 180, 90, 130, 140, 180, 150, 260, 900]
+      peek: [
+        140,  // 1  barely peeking
+        120,  // 2  rises quickly
+        150,  // 3  fully up
+        180,  // 4  glance
+        170,  // 5  head tilt
+        100,  // 6  blink
+        150,  // 7  smile starts
+        170,  // 8  big grin
+        210,  // 9  tongue, full happy
+        180,  // 10 enthusiastic tilt
+        220,  // 11 settles
+        1000  // 12 final hold
+      ]
     }
   },
   teddy: {
@@ -62,7 +80,20 @@ export const DOGS = {
     side: "right",
     motion: "deliberate",
     timing: {
-      peek: [180, 320, 260, 300, 230, 160, 220, 170, 180, 280, 140, 1100]
+      peek: [
+        180,  // 1  peeking
+        240,  // 2  slow rise
+        260,  // 3  assessing
+        320,  // 4  side-eye
+        260,  // 5  deliberate tilt
+        140,  // 6  blink
+        220,  // 7  neutral hold
+        180,  // 8  mouth opens
+        220,  // 9  cheeky tongue
+        300,  // 10 held tilt
+        260,  // 11 composed reset
+        1100  // 12 final hold
+      ]
     }
   }
 };
@@ -90,12 +121,18 @@ export const STAGING = {
 /* Reduced motion: the last portrait, faded in and out. No rise, no frames. */
 const STILL = { fadeInMs: 400, holdMs: 2600, fadeOutMs: 600 };
 
-/* Frame windows for the christmas peek sheets, measured in px on the
-   1448×1086 originals (362 cells) and stored as fractions of a cell.
-   Row 3's hats poke up to 41px above their cell; `top` lets them through
-   only as far as the row-2 body above them ends. */
-const cell = (px) => px / 362;
-const window12 = (tops, bases) => tops.map((t, i) => ({ top: cell(t), base: cell(bases[i]) }));
+/* Frame windows, measured in px on the 1448×1086 sheets (362 cells) as each
+   frame's own-blob bounding box, stored as fractions of a cell. Top, left and
+   right get 2px of air so the art's soft alpha fringe (≤ 24) is not cut
+   hard; base is exact — below it is off-glass anyway. */
+const CELL_PX = 362;
+const AIR = 2;
+const windows = ({ top, base, left, right }) => base.map((b, i) => ({
+  top: (top[i] - AIR) / CELL_PX,
+  base: b / CELL_PX,
+  left: (left[i] - AIR) / CELL_PX,
+  right: (right[i] + AIR) / CELL_PX
+}));
 
 /* ── Occasions ──────────────────────────────────────────────────────────────
    occasion → mode → { grid, holdMs, dogs: { id → { src, frames } } }.
@@ -104,21 +141,25 @@ export const OCCASIONS = {
   christmas: {
     peek: {
       grid: { columns: 4, rows: 3 },
-      holdMs: 2000,                 // after the last frame's own 900/1100ms
+      holdMs: 2000,                 // after the last frame's own 1000/1100ms
       dogs: {
         benji: {
-          src: "/assets/dogs/christmas/benji-peek-sprite.png",
-          frames: window12(
-            [0, 0, 0, 0, 0, 0, 0, 0, -34, -34, -34, -34],
-            [352, 352, 352, 352, 327, 327, 327, 327, 328, 328, 328, 328]
-          )
+          src: "/assets/dogs/christmas/benji_christmas_popup_sprite.png",
+          frames: windows({
+            top: [133, 97, 17, 28, -4, -7, -13, -10, -25, -20, -18, -24],
+            base: [331, 335, 337, 338, 327, 324, 332, 333, 334, 334, 334, 335],
+            left: [9, 11, 6, 21, 15, 13, 18, 17, 13, 10, 9, 16],
+            right: [358, 346, 346, 359, 358, 354, 346, 353, 354, 352, 353, 351]
+          })
         },
         teddy: {
-          src: "/assets/dogs/christmas/teddy-peek-sprite.png",
-          frames: window12(
-            [0, 0, 0, 0, 0, 0, 0, 0, -32, -41, -28, -28],
-            [351, 351, 351, 351, 320, 320, 320, 320, 327, 327, 327, 326]
-          )
+          src: "/assets/dogs/christmas/teddy_christmas_popup_sprite.png",
+          frames: windows({
+            top: [194, 114, 35, 45, 11, 14, 10, 4, -14, -14, -26, -28],
+            base: [346, 356, 357, 356, 326, 326, 326, 326, 304, 307, 304, 306],
+            left: [32, 25, 21, 20, 32, 30, 24, 20, 30, 27, 16, 19],
+            right: [367, 352, 352, 346, 390, 373, 360, 345, 376, 375, 358, 348]
+          })
         }
       }
     }
@@ -173,22 +214,35 @@ const reducedMotion = () =>
 
 /* ── Frames ─────────────────────────────────────────────────────────────── */
 
-/* Show frame `i`: shift the sheet so this frame's cell is in the box with its
-   `base` on the box's bottom edge, then clip above its `top`. Both are
+/* The box is one cell tall and (1 + 2·pad) cells wide, the cell centred in
+   it: pad is the furthest any frame's own dog reaches past its cell's sides,
+   so no frame's window is ever cut by the box. Derived, never configured. */
+function padFor(frames) {
+  return Math.max(0, ...frames.map((f) => Math.max(-f.left, f.right - 1)));
+}
+
+/* Show frame `i`: shift the sheet so this frame's cell sits centred in the box
+   with its `base` on the box's bottom edge, then clip to its window. Both are
    transform / clip-path on elements that are their own layers — no layout,
    no repaint of anything else on the wall. */
 function paintFrame(dog, i) {
   const { columns, rows } = dog.grid;
-  const { top, base } = dog.frames[i];
+  const { top, base, left, right } = dog.frames[i];
+  const pad = dog.pad;
+  const span = 1 + 2 * pad;
   const col = i % columns;
   const row = Math.floor(i / columns);
   // translate % is of the SHEET, which is columns × rows cells.
-  const x = (-col / columns) * 100;
+  const x = ((pad - col) / columns) * 100;
   const y = (-(row + base - 1) / rows) * 100;
   dog.sheet.style.transform = `translate(${x}%, ${y}%)`;
-  // In the box, this cell's top sits at (1 - base) of the box height.
-  const clip = Math.max(0, (1 - base + top) * 100);
-  dog.frame.style.clipPath = `inset(${clip.toFixed(3)}% 0 0 0)`;
+  // In the box, this cell's top sits at (1 - base) of the box height, and its
+  // left edge at pad of the box's width in cells.
+  const pct = (v) => `${Math.max(0, v * 100).toFixed(3)}%`;
+  const clipTop = 1 - base + top;
+  const clipLeft = (pad + left) / span;
+  const clipRight = (pad + 1 - right) / span;
+  dog.frame.style.clipPath = `inset(${pct(clipTop)} ${pct(clipRight)} 0 ${pct(clipLeft)})`;
   dog.el.dataset.frame = String(i);
 }
 
@@ -210,18 +264,28 @@ function perform(dog, holdMs, still) {
       return;
     }
 
-    later(() => {
-      paintFrame(dog, 0);
-      setPhase(dog, "entering");
-      let at = 0;
-      dog.timing.forEach((ms, i) => {
-        if (i > 0) later(() => paintFrame(dog, i), at);
-        at += ms;
-      });
+    /* CHAINED, each frame timed from the previous one's paint — never all
+       scheduled up front at absolute offsets. Measured in the full suite: a
+       timer ~80ms late under load, and the absolute schedule then fired the
+       NEXT frame on time, so Benji's frame 7 was on the glass for 58ms of its
+       140. Chained, every expression gets at least its own duration and a
+       late timer only makes the whole run a little longer. */
+    const step = (i) => {
+      paintFrame(dog, i);
+      if (i + 1 < dog.timing.length) {
+        later(() => step(i + 1), dog.timing[i]);
+        return;
+      }
       // Faces done: breathe, hold, go.
-      later(() => setPhase(dog, "idle"), at);
-      later(() => setPhase(dog, "exiting"), at + holdMs);
-      later(resolve, at + holdMs + m.exitMs);
+      later(() => {
+        setPhase(dog, "idle");
+        later(() => setPhase(dog, "exiting"), holdMs);
+        later(resolve, holdMs + m.exitMs);
+      }, dog.timing[i]);
+    };
+    later(() => {
+      setPhase(dog, "entering");
+      step(0);
     }, m.delayMs);
   });
 }
@@ -240,6 +304,8 @@ function build(ids, staged, sizes) {
     const { width, height } = sizes.get(art.src);
     const { columns, rows } = staged.grid;
     const m = MOTION[def.motion];
+    const pad = padFor(art.frames);
+    const span = 1 + 2 * pad;
 
     const el = document.createElement("div");
     el.className = `dog dog--${id}`;
@@ -247,9 +313,9 @@ function build(ids, staged, sizes) {
     const x = ordered.length === 1 ? staging.single : staging.pair[def.side];
     el.style.setProperty("--dog-x", `${x}%`);
     el.style.setProperty("--dog-scale", String(def.scale));
-    // One cell's aspect, from the sheet itself — never assumed square.
-    el.style.setProperty("--dog-aspect", String((width / columns) / (height / rows)));
-    el.style.setProperty("--dog-enter", m.enter);
+    // One cell's aspect, from the sheet itself — never assumed square — widened
+    // by the pad on both sides.
+    el.style.setProperty("--dog-aspect", String(((width / columns) / (height / rows)) * span));    el.style.setProperty("--dog-enter", m.enter);
     el.style.setProperty("--dog-enter-ms", `${m.enterMs}ms`);
     el.style.setProperty("--dog-exit", m.exit);
     el.style.setProperty("--dog-exit-ms", `${m.exitMs}ms`);
@@ -265,7 +331,7 @@ function build(ids, staged, sizes) {
     const sheet = document.createElement("div");
     sheet.className = "dog__sheet";
     sheet.style.backgroundImage = `url("${art.src}")`;
-    sheet.style.width = `${columns * 100}%`;
+    sheet.style.width = `${(columns / span) * 100}%`;
     sheet.style.height = `${rows * 100}%`;
 
     frame.append(sheet);
@@ -274,7 +340,7 @@ function build(ids, staged, sizes) {
     root.append(el);
 
     return {
-      id, el, frame, sheet, phase: "waiting",
+      id, el, frame, sheet, pad, phase: "waiting",
       grid: staged.grid, frames: art.frames, timing: def.timing[run.mode], motion: m
     };
   });
@@ -361,7 +427,7 @@ export function state() {
     occasion: run?.occasion ?? null,
     mode: run?.mode ?? null,
     still: run?.still ?? false,
-    dogs: (run?.dogs ?? []).map((d) => ({ id: d.id, phase: d.phase, frame: Number(d.el.dataset.frame ?? -1) })),
+    dogs: (run?.dogs ?? []).map((d) => ({ id: d.id, phase: d.phase, frame: Number(d.el.dataset.frame ?? -1), pad: d.pad })),
     runs
   };
 }

@@ -29,13 +29,14 @@
   contain: layout style;
 }
 
-/* The art's bodies end in a flat cut (each frame's `base`). Sunk below the
-   edge by more than the largest lift — Benji's -4% overshoot plus the bob —
-   so that cut is never on the glass and the dog always rises from BEHIND it. */
+/* The art ends in a flat cut along the paws (each frame's `base`). Sunk below
+   the edge by just more than the largest lift — Benji's -2.5% overshoot plus
+   a 3px bob — so that cut is never on the glass, while the paws still rest on
+   the edge the way the art draws them. */
 .dog {
   --dog-height: calc(var(--dog-h) * var(--dog-scale, 1));
   position: absolute;
-  bottom: calc(var(--dog-height) * -0.06);
+  bottom: calc(var(--dog-height) * -0.04);
   left: var(--dog-x, 50%);
   height: var(--dog-height);
   aspect-ratio: var(--dog-aspect, 1);
@@ -96,20 +97,22 @@
 
 /* ── Characters ──────────────────────────────────────────────────────────── */
 
-/* Benji: up fast, a touch too far, settles back. Eager. */
+/* Benji: up fast, a touch too far, settles back. Eager. The faces carry most
+   of the personality on these sheets, so the overshoot is ~2.5% (owner,
+   2026-09-25: "around 2-3%"), down from the first cut's 4%. */
 @keyframes dog-pop-benji {
   0% {
-    transform: translateY(110%) scale(0.94);
+    transform: translateY(110%) scale(0.95);
     opacity: 0;
   }
   55% {
     opacity: 1;
   }
   68% {
-    transform: translateY(-4%) scale(1.025);
+    transform: translateY(-2.5%) scale(1.015);
   }
   84% {
-    transform: translateY(1%) scale(0.995);
+    transform: translateY(0.6%) scale(0.998);
   }
   100% {
     transform: translateY(0) scale(1);
@@ -117,7 +120,7 @@
   }
 }
 
-/* Teddy: slower, controlled, barely an overshoot. He meant to do that. */
+/* Teddy: slower, controlled, barely an overshoot (~1%). He meant to do that. */
 @keyframes dog-pop-teddy {
   0% {
     transform: translateY(110%) scale(0.97);
@@ -127,7 +130,7 @@
     opacity: 1;
   }
   78% {
-    transform: translateY(-1.5%) scale(1.01);
+    transform: translateY(-1%) scale(1.005);
   }
   100% {
     transform: translateY(0) scale(1);

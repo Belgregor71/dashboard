@@ -60,19 +60,45 @@ async function recordFrames(page) {
       const id = dog.dataset.dog;
       const rec = (window.__dogRec[id] = []);
       const sample = () => {
+        // Stamp FIRST: the rect reads below force a layout whose cost varies,
+        // and stamping after them once made a 90ms frame read as 81ms.
+        const t = performance.now();
         const f = Number(dog.dataset.frame);
         if (Number.isNaN(f) || rec.at(-1)?.frame === f) return;
-        const box = dog.querySelector(".dog__frame").getBoundingClientRect();
+        const frameEl = dog.querySelector(".dog__frame");
+        const box = frameEl.getBoundingClientRect();
         const sheet = dog.querySelector(".dog__sheet").getBoundingClientRect();
+        const pad = window.dogOccasion.state().dogs.find((d) => d.id === id).pad;
+        const cellW = box.width / (1 + 2 * pad);
+        const cellH = box.height;
+        // The painted window, from the inline inset() the module set. Chromium
+        // re-serialises it in CSS box shorthand — equal left and right come
+        // back as 3 values — so expand 1-4 values the way CSS does.
+        const inner = frameEl.style.clipPath.match(/^inset\((.*)\)$/)?.[1];
+        const v = inner ? inner.trim().split(/\s+/).map((s) => (s === "0" || s === "0px" ? 0 : s.endsWith("%") ? Number(s.slice(0, -1)) : NaN)) : [];
+        const box4 = [v[0], v[1] ?? v[0], v[2] ?? v[0], v[3] ?? v[1] ?? v[0]];
+        const m = v.length >= 1 && v.length <= 4 && box4.every(Number.isFinite) && box4[2] === 0;
+        const [T, R, , L] = box4;
+        // Where THIS frame's cell starts, on screen.
+        const cellLeft = sheet.left + (f % 4) * cellW;
+        const cellTop = sheet.top + Math.floor(f / 4) * cellH;
         rec.push({
           frame: f,
-          t: performance.now(),
-          // Cells from the sheet's origin to the box's left / bottom edge.
-          col: (box.left - sheet.left) / box.width,
-          rowPlusBase: (box.bottom - sheet.top) / box.height,
-          sheetCols: sheet.width / box.width,
-          sheetRows: sheet.height / box.height,
-          clip: getComputedStyle(dog.querySelector(".dog__frame")).clipPath
+          t,
+          pad,
+          // Cells from the sheet's origin to the cell under the box.
+          col: (box.left + pad * cellW - sheet.left) / cellW,
+          rowPlusBase: (box.bottom - sheet.top) / cellH,
+          sheetCols: sheet.width / cellW,
+          sheetRows: sheet.height / cellH,
+          clipParsed: Boolean(m),
+          // The visible window in the frame's own cell units.
+          win: {
+            top: (box.top + (T / 100) * box.height - cellTop) / cellH,
+            left: (box.left + (L / 100) * box.width - cellLeft) / cellW,
+            right: (box.right - (R / 100) * box.width - cellLeft) / cellW,
+            base: (box.bottom - cellTop) / cellH
+          }
         });
       };
       sample();
@@ -172,7 +198,7 @@ test.describe("dog occasion", () => {
     expect(staged.pointer).toBe("none");
     expect(staged.z).toBeGreaterThan(staged.stageZ);
     expect(staged.z).toBeLessThan(staged.presenceZ);
-    expect(staged.benjiSheet).toContain("/assets/dogs/christmas/benji-peek-sprite.png");
+    expect(staged.benjiSheet).toContain("/assets/dogs/christmas/benji_christmas_popup_sprite.png");
     // Present before placed: a 0-size box satisfies every check below.
     expect(staged.benji.height).toBeGreaterThan(200);
     expect(staged.teddy.height).toBeGreaterThan(200);
@@ -192,21 +218,37 @@ test.describe("dog occasion", () => {
       const frames = rec[id];
       expect(frames.map((f) => f.frame), id).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
       const art = OCCASIONS.christmas.peek.dogs[id];
+      // The pad is what lets a frame reach past its cell. Teddy's scarf tails
+      // do (frame 4 to 390px of a 362 cell); none of Benji's does.
+      const expectedPad = Math.max(0, ...art.frames.map((w) => Math.max(-w.left, w.right - 1)));
+      expect(frames[0].pad, `${id} pad`).toBeCloseTo(expectedPad, 6);
+      expect(frames[0].pad > 0, `${id} padded`).toBe(id === "teddy");
       for (const f of frames) {
-        expect(f.sheetCols, `${id} ${f.frame}`).toBeCloseTo(4, 3);
-        expect(f.sheetRows, `${id} ${f.frame}`).toBeCloseTo(3, 3);
-        expect(f.col, `${id} frame ${f.frame} column`).toBeCloseTo(f.frame % 4, 2);
-        expect(f.rowPlusBase, `${id} frame ${f.frame} row`).toBeCloseTo(Math.floor(f.frame / 4) + art.frames[f.frame].base, 2);
-        expect(f.clip).toMatch(/^inset\(/);
+        const w = art.frames[f.frame];
+        const at = `${id} frame ${f.frame}`;
+        expect(f.sheetCols, at).toBeCloseTo(4, 3);
+        expect(f.sheetRows, at).toBeCloseTo(3, 3);
+        expect(f.col, `${at} column`).toBeCloseTo(f.frame % 4, 2);
+        expect(f.rowPlusBase, `${at} row`).toBeCloseTo(Math.floor(f.frame / 4) + w.base, 2);
+        // The painted window IS this frame's own-dog rectangle: nothing of a
+        // neighbour outside it, nothing of this dog cut inside it.
+        expect(f.clipParsed, `${at} clip`).toBe(true);
+        expect(f.win.top, `${at} window top`).toBeCloseTo(w.top, 2);
+        expect(f.win.base, `${at} window base`).toBeCloseTo(w.base, 2);
+        expect(f.win.left, `${at} window left`).toBeCloseTo(w.left, 2);
+        expect(f.win.right, `${at} window right`).toBeCloseTo(w.right, 2);
       }
-      // Timing: each gap is its own frame's duration. Generous tolerance for
-      // a loaded runner, but tight enough that a constant rate cannot pass:
-      // Teddy's frame 1 (320) against frame 5 (160) is a factor of two.
+      // Timing: every expression is held AT LEAST its own duration — the
+      // floor is the promise (a frame cut short is an expression that does not
+      // read; in the full suite an absolute schedule once gave a 140ms frame
+      // 58ms). The ceiling allows a loaded runner's late timer, and is still
+      // too tight for any constant rate: nothing fits both Benji's 100ms frame
+      // (< 350) and Teddy's 1100ms one.
       const timing = DOGS[id].timing.peek;
       for (let i = 1; i < frames.length; i++) {
         const gap = frames[i].t - frames[i - 1].t;
-        expect(gap, `${id} gap before frame ${i}`).toBeGreaterThan(timing[i - 1] - 30);
-        expect(gap, `${id} gap before frame ${i}`).toBeLessThan(timing[i - 1] + 120);
+        expect(gap, `${id} gap before frame ${i}`).toBeGreaterThanOrEqual(timing[i - 1] - 2);
+        expect(gap, `${id} gap before frame ${i}`).toBeLessThan(timing[i - 1] + 250);
       }
     }
 
