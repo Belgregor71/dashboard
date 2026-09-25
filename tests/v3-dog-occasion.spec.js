@@ -348,20 +348,16 @@ test.describe("dog occasion", () => {
       // Timing: every expression is held AT LEAST its own duration — the
       // floor is the promise (a frame cut short is an expression that does not
       // read; in the full suite an absolute schedule once gave a 140ms frame
-      // 58ms). Then the MEDIAN frame is on time — not a per-frame ceiling: the
-      // pre-push suite held single frames 290-370ms late (runner load, three
-      // looks' runs at once), as it did the run gait (43fb9f6). The median
-      // still refuses any constant rate: the slowest one that clears every
-      // floor (Benji 220ms, Teddy 320ms) leaves the median frame 50-80ms late.
+      // 58ms). Load can only lengthen a gap, so the floor is load-proof.
+      // NO ceiling or median here: under the 8-worker pre-push suite single
+      // frames ran 290-370ms late and whole runs ~30ms late per frame, which
+      // overlaps what a constant rate looks like. "Each expression has its
+      // own duration" is proven on a fake clock instead (test below).
       const timing = DOGS[id].timing.peek;
-      const late = [];
       for (let i = 1; i < frames.length; i++) {
         const gap = frames[i].t - frames[i - 1].t;
         expect(gap, `${id} gap before frame ${i}`).toBeGreaterThanOrEqual(timing[i - 1] - 2);
-        late.push(gap - timing[i - 1]);
       }
-      const median = [...late].sort((a, b) => a - b)[Math.floor(late.length / 2)];
-      expect(median, `${id} median lateness ${JSON.stringify(late.map(Math.round))}`).toBeLessThan(30);
     }
 
     // Gone, and nothing moved.
@@ -397,6 +393,47 @@ test.describe("dog occasion", () => {
       expect(await done).toEqual({ shown: true });
     }
     expect(await page.locator(".dogs").count()).toBe(0);
+    expect(errors).toEqual([]);
+  });
+
+  test("each expression holds exactly its own duration (fake clock, load-proof)", async ({ page }) => {
+    const { errors } = await open(page);
+    // Timers created from here on are the test's to advance; boot's were real.
+    // install() alone lets virtual time flow with real time — the dogs ran on
+    // while the mount was being polled — so pause it before show().
+    await page.clock.install({ time: MIDDAY });
+    await page.clock.pauseAt(new Date(MIDDAY.getTime() + 1000));
+    await page.evaluate(() => { window.__dogDone = window.dogOccasion.show("christmas", { dogs: ["benji", "teddy"] }); });
+    // decode() is real work, not a timer: wait for the mount, still frame -1.
+    await expect.poll(() => page.evaluate(() => window.dogOccasion.state().dogs.length), { timeout: 8_000 }).toBe(2);
+    const frameOf = () => page.evaluate(() => Object.fromEntries(window.dogOccasion.state().dogs.map((d) => [d.id, d.frame])));
+    // Walk the virtual clock 5ms at a time and log when each dog's frame
+    // changes; both dogs, both delays, all twelve expressions.
+    const changedAt = { benji: [], teddy: [] };
+    let last = { benji: -1, teddy: -1 };
+    for (let t = 0; t <= 4000; t += 5) {
+      const now = await frameOf();
+      for (const id of ["benji", "teddy"]) {
+        if (now[id] !== last[id]) changedAt[id].push({ frame: now[id], t });
+      }
+      last = now;
+      await page.clock.runFor(5);
+    }
+    for (const id of ["benji", "teddy"]) {
+      const timing = DOGS[id].timing.peek;
+      const seen = changedAt[id];
+      expect(seen.map((s) => s.frame), id).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+      for (let i = 1; i < seen.length; i++) {
+        // Exactly the frame's own time, to the 5ms sampling step: a constant
+        // rate, or a neighbour's duration, cannot land inside ±5ms of all 11.
+        expect(Math.abs(seen[i].t - seen[i - 1].t - timing[i - 1]), `${id} frame ${i - 1} held`).toBeLessThanOrEqual(5);
+      }
+    }
+    // Teddy arrives a beat after Benji, on his own terms.
+    const beat = MOTION.deliberate.peek.delayMs - MOTION.eager.peek.delayMs;
+    expect(Math.abs(changedAt.teddy[0].t - changedAt.benji[0].t - beat), "Teddy's beat").toBeLessThanOrEqual(5);
+    await page.evaluate(() => window.dogOccasion.hide());
+    expect(await page.evaluate(() => window.__dogDone)).toEqual({ shown: false, reason: "hidden" });
     expect(errors).toEqual([]);
   });
 
