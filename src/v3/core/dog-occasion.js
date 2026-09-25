@@ -349,6 +349,9 @@ function paintFrame(dog, i) {
   const clipLeft = (cellLeft + f.left) / L.w;
   const clipRight = 1 - (cellLeft + f.right) / L.w;
   dog.frame.style.clipPath = `inset(${pct(clipTop)} ${pct(clipRight)} ${pct(clipBottom)} ${pct(clipLeft)})`;
+  // When, for state(): a spec stamping from its own observer measured a
+  // late callback, not a paint (58ms "frames" from a chained 91ms loop).
+  dog.paintedAt = performance.now();
   dog.el.dataset.frame = String(i);
 }
 
@@ -582,6 +585,7 @@ export function state() {
       phase: d.phase,
       frame: Number(d.el.dataset.frame ?? -1),
       pad: d.pad,
+      paintedAt: d.paintedAt ?? null,
       box: { w: d.layout.w, h: d.layout.h, ax: d.layout.ax, ay: d.layout.ay }
     })),
     timers: run?.timers.size ?? 0,

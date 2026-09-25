@@ -60,9 +60,10 @@ async function recordFrames(page) {
       const id = dog.dataset.dog;
       const rec = (window.__dogRec[id] = []);
       const sample = () => {
-        // Stamp FIRST: the rect reads below force a layout whose cost varies,
-        // and stamping after them once made a 90ms frame read as 81ms.
-        const t = performance.now();
+        // The module's own paint stamp, never this callback's clock: under a
+        // loaded suite the callback ran ~30ms late, so one gap read 58ms and
+        // the next long (and before that, a forced layout read 90ms as 81).
+        const t = window.dogOccasion.state().dogs.find((d) => d.id === id)?.paintedAt;
         const f = Number(dog.dataset.frame);
         if (Number.isNaN(f) || rec.at(-1)?.frame === f) return;
         const frameEl = dog.querySelector(".dog__frame");
@@ -126,7 +127,8 @@ async function recordRun(page) {
       const id = dog.dataset.dog;
       const rec = (window.__runRec[id] = []);
       const sample = () => {
-        const t = performance.now();
+        // The module's paint stamp (see recordFrames), not this callback's.
+        const t = window.dogOccasion.state().dogs.find((d) => d.id === id)?.paintedAt;
         const f = Number(dog.dataset.frame);
         if (Number.isNaN(f)) return;
         const frameEl = dog.querySelector(".dog__frame");
