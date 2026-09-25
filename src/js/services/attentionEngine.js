@@ -205,7 +205,14 @@ export function getSelection({ sources = [], now = new Date(), mode = "glance", 
     currentHeroId = nextId;
     // Phase 8: the hero changed — announce the presentation so routineRuntime can
     // learn dwell vs ignore (no-op when nothing listens, i.e. routineLearning off).
-    emit("attention:hero", { hero: sel.hero ? { id: sel.hero.id, source: sel.hero.source } : null });
+    /* `injected`: the hero came from __forceCandidate. HOUSE-MIND S6-0 found the
+       routine learner counting CDP probes as presentations — the live
+       aggregates held `test` (8 shown) and `spec` (1) — so a listener that
+       learns from heroes can now tell a probe from the house. */
+    const injectedHero = sel.hero ? injected.some((c) => c?.id === sel.hero.id) : false;
+    emit("attention:hero", {
+      hero: sel.hero ? { id: sel.hero.id, source: sel.hero.source, ...(injectedHero ? { injected: true } : {}) } : null
+    });
     // Only cooldown-bearing candidates (the nagging insight rules) get claimed;
     // live readouts carry cooldownMs:0 and should keep showing.
     if (sel.hero && sel.hero.cooldownMs > 0) {

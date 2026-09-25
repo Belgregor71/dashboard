@@ -119,7 +119,41 @@ test("a person leaving and coming home is recorded", async ({ page }) => {
   expect(pageErrors).toEqual([]);
 });
 
+/* A REAL hero, raised the way the house raises one: an arrival announced
+   through V3's own lane. Until 2026-09-25 this test used __forceCandidate —
+   and that was the finding (HOUSE-MIND S6-0): the learner counted any forced
+   hero, so CDP probes on the kiosk had taught the live aggregates `test`
+   (8 shown) and `spec` (1). A forced hero is now never learned from; the next
+   test pins that with the same steps. */
+async function arriveHome(page) {
+  await page.evaluate(() => {
+    window.__v3Arrival("person.spec", "home");       // the snapshot: already in
+    window.__v3Arrival("person.spec", "not_home");   // ...and out
+  });
+  // Back an hour later: past arrival's too-brief guard.
+  await page.clock.setFixedTime(new Date(MONDAY_MORNING.getTime() + 60 * 60 * 1000));
+  await page.evaluate(() => window.__v3Arrival("person.spec", "home"));
+}
+
 test("a hero that was leaned into is closed out as dwelt when the room empties", async ({ page }) => {
+  await bootV3(page);
+
+  await page.evaluate(() => window.__v3Presence(true));
+  await arriveHome(page);
+  // It is the hero, raised by the house — not a probe.
+  expect(await page.evaluate(() => window.__v3().attention.hero?.id)).toBe("arrival:person.spec");
+
+  // Shown, but nothing is recorded until the presentation closes — the outcome
+  // is not known while it is still on the glass.
+  expect((await aggregates(page)).attention.arrival).toBeUndefined();
+
+  await page.evaluate(() => window.__v3Presence("dwell"));  // leaned into
+  await page.evaluate(() => window.__v3Presence(false));    // and now the room empties
+
+  expect((await aggregates(page)).attention.arrival).toEqual({ shown: 1, dwell: 1 });
+});
+
+test("a __forceCandidate hero is a probe, and the house never learns from it", async ({ page }) => {
   await bootV3(page);
 
   await page.evaluate(() => {
@@ -134,13 +168,14 @@ test("a hero that was leaned into is closed out as dwelt when the room empties",
     });
     window.__v3Tick();
   });
+  // Not vacuous: the probe really held the hero while the room leaned in.
+  expect(await page.evaluate(() => window.__v3().attention.hero?.id)).toBe("spec:probe");
 
-  // Shown, but nothing is recorded until the presentation closes — the outcome
-  // is not known while it is still on the glass.
-  expect((await aggregates(page)).attention.spec).toBeUndefined();
+  await page.evaluate(() => window.__v3Presence("dwell"));
+  await page.evaluate(() => window.__v3Presence(false));
 
-  await page.evaluate(() => window.__v3Presence("dwell"));  // leaned into
-  await page.evaluate(() => window.__v3Presence(false));    // and now the room empties
-
-  expect((await aggregates(page)).attention.spec).toEqual({ shown: 1, dwell: 1 });
+  const attention = (await aggregates(page)).attention;
+  expect(attention.spec).toBeUndefined();
+  // Nothing else was invented in its place, and the served history is intact.
+  expect(Object.keys(attention).sort()).toEqual(["sentinel"]);
 });

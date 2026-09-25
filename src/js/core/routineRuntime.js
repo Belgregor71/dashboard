@@ -111,7 +111,9 @@ function onPresence({ mode }) {
 // outcome (dwelt vs merely shown) we finalize when the next one replaces it.
 function onHero({ hero }) {
   finalizePresentation();
-  presentation = hero?.source ? { source: hero.source, dwelt: false } : null;
+  // A __forceCandidate hero is a probe, not the house: never learned from
+  // (HOUSE-MIND S6-0). It still closes whatever was showing before it.
+  presentation = hero?.source && !hero.injected ? { source: hero.source, dwelt: false } : null;
 }
 
 /* Takes the entity itself, because this now arrives on the BUS rather than as a
