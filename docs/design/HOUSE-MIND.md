@@ -560,8 +560,8 @@ samples to learn phrasing from, and the proposal's own example can be read eithe
 2. **The log never names someone the wall did not identify.** Presence is room-level
    (glance / dwell), and `person.*` is only home or away. Only a voice turn can name a
    person, and only where speaker ID is live. A row that says "Greg saw it" would be an
-   invented fact, the same class as "8:41". Rows record the room's presence mode and who
-   was *home*, labelled as such.
+   invented fact, the same class as "8:41". Under the amendment below, rows carry no
+   people at all, and presence exists only as counts.
 3. **Wording never changes because of the log.** Learning phrasing from inferred failure
    means generating copy from a guess. That conflicts with the S4 rule: learned timing,
    live words. The owner changes wording; the house does not.
