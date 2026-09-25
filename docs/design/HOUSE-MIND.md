@@ -205,7 +205,8 @@ Each slice ships on its own, default-off, with its own rollback.
 | **S3 — capability arbiter** ✅ built 2026-09-24, flag off | One owner of depth and speech. A declared **reflex lane** (doorbell, timers, commands, barge-in) goes straight through, then notifies. | Flag. Off = direct calls, as today. | Two simultaneous authors resolve by policy, not by call order. Doorbell latency is unchanged, measured. | The collision class in §4 pro 2 |
 | **S4 — prediction** ✅ first rule built 2026-09-24, flag off | Rules fed by routine distributions and the store, ranking through S0's weights. | Flag. | A predicted card earns the glance with a data line behind it. | Three hand rules as the whole of "prediction" |
 | **S5 — one decision for the room** ⏳ proposed 2026-09-25, nothing built | A candidate must carry its evidence (a store key or entity, plus its age). A spoken author speaks only when its candidate won the ranking. The arbiter picks the surface, not the source. | S5a: test-only first, then a flag for the runtime gate. S5b: one flag per migrated author. | Every candidate names its evidence, and a spec goes red on one that does not. A lost arrival stays silent, and a won one speaks as it does today. | "A module decides to speak, and the arbiter can only veto it" |
-| **S6 — the presentation log** ⏳ proposed 2026-09-25, nothing built | A bounded server-side log with one row per presentation (what, where, how long, presence, cut off or not), joined to later voice questions, and read by the owner as a weekly digest. Nothing feeds back into ranking or wording. | A flag for the page's writes. Off = nothing written. | "Why was X on the wall at 07:12?" is answered from the log. The digest's counts match what the wall did, spot-checked. | "History" existing only as per-source counters |
+| **S6 — the presentation log** ⏳ proposed 2026-09-25 (amended the same day), nothing built | Rows about the WALL (what was shown, where, how long, on what evidence), and COUNTERS about the people (present, cut off, asked about it after), never joined. The owner reads a weekly digest. Nothing feeds back into ranking or wording. | A flag for the page's writes. Off = nothing written. | "Why was X on the wall at 07:12?" is answered from the log. No row carries a person. The digest's counts match what the wall did, spot-checked. | The wall having no history of itself |
+| **S7 — today, answered** ⏳ proposed 2026-09-25, nothing built | A server-side fold of today's timed WORLD events (weather changes, rain crossings), handed to `/converse` next to House Lately. Answered, never announced; never about people. | Its own flag. Off = nothing folded. | A forced day yields exactly its entries. A live `/converse` answer cites only times in the fold. | "What's the day been like?" having no times to answer with |
 | *Deferred* | Merge the client and server minds. | — | Only if S2 and S3 show the split still hurts. | — |
 
 ### S1 as built (2026-09-23)
@@ -572,14 +573,30 @@ samples to learn phrasing from, and the proposal's own example can be read eithe
    nothing. The server keeps a fixed retention. None of it goes near the public repo or
    the shipped `config.js`.
 
-**The slices:**
+**⚠ Amended 2026-09-25, same day. The first draft broke a standing rule.**
+`docs/vision/phase-8-learn.md` (Rollout & risk) says **"aggregates-not-logs"** and **"No
+individual-event log persisted"**. The first draft's S6a stored "presence mode during it"
+and "who was home" on every row, and S6b attached each later question to one of those
+rows. That is an individual-event log about the residents, the very thing the rule
+forbids. The draft did not notice. The amended S6 splits the log in two:
+- **Rows about the WALL are allowed.** What was shown, where, when, for how long, on what
+  evidence, and what the arbiter decided. These are facts about the machine. They answer
+  "why was X on the wall at 07:12?".
+- **Anything about the PEOPLE is counters only.** Presence while shown, a barge-in cutting
+  it off, a question following it. These are per-source, per-day counts, in the style of
+  the feature census, which already counts `attn:<source>:shown`. They are never joined
+  to a row.
+- **Joining the two, one row per presentation with the people on it, needs the phase-8
+  rule lifted.** That is the owner's decision, §6 item 6, and it is not assumed here.
+
+**The slices (amended):**
 
 | Slice | What | Flag / rollback | It worked when |
 |---|---|---|---|
 | **S6-0 — audit the existing loop** | Clear the `test` / `spec` sources out of the live aggregates, and find out how they got there (probe, spec or `PUT`). Spot-check a sample of "dwelt" presentations against what the wall and the room were actually doing. | None; it is a probe and a data fix. | No non-product source in `__routines().weights`. A stated, measured answer to what "dwelt" means. |
-| **S6a — the log** | One row per presentation: candidate id, source, evidence key (from S5a), surface (glance / stage / voice), start and end, presence mode during it, who was home, whether a barge-in cut it off, and the arbiter decision if there was one. Append-only, server-side, fixed retention. The page's writes are fire-and-forget. **Nothing reads the log back into ranking.** | A flag for the page's writes. Off = no requests, byte-identical. | A forced presentation produces exactly one row with the right fields. Retention drops the oldest rows. `/kiosk-metrics` is flat. Inject: a missing end time and a double row both go RED. |
-| **S6b — "asked about it after"** | When a voice turn's topic matches a source shown in the last N minutes, add a `followedBy` note (the topic, and the minutes after) to that row. | Rides S6a's flag. | Forced: rain card, then a rain question inside N → noted. The same question outside N, or a different topic → not noted. Both directions injected. |
-| **S6c — the weekly digest** | Per source: shown, total seconds on the glass, cut off, followed by a question. Read by the owner, e.g. "Rain card shown 9×, followed by a rain question 3×, cut off once." | A read-only route; it changes nothing. | The digest's counts reconcile with the raw rows, and one day is spot-checked against the wall. |
+| **S6a — the wall's log** | One row per presentation, **with no people on it**: candidate id, source, evidence key (from S5a), surface (glance / stage / voice), start and end, and the arbiter decision if there was one. Append-only, server-side, fixed retention. The page's writes are fire-and-forget. **Nothing reads it back into ranking.** | A flag for the page's writes. Off = no requests, byte-identical. | A forced presentation produces exactly one row with the right fields, and **no presence, person or home field**, which a spec asserts. Retention drops the oldest rows. `/kiosk-metrics` is flat. Inject: a missing end time, a double row and a person field all go RED. |
+| **S6b — the people's counters** | Per source, per day: shown while someone was present, cut off by a barge-in, followed by a question on the same topic within N minutes. Counts only, alongside the existing census counters, with no times and no row ids. | Rides S6a's flag. | Forced: rain card, then a rain question inside N → `followed` +1. The same question outside N, or a different topic → no change. Both directions injected. The stored file holds only counts, which a spec asserts. |
+| **S6c — the weekly digest** | Per source: shown (from the rows), total seconds on the glass (from the rows), shown while present, cut off, followed by a question (from the counters). Read by the owner, e.g. "Rain card shown 9×, followed by a rain question 3×, cut off once." | A read-only route; it changes nothing. | The digest reconciles with the rows and the counters, and one day is spot-checked against the wall. |
 
 **What would reopen automatic learning:** only a digest showing a stable pattern that
 points one way, over weeks. Even then it would feed ranking alone (the existing nudge
@@ -591,6 +608,87 @@ path), never the words.
 - What retention is right. The briefing's TTS cache and the census have their own; neither
   has been compared yet.
 - Whether speaker ID is live enough to name anyone, and on which turns.
+
+### S7 — today, answered (proposed 2026-09-25, nothing built)
+
+**The proposal (owner, 2026-09-25):** a canonical "House Lately" timeline of the day, with
+timestamped entries ("07:18 Greg left", "17:31 Storm arrived"). Personality would then
+work from actual experience, with volunteered lines such as "You left eight minutes later
+than usual" or "That's the fourth storm you've ignored this week".
+
+**Verdict: YES-BUT.** Most of it is already built, under the same name. The two parts it
+adds collide with standing decisions. The part that is genuinely missing is narrow and
+allowed.
+
+**What already exists:** `server/services/houseLately.js`, served by
+`server/routes/house.js` and handed to `/converse` (`routes/ai.js:185`). It is built over
+data the house was already recording:
+- **The feature census:** what reached the glass, what was asked, what fired, when the
+  house spoke, what came to the door.
+- **`occupancyDays.js`:** who was home, sampled every 5 min, kept 60 days.
+- **`weatherHistory.js`:** one line a day, kept about 3 years.
+
+It already guards the traps in the proposal's examples:
+- **A sleeping wall looks like a quiet house.** Every claim is counted only over days the
+  wall was awake for at least 8 h. "Nothing happened today" is exactly the claim it was
+  built to stop the house inventing.
+- **Never-fired is not quiet.** A counter that has never worked cannot back "the doorbell
+  hasn't rung in a month".
+- **⛔ Answered, never announced** (its header, lines 59-66). Nothing about the residents
+  becomes a glance line or a spontaneous remark.
+
+**What the proposal adds, and why it is out:**
+1. **A timestamped event log about people.** `phase-8-learn.md` rules it out:
+   "aggregates-not-logs", "No individual-event log persisted", and "Resist turning
+   learning into a visible 'insights about you' feature". "07:18 Greg left / 16:57 Greg
+   returned" is exactly that log. Lifting the rule is §6 item 6.
+2. **Volunteered judgements about the residents:**
+   - **"You left eight minutes later than usual"** is word for word what the owner banned
+     on 2026-09-24 in "learned timing, live words": never the learned clock time, never
+     "usually".
+   - **"The fourth storm you've ignored this week"**: "ignored" cannot be observed (S6
+     point 1), and the line volunteers a remark about the residents.
+   - Both would be grounded in memory, but the judgement on top of that memory would still
+     be manufactured. `CHARACTER.md:105` says that rule "outranks everything else on this
+     page".
+
+**What is genuinely missing:** House Lately works by the day. Nothing holds **today's
+timed facts about the world rather than the people**, such as "rain crossed 50% at 07:11"
+or "the storm arrived at 17:31".
+
+**S7 — today, answered:**
+- **What:** a server-side fold of the current day's **world** events, each with its time:
+  - weather condition changes
+  - rain chance crossing 50%
+  - the first rain and the last rain
+  - optionally, a door or gate being routed. That is a fact about the door, with no
+    identity, no image and no name.
+
+  The source is the S2 store, which already reads weather and nowcast every 5 minutes on
+  the server, so times are accurate to about 5 min and are stated that way. The store is
+  lazy, so a fold must not keep it polling with no subscriber.
+- **Bounds:** today only. It resets at the house day's rollover, and yesterday's day-level
+  summary is already `weatherHistory.js`'s job. It holds a fixed maximum number of
+  entries.
+- **Reach:** handed to `/converse` alongside House Lately's claims. **Answered, never
+  announced.** It feeds no attention candidate and no glance line. The personality speaks
+  from it only when asked "what's the day been like?".
+- **Never in it:** who was home, who left or arrived, presence, anything a voice turn said.
+- **Flag:** its own. Off = nothing folded and nothing handed to `/converse`.
+- **It worked when:** a forced day (rain crossing, then a condition change) produces
+  exactly those entries at the store's read times. A spec asserts that no entry carries a
+  person, presence or home field. A `/converse` answer about the day cites a time that is
+  in the fold, and none that is not: a real call, since only a LIVE call finds invented
+  particulars. Inject: a person field, and an entry outside today, both go RED.
+
+**Not inventoried, and not guessed here:**
+- Door and gate routing is decided in the page, and the server stores only daily counts
+  from it. A timed door entry needs a new page → server write. It could be left out of
+  the first cut.
+- "Delivery" detection does not exist anywhere. The proposal's "09:42 delivery" has no
+  source.
+- How `/converse` currently phrases House Lately's claims. S7's entries would have to
+  follow the same "answered" path, not a new one.
 
 ---
 
@@ -610,3 +708,9 @@ path), never the words.
    Recommended: not yet. The log and a weekly digest come first, and the owner decides
    what changes. Automatic learning would affect ranking only, never wording, and only
    after the digest shows a stable pattern over weeks.
+6. **Should "aggregates-not-logs" (`phase-8-learn.md`) ever be lifted?** (S6 and S7,
+   2026-09-25) Both proposals, as first written, needed a timed log of what the residents
+   did. The recommended answer is **no**: S6 keeps people as counters, and S7 keeps to
+   world events. If the answer is ever yes, that is a privacy decision taken on its own:
+   who is logged, for how long, and who can read it. It should not come in as a side
+   effect of a feature.
