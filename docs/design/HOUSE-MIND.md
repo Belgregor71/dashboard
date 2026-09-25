@@ -204,7 +204,7 @@ Each slice ships on its own, default-off, with its own rollback.
 | **S2 — observation store** ✅ complete 2026-09-25, all six consumer flags ON | Server keeps a sticky last value per source (weather, calendar, commute, bins, media) and pushes it over one SSE, `/api/house/stream`. Consumers move over one at a time. | One flag per consumer. Off = its own fetch, as today. | Fetches of `/api/weather/now` and `/api/calendar/all` per 5 min drop, measured in the server log. Glance and field agree. `/kiosk-metrics` shows no heap growth. | About 6 duplicate fetchers per source |
 | **S3 — capability arbiter** ✅ built 2026-09-24, flag off | One owner of depth and speech. A declared **reflex lane** (doorbell, timers, commands, barge-in) goes straight through, then notifies. | Flag. Off = direct calls, as today. | Two simultaneous authors resolve by policy, not by call order. Doorbell latency is unchanged, measured. | The collision class in §4 pro 2 |
 | **S4 — prediction** ✅ first rule built 2026-09-24, flag off | Rules fed by routine distributions and the store, ranking through S0's weights. | Flag. | A predicted card earns the glance with a data line behind it. | Three hand rules as the whole of "prediction" |
-| **S5 — one decision for the room** ⏳ proposed 2026-09-25, nothing built | A candidate must carry its evidence (a store key or entity, plus its age). A spoken author speaks only when its candidate won the ranking. The arbiter picks the surface, not the source. | S5a: test-only first, then a flag for the runtime gate. S5b: one flag per migrated author. | Every candidate names its evidence, and a spec goes red on one that does not. A lost arrival stays silent, and a won one speaks as it does today. | "A module decides to speak, and the arbiter can only veto it" |
+| **S5 — one decision for the room** ⏳ proposed 2026-09-25; **S5a built (gate OFF)** | A candidate must carry its evidence (a store key or entity, plus its age). A spoken author speaks only when its candidate won the ranking. The arbiter picks the surface, not the source. | S5a: test-only first, then a flag for the runtime gate. S5b: one flag per migrated author. | Every candidate names its evidence, and a spec goes red on one that does not. A lost arrival stays silent, and a won one speaks as it does today. | "A module decides to speak, and the arbiter can only veto it" |
 | **S6 — the presentation log** ⏳ proposed 2026-09-25 (amended the same day), nothing built | Rows about the WALL (what was shown, where, how long, on what evidence), and COUNTERS about the people (present, cut off, asked about it after), never joined. The owner reads a weekly digest. Nothing feeds back into ranking or wording. | A flag for the page's writes. Off = nothing written. | "Why was X on the wall at 07:12?" is answered from the log. No row carries a person. The digest's counts match what the wall did, spot-checked. | The wall having no history of itself |
 | **S7 — today, answered** ⏳ proposed 2026-09-25, nothing built | A server-side fold of today's timed WORLD events (weather changes, rain crossings), handed to `/converse` next to House Lately. Answered, never announced; never about people. | Its own flag. Off = nothing folded. | A forced day yields exactly its entries. A live `/converse` answer cites only times in the fold. | "What's the day been like?" having no times to answer with |
 | **S8 — the house's tool manifest** ⏳ proposed 2026-09-25, nothing built | A declared, server-side table of what an AI may read and do (name, read or act, route, safety gate, callers), checked by a spec in the style of S1. `/converse` reads its context from it. It is **not** a runtime facade over the page. | S8a is test-only. S8b gets a flag (off = today's hand assembly). S8c has its own flag, off. | The spec goes red on an undeclared AI input, an ungated act, and an unused capability. The converse prompt is byte-identical with the flag on and off. | "Teach the next AI the whole codebase" |
@@ -516,11 +516,49 @@ before making the arbiter the single authority.
 | **S5b — arrival speaks only if it won** | `arrival.js` reads the selection `announce()` returns and calls `speak()` only when its own id is the hero. Arrival is the lowest-risk spoken author: priority 10, and not reflex. | A flag, read per arrival (no reload). Off = speak unconditionally, as today. | Both directions, forced at boot: a higher candidate holding the glance means the greeting is shown in the queue but not spoken; an empty room means it is spoken exactly as before. Both are injected RED. |
 | **S5c — the next authors** | The briefing, then dinner, one at a time, if S5b's live decisions hold up. The timer and doorbell stay reflex. | One flag per author. | The same as S5b, per author. |
 
-**Not yet inventoried, and not guessed here:**
+**Not yet inventoried, and not guessed here:** ~~(answered by S5a below)~~
 - How many live candidate sources already have a data line that could become `evidence`.
 - Which candidate sources have no `source` at all (the insight rules, per S4).
 - Whether the V3 closure pulls in any candidate producers from `src/js/` that the
   incumbent also ranks. If it does, S5a's gate must keep the incumbent green.
+
+### S5a as built (2026-09-25, `v3EvidenceGate` default OFF)
+
+- **The inventory, derived rather than guessed:** V3's closure holds **23 candidate
+  literals in 7 files**: `candidateSources` 11, `insightRules` 4, `predictiveRules` 4,
+  `memoryEngine` 1, `personality` (delight) 1, `arrival` 1, `resolutions` 1. It also
+  holds 8 scored literals that are not candidates (the BOM severity ladder and the
+  `__v3()` projections), each exempt with a reason. **Every producer could be evidenced.
+  None needed a guess.** The insight rules still have no `source`. That is unchanged and
+  still S4's note.
+- **Yes, they are shared with the incumbent.** `candidateSources` and the rules are loaded
+  by both surfaces. So the gate lives in `getSelection({requireEvidence})`, and **only
+  V3's tick passes it**. The incumbent's `focusHero` passes `evidence: null` and never
+  arms the gate.
+- **The vocabulary is wider than "S2 key or HA entity"** (`src/js/services/evidence.js`).
+  The inventory found candidates that stand on neither, so these keys were added: `fuel`,
+  `resolutions`, `immich`, `memory`, `clock` (Christmas Eve is known from the date alone),
+  `boot` and `presence`. Polled keys go stale after 20 minutes (four missed reads). HA
+  keys never go stale, because the entity's `last_updated` is a world-change time and
+  gating on it would drop every steady state.
+- **Events are their own form:** `{key, at, event: true}` marks an arrival, a fired
+  delight or a resolution. Its life is the candidate's `expiresAt`, not the key's age. An
+  event with no `expiresAt` is dropped as `endless`. Without this, a 3-hour birthday
+  delight would have gone stale 20 minutes after it fired.
+- **`__forceCandidate` is exempt,** because it is how the wall is driven over CDP.
+- `__v3().attention.dropped` lists what the gate refused on each tick, and why.
+- **Spec:** `tests/candidate-evidence.spec.js` (17 tests). **Inject-defect: 7/7 RED**,
+  each for its named reason:
+  1. a literal loses its evidence
+  2. a failed read freshens the kept value
+  3. the gate is ignored
+  4. the gate is armed unconditionally (OFF direction)
+  5. the gate eats `__forceCandidate`
+  6. a lane reads the wrong key
+  7. an event with no end is waved through
+- **Before the flip:** read `__v3().attention.dropped` on the wall with the flag forced
+  on for a day. Anything dropped that the room should have seen is a producer bug, not
+  a reason to loosen the gate.
 
 ### S6 — the presentation log (proposed 2026-09-25, nothing built)
 
