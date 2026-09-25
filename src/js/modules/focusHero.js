@@ -180,7 +180,12 @@ function readState() {
        here hold only display strings, so the honest answer is "not known".
        null makes departureCandidate return nothing — and it is V3-only anyway,
        gated by a flag and a learned time this surface never computes. */
-    commuteLegs: null
+    commuteLegs: null,
+    /* HOUSE-MIND S5a: houseSnapshot's per-lane evidence map. Not known here
+       either: this state is scraped off rendered panels, which carry no read
+       time. null gives every candidate `evidence: null`, and nothing on this
+       surface arms the gate that would read it. */
+    evidence: null
   };
 }
 

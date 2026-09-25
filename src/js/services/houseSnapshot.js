@@ -51,6 +51,7 @@ import { robotAttentionFrom, cameraSnapshotUrl } from "./candidateSources.js";
 import { CONFIG } from "../core/config.js";
 import { on } from "../core/eventBus.js";
 import { storeFresh } from "./houseStream.js";
+import { evidenceOf } from "./evidence.js";
 
 /* Read per-call off `window.CONFIG`, never off the imported `CONFIG` and never
    at module load. Two separate traps, both already paid for in this repo:
@@ -75,6 +76,11 @@ const cache = {
      no timestamp, so this is the only anchor a progress reading has. Separate
      from `fetchedAt`, which advances even when the Plex leg failed. */
   plexAt: 0,
+  /* HOUSE-MIND S5a: when each key last APPLIED a good value — the `at` of the
+     evidence a candidate built from it carries. Per key, and only on success,
+     for the reason `plexAt` is: `fetchedAt` moves on a failed leg too, and a
+     candidate must not look fresh while it stands on a reading that is not. */
+  readAt: { weather: 0, calendar: 0, commute: 0 },
   fetchedAt: 0
 };
 
@@ -131,12 +137,17 @@ let storeAttached = false;
    keeps its last causes — a stale reading beats a lie. */
 function applyHouse(key, value, at) {
   if (!value) return;
-  if (key === "weather") cache.weather = value;
-  else if (key === "calendar") cache.calendar = Array.isArray(value) ? value : value.events ?? [];
-  else if (key === "commute") {
+  if (key === "weather") {
+    cache.weather = value;
+    cache.readAt.weather = at;
+  } else if (key === "calendar") {
+    cache.calendar = Array.isArray(value) ? value : value.events ?? [];
+    cache.readAt.calendar = at;
+  } else if (key === "commute") {
     const text = commuteFrom(value);
     if (text) {
       cache.commute = text;
+      cache.readAt.commute = at;
       /* HOUSE-MIND S4: the legs as numbers, beside the string. The string is
          display copy with the seconds already rounded away, and a departure
          card must be able to state the traffic delay it is standing on. Only
@@ -328,6 +339,7 @@ function nowPlayingFrom(byId) {
       const room = group?.label || null;
       const source = artist || room;
       return {
+        entityId: id, // S5a: the entity this line stands on
         text: [source, title].filter(Boolean).join(" — "),
         /* Resolved, not raw. focusHero reads this value out of a rendered
            <img src>, which mediaPanels had already put through the proxy — so
@@ -551,7 +563,7 @@ function cameraTriggerFrom(list, now) {
     const at = new Date(e.last_changed);
     if (!Number.isFinite(at.getTime())) continue;
     if (now.getTime() - at.getTime() > TRIGGER_WINDOW_MS) continue;
-    events.push({ slug: m[1], at, live: e.state === "on" });
+    events.push({ slug: m[1], at, live: e.state === "on", entity: e });
   }
   if (!events.length) return null;
 
@@ -562,6 +574,7 @@ function cameraTriggerFrom(list, now) {
 
   return {
     name,
+    entity: top.entity, // S5a: the sensor this card stands on
     at: top.at.toISOString(),
     label: `Last triggered ${time}`,
     image: cameraSnapshotUrl({ cameraId: top.slug, at: top.at.toISOString() })
@@ -691,8 +704,40 @@ export function houseSnapshot({
     cameraTriggerName: cameraTrigger?.name ?? null,
     cameraTriggerAt: cameraTrigger?.at ?? null,
     cameraTriggerLabel: cameraTrigger?.label ?? null,
-    cameraTriggerImage: cameraTrigger?.image ?? null
+    cameraTriggerImage: cameraTrigger?.image ?? null,
+
+    /* HOUSE-MIND S5a: per LANE, the reading that lane's candidate stands on
+       (services/evidence.js). candidateSources copies the lane's record onto
+       its candidate and never builds one itself — it is import-free. Null when
+       the lane has no reading; the incumbent's focusHero passes no map at all,
+       so its candidates carry `evidence: null` and nothing there reads it. */
+    evidence: {
+      bom: bom?.summary ? haEvidence(byId[bom.warningsEntityId], now) : null,
+      robot: robot ? haEvidence(robotEntity(byId), now) : null,
+      weather: evidenceOf("weather", cache.readAt.weather),
+      calendar: evidenceOf("calendar", cache.readAt.calendar),
+      commute: evidenceOf("commute", cache.readAt.commute),
+      plex: evidenceOf("plex", injectedPlex ? now : cache.plexAt),
+      nowPlaying: nowPlaying ? haEvidence(byId[nowPlaying.entityId], now) : null,
+      cameraTrigger: cameraTrigger ? haEvidence(cameraTrigger.entity, now) : null
+    }
   };
+}
+
+/* An HA entity as evidence. `at` is the entity's own last update when it has
+   one, else the moment the page read it off the live cache — HA keys are never
+   age-gated (see evidence.js), so this is a record for a reader, not a fuse. */
+function haEvidence(entity, now) {
+  if (!entity?.entity_id) return null;
+  return evidenceOf(`ha:${entity.entity_id}`, entity.last_updated ?? entity.last_changed ?? now);
+}
+
+/* The robot reading is spread over a dozen roborock sensors. The vacuum entity
+   names the device; any roborock entity stands in when there is none. */
+function robotEntity(byId) {
+  const ids = Object.keys(byId).filter((id) => /roborock/i.test(id));
+  const id = ids.find((x) => x.startsWith("vacuum.")) ?? ids[0];
+  return id ? byId[id] : null;
 }
 
 /** Age of the HTTP-backed half in ms, or null if it has never been filled. */
@@ -708,5 +753,6 @@ export function __resetHouseCache() {
   cache.commuteLegs = null;
   cache.plex = null;
   cache.plexAt = 0;
+  cache.readAt = { weather: 0, calendar: 0, commute: 0 };
   cache.fetchedAt = 0;
 }

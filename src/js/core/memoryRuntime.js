@@ -86,7 +86,9 @@ async function loadOnThisDay() {
     const res = await fetch("/api/immich/on-this-day", { signal: AbortSignal.timeout(8_000) });
     if (!res.ok) return;
     const data = await res.json();
-    onThisDayEntry = buildOnThisDayMemory(data?.assets ?? [], new Date());
+    const built = buildOnThisDayMemory(data?.assets ?? [], new Date());
+    // HOUSE-MIND S5a: the photos are the evidence, read now.
+    onThisDayEntry = built ? { ...built, evidence: { key: "immich", at: Date.now() } } : built;
   } catch {
     /* keep the last-known entry */
   }
@@ -102,6 +104,7 @@ function anchorEntries(anniversaries, now) {
     .map((title) => ({
       id: `anniv:${dateKey(now)}:${title}`,
       kind: "occasion",
+      evidence: { key: "calendar", at: now.getTime() }, // HOUSE-MIND S5a
       recurring: { month: now.getMonth() + 1, day: now.getDate() },
       title,
       tags: [seasonOf(now)],

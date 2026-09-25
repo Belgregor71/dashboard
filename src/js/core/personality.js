@@ -178,6 +178,8 @@ export function celebrate(occasion = {}) {
   const text = phrase({}, "celebration", { text: line });
   return {
     id: `delight:${occasion.id}`,
+    // HOUSE-MIND S5a: the runtime says what fired it (personalityRuntime.fire).
+    evidence: occasion.evidence ?? null,
     source: "delight",
     kind: "celebration",
     icon: occasion.icon ?? "✨",

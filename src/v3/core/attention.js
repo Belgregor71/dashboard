@@ -303,7 +303,10 @@ export function tickAttention(now = new Date()) {
      false on V3 (docs/design/HOUSE-MIND.md, S0). Flag-gated because it changes
      which candidate wins: off → null, exactly the call as it shipped. */
   const weights = flag("v3AttentionWeights") ? attentionWeights() : null;
-  const sel = getSelection({ sources, now, mode, weights });
+  /* HOUSE-MIND S5a (features.v3EvidenceGate): a candidate that cannot name the
+     reading it stands on, or whose reading has gone stale, is not ranked.
+     Read per tick, so a flip needs no reload. Off → the call as it shipped. */
+  const sel = getSelection({ sources, now, mode, weights, requireEvidence: flag("v3EvidenceGate") });
 
   const hero = sel.hero;
   const earned = earnsGlance(hero);
@@ -377,6 +380,8 @@ export function tickAttention(now = new Date()) {
     stack: sel.stack.map((c) => ({ id: c.id, source: c.source, score: c.score })),
     queue: sel.queue.map((c) => ({ id: c.id, source: c.source, score: c.score, interrupt: c.interrupt === true })),
     sourceCount: sources.length,
+    // S5a: what the evidence gate refused this tick, and why. Always [] with it off.
+    dropped: sel.dropped ?? [],
     at: now.toISOString()
   };
 

@@ -115,6 +115,10 @@ const SHARED_BOTH = [
      houseSnapshot's next-event line) and the second omission was read off the
      wall. Pure and import-free, like mealEvent.js beside it. */
   "js/services/eventTitle.js",
+  /* ⚠ ENTERED V3'S CLOSURE 2026-09-25 with HOUSE-MIND S5a: the evidence
+     vocabulary and gate, imported by attentionEngine.js and houseSnapshot.js.
+     Pure and import-free. */
+  "js/services/evidence.js",
   /* ⚠ ENTERED V3'S CLOSURE 2026-08-17, and it entered by being CARVED OUT of
      modules/goodnightRoutine.js rather than by a new import of it. That module
      ends in `engageScreensaver()` — an incumbent-only surface — so reaching its

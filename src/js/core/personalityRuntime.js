@@ -218,11 +218,31 @@ function buildCtx(now) {
 
 // ── Fire ───────────────────────────────────────────────────────
 
+/* HOUSE-MIND S5a: what each delight trigger (services/delight.js) stands on, in
+   the services/evidence.js vocabulary. Keyed by TRIGGER id, not occasion id —
+   "calendar-occasion" fires as christmas/easter/…, and it is the date alone
+   that establishes those. An unlisted trigger gets no evidence, which the
+   gate reads as "missing": a new trigger has to say what it is standing on. */
+const DELIGHT_EVIDENCE = {
+  "power-restored": "boot",
+  "home-after-away": "presence",
+  "birthday-morning": "calendar",
+  "calendar-occasion": "clock",
+  "first-rain-after-dry": "weather",
+  "christmas-eve": "clock"
+};
+
 function fire(fired, now) {
   budgets = spendBudget(budgets, fired);
   saveBudgets();
   outageRecovered = false; // a boot-scoped signal fires at most once per run
-  pendingCelebration = celebrate({ ...fired.occasion, expiresAt: now.getTime() + CELEBRATION_TTL_MS });
+  const key = DELIGHT_EVIDENCE[fired.id];
+  pendingCelebration = celebrate({
+    ...fired.occasion,
+    expiresAt: now.getTime() + CELEBRATION_TTL_MS,
+    // An event: it fired now, and CELEBRATION_TTL_MS above is its life.
+    evidence: key ? { key, at: now.getTime(), event: true } : null
+  });
   emit("delight:fired", { id: fired.id });
   console.log(`[delight] ${fired.id}: ${pendingCelebration.text}`);
   return pendingCelebration;

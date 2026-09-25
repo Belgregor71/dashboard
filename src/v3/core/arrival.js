@@ -137,6 +137,9 @@ function onStateUpdated(entity) {
     // Keyed on the person, not the moment: a second arrival for the same person
     // replaces the first rather than queueing behind it.
     id: `arrival:${entityId}`,
+    // HOUSE-MIND S5a: the person entity that changed, as an event (its life is
+    // ARRIVAL_LIFE_MS below, not a poll age).
+    evidence: { key: `ha:${entityId}`, at: Date.now(), event: true },
     source: "arrival",
     // `kind` is what personality.phrase() reads for its length cap, and arrival
     // has its own (240) precisely so a warm line is not clipped mid-sentence.

@@ -56,6 +56,15 @@ const SEVERE_WEATHER_PATTERN = /storm|severe|warning|heavy rain|heavy showers|fl
    Absence is read as "severity unknown", never as "safe to ignore". */
 const MARINE_WARNING = /(^|_)marine(_|$)/;
 
+/* HOUSE-MIND S5a: each adapter copies ITS lane's evidence record off the state
+   (houseSnapshot builds the map; services/evidence.js is the vocabulary). Never
+   built here, because this module is import-free — and never guessed: a lane
+   with no record is `evidence: null`, which the V3 gate reads as "missing".
+   tests/candidate-evidence.spec.js goes red on a literal that forgets this. */
+function laneEvidence(evidence, lane) {
+  return evidence?.[lane] ?? null;
+}
+
 /** The un-gated behaviour, and the fallback whenever severity is unreadable. */
 const WARNING_DEFAULT = { score: 95, interrupt: true };
 
@@ -84,11 +93,12 @@ export function bomWarningTier(detail) {
  * Absent the flag, `bomWarningTier` is never consulted and the candidate is
  * byte-identical to before.
  */
-export function bomCandidate({ bomWarning, bomWarningDetail, bomSeverity } = {}) {
+export function bomCandidate({ bomWarning, bomWarningDetail, bomSeverity, evidence } = {}) {
   if (!bomWarning) return null;
   const tier = Boolean(bomSeverity) ? bomWarningTier(bomWarningDetail) : WARNING_DEFAULT;
   return {
     id: `bom:${bomWarning}`,
+    evidence: laneEvidence(evidence, "bom"),
     source: "bom",
     icon: "⚠️",
     text: bomWarning,
@@ -99,10 +109,11 @@ export function bomCandidate({ bomWarning, bomWarningDetail, bomSeverity } = {})
 }
 
 /** Severe live weather condition (storm/flood/heavy rain) — interrupt band. */
-export function weatherSevereCandidate({ weatherCondition, weatherTemp } = {}) {
+export function weatherSevereCandidate({ weatherCondition, weatherTemp, evidence } = {}) {
   if (!weatherCondition || !SEVERE_WEATHER_PATTERN.test(weatherCondition)) return null;
   return {
     id: `weather:${weatherCondition}`,
+    evidence: laneEvidence(evidence, "weather"),
     source: "weather",
     icon: "⚠️",
     text: weatherTemp ? `${weatherCondition} · ${weatherTemp}` : weatherCondition,
@@ -113,10 +124,11 @@ export function weatherSevereCandidate({ weatherCondition, weatherTemp } = {}) {
 }
 
 /** Next calendar event readout — medium band. */
-export function nextEventCandidate({ nextEventActive, nextEventText, nextEventTitle, nextEventSub } = {}) {
+export function nextEventCandidate({ nextEventActive, nextEventText, nextEventTitle, nextEventSub, evidence } = {}) {
   if (!nextEventActive || !nextEventText) return null;
   return {
     id: `next-event:${nextEventText}`,
+    evidence: laneEvidence(evidence, "calendar"),
     source: "nextEvent",
     icon: "📅",
     text: nextEventText,
@@ -225,7 +237,7 @@ const DEPARTURE_SCORE = 74;
 const RAIN_MIN_PROBABILITY = 50;
 const NOTABLE_DELAY_S = 120;
 
-export function departureCandidate({ departure, commuteLegs } = {}) {
+export function departureCandidate({ departure, commuteLegs, evidence } = {}) {
   if (!departure?.present) return null;
   const toGo = departure.minutesToGo;
   if (!Number.isFinite(toGo)) return null;
@@ -248,6 +260,7 @@ export function departureCandidate({ departure, commuteLegs } = {}) {
 
   return {
     id: "departure",
+    evidence: laneEvidence(evidence, "commute"),
     source: "departure",
     icon: "🚗",
     text,
@@ -259,7 +272,7 @@ export function departureCandidate({ departure, commuteLegs } = {}) {
   };
 }
 
-export function commuteCandidate({ commuteActive, commuteText, now, timely, departure, commuteLegs } = {}) {
+export function commuteCandidate({ commuteActive, commuteText, now, timely, departure, commuteLegs, evidence } = {}) {
   if (!commuteActive || !commuteText) return null;
   // The departure card is carrying these same drive times; two lines saying
   // one thing is the duplication the spread has been caught doing before.
@@ -267,6 +280,7 @@ export function commuteCandidate({ commuteActive, commuteText, now, timely, depa
   if (Boolean(timely) && !inWindow(now, COMMUTE_WINDOW)) return null;
   return {
     id: `commute:${commuteText}`,
+    evidence: laneEvidence(evidence, "commute"),
     source: "commute",
     icon: "🚗",
     text: commuteText,
@@ -318,11 +332,12 @@ function mediaFor(rows, cell, title) {
   };
 }
 
-export function nowPlayingCandidate({ nowPlayingActive, nowPlayingText, nowPlayingImage, nowPlayingTitle, nowPlayingSub, mediaRooms } = {}) {
+export function nowPlayingCandidate({ nowPlayingActive, nowPlayingText, nowPlayingImage, nowPlayingTitle, nowPlayingSub, mediaRooms, evidence } = {}) {
   if (!nowPlayingActive || !nowPlayingText) return null;
   return {
     media: mediaFor(mediaRooms, "nowPlaying", nowPlayingTitle),
     id: `now-playing:${nowPlayingText}`,
+    evidence: laneEvidence(evidence, "nowPlaying"),
     source: "nowPlaying",
     icon: "🎬",
     image: nowPlayingImage || null, // the album/movie art, rendered as the thumb when present
@@ -341,11 +356,12 @@ export function nowPlayingCandidate({ nowPlayingActive, nowPlayingText, nowPlayi
  * (not HA). Carries the poster thumb so the attention thumb shows the artwork.
  * Present only when the runtime reads it (gated on features.mediaCandidate).
  */
-export function plexCandidate({ plexActive, plexText, plexSub, plexImage, mediaRooms } = {}) {
+export function plexCandidate({ plexActive, plexText, plexSub, plexImage, mediaRooms, evidence } = {}) {
   if (!plexActive || !plexText) return null;
   return {
     media: mediaFor(mediaRooms, "plex", plexText),
     id: `plex:${plexText}`,
+    evidence: laneEvidence(evidence, "plex"),
     source: "plex",
     icon: "🎬",
     image: plexImage || null,
@@ -369,11 +385,12 @@ export function plexCandidate({ plexActive, plexText, plexSub, plexImage, mediaR
  * follow-up). Only present when the runtime reads it (gated on
  * features.foldHomeTiles), so flag-off carries no candidate.
  */
-export function tonightsMenuCandidate({ menuActive, menuName, now, timely } = {}) {
+export function tonightsMenuCandidate({ menuActive, menuName, now, timely, evidence } = {}) {
   if (!menuActive || !menuName) return null;
   const timelyNow = Boolean(timely) && inWindow(now, MENU_WINDOW);
   return {
     id: `tonights-menu:${menuName}`,
+    evidence: laneEvidence(evidence, "calendar"),
     source: "tonightsMenu",
     icon: "🍽",
     text: `${menuName} for dinner`,
@@ -449,7 +466,7 @@ function epochMs(value) {
   return Number.NaN;
 }
 
-export function cameraTriggerCandidate({ cameraTriggerName, cameraTriggerAt, cameraTriggerLabel, cameraTriggerImage, now, timely } = {}) {
+export function cameraTriggerCandidate({ cameraTriggerName, cameraTriggerAt, cameraTriggerLabel, cameraTriggerImage, now, timely, evidence } = {}) {
   if (!cameraTriggerName || !cameraTriggerAt) return null;
   const atMs = epochMs(cameraTriggerAt);
   /* An unparseable stamp is "no usable trigger", not a candidate with a NaN
@@ -466,6 +483,7 @@ export function cameraTriggerCandidate({ cameraTriggerName, cameraTriggerAt, cam
     /* Keyed on the canonical epoch so the id is one shape across both surfaces.
        Unchanged for the incumbent, which already passed a number. */
     id: `camera-trigger:${atMs}`,
+    evidence: laneEvidence(evidence, "cameraTrigger"),
     source: "cameraTrigger",
     icon: "📹",
     text: cameraTriggerLabel ? `${cameraTriggerName} · ${cameraTriggerLabel}` : cameraTriggerName,
@@ -560,13 +578,14 @@ function readableList(items) {
  * NO `expiresAt` — unlike a camera trigger this is a *state*, not an event: it
  * should sit there until somebody actually empties the tank.
  */
-export function robotCandidate({ robotProblems, robotConsumables } = {}) {
+export function robotCandidate({ robotProblems, robotConsumables, evidence } = {}) {
   const problems = Array.isArray(robotProblems) ? robotProblems : [];
   const consumables = Array.isArray(robotConsumables) ? robotConsumables : [];
 
   if (problems.length) {
     return {
       id: `robot-problem:${problems.join("|")}`,
+      evidence: laneEvidence(evidence, "robot"),
       source: "robot",
       icon: "🤖",
       text: `Roborock — ${readableList(problems)}.`,
@@ -581,6 +600,7 @@ export function robotCandidate({ robotProblems, robotConsumables } = {}) {
   if (consumables.length) {
     return {
       id: `robot-consumable:${consumables.join("|")}`,
+      evidence: laneEvidence(evidence, "robot"),
       source: "robot",
       icon: "🤖",
       text: `Roborock's ${readableList(consumables)} due for a change.`,

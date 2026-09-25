@@ -156,6 +156,9 @@ export function toSurface(entry, now = new Date()) {
 
   return {
     id: `memory:${entry.id}`,
+    /* HOUSE-MIND S5a. An owner-authored entry is its own evidence; a calendar
+       marker or an Immich photo says so on the entry (memoryRuntime). */
+    evidence: entry.evidence ?? { key: "memory", at: now.getTime() },
     entryId: entry.id,
     source: "memory",
     kind: entry.kind ?? "memory",

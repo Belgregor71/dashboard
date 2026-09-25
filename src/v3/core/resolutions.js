@@ -128,6 +128,8 @@ async function poll() {
          of them can be in the queue at a time, and a replace is the right
          outcome if it somehow is. */
       id: `resolution:${item.key}`,
+      // HOUSE-MIND S5a: the server's resolution store, read by this poll.
+      evidence: { key: "resolutions", at: Date.now(), event: true },
       source: "resolution",
       text: item.text.trim(),
       score: SCORE,

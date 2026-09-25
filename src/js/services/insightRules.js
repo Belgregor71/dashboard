@@ -50,6 +50,7 @@ export function leaveBy(ctx, now) {
 
   return {
     id: `leave-by:${d.title}:${new Date(d.start).toISOString()}`,
+    evidence: { key: "calendar", at: now.getTime() },
     icon: "🚗",
     score: 84 + Math.round((45 - mins) / 3), // closer to leave-time → more urgent
     text,
@@ -65,6 +66,7 @@ export function binWeatherClash(ctx, now) {
   const colours = (ctx.bins.colours ?? []).join(" + ");
   return {
     id: `bin-weather:${dateKey(now)}`,
+    evidence: { key: "bins", at: now.getTime() },
     icon: "🗑️",
     score: 60,
     text: `Bins out tonight${colours ? ` (${colours})` : ""} — rain's coming, worth beating it.`,
@@ -101,6 +103,7 @@ export function fuelCycleLow(ctx, now, { fuelHistory = {} } = {}) {
 
   return {
     id: `fuel-low:${dateKey(now)}`,
+    evidence: { key: "fuel", at: now.getTime() },
     icon: "⛽",
     score: 55,
     text: `Unleaded's ${price}c at ${ctx.fuel.name} — bottom of the cycle.`,
@@ -120,6 +123,7 @@ export function tomorrowRainEarlyStart(ctx, now) {
 
   return {
     id: `tomorrow-rain:${dateKey(now)}`,
+    evidence: { key: "forecast", at: now.getTime() },
     icon: "🌧️",
     score: 50,
     text: `Rain's likely tomorrow morning and ${first.title}'s at ${first.time} — allow extra time.`,

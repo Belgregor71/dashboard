@@ -2262,6 +2262,16 @@ window.CONFIG = {
     // window is 7:10–8:00 on weekdays.
     v3PredictDeparture: true,
 
+    // ── HOUSE-MIND S5a (docs/design/HOUSE-MIND.md §S5): evidence. Every
+    // candidate names the reading it stands on, `evidence: {key, at}`
+    // (src/js/services/evidence.js has the vocabulary and the ages). With this
+    // on, V3's tick ranks only candidates whose evidence is present, known and
+    // current: a polled reading older than 20 min, or an event with no
+    // `expiresAt`, is dropped, and `__v3().attention.dropped` says why.
+    // __forceCandidate is exempt. The incumbent never arms the gate.
+    // Rollback: v3EvidenceGate: false (+ hard reload) — read per tick.
+    v3EvidenceGate: false,
+
     // V3's field weather (src/v3/main.js loadWeather): the substrate's causes,
     // the Living Window's slice and the archive's sky line.
     // FLIPPED ON 2026-09-23 by the owner, first of the three. Deployed off first

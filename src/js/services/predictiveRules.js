@@ -70,6 +70,7 @@ export function rainIncoming(ctx, now) {
 
   return {
     id: `rain-incoming:${quarterKey(startAt)}`,
+    evidence: { key: "nowcast", at: now.getTime() },
     source: SOURCE,
     icon: "🌧️",
     score: 55 + Math.round(prob * 0.25),
@@ -103,6 +104,7 @@ export function binNight(ctx, now) {
     cutoff.setHours(7, 0, 0, 0);
     return {
       id: `bin-last-chance:${dateKey(now)}`,
+      evidence: { key: "bins", at: now.getTime() },
       source: SOURCE,
       icon: "🗑️",
       // Above the eve reminder: same chore, far less time left to do it.
@@ -118,6 +120,7 @@ export function binNight(ctx, now) {
 
   return {
     id: `bin-night:${dateKey(now)}`,
+    evidence: { key: "bins", at: now.getTime() },
     source: SOURCE,
     icon: "🗑️",
     score: 50,
@@ -141,6 +144,7 @@ export function onThisDay(ctx, now) {
 
   return {
     id: `on-this-day:${dateKey(now)}:${label}`,
+    evidence: { key: "calendar", at: now.getTime() },
     source: SOURCE,
     icon: "🎉",
     score: 42,

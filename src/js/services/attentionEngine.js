@@ -13,6 +13,7 @@ import {
 } from "./insightRules.js";
 import { evaluatePredictive } from "./predictiveRules.js";
 import { rankQueue, selectForMode } from "./attentionRank.js";
+import { gateByEvidence } from "./evidence.js";
 import { isGamingQuiet } from "./quietMode.js";
 import { get as getContext } from "../core/contextStore.js";
 import { emit } from "../core/eventBus.js";
@@ -166,13 +167,27 @@ async function refresh() {
  * ranks them, and applies the presence mode.
  * Claims the insight cooldown when the hero changes.
  */
-export function getSelection({ sources = [], now = new Date(), mode = "glance", weights = null } = {}) {
+export function getSelection({ sources = [], now = new Date(), mode = "glance", weights = null, requireEvidence = false } = {}) {
   const intent = intentEnabled() ? getContext().intent : null;
+
+  /* HOUSE-MIND S5a: with `requireEvidence`, a candidate that cannot name a
+     current reading (services/evidence.js) is not ranked at all. Only V3's tick
+     ever passes it (behind features.v3EvidenceGate); the incumbent never does,
+     so its queue is the call as it shipped.
+     `injected` is EXEMPT: __forceCandidate is how the wall is driven over CDP,
+     and a verification probe the gate silently ate would report a lie. */
+  let dropped = [];
+  let ranked = [...insightCandidates, ...sources];
+  if (requireEvidence) {
+    const gated = gateByEvidence(ranked, now.getTime());
+    ranked = gated.kept;
+    dropped = gated.dropped;
+  }
 
   // Phase 10: route every candidate's copy through the one temperament voice, and
   // let the centralised silence thresholds drop a line the house would stay quiet
   // about. Flag-off → the list is untouched (byte-identical ranking + selection).
-  let candidates = [...insightCandidates, ...sources, ...injected];
+  let candidates = [...ranked, ...injected];
   if (personalityEnabled()) {
     candidates = candidates
       .filter((c) => shouldSpeak(c, intent))
@@ -198,7 +213,7 @@ export function getSelection({ sources = [], now = new Date(), mode = "glance", 
     }
   }
 
-  return { ...sel, queue };
+  return { ...sel, queue, dropped };
 }
 
 export function initAttentionEngine() {
