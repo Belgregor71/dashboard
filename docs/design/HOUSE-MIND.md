@@ -661,9 +661,23 @@ forbids. The draft did not notice. The amended S6 splits the log in two:
   - No sensor on the wall can say whether anyone *looked at* the card. The measurable
     question is how often a "shown" hero was actually on the glass, and whether the
     dwell happened with it there.
-- ⏳ **Measuring it:** a read-only sampler (`~/s6-dwell/` on the G11) logs presence,
-  depth, the hero, `earned`, `acted` and the glance text on every change, for 24 hours
-  from 2026-09-25 18:00 AEST.
+- **MEASURED (2026-09-25 18:00 → 09-26 17:56 AEST, `~/s6-dwell/`, read-only).**
+  The sampler records changes only, polling every 10 s: 438 samples, 242 with someone
+  present, 165 dwelling. Heroes held for under 10 s can be missed. Source-less
+  insight heroes (3) are excluded because the learner skips them.
+  - **"Shown" is mostly ON the glass. The hypothesis is refuted.** Of 58 heroes, 47 (81%)
+    were on the glass.
+  - **The off-glass share is almost all camera-trigger.** Camera-trigger: 32 shown,
+    23 on the glass (72%), and 8 dwelt without ever being on the glass (all at score 72,
+    each over 1–2 samples). Every other source: 26 shown, 24 on the glass. The two
+    exceptions are 1 tonightsMenu and 1 resolution.
+  - **"Dwelt" barely discriminates: 54 of 58 shown heroes dwelt (93%).** Presence is at
+    DWELL for most of the time any hero is up, so dwell count ≈ shown count for every
+    source except tonightsMenu (2 shown, 0 dwelt). As a learning signal it currently
+    says "someone was home", not "this card held attention".
+  - **Implication (a PROPOSAL, not built):** "learn only from on-glass presentations"
+    would drop the 11 off-glass heroes (9 of them camera-trigger) from the counts. It changes live ranking
+    (`v3AttentionWeights` is ON), so it is the owner's call and must be flag-gated.
 
 **What would reopen automatic learning:** only a digest showing a stable pattern that
 points one way, over weeks. Even then it would feed ranking alone (the existing nudge
