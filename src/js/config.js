@@ -2404,7 +2404,11 @@ window.CONFIG = {
     // ask IS the presence. Off: the sentence is not claimed at all and falls
     // through to Assist, exactly as before. V3 only. Rollback: -> false (read
     // per turn by the matcher; a cache-bypass reload for the built copy).
-    v3DogVoice: false,
+    // FLIPPED ON 2026-09-27 at the owner's ask. Deployed off first (55a4bb4);
+    // live, with the flag set on the running page, "show me the dogs" went the
+    // local lane and all five generic pairs played in order, each on its own
+    // timing, 0 overlays/timers after, 0 exceptions.
+    v3DogVoice: true,
   },
 
   /* --------------------------------------------------------------
