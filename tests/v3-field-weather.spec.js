@@ -183,13 +183,25 @@ const UP = 0.38, GAP = 24;
    strong as the real one. At ±20 that alias (-11 + 29 = +18) was in range and
    won on some random layouts — pre-push red 2026-09-22, "west" read +18 where
    every clean run reads exactly -11. ±15 excludes it with margin; the aliases
-   left in range are single-sheet, so the three-sheet true peak outvotes them. */
+   left in range are single-sheet, so the three-sheet true peak outvotes them.
+   ⚠⚠ BUT THE ALIAS'S SHOULDER STILL REACHES IN. Excluding +18 does not exclude
+   the slope up to it: measured over 32 curves, the score RAMPS toward the +15
+   edge, and on one clean run the edge tied the true -11 peak exactly (2104 vs
+   2104) — under full-suite load it won, "west" read +15 (2026-09-26). So the
+   winner is the most PROMINENT shift, not the highest: score minus the mean of
+   its ±2 neighbours. A streak peak is sharp (+150..+300 over 32 curves); a ramp
+   scores ~0 however high it climbs, and the window's own edges cannot compete. */
 function bestShift(a, b, span = 15) {
-  let best = 0, bestScore = -Infinity;
+  const score = [];
   for (let s = -span; s <= span; s++) {
-    let score = 0;
-    for (let i = span; i < a.length - span; i++) score += a[i] * b[i + s];
-    if (score > bestScore) { bestScore = score; best = s; }
+    let sum = 0;
+    for (let i = span; i < a.length - span; i++) sum += a[i] * b[i + s];
+    score.push(sum);
+  }
+  let best = 0, bestProm = -Infinity;
+  for (let k = 2; k < score.length - 2; k++) {
+    const prom = score[k] - (score[k - 2] + score[k + 2]) / 2;
+    if (prom > bestProm) { bestProm = prom; best = k - span; }
   }
   return best;
 }

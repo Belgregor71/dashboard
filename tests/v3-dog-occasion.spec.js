@@ -67,6 +67,40 @@ async function open(page) {
   return { errors, sheetRequests };
 }
 
+/* The wall settles after boot on its own — measured: #hour 799.7 → 770.8
+   within 700ms with no dog ever called, and (2026-09-26, 1 run in 24 under
+   load) a top-left text line reflowing 3px down and 4px narrower as its face
+   landed. "Before" must be the settled wall, or a layout check blames the dogs
+   for the boot. */
+async function wallSettled(page) {
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
+  await page.waitForFunction(() => new Promise((ok) => {
+    const a = document.getElementById("hour").getBoundingClientRect().top;
+    setTimeout(() => ok(a === document.getElementById("hour").getBoundingClientRect().top), 600);
+  }), null, { timeout: 10_000 });
+}
+
+/* Page-wide CLS from NOW on. An entry that started before the observer did is
+   the boot's, not the show's — one was delivered at t=-292ms. Sources are kept
+   so a red run names what moved instead of reporting a bare number. */
+async function watchLayoutShift(page) {
+  await page.evaluate(() => {
+    window.__cls = 0; window.__clsSrc = [];
+    const t0 = performance.now();
+    new PerformanceObserver((l) => {
+      for (const e of l.getEntries()) {
+        if (e.startTime < t0) continue;
+        window.__cls += e.value;
+        for (const s of e.sources || []) {
+          const n = s.node;
+          const name = n?.id ? `#${n.id}` : n?.nodeType === 3 ? `text "${n.textContent.slice(0, 30)}"` : n?.nodeName;
+          window.__clsSrc.push(`${name} y ${s.previousRect.y}→${s.currentRect.y} w ${s.previousRect.width}→${s.currentRect.width}`);
+        }
+      }
+    }).observe({ type: "layout-shift", buffered: false });
+  });
+}
+
 /* Watch ONE element's data-frame (never a body-subtree observer — that froze
    the kiosk's renderer once) and, on every change, measure where the sheet
    sits relative to the frame box, in cells. */
@@ -267,24 +301,14 @@ test.describe("dog occasion", () => {
   // look that is never painted here is a look whose windows are unchecked.
   for (const look of [0, 1, 2]) test(`the pair, look ${look}: every frame on its own cell, in order, on each dog's timing`, async ({ page }) => {
     const { errors } = await open(page);
-    // The wall settles after boot on its own — measured: #hour 799.7 → 770.8
-    // within 700ms with no dog ever called. "Before" must be the settled wall,
-    // or the check blames the dogs for the boot.
-    await page.waitForFunction(() => new Promise((ok) => {
-      const a = document.getElementById("hour").getBoundingClientRect().top;
-      setTimeout(() => ok(a === document.getElementById("hour").getBoundingClientRect().top), 600);
-    }), null, { timeout: 10_000 });
+    await wallSettled(page);
     const before = await page.evaluate(() => ({
       hour: JSON.stringify(document.getElementById("hour").getBoundingClientRect()),
       stage: JSON.stringify(document.querySelector(".stage").getBoundingClientRect()),
       scrollH: document.documentElement.scrollHeight,
       scrollW: document.documentElement.scrollWidth
     }));
-    await page.evaluate(() => {
-      window.__cls = 0;
-      new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__cls += e.value; })
-        .observe({ type: "layout-shift", buffered: false });
-    });
+    await watchLayoutShift(page);
     await recordFrames(page);
 
     const done = page.evaluate((look) => window.dogOccasion.show("christmas",
@@ -389,13 +413,14 @@ test.describe("dog occasion", () => {
       stage: JSON.stringify(document.querySelector(".stage").getBoundingClientRect()),
       scrollH: document.documentElement.scrollHeight,
       scrollW: document.documentElement.scrollWidth,
-      cls: window.__cls
+      cls: window.__cls,
+      moved: window.__clsSrc
     }));
     expect(after.hour).toBe(before.hour);
     expect(after.stage).toBe(before.stage);
     expect(after.scrollH).toBe(before.scrollH);
     expect(after.scrollW).toBe(before.scrollW);
-    expect(after.cls).toBe(0);
+    expect(after.cls, `layout shifted: ${after.moved.join("; ")}`).toBe(0);
     expect(errors).toEqual([]);
   });
 
@@ -682,11 +707,8 @@ test.describe("dog occasion", () => {
 
   test("run: the pair crosses once, left to right, each on its own gait", async ({ page }) => {
     const { errors } = await open(page);
-    await page.evaluate(() => {
-      window.__cls = 0;
-      new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__cls += e.value; })
-        .observe({ type: "layout-shift", buffered: false });
-    });
+    await wallSettled(page);
+    await watchLayoutShift(page);
     await recordRun(page);
     const done = page.evaluate(() => window.dogOccasion.show("christmas", { mode: "run", dogs: ["benji", "teddy"] }));
 
@@ -814,7 +836,8 @@ test.describe("dog occasion", () => {
     expect(await page.evaluate(() => window.dogOccasion.state())).toEqual(
       expect.objectContaining({ running: false, timers: 0, dogs: [] })
     );
-    expect(await page.evaluate(() => window.__cls)).toBe(0);
+    const shift = await page.evaluate(() => ({ cls: window.__cls, moved: window.__clsSrc }));
+    expect(shift.cls, `layout shifted: ${shift.moved.join("; ")}`).toBe(0);
     expect(errors).toEqual([]);
   });
 
