@@ -890,6 +890,36 @@ test.describe("the calendar's day slot", () => {
     }
   });
 
+  /* The dog show. Off, the sentence is not claimed — it falls to Assist as it
+     always did. On, a "let me SEE them" verb claims it, one named dog becomes
+     the slot, and the real dogs' questions stay where they were. */
+  test("the dog show is refused by default and claimed by dogs.show when armed", () => {
+    const ASKS = ["show me the dogs", "Show us the dogs!", "bring out the dogs", "where are the dogs",
+      "where is the dog", "wheres the dogs", "let's see the doggies", "dog show", "show me benji and teddy"];
+    for (const t of ASKS) expect(matchIntent(t)?.id, `off: "${t}"`).not.toBe("dogs.show");
+
+    const prior = globalThis.window;
+    try {
+      globalThis.window = { CONFIG: { features: { v3DogVoice: true, choreRoster: true } } };
+      for (const t of ASKS) {
+        expect(matchIntent(t)?.id, `on: "${t}"`).toBe("dogs.show");
+        expect(matchIntent(t).slots.dog, `"${t}" names no single dog`).toBeUndefined();
+      }
+      expect(matchIntent("show me teddy")).toEqual({ id: "dogs.show", slots: { dog: "teddy" } });
+      expect(matchIntent("where's Benji")).toEqual({ id: "dogs.show", slots: { dog: "benji" } });
+      // The real dogs' questions are not a show.
+      expect(matchIntent("who's feeding the dogs")?.id).toBe("house.chores");
+      expect(matchIntent("whose turn is it to feed the dogs")?.id).toBe("house.chores");
+      for (const t of ["check on the dogs", "have the dogs been fed", "the dogs are barking", "show me the driveway"]) {
+        expect(matchIntent(t)?.id, `"${t}"`).not.toBe("dogs.show");
+      }
+      expect(matchIntent("show me the driveway")?.id).toBe("show.camera");
+    } finally {
+      if (prior === undefined) delete globalThis.window;
+      else globalThis.window = prior;
+    }
+  });
+
   test("each calendar intent declines the days it cannot honour", () => {
     /* ⚠ `${DAY}`, NOT A HARD-CODED WEEKDAY — this test read "tuesday" and so
        passed six days in seven. On a Tuesday "on tuesday" resolves to TODAY,

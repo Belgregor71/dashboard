@@ -536,6 +536,24 @@ const MUTATION_RE =
    the two bare demonstratives ("not this one"/"not that one") that only ever
    mean this while a photograph is on the wall. The handler falls through when
    the ground has nothing showing, so a stray match costs a beat, not a memory. */
+/* ── The dog show (V3, features.v3DogVoice) ────────────────────────────────
+   An ACTING id, like the veto and the timers: the lane plays Benji and Teddy
+   (src/v3/core/dog-show.js) and there is no answerer to pair it with. V3 is the
+   only surface with dogs; the incumbent has no branch for it, so there the
+   sentence goes on to Assist exactly as it did before, as a timer does.
+
+   Asked for by a verb that means "let me SEE them" — never a bare "dogs",
+   which the chore roster owns ("who's feeding the dogs") and which a question
+   about the real dogs would be. "Check on the dogs" is left alone on purpose:
+   that is a camera question. One dog named becomes `slots.dog`. */
+const DOG_SHOW_RE = /\b(show (me |us )?|bring out |let me see |let's see |where are |where's )(the )?(dogs|dog|doggies|doggos|pups|puppies|benji|teddy)\b|\bdog show\b/;
+
+function matchDogShow(text) {
+  if (!featureOn("v3DogVoice") || !DOG_SHOW_RE.test(text)) return null;
+  const named = [...new Set(text.match(/\b(benji|teddy)\b/g) ?? [])];
+  return { id: "dogs.show", slots: named.length === 1 ? { dog: named[0] } : {} };
+}
+
 const PHOTO_VETO_RE =
   /\b(not (this|that) (one|photo|picture|image)|(hide|delete|remove) (this|that|it)( ?(one|photo|picture|image))?|never show (this|that|it)( one| photo| picture| image)?( again)?|get rid of (this|that|it)( one| photo| picture| image)?|don.t (show|like) (this|that)( one| photo| picture| image)?)\b/;
 
@@ -866,6 +884,9 @@ export function matchIntent(raw) {
   // before the guard, which would otherwise decline "set" and "remind".
   const timer = matchTimer(text);
   if (timer) return timer;
+  // Before the guard: "bring out the dogs" is a show, not a command for Assist.
+  const dogs = matchDogShow(text);
+  if (dogs) return dogs;
   if (MUTATION_RE.test(text)) return null;
 
   // "show me the driveway" and friends resolve first when a camera is named,
@@ -943,5 +964,6 @@ export const ACTING_INTENT_IDS = Object.freeze([
   "timer.set",
   "timer.cancel",
   "timer.query",
-  "reminder.set"
+  "reminder.set",
+  "dogs.show"
 ]);

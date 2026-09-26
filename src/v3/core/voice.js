@@ -32,6 +32,9 @@ import { renderVocabularyCard } from "./vocabulary-card.js";
 import { setSaidText } from "./spread.js";
 import { vetoCurrent, restoreLastVeto } from "./ground.js";
 import { handleTimerIntent } from "./timers.js";
+import { dogOccasion, OCCASIONS } from "./dog-occasion.js";
+import { planFor } from "./dog-schedule.js";
+import { programmeFor, playDogShow, stopDogShow } from "./dog-show.js";
 
 const LINGER_MS = 8_000;
 const DEIXIS_MS = 4_200;
@@ -521,6 +524,27 @@ async function handleGoodnight() {
   return prepareGoodnight();
 }
 
+/* "Show me the dogs" (features.v3DogVoice — the matcher already declined the
+   sentence when it is off). Today's occasion comes from the live schedule when
+   it is armed, since only it knows the birthdays; else the calendar alone. The
+   show is STARTED, never awaited: it runs ~40 s and the turn must end with the
+   line. A second ask replaces a running show rather than queueing behind it. */
+const DOG_LINES = {
+  pair: "Cue the talent — here come Benji and Teddy!",
+  benji: "Benji, you're on!",
+  teddy: "Teddy, you're on!"
+};
+
+function handleDogShow(intent) {
+  const dog = intent.slots?.dog;
+  const today = globalThis.window?.__dogSchedule?.state?.().today?.occasion ?? planFor(new Date()).occasion;
+  stopDogShow();
+  dogOccasion.hide();
+  const programme = programmeFor(OCCASIONS, today, dog ? [dog] : undefined);
+  playDogShow({ ...programme, show: dogOccasion.show });
+  return DOG_LINES[dog ?? "pair"];
+}
+
 /**
  * One turn. Returns { handled, lane }.
  */
@@ -616,6 +640,14 @@ export async function submit(text, { source = "unknown" } = {}) {
           endTurn(clean, spoken);
           return { handled: true, lane: "local" };
         }
+      } else if (intent.id === "dogs.show") {
+        const spoken = handleDogShow(intent);
+        setPhase("speaking");
+        await say(spoken);
+        rememberReply(spoken);
+        consecutiveFailures = 0;
+        endTurn(clean, spoken);
+        return { handled: true, lane: "local" };
       } else if (intent.id === "action.goodnight") {
         const spoken = await handleGoodnight();
         if (spoken) {

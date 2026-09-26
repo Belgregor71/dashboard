@@ -2396,6 +2396,15 @@ window.CONFIG = {
     // (the kitchen PIR has been dead since 09-18, so presence = webcam + mic).
     // All six new occasions were shown on the live wall by CDP first.
     v3DogSchedule: true,
+
+    // "Show me the dogs" (src/v3/core/dog-show.js): a spoken ask plays the
+    // dog show — every look of today's occasion, one pair after another (the
+    // generic five, or Christmas's three and a run in December). Naming one
+    // dog ("show me Teddy") plays just him. Any hour, no presence gate: the
+    // ask IS the presence. Off: the sentence is not claimed at all and falls
+    // through to Assist, exactly as before. V3 only. Rollback: -> false (read
+    // per turn by the matcher; a cache-bypass reload for the built copy).
+    v3DogVoice: false,
   },
 
   /* --------------------------------------------------------------
