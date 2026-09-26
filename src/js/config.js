@@ -2389,7 +2389,10 @@ window.CONFIG = {
     // come from DOG_BIRTHDAYS in the box's .env — never this file (public).
     // Off: nothing calls dogOccasion, which is the build before this flag.
     // Rollback: -> false (read at boot — a kiosk cache-bypass reload).
-    v3DogSchedule: false,
+    // FLIPPED ON 2026-09-26 at the owner's ask, once cameraPresence was live
+    // (the kitchen PIR has been dead since 09-18, so presence = webcam + mic).
+    // All six new occasions were shown on the live wall by CDP first.
+    v3DogSchedule: true,
   },
 
   /* --------------------------------------------------------------
