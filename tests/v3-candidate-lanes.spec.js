@@ -209,6 +209,11 @@ test.describe("V3 candidate lanes — the tick", () => {
     const menuIds = (flag) =>
       page.evaluate(
         ({ flag, at }) => {
+          /* The clock is pinned but the menu's evidence `at` is the real fetch
+             time, so before ~11:40 local the S5a gate sees a reading hours old
+             and drops it as "stale". This spec is about the fold, not the gate
+             (candidate-evidence.spec.js owns that), so the gate is held off. */
+          window.CONFIG.features.v3EvidenceGate = false;
           window.CONFIG.features.foldHomeTiles = flag;
           return window.__v3Tick(at).queue.filter((c) => c.source === "tonightsMenu").map((c) => c.id);
         },

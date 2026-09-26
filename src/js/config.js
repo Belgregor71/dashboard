@@ -2287,7 +2287,10 @@ window.CONFIG = {
     // `expiresAt`, is dropped, and `__v3().attention.dropped` says why.
     // __forceCandidate is exempt. The incumbent never arms the gate.
     // Rollback: v3EvidenceGate: false (+ hard reload) — read per tick.
-    v3EvidenceGate: false,
+    // FLIPPED ON 2026-09-27 by the owner. Deployed off first (3321ead), then
+    // a 24 h live soak with the gate forced on over CDP (09-25 17:18 → 09-26
+    // 17:18): 2,878 ticks, gate on 99.7%, 0 drops, 0 errors, 11 lanes seen.
+    v3EvidenceGate: true,
 
     // V3's field weather (src/v3/main.js loadWeather): the substrate's causes,
     // the Living Window's slice and the archive's sky line.
