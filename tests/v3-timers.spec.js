@@ -42,9 +42,23 @@ const snap = (page) => page.evaluate(() => window.__v3Timers.snapshot());
 /* clock.install() lets time keep flowing in real time, which is fine for a
    2-minute timer and not for asserting inside a 1 s chime: a few polls of real
    time would carry the page past it. Freeze it, so only runFor moves time. */
+/* Pause at the page's now + 1ms. The installed clock flows in real time until
+   paused, so under full-suite load more than 1ms can pass between reading
+   Date.now() and pauseAt() — the target is then already the past and
+   Playwright throws "Cannot fast-forward to the past" (seen 2026-09-26).
+   Re-read and try again rather than widen the margin: pauseAt FAST-FORWARDS,
+   firing every page timer inside the gap, and a 2s margin turned 5 of these
+   tests red. */
 async function freezeClock(page) {
-  const t = await page.evaluate(() => Date.now());
-  await page.clock.pauseAt(t + 1);
+  for (let attempt = 1; ; attempt++) {
+    const t = await page.evaluate(() => Date.now());
+    try {
+      await page.clock.pauseAt(t + 1);
+      return;
+    } catch (err) {
+      if (attempt >= 5 || !/fast-forward to the past/i.test(String(err))) throw err;
+    }
+  }
 }
 const transcript = (page, text) => page.evaluate((t) => window.__v3Transcript(t), text);
 
