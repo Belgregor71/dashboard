@@ -12,5 +12,8 @@ export default {
   // The base config ignores verify/** so `npm test` stays fast; clear that
   // here or this config would ignore its own suite.
   testIgnore: undefined,
+  // The base's projects carry their own testIgnore (verify/**): inherited, they
+  // would empty this suite — the contrast gate passing on zero tests.
+  projects: undefined,
   timeout: 90_000
 };

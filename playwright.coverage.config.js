@@ -28,6 +28,8 @@ import base from "./playwright.config.js";
  */
 export default {
   ...base,
+  // Not the base's two projects: their testIgnore would override this list.
+  projects: undefined,
   testMatch: [
     "v3-alerts.spec.js",
     "v3-attention.spec.js",

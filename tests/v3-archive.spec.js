@@ -617,9 +617,6 @@ test("flag OFF is a genuine no-op — no nodes, no marker, no hook", async ({ pa
     // The host is in index.html either way; it must paint NOTHING, not even the
     // opaque background it carries when the flag is on.
     visible: document.getElementById("archive").checkVisibility({ opacityProperty: true }),
-    captionVisible: document
-      .getElementById("ground-caption")
-      .checkVisibility({ opacityProperty: true }),
     layers: window.__ground().layers
   }));
 
@@ -629,7 +626,13 @@ test("flag OFF is a genuine no-op — no nodes, no marker, no hook", async ({ pa
   expect(probe.visible).toBe(false);
   // Depth 0 is exactly the surface that shipped: full-bleed photograph, scrim,
   // and the caption doing the talking.
-  expect(probe.captionVisible).toBe(true);
+  // ⚠ POLLED TO FULL OPACITY. The caption fades in over 1.2 s just as the
+  // ground is shown, and this used to read checkVisibility() at that moment:
+  // measured 2026-09-26, 20 runs sat at opacity 0.0065-0.50 and one at exactly
+  // 0 — which failed (~15% under load, already so at a5a9f80). "Visible" at
+  // 0.65% was never "doing the talking" either. It must FINISH fading in.
+  await expect.poll(() => page.evaluate(() =>
+    getComputedStyle(document.getElementById("ground-caption")).opacity), { timeout: 5_000 }).toBe("1");
   expect(probe.layers).toBe(1);
 
   expect(pageErrors).toEqual([]);

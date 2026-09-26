@@ -1036,11 +1036,21 @@ test.describe("the motion burst", () => {
       // Seek near the end rather than waiting out the 8s asset — the wrap is the
       // media element's behaviour, and waiting for it in real time would add 8s
       // to the suite for the same evidence.
+      // ⚠ Wait for `seeked` before reading "before", then POLL for the wrap.
+      // While a seek is in flight currentTime reports the seek target, so under
+      // full-suite load a fixed 1.5 s sleep read 7.7 → 7.7 (twice, 2026-09-26)
+      // — no playback at all, not a clip that failed to loop. A non-looping clip
+      // still fails: it ends and never comes back below `before`.
       const wrapped = await page.evaluate(async () => {
         const clip = document.querySelector(".archive__clip");
+        const seeked = new Promise((r) => clip.addEventListener("seeked", r, { once: true }));
         clip.currentTime = Math.max(0, clip.duration - 0.3);
+        await Promise.race([seeked, new Promise((r) => setTimeout(r, 3000))]);
         const before = clip.currentTime;
-        await new Promise((r) => setTimeout(r, 1500));
+        const t0 = performance.now();
+        while (clip.currentTime >= before && performance.now() - t0 < 6000) {
+          await new Promise((r) => setTimeout(r, 100));
+        }
         return { before, after: clip.currentTime, paused: clip.paused, ended: clip.ended };
       });
       // Time went BACKWARDS: it restarted. A non-looping video would have

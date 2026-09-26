@@ -647,8 +647,14 @@ window.CONFIG = {
     // (rising edge, then ≤ 1 per 30 s). Additive like sound: feeds sawMotion
     // ("webcam"), never absence. Built 2026-09-26 while the kitchen PIR had been
     // silent since 09-18. Off: the event is still relayed and ignored, read per
-    // event. Rollback: -> false (a kiosk cache-bypass reload).
-    cameraPresence: false,
+    // event. Rollback: -> false (a kiosk cache-bypass reload); the camera itself
+    // (and its light) off: `sudo systemctl disable --now camera-presence`.
+    // FLIPPED ON 2026-09-26 at the owner's ask. Live before the flip: service
+    // installed + running, a real walk-through 13:03 confirmed in 1 s (57 person
+    // frames, 6 emits in 2.5 min, throttle held). ⚠ The dog walk-past negative
+    // control was SKIPPED by the owner — if Benji or Teddy trip it, the symptom
+    // is the wall thinking someone is home.
+    cameraPresence: true,
 
     // PRESENCE EARNS MEDIUM — the bar moves with the room.
     //

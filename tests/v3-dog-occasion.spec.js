@@ -292,10 +292,13 @@ test.describe("dog occasion", () => {
 
     // Mid-run: staging, stacking, pointer, layout.
     // Length first: `[].every()` is true, and before the mount dogs is [].
+    // 15 s, not 8: the mount waits on a REAL decode of two sheets, and under
+    // the full suite (and the reversibility run) that alone overran 8 s
+    // (2026-09-26). Timing is asserted separately, on the fake clock.
     await page.waitForFunction(() => {
       const d = window.dogOccasion.state().dogs;
       return d.length === 2 && d.every((x) => x.phase === "idle");
-    }, null, { timeout: 8_000 });
+    }, null, { timeout: 15_000 });
     const staged = await page.evaluate(() => {
       const root = document.querySelector(".dogs");
       const r = (s) => document.querySelector(s).getBoundingClientRect();

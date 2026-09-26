@@ -24,6 +24,22 @@ export default defineConfig({
   // Kept out of `npm test` so the everyday suite stays fast, and so the pre-push
   // hook does not run the contrast sweep twice.
   testIgnore: "verify/**",
+  /* Two projects, run in order. `isolated` holds specs whose effect reaches
+     EVERY page through the server's process-wide voiceBus — camera-presence's
+     end-to-end test posts a real person, and the SSE carries it to every V3
+     page open at that moment. With features.cameraPresence on by default, any
+     spec asserting an empty room would flake on whichever page was open (the
+     dog schedule's opening "absent" is one). So they run FIRST, before `suite`
+     opens a page. ⚠ A failure in `isolated` SKIPS `suite` (Playwright
+     dependency semantics) — read the isolated failure first; the skip count is
+     a consequence, not a second failure.
+     ⚠ playwright.verify / playwright.coverage spread this config and reset
+     `projects: undefined` — a project-level testIgnore would otherwise empty
+     the contrast gate without a sound. */
+  projects: [
+    { name: "isolated", testMatch: /camera-presence\.spec\.js$/ },
+    { name: "suite", testIgnore: ["verify/**", /camera-presence\.spec\.js$/], dependencies: ["isolated"] }
+  ],
   timeout: 30_000,
   fullyParallel: false,
   reporter: [["list"]],
