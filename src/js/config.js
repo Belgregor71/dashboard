@@ -2363,6 +2363,16 @@ window.CONFIG = {
     // FLIPPED ON 2026-09-13. Rollback: v3AtmoRainEpisodes: false (read at boot —
     // a kiosk cache-bypass reload).
     v3AtmoRainEpisodes: true,
+
+    // Benji and Teddy pop up on their own (src/v3/core/dog-schedule.js): a
+    // season's outfits in its window (New Year, Australia Day, Easter,
+    // Halloween, Christmas — more often toward the day, ≤ 5 an hour), a
+    // birthday's on the day, generic peeks otherwise (~1, ≤ 2 an hour). Only
+    // to someone present, never 22:00–07:00, never over a SUBJECT. Birthdays
+    // come from DOG_BIRTHDAYS in the box's .env — never this file (public).
+    // Off: nothing calls dogOccasion, which is the build before this flag.
+    // Rollback: -> false (read at boot — a kiosk cache-bypass reload).
+    v3DogSchedule: false,
   },
 
   /* --------------------------------------------------------------

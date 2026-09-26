@@ -752,6 +752,24 @@ test.describe("feeds", () => {
      is right for a nag and wrong for a roster. So this asserts the roster is
      present regardless of the window, which is the difference between the two
      routes and the reason the second one exists. */
+  /* Birthdays for the dogs' popups. The dates come from DOG_BIRTHDAYS in the
+     box's .env, which a test machine may or may not have — so the shape, never
+     the content. What is asserted regardless: no entry carries a NAME. The
+     list is dates, dog ids, and a family flag; a person's name must never
+     leave the server (the repo and its network tab are public-facing). */
+  test("GET /api/dogs/birthdays", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/dogs/birthdays");
+    expect(Object.keys(body)).toEqual(["days"]);
+    expect(Array.isArray(body.days)).toBe(true);
+    for (const d of body.days) {
+      expect(Object.keys(d).sort()).toEqual(["day", "dogs", "family", "month"]);
+      expect(Number.isInteger(d.month) && d.month >= 1 && d.month <= 12).toBe(true);
+      expect(Number.isInteger(d.day) && d.day >= 1 && d.day <= 31).toBe(true);
+      expect(d.dogs.every((id) => ["benji", "teddy"].includes(id))).toBe(true);
+      expect(typeof d.family).toBe("boolean");
+    }
+  });
+
   test("GET /api/chores", async ({ request }) => {
     const { body } = await expectJson(request, "/api/chores");
     expect(body.configured).toBe(true);

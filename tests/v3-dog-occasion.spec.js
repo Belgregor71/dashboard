@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { DOGS, MOTION, OCCASIONS, pickLooks } from "../src/v3/core/dog-occasion.js";
+import { SHEETS } from "../src/v3/core/dog-sheets.js";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    DOG OCCASION — Benji and Teddy peeking up for Christmas.
@@ -36,7 +37,16 @@ import { DOGS, MOTION, OCCASIONS, pickLooks } from "../src/v3/core/dog-occasion.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const MIDDAY = new Date("2026-09-11T02:00:00Z");
-const SHEETS = /\/assets\/dogs\//;
+const SHEET_URL = /\/assets\/dogs\//;
+
+/* A shipped sheet's pixel size: PNG (IHDR) or WebP (VP8X, which every sheet
+   with alpha is written as — 24-bit little-endian width-1 / height-1). */
+function sheetSize(buf, at) {
+  if (buf.toString("latin1", 12, 16) === "IHDR") return [buf.readUInt32BE(16), buf.readUInt32BE(20)];
+  expect(buf.toString("latin1", 0, 4) + buf.toString("latin1", 8, 12), `${at} RIFF/WEBP`).toBe("RIFFWEBP");
+  expect(buf.toString("latin1", 12, 16), `${at} VP8X`).toBe("VP8X");
+  return [buf.readUIntLE(24, 3) + 1, buf.readUIntLE(27, 3) + 1];
+}
 
 async function open(page) {
   const errors = [];
@@ -49,8 +59,8 @@ async function open(page) {
     if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) errors.push(m.text());
   });
   const sheetRequests = [];
-  page.on("request", (r) => { if (SHEETS.test(r.url())) sheetRequests.push(r.url()); });
-  page.on("response", (r) => { if (SHEETS.test(r.url()) && r.status() >= 400) errors.push(`sheet ${r.status()} ${r.url()}`); });
+  page.on("request", (r) => { if (SHEET_URL.test(r.url())) sheetRequests.push(r.url()); });
+  page.on("response", (r) => { if (SHEET_URL.test(r.url()) && r.status() >= 400) errors.push(`sheet ${r.status()} ${r.url()}`); });
   await page.clock.setFixedTime(MIDDAY);
   await page.goto("/v3/");
   await page.waitForFunction(() => typeof window.__v3 === "function" && typeof window.dogOccasion?.show === "function");
@@ -197,15 +207,24 @@ test.describe("dog occasion", () => {
           expect(looks.length, `${occ}/${mode}/${id} looks`).toBeGreaterThan(0);
           expect(new Set(looks.map((l) => l.name)).size).toBe(looks.length);
           expect(new Set(looks.map((l) => l.src)).size).toBe(looks.length);
-          for (const look of looks) {
+          for (const [i, look] of looks.entries()) {
             const at = `${occ}/${mode}/${id}/${look.name}`;
             expect(look.frames, at).toHaveLength(n);
             // The sheet is shipped, and its grid divides it the way the
-            // windows were measured (PNG IHDR: width, height at bytes 16, 20).
-            const png = readFileSync(new URL(`../static${look.src}`, import.meta.url));
-            expect(png.toString("latin1", 12, 16), at).toBe("IHDR");
-            const [w, h] = [png.readUInt32BE(16), png.readUInt32BE(20)];
-            expect(w / staged.grid.columns, `${at} square cells`).toBeCloseTo(h / staged.grid.rows, 6);
+            // windows were measured: Christmas's hand-measured sheets have
+            // square cells; a generated sheet's cells are exactly the ones its
+            // windows were measured on.
+            const [w, h] = sheetSize(readFileSync(new URL(`../static${look.src}`, import.meta.url)), at);
+            const gen = SHEETS[occ]?.[id]?.[i];
+            if (gen) {
+              expect(gen.src, at).toBe(look.src);
+              expect(w / staged.grid.columns, `${at} cell w`).toBeCloseTo(gen.cell.w, 6);
+              expect(h / staged.grid.rows, `${at} cell h`).toBeCloseTo(gen.cell.h, 6);
+              expect(staged.cellScale, at).toBeCloseTo(gen.cell.h / 362, 6);
+            } else {
+              expect(w / staged.grid.columns, `${at} square cells`).toBeCloseTo(h / staged.grid.rows, 6);
+              expect(staged.cellScale ?? 1, at).toBe(1);
+            }
           }
         }
       }
@@ -396,6 +415,70 @@ test.describe("dog occasion", () => {
     expect(errors).toEqual([]);
   });
 
+  /* The generated occasions (scripts/dogs/measure-sheets.py): every look of
+     every dog painted in a real browser, frame by frame. On a paused fake
+     clock stepped 20ms at a time — shorter than any expression — so all 36
+     looks run in seconds and every frame change is observed. Taller cells
+     (460 against Christmas's 362) must come out at Christmas's px size:
+     `cellScale` grows the box, so a sheet px is the same on the glass. */
+  for (const occ of Object.keys(SHEETS)) test(`${occ}: every look of each dog paints every frame on its own cell and window`, async ({ page }) => {
+    const { errors, sheetRequests } = await open(page);
+    const staged = OCCASIONS[occ].peek;
+    const vh = await page.evaluate(() => innerHeight);
+    await page.clock.install({ time: MIDDAY });
+    await page.clock.pauseAt(new Date(MIDDAY.getTime() + 1000));
+    const n = Math.max(staged.dogs.benji.length, staged.dogs.teddy.length);
+    for (let i = 0; i < n; i++) {
+      const looks = { benji: i % staged.dogs.benji.length, teddy: i % staged.dogs.teddy.length };
+      sheetRequests.length = 0;
+      await recordFrames(page);
+      await page.evaluate(([occ, looks]) => {
+        window.__dogDone = window.dogOccasion.show(occ, { dogs: ["benji", "teddy"], looks });
+      }, [occ, looks]);
+      await expect.poll(() => page.evaluate(() => window.dogOccasion.state().dogs.length), { timeout: 8_000 }).toBe(2);
+      const box = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll(".dogs .dog")]
+        .map((d) => [d.dataset.dog, { h: d.querySelector(".dog__frame").getBoundingClientRect().height, look: d.dataset.look }])));
+      // A whole peek, by the config: Teddy's beat, twelve faces, the hold and
+      // the exit (~5.8s) — then some. Stepping less leaves the run on a paused
+      // clock and __dogDone waiting for ever.
+      const lasts = (id) => MOTION[DOGS[id].motion].peek.delayMs + DOGS[id].timing.peek.reduce((a, b) => a + b, 0)
+        + staged.holdMs + MOTION[DOGS[id].motion].peek.exitMs;
+      const until = Math.max(lasts("benji"), lasts("teddy")) + 500;
+      for (let t = 0; t < until; t += 20) await page.clock.runFor(20);
+      await expect.poll(() => page.evaluate(() => window.dogOccasion.state().running), { timeout: 5_000 }).toBe(false);
+      const rec = await page.evaluate(() => window.__dogRec);
+      for (const id of ["benji", "teddy"]) {
+        const art = staged.dogs[id][looks[id]];
+        const at = `${occ}/${id}/${art.name}`;
+        expect(box[id].look, at).toBe(art.name);
+        // Present before placed, then the size: one cell is 34vh × dog scale
+        // × cellScale (460/362) — Christmas's px size, not 27% bigger or
+        // squeezed into a 362 cell.
+        expect(box[id].h, `${at} box`).toBeCloseTo(0.34 * vh * DOGS[id].scale * staged.cellScale, 0);
+        const frames = rec[id];
+        expect(frames.map((f) => f.frame), at).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+        for (const f of frames) {
+          const w = art.frames[f.frame];
+          const fat = `${at} frame ${f.frame}`;
+          expect(f.sheetCols, fat).toBeCloseTo(4, 3);
+          expect(f.sheetRows, fat).toBeCloseTo(3, 3);
+          expect(f.col, `${fat} column`).toBeCloseTo(f.frame % 4, 2);
+          expect(f.rowPlusBase, `${fat} row`).toBeCloseTo(Math.floor(f.frame / 4) + w.base, 2);
+          expect(f.clipParsed, `${fat} clip`).toBe(true);
+          expect(f.win.top, `${fat} window top`).toBeCloseTo(w.top, 2);
+          expect(f.win.left, `${fat} window left`).toBeCloseTo(w.left, 2);
+          expect(f.win.right, `${fat} window right`).toBeCloseTo(w.right, 2);
+        }
+      }
+      expect(await page.evaluate(() => window.__dogDone)).toEqual({ shown: true });
+      expect(await page.locator(".dogs").count()).toBe(0);
+      // This look's two sheets, 200 (a 4xx lands in `errors`), and no others.
+      const fetched = [...new Set(sheetRequests.map((u) => new URL(u).pathname))].sort();
+      expect(fetched).toEqual([staged.dogs.benji[looks.benji].src, staged.dogs.teddy[looks.teddy].src].sort());
+    }
+    expect(errors).toEqual([]);
+  });
+
   test("each expression holds exactly its own duration (fake clock, load-proof)", async ({ page }) => {
     const { errors } = await open(page);
     // Timers created from here on are the test's to advance; boot's were real.
@@ -529,7 +612,7 @@ test.describe("dog occasion", () => {
   test("bad requests answer with a reason and touch nothing", async ({ page }) => {
     const { errors, sheetRequests } = await open(page);
     const ask = (occ, opts) => page.evaluate(([o, p]) => window.dogOccasion.show(o, p), [occ, opts]);
-    expect(await ask("halloween", {})).toEqual({ shown: false, reason: "unknown-occasion" });
+    expect(await ask("arbor-day", {})).toEqual({ shown: false, reason: "unknown-occasion" });
     expect(await ask("christmas", { mode: "gallop" })).toEqual({ shown: false, reason: "unknown-occasion" });
     expect(await ask("christmas", { dogs: ["rex"] })).toEqual({ shown: false, reason: "unknown-dog:rex" });
     expect(await ask("christmas", { dogs: [] })).toEqual({ shown: false, reason: "no-dogs" });

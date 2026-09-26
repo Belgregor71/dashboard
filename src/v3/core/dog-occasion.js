@@ -24,9 +24,9 @@
             cycles the gait IN PLACE, and the wrapper alone travels the glass —
             the run cycle never carries screen travel.
 
-   Nothing triggers this automatically yet. Until a caller exists the module
-   does nothing at all: no DOM, no timers, no images decoded. That is also why
-   it has no feature flag — the flag belongs to the first AUTOMATIC trigger.
+   The only automatic caller is dog-schedule.js (features.v3DogSchedule);
+   the flag is there, not here. Between shows this module does nothing at
+   all: no DOM, no timers, no images decoded.
 
    ── Why each frame has a window, not just a grid index ─────────────────────
    Frames ARE indexed on the sheet's grid, but AI-drawn sheets do not respect
@@ -64,6 +64,8 @@
    instead, so the first frame can never flash blank; preload() is for a
    scheduler that wants the first frame instant.
    ═══════════════════════════════════════════════════════════════════════════ */
+
+import { SHEETS, CELL_SCALE } from "./dog-sheets.js";
 
 /* A constant rate, as a per-frame array: the run cycle's frames are strides,
    not expressions, so they share one duration — but the shape stays the same
@@ -173,13 +175,34 @@ const STILL = { fadeInMs: 400, holdMs: 2600, fadeOutMs: 600 };
    soft alpha fringe (≤ 24) is not cut hard. A peek's base is exact — below it
    is off-glass anyway; a run's base is on the glass, so it gets air too. */
 const AIR = 2;
-const windows = ({ top, base, left, right, cx, cy }, { cellPx, baseAir = 0 }) => base.map((b, i) => ({
-  top: (top[i] - AIR) / cellPx,
-  base: (b + baseAir) / cellPx,
-  left: (left[i] - AIR) / cellPx,
-  right: (right[i] + AIR) / cellPx,
-  ...(cx && cy ? { cx: cx[i] / cellPx, cy: cy[i] / cellPx } : {})
+const windows = ({ top, base, left, right, cx, cy }, { cellPx, cellW = cellPx, cellH = cellPx, baseAir = 0 }) => base.map((b, i) => ({
+  top: (top[i] - AIR) / cellH,
+  base: (b + baseAir) / cellH,
+  left: (left[i] - AIR) / cellW,
+  right: (right[i] + AIR) / cellW,
+  ...(cx && cy ? { cx: cx[i] / cellW, cy: cy[i] / cellH } : {})
 }));
+
+/* Every occasion after Christmas comes from scripts/dogs/measure-sheets.py
+   (dog-sheets.js, generated). Those sheets are RE-PACKED at import: each frame
+   lifted out by its own pixels and laid base-down in a clean grid, so their
+   windows never hold a neighbour and none carries a hand trim. Their cells are
+   460px tall but drawn at Christmas's px size, so `cellScale` grows the box to
+   match — one sheet px is the same size on the glass in every occasion.
+   Same 4×3 expression grid as Christmas, so each dog's own peek timing (and
+   personality) carries over unchanged. */
+const peekFromSheets = (looksByDog) => ({
+  grid: { columns: 4, rows: 3 },
+  anchor: "base",
+  stillFrame: 11,
+  holdMs: 2000,
+  cellScale: CELL_SCALE,
+  dogs: Object.fromEntries(Object.entries(looksByDog).map(([id, looks]) => [id, looks.map((l) => ({
+    name: l.name,
+    src: l.src,
+    frames: windows(l, { cellW: l.cell.w, cellH: l.cell.h })
+  }))]))
+});
 
 /* ── Occasions ──────────────────────────────────────────────────────────────
    occasion → mode → { grid, anchor, stillFrame, holdMs?, dogs: { id → [look…] } },
@@ -312,7 +335,8 @@ export const OCCASIONS = {
         }]
       }
     }
-  }
+  },
+  ...Object.fromEntries(Object.entries(SHEETS).map(([id, dogs]) => [id, { peek: peekFromSheets(dogs) }]))
 };
 
 /* ── Sheets ─────────────────────────────────────────────────────────────── */
@@ -555,7 +579,7 @@ function build(ids, staged, sizes) {
     const x = ordered.length === 1 ? staging.single : staging.pair[def.side];
     const set = (k, v) => el.style.setProperty(k, v);
     set("--dog-x", `${x}%`);
-    set("--dog-scale", String(def.scale));
+    set("--dog-scale", String(def.scale * (staged.cellScale ?? 1)));
     // The box's aspect from the sheet itself — one cell's real aspect, never
     // assumed square — times the layout's size in cells.
     set("--dog-box-h", String(layout.h));

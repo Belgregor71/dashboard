@@ -61,6 +61,8 @@ import { initCommands } from "./core/commands.js";
 import { clockDim } from "./core/sun-clock.js";
 import { initAtmosphereFx, atmosphereSun, onStrike } from "./core/atmosphere-fx.js";
 import { dogOccasion } from "./core/dog-occasion.js";
+import { initDogSchedule } from "./core/dog-schedule.js";
+import { isPresent } from "./core/presence.js";
 
 /* ⚠ `/js/config.js` is a separate <script> in index.html, so window.CONFIG is
    populated before this module runs — but read it LATE anyway (per call, not at
@@ -951,6 +953,21 @@ function boot() {
     }
   });
 
+  /* Benji and Teddy on their own (features.v3DogSchedule). After presence and
+     depth are up (initAttention, above): the schedule reads both on every
+     tick. Busy = anything at SUBJECT depth — a doorbell, a voice reply — so a
+     dog never lands on top of something the house is saying. Off: never
+     armed, and dogOccasion stays the console-only API it was. */
+  stage("dogs", () => {
+    if (!flag("v3DogSchedule")) return;
+    const schedule = initDogSchedule({
+      show: dogOccasion.show,
+      isPresent,
+      isBusy: () => getDepth() >= DEPTH.SUBJECT
+    });
+    window.__dogSchedule = schedule;
+  });
+
   // Last, and outside everything that could have failed: whatever else did or
   // did not come up, the field is the floor and the wall shows it.
   stage("field", () => setDepth(DEPTH.FIELD, "boot"));
@@ -1025,6 +1042,7 @@ function registerHandles() {
     // this row the channel is only observable when it succeeds.
     command: window.__v3Commands?.() ?? null,
     dogs: dogOccasion.state(),
+    dogSchedule: window.__dogSchedule?.state() ?? null,
     // Cutover §4. `failed: []` is the assertion worth making on a healthy
     // wall — a stage that started throwing in production is otherwise silent
     // by construction, because isolation is the thing hiding it.
@@ -1046,10 +1064,10 @@ function registerHandles() {
   /* Benji and Teddy, by hand: `dogOccasion.show("christmas", { dogs: ["benji"] })`,
      or `{ mode: "run", dogs: ["benji", "teddy"] }` for the run across,
      from the console or a CDP eval. Each dog's outfit is drawn at random per
-     call; `{ looks: { benji: 1 } }` pins one. Nothing calls it automatically yet, and
-     until something does it costs nothing — no DOM, no timers, no decoded
-     sheets. Named without the `__` because it is the module's real API, not
-     a readout; the future scheduler will import the same object. */
+     call; `{ looks: { benji: 1 } }` pins one. The only automatic caller is
+     the "dogs" stage (features.v3DogSchedule); between popups it costs
+     nothing — no DOM, no timers, no decoded sheets. Named without the `__`
+     because it is the module's real API, not a readout. */
   window.dogOccasion = dogOccasion;
 
   /* Push one entity onto the bus exactly as the SSE would deliver it. The way
