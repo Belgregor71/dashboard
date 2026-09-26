@@ -183,15 +183,197 @@ const windows = ({ top, base, left, right, cx, cy }, { cellPx, cellW = cellPx, c
   ...(cx && cy ? { cx: cx[i] / cellW, cy: cy[i] / cellH } : {})
 }));
 
+/* ── Choreography ───────────────────────────────────────────────────────────
+   A look that is its own PERFORMANCE, not just an outfit, times its own faces.
+   occasion → dog → look name → { timing?, holdMs? }. `timing` replaces the
+   dog's per-mode array (same length, one entry per frame, ms); `holdMs`
+   replaces the mode's idle hold. A look with no entry here performs on its
+   dog's timing, as every look did before. Kept here, not in dog-sheets.js:
+   that file is generated, and a re-import would wipe it.
+
+   The generic sheets are ten different performances, each drawn beat by beat
+   (contact sheets read 2026-09-27; one line per frame says what is on it). Each
+   dog keeps its own character: Benji's frames are quick with a snap on the
+   gag, Teddy's slower, holding longest on the look he is giving you. The final
+   frame keeps its dog's settled 1000 / 1100 ms. */
+const CHOREOGRAPHY = {
+  generic: {
+    benji: {
+      lickscreen: {
+        timing: [
+          160,  // 1  up, grinning
+          140,  // 2  paw lifts
+          160,  // 3  tongue out, paw up
+          200,  // 4  first lick
+          260,  // 5  tongue full out, square on
+          320,  // 6  licking the glass
+          360,  // 7  the big lick, tongue across the nose
+          220,  // 8  tongue swings to the side
+          180,  // 9  tilt, tongue hanging
+          180,  // 10 grin
+          200,  // 11 settles
+          1000  // 12 final hold
+        ]
+      },
+      noseboop: {
+        timing: [
+          220,  // 1  eyes over the edge
+          140,  // 2  pops up
+          200,  // 3  looks at you
+          220,  // 4  leans in
+          240,  // 5  closer
+          380,  // 6  nose on the glass
+          420,  // 7  boop, a blep
+          160,  // 8  pulls back
+          200,  // 9  blep
+          180,  // 10 smile
+          200,  // 11 big grin
+          1000  // 12 tilt, final hold
+        ]
+      },
+      pawsup: {
+        timing: [
+          260,  // 1  eyes over the edge
+          140,  // 2  up on the paws
+          200,  // 3  head tilt
+          260,  // 4  more tilt
+          180,  // 5  one paw comes up
+          160,  // 6  both paws
+          160,  // 7  paws climbing
+          260,  // 8  paws high
+          300,  // 9  paws up, beaming
+          260,  // 10 a wave
+          180,  // 11 paws down
+          1000  // 12 grin, final hold
+        ]
+      },
+      tennisball: {
+        timing: [
+          200,  // 1  lying with the ball
+          220,  // 2  eyes locked on it
+          140,  // 3  mouths it
+          140,  // 4  paw on it
+          120,  // 5  mouth wide, excited
+          180,  // 6  play bow
+          140,  // 7  rolls it, chewing
+          220,  // 8  ball in the mouth
+          120,  // 9  a swipe
+          260,  // 10 head down, guarding it
+          200,  // 11 paw on it, happy
+          1000  // 12 proud, final hold
+        ]
+      },
+      wavepeek: {
+        timing: [
+          260,  // 1  eyes over the edge
+          140,  // 2  rises
+          180,  // 3  up, grinning
+          160,  // 4  paw lifts
+          260,  // 5  wave and a wink
+          160,  // 6  wave
+          280,  // 7  wave and a wink
+          160,  // 8  paw down
+          180,  // 9  square on
+          220,  // 10 tilt, tongue out
+          200,  // 11 tilt back
+          1000  // 12 final hold
+        ]
+      }
+    },
+    teddy: {
+      boneguard: {
+        timing: [
+          300,  // 1  chin on the bone
+          380,  // 2  glances sideways
+          420,  // 3  suspicious look
+          200,  // 4  licks his nose
+          440,  // 5  head down over it, guarding
+          220,  // 6  happy again
+          260,  // 7  tilt
+          320,  // 8  looks away, smug
+          380,  // 9  side glance
+          220,  // 10 happy
+          300,  // 11 chin back down
+          1100  // 12 composed, final hold
+        ]
+      },
+      cheekypeek: {
+        timing: [
+          360,  // 1  eyes over the edge
+          260,  // 2  rising
+          220,  // 3  up
+          240,  // 4  fully up
+          360,  // 5  looks away
+          460,  // 6  nose in the air, aloof
+          380,  // 7  side-eye back at you
+          180,  // 8  a blep
+          280,  // 9  smug
+          260,  // 10 smug
+          220,  // 11 grin
+          1100  // 12 the wink, final hold
+        ]
+      },
+      happyexpressions: {
+        timing: [
+          300,  // 1  eyes over the edge
+          220,  // 2  up
+          280,  // 3  glances aside
+          280,  // 4  looks back
+          200,  // 5  neutral
+          220,  // 6  smile
+          240,  // 7  tilted grin
+          300,  // 8  tilt
+          260,  // 9  a wink
+          200,  // 10 smile
+          220,  // 11 grin
+          1100  // 12 final hold
+        ]
+      },
+      sideeye: {
+        timing: [
+          300,  // 1  eyes over the edge
+          260,  // 2  up
+          320,  // 3  eyes slide left
+          560,  // 4  the full side-eye
+          200,  // 5  licks his nose
+          280,  // 6  tilt
+          420,  // 7  side-eye again
+          360,  // 8  still side-eye
+          380,  // 9  eyes shut, smug
+          520,  // 10 side-eye away
+          360,  // 11 side-eye, a blep
+          1100  // 12 flat stare, final hold
+        ]
+      },
+      thoughtfulpeek: {
+        timing: [
+          320,  // 1  eyes over the edge
+          240,  // 2  rises
+          220,  // 3  up, grinning
+          340,  // 4  glances aside
+          200,  // 5  licks his nose
+          260,  // 6  wink, tongue out
+          240,  // 7  tilt
+          300,  // 8  a wave
+          240,  // 9  paws up
+          280,  // 10 glance
+          240,  // 11 squinting grin
+          1100  // 12 final hold
+        ]
+      }
+    }
+  }
+};
+
 /* Every occasion after Christmas comes from scripts/dogs/measure-sheets.py
    (dog-sheets.js, generated). Those sheets are RE-PACKED at import: each frame
    lifted out by its own pixels and laid base-down in a clean grid, so their
    windows never hold a neighbour and none carries a hand trim. Their cells are
    460px tall but drawn at Christmas's px size, so `cellScale` grows the box to
    match — one sheet px is the same size on the glass in every occasion.
-   Same 4×3 expression grid as Christmas, so each dog's own peek timing (and
-   personality) carries over unchanged. */
-const peekFromSheets = (looksByDog) => ({
+   Same 4×3 grid as Christmas; a look performs on its dog's own peek timing
+   unless CHOREOGRAPHY gives it its own. */
+const peekFromSheets = (occasionId, looksByDog) => ({
   grid: { columns: 4, rows: 3 },
   anchor: "base",
   stillFrame: 11,
@@ -200,14 +382,16 @@ const peekFromSheets = (looksByDog) => ({
   dogs: Object.fromEntries(Object.entries(looksByDog).map(([id, looks]) => [id, looks.map((l) => ({
     name: l.name,
     src: l.src,
-    frames: windows(l, { cellW: l.cell.w, cellH: l.cell.h })
+    frames: windows(l, { cellW: l.cell.w, cellH: l.cell.h }),
+    ...CHOREOGRAPHY[occasionId]?.[id]?.[l.name]
   }))]))
 });
 
 /* ── Occasions ──────────────────────────────────────────────────────────────
    occasion → mode → { grid, anchor, stillFrame, holdMs?, dogs: { id → [look…] } },
-   each look `{ name, src, frames }`. Every look of one mode shares the grid
-   and the dog's timing — a look is an outfit, not a different performance.
+   each look `{ name, src, frames, timing?, holdMs? }`. Every look of one mode
+   shares the grid; it shares its dog's timing and the mode's hold too unless
+   it brings its own (see CHOREOGRAPHY).
    `anchor` is how a frame is placed in its box: "base" (paws on the bottom
    edge) or "centroid" (body level). `stillFrame` is the reduced-motion
    portrait. A dog absent from an occasion simply cannot be asked for in it. */
@@ -226,7 +410,7 @@ export const OCCASIONS = {
         benji: [
           {
             name: "santa",
-            src: "/assets/dogs/christmas/benji_christmas_popup_sprite.png",
+            src: "/assets/dogs/christmas/benji_christmas_santa.png",
             frames: windows({
               top: [133, 97, 17, 28, -4, -7, -13, -10, -25, -20, -18, -24],
               base: [331, 335, 337, 338, 327, 324, 332, 333, 334, 334, 334, 335],
@@ -236,7 +420,7 @@ export const OCCASIONS = {
           },
           {
             name: "antlers",
-            src: "/assets/dogs/christmas/benji_christmas_popup_sprite1.png",
+            src: "/assets/dogs/christmas/benji_christmas_antlers.png",
             // Frame 10's antler tips reach the row above's paws (-35, alpha
             // 87): its top is -32 (measured -35), 7 own px.
             frames: windows({
@@ -248,7 +432,7 @@ export const OCCASIONS = {
           },
           {
             name: "elf",
-            src: "/assets/dogs/christmas/benji_christmas_popup_sprite2.png",
+            src: "/assets/dogs/christmas/benji_christmas_elf.png",
             frames: windows({
               top: [174, 26, 30, 58, 18, 18, 20, 19, -3, 8, 65, 0],
               base: [356, 356, 356, 356, 347, 347, 347, 344, 325, 325, 315, 325],
@@ -260,7 +444,7 @@ export const OCCASIONS = {
         teddy: [
           {
             name: "santa",
-            src: "/assets/dogs/christmas/teddy_christmas_popup_sprite.png",
+            src: "/assets/dogs/christmas/teddy_christmas_santa.png",
             frames: windows({
               top: [194, 114, 35, 45, 11, 14, 10, 4, -14, -14, -26, -28],
               base: [346, 356, 357, 356, 326, 326, 326, 326, 304, 307, 304, 306],
@@ -270,7 +454,7 @@ export const OCCASIONS = {
           },
           {
             name: "holly",
-            src: "/assets/dogs/christmas/teddy_christmas_popup_sprite1.png",
+            src: "/assets/dogs/christmas/teddy_christmas_holly.png",
             // Frame 10's ear reaches the row above's paws: top -6 (measured -9).
             frames: windows({
               top: [205, 86, 34, 44, 22, 33, 30, 34, -2, -6, 5, -6],
@@ -281,7 +465,7 @@ export const OCCASIONS = {
           },
           {
             name: "crown",
-            src: "/assets/dogs/christmas/teddy_christmas_popup_sprite2.png",
+            src: "/assets/dogs/christmas/teddy_christmas_crown.png",
             // The crowded one: row 2's paws REST ON row 3's crowns, so frames
             // 5+9 and 6+10 are one blob. Cut at row 2's own base line (333):
             // 5 and 6 end there, 9 and 10 start below it. Row 3's crowns and
@@ -336,7 +520,7 @@ export const OCCASIONS = {
       }
     }
   },
-  ...Object.fromEntries(Object.entries(SHEETS).map(([id, dogs]) => [id, { peek: peekFromSheets(dogs) }]))
+  ...Object.fromEntries(Object.entries(SHEETS).map(([id, dogs]) => [id, { peek: peekFromSheets(id, dogs) }]))
 };
 
 /* ── Sheets ─────────────────────────────────────────────────────────────── */
@@ -361,17 +545,25 @@ function loadSheet(src) {
 
 /**
  * Choose a look for each dog: one draw per dog, so Benji's outfit says nothing
- * about Teddy's. `pinned` ({ id → index }) wins over the draw. Returns
- * { id → index }, or null if a pinned index is not a look this dog has.
+ * about Teddy's. `pinned` ({ id → index }) wins over the draw. `avoid`
+ * ({ id → index }, the look each dog wore last time) is drawn again ONCE if
+ * the draw lands on it — so a pool of five rarely repeats back to back but is
+ * never forced into a pattern. Returns { id → index }, or null if a pinned
+ * index is not a look this dog has.
  */
-export function pickLooks(occasionId, { mode = "peek", dogs, pinned = {}, random = Math.random } = {}) {
+export function pickLooks(occasionId, { mode = "peek", dogs, pinned = {}, avoid = {}, random = Math.random } = {}) {
   const staged = OCCASIONS[occasionId]?.[mode];
   if (!staged) return null;
   const picks = {};
+  const draw = (n) => Math.min(n - 1, Math.floor(random() * n));
   for (const id of dogs ?? Object.keys(staged.dogs)) {
     const looks = staged.dogs[id];
     if (!looks) return null;
-    const i = pinned[id] ?? Math.min(looks.length - 1, Math.floor(random() * looks.length));
+    let i = pinned[id];
+    if (i == null) {
+      i = draw(looks.length);
+      if (i === avoid[id] && looks.length > 1) i = draw(looks.length);
+    }
     if (!Number.isInteger(i) || !looks[i]) return null;
     picks[id] = i;
   }
@@ -400,6 +592,10 @@ export function preload(occasionId, { mode = "peek", looks } = {}) {
 let run = null;        // the one live run, or null
 let generation = 0;    // bumps on every hide(); a stale await sees it changed
 let runs = 0;
+/* The look each dog last wore on the glass, per occasion + mode ("generic/peek"
+   → { id → index }): the next unpinned draw avoids it once. Recorded when the
+   dogs MOUNT — a run that never reached the glass was never seen. */
+const lastLooks = new Map();
 
 function later(fn, ms) {
   if (!run) return null;
@@ -492,7 +688,7 @@ function performStill(dog, stillFrame, resolve) {
 }
 
 /* Peek: enter + faces, idle hold, exit. Resolves when it has left the glass. */
-function performPeek(dog, staged) {
+function performPeek(dog) {
   return new Promise((resolve) => {
     const m = dog.motion;
     /* CHAINED, each frame timed from the previous one's paint — never all
@@ -510,8 +706,8 @@ function performPeek(dog, staged) {
       // Faces done: breathe, hold, go.
       later(() => {
         setPhase(dog, "idle");
-        later(() => setPhase(dog, "exiting"), staged.holdMs);
-        later(resolve, staged.holdMs + m.exitMs);
+        later(() => setPhase(dog, "exiting"), dog.holdMs);
+        later(resolve, dog.holdMs + m.exitMs);
       }, dog.timing[i]);
     };
     later(() => {
@@ -548,7 +744,7 @@ function performRun(dog) {
 
 function perform(dog, staged, still) {
   if (still) return new Promise((resolve) => performStill(dog, staged.stillFrame, resolve));
-  return run.mode === "run" ? performRun(dog) : performPeek(dog, staged);
+  return run.mode === "run" ? performRun(dog) : performPeek(dog);
 }
 
 function build(ids, staged, sizes) {
@@ -618,7 +814,11 @@ function build(ids, staged, sizes) {
 
     return {
       id, el, frame, sheet, layout, pad: layout.pad, phase: "waiting", look, lookName: art.name,
-      grid: staged.grid, frames: art.frames, timing: def.timing[run.mode], motion: m
+      grid: staged.grid, frames: art.frames, motion: m,
+      // The look's own performance when it has one, else its dog's.
+      timing: art.timing ?? def.timing[run.mode],
+      timed: art.timing ? "look" : "dog",
+      holdMs: art.holdMs ?? staged.holdMs
     };
   });
 
@@ -660,14 +860,15 @@ export async function show(occasionId, { mode = "peek", dogs, looks: pinned } = 
   for (const id of ids) {
     if (!DOGS[id] || !staged.dogs[id]?.length) return { shown: false, reason: `unknown-dog:${id}` };
     const frameCount = staged.grid.columns * staged.grid.rows;
-    if (DOGS[id].timing[mode]?.length !== frameCount
-        || staged.dogs[id].some((l) => l.frames.length !== frameCount)
+    const timed = (l) => (l.timing ?? DOGS[id].timing[mode])?.length === frameCount;
+    if (staged.dogs[id].some((l) => l.frames.length !== frameCount || !timed(l))
         || !MOTION[DOGS[id].motion]?.[mode]) {
       return { shown: false, reason: `bad-config:${id}` };
     }
     if (pinned?.[id] != null && !staged.dogs[id][pinned[id]]) return { shown: false, reason: `unknown-look:${id}` };
   }
-  const looks = pickLooks(occasionId, { mode, dogs: ids, pinned });
+  const worn = `${occasionId}/${mode}`;
+  const looks = pickLooks(occasionId, { mode, dogs: ids, pinned, avoid: lastLooks.get(worn) });
 
   const gen = generation;
   const srcs = ids.map((id) => staged.dogs[id][looks[id]].src);
@@ -692,6 +893,7 @@ export async function show(occasionId, { mode = "peek", dogs, looks: pinned } = 
   if (still) built.root.dataset.still = "1";
   document.body.append(built.root);
   runs += 1;
+  lastLooks.set(worn, { ...lastLooks.get(worn), ...looks });
 
   // hide() cancels every timer, so a performance it interrupts never resolves;
   // the race lets this call answer instead of hanging forever.
@@ -720,13 +922,15 @@ export function state() {
       phase: d.phase,
       look: d.look,
       lookName: d.lookName,
+      timed: d.timed,
       frame: Number(d.el.dataset.frame ?? -1),
       pad: d.pad,
       paintedAt: d.paintedAt ?? null,
       box: { w: d.layout.w, h: d.layout.h, ax: d.layout.ax, ay: d.layout.ay }
     })),
     timers: run?.timers.size ?? 0,
-    runs
+    runs,
+    lastLooks: Object.fromEntries(lastLooks)
   };
 }
 

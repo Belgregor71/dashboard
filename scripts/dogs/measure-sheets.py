@@ -140,7 +140,7 @@ def control():
     }
     ok = True
     for dog, w in want.items():
-        src = REPO / f"static/assets/dogs/christmas/{dog}_christmas_popup_sprite.png"
+        src = REPO / f"static/assets/dogs/christmas/{dog}_christmas_santa.png"
         got = measure(Image.open(src).convert("RGBA"))
         for k, v in w.items():
             if got[k] != v:
@@ -319,7 +319,7 @@ def christmas_targets():
     Re-packed px ARE Christmas px - only the cell is taller."""
     out = {}
     for dog in ("benji", "teddy"):
-        img = Image.open(REPO / f"static/assets/dogs/christmas/{dog}_christmas_popup_sprite.png").convert("RGBA")
+        img = Image.open(REPO / f"static/assets/dogs/christmas/{dog}_christmas_santa.png").convert("RGBA")
         masks, _, _ = own_masks(img)
         out[dog] = full_up_height(masks)
     return out

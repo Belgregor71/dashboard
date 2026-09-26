@@ -244,6 +244,12 @@ test.describe("dog occasion", () => {
           for (const [i, look] of looks.entries()) {
             const at = `${occ}/${mode}/${id}/${look.name}`;
             expect(look.frames, at).toHaveLength(n);
+            // A look's own performance, when it has one, times every frame.
+            if (look.timing) {
+              expect(look.timing, `${at} timing`).toHaveLength(n);
+              for (const ms of look.timing) expect(Number.isInteger(ms) && ms > 0, `${at} timing ${ms}`).toBe(true);
+            }
+            if (look.holdMs != null) expect(Number.isInteger(look.holdMs) && look.holdMs > 0, `${at} holdMs`).toBe(true);
             // The sheet is shipped, and its grid divides it the way the
             // windows were measured: Christmas's hand-measured sheets have
             // square cells; a generated sheet's cells are exactly the ones its
@@ -263,6 +269,51 @@ test.describe("dog occasion", () => {
         }
       }
     }
+  });
+
+  /* The generic sheets are ten different performances (lick, boop, side-eye…),
+     so each carries its own timing. Named here, not read from the module: a
+     choreography entry keyed by a mistyped look name silently falls back to
+     the dog's timing, and a list derived from the config could not see that. */
+  test("config: every generic look performs on its own timing, not its dog's", () => {
+    const own = {
+      benji: ["lickscreen", "noseboop", "pawsup", "tennisball", "wavepeek"],
+      teddy: ["boneguard", "cheekypeek", "happyexpressions", "sideeye", "thoughtfulpeek"]
+    };
+    for (const [id, names] of Object.entries(own)) {
+      const looks = OCCASIONS.generic.peek.dogs[id];
+      expect(looks.map((l) => l.name).sort(), id).toEqual([...names].sort());
+      for (const l of looks) {
+        expect(l.timing, `${id}/${l.name}`).toHaveLength(12);
+        expect(l.timing, `${id}/${l.name} is its dog's array`).not.toEqual(DOGS[id].timing.peek);
+      }
+      // Ten performances, ten different timings.
+      expect(new Set(looks.map((l) => l.timing.join())).size, id).toBe(looks.length);
+    }
+    // Every other occasion's looks are outfits: they keep the dog's timing.
+    for (const [occ, modes] of Object.entries(OCCASIONS)) {
+      if (occ === "generic") continue;
+      for (const staged of Object.values(modes)) {
+        for (const looks of Object.values(staged.dogs)) {
+          for (const l of looks) expect(l.timing, `${occ}/${l.name}`).toBeUndefined();
+        }
+      }
+    }
+  });
+
+  test("pickLooks: the look a dog wore last is drawn again once, and only once", () => {
+    const seq = (...v) => { let i = 0; return () => v[i++]; };
+    // Benji wore look 2 last: a draw landing on 2 draws again (0.1 → 0).
+    expect(pickLooks("generic", { dogs: ["benji"], avoid: { benji: 2 }, random: seq(0.5, 0.1) })).toEqual({ benji: 0 });
+    // Only ONCE: a second landing on it stands — never a forced rotation.
+    expect(pickLooks("generic", { dogs: ["benji"], avoid: { benji: 2 }, random: seq(0.5, 0.5) })).toEqual({ benji: 2 });
+    // A draw that misses it costs no second draw (the second value is never read).
+    expect(pickLooks("generic", { dogs: ["benji"], avoid: { benji: 2 }, random: seq(0.1, 0.5) })).toEqual({ benji: 0 });
+    // Per dog: Teddy's last look says nothing about Benji's draw.
+    expect(pickLooks("generic", { dogs: ["benji", "teddy"], avoid: { teddy: 2 }, random: seq(0.5, 0.5, 0.9) })).toEqual({ benji: 2, teddy: 4 });
+    // A pin wins over the memory; a one-look pool cannot avoid anything.
+    expect(pickLooks("generic", { dogs: ["benji"], pinned: { benji: 2 }, avoid: { benji: 2 }, random: () => 0.1 })).toEqual({ benji: 2 });
+    expect(pickLooks("christmas", { mode: "run", dogs: ["benji"], avoid: { benji: 0 }, random: () => 0.5 })).toEqual({ benji: 0 });
   });
 
   test("pickLooks: one independent draw per dog, pins win, a bad pin refuses", () => {
@@ -466,25 +517,52 @@ test.describe("dog occasion", () => {
       await expect.poll(() => page.evaluate(() => window.dogOccasion.state().dogs.length), { timeout: 8_000 }).toBe(2);
       const box = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll(".dogs .dog")]
         .map((d) => [d.dataset.dog, { h: d.querySelector(".dog__frame").getBoundingClientRect().height, look: d.dataset.look }])));
+      // When each dog goes idle and when it starts to leave: the gap is the
+      // hold. Stamped on the (paused, virtual) performance clock, in an
+      // observer that may run at the end of a 20ms step — hence ±20, which a
+      // lost hold (0 ms) cannot land inside.
+      await page.evaluate(() => {
+        window.__dogPhases = {};
+        for (const d of document.querySelectorAll(".dogs .dog")) {
+          const p = (window.__dogPhases[d.dataset.dog] = {});
+          new MutationObserver(() => { p[d.dataset.phase] ??= performance.now(); })
+            .observe(d, { attributes: true, attributeFilter: ["data-phase"] });
+        }
+      });
       // A whole peek, by the config: Teddy's beat, twelve faces, the hold and
       // the exit (~5.8s) — then some. Stepping less leaves the run on a paused
       // clock and __dogDone waiting for ever.
-      const lasts = (id) => MOTION[DOGS[id].motion].peek.delayMs + DOGS[id].timing.peek.reduce((a, b) => a + b, 0)
-        + staged.holdMs + MOTION[DOGS[id].motion].peek.exitMs;
+      const lookOf = (id) => staged.dogs[id][looks[id]];
+      const timingOf = (id) => lookOf(id).timing ?? DOGS[id].timing.peek;
+      const lasts = (id) => MOTION[DOGS[id].motion].peek.delayMs + timingOf(id).reduce((a, b) => a + b, 0)
+        + (lookOf(id).holdMs ?? staged.holdMs) + MOTION[DOGS[id].motion].peek.exitMs;
       const until = Math.max(lasts("benji"), lasts("teddy")) + 500;
       for (let t = 0; t < until; t += 20) await page.clock.runFor(20);
       await expect.poll(() => page.evaluate(() => window.dogOccasion.state().running), { timeout: 5_000 }).toBe(false);
       const rec = await page.evaluate(() => window.__dogRec);
+      const phases = await page.evaluate(() => window.__dogPhases);
       for (const id of ["benji", "teddy"]) {
         const art = staged.dogs[id][looks[id]];
         const at = `${occ}/${id}/${art.name}`;
         expect(box[id].look, at).toBe(art.name);
+        // Present before measured: both stamps exist, then the gap is the hold.
+        expect(phases[id]?.idle, `${at} idle`).toEqual(expect.any(Number));
+        expect(phases[id]?.exiting, `${at} exiting`).toEqual(expect.any(Number));
+        expect(Math.abs(phases[id].exiting - phases[id].idle - (art.holdMs ?? staged.holdMs)), `${at} hold`).toBeLessThanOrEqual(20);
         // Present before placed, then the size: one cell is 34vh × dog scale
         // × cellScale (460/362) — Christmas's px size, not 27% bigger or
         // squeezed into a 362 cell.
         expect(box[id].h, `${at} box`).toBeCloseTo(0.34 * vh * DOGS[id].scale * staged.cellScale, 0);
         const frames = rec[id];
         expect(frames.map((f) => f.frame), at).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+        // Each face held for THIS look's time (its own, or its dog's): on the
+        // paused clock a timer fires at its exact virtual time, so the paint
+        // stamps differ by the timing to the ms. Expected values from the
+        // config's raw arrays, never from state() — the module under test.
+        const want = art.timing ?? DOGS[id].timing.peek;
+        for (let k = 1; k < frames.length; k++) {
+          expect(Math.abs(frames[k].t - frames[k - 1].t - want[k - 1]), `${at} frame ${k - 1} held`).toBeLessThanOrEqual(1);
+        }
         // The expected window from the generator's RAW px, with this test's
         // own arithmetic (AIR 2 on top/left/right, base exact) — never from
         // OCCASIONS, which is computed by the very module under test: x
@@ -596,6 +674,51 @@ test.describe("dog occasion", () => {
       const fetched = [...new Set(sheetRequests.map((u) => new URL(u).pathname))].sort();
       expect(fetched).toEqual([peek.benji[want.benji].src, peek.teddy[want.teddy].src].sort());
     }
+    expect(await page.locator(".dogs").count()).toBe(0);
+    expect(errors).toEqual([]);
+  });
+
+  /* show() remembers what each dog wore ON THE GLASS and hands it to the
+     draw, so five generic looks do not come up lick, lick, lick. Every call's
+     draws are queued, so each expectation below differs from what a show()
+     without the memory — or one that records a look that never mounted —
+     would give (worked out beside each). */
+  test("back to back, a dog avoids the look it just wore; one that never mounted is not remembered", async ({ page }) => {
+    const { errors } = await open(page);
+    const call = (draws, { mount = true } = {}) => page.evaluate(async ([draws, mount]) => {
+      const real = Math.random;
+      const queue = [...draws];
+      Math.random = () => (queue.length ? queue.shift() : real());
+      const done = window.dogOccasion.show("generic", { dogs: ["benji", "teddy"] });
+      Math.random = real;
+      if (mount) {
+        await new Promise((resolve) => {
+          const poll = () => (window.dogOccasion.state().dogs.length === 2 ? resolve() : setTimeout(poll, 20));
+          poll();
+        });
+      }
+      const seen = Object.fromEntries(window.dogOccasion.state().dogs.map((d) => [d.id, d.look]));
+      window.dogOccasion.hide();
+      return { seen, done: await done, last: window.dogOccasion.state().lastLooks["generic/peek"] ?? null };
+    }, [draws, mount]);
+
+    // 1: nothing worn yet — 0.5, 0.5 is look 2 each.
+    let r = await call([0.5, 0.5]);
+    expect(r.seen).toEqual({ benji: 2, teddy: 2 });
+    expect(r.last).toEqual({ benji: 2, teddy: 2 });
+    // 2: the same first draws land on 2 again and are drawn once more
+    //    (0.1 → 0, 0.9 → 4). Without the memory: { benji: 2, teddy: 0 }.
+    r = await call([0.5, 0.1, 0.5, 0.9]);
+    expect(r.seen).toEqual({ benji: 0, teddy: 4 });
+    expect(r.last).toEqual({ benji: 0, teddy: 4 });
+    // 3: hidden before it mounts — never on the glass, so not remembered.
+    r = await call([0.5, 0.5], { mount: false });
+    expect(r.done).toEqual({ shown: false, reason: "hidden" });
+    expect(r.last).toEqual({ benji: 0, teddy: 4 });
+    // 4: avoids 0 / 4 (from call 2): 0.1 → 0 again → 0.5 → 2; 0.9 → 4 again
+    //    → 0.5 → 2. Had call 3 been remembered as 2 / 2: { benji: 0, teddy: 4 }.
+    r = await call([0.1, 0.5, 0.9, 0.5]);
+    expect(r.seen).toEqual({ benji: 2, teddy: 2 });
     expect(await page.locator(".dogs").count()).toBe(0);
     expect(errors).toEqual([]);
   });
