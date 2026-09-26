@@ -63,6 +63,11 @@ export default defineConfig({
       CALENDAR_GOOGLE_URL: "",
       CALENDAR_APPLE_URL: "",
       CALENDAR_TRIPIT_URL: "",
+      // The dogs' birthdays (server/routes/dogs.js) — a FIXTURE, never the
+      // house's. Without it the route answers an empty list and the contract
+      // test's "no name leaves the server" loop ran over nothing: it stayed
+      // green with names injected into the answer (2026-09-26).
+      DOG_BIRTHDAYS: "Benji 20/5, Fixture Person 1/3",
       // Home Assistant was the LAST live upstream the gate still depended on,
       // and the one long documented as making specs fail "because the TV is on
       // at the house". It fails worse than the others did: HA runs on the NAS,

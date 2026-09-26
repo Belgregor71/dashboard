@@ -457,8 +457,20 @@ test.describe("dog occasion", () => {
         expect(box[id].h, `${at} box`).toBeCloseTo(0.34 * vh * DOGS[id].scale * staged.cellScale, 0);
         const frames = rec[id];
         expect(frames.map((f) => f.frame), at).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+        // The expected window from the generator's RAW px, with this test's
+        // own arithmetic (AIR 2 on top/left/right, base exact) — never from
+        // OCCASIONS, which is computed by the very module under test: x
+        // measured in cell HEIGHTS passed green against itself (2026-09-26).
+        const raw = SHEETS[occ][id][looks[id]];
+        expect(raw.src, at).toBe(art.src);
         for (const f of frames) {
-          const w = art.frames[f.frame];
+          const k = f.frame;
+          const w = {
+            top: (raw.top[k] - 2) / raw.cell.h,
+            base: raw.base[k] / raw.cell.h,
+            left: (raw.left[k] - 2) / raw.cell.w,
+            right: (raw.right[k] + 2) / raw.cell.w
+          };
           const fat = `${at} frame ${f.frame}`;
           expect(f.sheetCols, fat).toBeCloseTo(4, 3);
           expect(f.sheetRows, fat).toBeCloseTo(3, 3);

@@ -752,15 +752,20 @@ test.describe("feeds", () => {
      is right for a nag and wrong for a roster. So this asserts the roster is
      present regardless of the window, which is the difference between the two
      routes and the reason the second one exists. */
-  /* Birthdays for the dogs' popups. The dates come from DOG_BIRTHDAYS in the
-     box's .env, which a test machine may or may not have — so the shape, never
-     the content. What is asserted regardless: no entry carries a NAME. The
-     list is dates, dog ids, and a family flag; a person's name must never
-     leave the server (the repo and its network tab are public-facing). */
+  /* Birthdays for the dogs' popups. The test server runs a FIXTURE
+     (playwright.config.js: "Benji 20/5, Fixture Person 1/3"), so the answer is
+     known: a dog's day and a person's day. What matters most: no entry carries
+     a NAME — dates, dog ids and a family flag only; a person's name must never
+     leave the server. Non-empty is asserted FIRST: with no fixture the loop
+     below ran over nothing and passed with names injected into the answer. */
   test("GET /api/dogs/birthdays", async ({ request }) => {
     const { body } = await expectJson(request, "/api/dogs/birthdays");
     expect(Object.keys(body)).toEqual(["days"]);
-    expect(Array.isArray(body.days)).toBe(true);
+    expect(body.days).toEqual([
+      { month: 3, day: 1, dogs: [], family: true },
+      { month: 5, day: 20, dogs: ["benji"], family: false }
+    ]);
+    expect(JSON.stringify(body)).not.toMatch(/fixture|person|benji 20/i);
     for (const d of body.days) {
       expect(Object.keys(d).sort()).toEqual(["day", "dogs", "family", "month"]);
       expect(Number.isInteger(d.month) && d.month >= 1 && d.month <= 12).toBe(true);
