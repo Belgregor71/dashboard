@@ -496,11 +496,16 @@ test.describe("dog occasion", () => {
 
   /* The generated occasions (scripts/dogs/measure-sheets.py): every look of
      every dog painted in a real browser, frame by frame. On a paused fake
-     clock stepped 20ms at a time — shorter than any expression — so all 36
-     looks run in seconds and every frame change is observed. Taller cells
+     clock stepped STEP_MS at a time — half the shortest expression (100ms,
+     Benji's blink) — so every frame change is observed. 50, not 20: the
+     per-look choreography made the generic looks longer (side-eye is 5.1s of
+     faces), and at 20ms each occasion was ~2,000 page round trips — past 60s
+     under a loaded pre-push (2026-09-27). Taller cells
      (460 against Christmas's 362) must come out at Christmas's px size:
      `cellScale` grows the box, so a sheet px is the same on the glass. */
+  const STEP_MS = 50;
   for (const occ of Object.keys(SHEETS)) test(`${occ}: every look of each dog paints every frame on its own cell and window`, async ({ page }) => {
+    test.setTimeout(120_000);
     const { errors, sheetRequests } = await open(page);
     const staged = OCCASIONS[occ].peek;
     const vh = await page.evaluate(() => innerHeight);
@@ -519,7 +524,7 @@ test.describe("dog occasion", () => {
         .map((d) => [d.dataset.dog, { h: d.querySelector(".dog__frame").getBoundingClientRect().height, look: d.dataset.look }])));
       // When each dog goes idle and when it starts to leave: the gap is the
       // hold. Stamped on the (paused, virtual) performance clock, in an
-      // observer that may run at the end of a 20ms step — hence ±20, which a
+      // observer that may run at the end of a step — hence ±STEP_MS, which a
       // lost hold (0 ms) cannot land inside.
       await page.evaluate(() => {
         window.__dogPhases = {};
@@ -537,7 +542,7 @@ test.describe("dog occasion", () => {
       const lasts = (id) => MOTION[DOGS[id].motion].peek.delayMs + timingOf(id).reduce((a, b) => a + b, 0)
         + (lookOf(id).holdMs ?? staged.holdMs) + MOTION[DOGS[id].motion].peek.exitMs;
       const until = Math.max(lasts("benji"), lasts("teddy")) + 500;
-      for (let t = 0; t < until; t += 20) await page.clock.runFor(20);
+      for (let t = 0; t < until; t += STEP_MS) await page.clock.runFor(STEP_MS);
       await expect.poll(() => page.evaluate(() => window.dogOccasion.state().running), { timeout: 5_000 }).toBe(false);
       const rec = await page.evaluate(() => window.__dogRec);
       const phases = await page.evaluate(() => window.__dogPhases);
@@ -548,7 +553,7 @@ test.describe("dog occasion", () => {
         // Present before measured: both stamps exist, then the gap is the hold.
         expect(phases[id]?.idle, `${at} idle`).toEqual(expect.any(Number));
         expect(phases[id]?.exiting, `${at} exiting`).toEqual(expect.any(Number));
-        expect(Math.abs(phases[id].exiting - phases[id].idle - (art.holdMs ?? staged.holdMs)), `${at} hold`).toBeLessThanOrEqual(20);
+        expect(Math.abs(phases[id].exiting - phases[id].idle - (art.holdMs ?? staged.holdMs)), `${at} hold`).toBeLessThanOrEqual(STEP_MS);
         // Present before placed, then the size: one cell is 34vh × dog scale
         // × cellScale (460/362) — Christmas's px size, not 27% bigger or
         // squeezed into a 362 cell.
