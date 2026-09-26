@@ -19,6 +19,7 @@ import {
 } from "../services/voiceShape.js";
 import { searchVault, buildContext } from "../services/vaultIndex.js";
 import { createSoundDetector } from "../services/soundPresence.js";
+import { createCameraDetector } from "../services/cameraPresence.js";
 import { toolDefs, entityRoster, planCall } from "../services/voiceTools.js";
 import { houseCharacter, characterEnabled } from "../services/character.js";
 import { recordExchange } from "../services/conversationLog.js";
@@ -630,6 +631,39 @@ router.post("/api/voice/ambient", (req, res) => {
   return res.status(204).end();
 });
 
+// --- Camera as presence ---
+// tools/camera-presence scores one webcam frame a second for PEOPLE (never
+// dogs, the fan or the TV) and posts { person, count, score } — no image, over
+// loopback. cameraPresence.js decides; the page hears a rising edge and then at
+// most one refresh every 30 s, on this same stream. Lives beside sound for the
+// same reason sound lives here: voiceBus is this module's, and a camera event
+// on its own SSE would spend a connection the browser caps at six.
+const camera = createCameraDetector();
+
+router.post("/api/voice/camera", (req, res) => {
+  if (!isLoopback(req)) return res.status(403).json({ error: "loopback only" });
+  const { person, count, score } = req.body ?? {};
+  if (typeof person !== "boolean") return res.status(400).json({ error: "person must be a boolean" });
+  const n = Number.isInteger(count) && count >= 0 ? count : 0;
+  const s = typeof score === "number" && Number.isFinite(score) && score >= 0 && score <= 1 ? score : 0;
+  const result = camera.push({ person, count: n, score: s });
+  if (result.emit) {
+    voiceBus.emit("camera_presence", {
+      at: Date.now(),
+      count: n,
+      score: Math.round(s * 100) / 100,
+      rising: result.rising
+    });
+  }
+  return res.status(204).end();
+});
+
+// Read-only, not loopback-gated: counters and ages, no image and nothing about
+// who. `live: false` is how "the camera is dead" differs from "nobody's here".
+router.get("/api/voice/camera", (_req, res) => {
+  res.json(camera.state(Date.now()));
+});
+
 // Read-only, and not loopback-gated: it is a handful of loudness statistics
 // with no audio in it, and it is the only way to tune the thresholds against
 // this actual kitchen rather than a guess.
@@ -709,6 +743,8 @@ router.get("/api/voice/stream", (req, res) => {
     // Transitions only — a rising edge, then at most one every 10s while the
     // room stays busy. Cheap enough to ride the same connection.
     subscribe("sound_presence", "voice_sound_presence");
+    // Same shape from the webcam: a rising edge, then ≤ 1 per 30 s.
+    subscribe("camera_presence", "voice_camera_presence");
     // Rare — a handful a day at most, and only ever after a wake that went
     // nowhere. Cheapest possible passenger on a connection that is already open.
     subscribe("unheard", "voice_unheard");

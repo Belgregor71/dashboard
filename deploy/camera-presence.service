@@ -1,0 +1,38 @@
+# /etc/systemd/system/camera-presence.service
+[Unit]
+# The webcam as a presence source: is a PERSON in the living room.
+# Code: tools/camera-presence/camera_presence.py (run from the repo checkout, so
+# a deploy updates it — but the deploy restarts only dashboard.service, so a
+# change to the agent needs `sudo systemctl restart camera-presence`).
+# Runtime: ~/camera-presence/.venv (numpy + onnxruntime) and yolox_nano.onnx
+# (Apache-2.0, sha256 c789161ed43c8269fcd4e67c67eeeb4e80c622da2eb296a20bc6007bd18a0b7d).
+#
+# PRIVACY: frames live only in the agent's memory, one at a time; nothing is
+# written or served. Only { person, count, score } leaves it, over loopback.
+# Streams 07:00-22:00 only — the Brio 100's light is lit whenever it streams and
+# cannot be switched off in software, so overnight the camera is closed.
+#
+# MEASURED on the G11 2026-09-26: YOLOX-Nano 40-70 ms/frame on ONE thread at
+# 1 fps + ffmpeg ~2% of a core ≈ 1% of the 8-core box.
+Description=Webcam person presence for the dashboard (local, loopback only)
+After=dashboard.service
+Wants=dashboard.service
+
+[Service]
+Type=simple
+User=dashboard
+SupplementaryGroups=video
+WorkingDirectory=/home/dashboard/camera-presence
+ExecStart=/home/dashboard/camera-presence/.venv/bin/python /home/dashboard/dashboard/tools/camera-presence/camera_presence.py
+Environment=CAMERA_HOURS=07-22
+Environment=CAMERA_DETECT_FPS=1
+Environment=OMP_NUM_THREADS=1
+Nice=10
+CPUWeight=20
+CPUQuota=50%
+MemoryMax=512M
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -639,6 +639,17 @@ window.CONFIG = {
     // 0.995. A second source means one dead sensor can no longer blind the room.
     soundPresence: true,
 
+    // The webcam on the G11 as a THIRD presence source (tools/camera-presence,
+    // deploy/camera-presence.service): YOLOX-Nano scores PEOPLE at 1 fps — not
+    // the dogs, the fan or the (masked) TV — 07:00-22:00 only, since the Brio
+    // 100's light cannot be switched off. No image leaves the agent; the server
+    // hears { person, count, score } and the page a `camera:presence` event
+    // (rising edge, then ≤ 1 per 30 s). Additive like sound: feeds sawMotion
+    // ("webcam"), never absence. Built 2026-09-26 while the kitchen PIR had been
+    // silent since 09-18. Off: the event is still relayed and ignored, read per
+    // event. Rollback: -> false (a kiosk cache-bypass reload).
+    cameraPresence: false,
+
     // PRESENCE EARNS MEDIUM — the bar moves with the room.
     //
     // attention.js normally requires score >= 70 (High) before a candidate can

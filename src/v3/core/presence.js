@@ -48,6 +48,7 @@ let lingerTimer = null;
 let dwellTimer = null;
 let unsubscribe = null;
 let unsubscribeSound = null;
+let unsubscribeCamera = null;
 let lastMode = "ambient";
 
 /* Sound is a SECOND source of the same signal, not a replacement, and the two
@@ -62,6 +63,16 @@ let lastMode = "ambient";
    screen in silence trips neither, and the linger is what covers them. */
 function soundEnabled() {
   return Boolean(window.CONFIG?.features?.soundPresence);
+}
+
+/* The webcam is a THIRD source (features.cameraPresence), additive like sound:
+   it only ever says "someone is here" and absence stays the linger's. It sees
+   PEOPLE — not the dogs, the fan or the TV — and it is off 07:00's other side
+   (22:00-07:00, its light cannot be switched off), so overnight the mic and
+   the PIR are what is left. Read per event, like sound: flipping it off is
+   genuinely inert without a reload. */
+function cameraEnabled() {
+  return Boolean(window.CONFIG?.features?.cameraPresence);
 }
 
 const listeners = new Set();
@@ -208,6 +219,13 @@ export function initPresence() {
     sawMotion("sound");
   });
 
+  /* "webcam", never "camera": the kitchen PIR is itself a camera, and the
+     readout's whole job is telling the sources apart. */
+  unsubscribeCamera = on("camera:presence", () => {
+    if (!cameraEnabled()) return;
+    sawMotion("webcam");
+  });
+
   window.__v3Presence = (force) => {
     if (force === true) sawMotion("debug");
     if (force === false) goAbsent("debug");
@@ -234,7 +252,8 @@ export function initPresence() {
          "the camera is dead" and "the room is quiet" is otherwise unreadable
          from the outside — and that ambiguity is exactly what cost 22 hours. */
       lastReason,
-      soundEnabled: soundEnabled()
+      soundEnabled: soundEnabled(),
+      cameraEnabled: cameraEnabled()
     };
   };
 

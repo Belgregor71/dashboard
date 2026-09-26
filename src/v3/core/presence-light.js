@@ -193,4 +193,10 @@ export function initPresenceLight({ enabled = true } = {}) {
       emit("sound:presence", JSON.parse(event.data));
     } catch { /* malformed frame — ignore, never throw into the stream */ }
   });
+  // The webcam's person sightings — same relay, same reason (tools/camera-presence).
+  stream.addEventListener("voice_camera_presence", (event) => {
+    try {
+      emit("camera:presence", JSON.parse(event.data));
+    } catch { /* malformed frame — ignore, never throw into the stream */ }
+  });
 }
