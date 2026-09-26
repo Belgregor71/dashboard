@@ -57,6 +57,10 @@ export const EVENTS = {
       "src/js/modules/tonightsMenu.js"
     ]
   },
+  "camera:presence": {
+    publishers: ["src/v3/core/presence-light.js"],
+    consumers: ["src/v3/core/presence.js"]
+  },
   "cameras:status": {
     publishers: ["src/js/modules/cameraTiles.js"],
     consumers: ["src/js/modules/systemStatus.js"]
