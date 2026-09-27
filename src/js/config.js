@@ -2300,7 +2300,9 @@ window.CONFIG = {
     // (data/presentations/, untracked). Nothing reads it back into ranking.
     // Read once at boot. Off: nothing subscribes, no request is made.
     // Rollback: v3PresentationLog: false (+ hard reload).
-    v3PresentationLog: false,
+    // FLIPPED ON 2026-09-27 by the owner (/flag-flip). Deployed off first
+    // (2e67f86: armed:false live, 0 requests, GET 200 with 90-day retention).
+    v3PresentationLog: true,
 
     // V3's field weather (src/v3/main.js loadWeather): the substrate's causes,
     // the Living Window's slice and the archive's sky line.
