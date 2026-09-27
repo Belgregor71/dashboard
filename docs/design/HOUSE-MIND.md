@@ -560,7 +560,7 @@ before making the arbiter the single authority.
   on for a day. Anything dropped that the room should have seen is a producer bug, not
   a reason to loosen the gate.
 
-### S6 — the presentation log (proposed 2026-09-25, nothing built)
+### S6 — the presentation log (proposed 2026-09-25; S6-0 done, S6a built 2026-09-27)
 
 **The proposal (owner, 2026-09-25):** build the missing loop, presentation → history →
 mind. The house should know what it showed, for how long, who was there, whether it was
@@ -678,6 +678,51 @@ forbids. The draft did not notice. The amended S6 splits the log in two:
   - **Implication (a PROPOSAL, not built):** "learn only from on-glass presentations"
     would drop the 11 off-glass heroes (9 of them camera-trigger) from the counts. It changes live ranking
     (`v3AttentionWeights` is ON), so it is the owner's call and must be flag-gated.
+
+**S6a as built (2026-09-27, flag `v3PresentationLog`, default OFF):**
+- **Owner decisions (09-27):** retention **90 days**. `__forceCandidate` heroes are
+  **excluded** (never written), not marked.
+- **Page:** `src/v3/core/presentation-log.js`. Hooks at the points where a thing
+  is really mounted or unmounted: `renderGlance`/`clearGlance` (attention.js),
+  `renderSpread`/`clearSpread` (spread.js), the subject mount and `clearSubject`
+  (subjects/index.js), plus an observer on the arbiter (`setArbiterObserver`).
+  The observer handles voice rows (claim → release) and the decisions that put
+  nothing up.
+- **"On the glass" means painted.** Only one depth layer is visible at a time,
+  so a glance row is open only at depth 1 and a spread row only at depth 2. The
+  glance cell keeps the spread's lead line underneath, so logging what was
+  rendered would over-report. Under-reporting is the chosen failure: a line
+  shown again by a depth step with no fresh render is missed, never invented.
+- **Row:** `surface` (glance/spread/stage/voice), `id`, `source`, `evidenceKey`,
+  `decision` (`{action, over}` or null), `shown`, `start`, `end`. A
+  dropped/refused/superseded arbiter call is a row with `shown: false` and
+  `start === end`.
+- 🔑 **The first draft leaked names through two fields that are not "person
+  fields".** An arrival's id is `arrival:person.<name>` and its S5a evidence
+  key is `ha:person.<name>`. Both are scrubbed, on the page AND by the
+  server's whitelist, to `arrival` and `ha:person`.
+  - ⚠ Other ids embed display text (`next-event:<title>`,
+    `now-playing:<title>`). These are kept because the design names "candidate
+    id". A calendar title can name a person. They stay on the box, untracked,
+    for 90 days.
+- **Server:** `server/routes/presentations.js`. `POST` rebuilds each row from a
+  whitelist, so extra fields are dropped. A row with no end, a bad surface or
+  an end in the future gets a 400. `GET ?since=&limit=` prunes on every read.
+  Writes prune at most hourly, with a hard cap of 200k rows. Storage is
+  `data/presentations/rows.jsonl` (untracked).
+- **Cost:** one fire-and-forget POST per closed row. Open rows are closed on
+  `pagehide`, so a deploy reload does not lose them.
+- **Spec:** `tests/v3-presentation-log.spec.js`, 11 tests. Inject-defect, 10
+  mutations:
+  - **RED (9):** missing end, double row (after strengthening), unscrubbed id,
+    extra `present` field, server whitelist bypassed, probe written, flag
+    ignored (off direction), no retention, glance counted at any depth (after
+    adding the depth-2 test).
+  - **GREEN (1):** removing the microtask coalescing. It guards a zero-length
+    glance row when a spread's lead differs from the depth-1 line, and no
+    fixture reaches that case without a score tie. **The guard is untested.**
+- ⏳ **Not yet:** deployed off, live-verified, flipped. `/kiosk-metrics` flat
+  after the flip.
 
 **What would reopen automatic learning:** only a digest showing a stable pattern that
 points one way, over weeks. Even then it would feed ranking alone (the existing nudge

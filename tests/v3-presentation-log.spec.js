@@ -84,8 +84,18 @@ test.describe("the page's half", () => {
     await page.evaluate(() => window.__v3Presence(false));
     await expect.poll(() => rows.filter((r) => r.surface === "glance").length).toBe(1);
 
-    // More ticks and depth churn cannot add a second row for the same showing.
+    /* More ticks, and a later showing (a probe, which is itself never written)
+       forcing a fresh sync, cannot add a second row for the same showing. The
+       sync is the point: ticks at depth 0 render nothing, so on their own they
+       never re-examine the closed row (inject-defect found that GREEN). */
     for (let i = 0; i < 3; i++) await page.evaluate(() => window.__v3Tick());
+    await page.evaluate(() => {
+      window.__v3Presence(true);
+      window.__forceCandidate({ id: "spec:later", source: "spec", text: "later", score: 95, interrupt: true, cooldownMs: 0 });
+      window.__v3Tick();
+    });
+    expect(await page.evaluate(() => window.__v3().attention.acted)).toBe("spec:later");
+    await page.evaluate(() => { window.__forceCandidate(null); window.__v3Presence(false); });
     await settle(page);
     const glance = rows.filter((r) => r.surface === "glance");
     expect(glance).toHaveLength(1);
@@ -112,6 +122,41 @@ test.describe("the page's half", () => {
     // No row, on any surface, carries a person entity anywhere.
     expect(JSON.stringify(rows)).not.toMatch(/person\./i);
     expect(pageErrors).toEqual([]);
+  });
+
+  test("at depth 2 the lead line is a SPREAD row only — the glance cell under it is not on the glass", async ({ page }) => {
+    const { rows } = await boot(page, { v3PresentationLog: true });
+
+    await arriveHome(page);
+    expect(await page.evaluate(() => window.__v3().depth?.depth)).toBe(1);
+
+    /* The room leans in: the tick composes the spread and deepens to 2. Two
+       ordinary probes give the composer a day to lay out (as v3-spread.spec
+       does); being probes, they are never written, so the arrival is the one
+       real cell. */
+    await page.evaluate(() => {
+      window.__forceCandidate([
+        { id: "spec:commute", source: "commute", text: "23 min to work", score: 42, cooldownMs: 0 },
+        { id: "spec:menu", source: "menu", text: "Chicken fajitas", score: 40, cooldownMs: 0 }
+      ]);
+      window.__v3Presence("dwell");
+      window.__v3Tick();
+    });
+    const at = await page.evaluate(() => ({
+      depth: window.__v3().depth?.depth,
+      cells: [...document.querySelectorAll("#spread-lattice [data-cell-id]")].map((n) => n.dataset.cellId)
+    }));
+    // Not vacuous: depth 2, with the arrival really mounted as a cell.
+    expect(at.depth).toBe(2);
+    expect(at.cells).toContain("arrival:person.spec");
+    await settle(page);
+
+    // What is open is exactly what is painted: spread cells, no glance.
+    const open = await page.evaluate(() => window.__v3().presentations.open);
+    expect(open.map((r) => r.surface)).not.toContain("glance");
+    expect(open).toContainEqual({ surface: "spread", id: "arrival", source: "arrival" });
+    // The depth-1 showing closed when the depth left 1: exactly one glance row.
+    expect(rows.filter((r) => r.surface === "glance").map((r) => r.id)).toEqual(["arrival"]);
   });
 
   test("a subject on the stage is one row, with the arbiter's call on it", async ({ page }) => {
