@@ -721,8 +721,19 @@ forbids. The draft did not notice. The amended S6 splits the log in two:
   - **GREEN (1):** removing the microtask coalescing. It guards a zero-length
     glance row when a spread's lead differs from the depth-1 line, and no
     fixture reaches that case without a score tie. **The guard is untested.**
-- ⏳ **Not yet:** deployed off, live-verified, flipped. `/kiosk-metrics` flat
-  after the flip.
+- **FLIPPED ON 2026-09-27 (`b0a4bc4`, owner).** Deployed off first (`2e67f86`:
+  `armed:false`, 0 requests). Reversibility: full suite green with the flag
+  forced off. Live on the G11 (`/home/dashboard/pl-probe.cjs`, Fetch-intercepted
+  `config.js`, 60 s hold per state):
+  - flag on → `armed:true`
+  - flag served off → `armed:false`, 0 requests
+  - restored → `armed:true`
+  - 0 page exceptions throughout
+  - 🔑 The flip's first two pre-push runs went RED on GPU-bound specs (the
+    humidity haze and stars boot the WebGL field 4×; the dog run is
+    frame-timed) while a PC game held the GPU. The same suite was 2361/0 with
+    the game closed. Not the flag: nothing in those specs reaches the glass,
+    so no row ever opens.
 
 **What would reopen automatic learning:** only a digest showing a stable pattern that
 points one way, over weeks. Even then it would feed ranking alone (the existing nudge
