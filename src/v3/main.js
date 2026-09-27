@@ -13,6 +13,7 @@ import { initSubstrate, toCauses } from "./substrate/index.js";
 import { initDepth, setDepth, getDepth, onDepth, DEPTH } from "./core/depth.js";
 import { initCensus } from "./core/census.js";
 import { initFeatureCensus } from "./core/feature-census.js";
+import { initPresentationLog, presentationLogState } from "./core/presentation-log.js";
 import { SOURCE_NAMES } from "../js/services/candidateSources.js";
 import { INTENT_IDS, ACTING_INTENT_IDS } from "../js/services/localIntents.js";
 import { LOCATIONS } from "../js/services/alertRouter.js";
@@ -486,6 +487,12 @@ function boot() {
      carries sound presence, which is a room sensor (soundPresence), not voice. */
   stage("voice", () => initVoice({ enabled: flag("voiceSession"), lat: CITY.lat, lon: CITY.lon }));
   stage("depth-teardown", () => onDepth(onDepthChange));
+
+  /* HOUSE-MIND S6a: the wall's log (core/presentation-log.js). Registered after
+     depth-teardown, so a row closes after the layer it describes has gone, and
+     before attention, so the boot tick's glance is a row too. Off: nothing is
+     subscribed and /api/presentations is never called. */
+  stage("presentation-log", () => { if (flag("v3PresentationLog")) initPresentationLog(); });
 
   /* The depth census (core/census.js). Flag-gated and default-off: with
      v3DepthCensus unset nothing subscribes, no interval is armed and
@@ -1015,6 +1022,8 @@ function registerHandles() {
     houseStream: houseStreamState(),
     // HOUSE-MIND S3: who holds the air and the stage, and the last decisions.
     arbiter: arbiterState(),
+    // HOUSE-MIND S6a: the wall's log. `armed: false` is the flag off.
+    presentations: presentationLogState(),
     // The shared store and the posture derived from it, in the same read as the
     // selection they shaped. Kept together on purpose: "why did the wall stay
     // quiet?" is a question about all three at one instant, and three separate

@@ -2292,6 +2292,16 @@ window.CONFIG = {
     // 17:18): 2,878 ticks, gate on 99.7%, 0 drops, 0 errors, 11 lanes seen.
     v3EvidenceGate: true,
 
+    // ── HOUSE-MIND S6a (docs/design/HOUSE-MIND.md §S6): the wall's log. One
+    // row per presentation (glance / spread / stage / voice): id, source,
+    // evidence key, arbiter decision, start, end. NO presence, person or home
+    // field; an id naming a person entity is logged as its source. Rows go to
+    // POST /api/presentations fire-and-forget, kept 90 days on the box
+    // (data/presentations/, untracked). Nothing reads it back into ranking.
+    // Read once at boot. Off: nothing subscribes, no request is made.
+    // Rollback: v3PresentationLog: false (+ hard reload).
+    v3PresentationLog: false,
+
     // V3's field weather (src/v3/main.js loadWeather): the substrate's causes,
     // the Living Window's slice and the archive's sky line.
     // FLIPPED ON 2026-09-23 by the owner, first of the three. Deployed off first

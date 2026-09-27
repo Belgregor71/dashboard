@@ -82,6 +82,7 @@ import { record } from "./feature-census.js";
 import { DEPTH, deepen, sustain, setDepth, getDepth, getReason, onDepth } from "./depth.js";
 import { initPresence, onPresence, isPresent, isDwelling } from "./presence.js";
 import { renderSpread, spreadMounted, setSaidText, contextEnabled } from "./spread.js";
+import { logGlance } from "./presentation-log.js";
 
 /* The incumbent's focusHero tick, matched exactly. Not a number worth choosing
    independently: two surfaces asking the same engine at different rates would
@@ -175,6 +176,7 @@ function earnsGlance(hero) {
 ─────────────────────────────────────────────────────────────────────────── */
 function renderGlance(hero) {
   if (!el.cell) return;
+  logGlance(hero);   // HOUSE-MIND S6a; a no-op with v3PresentationLog off
   el.cell.dataset.cell = hero.source ?? "house";
   // Same length rule as the spread's dominant cell — css/type.css has carried
   // `.said[data-len="long"]` since V3 shipped and nothing ever set it, so a
@@ -207,6 +209,7 @@ function clearGlance() {
   if (!el.cell) return;
   setSaidText(el.said, "");
   setLabel(el.cell, el.measured, null);
+  logGlance(null);   // HOUSE-MIND S6a; a no-op with v3PresentationLog off
 }
 
 /* ── The incumbent's four candidate lanes, gated here too (audit F1b) ───────

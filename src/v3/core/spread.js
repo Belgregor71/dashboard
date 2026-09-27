@@ -32,6 +32,7 @@
 
 import { compose } from "./composer.js";
 import { formatClock, progressOf } from "./media-rooms.js";
+import { logSpread } from "./presentation-log.js";
 
 /* modules/focusHero.js HERO_TIER_B_MAX. Inherited rather than chosen: the
    incumbent has been stepping the hero line down at 41 characters since Study
@@ -343,6 +344,7 @@ export function renderSpread(selection) {
   for (const line of host.querySelectorAll(".said")) markWrapped(line);
 
   host.dataset.template = composition.template;
+  logSpread(composition.cells.map((cell) => cell.candidate));   // HOUSE-MIND S6a
   return composition;
 }
 
@@ -358,6 +360,7 @@ export function clearSpread() {
   stripCellImages(host);
   host.replaceChildren();
   delete host.dataset.template;
+  logSpread([]);   // HOUSE-MIND S6a; a no-op with v3PresentationLog off
 }
 
 /** The mounted template's name, or null. For __v3(). */

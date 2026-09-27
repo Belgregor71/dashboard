@@ -223,6 +223,12 @@ export function getSelection({ sources = [], now = new Date(), mode = "glance", 
   return { ...sel, queue, dropped };
 }
 
+/** Was candidate `id` put in by __forceCandidate? A probe, not the house —
+ *  HOUSE-MIND S6a's log never writes one (the S6-0 lesson). */
+export function isInjectedId(id) {
+  return id != null && injected.some((c) => c?.id === id);
+}
+
 export function initAttentionEngine() {
   refresh().catch((e) => console.warn("Attention refresh failed:", e?.message));
   setInterval(() => {

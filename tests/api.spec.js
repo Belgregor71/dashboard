@@ -202,6 +202,7 @@ test.describe("security middleware", () => {
     ["post", "/api/ha/services/light/turn_on", {}],
     ["post", "/api/ha/shopping_list", { name: "csrf" }],
     ["put", "/api/routines", { routines: {} }],
+    ["post", "/api/presentations", { row: { surface: "glance", id: "csrf", source: "csrf", start: 1, end: 2 } }],
     ["post", "/api/census/depth", { day: "2099-12-31", entries: [0, 0, 0, 0], dwellMs: [0, 0, 0, 0] }],
     ["post", "/api/census/features", { day: "2099-12-31", counts: {} }],
     ["put", "/api/delight", { budgets: {} }],

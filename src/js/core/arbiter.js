@@ -66,9 +66,25 @@ export function arbiterOn() {
 const MAX_DECISIONS = 20;
 const decisions = [];
 
+/* HOUSE-MIND S6a: one listener for every decision, plus "released" when the
+   air comes free. Installed only by V3's presentation log (features.
+   v3PresentationLog); with nothing installed this file behaves as before. A
+   throwing observer is swallowed: the log must never cost the room a line. */
+let observer = null;
+
+export function setArbiterObserver(fn) {
+  observer = typeof fn === "function" ? fn : null;
+}
+
+function tell(event) {
+  if (!observer) return;
+  try { observer(event); } catch { /* the wall matters more than its log */ }
+}
+
 function note(cap, author, action, over = null) {
   decisions.push({ at: Date.now(), cap, author: author ?? null, action, over });
   if (decisions.length > MAX_DECISIONS) decisions.shift();
+  tell({ cap, author: author ?? null, action, over });
 }
 
 /* ── Speech ──────────────────────────────────────────────────────────────── */
@@ -118,7 +134,11 @@ export function claimSpeech(author, gen) {
 /** Utterance `gen` has ended (finished, failed or cut off). A stale release —
  *  from an utterance something newer already superseded — is ignored. */
 export function releaseSpeech(gen) {
-  if (speechClaim && (gen == null || speechClaim.gen === gen)) speechClaim = null;
+  if (speechClaim && (gen == null || speechClaim.gen === gen)) {
+    const author = speechClaim.author;
+    speechClaim = null;
+    tell({ cap: "speech", author, action: "released", over: null });
+  }
   if (!speechClaim) wakeQuiet();
 }
 

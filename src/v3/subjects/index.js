@@ -41,6 +41,7 @@ import { showBriefing } from "./briefing.js";
 import { showStatus } from "./status.js";
 import { record } from "../core/feature-census.js";
 import { arbiterOn, mayTakeStage, claimStage, releaseStage, noteSuperseded } from "../../js/core/arbiter.js";
+import { logStageOpen, logStageClose } from "../core/presentation-log.js";
 
 let mount = null;
 let active = null;      // { id, teardown }
@@ -62,6 +63,7 @@ function ensureMount() {
 export function clearSubject() {
   showGen += 1;
   releaseStage();
+  logStageClose();   // HOUSE-MIND S6a
   if (active?.teardown) {
     try { active.teardown(); } catch { /* a broken teardown must not wedge depth */ }
   }
@@ -288,6 +290,7 @@ export async function showSubject(intent, snapshot, { author = null } = {}) {
 
   m.replaceChildren(built.node);
   active = { id: intent.id, teardown: built.teardown };
+  logStageOpen(intent.id, author);   // HOUSE-MIND S6a; a no-op with v3PresentationLog off
   record("subject", intent.id, "shown");
 
   return { speech: built.speech ?? null, refs: built.refs ?? [] };
