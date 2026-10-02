@@ -144,6 +144,10 @@ const SHARED_BOTH = [
   "js/services/occasions.js",
   "js/services/photoMemory.js",
   "js/services/predictiveRules.js",
+  /* ENTERED V3'S CLOSURE 2026-10-03 through voiceSnapshot.js: QLD public
+     holidays (features.v3PublicHolidays), ported from the incumbent's
+     calendar/holidays.js before the incumbent is retired. Import-free. */
+  "js/services/publicHolidays.js",
   "js/services/quietMode.js",
   "js/services/routineStore.js",
   "js/services/sleepSummary.js",

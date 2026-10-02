@@ -64,6 +64,7 @@ import { initAtmosphereFx, atmosphereSun, onStrike } from "./core/atmosphere-fx.
 import { dogOccasion } from "./core/dog-occasion.js";
 import { initDogSchedule } from "./core/dog-schedule.js";
 import { isPresent } from "./core/presence.js";
+import { holidayToday } from "../js/services/publicHolidays.js";
 
 /* ⚠ `/js/config.js` is a separate <script> in index.html, so window.CONFIG is
    populated before this module runs — but read it LATE anyway (per call, not at
@@ -368,6 +369,15 @@ function applyWeather(reading) {
     // Same swallow the fetch path always had around these three: a painter
     // that throws must not take the reading's other consumers down with it.
   }
+}
+
+/* A public holiday warms the edge of the wall (features.v3PublicHolidays, the
+   incumbent's `is-holiday` tint, ported). The attribute is the whole contract;
+   compose.css draws it. Flag off, holidayToday() is null and nothing is set. */
+function paintHoliday() {
+  const title = holidayToday();
+  if (title) document.body.dataset.holiday = title;
+  else delete document.body.dataset.holiday;
 }
 
 /* The vocabulary rail. Everything offered is filtered through the lane against
@@ -928,7 +938,8 @@ function boot() {
   // Two handlers rather than .finally(): a rejection handled on a fresh chain
   // re-throws, and an uncaught page error on the kiosk is the bug class the
   // suite exists to catch. The rail is best-effort either way.
-  stage("rail", () => refreshVoiceCache().then(guard("rail", paintRail), guard("rail", paintRail)));
+  stage("rail", () => refreshVoiceCache().then(guard("rail", paintRail), guard("rail", paintRail))
+    .then(guard("holiday", paintHoliday)));
 
   /* Init-once intervals only. Per-event timers are where this house has leaked
      before; these are registered exactly once at startup and never re-created.
@@ -943,6 +954,7 @@ function boot() {
     setInterval(guard("weather", loadWeather), 600_000);
     setInterval(guard("voice-cache", () => { refreshVoiceCache(); }), 300_000);
     setInterval(guard("house-cache", () => { refreshHouseCache(); }), 300_000);
+    setInterval(guard("holiday", paintHoliday), 300_000); // midnight rolls it over
     setInterval(guard("rail", () => { railTick += 1; paintRail(); }), 90_000);
   });
 

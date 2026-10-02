@@ -2427,6 +2427,16 @@ window.CONFIG = {
     // local lane and all five generic pairs played in order, each on its own
     // timing, 0 overlays/timers after, 0 exceptions.
     v3DogVoice: true,
+
+    // ── Public holidays (L3 of the incumbent retirement) ───────────────────
+    // QLD public holidays join the calendar every V3 reader sees (the day, the
+    // ahead list, "what's on Monday") and, on the day, the ground photo gets
+    // the incumbent's warm edge (body[data-holiday], css/compose.css). One
+    // merge point: voiceSnapshot() via services/publicHolidays.js. The house
+    // cache is not merged — next-event skips all-day events anyway.
+    // Off: no /api/calendar/holidays fetch, the calendar array is passed
+    // through by reference, and no attribute is ever set.
+    v3PublicHolidays: false,
   },
 
   /* --------------------------------------------------------------

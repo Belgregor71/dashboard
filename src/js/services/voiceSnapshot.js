@@ -32,6 +32,7 @@ import { isTvAudio } from "./mediaSource.js";
 import { getTimes } from "../vendor/suncalc.js";
 import { on } from "../core/eventBus.js";
 import { storeFresh } from "./houseStream.js";
+import { refreshHolidays, withHolidays } from "./publicHolidays.js";
 
 /* Refreshed on a timer; never fetched at answer time. */
 const cache = {
@@ -109,7 +110,9 @@ export async function refreshVoiceCache() {
     getJson("/api/fuel"),
     // Flag-off is NO FETCH, not a discarded one — the off state has to be the
     // network behaviour the lane had before the roster existed.
-    flag("choreRoster") ? getJson("/api/chores") : Promise.resolve(null)
+    flag("choreRoster") ? getJson("/api/chores") : Promise.resolve(null),
+    // Flag-off returns before any fetch; a held year is not re-read for a day.
+    refreshHolidays()
   ]);
   applyVoice("weather", weather);
   applyVoice("forecast", forecast);
@@ -324,7 +327,8 @@ export function voiceSnapshot({ lat, lon } = {}) {
     weather: cache.weather,
     forecast: cache.forecast,
     nowcast: cache.nowcast,
-    calendar: cache.calendar,
+    // Public holidays join here and nowhere upstream (features.v3PublicHolidays).
+    calendar: withHolidays(cache.calendar),
     /* Tonight's dish, from the same parse houseSnapshot uses. Derived rather
        than cached because it is a pure function of the calendar we already
        hold, and because it must roll over at midnight without a refetch. */

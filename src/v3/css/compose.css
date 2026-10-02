@@ -65,6 +65,17 @@ html, body {
 }
 .photo img[data-shown="1"] { opacity: 1; }
 
+/* A public holiday (features.v3PublicHolidays): the incumbent's warm edge,
+   ported value for value. On the photo, UNDER the scrim, so it can only warm
+   the picture and never sits on top of a word. */
+body[data-holiday] .photo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 220px rgba(250, 204, 21, 0.10);
+}
+
 /* ── The diptych ────────────────────────────────────────────────────────────
    Two portraits side by side, behind `groundDiptych`. Full-bleed, a 1440x1920
    preview is upscaled 1.33x onto this wall and cropped to ~42% of the picture;
