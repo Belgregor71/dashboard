@@ -134,6 +134,22 @@ The census in `docs/audit/F1-FLAG-CENSUS-2026-09-11.md` predates 9 of these V3 b
 
 ## 5. LOST — owner's decision, one per row
 
+**Decided by the owner 2026-10-03:**
+
+| # | decision |
+|---|---|
+| L1 | Remove/park. The whole memory-day system needs a rebuild. |
+| L2 | Remove. |
+| **L3** | **PORT** before Phase 2 deletes `calendar/holidays.js`. |
+| L4 | Remove. Note, probed live 2026-10-03: HA exposes **no air-quality entity**. The BOM integration gives `sensor.nudgee_uv_*` (UV only) out of 728 entities. AQI will exist nowhere once this goes. |
+| L5 | Remove. May be rebuilt later. |
+| L6 | Remove. |
+| L7 | Remove. |
+| L8 | Remove. Folds into the memory-day rebuild. |
+| L9 | Remove. |
+
+m1–m3 were not raised separately; they follow "let go".
+
 | # | capability | port first, or let go? |
 |---|---|---|
 | L1 | Tender-memory frame (`ambientMemory`): on a tender day V3 shows no memory | ☐ port ☐ let go |
