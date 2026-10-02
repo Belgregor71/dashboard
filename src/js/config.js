@@ -654,7 +654,13 @@ window.CONFIG = {
     // frames, 6 emits in 2.5 min, throttle held). ⚠ The dog walk-past negative
     // control was SKIPPED by the owner — if Benji or Teddy trip it, the symptom
     // is the wall thinking someone is home.
-    cameraPresence: true,
+    // ⛔ FLIPPED OFF 2026-09-28 at the owner's ask — the family did not want a
+    // camera in the kitchen. Service disabled on the G11 too. Don't re-enable
+    // without asking the owner. ⚠ That leaves the MIC as the only live source:
+    // the eufy kitchen sensor has had 0 on-edges since 2026-09-18 (HA history,
+    // probed 10-02). Committed 2026-10-02. Revert: -> true (+ re-enable the
+    // service — the flag alone does nothing with no camera feeding it).
+    cameraPresence: false,
 
     // PRESENCE EARNS MEDIUM — the bar moves with the room.
     //
