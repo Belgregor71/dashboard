@@ -50,9 +50,9 @@ const MANIFESTS = {
     }
   },
   incumbent: {
-    // Kept whole for the rollback host. `V3_DEFAULT=0` restores this surface
-    // (V3-CUTOVER.md:504) and `pi4-rollback` stays code-current, so the
-    // incumbent instrument is cold standby, not dead code.
+    // Kept whole for the surface rollback. `V3_DEFAULT=0` restores this
+    // surface (V3-CUTOVER.md:504), so the incumbent instrument is cold
+    // standby, not dead code.
     required: ["__switchView", "__wakeScreensaver", "__engageScreensaver"],
     optional: {
       __forceAtmoEpisode: "atmoFx not initialised",

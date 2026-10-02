@@ -113,8 +113,8 @@ function refuseInert(name, f) {
       `      revert of the commit that built the V3 behaviour.\n\n` +
       `  The marks are derived, not maintained: tests/flag-surface.spec.js walks V3's\n` +
       `  import closure and goes red on a missing mark and on a stale one.\n\n` +
-      `  If you mean the INCUMBENT surface on purpose (the Pi 4 rollback host, or a\n` +
-      `  kiosk pinned to \`V3_DEFAULT=0\`), re-run with --incumbent-only. That proves\n` +
+      `  If you mean the INCUMBENT surface on purpose (a kiosk pinned to\n` +
+      `  \`V3_DEFAULT=0\`), re-run with --incumbent-only. That proves\n` +
       `  the incumbent's off state, and still nothing about the wall.\n`
   );
   process.exit(1);
@@ -284,7 +284,7 @@ if (ONLY) {
 }
 
 /* The bulk modes are not /flag-flip, so a marked flag is run rather than
-   refused — the incumbent still ships and the Pi 4 rollback host still serves
+   refused — the incumbent still ships and `V3_DEFAULT=0` still serves
    it. They are LABELLED instead, so no line of this output can be read as a
    rollback proof for a flag that has no lever on the wall. */
 const inertTargets = targets.filter((f) => flags[f].inert);

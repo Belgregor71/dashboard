@@ -66,8 +66,8 @@ irritating on the fiftieth is a failure, and here failure means the screen gets 
 discipline was not removed; it was replaced, and the replacement is stricter about *intent* and
 looser about *frames*.
 
-**The Pi 4 is no longer a design constraint** (decided 2026-08-01). `pi4-rollback` stays
-code-current, and a rollback may render these effects at a degraded frame rate. That is accepted.
+**The Pi 4 is no longer a design constraint** (decided 2026-08-01), and since 2026-10-03 it is
+not a host at all — the rollback role was retired with it.
 Do **not** tier motion by host or add a capability flag for it — one code path, designed for the
 G11.
 

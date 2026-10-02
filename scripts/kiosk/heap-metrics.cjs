@@ -442,8 +442,8 @@ async function main() {
 
   /* Route by which probe actually answered, never by an assumption about what
      `/` serves. Both branches stay live: the incumbent is the documented
-     rollback (`V3_DEFAULT=0`) and pi4-rollback is kept code-current, so a sweep
-     there must still get its archive verdict. */
+     rollback (`V3_DEFAULT=0`), so a sweep of a kiosk pinned there must still
+     get its archive verdict. */
   const onV3 = ground !== null;
   const clips = onV3 ? null : await serverClips();
   const pool = onV3 ? await serverGround() : null;

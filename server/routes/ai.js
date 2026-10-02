@@ -345,7 +345,7 @@ function characterBriefings() {
    nothing.
 
    ⚠ It deliberately does NOT touch SYSTEM_PROMPTS. That map is the rollback
-   target for HOUSE_CHARACTER_BRIEFINGS and the prompt the Pi 4 serves; leaving
+   target for HOUSE_CHARACTER_BRIEFINGS; leaving
    it frozen keeps "flip the character flag off" a return to a known string
    rather than to a second new one. The lock's own half of the fix — the derived
    topic list in buildPrompt — applies to both maps, so the legacy prompt is

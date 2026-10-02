@@ -5,9 +5,9 @@ spends most of its time quiet. It puts one thing on the wall when something
 deserves attention, and it talks when spoken to.
 
 It ran on a Raspberry Pi 4 until 2026-08-01. It now runs on a **GMKtec G11 mini PC**
-(AMD Ryzen Embedded R2514, Vega 8, 16 GB, Debian 13 + X11). The Pi is kept, code-current,
-as a warm rollback host. The repo name and the package description still say "pi"
-for historical reasons.
+(AMD Ryzen Embedded R2514, Vega 8, 16 GB, Debian 13 + X11). The Pi was kept as a warm
+rollback host until 2026-10-03 and is now retired; the G11 is the only host. The repo
+name and the package description still say "pi" for historical reasons.
 
 ## Stack
 

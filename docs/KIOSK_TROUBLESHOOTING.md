@@ -125,7 +125,7 @@ outright (`device 3: HDMI 0 [AK32FHDMT]`), which is the quickest confirmation.
 **Re-derive if the panel or HDMI port changes.** Same reasoning applies to the mic:
 `plughw:CARD=Microphone,DEV=0`, not `plughw:N,0`.
 
-**On the Pi 4 (rollback host):** each HDMI port is its own card, so the simpler
+**On the Pi 4 (retired 2026-10-03, kept here for history):** each HDMI port is its own card, so the simpler
 `defaults.pcm.card N` / `defaults.ctl.card N` form is enough — card **0** for the panel.
 
 ### Test before involving the browser at all

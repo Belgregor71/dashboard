@@ -367,7 +367,7 @@ test.describe("show-me surfaces — the new subjects", () => {
 
        So the exemption is made conditional on the handler existing. `/` serves
        V3, so V3 is the surface that must have it; the incumbent's dispatch table
-       is checked too, because it is the rollback host. */
+       is checked too, because it is the rollback surface. */
     const actions = INTENT_IDS.filter((id) => id.startsWith("action."));
     expect(actions.length, "no action.* ids left — the filter is wrong").toBeGreaterThan(0);
 
@@ -376,7 +376,7 @@ test.describe("show-me surfaces — the new subjects", () => {
     for (const id of actions) {
       expect(v3, `V3 (the surface on the wall) has no branch for ${id}`)
         .toContain(`intent.id === "${id}"`);
-      expect(incumbent, `the rollback host has no dispatch entry for ${id}`)
+      expect(incumbent, `the rollback surface has no dispatch entry for ${id}`)
         .toContain(`"${id}"`);
     }
   });

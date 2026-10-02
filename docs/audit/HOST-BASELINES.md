@@ -14,7 +14,9 @@ understates physical-core pressure in a way it did not on the Pi.
 
 ## Raspberry Pi 4 Model B (4 GB) — ARCHIVED 2026-07-30/31
 
-The rollback host. Kept because a rollback target's numbers stay operationally relevant.
+The former host, and the warm rollback host from 2026-08-01 until it was **retired on
+2026-10-03** (off the network, no longer code-current). These numbers are history: they
+explain decisions made against them, and nothing is measured against them any more.
 
 | | |
 |---|---|
@@ -361,9 +363,8 @@ shown, against a server pool of **102** on-this-day assets.
 (~2.3 fps) was the tripwire; a legal continuous effect may now run ambient at 60 fps. The
 quiescent row replaces it — that is where an accidental decorative loop still shows up.
 
-**The Pi 4 row is no longer a gate.** `pi4-rollback` stays code-current and may render new motion
-at a degraded frame rate; that was accepted on 2026-08-01. Its numbers stay here because a
-rollback target's numbers stay operationally relevant, not because new work must fit them.
+**The Pi 4 row is no longer a gate.** That was accepted on 2026-08-01 while the Pi was still the
+rollback host; since 2026-10-03 it is retired outright, so its numbers stay here as history only.
 
 ### Thermal substitute
 

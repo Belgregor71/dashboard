@@ -1013,7 +1013,7 @@ day you find out is the day the wall is already broken.
   entirely in `src/js/` (`services/atmoFx/{planner,runtime}.js`) with **zero references
   from `src/v3/`**. The wall runs V3. **There is no atmoFx rAF loop on the live surface to
   verify has stopped.** If the question is worth answering it is a question about the
-  rollback host, not the kiosk.
+  incumbent surface (`V3_DEFAULT=0`), not the wall as it runs.
 
 - ⛔ **M6 — CLOSED, owner's call 2026-08-20. Its justification had evaporated.** 18 MB of weather MP4s →
   ~6 MB. The audit's reason was "each one is hardware-decoded on the Pi while visible" —

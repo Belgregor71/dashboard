@@ -151,7 +151,7 @@ test.describe("flag reversibility gate — INERT-ON-V3 is refused", () => {
        defect arriving one step later. */
     expect(r.out, `the refusal does not name the V3 lever (${target.lever})`).toContain(target.lever);
     /* And it must say how to mean it on purpose, or the gate is unbypassable
-       for the Pi 4 rollback host, which serves the incumbent. */
+       for a kiosk pinned to `V3_DEFAULT=0`, which serves the incumbent. */
     expect(r.out).toContain("--incumbent-only");
   });
 

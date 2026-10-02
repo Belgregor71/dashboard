@@ -529,6 +529,8 @@ skills need zero edits. There is no Raspberry Pi in the live path.
 `ssh pi4-rollback` → **Pi 4, 192.168.0.186**, the warm rollback host. **Its kiosk is
 disabled**; only `dashboard.service` and `dashboard-deploy.timer` run, so it stays
 code-current. ⚠ **It has no glass — no soak, sighting or screenshot can happen there.**
+⛔ **Retired 2026-10-03** — off the network and no longer a rollback host. The only
+rollback left is the surface one (`V3_DEFAULT=0` on the G11).
 
 ### The four moves, in order
 
