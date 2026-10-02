@@ -234,6 +234,10 @@ test.describe("dog occasion", () => {
     for (const [occ, modes] of Object.entries(OCCASIONS)) {
       for (const [mode, staged] of Object.entries(modes)) {
         const n = staged.grid.columns * staged.grid.rows;
+        // Every peek sits 6 s on its settled face (owner's ask 2026-10-02;
+        // 2 s was too short to catch in passing). The phase tests below read
+        // the hold FROM the config, so only this line pins the number.
+        if (mode === "peek") expect(staged.holdMs, `${occ}/peek hold`).toBe(6000);
         for (const [id, looks] of Object.entries(staged.dogs)) {
           expect(DOGS[id], `${occ}/${mode}/${id}`).toBeTruthy();
           expect(DOGS[id].timing[mode]).toHaveLength(n);

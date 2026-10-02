@@ -365,6 +365,11 @@ const CHOREOGRAPHY = {
   }
 };
 
+/* How long a peek sits on its settled face before it ducks away — every
+   occasion's peek, Christmas included. Was 2000 (a ~7 s visit, too short to
+   catch in passing); 6000 at the owner's ask, 2026-10-02. */
+const PEEK_HOLD_MS = 6000;
+
 /* Every occasion after Christmas comes from scripts/dogs/measure-sheets.py
    (dog-sheets.js, generated). Those sheets are RE-PACKED at import: each frame
    lifted out by its own pixels and laid base-down in a clean grid, so their
@@ -377,7 +382,7 @@ const peekFromSheets = (occasionId, looksByDog) => ({
   grid: { columns: 4, rows: 3 },
   anchor: "base",
   stillFrame: 11,
-  holdMs: 2000,
+  holdMs: PEEK_HOLD_MS,
   cellScale: CELL_SCALE,
   dogs: Object.fromEntries(Object.entries(looksByDog).map(([id, looks]) => [id, looks.map((l) => ({
     name: l.name,
@@ -401,7 +406,7 @@ export const OCCASIONS = {
       grid: { columns: 4, rows: 3 },
       anchor: "base",
       stillFrame: 11,               // the final, settled portrait
-      holdMs: 2000,                 // after the last frame's own 1000/1100ms
+      holdMs: PEEK_HOLD_MS,         // after the last frame's own 1000/1100ms
       // All six sheets 1448×1086 → 362px cells. Looks 1 and 2 measured
       // 2026-09-26; a trimmed edge below is noted where the art touches a
       // neighbour's, and every final window (AIR included) holds ≤ 9 foreign

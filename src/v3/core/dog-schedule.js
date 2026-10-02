@@ -17,11 +17,12 @@
    a dog nobody sees is not a moment, so nothing fires to an empty room, in
    quiet hours, or over something the house is showing (a doorbell, a voice
    reply — anything at SUBJECT depth).
-     generic    ~1 an hour on average, never more than 2 in any 60 minutes.
-     season     climbs from ~1 an hour on its first day to 5 on the day
+     generic    ~2 an hour on average, never more than 4 in any 60 minutes.
+     season     climbs from ~2 an hour on its first day to 10 on the day
                 itself, easing off on any days after it (Boxing Day, Easter
-                Monday, 1–2 Jan). Never more than 5 in any 60 minutes.
-     birthday   the day itself, so the peak: 5.
+                Monday, 1–2 Jan). Never more than 10 in any 60 minutes.
+     birthday   the day itself, so the peak: 10.
+   (All doubled 2026-10-02 — see the constants.)
    The cap is a sliding 60 minutes of what was actually SHOWN, and a minimum
    gap keeps two from landing back to back. Within those, each minute rolls
    against the rate (a Poisson clock), so the timing never becomes a pattern.
@@ -39,9 +40,13 @@ export const QUIET = { from: 22, to: 7 };
 export const TICK_MS = 60_000;
 export const PAIR_SHARE = 0.5;
 
-export const GENERIC = { rate: 1, cap: 2, minGapMin: 10 };
-export const SEASONAL = { floor: 1, peak: 5, cap: 5, minGapMin: 6, taperPerDay: 2 };
-export const BIRTHDAY = { rate: 5, cap: 5, minGapMin: 6 };
+/* Every rate and cap DOUBLED 2026-10-02 at the owner's ask (was generic 1/2,
+   season 1→5 cap 5, birthday 5). The seasonal/birthday gap halves with them:
+   a 6-minute gap allows at most 10 an hour, so a peak of 10 could never be
+   delivered through it. */
+export const GENERIC = { rate: 2, cap: 4, minGapMin: 10 };
+export const SEASONAL = { floor: 2, peak: 10, cap: 10, minGapMin: 3, taperPerDay: 4 };
+export const BIRTHDAY = { rate: 10, cap: 10, minGapMin: 3 };
 
 /* Occasions with a run mode, and how often a popup is the run instead. */
 export const RUN_SHARE = { christmas: 0.2 };
@@ -133,8 +138,8 @@ export function planFor(date, birthdays = []) {
     return {
       // The cap climbs WITH the rate: a flat 5 let 3 December — ~1 an hour —
       // throw five in one lucky hour (measured in simulation), which is not
-      // "more often the closer it gets". Twice the rate, between generic's 2
-      // and the season's 5.
+      // "more often the closer it gets". Twice the rate, between generic's cap
+      // and the season's.
       kind: "season", occasion: season.id, rate,
       cap: Math.min(SEASONAL.cap, Math.max(GENERIC.cap, Math.ceil(rate * 2))),
       minGapMs: SEASONAL.minGapMin * 60_000, dogs: [...DOGS], runShare: RUN_SHARE[season.id] ?? 0

@@ -148,26 +148,26 @@ test.describe("dog schedule", () => {
   test("every season's first day, THE day and last day — and the day either side is generic", () => {
     // [day before, first, the day, last, day after] → expected occasion:rate
     const cases = [
-      ["christmas", ["2026-12-02", "2026-12-03", "2026-12-25", "2026-12-26", "2026-12-27"], [1, 5, 3]],
-      ["newYear", ["2026-12-29", "2026-12-30", "2026-12-31", "2027-01-02", "2027-01-03"], [1, 5, 1]],
-      ["australiaDay", ["2027-01-19", "2027-01-20", "2027-01-26", "2027-01-26", "2027-01-27"], [1, 5, 5]],
+      ["christmas", ["2026-12-02", "2026-12-03", "2026-12-25", "2026-12-26", "2026-12-27"], [2, 10, 6]],
+      ["newYear", ["2026-12-29", "2026-12-30", "2026-12-31", "2027-01-02", "2027-01-03"], [2, 10, 2]],
+      ["australiaDay", ["2027-01-19", "2027-01-20", "2027-01-26", "2027-01-26", "2027-01-27"], [2, 10, 10]],
       // Easter 2027 is 28 March: Monday of Holy Week 22nd, Easter Monday 29th.
-      ["easter", ["2027-03-21", "2027-03-22", "2027-03-28", "2027-03-29", "2027-03-30"], [1, 5, 3]],
-      ["halloween", ["2026-09-30", "2026-10-01", "2026-10-31", "2026-10-31", "2026-11-01"], [1, 5, 5]]
+      ["easter", ["2027-03-21", "2027-03-22", "2027-03-28", "2027-03-29", "2027-03-30"], [2, 10, 6]],
+      ["halloween", ["2026-09-30", "2026-10-01", "2026-10-31", "2026-10-31", "2026-11-01"], [2, 10, 10]]
     ];
     for (const [id, [before, first, day, last, after], [r0, rDay, rLast]] of cases) {
-      expect(kind(before), `${id} day before`).toBe("generic:1");
+      expect(kind(before), `${id} day before`).toBe("generic:2");
       expect(kind(first), `${id} first`).toBe(`${id}:${r0}`);
       expect(kind(day), `${id} the day`).toBe(`${id}:${rDay}`);
       expect(kind(last), `${id} last`).toBe(`${id}:${rLast}`);
-      expect(kind(after), `${id} day after`).toBe("generic:1");
+      expect(kind(after), `${id} day after`).toBe("generic:2");
     }
     // New Year straddles the year line: 1 Jan is LAST year's season, tapering.
-    expect(kind("2027-01-01")).toBe("newYear:3");
+    expect(kind("2027-01-01")).toBe("newYear:6");
     // Easter moves: 2026's is 5 April — and 22 March 2026 is an ordinary day.
-    expect(kind("2026-04-05")).toBe("easter:5");
-    expect(kind("2026-04-06")).toBe("easter:3");
-    expect(kind("2026-03-22")).toBe("generic:1");
+    expect(kind("2026-04-05")).toBe("easter:10");
+    expect(kind("2026-04-06")).toBe("easter:6");
+    expect(kind("2026-03-22")).toBe("generic:2");
   });
 
   test("a season only climbs toward its day, peaks at 5, and eases after", () => {
@@ -199,7 +199,7 @@ test.describe("dog schedule", () => {
   test("birthdays: only on the day, they win the day, and a dog's own day is his", () => {
     const days = parseBirthdays("Benji 20/5, Teddy 20/5, Greg 2/12, Brett 16/5, Teddy 9/10, Pat 9/10").days;
     // Both dogs share 20 May: that day is both of theirs.
-    expect(planFor(at("2027-05-20T12:00"), days)).toMatchObject({ kind: "birthday", occasion: "birthday", rate: 5, dogs: ["benji", "teddy"] });
+    expect(planFor(at("2027-05-20T12:00"), days)).toMatchObject({ kind: "birthday", occasion: "birthday", rate: 10, dogs: ["benji", "teddy"] });
     // A family birthday: either dog, or both.
     expect(planFor(at("2027-05-16T12:00"), days)).toMatchObject({ kind: "birthday", dogs: ["benji", "teddy"] });
     // Only on the day.
@@ -254,16 +254,17 @@ test.describe("dog schedule", () => {
     });
     const fire = () => s.tick();
     // random 0 always wins the dice: only the gap and the cap stop it.
+    const gap = SEASONAL.minGapMin * 60_000;
     expect(fire().fired).toBe(true);
-    t += 5 * 60_000;
+    t += gap - 60_000;
     expect(fire()).toMatchObject({ fired: false, reason: "gap" });
-    for (let i = 0; i < 4; i++) { t += 6 * 60_000; expect(fire().fired, `popup ${i + 2}`).toBe(true); }
-    t += 6 * 60_000;
-    expect(fire()).toMatchObject({ fired: false, reason: "cap" });   // 5 inside 60 minutes
+    for (let i = 0; i < SEASONAL.cap - 1; i++) { t += gap; expect(fire().fired, `popup ${i + 2}`).toBe(true); }
+    t += gap;
+    expect(fire()).toMatchObject({ fired: false, reason: "cap" });   // the cap's worth inside 60 minutes
     t = at("2026-12-25T10:00").getTime() + 1;
     expect(fire().fired, "the first has left the hour").toBe(true);
-    t += 6 * 60_000;
-    expect(fire()).toMatchObject({ fired: false, reason: "cap" });   // 9:11–9:29 + 10:00 still count
+    t += gap;
+    expect(fire()).toMatchObject({ fired: false, reason: "cap" });   // the rest + 10:00 still count
     expect(answer).toEqual({ shown: true });
 
     // A show answered { shown: false } — busy, an asset failed — is handed
@@ -307,21 +308,21 @@ test.describe("dog schedule", () => {
     // would deliver ~3.3.
     expect(rollRate({ rate: 5, minGapMs: 6 * 60_000 })).toBeCloseTo(10, 6);
     const generic = simulate("2026-09-26T12:00", 3000, 11);
-    expect(generic.perHour).toBeGreaterThan(0.8);
-    expect(generic.perHour).toBeLessThanOrEqual(1.05);
-    expect(generic.worst, "never more than twice an hour").toBe(2);
+    expect(generic.perHour).toBeGreaterThan(0.8 * GENERIC.rate);
+    expect(generic.perHour).toBeLessThanOrEqual(1.05 * GENERIC.rate);
+    expect(generic.worst, "never more than the generic cap an hour").toBe(GENERIC.cap);
     expect(generic.minGap).toBeGreaterThanOrEqual(GENERIC.minGapMin * 60_000);
 
     const first = simulate("2026-12-03T12:00", 3000, 12);
-    expect(first.worst, "a season's first day is capped like a generic one").toBe(2);
+    expect(first.worst, "a season's first day is capped like a generic one").toBe(GENERIC.cap);
 
     const mid = simulate("2026-12-14T12:00", 3000, 13);
-    expect(mid.perHour).toBeGreaterThan(first.perHour + 1);
+    expect(mid.perHour).toBeGreaterThan(first.perHour + SEASONAL.floor);
 
     const day = simulate("2026-12-25T12:00", 3000, 14);
     expect(day.perHour).toBeGreaterThan(mid.perHour);
-    expect(day.perHour).toBeGreaterThan(4);
-    expect(day.worst, "never more than 5 an hour").toBe(5);
+    expect(day.perHour).toBeGreaterThan(0.8 * SEASONAL.peak);
+    expect(day.worst, "never more than the season's cap an hour").toBe(SEASONAL.cap);
     expect(day.minGap).toBeGreaterThanOrEqual(SEASONAL.minGapMin * 60_000);
   });
 });
