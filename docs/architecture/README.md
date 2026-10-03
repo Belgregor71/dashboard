@@ -1,7 +1,7 @@
 # Architecture diagram
 
 `pi-dashboard-architecture.html` is a self-contained interactive diagram of the
-repo: the two frontends, the Vite build, the Express server and its route
+repo: the V3 surface and its `src/js/` runtime library, the Vite build, the Express server and its route
 modules, the pull-based deploy chain, and the upstreams. Open the file — no
 server, no build, no network. It carries pan/zoom, dark/light, three guided
 views, and PNG/SVG export in its own toolbar.
@@ -57,9 +57,12 @@ A non-zero exit is a failure even though the previous HTML survives it.
 
 ## Last verified
 
-Rendered against `26b1d0d` with archify `72c750b` — 9/9 checks, 0 warnings,
-evidence verified across 4 pinned references. `visual-check` clean: containment
-and readability at 1440×900, 1600×1000, 1920×1080 and 2048×1320 (smallest node
-text 7.06px at 1440×900, floor 6px), screenshots in both themes at 1440×900 and
-2048×1320. Counts recounted from source on 2026-09-19: 91 flags, 51 `src/js`
-modules in V3's closure, 31 route modules, 124 specs in `tests/`.
+Rendered against `19696cb` with archify `72c750b` — 9/9 checks, 0 errors,
+0 warnings, evidence verified across 5 pinned references. `visual-check` clean:
+containment and readability at 1440×900, 1600×1000, 1920×1080 and 2048×1320
+(smallest node text 7.06px at 1440×900, floor 6px), screenshots in both themes
+at 1440×900 and 2048×1320. Redrawn for the incumbent retirement (2026-10-03):
+one surface, `src/js/` as V3's runtime library, the Pi 4 rollback host removed.
+Counts recounted from source on 2026-10-03: 74 flags, 55 `src/js` modules
+imported by V3 (+ `js/config.js` by script tag, per `tests/v3-closure.spec.js`),
+34 route modules, 117 specs in `tests/`.
