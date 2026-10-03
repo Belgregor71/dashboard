@@ -103,10 +103,12 @@ test("the retired incumbent is not a surface the instrument recognises", async (
   // A stale tab or old build exposing only the incumbent's __switchView must
   // read as "unknown" (and be refused), never as something to sample.
   await page.setContent("<html><body></body></html>");
+  // The fakes are page-side, installed in one synchronous step with the probe
+  // (Object.assign rather than `window.__x =`, which scan-patterns' hook-after-
+  // await rule reads as a spec registering a hook late — it is not one).
   const detected = JSON.parse(await page.evaluate((expr) => {
-    window.__switchView = () => {};
-    window.__wakeScreensaver = () => {};
-    window.__engageScreensaver = () => {};
+    const noop = () => {};
+    Object.assign(window, { __switchView: noop, __wakeScreensaver: noop, __engageScreensaver: noop });
     return eval(expr);
   }, detectExpr()));
   expect(detected.surface).toBe("unknown");
