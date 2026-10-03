@@ -138,7 +138,7 @@ goes quiet and plain, because some things aren't a bit.
 | Surface | File | Notes |
 |---|---|---|
 | **Conversational voice turn** | `server/services/character.js` | ⚠ **not this page** — see `CHARACTER.md` |
-| Spoken door/gate alerts | `src/js/config/alertLines.js` | pre-warmed TTS; pools of ~6; graduated per rule 7 |
+| Spoken door/gate alerts | `src/js/config/alertLines.js` | pre-warmed TTS (named lines too, per name read from HA); pools of 10–17, drawn as a shuffled bag so none repeats before all are heard; graduated per rule 7 |
 | Delight/celebration lines | `src/js/services/delight.js` | the rarest surface — highest bar |
 | Calendar occasions | `src/js/services/occasions.js` | full moment each; ANZAC stays plain |
 | Arrival card + speech | `src/js/modules/arrivalGreeting.js` | ⚠ routes through `phrase()`, which **normalises** (strips apology/nag openers, caps length) — it does **not** inject character. Still this register. |

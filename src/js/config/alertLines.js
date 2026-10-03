@@ -29,7 +29,21 @@ export const VISITOR_UNKNOWN_LINES = [
   "Someone's at the front door. Look important.",
   "There's someone on the front porch — could be anyone.",
   "Someone's at the front door, and I'm dying to know who.",
-  "Front door! Best behaviour, everyone."
+  "Front door! Best behaviour, everyone.",
+  // Added 2026-10-03 — owner: "keep hearing the same ones". The front door
+  // fires ~10 times a day (134 detections in 14 d), so a pool of 6 came round
+  // more than once daily.
+  "Someone's at the front door — and I do love a mystery guest.",
+  "We've got a visitor at the front door.",
+  "Front door — someone's just arrived.",
+  "Someone's on the front porch. How exciting.",
+  "Knock knock — someone's at the front door.",
+  "Someone's at the front door. Hair check, everyone.",
+  "A visitor at the front door — different, unusual, I like it.",
+  "Someone's come to the front door. I'll allow it.",
+  "Front door, hun — somebody's here.",
+  "There's someone at the front door. Act natural.",
+  "Company at the front door! Nobody told me."
 ];
 
 // Front door, person identified by name — depends on who, so never cacheable.
@@ -39,7 +53,11 @@ export const VISITOR_KNOWN_LINES = [
   name => `It's ${name} at the front door — the door's never looked better.`,
   name => `${name}'s home! Someone tell the good cushions.`,
   name => `Look who it is — ${name}, gorgeous as ever.`,
-  name => `It's ${name}, at the front door.`
+  name => `It's ${name}, at the front door.`,
+  name => `${name}'s at the front door — finally, some glamour.`,
+  name => `${name}'s at the front door. I'd know that face anywhere.`,
+  name => `Oh, it's ${name} at the front door. Noice.`,
+  name => `${name}'s arrived at the front door — roll out the welcome.`
 ];
 
 // Side gate, nobody identified — name-free, so pre-warmable. Deliberately the
@@ -51,7 +69,11 @@ export const INTRUDER_UNKNOWN_LINES = [
   "Someone's coming through the side gate, not the front.",
   "Someone's at the side gate — not who we expected.",
   "Someone's near the side gate. Have a look.",
-  "Someone's at the side of the house."
+  "Someone's at the side of the house.",
+  "Someone's at the side gate just now.",
+  "There's a person at the side gate.",
+  "Side gate — someone's there. Worth checking.",
+  "Someone's come in by the side gate. Take a look."
 ];
 
 // Side gate, person identified by name — depends on who, so never cacheable.
@@ -62,7 +84,11 @@ export const INTRUDER_KNOWN_LINES = [
   name => `${name}'s at the side gate. Creature of habit, that one.`,
   name => `${name}'s taking the side way in, per usual.`,
   name => `${name}'s at the side, not the front — bold choice.`,
-  name => `${name}'s doing the side-gate special, right on cue.`
+  name => `${name}'s doing the side-gate special, right on cue.`,
+  name => `${name}'s at the side gate — the front door weeps.`,
+  name => `It's ${name} at the side gate. Front doors are for other people.`,
+  name => `${name}'s slipping in the side gate. Seen it, hun.`,
+  name => `Side gate — it's ${name}, taking the scenic route.`
 ];
 
 // Every name-free line — exactly what the server pre-warms into the TTS cache.

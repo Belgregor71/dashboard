@@ -71,6 +71,7 @@ const TRIGGER_TO_LOCATION = new Map(
 );
 
 const lastIndexByPool = new Map(); // pool array → last picked index
+const bagByPool = new Map();       // pool array → indices not yet spoken this round
 
 /** The location this entity belongs to, or null if it is not a trigger. */
 export function locationFor(entityId) {
@@ -88,13 +89,31 @@ export function knownPersonName(personNameEntityId) {
   return recognisedName(getEntity(personNameEntityId)?.state);
 }
 
-/** One line from a pool, never the same one twice running. */
+/**
+ * One line from a pool — every line once before any line twice.
+ *
+ * A shuffled bag per pool, refilled when it empties. Plain random with only a
+ * "not the same twice running" rule let a pool of 6 hand out A-B-A-B all day,
+ * which is what the owner heard ("keep hearing the same ones", 2026-10-03).
+ * The refill never opens with the line that closed the last bag, so the seam
+ * between two bags cannot repeat either. Per page: a reload starts a new bag.
+ */
 function pickLine(pool) {
-  const last = lastIndexByPool.get(pool) ?? -1;
-  let index = Math.floor(Math.random() * pool.length);
-  if (pool.length > 1 && index === last) {
-    index = (index + 1) % pool.length;
+  let bag = bagByPool.get(pool);
+  if (!bag || bag.length === 0) {
+    bag = pool.map((_, index) => index);
+    for (let i = bag.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [bag[i], bag[j]] = [bag[j], bag[i]];
+    }
+    // Drawn from the END: keep the last-spoken line away from it.
+    const last = lastIndexByPool.get(pool);
+    if (bag.length > 1 && bag[bag.length - 1] === last) {
+      [bag[0], bag[bag.length - 1]] = [bag[bag.length - 1], bag[0]];
+    }
+    bagByPool.set(pool, bag);
   }
+  const index = bag.pop();
   lastIndexByPool.set(pool, index);
   return pool[index];
 }

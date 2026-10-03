@@ -118,6 +118,87 @@ test("Eufy's placeholders are not names; a recognised face is", () => {
   expect(line).not.toMatch(/Unknown Person/);
 });
 
+/* ── Variety ───────────────────────────────────────────────────────────────
+   Owner, 2026-10-03: "keep hearing the same ones". Two causes — pools of 6
+   against ~10 front-door detections a day, and a picker whose only rule was
+   "not the same twice running", which permits A-B-A-B indefinitely. */
+
+test("every line is heard once before any line is heard twice", () => {
+  const doorbell = locationFor("binary_sensor.doorbell_ringing");
+  const n = VISITOR_UNKNOWN_LINES.length;
+  const rounds = 5;
+  const drawn = Array.from({ length: n * rounds }, () => alertLine(doorbell, null));
+
+  // Never the same line back to back — including across a refill.
+  for (let i = 1; i < drawn.length; i++) {
+    expect(drawn[i], `repeat at draw ${i}`).not.toBe(drawn[i - 1]);
+  }
+
+  // Other tests in this file draw from the same pool, so the run may start
+  // mid-bag: the tail of one bag, four whole bags, the head of the next. Each
+  // line therefore appears 4, 5 or 6 times — plain random does not hold that
+  // across a whole pool (and A-B-A-B fails it outright).
+  for (const line of VISITOR_UNKNOWN_LINES) {
+    const count = drawn.filter((d) => d === line).length;
+    expect(count, `"${line}" was drawn ${count} times in ${rounds} rounds`).toBeGreaterThanOrEqual(rounds - 1);
+    expect(count, `"${line}" was drawn ${count} times in ${rounds} rounds`).toBeLessThanOrEqual(rounds + 1);
+  }
+
+  // And any window one pool long holds no line three times.
+  for (let i = 0; i + n <= drawn.length; i++) {
+    const window = drawn.slice(i, i + n);
+    for (const line of new Set(window)) {
+      expect(window.filter((d) => d === line).length).toBeLessThanOrEqual(2);
+    }
+  }
+});
+
+test("the seam between two bags never repeats a line", () => {
+  // A fresh shuffle opens with the line that closed the last one 1 time in n.
+  // 200 refills of a pool of 10 would hit that with near certainty (1 - 0.9^200)
+  // if nothing kept the two ends apart.
+  const gate = locationFor("binary_sensor.side_gate_person_detected");
+  const total = INTRUDER_UNKNOWN_LINES.length * 200;
+  let previous = alertLine(gate, null);
+  for (let i = 0; i < total; i++) {
+    const line = alertLine(gate, null);
+    expect(line, `repeat at draw ${i}`).not.toBe(previous);
+    previous = line;
+  }
+});
+
+test("the pools are big enough to last a day, and every line obeys the house rules", () => {
+  const words = (s) => s.split(/\s+/).filter((w) => /[A-Za-z]/.test(w)).length;
+  const pools = {
+    visitorUnknown: VISITOR_UNKNOWN_LINES,
+    intruderUnknown: INTRUDER_UNKNOWN_LINES,
+    visitorKnown: VISITOR_KNOWN_LINES.map((t) => t("Sam")),
+    intruderKnown: INTRUDER_KNOWN_LINES.map((t) => t("Sam"))
+  };
+
+  for (const [name, lines] of Object.entries(pools)) {
+    expect(lines.length, `${name} is too small to feel varied`).toBeGreaterThanOrEqual(10);
+    expect(new Set(lines).size, `${name} has a duplicate line`).toBe(lines.length);
+    for (const line of lines) {
+      // VOICE.md mechanics: at most one "!", and short enough to say at a door.
+      expect((line.match(/!/g) ?? []).length, line).toBeLessThanOrEqual(1);
+      expect(words(line), `too long to speak: ${line}`).toBeLessThanOrEqual(12);
+    }
+  }
+
+  // VOICE.md rule 7 — security is information first: WHERE, in plain words.
+  // (A NAMED face at the front door is exempt, as it always was: "Ooh, it's
+  // Sam. Get the good biscuits out." — the name is the information.)
+  for (const line of pools.visitorUnknown) {
+    expect(line, `does not say where: ${line}`).toMatch(/front (door|porch)|doorbell/i);
+  }
+  for (const line of [...pools.intruderUnknown, ...pools.intruderKnown]) {
+    expect(line, `does not say where: ${line}`).toMatch(/side/i);
+  }
+  for (const line of pools.visitorKnown) expect(line).toContain("Sam");
+  for (const line of pools.intruderKnown) expect(line).toContain("Sam");
+});
+
 test("a location that isn't one says nothing at all", () => {
   expect(alertLine(null)).toBeNull();
   expect(alertLine(undefined, "Sam")).toBeNull();
