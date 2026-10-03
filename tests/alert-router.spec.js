@@ -190,7 +190,7 @@ test("the pools are big enough to last a day, and every line obeys the house rul
   // (A NAMED face at the front door is exempt, as it always was: "Ooh, it's
   // Sam. Get the good biscuits out." — the name is the information.)
   for (const line of pools.visitorUnknown) {
-    expect(line, `does not say where: ${line}`).toMatch(/front (door|porch)|doorbell/i);
+    expect(line, `does not say where: ${line}`).toMatch(/front door/i);
   }
   for (const line of [...pools.intruderUnknown, ...pools.intruderKnown]) {
     expect(line, `does not say where: ${line}`).toMatch(/side/i);
@@ -224,7 +224,8 @@ test("the door speaks as the house, not in the retired costume", () => {
     [/as usual|per usual|right on cue|creature of habit|as always|never the front|again\b/i, "a pattern nobody handed it"],
     // A particular it cannot know: most alerts are person_detected, not a ring,
     // and nothing here knows what was planned or who was expected.
-    [/doorbell|knock|did not plan|expected|\bhome\b/i, "an invented particular"],
+    // There is no porch at this house (owner, 2026-10-03) — the lines said so twice.
+    [/doorbell|knock|porch|did not plan|expected|\bhome\b/i, "an invented particular"],
     // Mechanics.
     [/!!|\.\.\.|…/, "punctuation the house does not use"]
   ];

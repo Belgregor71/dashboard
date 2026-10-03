@@ -57,11 +57,11 @@ export const VISITOR_UNKNOWN_LINES = [
   "Front door — someone's waiting.",
   "Someone's at the front door. Noted — you may wish to act.",
   "Someone's at the front door. I'd answer it, but I'm a wall.",
-  "There's a visitor on the front porch.",
+  "There's a visitor at the front door.",
   "Someone's at the front door. Not a face I've been introduced to.",
   "Front door — someone's just walked up.",
   "Someone's at the front door. I consider this significant.",
-  "A person at the front door. Big moment for the porch."
+  "A person at the front door. Big moment for the door."
 ];
 
 // Front door, person identified by name. Pre-warmed per name the cameras can
