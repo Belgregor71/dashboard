@@ -149,9 +149,17 @@ function matches(callSegs, routeSegs) {
   return callSegs.every((c, i) => c === null || routeSegs[i] === null || c === routeSegs[i]);
 }
 
+/* ⚠ BOTH trees, and the omission was real. Until 2026-10-03 this read src/js
+   only, so V3's own fetches and emits were never in the census — it was the
+   incumbent's emitters of presence:changed and arrival:home (in src/js) that
+   kept V3's listeners green. Retiring the incumbent turned the gate red on
+   events V3 has always emitted. */
+const FRONTEND = ["src/js", "src/v3"];
+const frontendFiles = () => FRONTEND.flatMap((d) => walk(d, isJs));
+
 function frontendApiCalls() {
   const calls = [];
-  for (const file of walk("src/js", isJs)) {
+  for (const file of frontendFiles()) {
     const src = read(file);
     src.split("\n").forEach((line, i) => {
       if (/^\s*(\/\/|\*)/.test(line)) return; // comment
@@ -194,7 +202,7 @@ function checkRoutes() {
 function eventSites() {
   const emits = new Map();     // name -> [where]
   const listens = new Map();   // name -> [where]
-  for (const file of walk("src/js", isJs)) {
+  for (const file of frontendFiles()) {
     const src = read(file);
     // Only files that actually pull the bus in — otherwise a stray `.on(` or a
     // DOM helper named on() would poison the census.

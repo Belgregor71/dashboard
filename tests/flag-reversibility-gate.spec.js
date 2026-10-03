@@ -6,54 +6,34 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   /flag-flip MUST REFUSE AN INERT-ON-V3 FLAG.
+   THE FLAG REVERSIBILITY GATE — what /flag-flip's flag-off half resolves.
 
-   CLAUDE.md, Feature Flags: "A flag marked INERT-ON-V3 is not a lever on the
-   wall. No module V3 loads reads it, so flipping it off changes nothing on `/`
-   and is not a rollback — the flag-off half of /flag-flip passes while proving
-   nothing."
+   `scripts/verify/flag-reversibility.mjs` flips a flag to false, builds, and
+   runs the suite. This spec holds the parts of it that can be checked without
+   doing that: which flag it would flip, which it would not, and that it does
+   not go blind or trip over its own marker.
 
-   `scripts/verify/flag-reversibility.mjs` is the flag-off half. Until now it
-   would happily flip a marked flag to false, watch the suite stay green, and
-   print `pass — 1 flag(s) cleanly reversible` — a sentence /flag-flip step 7 is
-   told to report as the evidence that the rollback works. The green came from
-   the INCUMBENT surface; the wall was never involved.
-
-   This spec holds the refusal, in both directions, because half a test is how
-   this one ships broken:
-
-     · a marked flag is REFUSED, and the refusal names the lever that does work
-     · an unmarked flag is NOT refused — otherwise a gate that refuses
-       everything passes the first assertion and blocks every real flip
-     · nothing is written to config.js on the refusing path
-
-   Every flag name is DERIVED from config.js, never hardcoded: a spec pinned to
-   `plex` goes vacuously green the day that mark moves. The marks themselves are
-   checked against V3's import closure by tests/flag-surface.spec.js — this spec
-   checks only that the gate obeys them.
+   History: until 2026-10-03 this file's main job was proving the gate REFUSED
+   a flag marked INERT-ON-V3 (read only by the incumbent surface). The
+   incumbent and those flags were deleted together, and tests/flag-surface.spec.js
+   now goes red on any flag V3 does not read, so there is nothing left to refuse.
 
    ⚠⚠ `gate()` BELOW FORCES --plan-only ON EVERY RUN, AND MUST KEEP DOING SO.
-   The script's job when it is not refusing is to rewrite config.js, build, and
-   run `npm test`. Reached from inside a spec, that is `npm test` recursing into
-   itself with config.js mutated — measured 2026-09-19 while injecting the
-   defect for this very spec: the suite ran for five minutes inside itself, and
-   the outer kill left `background: false, // TEMPORARILY FLIPPED` in the built
+   The script's job is to rewrite config.js, build, and run `npm test`. Reached
+   from inside a spec, that is `npm test` recursing into itself with config.js
+   mutated — measured 2026-09-19: the suite ran for five minutes inside itself,
+   and the outer kill left a `false, // TEMPORARILY FLIPPED` flag in the built
    `static/js/config.js` (the signal handler restores the SOURCE and skips the
-   rebuild). A refusal is asserted THROUGH --plan-only, not instead of it: the
-   refusal exits before plan resolution, so a gate that stops refusing exits 0
-   with a plan instead of 1 with a reason, and these tests go red either way.
+   rebuild).
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CONFIG = join(root, "src", "js", "config.js");
 const GATE = join("scripts", "verify", "flag-reversibility.mjs");
-const MARK = "INERT-ON-V3";
 
 /**
- * Run the gate; never throws, so a refusal's exit code is an assertable value.
- *
- * ⚠ --plan-only is appended HERE rather than at each call site, so no future
- * test in this file can forget it and recurse into `npm test`. See the header.
+ * Run the gate; never throws, so an exit code is an assertable value.
+ * ⚠ --plan-only is appended HERE so no test can forget it. See the header.
  */
 function gate(...args) {
   try {
@@ -68,19 +48,13 @@ function gate(...args) {
   }
 }
 
-/** The same three facts the gate reads, parsed independently of it. */
+/** The flags and their defaults, parsed independently of the gate. */
 function flags() {
   const src = readFileSync(CONFIG, "utf8");
   const start = src.indexOf("features:");
   const out = [];
   for (const m of src.slice(start).matchAll(/^\s{4}([a-zA-Z][a-zA-Z0-9]*):\s*(true|false),?([^\n]*)/gm)) {
-    const comment = (m[3].match(/\/\/(.*)/) || ["", ""])[1];
-    out.push({
-      name: m[1],
-      on: m[2] === "true",
-      inert: comment.includes(MARK),
-      lever: (comment.match(/V3 lever:\s*`?(\w+)`?/) || [])[1] || null
-    });
+    out.push({ name: m[1], on: m[2] === "true" });
   }
   return out;
 }
@@ -89,15 +63,11 @@ function flags() {
  * Run the gate against a THROWAWAY COPY of config.js, in a throwaway cwd.
  *
  * The script resolves `src/js/config.js` relative to its cwd, so a fixture dir
- * holding one file is a whole alternate repo as far as it is concerned — which
- * is the only way to test its behaviour on a config.js state the real tree must
- * never be put into.
+ * holding one file is a whole alternate repo as far as it is concerned.
  *
- * ⚠ This is the ONE runner in this file that does not force --plan-only, so
- * every caller owes a reason the write path is unreachable for its fixture —
- * see each test. `mutate` must change something: a fixture whose regex silently
- * missed is a test that proves nothing, which is the failure mode this whole
- * file exists to avoid.
+ * ⚠ This is the ONE runner here that does not force --plan-only, so every
+ * caller owes a reason the write path is unreachable for its fixture. `mutate`
+ * must change something: a fixture whose regex silently missed proves nothing.
  */
 function inFixture(mutate, args) {
   const src = readFileSync(CONFIG, "utf8");
@@ -126,96 +96,55 @@ function inFixture(mutate, args) {
 
 const MARKER = "TEMPORARILY FLIPPED";
 
-test.describe("flag reversibility gate — INERT-ON-V3 is refused", () => {
-  test("config.js still offers both cases to test", () => {
-    /* Assert the fixtures are there before asserting anything about them. If
-       config.js ever holds no marked flag, or no unmarked ON flag, the tests
-       below would skip their subject and go green having run nothing. */
+test.describe("flag reversibility gate — what it resolves", () => {
+  test("config.js offers both an ON and an OFF flag to test", () => {
+    // Assert the fixtures are there before asserting anything about them.
     const f = flags();
     expect(f.length, "no flags parsed out of config.js").toBeGreaterThan(40);
-    expect(f.filter((x) => x.inert).length, `no flag carries ${MARK}`).toBeGreaterThan(0);
-    expect(f.filter((x) => x.inert && x.lever).length, "no marked flag names a V3 lever").toBeGreaterThan(0);
-    expect(f.filter((x) => !x.inert && x.on).length, "no unmarked ON flag — no positive control").toBeGreaterThan(0);
+    expect(f.filter((x) => x.on).length, "no ON flag").toBeGreaterThan(0);
+    expect(f.filter((x) => !x.on).length, "no OFF flag").toBeGreaterThan(0);
   });
 
-  test("a marked flag is refused, and the refusal names the lever", () => {
-    const target = flags().find((f) => f.inert && f.lever && f.on);
+  test("an ON flag is planned, alone", () => {
+    const target = flags().find((f) => f.on);
     const r = gate("--flag", target.name);
-
-    expect(r.code, `${target.name} is ${MARK} but the gate ran it anyway`).toBe(1);
-    expect(r.out).toContain("REFUSED");
-    expect(r.out).toContain(target.name);
-    expect(r.out).toContain(MARK);
-    /* The lever is the part that matters. A refusal that only says "no" leaves
-       the session to guess which flag to flip, and the guess is the whole
-       defect arriving one step later. */
-    expect(r.out, `the refusal does not name the V3 lever (${target.lever})`).toContain(target.lever);
-    /* And it must say how to mean it on purpose, or the gate is unbypassable
-       for a kiosk pinned to `V3_DEFAULT=0`, which serves the incumbent. */
-    expect(r.out).toContain("--incumbent-only");
-  });
-
-  test("a marked flag with no lever is refused too, and says there is none", () => {
-    const target = flags().find((f) => f.inert && !f.lever && f.on);
-    test.skip(!target, "no marked ON flag without a named lever");
-    const r = gate("--flag", target.name);
-    expect(r.code).toBe(1);
-    expect(r.out).toContain("REFUSED");
-    expect(r.out).toMatch(/no lever|names no V3 lever/);
-  });
-
-  test("the refusal comes before anything is written", () => {
-    /* The flip loop rewrites config.js and restores it in a `finally`; a
-       refusal that happened after it would pass every assertion above and still
-       leave the window where an interrupted run strands the kiosk's config.
-       --plan-only exits before the first write, so a refusal that beats
-       --plan-only beats the write — and config.js is compared either way,
-       because "it exited early" is a claim about the file, not the output. */
-    const target = flags().find((f) => f.inert && f.on);
-    const before = readFileSync(CONFIG, "utf8");
-    const r = gate("--flag", target.name);
-    expect(r.code).toBe(1);
-    expect(r.out).toContain("REFUSED");
-    expect(r.out, "the gate resolved a plan before refusing").not.toContain("target(s)");
-    expect(readFileSync(CONFIG, "utf8"), "config.js was rewritten on the refusing path").toBe(before);
-  });
-
-  test("a flag V3 reads is NOT refused", () => {
-    /* The positive control. Without it, a gate that refuses every flag — or one
-       whose mark test is inverted — passes everything above while blocking the
-       flips /flag-flip exists to run. */
-    const target = flags().find((f) => !f.inert && f.on);
-    const r = gate("--flag", target.name);
-
-    expect(r.code, `${target.name} is read by V3 but the gate refused it:\n${r.out}`).toBe(0);
-    expect(r.out).not.toContain("REFUSED");
+    expect(r.code, r.out).toBe(0);
     expect(r.out).toContain(`single flag: ${target.name}`);
     expect(r.out).toContain(`1 target(s): ${target.name}`);
   });
 
-  test("--incumbent-only proceeds, and says what it does not prove", () => {
-    const target = flags().find((f) => f.inert && f.on);
-    const r = gate("--flag", target.name, "--incumbent-only");
-
+  test("an OFF flag is not flipped — its off state is what ships", () => {
+    const target = flags().find((f) => !f.on);
+    const r = gate("--flag", target.name);
     expect(r.code).toBe(0);
-    expect(r.out).not.toContain("REFUSED");
-    expect(r.out).toContain(`1 target(s): ${target.name}`);
-    /* An override that goes quiet is worse than no override: the run's output
-       is what gets pasted into the session report as proof. */
-    expect(r.out).toMatch(/NOT a rollback proof for the wall/);
+    expect(r.out).toContain(`${target.name} is already false`);
+    expect(r.out).not.toContain("target(s)");
   });
 
-  test("the bulk lane labels its marked flags instead of overclaiming", () => {
-    /* --all and the diff-scoped lane are not /flag-flip, so they run marked
-       flags — the incumbent still ships. What they must not do is let a line of
-       their output read as a rollback proof for a flag with no lever. */
-    const r = gate("--all");
-    const marked = flags().filter((f) => f.inert && f.on);
+  test("an unknown flag is an error, not a silent pass", () => {
+    const r = gate("--flag", "noSuchFlagAnywhere");
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("no such flag: noSuchFlagAnywhere");
+  });
 
+  test("--all plans every ON flag", () => {
+    const on = flags().filter((f) => f.on);
+    const r = gate("--all");
     expect(r.code).toBe(0);
-    expect(r.out).toContain(`${marked.length} of these are ${MARK}`);
-    expect(r.out).toContain("not a wall rollback proof");
-    expect(r.out).toContain(marked[0].name);
+    expect(r.out).toContain(`every ON flag (${on.length})`);
+    expect(r.out).toContain(`${on.length} target(s)`);
+  });
+
+  test("a parser that sees no flags refuses rather than approving nothing", () => {
+    /* Safe without --plan-only: the guard exits before any write, and with the
+       guard deleted the gutted fixture has no ON flag, so --all reaches
+       "nothing to verify" — never the flip loop. */
+    const r = inFixture(
+      (src) => src.replace(/^(\s{4})([a-zA-Z][a-zA-Z0-9]*):(\s*)(true|false),/gm, "$1// $2:$3$4,"),
+      ["--all"]
+    );
+    expect(r.code, r.out).toBe(1);
+    expect(r.out).toContain("parsed only 0 flags");
   });
 });
 
@@ -227,24 +156,16 @@ test.describe("flag reversibility gate — INERT-ON-V3 is refused", () => {
    contains THIS FILE, which spawns the gate again. So every assertion above is
    made while config.js carries the outer run's own marker.
 
-   Between 7a181c6 and the fix below, the script's start-up self-heal check —
-   "config.js still holds a TEMPORARILY FLIPPED flag from an interrupted run" —
-   fired on that marker and exited 1 with that message instead of the refusal,
-   turning 4-5 tests above red for EVERY flag. `/flag-flip` step 4b could not
-   complete at all, and its failure read as "your flag is not reversible" when
-   nothing about the flag was involved.
-
-   The guard is now scoped to a run that will WRITE. These two tests hold that
-   scoping in both directions, because a guard deleted outright would pass the
-   first one alone — and the guard is what stops a resumed run restoring
-   config.js TO the wreckage it started on.
+   Between 7a181c6 and the fix, the script's start-up self-heal check fired on
+   that marker and exited 1, turning this file red for EVERY flag. The guard is
+   now scoped to a run that will WRITE. These two tests hold that scoping in
+   both directions, because a guard deleted outright would pass the first alone.
    ═══════════════════════════════════════════════════════════════════════════ */
 test.describe("flag reversibility gate — it can run inside its own suite", () => {
   test("a --plan-only run reads a marker-bearing config.js instead of aborting", () => {
-    /* Safe without the forced --plan-only of gate(): it is passed explicitly
-       here, and --plan-only exits before the first write. */
-    const on = flags().filter((f) => f.on && !f.inert);
-    expect(on.length, "need two ON unmarked flags to model an outer run").toBeGreaterThan(1);
+    // Safe: --plan-only is passed explicitly and exits before the first write.
+    const on = flags().filter((f) => f.on);
+    expect(on.length, "need two ON flags to model an outer run").toBeGreaterThan(1);
     const [outer, target] = on;
 
     const r = inFixture(
@@ -259,17 +180,14 @@ test.describe("flag reversibility gate — it can run inside its own suite", () 
     expect(r.config, "the fixture never got a marker").toContain(MARKER);
     expect(r.code, `plan-only aborted on an outer run's own marker:\n${r.out}`).toBe(0);
     expect(r.out, "no plan was resolved").toContain(`1 target(s): ${target.name}`);
-    /* And it says so, rather than resolving a plan off a mutated config in
-       silence: the flipped flag reads as already-off to anyone reading this. */
     expect(r.out, "the marker passed unmentioned").toContain(`${MARKER} marker`);
   });
 
   test("a run that WILL write still refuses a marker-bearing config.js", () => {
     /* Safe without --plan-only ONLY because every flag in this fixture is off:
        --all selects ON flags, so targets is empty and the flip loop, the build
-       and `npm test` are unreachable even with the guard deleted — the
-       regression shows up as "nothing to verify", not as a suite inside a
-       suite. Do not reuse this runner with a fixture that has an ON flag. */
+       and `npm test` are unreachable even with the guard deleted. Do not reuse
+       this runner with a fixture that has an ON flag. */
     const r = inFixture(
       (src) =>
         src

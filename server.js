@@ -15,7 +15,7 @@ import { startOccupancyDays } from "./server/services/occupancyDays.js";
 import { startRecoveryService } from "./server/services/recoveryService.js";
 import { startTtsWarmer } from "./server/services/ttsWarmer.js";
 import { startMemoryConsolidator } from "./server/services/conversationLog.js";
-import { normalizeBaseUrl, resolveRootSurface, SURFACE_ENTRY } from "./server/config.js";
+import { normalizeBaseUrl, ROOT_ENTRY, staleSurfaceWarning } from "./server/config.js";
 import arrRoutes from "./server/routes/arr.js";
 import { createHaRouter } from "./server/ha/haRoutes.js";
 import haSnapshotRoutes from "./server/routes/haSnapshot.js";
@@ -188,23 +188,27 @@ attachHaProxy(app);
 // never ran. Editing that line would have flipped nothing while looking exactly
 // like a successful deploy.
 //
-// Flag-gated, default-off. With V3_DEFAULT unset this sends the same
-// dist/index.html serve-static was already sending, from the same `send`
-// pipeline — same bytes, same headers. `V3_DEFAULT=0` on the Pi forces the
-// incumbent back without a deploy; that is the rollback path.
+// One surface since 2026-10-03 (the incumbent was retired), so `/` always sends
+// dist/v3/index.html and V3_DEFAULT no longer chooses anything — a stale line
+// in .env is logged, not obeyed (server/config.js).
 //
 // No fallback to a legacy file if the entry is missing: a missing build output
 // is a build failure to surface (Phase 5 removed static/index.html), so
 // sendFile's ENOENT is allowed to become a 5xx rather than be papered over.
-const ROOT_SURFACE = resolveRootSurface(process.env);
-console.log(`[surface] / serves the ${ROOT_SURFACE} dashboard (${SURFACE_ENTRY[ROOT_SURFACE]})`);
+console.log(`[surface] / serves the v3 dashboard (${ROOT_ENTRY})`);
+{
+  const stale = staleSurfaceWarning(process.env);
+  if (stale) console.warn(stale);
+}
 app.get("/", (_req, res) => {
-  res.sendFile(path.join(__dirname, "dist", SURFACE_ENTRY[ROOT_SURFACE]));
+  res.sendFile(path.join(__dirname, "dist", ROOT_ENTRY));
 });
+// The incumbent's old address. There is no dist/index.html any more; a
+// bookmark or a stale kiosk URL lands on the wall rather than a 404.
+app.get("/index.html", (_req, res) => res.redirect(302, "/"));
 
 // Built assets (Vite output) — served before static/ so hashed bundles take
-// priority. Its index resolution is what keeps /index.html and /v3/ reachable
-// whichever way the flag above points.
+// priority. Its index resolution is what keeps /v3/ reachable.
 app.use(express.static(path.join(__dirname, "dist")));
 // Raw static assets that bypass the build step (photos, icons, weather videos, data)
 app.use(express.static(path.join(__dirname, "static")));

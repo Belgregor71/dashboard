@@ -171,7 +171,6 @@ sample ambient 30
 trace
 
 # --- 2. peak: the heaviest state this surface can actually be in -----------------
-WAS_SS="unknown"
 PEAK_OK=0
 if [ "$SURFACE" = "v3" ]; then
   # V3's peak is a REAL composite, not a forced effect: the live MJPEG camera
@@ -193,27 +192,16 @@ if [ "$SURFACE" = "v3" ]; then
     echo "!! DISCARD THE PEAK ROW ABOVE — the peak state did not hold for the window (see the error above)."
   fi
 else
-  WAS_SS=$($EVAL 'document.body.className.includes("screensaver-active")')
-  $EVAL 'window.__wakeScreensaver(); 1' >/dev/null
-  # NOTE: inside the DISPLAY_OFF window (default 21:00-05:00) the wake is refused
-  # and the screensaver re-engages immediately, so a night run measures ambient
-  # twice rather than a true worst case. Check the `screensaver` field below.
-  #
-  # atmoFx episodes are finite ("moments not loops") — a single forced episode
-  # expires mid-window and the average under-reports the peak by ~2.5x. Re-fire it
-  # for the whole sample so this is a genuine SUSTAINED worst case.
-  ( end=$((SECONDS + 34))
-    while [ $SECONDS -lt $end ]; do
-      $EVAL 'window.__forceAtmoEpisode("rain-heavy")' >/dev/null 2>&1
-      sleep 5
-    done ) &
-  refire=$!
-  sample worstcase-rain-heavy 30
-  kill "$refire" 2>/dev/null; wait "$refire" 2>/dev/null
+  # The incumbent's forced rain-heavy peak lived here. The incumbent was
+  # retired 2026-10-03 and surface.cjs only ever reports v3 now, so this arm
+  # cannot be reached by a real kiosk — if it is, refuse rather than sample.
+  echo "ABORTED: unexpected surface '$SURFACE' — only v3 can be swept."
+  echo "===== end $(date -Is) ====="
+  exit 1
 fi
 trace
 
-# --- 3. cycle: every view (incumbent) or every subject (V3) -----------------------
+# --- 3. cycle: every V3 subject ----------------------------------------------------
 # The churn that exercises every teardown path in sequence. kiosk-drive.cjs picks
 # the right one for the surface and exits non-zero if a transition did not land,
 # so a silently gated cycle can never read as success again.
@@ -231,10 +219,5 @@ if [ "$SURFACE" = "v3" ]; then
   # subject mounted, and the sweep must never be the reason the wall is showing
   # the driveway at midnight.
   node scripts/kiosk/kiosk-drive.cjs restore
-elif [ "$WAS_SS" = "true" ]; then
-  $EVAL 'window.__engageScreensaver(); 1' >/dev/null
-  echo "restored: screensaver re-engaged (it was active before the sweep)"
-else
-  echo "restored: panel left awake (it was awake before the sweep)"
 fi
 echo "===== end $(date -Is) ====="

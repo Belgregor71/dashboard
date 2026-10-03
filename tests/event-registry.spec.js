@@ -116,10 +116,8 @@ function scan() {
   }
 
   const v3Entry = moduleEntry("v3/index.html");
-  const incEntry = moduleEntry("index.html");
   const v3 = new Set([...importClosure(v3Entry, codeOf)].map(rel));
-  const inc = new Set([...importClosure(incEntry, codeOf)].map(rel));
-  return { files, busFiles, events, unknownForms, relayHits, v3Entry, incEntry, v3, inc };
+  return { files, busFiles, events, unknownForms, relayHits, v3Entry, v3 };
 }
 
 /* Within one surface's closure: published-and-unheard, or heard-and-unpublished. */
@@ -134,23 +132,20 @@ function orphansOn(s, closure) {
   return out;
 }
 
-const SURFACES = [
-  { key: "orphanOnV3", label: "V3 (the wall)", closure: (s) => s.v3 },
-  { key: "orphanOnIncumbent", label: "the incumbent", closure: (s) => s.inc }
-];
+/* One surface since the incumbent was retired (2026-10-03); the list shape is
+   kept so a second surface, if one is ever built, is one row. */
+const SURFACES = [{ key: "orphanOnV3", label: "V3 (the wall)", closure: (s) => s.v3 }];
 
 test.describe("event registry — every bus event is heard (HOUSE-MIND S1)", () => {
-  test("the scan sees the bus, both closures and events on both sides", () => {
+  test("the scan sees the bus, V3's closure and its events", () => {
     const s = scan();
     /* Assert the nodes are there before asserting anything about them: an
        empty event map or closure makes 3–6 vacuous rather than red. */
     expect(s.v3Entry && existsSync(s.v3Entry), "src/v3/index.html has no module entry").toBe(true);
-    expect(s.incEntry && existsSync(s.incEntry), "src/index.html has no module entry").toBe(true);
     expect(rel(s.v3Entry)).toBe("src/v3/main.js");
-    expect(s.busFiles.length).toBeGreaterThan(30);
-    expect(s.events.size).toBeGreaterThan(15);
+    expect(s.busFiles.length).toBeGreaterThan(15);
+    expect(s.events.size).toBeGreaterThan(12);
     expect(s.v3.has("src/js/core/eventBus.js")).toBe(true);
-    expect(s.v3.has("src/js/core/app.js")).toBe(false);
 
     // Known edges, including the alias (emitBus) and the relay (record).
     const pubs = (n) => [...(s.events.get(n)?.publishers ?? [])];

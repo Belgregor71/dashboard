@@ -59,11 +59,14 @@ import { CLOCK_DIM_DAY, CLOCK_DIM_NIGHT } from "../../src/v3/core/sun-clock.js";
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-const distIndex = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "dist", "index.html");
+/* ⚠ This checked for dist/index.html — the INCUMBENT's build — until the
+   incumbent was retired on 2026-10-03, so V3's own gate would have failed
+   falsely the day that file stopped being built. It checks V3's entry now. */
+const distIndex = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "dist", "v3", "index.html");
 
 test.beforeAll(() => {
   if (!existsSync(distIndex)) {
-    throw new Error("dist/index.html missing — run `npm run build` before the contrast gate");
+    throw new Error("dist/v3/index.html missing — run `npm run build` before the contrast gate");
   }
 });
 

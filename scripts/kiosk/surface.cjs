@@ -48,18 +48,9 @@ const MANIFESTS = {
       __v3PanelDark: "features.v3EnergySaver is off",
       __groundDissolve: "ground.js has not initialised — no photographic ground on this page"
     }
-  },
-  incumbent: {
-    // Kept whole for the surface rollback. `V3_DEFAULT=0` restores this
-    // surface (V3-CUTOVER.md:504), so the incumbent instrument is cold
-    // standby, not dead code.
-    required: ["__switchView", "__wakeScreensaver", "__engageScreensaver"],
-    optional: {
-      __forceAtmoEpisode: "atmoFx not initialised",
-      __archive: "features.ambientArchive is off",
-      __atmosphere: "atmosphere runtime not initialised"
-    }
   }
+  // The incumbent's manifest lived here as cold standby for the surface
+  // rollback. The incumbent was retired 2026-10-03; there is one surface.
 };
 
 /* ── The state expression ────────────────────────────────────────────────────
@@ -112,14 +103,7 @@ const STATE_EXPR = {
       // the activity level. See the block comment above.
       anims: document.getAnimations().filter(a => a.playState === "running").length
     };
-  })())`,
-  incumbent: `JSON.stringify({
-    view: document.body.dataset.view || null,
-    screensaver: document.body.className.includes("screensaver-active"),
-    anims: document.getAnimations().filter(a => a.playState === "running").length,
-    atmo: [...document.body.classList].find(c => c.startsWith("atmo-")) || null,
-    fx: (window.__atmoFx && window.__atmoFx().running) || null
-  })`
+  })())`
 };
 
 /**
@@ -133,9 +117,9 @@ const STATE_EXPR = {
 function detectExpr() {
   return `JSON.stringify((() => {
     const manifests = ${JSON.stringify(MANIFESTS)};
-    const surface = typeof window.__v3 === "function" ? "v3"
-      : typeof window.__switchView === "function" ? "incumbent"
-      : "unknown";
+    // A page exposing only __switchView would be the retired incumbent — a
+    // stale tab or an old build. It is "unknown", and verdict() refuses it.
+    const surface = typeof window.__v3 === "function" ? "v3" : "unknown";
     if (surface === "unknown") {
       return { surface, missing: [], absent: [], url: location.pathname };
     }
@@ -162,7 +146,7 @@ function verdict(detected) {
   if (!detected || detected.surface === "unknown") {
     return {
       ok: false,
-      why: `the page at ${detected?.url ?? "?"} exposes neither __v3 nor __switchView — ` +
+      why: `the page at ${detected?.url ?? "?"} does not expose __v3 — ` +
         `it is not a booted dashboard. Check window.__v3Boot() for a failed stage before sampling.`
     };
   }

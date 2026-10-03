@@ -3,131 +3,87 @@ import { readFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import { resolveRootSurface, SURFACE_ENTRY, DEFAULT_ROOT_SURFACE } from "../server/config.js";
+import { ROOT_ENTRY, staleSurfaceWarning } from "../server/config.js";
 
 /**
- * The V3 cutover contract (docs/design/V3-CUTOVER.md §3).
+ * What `/` serves — the one surface (V3) since the incumbent was retired on
+ * 2026-10-03 (docs/audit/INCUMBENT-RETIREMENT-2026-10-03.md).
  *
  * The kiosk opens a bare `http://localhost:3000`, so whatever `/` serves is
- * what is on the wall. This spec pins three things that the flip must never
- * break:
+ * what is on the wall. Pinned here:
  *
- *   1. both surfaces stay reachable at fixed, flag-independent URLs, so the one
- *      that loses `/` is never stranded;
- *   2. `/` serves exactly the surface the flag names — byte-for-byte the same
- *      document, so the off state is not merely "similar" to before;
+ *   1. `/` and `/v3/` are the same V3 document, byte for byte;
+ *   2. `/index.html`, the incumbent's old address, redirects to `/` instead of
+ *      404ing a bookmark or a stale kiosk URL;
  *   3. the root route stays ABOVE the dist static mount in server.js.
  *
- * (3) is the one that has actually bitten. serve-static answers `/` with
- * dist/index.html by itself (`index` defaults to "index.html"), so a root
- * handler mounted after it is dead code — which is what server.js:167 was
- * until 2026-08-09. That failure is invisible at runtime while the flag is
- * off: `/` keeps serving the incumbent, correctly, for the wrong reason. Only
- * a source-order assertion can see it from the off state, so both a runtime
- * contract and a source guard are kept here deliberately.
- *
- * Since the 2026-08-11 cutover the committed default is "v3", so a sunk route
- * WOULD now break the runtime contract too. The source guard stays anyway: it
- * is the only one of the two that still sees the defect from the rollback
- * state (V3_DEFAULT=0), which is exactly the state the kiosk falls back to.
+ * (3) has bitten before: serve-static answers `/` with dist/index.html by
+ * itself (`index` defaults to "index.html"), so a root handler mounted after it
+ * was dead code until 2026-08-09. With no dist/index.html any more, a sunk
+ * route would now 404 the wall — the source guard sees it before a deploy does.
  */
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-// What the running test server resolved. playwright.config.js spreads
-// process.env into the webServer, and deliberately does NOT pin V3_DEFAULT, so
-// the suite exercises the committed default — now "v3" — and
-// `V3_DEFAULT=0 npm test` exercises the rollback state end to end, with this
-// file tracking it rather than needing an edit.
-const EXPECTED_SURFACE = resolveRootSurface(process.env);
-
-/** Markers that only ever appear in one of the two built documents. */
-const SIGNATURE = {
-  incumbent: /<body[^>]*data-view="home"/i,
-  v3: /<title>\s*V3\s*<\/title>/i
-};
-
-const URL_FOR = {
-  incumbent: "/index.html",
-  v3: "/v3/"
-};
+const V3_SIGNATURE = /<title>\s*V3\s*<\/title>/i;
+// The incumbent's body tag. Nothing on the wall may carry it again.
+const INCUMBENT_SIGNATURE = /<body[^>]*data-view="home"/i;
 
 test.describe("root surface", () => {
-  test("both surfaces are reachable at their own fixed URLs", async ({ request }) => {
-    for (const surface of ["incumbent", "v3"]) {
-      const res = await request.get(URL_FOR[surface]);
-      expect(res.status(), `${URL_FOR[surface]} must always serve the ${surface} build`).toBe(200);
-      const html = await res.text();
-      expect(html, `${URL_FOR[surface]} did not look like the ${surface} document`).toMatch(
-        SIGNATURE[surface]
-      );
-      // …and is unmistakably NOT the other one.
-      const other = surface === "incumbent" ? "v3" : "incumbent";
-      expect(html).not.toMatch(SIGNATURE[other]);
-    }
-  });
-
-  test(`/ serves the ${EXPECTED_SURFACE} surface, byte-for-byte`, async ({ request }) => {
+  test("/ serves V3, byte-for-byte the document at /v3/", async ({ request }) => {
     const rootRes = await request.get("/");
     expect(rootRes.status()).toBe(200);
     expect(rootRes.headers()["content-type"] || "").toContain("text/html");
-
     const rootHtml = await rootRes.text();
-    const namedHtml = await (await request.get(URL_FOR[EXPECTED_SURFACE])).text();
+    expect(rootHtml).toMatch(V3_SIGNATURE);
+    expect(rootHtml).not.toMatch(INCUMBENT_SIGNATURE);
 
-    // Byte identity, not "contains the right marker": the off state has to be
-    // the same document the kiosk was already being served, not a lookalike.
-    expect(rootHtml).toBe(namedHtml);
+    const v3Res = await request.get("/v3/");
+    expect(v3Res.status()).toBe(200);
+    expect(rootHtml).toBe(await v3Res.text());
+  });
 
-    const other = EXPECTED_SURFACE === "incumbent" ? "v3" : "incumbent";
-    expect(rootHtml, "/ is serving the surface the flag did NOT name").not.toMatch(SIGNATURE[other]);
+  test("the incumbent's old address redirects to / rather than 404ing", async ({ request }) => {
+    const res = await request.get("/index.html", { maxRedirects: 0 });
+    expect(res.status()).toBe(302);
+    expect(res.headers().location).toBe("/");
+    // Followed, it lands on the wall.
+    const followed = await request.get("/index.html");
+    expect(followed.status()).toBe(200);
+    expect(await followed.text()).toMatch(V3_SIGNATURE);
   });
 
   test("the root route is registered above the dist static mount", () => {
     const source = readFileSync(path.join(ROOT, "server.js"), "utf8");
-
     const rootRoute = source.indexOf('app.get("/",');
     const distMount = source.indexOf('express.static(path.join(__dirname, "dist"))');
-
     expect(rootRoute, 'no app.get("/") handler found in server.js').toBeGreaterThan(-1);
     expect(distMount, "no express.static(dist) mount found in server.js").toBeGreaterThan(-1);
     expect(
       rootRoute,
-      "app.get(\"/\") sits below express.static(dist), which answers `/` itself — " +
-        "the handler is dead and the V3 flag cannot take effect"
+      "app.get(\"/\") sits below express.static(dist), which answers `/` itself"
     ).toBeLessThan(distMount);
   });
 
-  test("the committed default is pinned to the surface that was soaked", () => {
-    // This is the cutover constant: it decides what the wall shows after a
-    // Chromium restart, on a box where nothing navigates the kiosk afterwards.
-    //
-    // It MUST be an equality check. Until 2026-08-11 this asserted only
-    // `["incumbent","v3"]).toContain(...)`, which passes for either value — so
-    // the guard that was documented as making the flip deliberate would have
-    // gone green on the flip with no edit at all. A membership test of a
-    // two-element set over a two-valued constant cannot fail; it looks like a
-    // pin and is a tautology. Changing the line below is the cutover, and this
-    // expectation is what forces that change to be typed on purpose.
-    expect(DEFAULT_ROOT_SURFACE).toBe("v3");
-    expect(SURFACE_ENTRY[DEFAULT_ROOT_SURFACE]).toBeTruthy();
+  test("the root entry is the V3 build", () => {
+    expect(ROOT_ENTRY).toBe("v3/index.html");
   });
 });
 
-test.describe("root surface flag resolution", () => {
-  // A pure unit check of the override, so both directions are covered without
-  // needing two server boots.
-  test("V3_DEFAULT overrides the committed default in both directions", () => {
-    expect(resolveRootSurface({ V3_DEFAULT: "1" })).toBe("v3");
-    expect(resolveRootSurface({ V3_DEFAULT: "true" })).toBe("v3");
-    expect(resolveRootSurface({ V3_DEFAULT: "0" })).toBe("incumbent");
-    expect(resolveRootSurface({ V3_DEFAULT: "false" })).toBe("incumbent");
+test.describe("a stale V3_DEFAULT", () => {
+  // It used to be the surface rollback. A line someone still believes is a
+  // lever must be reported, not silently ignored.
+  test("is warned about whatever its value", () => {
+    for (const v of ["0", "1", "false", "true"]) {
+      const w = staleSurfaceWarning({ V3_DEFAULT: v });
+      expect(w, `V3_DEFAULT=${v} produced no warning`).toContain(`V3_DEFAULT=${v}`);
+      expect(w).toContain("no longer does anything");
+    }
   });
 
-  test("an absent or unparseable value falls through to the committed default", () => {
-    expect(resolveRootSurface({})).toBe(DEFAULT_ROOT_SURFACE);
-    expect(resolveRootSurface({ V3_DEFAULT: "" })).toBe(DEFAULT_ROOT_SURFACE);
-    expect(resolveRootSurface({ V3_DEFAULT: "yes" })).toBe(DEFAULT_ROOT_SURFACE);
-    expect(resolveRootSurface(undefined)).toBe(DEFAULT_ROOT_SURFACE);
+  test("absent or blank says nothing", () => {
+    expect(staleSurfaceWarning({})).toBeNull();
+    expect(staleSurfaceWarning({ V3_DEFAULT: "  " })).toBeNull();
+    expect(staleSurfaceWarning(undefined)).toBeNull();
   });
 });

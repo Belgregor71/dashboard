@@ -299,62 +299,34 @@ test.describe("show-me surfaces — the new subjects", () => {
     }
   });
 
-  test("⚠ every surface the INCUMBENT can reach can still say something", () => {
-    /* ⚠ READ THIS BEFORE TRUSTING THE WORD "INCUMBENT" HERE — it was written
-       before the cutover and describes a surface that is no longer on the wall.
-       `/` has served V3 since `77f5fb1`, so voiceCommands.js is not what
-       answers a spoken "show me the radar" in this house any more; V3's
-       registry mounts a depth-3 subject and every id below reaches one
-       (tests/v3-subjects.spec.js drives all ten). The list still earns its keep
-       for one reason: the incumbent tree is the DOCUMENTED ROLLBACK PATH
-       (`V3_DEFAULT=0`, V3-CUTOVER.md:504), and a rollback surface that has gone
-       mute is a rollback nobody can use. Cold standby, still checked.
+  test("⚠ every show.* subject can still say something as it opens", () => {
+    /* V3 mounts a depth-3 subject for each show.* id and then speaks a line
+       pointing at it: the subject's own words, else answer()
+       (src/v3/core/voice.js, the show.* branch). So an id without an answerer
+       opens in silence — or, worse, falls through to an Assist round trip.
 
-       The incumbent handles show.camera and show.sky itself and falls through
-       to answer() for everything else. Two ids are silent BY DESIGN and are
-       named here rather than inferred: the year is answered by the
-       photographs, and the briefing's text does not exist until it has been
-       generated, so its subject speaks its own opening. Any OTHER show.* id
-       without an answerer is a spoken reply that silently became an Assist
-       round trip. */
-    /* ⚠ show.status is a THIRD id the incumbent handles itself, added in Phase
-       6, and it had to be: `matchIntent` runs BEFORE `matchNav`, so the moment
-       the table learned the word "status" the incumbent's status view became
-       unreachable by "show me the status" unless voiceCommands answered the id
-       explicitly. It does — see the branch beside show.sky. */
-    const surfaceHandledByIncumbent = ["show.camera", "show.sky", "show.status"];
-    /* show.tonight is silent because it OPENS THE DAY, and the calendar on the
-       glass is the answer — the same reason the year is silent. On the
-       incumbent it reaches neither, which is a rollback-only gap and the
-       cheapest kind: it costs one Assist round trip on a surface nobody is
-       looking at. */
+       Silent BY DESIGN, and named rather than inferred: the camera, the sky
+       and the status page are their own reply; the year is answered by the
+       photographs; the briefing speaks its own opening (its text does not
+       exist until generated); and show.tonight opens the day, whose calendar
+       on the glass is the answer.
+
+       Rewritten 2026-10-03 when the incumbent (whose voiceCommands.js this
+       list used to describe) was retired. */
+    const answeredByTheSubject = ["show.camera", "show.sky", "show.status"];
     const silentByDesign = ["show.year", "show.briefing", "show.tonight"];
     const mustAnswer = INTENT_IDS.filter(
       (id) =>
         id.startsWith("show.") &&
-        !surfaceHandledByIncumbent.includes(id) &&
+        !answeredByTheSubject.includes(id) &&
         !silentByDesign.includes(id)
     );
     expect(mustAnswer.length, "no surfaces left to check — the filter is wrong").toBeGreaterThan(0);
     const missing = mustAnswer.filter((id) => !ANSWERABLE.includes(id));
-    expect(missing, `surfaces the incumbent would go mute on: ${missing.join(", ")}`).toEqual([]);
+    expect(missing, `subjects that would open in silence: ${missing.join(", ")}`).toEqual([]);
   });
 
-  test("⚠ …and 'handled by the incumbent' is CHECKED, not just declared", () => {
-    /* The list above is an assertion about voiceCommands.js that the list
-       itself cannot make. Delete the `show.status` branch there and every test
-       in this file still passes, while the wall quietly loses its status view
-       to an Assist round trip — the exact silent regression the list was
-       written to prevent. So read the file and require the branch.
-
-       Source-reading as a guard has precedent here: the composer's spec parses
-       compose.css because the stylesheet, not the design study, is the truth. */
-    const src = readFileSync(new URL("../src/js/core/voiceCommands.js", import.meta.url), "utf8");
-    for (const id of ["show.camera", "show.sky", "show.status"]) {
-      expect(src, `voiceCommands.js has no branch for ${id} — the incumbent goes mute`)
-        .toContain(`intent.id === "${id}"`);
-    }
-  });
+  // "…and 'handled by the incumbent' is CHECKED" read voiceCommands.js, retired 2026-10-03.
 
   test("⚠ every action.* id has a branch on the surface that is actually up", () => {
     /* `action.*` is exempt from needing an answerer here — the test above says
@@ -365,19 +337,15 @@ test.describe("show-me surfaces — the new subjects", () => {
        which chatted about bedtime. Nothing in this file could see it: the
        matcher was never the broken half.
 
-       So the exemption is made conditional on the handler existing. `/` serves
-       V3, so V3 is the surface that must have it; the incumbent's dispatch table
-       is checked too, because it is the rollback surface. */
+       So the exemption is made conditional on the handler existing, on V3 —
+       the only surface since the incumbent was retired (2026-10-03). */
     const actions = INTENT_IDS.filter((id) => id.startsWith("action."));
     expect(actions.length, "no action.* ids left — the filter is wrong").toBeGreaterThan(0);
 
     const v3 = readFileSync(new URL("../src/v3/core/voice.js", import.meta.url), "utf8");
-    const incumbent = readFileSync(new URL("../src/js/core/voiceCommands.js", import.meta.url), "utf8");
     for (const id of actions) {
       expect(v3, `V3 (the surface on the wall) has no branch for ${id}`)
         .toContain(`intent.id === "${id}"`);
-      expect(incumbent, `the rollback surface has no dispatch entry for ${id}`)
-        .toContain(`"${id}"`);
     }
   });
 

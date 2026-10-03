@@ -1,5 +1,5 @@
 /* ═══ V3-SHARED-RUNTIME ═════════════════════════════════════════════════════
-   Loaded by BOTH surfaces: the incumbent (/) and V3 (/v3/).
+   Loaded by V3 (the wall). The incumbent that shared it was retired 2026-10-03.
    `src/js/` is not the old dashboard — it is V3's runtime library.
    docs/design/V3-CUTOVER.md §1 · guarded by tests/v3-closure.spec.js
    ════════════════════════════════════════════════════════════════════════ */

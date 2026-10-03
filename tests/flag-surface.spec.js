@@ -4,47 +4,32 @@ import { join } from "node:path";
 import { SRC, rel, rawOf, codeOf, moduleEntry, importClosure } from "./fixtures/source-scan.js";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   WHICH FLAGS ARE A LEVER ON THE WALL — audit F1(a), 2026-09-11.
+   EVERY FLAG IS A LEVER ON THE WALL — audit F1(a) 2026-09-11, tightened when
+   the incumbent was retired on 2026-10-03.
 
    CLAUDE.md calls flipping a flag off "the rollback path". That is only true of
-   a flag the serving surface reads, and `/` serves V3. The 2026-09-10 audit
-   found a large block of flags whose only readers are incumbent modules —
-   mostly `src/js/core/app.js`, which V3 never imports — so on the live wall
-   setting one to false changes nothing, and /flag-flip's flag-off half passes
-   while proving nothing.
-
-   `src/js/config.js` now marks each of those flags `INERT-ON-V3`. A mark only
-   warns whoever reads it, and a stale one reads exactly like a true one, so
-   this spec DERIVES the set from V3's import closure and compares:
+   a flag the serving surface reads. The 2026-09-10 audit found a block of flags
+   whose only readers were incumbent modules; for a year they carried an
+   "INERT-ON-V3" mark. The incumbent and those 37 flags were deleted together
+   (docs/audit/INCUMBENT-RETIREMENT-2026-10-03.md), so the rule is now simply:
+   a flag nothing on the wall reads does not exist. This spec DERIVES that from
+   V3's import closure:
 
      1. the scan sees what it claims to see     → a blind scan passes everything
-     2. every flag V3 never reads is marked     → a V3 gate removed, or a new
-                                                  incumbent-only flag
-     3. no flag V3 reads is marked              → a V3 gate added and the mark
-                                                  left behind
-     4. every marked flag has an incumbent reader → "incumbent-only" of a flag
-                                                  nothing reads at all
-     5. every read form is one this scan knows  → a new helper this scan cannot
+     2. every flag is read by a module V3 loads → a dead lever: a gate removed,
+                                                  or a flag added with no reader
+     3. no INERT-ON-V3 mark comes back          → the two-surface vocabulary
+                                                  returning without a second surface
+     4. every read form is one this scan knows  → a new helper this scan cannot
                                                   see, reading a flag it would
-                                                  then call inert
-     6. every `V3 lever:` names a flag V3 reads → a pointer to a second dead lever
+                                                  then call dead
 
-   ⚠ A red 2 or 3 is not a mark to refresh until green. It means the lever
-   under a flag just appeared or disappeared on the live surface — read the
-   change that did it, then move the mark.
+   ⚠ A red 2 is not a flag to delete until green. It means a lever under a flag
+   just disappeared from the wall — read the change that did it first.
 
-   ⚠ The audit's own count (31) was WRONG, low by 11, in two directions that
-   this spec exists to not repeat:
-     · it counted a flag name inside a COMMENT as a read — six flags were
-       "read" by V3 only in prose such as `(features.cameraCandidate)`. So
-       comments are stripped before anything is matched.
-     · it counted any quoted occurrence of the name as a read — so `commute`,
-       `weather`, `calendar` and `plex` looked live on V3 through strings like
-       `refs: ["weather"]` and `cell: "plex"`. So a read is a READ FORM (below),
-       never a bare string.
-   It was also checked against the production bundle, and the bundle half of
-   that check was blind too: V3's shared modules live in a separate chunk
-   (`entityFeed-*.js`), not in `v3-*.js`.
+   Lessons from the audit's own count (31, WRONG, low by 11) still hold here:
+     · a flag name inside a COMMENT is not a read — comments are stripped first;
+     · a quoted name is not a read (`cell: "plex"`) — only a READ FORM counts.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const CONFIG = join(SRC, "js", "config.js");
@@ -52,12 +37,9 @@ const CONFIG = join(SRC, "js", "config.js");
 const MARK = "INERT-ON-V3";
 
 /* The helpers a flag is read through by name. Each one is a one-line
-   `Boolean(CONFIG?.features?.[name])` (app.js's isEnabled adds a default).
-   Assertion 5 fails if a dynamic `features[…]` read turns up anywhere else. */
+   `Boolean(CONFIG?.features?.[name])`. Assertion 4 fails if a dynamic
+   `features[…]` read turns up anywhere else. */
 const HELPERS = ["flag", "featureOn", "isEnabled"];
-
-/* Comment stripping and the closure walk live in tests/fixtures/source-scan.js,
-   shared with tests/event-registry.spec.js. */
 
 /* ── the flags, and what counts as reading one ─────────────────────────────── */
 
@@ -69,16 +51,7 @@ function declaredFlags() {
   for (let i = start + 1; i < lines.length && !/^ {2}\},?\s*$/.test(lines[i]); i++) {
     if (/^ {4}\w+:\s*(true|false)\b/.test(lines[i])) flagLines++;
     const m = lines[i].match(/^ {4}(\w+):\s*(true|false),?\s*(?:\/\/(.*))?$/);
-    if (m) {
-      const comment = m[3] || "";
-      const lever = comment.match(/V3 lever:\s*`?(\w+)`?/);
-      flags.push({
-        name: m[1],
-        marked: comment.includes(MARK),
-        lever: lever ? lever[1] : null,
-        alwaysOn: /V3: always on/.test(comment)
-      });
-    }
+    if (m) flags.push({ name: m[1], comment: m[3] || "" });
   }
   return { flags, flagLines, start };
 }
@@ -98,33 +71,23 @@ function readForm(name) {
 
 function scan() {
   const v3Entry = moduleEntry("v3/index.html");
-  const incEntry = moduleEntry("index.html");
   const v3 = [...importClosure(v3Entry, codeOf)];
-  const inc = [...importClosure(incEntry, codeOf)];
   const { flags, flagLines, start } = declaredFlags();
-
-  const readersIn = (files, name) => {
-    const re = readForm(name);
-    return files.filter((f) => f !== CONFIG && re.test(codeOf(f))).map(rel);
-  };
-  const verdicts = flags.map((f) => ({
-    ...f,
-    v3Readers: readersIn(v3, f.name),
-    incReaders: readersIn(inc, f.name)
-  }));
-  return { v3Entry, incEntry, v3, inc, flags: verdicts, flagLines, start };
+  const verdicts = flags.map((f) => {
+    const re = readForm(f.name);
+    return { ...f, v3Readers: v3.filter((file) => file !== CONFIG && re.test(codeOf(file))).map(rel) };
+  });
+  return { v3Entry, v3, flags: verdicts, flagLines, start };
 }
 
-test.describe("flag surface — INERT-ON-V3 marks (audit F1a)", () => {
-  test("the scan sees the flags, both closures and both verdicts", () => {
+test.describe("flag surface — every flag is a lever on V3", () => {
+  test("the scan sees the flags and V3's closure", () => {
     const s = scan();
 
     /* Assert the nodes are there before asserting anything about them: an
-       unparsed block, a missed entry or an empty closure all make 2 and 3
-       vacuous rather than red. */
+       unparsed block, a missed entry or an empty closure all make 2 vacuous. */
     expect(s.start, "config.js has no `features: {` block").toBeGreaterThan(-1);
     expect(s.v3Entry && existsSync(s.v3Entry), "src/v3/index.html has no module entry").toBe(true);
-    expect(s.incEntry && existsSync(s.incEntry), "src/index.html has no module entry").toBe(true);
     expect(
       s.flags.length,
       `parsed ${s.flags.length} flags but config.js has ${s.flagLines} flag lines — ` +
@@ -133,88 +96,39 @@ test.describe("flag surface — INERT-ON-V3 marks (audit F1a)", () => {
     expect(s.flags.length).toBeGreaterThan(40);
     expect(rel(s.v3Entry)).toBe("src/v3/main.js");
     expect(s.v3.map(rel)).toContain("src/js/services/attentionEngine.js");
-    expect(s.v3.map(rel)).not.toContain("src/js/core/app.js");
-
-    expect(s.flags.filter((f) => f.v3Readers.length).length, "no flag reads as live on V3").toBeGreaterThan(0);
-    expect(s.flags.filter((f) => !f.v3Readers.length).length, "no flag reads as inert on V3").toBeGreaterThan(0);
+    expect(s.flags.filter((f) => f.v3Readers.length).length, "no flag reads as live on V3").toBeGreaterThan(40);
 
     /* The stripper self-check. Every import edge in raw source must survive
        stripping; one that does not means code was eaten, and a flag read on the
-       same stretch would be reported inert. */
+       same stretch would be reported dead. */
     const raw = [...importClosure(s.v3Entry, rawOf)].map(rel).sort();
     expect(s.v3.map(rel).sort(), "stripping comments changed V3's import closure").toEqual(raw);
   });
 
-  test("every flag V3 never reads carries the INERT-ON-V3 mark", () => {
-    const missing = scan().flags.filter((f) => !f.v3Readers.length && !f.marked);
+  test("every flag is read by a module V3 loads", () => {
+    const dead = scan().flags.filter((f) => !f.v3Readers.length).map((f) => f.name);
     expect(
-      missing.map((f) => `${f.name}  (read only by: ${f.incReaders.join(", ") || "nothing"})`),
-      `These flags are not read by any module V3 loads, so they are not a lever ` +
-        `on the wall — but config.js does not say so. If a V3 gate was just ` +
-        `removed, that is the change to look at; otherwise append ` +
-        `"// ⛔ ${MARK} (incumbent-only)" to each line.`
+      dead,
+      `These flags are not read by any module the wall loads, so flipping them ` +
+        `changes nothing and is not a rollback. If a V3 gate was just removed, ` +
+        `that is the change to look at; otherwise delete the flag.`
     ).toEqual([]);
   });
 
-  test("no flag V3 reads carries the INERT-ON-V3 mark", () => {
-    const stale = scan().flags.filter((f) => f.v3Readers.length && f.marked);
-    expect(
-      stale.map((f) => `${f.name}  (read on V3 by: ${f.v3Readers.join(", ")})`),
-      `These are marked ${MARK} but V3 now reads them — the lever is connected. ` +
-        `Remove the mark: a stale one teaches the next reader to distrust the rest.`
-    ).toEqual([]);
-  });
-
-  test("every INERT-ON-V3 flag is read by the incumbent", () => {
-    const orphaned = scan().flags.filter((f) => f.marked && !f.incReaders.length);
-    expect(
-      orphaned.map((f) => f.name),
-      `Marked incumbent-only, but no incumbent module reads them either — the flag ` +
-        `gates nothing on any surface. That is audit F1(c), retirement, not a mark.`
-    ).toEqual([]);
-  });
-
-  test("every named V3 lever is a real flag that V3 reads", () => {
-    /* `· V3 lever: v3Archive` tells the next session which flag to flip INSTEAD.
-       A pointer at a flag that was renamed, retired or is itself inert on V3
-       sends that session to a second dead lever with more confidence than the
-       first — so it is checked like the mark it rides on. */
-    const flags = scan().flags;
-    const byName = new Map(flags.map((f) => [f.name, f]));
-    const named = flags.filter((f) => f.lever);
-    expect(named.length, "no mark names a V3 lever — the parser has gone blind").toBeGreaterThan(0);
-
-    const bad = named
-      .map((f) => {
-        const target = byName.get(f.lever);
-        if (!f.marked) return `${f.name}: names a V3 lever but is not marked ${MARK}`;
-        if (!target) return `${f.name}: V3 lever "${f.lever}" is not a flag in config.js`;
-        if (!target.v3Readers.length) return `${f.name}: V3 lever "${f.lever}" is not read by V3 either`;
-        return null;
-      })
-      .filter(Boolean);
-    expect(bad, `A V3 lever pointer is wrong:\n  ${bad.join("\n  ")}`).toEqual([]);
-
-    /* "always on, no lever" is a claim about an INERT flag, and it contradicts a
-       lever on the same line. Either mismatch means one of the two notes is stale. */
-    const always = flags.filter((f) => f.alwaysOn);
-    expect(always.length, "no flag reads 'always on' — the parser has gone blind").toBeGreaterThan(0);
-    const contradicted = always
-      .filter((f) => !f.marked || f.lever)
-      .map((f) => `${f.name}: ${!f.marked ? `not marked ${MARK}` : `also names V3 lever ${f.lever}`}`);
-    expect(contradicted, `An 'always on' note contradicts its own line:\n  ${contradicted.join("\n  ")}`).toEqual([]);
+  test(`no ${MARK} mark comes back`, () => {
+    const marked = scan().flags.filter((f) => f.comment.includes(MARK)).map((f) => f.name);
+    expect(marked, `There is one surface; a flag cannot be inert on it and still be a flag.`).toEqual([]);
   });
 
   test("every flag read form is one this scan understands", () => {
     /* A dynamic `features[…]` / bare `.features` read outside a known helper
        could read ANY flag by a name this scan never sees — and the flag would
-       then be called inert and marked, which is the wrong-lever failure this
-       spec exists to prevent, arriving from the other side. */
-    const { v3, inc } = scan();
+       then be called dead. */
+    const { v3 } = scan();
     const helperDef = new RegExp(
       `\\bfunction\\s+(?:${HELPERS.join("|")})\\s*\\(|\\bconst\\s+(?:${HELPERS.join("|")})\\s*=`
     );
-    const unknown = [...new Set([...v3, ...inc])]
+    const unknown = v3
       .filter((f) => f !== CONFIG)
       /* `.features` NOT followed by `?.name` / `.name` — i.e. `?.[name]`, or
          the object taken whole into an alias (`cfg.features || {}`). */

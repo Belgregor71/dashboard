@@ -8,55 +8,34 @@ export function normalizeBaseUrl(url) {
 export const HOLIDAY_REGION_DEFAULT = "QLD";
 export const HOLIDAY_COUNTRY = "AU";
 
-/* ═══ V3 CUTOVER — which built entry `/` serves ═══════════════════════════════
-   docs/design/V3-CUTOVER.md §3. Two Vite entries come out of one build
-   (vite.config.js:17-21) and both are permanently reachable at fixed URLs:
+/* ═══ THE ONE SURFACE — what `/` serves ══════════════════════════════════════
+   V3 became `/` on 2026-08-11 (docs/design/V3-CUTOVER.md §3) and the incumbent
+   it replaced was RETIRED on 2026-10-03 (docs/audit/INCUMBENT-RETIREMENT-
+   2026-10-03.md). There is one Vite entry, so there is nothing left to choose:
 
-     /index.html  →  dist/index.html      the incumbent, always
-     /v3/         →  dist/v3/index.html   V3, always
-     /            →  whichever this flag names
+     /            →  dist/v3/index.html
+     /v3/         →  the same file, through the static mount
+     /index.html  →  302 to `/` (the incumbent's old address; server.js)
 
-   Only `/` moves, because only `/` is what the kiosk opens — dashboard-kiosk
-   .service launches Chromium on a bare `http://localhost:3000` (confirmed on
-   the G11, 2026-08-09). So this flag alone decides what is on the wall, and
-   neither surface can be stranded by it: the one that loses `/` is still one
-   URL away, which is the fallback the cutover plan says V3 otherwise has none
-   of. Rollback needs no deploy — `V3_DEFAULT=0` in the Pi's .env and a restart.
+   `/` is what the kiosk opens — dashboard-kiosk.service launches Chromium on a
+   bare `http://localhost:3000`.
+
+   ⚠ `V3_DEFAULT=0` IS NO LONGER A ROLLBACK. It used to put the incumbent back
+   without a deploy; there is no incumbent to put back. server.js logs a
+   warning if the variable is still set, rather than silently ignoring a line
+   someone believes is a lever. The rollback now is a revert + deploy.
    ══════════════════════════════════════════════════════════════════════════ */
 
-/** Built entry, relative to dist/, for each surface. */
-export const SURFACE_ENTRY = {
-  incumbent: "index.html",
-  v3: "v3/index.html"
-};
+/** The built entry `/` serves, relative to dist/. */
+export const ROOT_ENTRY = "v3/index.html";
 
 /**
- * Committed default — the cutover itself. "incumbent" until 2026-08-11, flipped
- * to "v3" after a 23.6 h V3_DEFAULT=1 soak on the G11 spanning a sunset, a
- * night, a wake and a full day: 21 boot stages with none failed, no interval
- * body thrown (`ticks: []`), substrate still on webgl2 with one canvas, and a
- * page that never reloaded sitting at 41 DOM nodes / 4.1 MB heap against the
- * incumbent's 1683 / 9.8 MB at the same 24 h mark.
- *
- * Rollback does NOT need this constant, a deploy or a push: `V3_DEFAULT=0` in
- * the kiosk's .env plus a dashboard.service restart overrides it in place.
- * root-surface.spec.js pins this value, so changing it is always deliberate.
+ * A warning for a `V3_DEFAULT` left in `.env` from the two-surface era, or null.
+ * Takes `env` as an argument rather than reading `process.env` at module load
+ * (this module's top level runs BEFORE server.js calls dotenv.config()).
  */
-export const DEFAULT_ROOT_SURFACE = "v3";
-
-/**
- * Resolve which surface `/` serves. Takes `env` as an argument rather than
- * reading `process.env` at module load: this module is imported by server.js,
- * so its top level runs BEFORE server.js calls dotenv.config() and any value
- * captured up here would be frozen at whatever the shell had (audit
- * 2026-07-26, M2 — that exact bug has been shipped here once already).
- *
- * V3_DEFAULT is a hard override in BOTH directions, so the Pi can be pinned
- * either way without a deploy; unset falls through to the committed default.
- */
-export function resolveRootSurface(env = {}) {
-  const raw = String(env.V3_DEFAULT ?? "").trim().toLowerCase();
-  if (raw === "1" || raw === "true") return "v3";
-  if (raw === "0" || raw === "false") return "incumbent";
-  return DEFAULT_ROOT_SURFACE;
+export function staleSurfaceWarning(env = {}) {
+  const raw = String(env.V3_DEFAULT ?? "").trim();
+  if (!raw) return null;
+  return `[surface] V3_DEFAULT=${raw} is set but no longer does anything — the incumbent was retired 2026-10-03; / always serves V3`;
 }

@@ -110,7 +110,13 @@ test("sound re-arms the linger rather than starting a second clock", async ({ pa
   const second = await page.evaluate(() => window.__v3Presence());
 
   expect(second.lastMotionAt).toBeGreaterThan(first.lastMotionAt);
-  expect(second.sinceMotionMs).toBeLessThan(first.sinceMotionMs + 250);
+  /* The stamp moved to the SECOND sound, a full wait after the first. This used
+     to be `second.sinceMotionMs < first.sinceMotionMs + 250` — which measures
+     how long the page took to answer the read, not the re-arm, and went red
+     under full-suite load (278 against 255, 2026-10-03) with the re-arm working.
+     The gap between two stamps cannot be inflated by a slow read. (5 ms of
+     slack for timer coarsening.) */
+  expect(second.lastMotionAt - first.lastMotionAt).toBeGreaterThanOrEqual(245);
   expect(second.present).toBe(true);
   expect(pageErrors).toEqual([]);
 });

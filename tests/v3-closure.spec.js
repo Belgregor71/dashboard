@@ -44,7 +44,9 @@ const ENTRY = join(SRC, "v3", "main.js");
 
 const MARKER = "V3-SHARED-RUNTIME";
 
-// Loaded by BOTH surfaces — the incumbent at / and V3 at /v3/.
+// "Both" = V3 and the incumbent, until the incumbent was retired 2026-10-03.
+// The name is kept so the history comments below still read; every module here
+// is now V3-only, and V3 is the only surface.
 const SHARED_BOTH = [
   "js/config/alertLines.js",
   /* ⚠ BOTH ENTERED V3'S CLOSURE 2026-08-16 with the week-ahead strip, and both

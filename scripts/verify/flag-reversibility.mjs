@@ -6,8 +6,8 @@
  * rollback path, so verify the off state still passes tests after the flip
  * (flag flips have broken tests that assumed the old default)."
  *
- * That has happened for real: ambientSubstrate going default-on broke
- * presence.spec:79 and ui.spec:39, which had silently assumed the old default.
+ * That has happened for real: ambientSubstrate going default-on broke two
+ * specs that had silently assumed the old default.
  *
  * This is NOT a pre-push gate. It ran there once and cost ~7 minutes of a
  * 7m47s hook, because a *test file* merely mentioning `features.X` pulled X
@@ -18,22 +18,16 @@
  * actually changes is when its off state genuinely needs re-proving, and a few
  * minutes is cheap there because it happens rarely and deliberately.
  *
- * ⛔ A FLAG MARKED `INERT-ON-V3` IS REFUSED under --flag, because for that flag
- * this gate cannot do the one thing it claims. `/` serves V3, and no module V3
- * loads reads a marked flag — so flipping it to false and watching the suite
- * stay green proves the INCUMBENT's off state and nothing about the wall, while
- * /flag-flip reports "reversibility check green" and the next session believes
- * it has a rollback path it does not have. The marks are derived, not
- * maintained: tests/flag-surface.spec.js walks V3's import closure and goes red
- * on a missing mark AND on a stale one, so reading them here is reading the
- * closure. --incumbent-only says "I mean the incumbent surface" out loud and
- * proceeds; there is no silent override.
+ * History: until 2026-10-03 this refused flags marked `INERT-ON-V3` — flags only
+ * the incumbent surface read, whose off state proved nothing about the wall.
+ * The incumbent and those flags were deleted together, and
+ * tests/flag-surface.spec.js now goes red on any flag V3 does not read, so
+ * every flag this script can see is a lever on the wall.
  *
  * Usage:
  *   node scripts/verify/flag-reversibility.mjs --flag <name>   # one flag (flag-flip)
  *   node scripts/verify/flag-reversibility.mjs                 # diff-scoped
- *   node scripts/verify/flag-reversibility.mjs --all           # every ON flag (86 today)
- *   …--flag <name> --incumbent-only   # marked flag, incumbent surface, on purpose
+ *   node scripts/verify/flag-reversibility.mjs --all           # every ON flag
  *   …--plan-only                      # resolve targets and stop; no build, no suite
  */
 
@@ -49,19 +43,16 @@ import { promisify } from "util";
 const run = promisify(execFile);
 
 const CONFIG = "src/js/config.js";
-const MARK = "INERT-ON-V3";
 const args = process.argv.slice(2);
 const ALL = args.includes("--all");
 const ONLY = args.includes("--flag") ? args[args.indexOf("--flag") + 1] : null;
-const INCUMBENT_ONLY = args.includes("--incumbent-only");
 const PLAN_ONLY = args.includes("--plan-only");
 const BASE = args.includes("--base") ? args[args.indexOf("--base") + 1] : "origin/main";
 
 const sh = (cmd, a) => execFileSync(cmd, a, { encoding: "utf8" }).trim();
 
 /**
- * Every flag with the three things the INERT gate below needs: its default, its
- * mark, and where the mark points instead.
+ * Every flag and its default.
  *
  * ⚠ Match to end-of-LINE, never `$`: these files are CRLF, so a `$` anchor after
  * an optional comment fails on every flag line that has no comment (the `\r` is
@@ -73,51 +64,9 @@ function readFlags() {
   if (start === -1) throw new Error(`no features block in ${CONFIG}`);
   const flags = {};
   for (const m of src.slice(start).matchAll(/^\s{4}([a-zA-Z][a-zA-Z0-9]*):\s*(true|false),?([^\n]*)/gm)) {
-    const comment = (m[3].match(/\/\/(.*)/) || ["", ""])[1];
-    flags[m[1]] = {
-      on: m[2] === "true",
-      inert: comment.includes(MARK),
-      lever: (comment.match(/V3 lever:\s*`?(\w+)`?/) || [])[1] || null,
-      alwaysOn: /V3: always on/.test(comment)
-    };
+    flags[m[1]] = { on: m[2] === "true" };
   }
   return flags;
-}
-
-/**
- * The refusal, printed and then exited on. Kept whole rather than inlined so
- * the spec can assert what it says: a refusal that does not NAME the lever
- * sends the session looking for one, which is how the wrong flag gets flipped.
- */
-function refuseInert(name, f) {
-  const instead = f.lever
-    ? `flip \`${f.lever}\` instead — that is the flag V3 reads for the same feature\n` +
-      `      (\`node scripts/verify/flag-reversibility.mjs --flag ${f.lever}\`)`
-    : f.alwaysOn
-      ? `there is no lever: V3 runs this behaviour hardwired, so nothing in\n` +
-        `      config.js turns it off on the wall`
-      : `config.js names no V3 lever for it — read the flag's comment block\n` +
-        `      before assuming one exists`;
-
-  console.error(
-    `\n[reversibility] REFUSED — \`${name}\` is marked ${MARK} in ${CONFIG}.\n\n` +
-      `  \`/\` serves V3 and no module V3 loads reads this flag, so flipping it to\n` +
-      `  false changes nothing on the wall. The flag-off half would go green while\n` +
-      `  proving nothing, and /flag-flip would report a rollback path that is not\n` +
-      `  there. That is the exact failure this gate exists to prevent, so it will\n` +
-      `  not run.\n\n` +
-      `  Instead:\n` +
-      `    · ${instead}\n` +
-      `    · the rollback that does work for a marked flag is the SURFACE rollback —\n` +
-      `      \`V3_DEFAULT=0\` in the kiosk's .env + a dashboard.service restart — or a\n` +
-      `      revert of the commit that built the V3 behaviour.\n\n` +
-      `  The marks are derived, not maintained: tests/flag-surface.spec.js walks V3's\n` +
-      `  import closure and goes red on a missing mark and on a stale one.\n\n` +
-      `  If you mean the INCUMBENT surface on purpose (a kiosk pinned to\n` +
-      `  \`V3_DEFAULT=0\`), re-run with --incumbent-only. That proves\n` +
-      `  the incumbent's off state, and still nothing about the wall.\n`
-  );
-  process.exit(1);
 }
 
 /** Files the outgoing push changes, relative to the push base. */
@@ -205,12 +154,11 @@ async function runSuite(label) {
 // the tool UNABLE TO COMPLETE FOR ANY FLAG between 7a181c6 and this commit:
 // the real run writes the marker, then runs `npm test`, and the suite contains
 // tests/flag-reversibility-gate.spec.js, which re-invokes this script
-// (--plan-only, always) to prove the INERT-ON-V3 refusal. The inner run read
-// the OUTER run's own marker and exited with this message instead of the
-// refusal the gate asserts — 4-5 red in the gate spec, on every flag, and none
-// of them a reversibility failure of the flag being flipped. Regression cover:
-// "a --plan-only run reads a marker-bearing config.js instead of aborting" in
-// that same spec.
+// (--plan-only, always). The inner run read the OUTER run's own marker and
+// exited with this message instead of the plan the gate asserts — red in the
+// gate spec on every flag, and none of it a reversibility failure of the flag
+// being flipped. Regression cover: "a --plan-only run reads a marker-bearing
+// config.js instead of aborting" in that same spec.
 const onDisk = readFileSync(CONFIG, "utf8");
 if (onDisk.includes("TEMPORARILY FLIPPED")) {
   if (!PLAN_ONLY) {
@@ -233,14 +181,13 @@ if (onDisk.includes("TEMPORARILY FLIPPED")) {
 
 const flags = readFlags();
 
-/* A gate that cannot see the marks refuses nothing and says so in the same
-   green voice as a gate that checked. config.js carries ~38 of them today; zero
-   means the parser, the block or the mark format moved. */
-if (!Object.values(flags).some((f) => f.inert)) {
+/* A parser that sees nothing approves everything in the same green voice as
+   one that checked. config.js carries ~74 flags; a handful means the block or
+   the line format moved. */
+if (Object.keys(flags).length < 20) {
   console.error(
-    `[reversibility] no flag in ${CONFIG} carries the ${MARK} mark. Either the\n` +
-      `  marks are gone or this parser can no longer see them — and a blind parser\n` +
-      `  approves every inert flag. Check tests/flag-surface.spec.js first.\n`
+    `[reversibility] parsed only ${Object.keys(flags).length} flags from ${CONFIG} — the\n` +
+      `  features block or the flag line format has moved. Fix the parser first.\n`
   );
   process.exit(1);
 }
@@ -250,16 +197,6 @@ if (ONLY) {
   if (!(ONLY in flags)) {
     console.error(`[reversibility] no such flag: ${ONLY}`);
     process.exit(1);
-  }
-  /* Before the already-false shortcut: whether the flag is a lever on the wall
-     is a fact about the FLAG, not about which way it currently points. */
-  if (flags[ONLY].inert && !INCUMBENT_ONLY) refuseInert(ONLY, flags[ONLY]);
-  if (flags[ONLY].inert) {
-    console.log(
-      `[reversibility] --incumbent-only: ${ONLY} is ${MARK}. What follows proves the\n` +
-        `  INCUMBENT surface's off state. It is NOT a rollback proof for the wall —\n` +
-        `  do not report it as one.`
-    );
   }
   if (!flags[ONLY].on) {
     console.log(`[reversibility] ${ONLY} is already false — its off state is what ships`);
@@ -280,18 +217,6 @@ if (ONLY) {
   console.log(
     `[reversibility] ${changed.length} changed file(s) → ${targets.length} flag(s) in scope` +
       (targets.length ? `: ${targets.join(", ")}` : "")
-  );
-}
-
-/* The bulk modes are not /flag-flip, so a marked flag is run rather than
-   refused — the incumbent still ships and `V3_DEFAULT=0` still serves
-   it. They are LABELLED instead, so no line of this output can be read as a
-   rollback proof for a flag that has no lever on the wall. */
-const inertTargets = targets.filter((f) => flags[f].inert);
-if (!ONLY && inertTargets.length) {
-  console.log(
-    `[reversibility] ${inertTargets.length} of these are ${MARK} — incumbent-only, ` +
-      `not a wall rollback proof: ${inertTargets.join(", ")}`
   );
 }
 
@@ -379,9 +304,4 @@ if (broken.length) {
   process.exit(1);
 }
 
-console.log(
-  `[reversibility] pass — ${targets.length} flag(s) cleanly reversible` +
-    (inertTargets.length
-      ? ` (${inertTargets.length} ${MARK}: incumbent-only, NOT a wall rollback proof)`
-      : "")
-);
+console.log(`[reversibility] pass — ${targets.length} flag(s) cleanly reversible`);

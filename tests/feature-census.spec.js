@@ -397,7 +397,7 @@ test.describe("⚠ the roster cannot go quietly short", () => {
       ...src("src/js/services/memoryEngine.js").matchAll(/source:\s*"([^"]+)"/g),
       ...src("src/js/core/personality.js").matchAll(/source:\s*"([^"]+)"/g),
       ...src("src/js/services/predictiveRules.js").matchAll(/SOURCE\s*=\s*"([^"]+)"/g),
-      ...src("src/js/services/calendar/holidays.js").matchAll(/source:\s*"([^"]+)"/g)
+      ...src("src/js/services/publicHolidays.js").matchAll(/source:\s*"([^"]+)"/g)
     ].map((m) => m[1]);
 
     const main = src("src/v3/main.js");

@@ -92,8 +92,10 @@ test("the flags the engine gates four phases on are actually set", async ({ page
   // V3 loads /js/config.js for exactly this. Without it every one of these reads
   // as false and V3 runs a quietly different engine than the wall does — no
   // error, no visible symptom, just a house that decides differently.
+  // (`attentionEngine` was listed here too. No module V3 loads ever read it — it
+  // gated only the retired incumbent's app.js — and it was deleted with the
+  // incumbent on 2026-10-03. V3 runs the engine unconditionally.)
   const flags = await page.evaluate(() => ({
-    attentionEngine: window.CONFIG?.features?.attentionEngine,
     predictiveCandidates: window.CONFIG?.features?.predictiveCandidates,
     houseIntent: window.CONFIG?.features?.houseIntent,
     memoryEngine: window.CONFIG?.features?.memoryEngine,

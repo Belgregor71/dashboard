@@ -26,13 +26,14 @@ happened; a glance at the wall did.
 
 ### Architecture
 
-- **Two frontends coexist.** `src/js/` is the incumbent; `src/v3/` is the current surface.
-  Vite builds both entries. `/` serves V3 (`server/config.js:45`, `DEFAULT_ROOT_SURFACE`);
-  `/index.html` and `/v3/` stay reachable whichever way it points. **Check which surface a
-  change targets before editing** — the same feature often exists in both.
-- **V3 is not standalone**: its import closure pulls 54 files from `src/js/`, plus
-  `js/config.js` by script tag. The authority is the manifest in `tests/v3-closure.spec.js`. The incumbent tree is a
-  live dependency, not dead code — don't delete from it on an audit's say-so.
+- **One frontend: `src/v3/`.** The incumbent surface (`src/index.html`, `src/css/`, 62
+  incumbent-only `src/js` modules) was **retired on 2026-10-03**
+  (`docs/audit/INCUMBENT-RETIREMENT-2026-10-03.md`). Vite builds one entry,
+  `dist/v3/index.html`; `/` serves it (`server/config.js`, `ROOT_ENTRY`), `/v3/` is the same
+  file, and `/index.html` redirects to `/`.
+- **`src/js/` is NOT legacy — it is V3's runtime library**: V3's import closure pulls 55
+  files from it, plus `js/config.js` by script tag. The authority is the manifest in
+  `tests/v3-closure.spec.js`. Everything left in `src/js/` is load-bearing.
 - `server.js` mounts `server/routes/*.js` (34 route modules) under `/api`. Route order
   matters — see the measured comments in `server.js` around the static mounts.
 - Scripts: `npm run dev` (vite) · `npm run build` (vite + copy-static-config) ·
@@ -46,7 +47,7 @@ happened; a glance at the wall did.
 
 ### Verification & Deployment
 
-- This dashboard runs on a **GMKtec G11 mini PC** (AMD Ryzen Embedded R2514, Vega 8, 16 GB, Debian 13 + X11) driving a 32" landscape display. It ran on a Raspberry Pi 4 until 2026-08-01; that Pi was the warm rollback host until it was **retired on 2026-10-03** (off the network, not code-current) — the G11 is the only host, and the only rollback is the surface one below. A fix is not complete until verified on the actual kiosk display / live environment — dev-session rendering is often unreliable (lottie icons, camera snapshots, TTS timing). Don't declare a fix done while it's still "pending kiosk retest".
+- This dashboard runs on a **GMKtec G11 mini PC** (AMD Ryzen Embedded R2514, Vega 8, 16 GB, Debian 13 + X11) driving a 32" landscape display. It ran on a Raspberry Pi 4 until 2026-08-01; that Pi was the warm rollback host until it was **retired on 2026-10-03** (off the network, not code-current) — the G11 is the only host, and there is no warm rollback: a bad deploy is undone by a revert + deploy (or, for a flag-gated change, by flipping its flag off). A fix is not complete until verified on the actual kiosk display / live environment — dev-session rendering is often unreliable (lottie icons, camera snapshots, TTS timing). Don't declare a fix done while it's still "pending kiosk retest".
 - Deploys are pull-based: pushing to `origin/main` triggers the kiosk's `dashboard-deploy.timer` (polls every 5 min; pulls, `npm run build`, restarts `dashboard.service`). Trigger immediately with `ssh pi-dashboard 'sudo systemctl start dashboard-deploy.service'` (oneshot — blocks until done). Use the `/deploy` skill for the full ship-and-verify loop.
 - Access: **`ssh pi-dashboard` → the G11** (192.168.0.183, user `dashboard`, repo at `/home/dashboard/dashboard`). The alias name is **historical and deliberately unchanged** — keeping it means the deploy chain, all 7 skills and the pre-approved permissions need zero edits. The `pi4-rollback` alias (192.168.0.186) is **dead** — that host is retired and times out; don't probe it. Dashboard serves on port 3000 (systemd sets `PORT=3000`, and `.env.example:1` now agrees). Kiosk Chromium exposes CDP on 127.0.0.1:9222 (localhost only — run a node script on the kiosk host to reach it).
 - **Host-specific gotchas on the G11:** `vcgencmd` does not exist — read `tempC` from `/api/system/metrics` (autodetects `k10temp`; `/sys/class/thermal/` is absent entirely). `nproc` is **8**, not 4, so every "% of the box" derived from `gpucpu.sh` changes denominator. `sudo` is narrowed to three passwordless systemctl commands; anything else needs a password. Baselines live in `docs/audit/HOST-BASELINES.md` (the Pi 4 section there is history only).
@@ -57,9 +58,10 @@ happened; a glance at the wall did.
   goes blank on the wall, read `curl -s localhost:3000/api/csp-report` on the box first
   (the first sighting of each violation is also in the journal as `[CSP]`). Rollback needs
   no deploy: delete the line, restart `dashboard.service`, hard-reload the kiosk.
-- **Surface rollback needs no deploy:** `V3_DEFAULT=0` in the kiosk's `.env` + a
-  `dashboard.service` restart forces the incumbent back in place; `=1` forces V3.
-  Unset falls through to the committed default. `root-surface.spec.js` pins that default.
+- ⛔ **There is no surface rollback any more.** `V3_DEFAULT=0` used to put the incumbent
+  back without a deploy; the incumbent was retired 2026-10-03, so the variable does
+  nothing (the server logs a warning if it is still set). `root-surface.spec.js` pins
+  what `/` serves.
 
 ### Feature Flags
 
@@ -76,28 +78,20 @@ happened; a glance at the wall did.
   half. This is the single most common place a session ends in a live defect: a flip has
   made the house invent a bin time, and a poisoned cache once blanked the whole wall.
   Record both the flip and the rollback proof in the session memory entry.
-- Flags live in `src/js/config.js` under `features:` (110 flags), copied to
+- Flags live in `src/js/config.js` under `features:` (74 flags), copied to
   `static/js/config.js` on every build. That file is **tracked and shipped in the
   public bundle** — never put a secret or an address in it.
-- ⛔ **A flag marked `INERT-ON-V3` is not a lever on the wall.** No module V3 loads
-  reads it (almost all are gated only in `src/js/core/app.js`), so flipping it off
-  changes nothing on `/` and is **not** a rollback. For those, the rollback is the
-  surface rollback (`V3_DEFAULT=0`) or a revert. The marks are derived, not
-  maintained: `tests/flag-surface.spec.js` goes red on a missing or a stale one.
-  **`/flag-flip` now REFUSES a marked flag** at step 0, and so does
-  `scripts/verify/flag-reversibility.mjs --flag <marked>` — exit 1, naming the
-  `V3 lever:` from the flag's own comment, without touching `config.js`. Its
-  `--incumbent-only` escape hatch means "I mean the incumbent surface" (a kiosk
-  pinned to `V3_DEFAULT=0`) and its green is an incumbent
-  proof, never a wall one. Both directions live in
-  `tests/flag-reversibility-gate.spec.js` — a gate that refused *everything*
-  would pass the refusal test and block every real flip.
+- ⛔ **Every flag must be a lever on the wall.** `tests/flag-surface.spec.js` derives
+  V3's import closure and goes red on any flag no module V3 loads reads — a dead
+  lever is deleted, not kept. (History: 37 flags read only by the incumbent carried an
+  `INERT-ON-V3` mark, and `/flag-flip` refused them; they were deleted with the
+  incumbent on 2026-10-03, and the spec now also refuses the mark coming back.)
 
 ### Testing & Pre-Push Gate
 
-- `npm test` runs the Playwright suite — 142 spec files in `tests/` (plus 2 in `tests/verify/`,
+- `npm test` runs the Playwright suite — 117 spec files in `tests/` (plus 1 in `tests/verify/`,
   which `npm test` ignores), spanning API
-  contracts (`api.spec.js`), a browser smoke test (`ui.spec.js`), and per-feature specs.
+  contracts (`api.spec.js`), the V3 boot (`v3-boot.spec.js`), and per-feature specs.
   Browser specs need `npm run build` first. Test server runs on port 3210 with AI
   upstreams stubbed off (no API spend). Target one file when iterating:
   `npx playwright test tests/<name>.spec.js`.
@@ -143,7 +137,7 @@ it is "what happens if this is wrong".
 | Lane | Model | Give it | Never give it |
 |---|---|---|---|
 | **Main session** | Opus 5 | Design, root-cause debugging, anything that changes a flag default, deploys, kiosk verification, any call that depends on the live environment | Bulk search, raw test output |
-| **`scout` subagent** | Haiku | "Where does X live", "who calls Y", "is this flag reachable", "does the incumbent have this too" | Any verdict that leads to a deletion |
+| **`scout` subagent** | Haiku | "Where does X live", "who calls Y", "is this flag reachable" | Any verdict that leads to a deletion |
 | **`suite-triage` subagent** | Haiku | Running specs and reporting only the failures | Fixing the failures |
 | **`Explore` (built-in)** | — | Broad sweeps across many directories and naming conventions | Reviewing or auditing what it found |
 | **`/xreview` → local agent** | ⚠ **DISABLED** — `devstral-small-2505` | ~~A cold adversarial read of the outgoing diff~~ **Nothing.** 7/7 runs returned 0 tool calls; it never opened a file. Removed from `/deploy` 2026-08-30 | Any weight at all. A 0-tool-call run is not a review, it is speculation over diff text |

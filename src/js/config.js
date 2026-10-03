@@ -21,63 +21,24 @@ const isLocalhost =
 -------------------------------------------------------------------*/
 
 window.CONFIG = {
-  // Used by app.js
   isLocalhost,
 
   /* --------------------------------------------------------------
      FEATURE FLAGS
      Toggle modules on/off without touching code
 
-     ⛔ INERT-ON-V3 — A FLAG WITH THIS MARK IS NOT A LEVER ON THE WALL.
-     `/` serves V3, and no module V3 loads reads these flags: their only
-     readers are incumbent modules, almost all in src/js/core/app.js, which
-     V3 never imports. Setting one to false changes nothing on the glass, and
-     the flag-off half of /flag-flip passes while proving nothing.
+     Every flag here is read by at least one module the wall loads.
+     tests/flag-surface.spec.js walks V3's import closure and goes red on a
+     flag nothing reads — a dead lever is deleted, not kept.
 
-     This says the FLAG is dead on V3, not the feature. V3 reimplements some
-     of these behaviours without a gate (its own substrate, its own archive);
-     which of the marked features exist on V3 at all has NOT been established
-     flag by flag yet (docs/audit/AUDIT-2026-09-10.md §9.1, parts b/c).
-
-     The rollback that does work for one of these on the wall is the SURFACE
-     rollback — `V3_DEFAULT=0` in the kiosk's .env + a dashboard.service
-     restart puts the incumbent back, where these flags gate again — or a
-     revert of the commit that built the V3 behaviour.
-
-     `· V3 lever: <flag>` on a mark names the V3 flag that DOES switch the same
-     feature on the wall — flip that one, not this one.
-     `· V3: always on, no lever` means V3 runs the same behaviour hardwired: the
-     feature is on the wall and nothing in config.js turns it off there.
-
-     Unmarked = read by at least one module V3 loads. The marks are derived,
-     not maintained: tests/flag-surface.spec.js walks V3's import closure and
-     goes red on a missing mark AND on a stale one, and checks that every named
-     V3 lever is a real flag V3 reads.
+     History: until 2026-10-03 a second surface (the incumbent, src/index.html)
+     shared this file, and 37 flags read only by it carried an "INERT-ON-V3"
+     mark. They were deleted with the incumbent
+     (docs/audit/INCUMBENT-RETIREMENT-2026-10-03.md). Comments below that name
+     one of them (ambientArchiveMotion, recipePanel, …) are describing history.
   --------------------------------------------------------------*/
   features: {
-    // Core UI
-    background: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
-    clock: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
     commute: true, // V3: gates the commute candidate lane (v3/core/attention.js LANE_GATES)
-
-    // Data-driven panels
-    weather: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
-    calendar: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
-
-    // External integrations
-    homeAssistant: true, // force enable · ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
-    plex: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3 lever: v3NowPlaying
-
-    // Phase 1 presence runtime (docs/vision/phase-1-presence-runtime.md).
-    // Verified live on the Pi 2026-07-11 (screensaver boundary drives
-    // ambient<->glance; dead click-cycle suppressed) — now enabled.
-    presenceRuntime: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
-
-    // Phase 2 attention engine (docs/vision/phase-2-attention-engine.md).
-    // Unifies every focus-hero source into one scored, presence-gated queue.
-    // Verified live on the Pi 2026-07-11 (DWELL reveals top-3 stack; AMBIENT
-    // interrupt-only; GLANCE single hero) — now enabled.
-    attentionEngine: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
 
     // Phase 3 predictive candidates (docs/vision/phase-3-anticipate.md).
     // Grounded anticipatory rules (rain-incoming, bin-night, on-this-day) merged
@@ -85,13 +46,6 @@ window.CONFIG = {
     // fires at the confidence-scaled score, renders, and decays past its
     // window) — now enabled.
     predictiveCandidates: true,
-
-    // Phase 5 ambient atmospherics (docs/vision/phase-5-atmospherics.md).
-    // Mode 0 (screensaver) carries a slow-settling weather/light tint + the
-    // occasional earned "on this day" memory. Verified live on the Pi
-    // 2026-07-11: tint renders and adds zero GPU cost (80% Mode 0 baseline is
-    // the pre-existing Ken Burns photo decode, unchanged by the token) — enabled.
-    ambientAtmospherics: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
 
     // Phase 6 House Model (docs/vision/phase-6-intent.md). A pure reducer fuses
     // presence + calendar + people-home into an `intent` posture the attention
@@ -130,17 +84,6 @@ window.CONFIG = {
     // One-line revert (-> false); tests/v3-context-feed.spec.js pins the off
     // state so the rollback path stays covered.
     v3HouseIntent: true,
-
-    // Phase 7 "Dissolve the dashboard" (docs/vision/phase-7-dissolve.md). Lifts
-    // the Phase 5 atmo-* token off the screensaver root onto a shared app root
-    // (body) so the intent-dressed, weather-tinted room persists across
-    // AMBIENT → GLANCE → DWELL — the awake dashboard surfaces *over* the mood
-    // instead of hiding it. Default OFF: byte-identical to Phase 5/6. Gated on a
-    // measured GPU prerequisite (the Mode-0 Ken Burns photo-decode debt), which
-    // PASSED on the Pi (Ken Burns → 6s settle+hold dropped Mode-0 steady-state
-    // GPU 80%→0%). Enabled here in daylight to run the remaining awake
-    // GLANCE/DWELL gpucpu + per-token legibility verification. Reversible (→ false).
-    ambientSubstrate: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
 
     // Phase 8 "Learn Without Asking" (docs/vision/phase-8-learn.md). A passive
     // observer on the signals already emitted (presence, person.* transitions,
@@ -181,20 +124,6 @@ window.CONFIG = {
     // 2026-07-12 (key added to the Pi's .env). Revert (-> false).
     immichPhotos: true,
 
-    // "Daily Memories" screensaver. Turns the ambient rotation into a curated,
-    // FROZEN per-day "on this day" set: today's month/day across past years,
-    // widened to the nearest neighbouring dates when a day is thin (up to 12), and
-    // chosen ahead in the evening (while the NAS is awake) so it serves all next
-    // day even after the Synology sleeps. Each frame carries a subtle bottom-left
-    // "year · place, region" caption, plus a small static map tile for travel
-    // photos (taken outside Australia — needs MAP_API_KEY in .env). Rides on top of
-    // immichPhotos; when its frozen set is empty (Immich down / no memories) it
-    // falls back to the immichPhotos blend. Enabled 2026-07-24: route live-verified
-    // with real exif on the Pi (captions + travel gate correct), MAP_API_KEY added,
-    // screensaver surface proven live via __ssPlace. Revert (-> false) restores the
-    // immichPhotos blend exactly (routes/scheduler stay inert, build-on-demand only).
-    dailyMemories: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3 lever: groundMemories
-
     // Phase 10 "One Character" (docs/vision/phase-10-temperament.md). One
     // temperament authority (personality.js) every surfacing path routes through,
     // so the house speaks/moves/celebrates the same way every time: attention +
@@ -212,207 +141,6 @@ window.CONFIG = {
     // fires once then the budget blocks a re-fire, __voice preview matches the
     // consistency snapshot, /kiosk-metrics stays flat. One-line revert (-> false).
     personality: true,
-
-    // Design study 02 "The Hero Line" (docs/design/homeos-hero-type.html). A
-    // length-responsive type scale for the Mode-1 focus hero: three tiers by
-    // character count (<=16 -> headline, 17–40 -> standard, 41+ -> the floor) so
-    // short lines go big and long lines step down, but never below the 3–4 m
-    // legibility floor on the 32" panel. Copy is trimmed by the temperament
-    // (personality.phrase) before it's set, so type never shrinks to fit.
-    // Sizing is set once per content change (never animated) — the only hero
-    // motion stays the opacity cross-fade. Shipped flag-off in 003b1cb (no-op
-    // deploy), flipped ON live on the Pi and verified: tier mapping exact
-    // (13ch->144px / 32ch->104px / 52ch->72px), heap + GPU flat (80% = the
-    // pre-existing awake-home baseline, unchanged by a static type change).
-    // Now default-on. One-line revert (-> false).
-    heroType: true, // ⛔ INERT-ON-V3 (incumbent-only)
-
-    // Design study 05 "The Ambient Clock" (docs/design/homeos-ambient-clock.html),
-    // WP1 of docs/design/PLAN.md. The Mode-0 screensaver clock gets the study
-    // treatment: tabular figures + a quieter/smaller meridiem, and its brightness
-    // tracks the *sun altitude* on a smooth curve (dims with the sky, ~0.9 day →
-    // ~0.3 the small-hours floor) instead of the binary sunset→sunrise night
-    // switch. Pure opacity/type, no new motion — the idle GPU stays frozen (0%).
-    // Pi-verified 2026-07-12 (18a237b flag-off → default-on here): at night the
-    // clock clamped to the 0.3 floor, tabular face + quieter "pm", gpu-process
-    // 0% over 25s, legible over a real photo. Now default-on. One-line revert
-    // (-> false); flag-off is byte-identical (plain string, binary dimming).
-    ambientClock: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3 lever: v3SunClock
-
-    // Design study 01 "The Lean-in stack" (docs/design/homeos-component-studies.html),
-    // WP2 of docs/design/PLAN.md. In DWELL — the one mode where glass earns its
-    // edges — the curated stack cards under the hero get the full 5-token glass
-    // system together (--glass-bg/-border/-blur/-shadow/-sheen), and their type
-    // firms up to sit as deliberate cards under the study-02 hero scale. The
-    // reveal stays opacity-only with the existing setTimeout teardown (never
-    // transitionend while hidden). Glass shows only in DWELL; the stack is hidden
-    // at rest, so Ambient stays 0% GPU. Pi-verified 2026-07-12 (7a054a3 flag-off
-    // → default-on here): DWELL cards showed blur(18px) + the glass shadow/sheen,
-    // DOM flat 2265→2265 across 40 reveal/teardown cycles, heap 54MB / listeners
-    // 64 (no leak). Now default-on; flag-off stays byte-identical (flat cards).
-    // One-line revert (-> false).
-    leanInStack: true, // ⛔ INERT-ON-V3 (incumbent-only)
-
-    // Tier-1a spec-fidelity upgrade of the lean-in stack (2026-07-15 conformance
-    // audit vs docs/design/design_handoff_homeos_home). Requires leanInStack for
-    // the glass. The one-line chips become the study's rich cards: candidates may
-    // carry optional {title, sub, meta, metaLabel} (sources with real parts emit
-    // them — media/plex source+title, menu name, next-event name+relative; the
-    // rest fall back to their text rendered in the title slot, one type system).
-    // Card: 48px icon slot, 44/600 title + 22/ink-56 sub, right meta block
-    // 40/600/tabular + 17/ink-50 label, padding 26/34, 18px stack gap, stack
-    // centred at --content-max. The top card takes the hero-glass variant, an
-    // interrupt candidate earns the 3px --status-warn stripe + warm icon glow
-    // (never a coloured card), and a mono "+N more" resting note counts the
-    // queue below the fold. Flag-off adds no class and renderStack keeps the
-    // one-line chips → byte-identical. Enabled 2026-07-15 after the 4663e71
-    // flag-off deploy; Pi live proof in the project memory. Revert (-> false).
-    stackCards: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
-
-    // Design study 03 "The Arrival card" (docs/design/homeos-arrival-card.html),
-    // WP3 of docs/design/PLAN.md. The away->home greeting card gets the study
-    // treatment — the warmest surface in the system: the full glass overlay with
-    // a hairline warm "crown" (--arrival-crown), enter/exit sourced from
-    // personality.timing("arrival"), and a transform-driven countdown drain (no
-    // per-arrival JS timer). A >=2-day absence trips the budgeted home-after-away
-    // delight -> the card shows its warm variant (warmth replaces logistics),
-    // rationed by the same budget (can't fire twice). Copy already routes through
-    // personality.phrase. Pi-verified 2026-07-13 (eb87382 flag-off → default-on
-    // here): normal card showed full glass blur(18px) + warm crown 0.34 + the
-    // arrival-drain CSS animation + agenda; warm variant (delight home-after-away,
-    // budget spent-then-blocked) strengthened the crown to 0.55 and dropped the
-    // agenda; DOM flat 2265→2265 over 40 arrivals, heap 54MB / 64 listeners (no
-    // leak). Now default-on; flag-off stays byte-identical (cool card, JS drain).
-    // One-line revert (-> false).
-    arrivalCard: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
-
-    // Tier-1b spec-fidelity reshape of the arrival card (2026-07-15 conformance
-    // audit vs docs/design/design_handoff_homeos_home). Requires arrivalCard.
-    // The card moves to the study geometry — bottom-center (bottom 8%, 760px),
-    // sliding UP (translateY 46px→0 + opacity on timing("arrival")) instead of
-    // dropping from the top — and takes the spec type: welcome 64px/500 with
-    // the NAME in --warm/600 (the handoff's sanctioned --warm text exception,
-    // alongside the crown), status 24px/ink-60, event times warm tabular 600,
-    // titles 26px/ink-85, padding 38/46. Flag-off adds no class → byte-identical
-    // (the shipped top-slide WP3 card stands). Enabled 2026-07-15 after the
-    // 4663e71 flag-off deploy; Pi live proof in the project memory. Revert (-> false).
-    arrivalBottom: true, // ⛔ INERT-ON-V3 (incumbent-only)
-
-    // Design study 01 "The Ambient memory surface" (ambient half of
-    // docs/design/homeos-component-studies.html), WP4 of docs/design/PLAN.md.
-    // The tender ambient lane — the documented Phase-9 follow-up. A tender memory
-    // (sensitivity:"tender") surfaces ONLY in Mode 0 (the screensaver), WORDLESS:
-    // its photo fills the frame + a faint 🕯 mark bottom-right, held longer, then
-    // fades — never a caption, never the text hero. The gentleness is enforced in
-    // memoryEngine.toSurface (ambientOnly/caption:null/longer hold) and re-checked
-    // at the render boundary (the ambient lane refuses any non-tender surface).
-    // Rides the memoryEngine flag for data + budget. Pure opacity/type, no loop —
-    // idle GPU stays frozen. Pi-verified 2026-07-13 (8ff58e8/e30e5f5 flag-off →
-    // default-on here): forced tender surface rendered wordless (🕯 mark opacity
-    // 0.5, no caption in the content), its photo filled the frame, held, budget
-    // spent (lastSurfacedDay set), a non-tender surface was refused by the lane,
-    // gpu-process 0% over 25s. Now default-on; flag-off stays byte-identical (no
-    // mark element, tender memories stay dropped). One-line revert (-> false).
-    ambientMemory: true, // ⛔ INERT-ON-V3 (incumbent-only)
-
-    // Design-system rollout WP-B (docs/design/DESIGN_ROLLOUT.md) — the bare top
-    // row. Strips the old chrome off the awake Glance/Lean-in top row so the time
-    // and weather sit bare over the ground, per docs/design/DESIGN_SYSTEM.md §2.1:
-    // left = time only (display 500 / 64px / tabular / --ink, quiet meridiem, NO
-    // date — the date lives in the Ambient clock); right = temp (600 / 64px) over
-    // a single "LOCATION · CONDITION" line (Inter 500 / 19px / .14em / uppercase /
-    // ink .6). Removes the weather icon (borrowed-light law — the wall renders the
-    // condition, no lottie), the wind line, the hi/lo range, and the middle-slot
-    // commute/next-event cards (their content flows into the attention/hero queue).
-    // Adds body.bare-top-row (CSS-driven) + skips the weather/wind lottie loads so
-    // no hidden rAF keeps running. Pi-verified 2026-07-13 (faf24b3 flag-off →
-    // default-on here): time bare top-left (tabular, 500, --ink, quiet meridiem),
-    // "15°" over "NUDGEE · CLEAR" bare top-right, no icon/wind/range/date/middle
-    // slot; weather lottie did NOT load (0 wrappers, no zombie rAF);
-    // #current-conditions textContent stayed "Clear" so the screensaver dateline
-    // is unaffected; concierge hero unaffected. Now default-on; flag-off stays
-    // byte-identical (old cards + icon + wind + range return). Revert (-> false).
-    bareTopRow: true, // ⛔ INERT-ON-V3 (incumbent-only)
-
-    // Design-system rollout WP-C (docs/design/DESIGN_ROLLOUT.md) — un-chrome the
-    // hero. Strips the container box off #focus-hero so the scored line sits bare
-    // over the ground (DESIGN_SYSTEM.md §2.1): glyph + text only, 28px gap,
-    // vertically centred +120px below true centre, glyph with a borrowed-light
-    // glow. The idle concierge fallback (✨) gets the matte variant — lower ink,
-    // softer shadow, no glyph glow — so it reads as the house making conversation,
-    // not a scored alert. The stack is bottom-anchored so it doesn't sit above the
-    // centred hero. Relies on features.heroType (shipped) for the tier sizes.
-    // Pi-verified 2026-07-13 (c51fe47 flag-off → default-on here): concierge hero
-    // rendered bare (backgroundImage none, borderTop none), fixed + centred (rect
-    // y587 h147 → centre 660 = 540 + 120px), matte (glyph no glow, ink .78),
-    // legible; no overlap with the legacy media panel. Now default-on; flag-off
-    // byte-identical (the boxed hero returns). Revert (-> false).
-    bareHero: true, // ⛔ INERT-ON-V3 (incumbent-only)
-
-    // Design-system rollout WP-D (docs/design/DESIGN_ROLLOUT.md) — the awake
-    // photographic ground. Today only the screensaver draws a photo; the awake
-    // Glance/Lean-in modes show the animated aurora/stars. With this on, the awake
-    // modes get the same layered ground as Mode 0 (DESIGN_SYSTEM.md §6): a single
-    // Immich photo, held STATIC (fetched once, no rotation timer — the 0%-GPU-at-
-    // rest invariant), the weather atmosphere tint (the shipped substrate ::before)
-    // over it, and a readability gradient beneath the content. The animated aurora
-    // /stars/time-tint are retired (a net GPU *reduction* awake — one fewer loop).
-    // Immich down → the base sky gradient shows through (never a blank frame).
-    // FOLLOW-UPS (not in v1): the weather-based living accent (§6) and a day-
-    // boundary photo cross-dissolve — the accent stays time-based, the photo holds
-    // for the session. Pi-verified 2026-07-13 (f6502b0 flag-off → default-on here):
-    // awake home renders content over a real Immich family photo lit by the weather
-    // tint + readability gradient (top row / concierge hero legible); aurora
-    // retired; gpu-process 0% over 25s in Mode 0 (idle-freeze intact) AND 0% awake-
-    // idle (the retired aurora loop = a net GPU reduction). Now default-on; flag-off
-    // byte-identical (aurora returns, no photo). One-line revert (-> false).
-    awakeGround: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
-
-    // WP-D follow-up #1 (DESIGN_SYSTEM.md §6) — the weather-based living accent.
-    // The atmosphere already tints the ground per condition (the shipped atmo-*
-    // substrate token); this makes --accent follow the same weather instead of
-    // the time-of-day tint-* cycle, so the ambient clock warms at golden hour,
-    // cools under rain/storm, and rests white on plain days — the wall lit by
-    // one light source, not two. Pure CSS: body.living-accent.atmo-* overrides
-    // the tint-* accent (background.css); the clock/dateline colour settles on
-    // --atmo-settle (60s) so it moves with the ground, not ahead of it. The
-    // golden warm value is the sanctioned §6 atmosphere accent, not --warm.
-    // Flag-off adds no body class → byte-identical (accent stays time-based).
-    // Pi-verified 2026-07-15 (634a616 flag-off → default-on here): live CDP probe
-    // walked every atmo token → the exact §6 accent (golden warm .94, rain/storm
-    // cool .97, night .92, clear/day white .95); the real evening state showed the
-    // point — tint-evening periwinkle vs atmo-night → the flag gives night blue,
-    // the clock lit by the actual sky. Revert (-> false).
-    livingAccent: true, // ⛔ INERT-ON-V3 (incumbent-only)
-
-    // WP-D follow-up #2 — the day-boundary photo cross-dissolve. The awake
-    // ground photo no longer holds for the whole session: when the calendar
-    // day flips, background.js fetches one new Immich photo and cross-fades it
-    // over the old on --t-settle (60s), then removes the old node (setTimeout,
-    // never transitionend — the hidden-element cleanup rule). STILL static at
-    // rest: no rotation timer, one slow settle per day — the 0%-GPU invariant
-    // holds. Immich down at the boundary → the old photo simply stays.
-    // __forcePhotoDissolve({settleMs}) debug hook. Flag-off → no day check, no
-    // hook; the photo holds for the session (WP-D v1 behaviour).
-    // Pi-verified 2026-07-15 (634a616 flag-off → default-on here): forced live
-    // dissolve → two .awake-photo imgs during the settle, old node removed on
-    // the timer, id handed to the survivor, latch released (second dissolve
-    // works), 0 page errors, DOM count flat. Revert (-> false).
-    awakePhotoDissolve: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
-
-    // Design-system rollout WP-E (docs/design/DESIGN_ROLLOUT.md) — the captioned
-    // memory whisper: the Mode-0 bottom-right "on this day" surface (the non-tender
-    // counterpart to the shipped wordless tender lane). Elevates the existing
-    // screensaver on-this-day footer line into the study-01 whisper treatment
-    // (DESIGN_SYSTEM.md §2.1): a faint eyebrow (🕰 ON THIS DAY) + a display title,
-    // right-aligned, surfacing on the 60s settle. When on, the footer drops the
-    // on-this-day line (it moves to the whisper). Pure opacity/type — no loop, GPU
-    // stays 0% at rest. Pi-verified 2026-07-14 (809e777 flag-off → default-on here):
-    // forced today-anniversary surfaced the whisper bottom-right ("🕰 ON THIS DAY"
-    // + the display title), legible over the night photo, footer dropped its line;
-    // hidden when no anniversary (silence). Now default-on; flag-off byte-identical
-    // (footer keeps the line, no whisper element). One-line revert (-> false).
-    memoryWhisper: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3 lever: groundMemories
 
     // Design-system follow-up (docs/design/DESIGN_ROLLOUT.md) — fold the standalone
     // "Now Playing" media panel into the one attention queue. With this on, what's
@@ -491,9 +219,10 @@ window.CONFIG = {
     // Flipped ON 2026-07-21 (USB mic acquired) to run the live software-loop
     // verification on the Pi — the mic's own bridge into submitTranscripts is
     // not built yet, so with the flag on the lanes sit ARMED and are driven via
-    // __voiceTranscript("...") over CDP for proof; no user-facing wake path
-    // exists on the kiosk until the STT→forward bridge lands, so on is inert
-    // for users. One-line revert (-> false) is the rollback path.
+    // __voiceTranscript("...") over CDP for proof. (That was the incumbent's
+    // state in 2026-07; the wake path has long since landed.) On V3 this is THE
+    // voice switch — off, the wall stops listening and the rail goes dark.
+    // One-line revert (-> false) is the rollback path.
     voiceSession: true, // V3: switches V3's voice (v3/main.js stage "voice")
 
     // HALF DUPLEX — the house stops talking when someone says the wake word,
@@ -982,105 +711,6 @@ window.CONFIG = {
     // REVERT: voiceTimerChime: false  (the line is spoken immediately, as before)
     voiceTimerChime: true,
 
-    // Living-window Phase 1 (plan: review-the-design-scheme) — rain on glass.
-    // A shared episode runtime (services/atmoFx/) draws bounded droplet/streak
-    // "moments" on a front canvas, then hides it: the GPU-0% ambient baseline
-    // is structural (display:none between episodes), honouring the idle-freeze
-    // law "moments, not loops". Budgets live in atmoFx/planner.js as exported
-    // constants with unit tests. Shipped OFF 9c851e6 (byte-identical proof
-    // deploy) → flipped ON 2026-07-18; verify via __forceAtmoEpisode
-    // ("rain-moment"/"rain-heavy") + /kiosk-metrics (ambient must sit at GPU 0%
-    // between episodes). One-line revert (-> false).
-    weatherFxRain: true, // ⛔ INERT-ON-V3 (incumbent-only)
-
-    // Living-window Phase 1 — storm lightning. One-shot CSS keyframes on a
-    // screen-blend horizon veil (zero rAF; utils/atmo-fx.css), big strike then
-    // 0–2 weaker flickers, randomized 40–160s apart while thunder is live.
-    // Shares the atmoFx runtime with weatherFxRain; either flag alone inits it.
-    // Shipped OFF 9c851e6 → flipped ON 2026-07-18. __forceAtmoEpisode
-    // ("lightning") to verify. One-line revert (-> false).
-    weatherFxLightning: true, // ⛔ INERT-ON-V3 (incumbent-only)
-
-    // Living-window Phase 2 — reactive glass. Pure CSS on the two-class
-    // pattern (the living-accent precedent, layout/background.css): the atmo-*
-    // token recolors the shared glass tokens — rain cools/darkens, storm
-    // darker still, golden hour warms border+sheen (§6 borrowed light), night
-    // adds a faint cool glow. Recolor/re-alpha only, blur radius never rises.
-    // A lightning strike additionally pulses --glass-sheen via a short-lived
-    // body.fx-lightning-active from the Phase-1 strike path (box-shadow 150ms
-    // in / 1s out — finite transitions, zero rAF). Shipped OFF 75c214c →
-    // flipped ON 2026-07-18. One-line revert (-> false).
-    reactiveGlass: true, // ⛔ INERT-ON-V3 (incumbent-only)
-
-    // Living-window Phase 3 — sunrise/sunset sky ramp. syncNight steps
-    // --sky-warmth on <body> once a minute from the sun altitude (pure
-    // skyWarmthFor in atmosphere.js; the --clock-dim pattern, zero loops);
-    // body.sky-ramp.substrate::before color-mixes up to 22% warm into the
-    // substrate tint, so golden hour arrives gradually instead of on the
-    // mapper's hour-band edge (which stays as the flag-off fallback).
-    // Shipped OFF 7023304 → flipped ON 2026-07-18. One-line revert (-> false).
-    skyRamp: true, // ⛔ INERT-ON-V3 (incumbent-only)
-
-    // Living-window Phase 3 — clear-night sky. The atmosphere mapper names
-    // clear nights atmo-night-clear (opt-in via nightClear, so flag-off keeps
-    // atmo-night) and the atmoFx canvas holds a static painted starfield
-    // between episodes — a static composited layer, GPU-free like the rain
-    // hold. The planner adds a twinkle moment (2–4 stars, ~2.5s) every 3–6
-    // min, ambient-only. __forceAtmoEpisode("twinkle") to verify. Shipped OFF
-    // 7023304 → flipped ON 2026-07-18. One-line revert (-> false).
-    nightSky: true, // ⛔ INERT-ON-V3 (incumbent-only)
-
-    // Living-window Phase 4 (final) — atmosphere textures. Static body states
-    // synced from the weather slice by the atmoFx runtime (pure texturesFor:
-    // fog category → fx-fog vignette + photo contrast drop; ≥32°C → fx-heat
-    // warm top glow + desaturated photo; ≤8°C → fx-cold frost corners +
-    // cooler reactive glass), two new bounded episode lanes (awake fog-drift
-    // ≤30 blobs/≤10s; rare heat-pulse warm veil breath, zero rAF), windKph
-    // leaning every rain/fog motion (pure streakAngleFor), and winter/summer
-    // substrate hue biases riding body.season-*. __forceAtmoEpisode("fog"|
-    // "heat-pulse") to verify. Shipped OFF a95beff → flipped ON 2026-07-18.
-    // One-line revert (-> false).
-    atmoTextures: true, // ⛔ INERT-ON-V3 (incumbent-only)
-
-    // Dinner recipe panel. One hour before a Meal:-prefixed calendar dinner, a
-    // glass panel slides in from the right with that night's recipe (title,
-    // ingredients, method) fetched via /api/recipe (Claude web search, cached
-    // to data/recipe-cache so a dish is searched once). Two-column, 2m-legible
-    // (72px method floor), auto-scroll on overflow, auto-dismiss at dinner+45m.
-    // Flipped ON 2026-07-22 (deadlock-break: flag-off has no verify hook, so
-    // the only way to eyeball it live is a flag-on deploy). Verify on the Pi
-    // via window.__recipePanel("<dish>"). One-line revert (-> false).
-    recipePanel: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3 lever: v3DinnerPanel
-
-    // The voice rail. The local lane went from 8 phrases to 33, and a lane
-    // nobody knows about is worth nothing — discoverability is second only to
-    // recognition accuracy among the reasons voice interfaces fail, and the
-    // research is that unprompted suggestions and help-on-request each beat
-    // baseline on their own. So: one quiet line, rotating every 90s, plus a
-    // "what can I say" card.
-    //
-    // Everything offered is filtered through the lane against live data first,
-    // so it can only suggest phrases that would genuinely work right now — a
-    // rail that suggests something which then falls through teaches the family
-    // to stop reading it.
-    //
-    // Flipped ON 2026-08-07. Verified flag-on at 1920x1080 against the LIVE
-    // Home Assistant: the truth filter offered 12 phrases and correctly
-    // withheld the calendar ones while that upstream was cold, and the
-    // "what can I say" card rendered its six. Suite green including the
-    // worst-case contrast sweep over the real photographic backdrop, and the
-    // reversibility check (scripts/verify/flag-reversibility.mjs) confirms the
-    // off state still passes — the off state IS the rollback path.
-    //
-    // ⏳ Still owed: a legibility judgement at 3-4m on the physical panel, in
-    // daylight with the display on. 30px italic at --ink-faint is the smallest
-    // persistent text on the surface, and no screenshot can settle whether it
-    // reads across the room. If it does not, raise the size — do not dim it.
-    //
-    // One-line revert (-> false): removes the element, the timer and the
-    // listener entirely.
-    voiceRail: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3 lever: voiceSession
-
     // RETIRED 2026-08-15 — `motionWakeGate` was here, and the wall outgrew it.
     // Audit M5 built it to stop plain camera motion waking the kiosk (61 wakes
     // measured in 24h, 49 of them plain motion). It lived in
@@ -1091,215 +721,6 @@ window.CONFIG = {
     // panel at all, and the gate's own rule is now structural and stricter.
     // A flag that cannot change what is on the wall is not a lever, it is a
     // reader's trap; the restraint is kept, the switch is gone.
-
-    // "The Day, Rendered" v2 (docs/design/TEMPORAL-SPINE.md) — the
-    // temporal spine. Replaces the centred hero + lean-in glass stack with ONE
-    // surface: the household's day rendered as a thin line of light low across
-    // the wall, 05:00→24:00 fixed left to right. Plans ahead are cool
-    // anticipation, passed marks are warm embers (the day as it actually went,
-    // not as it was planned), previous years run as fainter strata beneath, and
-    // "now" is the brightest point, travelling at ~1.5px/min. Weight — the
-    // EXISTING attention score — sets a mark's size and glow; there are no
-    // categories, no per-domain colour and no icons. The scored queue survives
-    // and now allocates LANGUAGE, not presence: presence rations the words
-    // (nobody → silence · passing → one utterance anchored to its minute by a
-    // hairline · staying → three rank-dimmed labels · voice → the spine stills).
-    //
-    // Motion (DESIGN_SYSTEM.md §5.1): no rAF loop at all — marks/embers/strata
-    // are drawn into one canvas repainted only on a cause (minute rollover,
-    // calendar refresh, bins, presence, resize). The single continuous element
-    // is the now-point's breath, a CSS opacity swing bound to body.spine-alive,
-    // which is set ONLY while media is playing AND someone is in the room, with
-    // amplitude scaled by --clock-dim (§5.2). An empty room renders 0 fps.
-    // The spine allocates nothing per mark (fixed 64-slot model, oldest-ember
-    // eviction) and language is five permanent DOM nodes, reused not cloned.
-    //
-    // Shipped flag-off in 56650a8. Flipped ON here 2026-08-01 as a deadlock-break,
-    // the recipePanel precedent: a flag-off build renders no spine at all, so the
-    // only way to eyeball it on the real panel is a flag-on deploy. NOT yet
-    // Pi-verified at the time of the flip — verify at the kiosk immediately after:
-    // __spine() carries today's real calendar as marks (embers left of now, the
-    // Meal: anchor warm), the utterance anchors to a live mark, DWELL shows three
-    // labels and AMBIENT none, body.spine-alive absent with nothing playing, and
-    // /kiosk-metrics quiescent ambient inside the §5.4 ≤8% row. If any of that
-    // fails, the revert is this line (-> false): the hero + lean-in stack return
-    // untouched, and their specs still pass pinned off (verified by
-    // scripts/verify/flag-reversibility.mjs).
-    temporalSpine: true, // ⛔ INERT-ON-V3 (incumbent-only)
-
-    // "The Day, Rendered" v2 §11 — calm law v3 / the AMBIENT ARCHIVE
-    // (docs/design/AMBIENT-ARCHIVE.md). The deliberately-deferred half of the
-    // spine work. Mode 0 stops being "a photo with a clock on it" and becomes
-    // the archive: the memory as a lit card pivoting slowly in a deep
-    // instrument space, a desaturated tiled echo of itself behind, everything
-    // drifting on independent 84–130s periods — and, beneath the card, the
-    // spine's day rendered in three dimensions. ACROSS IS TODAY (05:00→24:00,
-    // marks, embers, the travelling now-point); BACK IS THE YEARS (the strata
-    // as rows receding in Z, the memory on the card lighting its own year-line
-    // at the hour it was taken). One instrument, two readings. The archive's
-    // own horizontal year ruler is deleted — two perpendicular meanings cannot
-    // share a screen region, and the spine's axis is the one that survives.
-    //
-    // OWNER DECISIONS this rests on (2026-08-01): (1) the ambient surface may
-    // move in an empty room, which supersedes "0% unoccupied" for Mode 0 only;
-    // (2) the Mode-0 clock is DEMOTED to the archive's 64px corner numeral,
-    // superseding "keep clock size" for Mode 0 only — the awake top-row time
-    // and every other clock are untouched.
-    //
-    // Motion (DESIGN_SYSTEM.md §5.1): every loop hangs off
-    // `body.fx-archive-active`, set on Mode-0 entry and removed on exit, so
-    // leaving Mode 0 switches the surface off rather than hiding it. The cause
-    // is nameable — the house is leafing through its album — and nothing
-    // completes a perceptible change inside a ~3s glance. Amplitude rides
-    // --clock-dim (§5.2): at 2am it drifts less FAR, not less often. The ruler
-    // itself never moves: once the plane means time of day, sliding it is a
-    // ~50-minute lie. Everything is compositor-only CSS — no rAF, no WebGL,
-    // no per-frame allocation — and the deck is six canvases allocated once,
-    // so a day that fills up allocates nothing.
-    //
-    // Shipped flag-off in 7ef1f18 and deployed as a PROVEN no-op (2026-08-02:
-    // live kiosk showed 0 archive elements, no body marker, no hook, the 192px
-    // centred clock and the spine still painted in Mode 0).
-    //
-    // Flipped ON here 2026-08-02 as the deadlock-break — the recipePanel /
-    // temporalSpine precedent: a flag-off build renders no archive at all, so
-    // the ONLY way to put this in front of the owner on the real panel is a
-    // flag-on deploy. This flip is "come and look at it", NOT a sign-off.
-    //
-    // ⚠ NOT YET JUDGED ON THE PANEL. Two things need the owner's eye, and both
-    // have a one-line lever if they are wrong:
-    //   · the 64px corner clock — the ruling that supersedes "keep clock size"
-    //     for Mode 0, and the most visible change in the package;
-    //   · the -12deg yaw on the hour axis (--arch-deck-plane), which makes
-    //     morning read slightly narrower than evening.
-    // And the §8.5 soak is still owed: /kiosk-metrics at 0h/24h/72h into
-    // docs/audit/HOST-BASELINES.md as a new "live ambient" row (§5.4, <=25%
-    // sustained). heap-flat over 72h + fps constant IS the deliverable.
-    //
-    // One-line revert (-> false) is the rollback and it is cheap by
-    // construction: no archive element is built, the class is never set, the
-    // spine is not hidden, and Mode 0 is exactly the surface verified above.
-    // Proven green by scripts/verify/flag-reversibility.mjs at flip time.
-    ambientArchive: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3 lever: v3Archive
-
-    // Live Photo motion in the Ambient Archive: when an arriving memory has a
-    // motion part, the card breathes for ~3.5s and then settles into the still.
-    // Most of this library is Apple Live Photos — measured 2026-08-02, 25-54% of
-    // on-this-day images across 2015-2025 carry one, so this is a few memories a
-    // day, not every one.
-    //
-    // Law 1: the cause is THE PHOTOGRAPH CHANGING, which §5.1's causes table
-    // names verbatim. The burst is bound to the exchange, plays once, and stops
-    // — there is no loop, and a momentary cause rendered as a loop would be a
-    // violation even though it is cheap. Off after sunset, off under
-    // prefers-reduced-motion, and never on a tender memory (§4.3 — wordless, and
-    // still).
-    //
-    // ⚠ TWO switches, and the other one is the server's. IMMICH_LIVE_MOTION in
-    // .env controls the NAS fetch, the nightly transcode and the disk; this
-    // controls the surface. With the env knob unset, `motion` never appears in
-    // the daily-set payload, so flipping this on alone can never cause a fetch.
-    // The transcode needs ffmpeg on the host — without it every memory stays a
-    // still, silently and safely.
-    //
-    // Default-ON 2026-08-02, judged on the panel next to the exchange it rides
-    // on, and measured there rather than reasoned about — the row is
-    // docs/audit/HOST-BASELINES.md §"Live Photo motion — the burst" (`8fa8c95`,
-    // daylight, Mode 0, today's set at 12/12 memories carrying a motion part, so
-    // every exchange burst = the worst realistic case):
-    //   · sustained gpu-process 21.7 / 21.8 vs a 21.0 baseline — inside the
-    //     window-to-window noise, so §5.4's <=25 ceiling keeps its ~3 points;
-    //   · the cost lands on the RENDERER at ~+2, which §5.4's gpu-stated
-    //     ceilings do not see at all (a gap in the budget, not a free pass);
-    //   · peak at 6x the natural exchange rate 34.7 vs a ceiling of 35 — but the
-    //     no-motion control read 31.1, so 90% of that is the archive's own
-    //     exchange machinery, not the burst;
-    //   · `bursts` exactly one per 30s exchange, `anims` back to 4 between them
-    //     (never a loop), 56 frames decoded 0 dropped / 0 corrupted.
-    //
-    // ⚠ The renderer figure is software decode. VA-API is installed on the G11
-    // and unused — see ~/.claude/plans/g11-vaapi-hardware-decode.md. Hardware
-    // decode would take this to roughly nothing; nothing here depends on that.
-    //
-    // One-line revert (-> false) builds no <video> at all — no element, no
-    // timer, no listener, no fetch. Proven green by
-    // scripts/verify/flag-reversibility.mjs at flip time.
-    ambientArchiveMotion: true, // ⛔ INERT-ON-V3 · V3 lever: v3ArchiveMotion
-
-    // THE BURST HOLDS FOR THE WHOLE DWELL. Raised on the panel 2026-08-04: the
-    // burst plays once and the card then sits still for the remaining ~26s of
-    // the 30s dwell, and the settle back to the still "looks a bit awkward".
-    // With this on the clip carries `loop` and runs until the NEXT memory
-    // arrives — the exchange's own teardown is what stops it, exactly as it
-    // already stops a burst interrupted mid-play.
-    //
-    // ⚠ THIS IS A KNOWN §5.1 EXCEPTION, not an oversight. The burst's cause —
-    // the photograph changing — is instantaneous, and §5.1's second corollary
-    // says a momentary cause rendered as a loop is a law-1 violation "even
-    // though it is cheap". It is flagged OFF for exactly that reason: the loop
-    // is a judgement to make on the panel in daylight, not a default. If it
-    // ships on, DESIGN_SYSTEM.md §5.1 owes an amendment naming it — a shipped
-    // surface that contradicts a written law silently repeals the law.
-    //
-    // ⚠ AND IT IS NOT CHEAP HERE. The burst's measured cost (see
-    // ambientArchiveMotion above: ~+2 renderer points) is an average over a 30s
-    // dwell in which the clip decodes for only ~3.6s — a ~12% duty cycle, in
-    // SOFTWARE, because VA-API decode is a closed dead end on this box. Looping
-    // takes that duty cycle to ~90%. Do not reason about the result: measure
-    // sustained gpu-process AND renderer against the 21.0 baseline before
-    // flipping, and record the row in docs/audit/HOST-BASELINES.md.
-    //
-    // One-line revert (-> false): no `loop` attribute is set and the hold
-    // returns to MOTION_HOLD_MS — i.e. today's verified single burst, which is
-    // the shipped surface.
-    archiveMotionLoop: false, // ⛔ INERT-ON-V3 (incumbent-only)
-
-    // THE CARD FOLLOWS THE PRINT. The archive card is a fixed 1040×585 = 1.78:1
-    // rectangle with the photograph `object-fit: cover` inside it, so a
-    // phone-shot library is shown through a letterbox it was never composed
-    // for: a 4:3 landscape loses ~25% of its height, a 3:4 portrait ~58% —
-    // heads and feet both. Raised on the panel 2026-08-02 ("a few of the photos
-    // displayed today looked cropped"). Structural, not a glitch: Immich's
-    // `preview` rendition is a resize, so the card geometry is the whole cause.
-    //
-    // With this on, the card takes each photograph's own aspect and nothing is
-    // ever cut. The left edge stays pinned at 130 (owner's call over centring
-    // it), so a portrait simply does not reach as far right and nothing else on
-    // the wall moves. The box is in services/archiveModel.js.
-    //
-    // Law 1: the shape change rides the exchange's existing 300ms blur — the
-    // reshape IS the memory arriving, the same cause the motion burst uses, and
-    // it is an event with an end. Written instantly, never transitioned:
-    // width/height/top are layout properties (§5.5).
-    //
-    // ⚠ A 16:9 memory lands on 1040×585 at (130, 212) — the shipped rectangle,
-    // to the pixel. That is by construction, so flipping this must not move the
-    // common landscape memory at all.
-    //
-    // FLIPPED ON 2026-08-02, and the flip is a DEADLOCK-BREAK, NOT A SIGN-OFF
-    // — the same inversion the archive itself shipped under. Flag-off renders
-    // the old fixed card, so the only way to put a portrait card on the wall to
-    // be judged is a flag-on deploy. Owner's call, knowing that.
-    //
-    // Shipped flag-off in 8675dbc and proven a genuine no-op on the panel
-    // first: __archive().card read {fit:false, 1040×585 @ (130,212),
-    // wanted:null} with no style property written at all. The same probe caught
-    // the defect live — the photo on the wall read photoAspect 0.75 inside a
-    // cardAspect 1.778 card, i.e. a portrait losing ~58% of its height.
-    //
-    // ⚠ STILL UNJUDGED IN DAYLIGHT. Two things to look at, both needing a
-    // portrait memory: whether a 457px-wide card still reads as the HERO of the
-    // surface (45% of the reference's width, and "the photograph is the point
-    // of a screensaver" is what killed rejected build 1), and whether the
-    // reshape reads as arrival rather than as a glitch. It also owes its own
-    // GPU reading — a resizing plane is layout-adjacent on a budget-tuned
-    // surface and §5.4's ceilings have never seen one.
-    //
-    // One-line revert (-> false) is the rollback: no style property is written,
-    // the CSS var() fallbacks ARE the verified rectangle, and a guardrail pins
-    // those fallbacks so they cannot drift. Proven green by
-    // scripts/verify/flag-reversibility.mjs at flip time.
-    archiveFitToPrint: true, // ⛔ INERT-ON-V3 (incumbent-only) · V3: always on, no lever
 
     // Audit M11. The Pi's crontab already powers the panel down 21:00→05:00
     // (`xset dpms force off`), so a doorbell ring at 3am currently speaks its
@@ -1754,8 +1175,8 @@ window.CONFIG = {
     // ── The Live Photo burst, on V3's card ──────────────────────────────────
     // A memory's ~3s motion part plays over the still it belongs to, for a
     // moment as the memory arrives. The incumbent has had this since
-    // `ambientArchiveMotion`; this is the V3 half, and it is the lever that flag
-    // names now that it is marked INERT-ON-V3.
+    // `ambientArchiveMotion` (deleted with the incumbent 2026-10-03); this is
+    // the V3 half.
     //
     // ⚠⚠ THE SERVER HALF IS A SEPARATE SWITCH AND IS NOT THIS FLAG.
     // `IMMICH_POOL_MOTION` (AND-ed with `IMMICH_LIVE_MOTION`) is what warms

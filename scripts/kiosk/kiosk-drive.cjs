@@ -35,10 +35,6 @@ const path = require("path");
 const WebSocket = require("ws");
 const { detectExpr, verdict } = require("./surface.cjs");
 
-// Ends on `home`, and every step is a genuine change of view. `weather` first
-// because it carries the heaviest lottie set (services/weather/renderer.js);
-// `timeline` also bears them via calendar.js.
-const CYCLE_VIEWS = ["weather", "cameras", "timeline", "briefing", "status", "home"];
 const DWELL_MS = 1800;
 
 /* ── V3's equivalent of the view cycle ───────────────────────────────────────
@@ -362,109 +358,11 @@ async function main() {
     process.exit(1);
   }
 
-  if (detected.surface === "v3") {
-    const code = await driveV3(send, mode, Number(process.argv[3]) || 30);
-    ws.close();
-    if (code) process.exit(code);
-    return;
-  }
-
-  if (mode !== "cycle") {
-    console.error(`ERROR: "${mode}" is a V3 mode; on the incumbent surface the sweep drives the peak inline with kiosk-eval.`);
-    ws.close();
-    process.exit(1);
-  }
-
-  const result = await send("Runtime.evaluate", {
-    expression: `(async () => {
-      const views = ${JSON.stringify(CYCLE_VIEWS)};
-      const dwell = ${DWELL_MS};
-      const sample = () => ({
-        view: document.body.dataset.view,
-        lottieWrappers: document.querySelectorAll(".lottie-fade").length,
-        lottieSvgs: document.querySelectorAll(".lottie-fade svg").length
-      });
-
-      // Start from a known view so every step below is a real transition —
-      // switchView() drops a switch to the current view, which would otherwise
-      // silently shorten the cycle depending on where the kiosk happened to be.
-      window.__switchView("home", { force: true });
-      await new Promise(r => setTimeout(r, dwell));
-
-      const steps = [];
-      for (const target of views) {
-        const before = sample();
-        window.__switchView(target, { force: true });
-        await new Promise(r => setTimeout(r, dwell));
-        const after = sample();
-        steps.push({
-          target,
-          from: before.view,
-          to: after.view,
-          landed: after.view === target,
-          lottieWrappers: after.lottieWrappers,
-          lottieSvgs: after.lottieSvgs
-        });
-      }
-
-      // Settle before the zombie check. wrappers > svgs is the leak signature,
-      // but it is ALSO the normal state for a few hundred ms while a view's
-      // lotties mount — the first step of a real run reported 5w/1svg and every
-      // later step 5w/5svg. Judging per-step cries wolf, and a warning that
-      // cries wolf gets ignored, so only the settled steady state counts.
-      await new Promise(r => setTimeout(r, 1500));
-      const final = sample();
-      return JSON.stringify({
-        steps,
-        landed: steps.filter(s => s.landed).length,
-        attempted: steps.length,
-        maxLottieWrappers: Math.max(...steps.map(s => s.lottieWrappers)),
-        finalWrappers: final.lottieWrappers,
-        finalSvgs: final.lottieSvgs,
-        orphanedWrappers: final.lottieWrappers > final.lottieSvgs,
-        transientImbalance: steps.some(s => s.lottieWrappers > s.lottieSvgs),
-        finalView: final.view
-      });
-    })()`,
-    awaitPromise: true,
-    returnByValue: true
-  });
-
+  // verdict() above refuses anything but V3 (the incumbent surface and its
+  // view cycle were retired 2026-10-03), so V3 is the only thing left to drive.
+  const code = await driveV3(send, mode, Number(process.argv[3]) || 30);
   ws.close();
-
-  const report = JSON.parse(result.result.value);
-  for (const s of report.steps) {
-    console.log(
-      `${s.landed ? "ok  " : "FAIL"} ${s.from} -> ${s.target}` +
-      `${s.landed ? "" : ` (stayed on ${s.to})`}` +
-      `  lottie ${s.lottieWrappers}w/${s.lottieSvgs}svg`
-    );
-  }
-  console.log(
-    `cycled ${report.landed}/${report.attempted} views, back on ${report.finalView}` +
-    `, peak lottie wrappers ${report.maxLottieWrappers}` +
-    `, settled ${report.finalWrappers}w/${report.finalSvgs}svg` +
-    (report.transientImbalance ? " (transient mount gap seen mid-cycle — expected)" : "")
-  );
-
-  if (report.orphanedWrappers) {
-    console.error(
-      `WARN: settled state has ${report.finalWrappers} .lottie-fade wrappers but only ` +
-      `${report.finalSvgs} svgs — orphaned wrappers persist after the cycle, which is the ` +
-      `zombie-wrapper signature from the 2026-07 leak audit.`
-    );
-  }
-  if (report.landed !== report.attempted) {
-    console.error(
-      `ERROR: ${report.attempted - report.landed} view(s) did not land. A silently gated ` +
-      `switch makes the lottie-churn leak test measure nothing — fix before trusting heap deltas.`
-    );
-    process.exit(1);
-  }
-  if (report.finalView !== "home") {
-    console.error(`ERROR: cycle ended on "${report.finalView}", expected "home"`);
-    process.exit(1);
-  }
+  if (code) process.exit(code);
 }
 
 main().catch((err) => { console.error("ERROR:", err.message); process.exit(1); });

@@ -2,6 +2,8 @@
 
 **Phase 1 of 3. Read-only: no code was changed to produce this.** Decision owed by the owner: port each LOST row first, or let it go (§5).
 
+> **Phase 2 (2026-10-03), on branch `retire-incumbent` — see §8.** Not merged, not deployed.
+
 ## Verdict
 
 **YES-BUT.** Nothing V3, the server or the build depends on reaches the 98 incumbent-only files, so retiring the incumbent is mechanically safe. **But** some household capabilities would cease to exist anywhere:
@@ -254,4 +256,59 @@ Some comments only go stale and need no code change: commute-privacy, lottie-ico
    - livingAccent → `v3AtmoAccent`
 
    Moot if the flags are deleted.
-3. **`config.js:495` is out of date.** The `voiceSession` comment says it "is inert for users", but it is V3's voice switch.
+3. **`config.js:495` is out of date.** The `voiceSession` comment says it "is inert for users", but it is V3's voice switch. *(Fixed in Phase 2.)*
+
+## 8. Phase 2 — what was done (2026-10-03, branch `retire-incumbent`)
+
+Built in a separate git worktree (`../pi-dashboard-retire`), because this tree is shared with another session. **Not merged and not deployed. Phase 3 is the merge, the deploy and the live check.**
+
+**L3 ported first** (`cd43437`). The flag is `features.v3PublicHolidays`, **default off**:
+- `services/publicHolidays.js` merges QLD holidays into `voiceSnapshot().calendar`, so they reach the day, the ahead list and the local answers.
+- On the day itself, `body[data-holiday]` gives the ground photo the incumbent's warm edge, drawn under the scrim.
+- A failed fetch is retried on the next refresh. The incumbent cached it as an empty year.
+- Six defects were injected and all six went RED. One injection first came back GREEN: the flag-off test never reached `withHolidays`' own guard. That gap was closed with a test that loads holidays with the flag on and then turns it off.
+- The flag stays off until a `/flag-flip` after the merge.
+
+**Deleted:**
+- The 98 files in §2. The list was recomputed from V3's import closure and matched exactly.
+- The 37 flags in §3, from 110 down to 74 (the holiday flag is the extra one).
+- The 27 specs in §6: 26 in `tests/` plus `tests/verify/contrast.spec.js`.
+- 10 event-registry rows whose every publisher and consumer was incumbent.
+
+**Changed:**
+- **Server and build:**
+  - One Vite entry.
+  - `/` sends `dist/v3/index.html` (`ROOT_ENTRY`), and `/index.html` redirects to `/`.
+  - `resolveRootSurface` and `V3_DEFAULT` are gone. A `V3_DEFAULT` still in `.env` is logged as a warning (`staleSurfaceWarning`), not obeyed.
+  - The §1 HYPOTHESIS is confirmed: the `entityFeed-*` chunk folded into `v3-*.js`.
+- **Specs:**
+  - `ambient-archive` was split, and its node half is now `archive-model.spec.js`.
+  - `flag-surface` now requires every flag to be read by V3, and refuses an `INERT-ON-V3` mark.
+  - `flag-reversibility-gate` lost its refusal half and gained cases for an unknown flag, an already-off flag and a blind parser.
+  - `event-registry`, `root-surface`, `insights`, `local-voice`, `media-tv-audio`, `feature-census`, `kiosk-instrument` and `v3-attention` were edited.
+  - `atmo-fx`'s CSS guardrail was **retargeted at V3's `css/atmosphere.css`**, which had no guardrail of its own.
+  - `v3-contrast` now checks for `dist/v3/index.html`, which was the §6 false-fail.
+- **Scripts:**
+  - `flag-reversibility.mjs`: the inert refusal and `--incumbent-only` are gone.
+  - `surface.cjs`: V3 only. A page with just `__switchView` reads as `unknown` and is refused.
+  - `kiosk-drive.cjs`: the view cycle is gone.
+  - `kiosk-sweep.sh`: the dead `else` arms now abort.
+  - **`live-contrast.cjs` is retargeted at V3.** It drives `__setDepth` (ambient → 0, glance → 1, dwell → 2) and refuses a non-V3 page. ⚠ This is **unverified on the wall**, because it only runs on the kiosk (Phase 3).
+  - **`scan-contracts.mjs` (pre-push gate 1) had never read `src/v3/`.** Its fetch→route and emit→listener census walked `src/js` only. The incumbent's own emitters of `presence:changed` and `arrival:home` kept V3's listeners green, so deleting them turned the gate red on events V3 has always emitted. It now walks both trees. Routes and events pass, and V3's fetches are in the route census for the first time.
+- **Docs:**
+  - The shared-module header (48 files) no longer says "loaded by both surfaces".
+  - CLAUDE.md: one frontend, no surface rollback, 74 flags, 117 + 1 specs.
+
+**Gates on the branch:**
+- Full suite: 2201 passed, 1 failed, 1 skipped. The one failure was `v3-attention`, which asserted the deleted `attentionEngine` flag was set; that flag never had a V3 reader. It was fixed and re-run green.
+- Defect injection on every rewritten test: 8 of 8 RED, all files restored.
+- The pre-push gate turned up two more problems:
+  - `scan-contracts` was blind to V3 (above).
+  - One load-dependent failure in `v3-sound-presence.spec.js:113`: 278 against a 255 ms bound. It was green 30/30 in isolation, and this branch does not touch the file or its source. Its bound measured how long the page took to answer a read, not the re-arm. It now asserts the gap between the two stamps (≥ 245 ms). Two injected defects (a re-arm that stamps 1 ms on, and a sound that is ignored) both went RED.
+
+**Deliberately NOT done in Phase 2, and why:**
+- **`.claude/skills/*` and the `AGENTS.md` mirror.** Both are gitignored and live only in the shared main checkout, so editing them now would tell every session that the incumbent is gone while `main` and the wall still have it. They are edited at merge (Phase 3). The ones to edit are verify-push, kiosk-metrics, camera-debug, flag-flip and overnight-ship (§6).
+- **The §6 server routes whose only caller was deleted** (`/api/arr/summary`, `/api/cameras`, `/api/camera/:id/{status,stream}`, `/api/ha/health`, `/api/camera_proxy/*`, `/api/calendar/(google|apple|tripit)`, `/api/immich/{daily-set,map}`, `/api/photos`, `/api/system/ping`). External callers such as HA automations or other tools cannot be seen from this repo. They are left serving and await the owner's call. `/api/calendar/holidays` is **live again** through L3.
+- **`heap-metrics.cjs` / `perf-metrics.cjs` incumbent branches.** They route by which probe answers, so on V3 they never take that branch. They are dead but harmless.
+- Comments that only *mention* the incumbent as history were left as they are (§6 last paragraph).
+

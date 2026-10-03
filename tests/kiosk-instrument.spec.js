@@ -91,12 +91,26 @@ test("the detector REFUSES rather than sampling when a seam is missing", async (
 });
 
 test("an unbooted page is refused too, not treated as a quiet one", async ({ page }) => {
-  // `unknown` has to be fatal in its own right. A page that is neither surface
-  // has thrown on the way up or has not finished booting, and a sample taken
-  // from it looks exactly like a very calm dashboard.
+  // `unknown` has to be fatal in its own right. A page without __v3 has thrown
+  // on the way up or has not finished booting, and a sample taken from it looks
+  // exactly like a very calm dashboard.
   const v = verdict({ surface: "unknown", missing: [], absent: [], url: "/" });
   expect(v.ok).toBe(false);
-  expect(v.why).toContain("neither");
+  expect(v.why).toContain("does not expose __v3");
+});
+
+test("the retired incumbent is not a surface the instrument recognises", async ({ page }) => {
+  // A stale tab or old build exposing only the incumbent's __switchView must
+  // read as "unknown" (and be refused), never as something to sample.
+  await page.setContent("<html><body></body></html>");
+  const detected = JSON.parse(await page.evaluate((expr) => {
+    window.__switchView = () => {};
+    window.__wakeScreensaver = () => {};
+    window.__engageScreensaver = () => {};
+    return eval(expr);
+  }, detectExpr()));
+  expect(detected.surface).toBe("unknown");
+  expect(verdict(detected).ok).toBe(false);
 });
 
 test("__substrate reports the fields the fps delta is computed from", async ({ page }) => {

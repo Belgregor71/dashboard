@@ -9,14 +9,11 @@ export default defineConfig({
   build: {
     outDir: resolve(__dirname, "dist"),
     emptyOutDir: true,
-    // Two independent surfaces from one server. `index` is the incumbent
-    // dashboard; `v3` is the parallel rebuild, which shares every /api/* route
-    // but no CSS, no tokens and no view system. The kiosk points at one URL or
-    // the other, so switching between them — or rolling back — is a URL change
-    // rather than a revert.
+    // One surface. The incumbent entry (src/index.html) was retired on
+    // 2026-10-03 (docs/audit/INCUMBENT-RETIREMENT-2026-10-03.md); V3 still
+    // builds to dist/v3/index.html, which is what server.js serves at `/`.
     rollupOptions: {
       input: {
-        index: resolve(__dirname, "src/index.html"),
         v3: resolve(__dirname, "src/v3/index.html"),
       },
     },

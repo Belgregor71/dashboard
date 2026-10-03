@@ -304,10 +304,16 @@ test.describe("atmo-fx css guardrail", () => {
   // path and removed when the strike decays; an `.atmo-rain` rule stops applying
   // the moment the mapper stops naming rain. A loop on a plain, always-present
   // selector has no off switch and no cause — that is decoration, still banned.
-  const CAUSE_BOUND = /\.(atmo-(rain|storm|fog|cloudy)|fx-[a-z0-9-]+-(active|live)|spine-alive)\b/;
+  //
+  // Retargeted 2026-10-03 from the incumbent's css/utils/atmo-fx.css (retired)
+  // to V3's css/atmosphere.css, which had no guardrail of its own. V3 states
+  // its causes as root attributes the runtime sets and clears
+  // (`[data-atmo-raining="1"]`, `[data-atmo-strike="1"]`), so a cause-bound
+  // selector is one that names such an attribute with a live value.
+  const CAUSE_BOUND = /\[data-atmo-[a-z-]+="1"\]/;
 
   test("every looping animation hangs off a cause that ends; one-shots still fill forwards", () => {
-    const cssPath = fileURLToPath(new URL("../src/css/utils/atmo-fx.css", import.meta.url));
+    const cssPath = fileURLToPath(new URL("../src/v3/css/atmosphere.css", import.meta.url));
     // Strip comments so the guardrail reads declarations, not prose about itself.
     const css = readFileSync(cssPath, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 
@@ -327,8 +333,8 @@ test.describe("atmo-fx css guardrail", () => {
         if (/\binfinite\b/.test(line)) {
           expect(
             CAUSE_BOUND.test(selector),
-            `a looping effect must be bound to a cause that ends (an atmo condition token, ` +
-              `an fx-*-active/live runtime marker, or spine-alive). Offending selector: ${selector.trim()}`
+            `a looping effect must be bound to a cause that ends (a root data-atmo-* ` +
+              `attribute the runtime clears). Offending selector: ${selector.trim()}`
           ).toBe(true);
         } else {
           // A momentary cause rendered as anything but a terminating one-shot is
@@ -337,6 +343,6 @@ test.describe("atmo-fx css guardrail", () => {
         }
       }
     }
-    expect(animations).toBeGreaterThan(0); // the strike exists
+    expect(animations).toBeGreaterThan(0); // the rain exists
   });
 });

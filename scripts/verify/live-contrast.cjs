@@ -7,8 +7,17 @@
  * composites its text over a REAL PHOTOGRAPH, and a bright patch of sky is the
  * backdrop that actually breaks legibility.
  *
- * Runs ON THE PI (CDP is bound to 127.0.0.1:9222, localhost only):
+ * Runs ON THE KIOSK (CDP is bound to 127.0.0.1:9222, localhost only):
  *   node scripts/verify/live-contrast.cjs [dwell|glance|ambient]
+ *
+ * ⚠ RETARGETED AT V3 2026-10-03. Until then this drove the INCUMBENT's hooks
+ * (`__wakeScreensaver`, `__presence`), so from the V3 cutover on, /verify-push's
+ * contrast row measured a surface that was not on the wall (audit
+ * INCUMBENT-RETIREMENT-2026-10-03 §7.1). The modes now map onto V3 depths —
+ * ambient → 0 (the field), glance → 1, dwell → 2 (the spread) — via
+ * `__setDepth`, and the run refuses a page that is not V3 rather than
+ * measuring whatever is there. The local V3 lane is
+ * tests/verify/v3-contrast.spec.js; this is its half over the real photo.
  *
  * Same algorithm as the spec, and the same two traps it documents:
  *   - running CSS transitions outrank !important, so kill transitions BEFORE
@@ -21,6 +30,11 @@ const http = require("http");
 const WebSocket = require("ws");
 
 const MODE = process.argv[2] || "dwell";
+const DEPTH_FOR = { ambient: 0, glance: 1, dwell: 2 };
+if (!(MODE in DEPTH_FOR)) {
+  console.error(`live-contrast: unknown mode "${MODE}" — use ${Object.keys(DEPTH_FOR).join(" | ")}`);
+  process.exit(2);
+}
 const AA_NORMAL = 4.5;
 const AA_LARGE = 3.0;
 
@@ -66,15 +80,21 @@ const get = (path) =>
   await new Promise((r) => ws.on("open", r));
   await send("Runtime.enable");
 
-  // Wake and drive to the requested depth.
-  await evaluate(`(()=>{ if (window.__wakeScreensaver) window.__wakeScreensaver(); })()`);
-  await new Promise((r) => setTimeout(r, 1500));
-  if (MODE !== "ambient") await evaluate(`window.__presence(${JSON.stringify(MODE)})`);
+  // Refuse anything but V3: a sample of the wrong page is a plausible number
+  // for a surface nobody is looking at — the failure this header records.
+  const isV3 = await evaluate(`typeof window.__v3 === "function" && typeof window.__setDepth === "function"`);
+  if (!isV3) throw new Error("the kiosk page does not expose __v3/__setDepth — not a booted V3 wall");
+
+  // Drive to the requested depth and let it settle (cross-fades, scrim).
+  await evaluate(`window.__setDepth(${DEPTH_FOR[MODE]}, "live-contrast")`);
   await new Promise((r) => setTimeout(r, 4000));
 
   const state = await evaluate(
-    `JSON.stringify({view:document.body.dataset.view,atmo:[...document.body.classList].filter(c=>c.startsWith("atmo-"))})`
+    `JSON.stringify({depth: window.__depth().depth, reason: window.__depth().reason})`
   );
+  if (JSON.parse(state).depth !== DEPTH_FOR[MODE]) {
+    throw new Error(`asked for depth ${DEPTH_FOR[MODE]} (${MODE}) but the wall reads ${state} — not measuring the wrong state`);
+  }
 
   const items = await evaluate(`(${collect.toString()})()`);
   if (!items.length) throw new Error("no visible text collected");

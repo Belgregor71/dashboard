@@ -62,7 +62,7 @@ test("the set is lower-cased, or the exact match silently never fires", () => {
    to whichever surface they happen to be looking at.
 ─────────────────────────────────────────────────────────────────────────── */
 
-test("all THREE surfaces import the one predicate", () => {
+test("both readers import the one predicate", () => {
   /* ⚠⚠ THIS TEST NAMED THREE READERS AND CHECKED TWO, and the unchecked one had
      never had the rule at all. Measured on the live wall 2026-08-15:
      `media_player.living_room` sat `playing` with `source: "TV"`, the screen
@@ -71,13 +71,13 @@ test("all THREE surfaces import the one predicate", () => {
      that costs; the assertion just did not cover the surface it was describing.
 
      A test that enumerates N things and asserts N-1 of them is worse than one
-     that asserts nothing, because it reads as coverage. */
-  const panels = src("src/js/modules/mediaPanels.js");
+     that asserts nothing, because it reads as coverage.
+
+     There were three readers until 2026-10-03: the incumbent's mediaPanels.js
+     went with the incumbent. Two remain, and both are asserted. */
   const snapshot = src("src/js/services/houseSnapshot.js");
   const voice = src("src/js/services/voiceSnapshot.js");
 
-  expect(panels, "the incumbent's panels — the rollback surface")
-    .toMatch(/import \{ isTvAudio \} from "\.\.\/services\/mediaSource\.js"/);
   expect(snapshot, "the DOM-free reader — all of V3")
     .toMatch(/import \{ isTvAudio \} from "\.\/mediaSource\.js"/);
   expect(voice, "the fast lane — what the house SAYS")
@@ -85,7 +85,6 @@ test("all THREE surfaces import the one predicate", () => {
 
   // And none carries its own copy of the literal the rule turns on.
   for (const [name, text] of [
-    ["mediaPanels.js", panels],
     ["houseSnapshot.js", snapshot],
     ["voiceSnapshot.js", voice]
   ]) {
@@ -103,19 +102,4 @@ test("the spoken lane drops a TV-sourced player before it counts as playing", ()
   expect(voice).toMatch(/e\.state === "playing" && !isTvAudio\(e\)/);
 });
 
-test("the incumbent hides the panel rather than titling it 'Now Playing'", () => {
-  /* The defect this closes, stated as the code that produced it: renderPanel
-     showed a panel for ANY playing entity and fell back to the literal string
-     "Now Playing" when there was no media_title — and TV audio has no title,
-     no artist and no artwork. So the wall showed a Lounge Room panel that said
-     nothing, about the one thing the household asked not to see.
-
-     Asserted against the source because renderPanel is module-private and the
-     entity cache has no seam a spec can seed; the behaviour it guards is the
-     ordering of the guard, which is exactly what the text shows. */
-  const panels = src("src/js/modules/mediaPanels.js");
-  expect(panels).toMatch(/entity\.state !== "playing" \|\| isTvAudio\(entity\)/);
-  // And it must not merely be hidden at render — a TV-sourced player must not
-  // win its group either, or it speaks for a sibling that IS playing music.
-  expect(panels).toMatch(/entity\.state === "playing" && !isTvAudio\(entity\)/);
-});
+// "the incumbent hides the panel…" read mediaPanels.js, retired 2026-10-03.
