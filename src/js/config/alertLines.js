@@ -67,3 +67,19 @@ export const INTRUDER_KNOWN_LINES = [
 
 // Every name-free line — exactly what the server pre-warms into the TTS cache.
 export const PREWARM_LINES = [...VISITOR_UNKNOWN_LINES, ...INTRUDER_UNKNOWN_LINES];
+
+// Every NAMED line for the given names — what the server pre-warms once it has
+// learned who the cameras can recognise (server/services/alertNames.js). A
+// named line that misses the cache is spoken ~10 s late: measured 2026-10-03,
+// "Greg's home!" was chosen at +0.6 s and its WAV landed at +10 s (6 s primary
+// timeout + fallback synthesis). The names never live in this file — it is
+// tracked and public; they are read from Home Assistant at run time.
+export function namedPrewarmLines(names) {
+  const lines = [];
+  for (const name of names ?? []) {
+    for (const template of [...VISITOR_KNOWN_LINES, ...INTRUDER_KNOWN_LINES]) {
+      lines.push(template(name));
+    }
+  }
+  return lines;
+}
