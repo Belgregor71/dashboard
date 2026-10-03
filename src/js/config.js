@@ -1874,7 +1874,9 @@ window.CONFIG = {
     // Off: the line is chosen at the trigger, as before (the placeholder is
     // no longer mistaken for a name either way — services/personName.js).
     // Rollback: -> false (read per alert; a cache-bypass reload for the build).
-    v3DoorbellNameWait: false,
+    // Deployed OFF ea5714b (inject-defect 3/3 RED). FLIPPED ON 2026-10-03 at
+    // the owner's ask; live proof = the owner walking to the front door.
+    v3DoorbellNameWait: true,
   },
 
   /* --------------------------------------------------------------
