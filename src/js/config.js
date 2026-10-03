@@ -1857,7 +1857,13 @@ window.CONFIG = {
     // cache is not merged — next-event skips all-day events anyway.
     // Off: no /api/calendar/holidays fetch, the calendar array is passed
     // through by reference, and no attribute is ever set.
-    v3PublicHolidays: false,
+    //
+    // FLIPPED ON 2026-10-03 after a forced-on run on the live G11 wall: the month
+    // ahead read "Mon 5 · King's Birthday" as an all-day row beside the family
+    // calendar (screenshot in the session). The warm edge could not be seen live —
+    // it only paints ON a holiday; the suite proves the CSS both ways.
+    // One-line revert (-> false), then a HARD reload of the kiosk.
+    v3PublicHolidays: true,
   },
 
   /* --------------------------------------------------------------

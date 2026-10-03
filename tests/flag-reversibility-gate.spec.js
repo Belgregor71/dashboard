@@ -136,12 +136,16 @@ test.describe("flag reversibility gate — what it resolves", () => {
   });
 
   test("a parser that sees no flags refuses rather than approving nothing", () => {
-    /* Safe without --plan-only: the guard exits before any write, and with the
-       guard deleted the gutted fixture has no ON flag, so --all reaches
-       "nothing to verify" — never the flip loop. */
+    /* --plan-only, and it must stay: the fixture is copied from the LIVE
+       config.js, and when this suite runs inside a real `--flag X` run that file
+       carries the outer run's TEMPORARILY FLIPPED marker. Without --plan-only the
+       self-heal guard exits first with its own message and this test goes red on
+       every /flag-flip (seen 2026-10-03, the v3PublicHolidays flip). The parser
+       guard sits after the marker check and before plan resolution, so a
+       plan-only run still reaches it — and never the flip loop. */
     const r = inFixture(
       (src) => src.replace(/^(\s{4})([a-zA-Z][a-zA-Z0-9]*):(\s*)(true|false),/gm, "$1// $2:$3$4,"),
-      ["--all"]
+      ["--all", "--plan-only"]
     );
     expect(r.code, r.out).toBe(1);
     expect(r.out).toContain("parsed only 0 flags");
