@@ -258,7 +258,7 @@ and they come out as broken text.
 |---|---|---|
 | Conversational voice turn | `server/services/character.js` | ✅ **this page, flag `v3HouseCharacter`** |
 | AI briefing / concierge | `server/routes/ai.js` | ✅ **this page, env `HOUSE_CHARACTER_BRIEFINGS`** (default off) |
-| Spoken door/gate alerts | `src/js/config/alertLines.js` | ⛔ old register — copy pool, see below |
+| Spoken door/gate alerts | `src/js/config/alertLines.js` | ✅ **this page, rewritten 2026-10-03** — pinned by `tests/alert-router.spec.js` |
 | Delight / celebration | `src/js/services/delight.js` | ⛔ old register — copy pool, see below |
 | Calendar occasions | `src/js/services/occasions.js` | ⛔ old register — copy pool, see below |
 | Arrival card + speech | `src/js/modules/arrivalGreeting.js` | ⛔ old register — copy pool. ⚠ its `phrase()` calls **normalise**, they do not inject character |

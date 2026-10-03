@@ -16,79 +16,100 @@
 
 export const ALERT_TTS_RATE = 0.92;
 
-// Voice: docs/design/VOICE.md — big, gossipy, delighted-to-have-a-visitor.
-// SECURITY IS INFORMATION FIRST: every line still says WHAT and WHERE plainly.
-// Graduated intensity — the front door and any NAMED person get the full sass;
-// an UNKNOWN person at the SIDE gate stays clear and only lightly warm (never a
-// punchline), because that's the one that might one day be a real problem.
+// Voice: docs/design/CHARACTER.md — REWRITTEN against it 2026-10-03 (the owner:
+// "we are slipping back into the Kath & Kim personality which I thought we
+// veto'd. Keep the humour but stay away from direct quotes"). The house is
+// dry: the fact first, then at most one beat, and the comedy is SCALE — it is
+// serious about small things — never a catchphrase, a costume or a quote.
+//
+// What that rules out here, each of which the old pools did:
+//   · borrowed flavour — "hun", "noice", "gorgeous", "the good biscuits"
+//   · an invented particular — "we did not plan for this", "right on cue",
+//     "round the side as usual" (a pattern the house was never handed, and
+//     CHARACTER.md: it never announces a pattern)
+//   · an event the trigger does not prove — "Doorbell!", "Knock knock": most
+//     alerts are person_detected, not a ring
+//   · "home" for a named face, who may be a guest
+//
+// SECURITY IS INFORMATION FIRST (hard limit 3): every line says WHAT and WHERE
+// in plain words. The front door and any NAMED person get the full character;
+// an UNKNOWN person at the SIDE gate stays clear and only lightly warm — never
+// a punchline — because that is the one that might one day be real.
+//
+// Pool sizes: the front door fires ~10 times a day (134 detections in 14 days
+// of HA history), so its unknown pool is 20; the rest are 10. alertRouter.js
+// draws each pool as a shuffled bag — every line once before any line twice.
 
 // Front door, nobody identified — name-free, so pre-warmable.
 export const VISITOR_UNKNOWN_LINES = [
-  "Ooh — someone's at the front door!",
-  "Doorbell! Someone's here and we did not plan for this.",
-  "Someone's at the front door. Look important.",
-  "There's someone on the front porch — could be anyone.",
-  "Someone's at the front door, and I'm dying to know who.",
-  "Front door! Best behaviour, everyone.",
-  // Added 2026-10-03 — owner: "keep hearing the same ones". The front door
-  // fires ~10 times a day (134 detections in 14 d), so a pool of 6 came round
-  // more than once daily.
-  "Someone's at the front door — and I do love a mystery guest.",
-  "We've got a visitor at the front door.",
-  "Front door — someone's just arrived.",
-  "Someone's on the front porch. How exciting.",
-  "Knock knock — someone's at the front door.",
-  "Someone's at the front door. Hair check, everyone.",
-  "A visitor at the front door — different, unusual, I like it.",
-  "Someone's come to the front door. I'll allow it.",
-  "Front door, hun — somebody's here.",
-  "There's someone at the front door. Act natural.",
-  "Company at the front door! Nobody told me."
+  "Someone's at the front door.",
+  "Someone's at the front door. I can't see who.",
+  "There's a person at the front door — not one I recognise.",
+  "Someone's at the front door, and I have no idea who.",
+  "A visitor at the front door. I do enjoy a development.",
+  "Someone's at the front door. That's the headline.",
+  "Front door — a person, standing there. Over to you.",
+  "Someone's at the front door. I'll keep watching — you do the walking.",
+  "There's someone at the front door. Face unfamiliar.",
+  "Someone's at the front door. I didn't catch a name.",
+  "A person at the front door — unannounced, as far as I know.",
+  "Someone's arrived at the front door.",
+  "Front door — someone's waiting.",
+  "Someone's at the front door. Noted — you may wish to act.",
+  "Someone's at the front door. I'd answer it, but I'm a wall.",
+  "There's a visitor on the front porch.",
+  "Someone's at the front door. Not a face I've been introduced to.",
+  "Front door — someone's just walked up.",
+  "Someone's at the front door. I consider this significant.",
+  "A person at the front door. Big moment for the porch."
 ];
 
-// Front door, person identified by name — depends on who, so never cacheable.
+// Front door, person identified by name. Pre-warmed per name the cameras can
+// recognise (server/services/alertNames.js) — never from a list in this file.
 export const VISITOR_KNOWN_LINES = [
-  name => `${name}'s here! Look who decided to grace us.`,
-  name => `Ooh, it's ${name}. Get the good biscuits out.`,
-  name => `It's ${name} at the front door — the door's never looked better.`,
-  name => `${name}'s home! Someone tell the good cushions.`,
-  name => `Look who it is — ${name}, gorgeous as ever.`,
-  name => `It's ${name}, at the front door.`,
-  name => `${name}'s at the front door — finally, some glamour.`,
-  name => `${name}'s at the front door. I'd know that face anywhere.`,
-  name => `Oh, it's ${name} at the front door. Noice.`,
-  name => `${name}'s arrived at the front door — roll out the welcome.`
+  name => `${name}'s at the front door.`,
+  name => `It's ${name} at the front door. That one I know.`,
+  name => `${name}'s at the front door — a face I can vouch for.`,
+  name => `Front door — it's ${name}. Recognised on sight, which I enjoy.`,
+  name => `${name}'s at the front door. No introduction needed.`,
+  name => `It's ${name} at the front door. I'd know that face anywhere.`,
+  name => `${name}'s arrived at the front door. I'm counting that as news.`,
+  name => `That's ${name} at the front door, or a very good likeness.`,
+  name => `${name}'s at the front door. Somebody let them in.`,
+  name => `Front door — ${name}'s here.`
 ];
 
 // Side gate, nobody identified — name-free, so pre-warmable. Deliberately the
 // calmest pool: clear and lightly warm, but no bit. (See the graduated-intensity
 // note above — an unknown figure at the side of the house isn't a punchline.)
 export const INTRUDER_UNKNOWN_LINES = [
-  "Someone's at the side gate — go and have a squiz.",
+  "Someone's at the side gate.",
+  "There's a person at the side gate.",
+  "Someone's at the side gate — worth a look.",
   "There's movement at the side gate. Worth a look.",
   "Someone's coming through the side gate, not the front.",
-  "Someone's at the side gate — not who we expected.",
   "Someone's near the side gate. Have a look.",
   "Someone's at the side of the house.",
-  "Someone's at the side gate just now.",
-  "There's a person at the side gate.",
   "Side gate — someone's there. Worth checking.",
-  "Someone's come in by the side gate. Take a look."
+  "Someone's come in by the side gate. Take a look.",
+  "There's someone at the side gate. I don't recognise them."
 ];
 
-// Side gate, person identified by name — depends on who, so never cacheable.
-// A known face round the side is no mystery, so this pool gets the full tease.
+// Side gate, person identified by name. A known face round the side is no
+// mystery, so this pool gets the character — aimed at the shortcut (a situation,
+// fair game under hard limit 1), never at the person, and never claiming they
+// "always" do it.
 export const INTRUDER_KNOWN_LINES = [
-  name => `It's ${name}, round the side as usual — never the front.`,
-  name => `${name}'s coming round the side gate — course they are.`,
-  name => `${name}'s at the side gate. Creature of habit, that one.`,
-  name => `${name}'s taking the side way in, per usual.`,
-  name => `${name}'s at the side, not the front — bold choice.`,
-  name => `${name}'s doing the side-gate special, right on cue.`,
-  name => `${name}'s at the side gate — the front door weeps.`,
+  name => `${name}'s at the side gate.`,
+  name => `It's ${name} at the side gate — the front door is right there.`,
+  name => `${name}'s coming in by the side gate. The front door will cope.`,
+  name => `${name}'s at the side gate. A bold choice of entrance.`,
+  name => `Side gate — it's ${name}, taking the scenic route.`,
   name => `It's ${name} at the side gate. Front doors are for other people.`,
-  name => `${name}'s slipping in the side gate. Seen it, hun.`,
-  name => `Side gate — it's ${name}, taking the scenic route.`
+  name => `${name}'s at the side gate. The front door has been snubbed.`,
+  name => `${name}'s come round the side. I saw that.`,
+  name => `That's ${name} at the side gate. Nothing to worry about.`,
+  name => `${name}'s using the side gate. Noted, without comment.`
 ];
 
 // Every name-free line — exactly what the server pre-warms into the TTS cache.

@@ -197,6 +197,50 @@ test("the pools are big enough to last a day, and every line obeys the house rul
   }
   for (const line of pools.visitorKnown) expect(line).toContain("Sam");
   for (const line of pools.intruderKnown) expect(line).toContain("Sam");
+
+  // The door most often heard gets the deepest pool (~10 detections a day).
+  expect(pools.visitorUnknown.length).toBeGreaterThanOrEqual(20);
+});
+
+/* The pools were rewritten against docs/design/CHARACTER.md on 2026-10-03 after
+   the owner caught the old costume coming back in new lines ("we are slipping
+   back into the Kath & Kim personality which I thought we veto'd"). These are
+   that page's rules, as literals, against every line the door can say. */
+test("the door speaks as the house, not in the retired costume", () => {
+  const every = [
+    ...VISITOR_UNKNOWN_LINES,
+    ...INTRUDER_UNKNOWN_LINES,
+    ...VISITOR_KNOWN_LINES.map((t) => t("Sam")),
+    ...INTRUDER_KNOWN_LINES.map((t) => t("Sam"))
+  ];
+  expect(every.length).toBeGreaterThanOrEqual(50);
+
+  const banned = [
+    // Borrowed flavour — "not zany … no catchphrases … never quotes anything".
+    [/\b(hun|noice|gorgeous|ooh|biscuits|cushions|glamour|squiz)\b|different, unusual|look at moi/i, "the retired costume"],
+    // "Not a mate."
+    [/\b(mate|ya)\b/i, "matey"],
+    // "It never announces a pattern" — and it was never handed one.
+    [/as usual|per usual|right on cue|creature of habit|as always|never the front|again\b/i, "a pattern nobody handed it"],
+    // A particular it cannot know: most alerts are person_detected, not a ring,
+    // and nothing here knows what was planned or who was expected.
+    [/doorbell|knock|did not plan|expected|\bhome\b/i, "an invented particular"],
+    // Mechanics.
+    [/!!|\.\.\.|…/, "punctuation the house does not use"]
+  ];
+  for (const line of every) {
+    for (const [pattern, why] of banned) {
+      expect(line, `${why}: ${line}`).not.toMatch(pattern);
+    }
+    expect(line, `ALL CAPS word: ${line}`).not.toMatch(/\b[A-Z]{3,}\b/);
+  }
+
+  // The fact first: an unknown-visitor line opens on who/where, never on a
+  // reaction ("Ooh —", "Company!").
+  for (const line of [...VISITOR_UNKNOWN_LINES, ...INTRUDER_UNKNOWN_LINES]) {
+    expect(line, `opens with a reaction, not the fact: ${line}`)
+      .toMatch(/^(Someone's|There's|A person|A visitor|Front door —|Side gate —)/);
+  }
 });
 
 test("a location that isn't one says nothing at all", () => {
