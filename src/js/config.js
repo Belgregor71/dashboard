@@ -1876,7 +1876,7 @@ window.CONFIG = {
     // Rollback: -> false (read per alert; a cache-bypass reload for the build).
     // Deployed OFF ea5714b (inject-defect 3/3 RED). FLIPPED ON 2026-10-03 at
     // the owner's ask; live proof = the owner walking to the front door.
-    v3DoorbellNameWait: false,
+    v3DoorbellNameWait: true,
   },
 
   /* --------------------------------------------------------------
