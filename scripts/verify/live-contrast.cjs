@@ -98,6 +98,14 @@ const get = (path) =>
 
   const items = await evaluate(`(${collect.toString()})()`);
   if (!items.length) throw new Error("no visible text collected");
+  // Pin the colour resolution before trusting any ratio: the hour is painted in
+  // --ink, the brightest ink on the wall. If it does not resolve bright, every
+  // number below is built on a broken resolve (see collect()).
+  const hour = items.find((i) => i.selector === "#hour");
+  if (hour) {
+    const [r, g, b] = hour.color.match(/[\d.]+/g).map(Number);
+    if (Math.min(r, g, b) <= 150) throw new Error(`#hour ink resolved to ${hour.color} — colour resolution is broken, not the wall`);
+  }
 
   await evaluate(`(${strip.toString()})()`);
   await new Promise((r) => setTimeout(r, 400));
@@ -131,10 +139,40 @@ const get = (path) =>
 });
 
 function collect() {
+  /* ⚠ COLOURS ARE RESOLVED BY PAINTING THEM, NEVER BY PARSING THEM — the same
+     method as tests/verify/v3-contrast.spec.js COLLECT. V3's palette is OKLCH and
+     getComputedStyle().color keeps the colour space, so the regex parse below read
+     "oklch(0.93 0.01 85)" as r=0.93 g=0.01 b=85 (near-black). Its first live run on
+     V3 (2026-10-03) reported every node at ~1:1, the 168px hour included. Painting
+     over black and white and solving gives the renderer's own rgb + alpha. */
+  const probe = document.createElement("canvas");
+  probe.width = probe.height = 1;
+  const pctx = probe.getContext("2d", { willReadFrequently: true });
+  const paintOver = (css, under) => {
+    pctx.fillStyle = under;
+    pctx.fillRect(0, 0, 1, 1);
+    pctx.fillStyle = css;
+    pctx.fillRect(0, 0, 1, 1);
+    return pctx.getImageData(0, 0, 1, 1).data;
+  };
+  const resolve = (css) => {
+    const b = paintOver(css, "#000");
+    const w = paintOver(css, "#fff");
+    if (b[0] + b[1] + b[2] === 0 && w[0] + w[1] + w[2] === 765) return null; // unparsed
+    const a = Math.max(0, Math.min(1, 1 - (w[0] - b[0]) / 255));
+    if (a < 0.004) return null;
+    const [r, g, bl] = [b[0] / a, b[1] / a, b[2] / a].map((c) => Math.min(255, Math.round(c)));
+    return `rgba(${r}, ${g}, ${bl}, ${a.toFixed(3)})`;
+  };
+
   const out = [];
   const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
   for (let el = walk.nextNode(); el; el = walk.nextNode()) {
     if (!Array.from(el.childNodes).some((n) => n.nodeType === 3 && n.textContent.trim())) continue;
+    // The archive's 400px ghost year is a watermark at 5.5% ink, built never to be
+    // read — excluded BY NAME exactly as tests/verify/v3-contrast.spec.js does (not
+    // by [aria-hidden], which would also drop the plate line the room does read).
+    if (el.classList.contains("archive__year")) continue;
     const cs = getComputedStyle(el);
     if (cs.visibility === "hidden" || cs.display === "none" || parseFloat(cs.opacity) === 0) continue;
     if (el.checkVisibility && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
@@ -146,10 +184,12 @@ function collect() {
     if (alpha < 0.05) continue;
     const px = parseFloat(cs.fontSize);
     const weight = parseInt(cs.fontWeight, 10) || 400;
+    const color = resolve(cs.color);
+    if (!color) continue; // the renderer could not paint it — no number beats a wrong one
     out.push({
       selector: el.id ? "#" + el.id : el.tagName.toLowerCase() + (typeof el.className === "string" && el.className ? "." + el.className.trim().split(/\s+/).join(".") : ""),
       sample: el.textContent.trim().slice(0, 40),
-      color: cs.color,
+      color,
       alpha,
       fontSize: px,
       isLarge: px >= 24 || (px >= 18.66 && weight >= 700),
