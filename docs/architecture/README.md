@@ -12,10 +12,12 @@ views, and PNG/SVG export in its own toolbar.
 ## Regenerating
 
 The renderer is [archify](https://github.com/tt-a1i/archify) and it is **not
-vendored here**; it needs Node and nothing else. Clone it anywhere, then:
+vendored here**; it needs Node and nothing else. On the owner's PC a clone lives
+at `C:\Users\gdee7\tools\archify`, checked out at `72c750b`. Elsewhere, clone it
+anywhere and check out that revision. Then:
 
 ```bash
-ARCHIFY=/path/to/archify/archify        # the inner archify/ dir, which holds bin/
+ARCHIFY=/c/Users/gdee7/tools/archify/archify   # the inner archify/ dir, which holds bin/
 
 node $ARCHIFY/bin/archify.mjs validate architecture \
   docs/architecture/pi-dashboard.architecture.json \
