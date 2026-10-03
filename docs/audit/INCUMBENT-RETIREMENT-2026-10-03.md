@@ -312,3 +312,37 @@ Built in a separate git worktree (`../pi-dashboard-retire`), because this tree i
 - **`heap-metrics.cjs` / `perf-metrics.cjs` incumbent branches.** They route by which probe answers, so on V3 they never take that branch. They are dead but harmless.
 - Comments that only *mention* the incumbent as history were left as they are (§6 last paragraph).
 
+## 9. Phase 3 — merged, deployed and verified live (2026-10-03)
+
+**The incumbent is retired on the wall.** `main` was fast-forwarded to the branch and deployed to the G11. That deploy was followed by `b644053` (test fix), `e45b773` (live-contrast fix) and `12b075a` (the holiday flip). The G11 runs `12b075a`.
+
+**Read off the live box:**
+- `/` returns 200 with the V3 document, byte-identical to `/v3/`.
+- `/index.html` returns a 302 to `/`.
+- The journal reads `[surface] / serves the v3 dashboard` and shows no `V3_DEFAULT` warning; the G11's `.env` has no such line.
+- The kiosk loads a single `v3-DNWrIDXm.js` bundle. All 39 boot stages are up and none failed.
+- `CONFIG.features` has 74 flags.
+- 0 CSP violations and 0 page errors.
+- Heap 4.8 MB, 133 DOM nodes, 22 listeners.
+
+**`v3PublicHolidays` is ON**, following the `/flag-flip` ceremony:
+- **Forced on in the running page before the flip:** the month ahead read "Mon 5 · King's Birthday" as an all-day row.
+- **After the flip, on its own config:** the same row appeared, and the page made one holidays fetch.
+- **Rollback proven live:** `config.js` was intercepted over CDP to serve the flag off. King's Birthday disappeared, the page made 0 holidays fetches, and the family calendar still mounted. A normal reload restored it.
+- Flag-on suite: 2202 passed. `flag-reversibility --flag`: green.
+- ⏳ The warm edge only paints on a holiday, so it has not been seen live. Monday 5 October is the first chance.
+
+**Found in Phase 3:**
+- **`live-contrast.cjs` had a second bug** beyond driving incumbent hooks. It read colours with a number regex, so V3's `oklch(0.93 0.01 85)` came out near-black and every node measured about 1:1.
+  - It now resolves colours by painting them, the `v3-contrast.spec.js` method.
+  - It refuses to report if `#hour` does not resolve bright. With the old parse injected, it exits 2.
+  - It exempts `.archive__year` by name.
+  - First honest live run: ambient 7.53:1, dwell 8.45:1.
+- 🐛 **The owner's call: the glance rail measured 1.14:1** where it sits over a bright table edge in a diptych photo. It read 3.2 and 4.57:1 over darker photos, so it depends on the photo. The defect is older than the retirement; it went unmeasured because this lane never measured V3 until today. The fix could be copy/opacity or a scrim under the rail.
+- **The flag-reversibility-gate "blind parser" test went red inside a real `--flag` run.** Its fixture copies the live `config.js`, which carries the outer run's `TEMPORARILY FLIPPED` marker. It now runs `--plan-only`: green inside an outer run, RED with the guard removed.
+- **`scan-patterns` flagged a page-side `window.__x =` assignment** in `kiosk-instrument.spec.js` as a late hook. The fakes are now installed with `Object.assign`, and the test is still RED when the incumbent is recognised again.
+
+**Still open:**
+- The orphaned routes in §6, which await the owner's decision.
+- `docs/architecture/pi-dashboard.architecture.json` still draws the incumbent and the Pi 4.
+
