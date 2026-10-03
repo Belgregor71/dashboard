@@ -24,6 +24,7 @@
 // two answers.
 
 import { getEntity } from "./homeAssistant/state.js";
+import { recognisedName } from "./personName.js";
 import {
   VISITOR_UNKNOWN_LINES,
   VISITOR_KNOWN_LINES,
@@ -36,9 +37,6 @@ const ACTIVE_STATES = new Set(["on", "ringing"]);
 
 /** Suppress repeat alerts for 30s per location. */
 export const ALERT_COOLDOWN_MS = 30_000;
-
-/** Values the Eufy person-name sensor uses when it hasn't identified anyone. */
-const UNKNOWN_NAME_VALUES = new Set(["no person", "unknown", "unavailable", ""]);
 
 /* `camera` is the id the snapshot and live routes take, and it is stated rather
    than derived from `prefix` even though they currently match — the coupling is
@@ -87,10 +85,7 @@ export function isActiveState(state) {
 /** The identified visitor's name, or null when the camera didn't know them. */
 export function knownPersonName(personNameEntityId) {
   if (!personNameEntityId) return null;
-  const entity = getEntity(personNameEntityId);
-  const name = String(entity?.state ?? "").trim();
-  if (!name || UNKNOWN_NAME_VALUES.has(name.toLowerCase())) return null;
-  return name;
+  return recognisedName(getEntity(personNameEntityId)?.state);
 }
 
 /** One line from a pool, never the same one twice running. */

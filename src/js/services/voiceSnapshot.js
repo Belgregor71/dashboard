@@ -29,6 +29,7 @@ import { looksLikeMutation } from "./localIntents.js";
 import { getTodoEntityIds, openTodoSummaries, getShoppingEntityId } from "./homeAssistant/todoEntities.js";
 import { menuFrom } from "./mealEvent.js";
 import { isTvAudio } from "./mediaSource.js";
+import { recognisedName } from "./personName.js";
 import { getTimes } from "../vendor/suncalc.js";
 import { on } from "../core/eventBus.js";
 import { storeFresh } from "./houseStream.js";
@@ -289,12 +290,7 @@ export function pickLastCameraEvent(list, byId = null) {
   const top = events[0];
 
   // The camera's own person sensor, when it has a real name on it.
-  const person = (() => {
-    const s = index[`sensor.${top.slug}_person_name`]?.state;
-    return typeof s === "string" && s && !["unknown", "unavailable", "none", ""].includes(s.toLowerCase())
-      ? s
-      : null;
-  })();
+  const person = recognisedName(index[`sensor.${top.slug}_person_name`]?.state);
 
   return { known: true, lastEvent: { name: top.slug.replace(/_/g, " "), at: top.at.toISOString(), person } };
 }

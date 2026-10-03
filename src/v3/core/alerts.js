@@ -34,7 +34,9 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { on } from "../../js/core/eventBus.js";
-import { routeAlert, locationFor } from "../../js/services/alertRouter.js";
+import { routeAlert, locationFor, alertLine } from "../../js/services/alertRouter.js";
+import { recognisedName } from "../../js/services/personName.js";
+import { getEntity } from "../../js/services/homeAssistant/state.js";
 import { record } from "./feature-census.js";
 import { ALERT_TTS_RATE } from "../../js/config/alertLines.js";
 import { speak } from "../../js/core/tts.js";
@@ -55,6 +57,43 @@ export const ALERT_HOLD_MS = 60_000;
    presence.js's linger: a stale PIR only costs a wrong guess about an empty
    room, whereas a stale doorbell takes the whole screen and speaks out loud. */
 export const ALERT_FRESH_MS = 30_000;
+
+/* ── The face arrives after the door (features.v3DoorbellNameWait) ──────────
+   Eufy's face recognition answers AFTER the trigger it belongs to. Every one
+   of the 4 recognised visits in 14 days of live HA history (read 2026-10-03)
+   had the same millisecond shape:
+
+     person_name      01:22:08.400 = Unknown Person
+     person_detected  01:22:08.427 = on          ← routeAlert reads the name here
+     person_name      01:22:08.955 = Greg        ← the answer, ~550 ms later
+
+   so the house could never say a name. With the flag on, a door with no name
+   yet listens for the sensor to turn into one for up to NAME_WAIT_MS — in
+   parallel with the camera mount, so most of the wait is time the picture was
+   taking anyway — and picks the line after. ~3× the measured lag; an
+   unrecognised visitor (the overwhelming majority) is announced at most this
+   much later than before. Off: the line routeAlert picked is spoken as-is. */
+export const NAME_WAIT_MS = 1500;
+
+const flag = (name) => Boolean(globalThis.window?.CONFIG?.features?.[name]);
+
+/** Resolves with a recognised name, or null once `waitMs` passes without one. */
+function awaitRecognisedName(entityId, waitMs) {
+  const already = recognisedName(getEntity(entityId)?.state);
+  if (already) return Promise.resolve(already);
+  return new Promise((resolve) => {
+    let off = null;
+    const timer = setTimeout(() => { off?.(); resolve(null); }, waitMs);
+    off = on("ha:state-updated", (entity) => {
+      if (entity?.entity_id !== entityId) return;
+      const name = recognisedName(entity.state);
+      if (!name) return;
+      clearTimeout(timer);
+      off();
+      resolve(name);
+    });
+  });
+}
 
 const cooldowns = new Map();   // location prefix → expiry ms
 let unsubscribe = null;
@@ -98,7 +137,13 @@ export async function raiseAlert(entity, { now = Date.now() } = {}) {
 
   if (!alert) return null;
 
-  const { location, personName, line } = alert;
+  const { location } = alert;
+  let { personName, line } = alert;
+
+  // Started before the camera mount so the two waits overlap. See NAME_WAIT_MS.
+  const lateName = !personName && location.personNameEntity && flag("v3DoorbellNameWait")
+    ? awaitRecognisedName(location.personNameEntity, NAME_WAIT_MS)
+    : null;
 
   /* ── The panel, before anything else ──────────────────────────────────────
      Step 5.1. Between 21:00 and 05:00 the crontab has the backlight off, and
@@ -132,6 +177,14 @@ export async function raiseAlert(entity, { now = Date.now() } = {}) {
     // that `activeSubject()` cannot: both this and "show me the front door"
     // mount the same camera, and only the reason tells them apart afterwards.
     setDepth(DEPTH.SUBJECT, `alert:${location.prefix}`, { holdMs: ALERT_HOLD_MS });
+  }
+
+  if (lateName) {
+    const name = await lateName;
+    if (name) {
+      personName = name;
+      line = alertLine(location, name);
+    }
   }
 
   /* Spoken whether or not the camera came up. A doorbell that says nothing

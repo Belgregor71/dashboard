@@ -485,7 +485,9 @@ test.describe("the last camera event is derived from the entity cache", () => {
   test("a matching person sensor names who it was, and junk states do not", () => {
     const base = [{ entity_id: "binary_sensor.doorbell_person_detected", state: "on", last_changed: ago(1) }];
     expect(pickLastCameraEvent([...base, { entity_id: "sensor.doorbell_person_name", state: "Greg" }]).lastEvent.person).toBe("Greg");
-    for (const junk of ["unknown", "unavailable", "none", ""]) {
+    // "Unknown Person" and "No Person" are what Eufy ACTUALLY writes (134 of each
+    // in 14 days of live history) — the list above them is what was guessed.
+    for (const junk of ["unknown", "unavailable", "none", "", "Unknown Person", "No Person"]) {
       expect(pickLastCameraEvent([...base, { entity_id: "sensor.doorbell_person_name", state: junk }]).lastEvent.person).toBeNull();
     }
   });

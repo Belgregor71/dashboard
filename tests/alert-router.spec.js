@@ -10,6 +10,7 @@ import {
   DROP_STALE,
   DROP_COOLDOWN
 } from "../src/js/services/alertRouter.js";
+import { recognisedName } from "../src/js/services/personName.js";
 import {
   VISITOR_KNOWN_LINES,
   VISITOR_UNKNOWN_LINES,
@@ -97,6 +98,24 @@ test("a name resolves the template; no name takes the name-free pool", () => {
   const named = alertLine(doorbell, "Sam");
   expect(typeof named).toBe("string");
   expect(named.length).toBeGreaterThan(0);
+});
+
+/* Eufy's own placeholders, read off 14 days of live HA history (2026-10-03):
+   134 × "Unknown Person", 134 × "No Person", 4 × "Greg". "Unknown Person" was
+   missing from the old deny list, so the doorbell said
+   "Unknown Person's here! Look who decided to grace us." */
+test("Eufy's placeholders are not names; a recognised face is", () => {
+  for (const junk of ["Unknown Person", "No Person", "unknown person", " No Person ", "unknown", "unavailable", "none", "", null, undefined]) {
+    expect(recognisedName(junk), `${JSON.stringify(junk)} read as a name`).toBeNull();
+  }
+  expect(recognisedName("Greg")).toBe("Greg");
+  expect(recognisedName(" Greg ")).toBe("Greg");
+
+  // And the line it produces: a placeholder must take the name-free pool.
+  const doorbell = locationFor("binary_sensor.doorbell_ringing");
+  const line = alertLine(doorbell, recognisedName("Unknown Person"));
+  expect(VISITOR_UNKNOWN_LINES).toContain(line);
+  expect(line).not.toMatch(/Unknown Person/);
 });
 
 test("a location that isn't one says nothing at all", () => {

@@ -1864,6 +1864,17 @@ window.CONFIG = {
     // it only paints ON a holiday; the suite proves the CSS both ways.
     // One-line revert (-> false), then a HARD reload of the kiosk.
     v3PublicHolidays: true,
+
+    // ── The doorbell says WHO (src/v3/core/alerts.js NAME_WAIT_MS) ─────────
+    // Eufy's face recognition writes the name ~550 ms AFTER person_detected
+    // turns on (4/4 recognised visits in 14 days of HA history, 2026-10-03),
+    // so the alert always read the "Unknown Person" placeholder. On: a door
+    // with no name yet waits up to 1.5 s (overlapping the camera mount) for
+    // sensor.<door>_person_name to become a name, then picks a named line.
+    // Off: the line is chosen at the trigger, as before (the placeholder is
+    // no longer mistaken for a name either way — services/personName.js).
+    // Rollback: -> false (read per alert; a cache-bypass reload for the build).
+    v3DoorbellNameWait: false,
   },
 
   /* --------------------------------------------------------------

@@ -192,6 +192,62 @@ test("the door outranks the subject already up — forced, not deepened", async 
   expect(pageErrors).toEqual([]);
 });
 
+/* ── The face arrives after the door (features.v3DoorbellNameWait) ──────────
+   The live sequence, as HA recorded it on all 4 recognised visits in 14 days:
+   the name sensor says "Unknown Person" ~30 ms BEFORE person_detected turns on,
+   and the real name lands ~550 ms AFTER. These replay exactly that order on a
+   page and assert the TEXT that would be spoken, in both flag states. */
+
+async function lateFaceAtTheDoor(page, { wait, nameAfterMs }) {
+  return page.evaluate(async ({ wait, nameAfterMs }) => {
+    window.CONFIG.features.v3DoorbellNameWait = wait;
+    const stamp = () => new Date().toISOString();
+    window.__emitHaState({ entity_id: "sensor.doorbell_person_name", state: "Unknown Person", last_changed: stamp() });
+    const started = performance.now();
+    const pending = window.__v3Alert("binary_sensor.doorbell_person_detected", "on");
+    if (nameAfterMs != null) {
+      setTimeout(() => {
+        window.__emitHaState({ entity_id: "sensor.doorbell_person_name", state: "Greg", last_changed: stamp() });
+      }, nameAfterMs);
+    }
+    const alert = await pending;
+    return { personName: alert?.personName ?? null, line: alert?.line ?? null, ms: performance.now() - started };
+  }, { wait, nameAfterMs });
+}
+
+test("flag on: a face recognised after the trigger is the name that is spoken", async ({ page }) => {
+  const pageErrors = await bootV3(page);
+  const got = await lateFaceAtTheDoor(page, { wait: true, nameAfterMs: 550 });
+
+  expect(got.personName).toBe("Greg");
+  expect(got.line).toContain("Greg");
+  expect(got.line).not.toContain("Unknown Person");
+  expect(pageErrors).toEqual([]);
+});
+
+test("flag on: nobody recognised is still announced, nameless, within the wait", async ({ page }) => {
+  const pageErrors = await bootV3(page);
+  const got = await lateFaceAtTheDoor(page, { wait: true, nameAfterMs: null });
+
+  expect(got.personName).toBeNull();
+  expect(got.line, "the door went silent waiting for a face").toBeTruthy();
+  expect(got.line).not.toContain("Unknown Person");
+  // Bounded: the wait gives up. Generous ceiling — the camera mount is in here too.
+  expect(got.ms).toBeLessThan(5000);
+  expect(pageErrors).toEqual([]);
+});
+
+test("flag off: the line is picked at the trigger, as before — and never says 'Unknown Person'", async ({ page }) => {
+  const pageErrors = await bootV3(page);
+  const got = await lateFaceAtTheDoor(page, { wait: false, nameAfterMs: 550 });
+
+  expect(got.personName).toBeNull();
+  expect(got.line).toBeTruthy();
+  expect(got.line).not.toContain("Greg");
+  expect(got.line).not.toContain("Unknown Person");
+  expect(pageErrors).toEqual([]);
+});
+
 /* ── Recession ─────────────────────────────────────────────────────────────── */
 
 test("a subject that times out never lands on an empty depth", async ({ page }) => {
