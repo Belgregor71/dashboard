@@ -2,6 +2,7 @@ import express from "express";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { loopbackOnly } from "../middleware/security.js";
 
 // Delight-budget persistence — Phase 10 (docs/vision/phase-10-temperament.md).
 // A small GET/PUT of the rare-moment budgets to data/delight/, mirroring the
@@ -29,7 +30,8 @@ router.get("/api/delight", async (_req, res) => {
   }
 });
 
-router.put("/api/delight", async (req, res) => {
+// The wall is the only writer (core/personalityRuntime.js), and it is loopback.
+router.put("/api/delight", loopbackOnly("The delight write"), async (req, res) => {
   const budgets = req.body?.budgets;
   if (!budgets || typeof budgets !== "object" || Array.isArray(budgets)) {
     return res.status(400).json({ error: "expected { budgets: object }" });
@@ -39,7 +41,8 @@ router.put("/api/delight", async (req, res) => {
     await writeFile(DELIGHT_FILE, JSON.stringify(budgets), "utf8");
     res.json({ ok: true });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("[delight] write failed:", error);
+    res.status(500).json({ error: "Could not save delight budgets" });
   }
 });
 

@@ -129,13 +129,14 @@ router.get("/env.js", (_req, res) => {
     }
   };
 
+  // Debug switches only. HA_HOST, GO2RTC_HOST and HOME_BASE (a home address)
+  // were published here to every LAN client and read by nothing — the page
+  // reaches HA and go2rtc through same-origin proxies (audit 2026-07-26 S9,
+  // closed 2026-10-03). api.spec.js pins their absence.
   const publicEnv = {
-    HA_HOST: process.env.HA_HOST || "",
-    GO2RTC_HOST: process.env.GO2RTC_HOST || "",
     HA_DEBUG: process.env.HA_DEBUG === "1" ? "1" : "",
     CALENDAR_DEBUG: process.env.CALENDAR_DEBUG === "1" ? "1" : "",
-    WEATHER_DEBUG_BOM: process.env.WEATHER_DEBUG_BOM === "1" ? "1" : "",
-    HOME_BASE: process.env.HOME_BASE || ""
+    WEATHER_DEBUG_BOM: process.env.WEATHER_DEBUG_BOM === "1" ? "1" : ""
   };
 
   res.type("application/javascript");

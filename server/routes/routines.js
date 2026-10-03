@@ -2,6 +2,7 @@ import express from "express";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { loopbackOnly } from "../middleware/security.js";
 
 // Behavioural-learning persistence — Phase 8 (docs/vision/phase-8-learn.md).
 // A small GET/PUT of the aggregate blob to data/routines/, mirroring the
@@ -29,7 +30,8 @@ router.get("/api/routines", async (_req, res) => {
   }
 });
 
-router.put("/api/routines", async (req, res) => {
+// The wall is the only writer (core/routineRuntime.js), and it is loopback.
+router.put("/api/routines", loopbackOnly("The routines write"), async (req, res) => {
   const routines = req.body?.routines;
   if (!routines || typeof routines !== "object" || Array.isArray(routines)) {
     return res.status(400).json({ error: "expected { routines: object }" });
@@ -39,7 +41,8 @@ router.put("/api/routines", async (req, res) => {
     await writeFile(ROUTINES_FILE, JSON.stringify(routines), "utf8");
     res.json({ ok: true });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("[routines] write failed:", error);
+    res.status(500).json({ error: "Could not save routines" });
   }
 });
 

@@ -8,6 +8,7 @@ import { clipPathFor, hasClip, hasSkip, warmClip } from "../services/liveMotion.
 import { hiddenIds, hide, undo } from "../services/photoVeto.js";
 import { labelPeople, warmRoster } from "../services/photoNames.js";
 import { labelTrips } from "../services/photoTrips.js";
+import { loopbackOnly } from "../middleware/security.js";
 
 // Dashboard-facing Immich proxy — Phase 9.5 (docs/vision/photo-source-immich.md).
 // The browser only ever talks to these three endpoints; the API key stays in the
@@ -183,7 +184,9 @@ router.get("/api/immich/hidden", (_req, res) => {
   res.json({ ids: hiddenIds() });
 });
 
-router.post("/api/immich/hidden", express.json(), (req, res) => {
+// Both veto writes come from the wall alone (src/v3/core/ground.js), which is
+// loopback. A LAN caller could otherwise hide the family's photographs.
+router.post("/api/immich/hidden", loopbackOnly("The photo veto"), express.json(), (req, res) => {
   const raw = req.body?.ids ?? req.body?.id;
   const ids = (Array.isArray(raw) ? raw : [raw]).filter((id) => UUID_RE.test(String(id ?? "")));
   // A veto with nothing to veto is the caller's mistake, not a server error —
@@ -198,7 +201,7 @@ router.post("/api/immich/hidden", express.json(), (req, res) => {
 /* The safety rail. A veto is SPOKEN, and speech misfires — the television, a
    guest, half a sentence. Without a way back one mishearing removes a
    photograph permanently and the room never learns which one it lost. */
-router.post("/api/immich/hidden/undo", express.json(), (_req, res) => {
+router.post("/api/immich/hidden/undo", loopbackOnly("The photo veto"), express.json(), (_req, res) => {
   const result = undo();
   forgetCachedSearches();
   res.json(result);

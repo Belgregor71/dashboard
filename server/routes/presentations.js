@@ -2,6 +2,7 @@ import express from "express";
 import { readFile, writeFile, appendFile, mkdir, rename } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { loopbackOnly } from "../middleware/security.js";
 
 /* ═══ THE WALL'S LOG — HOUSE-MIND S6a (docs/design/HOUSE-MIND.md §S6) ════════
    One row per presentation, appended by the page (src/v3/core/presentation-log.js).
@@ -131,7 +132,8 @@ async function pruneFile(now) {
 
 const router = express.Router();
 
-router.post("/api/presentations", async (req, res) => {
+// The wall is the only writer (src/v3/core/presentation-log.js), and it is loopback.
+router.post("/api/presentations", loopbackOnly("The wall's log"), async (req, res) => {
   const row = cleanRow(req.body?.row);
   if (typeof row === "string") return res.status(400).json({ error: row });
   try {
@@ -143,7 +145,8 @@ router.post("/api/presentations", async (req, res) => {
     });
     res.status(201).json({ ok: true });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("[presentations] append failed:", error);
+    res.status(500).json({ error: "Could not store the row" });
   }
 });
 
@@ -158,7 +161,8 @@ router.get("/api/presentations", async (req, res) => {
     const hits = Number.isFinite(since) ? rows.filter((r) => r.end >= since) : rows;
     res.json({ rows: hits.slice(Math.max(0, hits.length - limit)), retentionDays: RETENTION_MS / 86_400_000 });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("[presentations] read failed:", error);
+    res.status(500).json({ error: "Could not read the log" });
   }
 });
 

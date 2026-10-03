@@ -13,6 +13,10 @@ import { pickSensorPath } from "../server/routes/system.js";
 import { isScreenshot } from "../server/services/immichClient.js";
 import depthCensusRoutes from "../server/routes/census.js";
 import featureCensusRoutes from "../server/routes/censusFeatures.js";
+import routinesRoutes from "../server/routes/routines.js";
+import delightRoutes from "../server/routes/delight.js";
+import presentationsRoutes from "../server/routes/presentations.js";
+import immichRoutes from "../server/routes/immich.js";
 import { TEST_ORIGIN } from "../playwright.config.js";
 
 const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -65,7 +69,14 @@ test.describe("system", () => {
     const res = await request.get("/env.js");
     expect(res.status()).toBe(200);
     expect(res.headers()["content-type"]).toContain("javascript");
-    expect(await res.text()).toContain("window.__ENV__");
+    const text = await res.text();
+    expect(text).toContain("window.__ENV__");
+    // Audit S9: no upstream address and no home address. The suite pins HA_HOST
+    // (playwright.config.js), so a key coming back would also carry a value —
+    // but the KEY is what is asserted, because an unset one serialises as "".
+    for (const key of ["HA_HOST", "GO2RTC_HOST", "HOME_BASE"]) {
+      expect(text, `/env.js publishes ${key} again`).not.toContain(key);
+    }
   });
 
   test("GET /api/system/health", async ({ request }) => {
@@ -2217,4 +2228,89 @@ test.describe("the census routes take writes from the kiosk alone (audit S2)", (
       expect(body.error).toBe("expected { day: 'YYYY-MM-DD' }");
     });
   }
+});
+
+/* External audit 2026-10-03 — five writes whose only caller is the wall.
+
+   Same two-leg shape as the census block above, for the same reason. Each body
+   is one the handler refuses, so a deleted guard turns the LAN leg's 403 into
+   the handler's own 400 without writing data/ on the machine running it.
+
+   ⚠ /api/immich/hidden/undo has no body to refuse — with its guard gone a
+   request would really undo this machine's last veto. So it is not dialled:
+   the route's first handler is called with a LAN socket address and must
+   answer 403 without passing the request on. */
+test.describe("the wall's own writes are refused from the LAN (audit 2026-10-03)", () => {
+  const ROUTES = [
+    { method: "PUT", path: "/api/routines", label: "The routines write", refusal: "expected { routines: object }" },
+    { method: "PUT", path: "/api/delight", label: "The delight write", refusal: "expected { budgets: object }" },
+    { method: "POST", path: "/api/presentations", label: "The wall's log", refusal: "expected { row: object }" },
+    { method: "POST", path: "/api/immich/hidden", label: "The photo veto", refusal: "no valid asset id" }
+  ];
+  const lanAddress = () => Object.values(networkInterfaces()).flat()
+    .find((i) => i && i.family === "IPv4" && !i.internal)?.address;
+  const send = (host, port, { method, path: route }) => fetch(`http://${host}:${port}${route}`, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: "{}"
+  });
+
+  let server;
+  let port;
+  let savedAllow;
+  test.beforeAll(async () => {
+    // The worker may have inherited the override; it would open the gate.
+    savedAllow = process.env.ALLOW_LAN_COST_ROUTES;
+    delete process.env.ALLOW_LAN_COST_ROUTES;
+    const app = express();
+    app.use(express.json());
+    app.use(routinesRoutes);
+    app.use(delightRoutes);
+    app.use(presentationsRoutes);
+    app.use(immichRoutes);
+    server = await new Promise((resolve) => {
+      const s = app.listen(0, "0.0.0.0", () => resolve(s));
+    });
+    port = server.address().port;
+  });
+  test.afterAll(async () => {
+    if (savedAllow !== undefined) process.env.ALLOW_LAN_COST_ROUTES = savedAllow;
+    await new Promise((resolve) => server.close(resolve));
+  });
+
+  for (const route of ROUTES) {
+    test(`${route.method} ${route.path} from a LAN address is refused before the handler`, async () => {
+      const lan = lanAddress();
+      test.skip(!lan, "this machine has no non-loopback IPv4 to dial from");
+      const res = await send(lan, port, route);
+      const body = await res.json();
+      expect(res.status, `${route.path} from ${lan} said ${JSON.stringify(body)}`).toBe(403);
+      expect(body.error).toBe(`${route.label} is available to the kiosk only`);
+    });
+
+    test(`${route.method} ${route.path} from loopback reaches the handler`, async () => {
+      const res = await send("127.0.0.1", port, route);
+      const body = await res.json();
+      expect(res.status, `${route.path} from loopback said ${JSON.stringify(body)}`).toBe(400);
+      expect(body.error).toBe(route.refusal);
+    });
+  }
+
+  test("POST /api/immich/hidden/undo answers a LAN socket with 403 and goes no further", () => {
+    const layer = immichRoutes.stack.find((l) => l.route?.path === "/api/immich/hidden/undo" && l.route.methods.post);
+    expect(layer, "the undo route is not mounted").toBeTruthy();
+    const first = layer.route.stack[0].handle;
+
+    const answered = {};
+    let passedOn = false;
+    const res = {
+      status(code) { answered.status = code; return this; },
+      json(body) { answered.body = body; return this; }
+    };
+    first({ socket: { remoteAddress: "192.168.0.50" }, headers: {} }, res, () => { passedOn = true; });
+
+    expect(passedOn, "a LAN request reached the undo handler").toBe(false);
+    expect(answered.status).toBe(403);
+    expect(answered.body?.error).toBe("The photo veto is available to the kiosk only");
+  });
 });
