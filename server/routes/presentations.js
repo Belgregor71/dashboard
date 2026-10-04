@@ -3,6 +3,7 @@ import { readFile, writeFile, appendFile, mkdir, rename } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { loopbackOnly } from "../middleware/security.js";
+import { readFeatureCensus } from "./censusFeatures.js";
 
 /* ═══ THE WALL'S LOG — HOUSE-MIND S6a (docs/design/HOUSE-MIND.md §S6) ════════
    One row per presentation, appended by the page (src/v3/core/presentation-log.js).
@@ -163,6 +164,103 @@ router.get("/api/presentations", async (req, res) => {
   } catch (error) {
     console.error("[presentations] read failed:", error);
     res.status(500).json({ error: "Could not read the log" });
+  }
+});
+
+/* ═══ THE DIGEST — HOUSE-MIND S6c ═════════════════════════════════════════════
+   What the wall showed over the last N days, per source, for the OWNER to read.
+   Two inputs, never joined row to row:
+     · the rows above   → shown, seconds on the glass, spoken, not shown
+     · the census's ppl:* counters (S6b) → present, cut, followed
+   Read-only. Nothing here feeds ranking or wording (S6 points 3 and 5).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+export const DIGEST_DEFAULT_DAYS = 7;
+export const DIGEST_MAX_DAYS = 30; // the census keeps 30 days; a longer digest would be rows without counters
+
+function localDay(ms) {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function duration(seconds) {
+  const s = Math.round(seconds);
+  if (s < 60) return `${s}s`;
+  const m = Math.round(s / 60);
+  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
+const times = (n) => `${n}×`;
+
+/**
+ * Pure; exported for the spec. `today` is a local day string and the window is
+ * the `days` local days ending on it — the census's own day keys, so the rows
+ * and the counters are cut at the same midnight.
+ */
+export function buildDigest(rows, census, { today, days = DIGEST_DEFAULT_DAYS } = {}) {
+  const window = new Set();
+  const [y, m, d] = today.split("-").map(Number);
+  for (let i = 0; i < days; i++) window.add(localDay(new Date(y, m - 1, d - i).getTime()));
+
+  const bySource = new Map();
+  const at = (source) => {
+    const key = source || "(none)";
+    if (!bySource.has(key)) {
+      bySource.set(key, { source: key, shown: 0, seconds: 0, spoken: 0, spokenSeconds: 0, notShown: 0, present: 0, cut: 0, followed: 0 });
+    }
+    return bySource.get(key);
+  };
+
+  let counted = 0;
+  for (const r of rows ?? []) {
+    if (!Number.isFinite(r?.start) || !Number.isFinite(r?.end) || !window.has(localDay(r.start))) continue;
+    counted += 1;
+    const s = at(r.source);
+    const secs = Math.max(0, r.end - r.start) / 1000;
+    if (r.shown === false) s.notShown += 1;
+    else if (r.surface === "voice") { s.spoken += 1; s.spokenSeconds += secs; }
+    else { s.shown += 1; s.seconds += secs; }
+  }
+
+  for (const [day, counts] of Object.entries(census?.days ?? {})) {
+    if (!window.has(day)) continue;
+    for (const [key, n] of Object.entries(counts ?? {})) {
+      const [ns, source, outcome] = key.split(":");
+      if (ns !== "ppl" || !["present", "cut", "followed"].includes(outcome)) continue;
+      at(source)[outcome] += n;
+    }
+  }
+
+  const sources = [...bySource.values()]
+    .map((s) => ({ ...s, seconds: Math.round(s.seconds), spokenSeconds: Math.round(s.spokenSeconds) }))
+    .sort((a, b) => b.seconds - a.seconds || b.shown - a.shown || a.source.localeCompare(b.source));
+
+  const lines = sources.map((s) => {
+    const parts = [];
+    if (s.shown) parts.push(`shown ${times(s.shown)}, ${duration(s.seconds)} on the glass`);
+    if (s.spoken) parts.push(`spoken ${times(s.spoken)}`);
+    if (s.notShown) parts.push(`refused or dropped ${times(s.notShown)}`);
+    if (s.present) parts.push(`someone present ${times(s.present)}`);
+    if (s.followed) parts.push(`followed by a question ${times(s.followed)}`);
+    if (s.cut) parts.push(`cut off ${times(s.cut)}`);
+    return `${s.source}: ${parts.join("; ")}`;
+  });
+
+  const sorted = [...window].sort();
+  return { days, from: sorted[0], to: sorted[sorted.length - 1], rows: counted, sources, lines };
+}
+
+// ?days=<1..30>, default 7. Anyone on the LAN may read it; nothing writes.
+router.get("/api/presentations/digest", async (req, res) => {
+  const raw = Number(req.query.days);
+  const days = Number.isFinite(raw) && raw >= 1 ? Math.min(Math.floor(raw), DIGEST_MAX_DAYS) : DIGEST_DEFAULT_DAYS;
+  try {
+    const now = Date.now();
+    const [rows, census] = await Promise.all([serial(() => pruneFile(now)), readFeatureCensus()]);
+    res.json(buildDigest(rows, census, { today: localDay(now), days }));
+  } catch (error) {
+    console.error("[presentations] digest failed:", error);
+    res.status(500).json({ error: "Could not build the digest" });
   }
 });
 
