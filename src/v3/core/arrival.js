@@ -133,11 +133,10 @@ function onStateUpdated(entity) {
     emit("arrival:home", { name, awayMs: awayAt != null ? Date.now() - awayAt : 0 });
   }
 
-  const id = `arrival:${entityId}`;
   const selection = announce({
     // Keyed on the person, not the moment: a second arrival for the same person
     // replaces the first rather than queueing behind it.
-    id,
+    id: `arrival:${entityId}`,
     // HOUSE-MIND S5a: the person entity that changed, as an event (its life is
     // ARRIVAL_LIFE_MS below, not a poll age).
     evidence: { key: `ha:${entityId}`, at: Date.now(), event: true },
@@ -160,8 +159,10 @@ function onStateUpdated(entity) {
      was already talking, never whether this deserved to. The candidate is still
      announced either way: losing means it waits in the queue unspoken, not that
      it never happened. Read per arrival, so a flip needs no reload.
-     Off → spoken unconditionally, exactly as it shipped. */
-  const won = selection?.hero?.id === id;
+     Off → spoken unconditionally, exactly as it shipped.
+     (The id is compared by value, not hoisted into a const: the S5a inventory
+     reads the candidate literal WHOLE, id through score.) */
+  const won = selection?.hero?.id === `arrival:${entityId}`;
   const spoken = won || !globalThis.window?.CONFIG?.features?.v3ArrivalEarnsSpeech;
 
   if (spoken) {
