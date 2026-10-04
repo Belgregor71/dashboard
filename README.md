@@ -13,34 +13,35 @@ name and the package description still say "pi" for historical reasons.
 
 | Layer | Tech |
 |---|---|
-| Server | Node.js / Express (ES modules): `server.js` mounts 32 route modules from `server/routes/` under `/api` |
-| Frontend | Vanilla JS, no framework. Two surfaces (see below) |
+| Server | Node.js / Express (ES modules): `server.js` mounts 34 route modules from `server/routes/` under `/api` |
+| Frontend | Vanilla JS, no framework. One surface, `src/v3/` (see below) |
 | Rendering | DOM + CSS, with a WebGL/Canvas2D substrate (`src/v3/substrate/`) for the living weather field |
-| Build | Vite 6: `src/` → `dist/`, plus `static/js/config.js` copied on every build |
+| Build | Vite 6: one entry, `src/v3/index.html` → `dist/v3/index.html`, plus `static/js/config.js` copied on every build |
 | Display | Chromium in `--kiosk` mode under systemd, CDP on `127.0.0.1:9222` |
 | Voice | On-device wake word + faster-whisper STT + Kokoro TTS, all on the kiosk host |
-| Tests | Playwright: 136 spec files, API contracts through browser specs |
+| Tests | Playwright: 118 spec files in `tests/` (plus the contrast sweep in `tests/verify/`), API contracts through browser specs |
 
 The server listens on port **3000** and serves the built `dist/` folder. Every external
 call goes through the server, so the browser never talks to an outside service directly.
 
-## Two frontends
+## Frontend
 
-- **`src/v3/`** is the current surface and is what `/` serves
-  (`DEFAULT_ROOT_SURFACE` in `server/config.js`). It is a single composed wall rather
-  than a set of pages: `core/` (attention, composer, presence, archive, voice, timers…),
-  `subjects/` (what can be said: calendar, forecast, briefing, media, memories…),
-  `substrate/` (the GPU field) and `css/`.
-- **`src/js/`** is the incumbent dashboard. It is still reachable at `/index.html`, and it
-  is **not dead code**: V3 imports a closure of modules from it. The authoritative list is
-  the manifest in `tests/v3-closure.spec.js`.
+There is one frontend. The older page-based dashboard (`src/index.html`, `src/css/` and
+the modules only it used) was retired on 2026-10-03; the record is
+[`docs/audit/INCUMBENT-RETIREMENT-2026-10-03.md`](docs/audit/INCUMBENT-RETIREMENT-2026-10-03.md).
 
-The same feature often exists in both trees. Check which surface a change targets before
-editing it.
+- **`src/v3/`** is the surface. `/` serves it (`ROOT_ENTRY` in `server/config.js`), `/v3/`
+  is the same file, and `/index.html` redirects to `/`. It is a single composed wall
+  rather than a set of pages: `core/` (attention, composer, presence, archive, voice,
+  timers…), `subjects/` (what can be said: calendar, forecast, briefing, media,
+  memories…), `substrate/` (the GPU field), `atmo/` and `css/`.
+- **`src/js/`** is V3's runtime library, **not legacy code**. V3 imports a closure of
+  modules from it, and loads `js/config.js` by script tag. The authoritative list is the
+  manifest in `tests/v3-closure.spec.js`, and everything left in the directory is in use.
 
-**Surface rollback without a deploy:** set `V3_DEFAULT=0` in the host's `.env` and restart
-`dashboard.service` to put the incumbent back on `/`. `V3_DEFAULT=1` forces V3, and
-leaving it unset falls through to the committed default.
+**There is no surface rollback.** `V3_DEFAULT` used to switch `/` back to the old
+dashboard; it now does nothing, and the server logs a warning if it is still set in
+`.env`. A bad change is undone by a revert and a deploy, or by flipping its flag off.
 
 ## Presence and the House Mind
 
@@ -72,12 +73,13 @@ The broader direction is in [`docs/vision/`](docs/vision/) and the design track 
 
 - **Home Assistant**: WebSocket bridge for live state, camera/image proxy, calendars,
   bins, Sonos, the BOM weather fallback, and assist for voice
-- **Eufy cameras** via HA (HACS) + go2rtc RTSP, with doorbell/motion wake
+- **Eufy cameras** via HA (HACS) + go2rtc RTSP, with doorbell/motion wake; the doorbell
+  line names the person at the door when HA recognises the face
 - **Immich**: the ambient photo archive and memories
 - **Plex, Sonos**: now playing
 - **Sonarr / Radarr**: download progress + disk usage
 - **Weather**: Open-Meteo forecasts, with BOM via HA as an optional fallback; drives the GPU field (rain, gusts, haze, moon)
-- **Calendars**: iCal URLs (no Google API)
+- **Calendars**: iCal URLs (no Google API), with public holidays
 - **Commute, fuel prices, bins, NRL, ABC news**
 - **AI briefings**: morning and evening summaries plus an ambient one-line concierge,
   written by Claude Haiku, with local Ollama as the automatic fallback (`server/routes/ai.js`)
@@ -100,14 +102,15 @@ Units live in [`deploy/`](deploy/). Transcripts are logged in
 ## Feature flags
 
 New behaviour ships **flag-gated and default-off**. The flags live in `src/js/config.js`
-under `features:` (102 of them) and are copied to `static/js/config.js` on build. **That
+under `features:` (75 of them) and are copied to `static/js/config.js` on build. **That
 file is public and bundled, so never put a secret or an address in it.**
 
 - A flag is flipped on only after it has been verified on the live wall. Each flip is its
   own deploy, and the rollback (flipping it back) is proven straight away.
   `npm run verify:flags -- --flag <name>` runs the suite in both states.
-- A flag marked **`INERT-ON-V3`** is read only by the incumbent, so flipping it changes
-  nothing on `/`. `tests/flag-surface.spec.js` derives these marks and keeps them honest.
+- Every flag must change something on the wall. `tests/flag-surface.spec.js` derives V3's
+  import closure and fails on any flag that no loaded module reads. A dead flag is
+  deleted, not kept.
 - A flag change never changes a URL, so the kiosk needs a hard reload
   (`Page.reload({ignoreCache:true})`) before the change shows up.
 
@@ -176,6 +179,9 @@ sudo systemctl start dashboard-deploy.service   # oneshot; blocks until done
 ```
 
 After a deploy, the kiosk keeps running the old bundle until it reloads.
+
+There is no standby host. A bad deploy is undone by a revert and another deploy, or, for
+a flag-gated change, by flipping the flag off.
 
 The dashboard lives at `/home/dashboard/dashboard` and runs as the `dashboard` user under
 two systemd units. **Do not also run it under PM2.** A second process fighting over port
@@ -264,6 +270,9 @@ curl -s localhost:3000/api/system/metrics     # temps, load (no vcgencmd on the 
 The CSP can be enforced per host (`CSP_ENFORCE=1` in `.env`). If an asset, font or stream
 goes blank, check `curl -s localhost:3000/api/csp-report` first.
 
+The routes only the wall page writes to (routines, delight, presentations, Immich
+hide/undo) accept loopback callers only, and `/env.js` publishes no host addresses.
+
 ## Running 24/7
 
 The page runs for weeks without a reload, so slow leaks are the main way it fails. The
@@ -282,9 +291,10 @@ house rules:
 
 1. Add a route in `server/routes/`, mount it in `server.js`, and add its contract test in
    the same change.
-2. Build the V3 side in `src/v3/` (a subject or a core module). Only touch `src/js/` if the
-   incumbent needs it too, or if V3 already imports the module from there.
+2. Build the frontend side in `src/v3/` (a subject or a core module). Shared helpers
+   that V3 already imports live in `src/js/`; a new module there must be added to the
+   manifest in `tests/v3-closure.spec.js`.
 3. Put it behind a default-off flag in `src/js/config.js`.
-4. Style it with design tokens (`src/v3/css/tokens.css`, `src/css/base/variables.css`,
+4. Style it with design tokens (`src/v3/css/tokens.css`,
    [`docs/STYLE_GUIDE.md`](docs/STYLE_GUIDE.md)).
 5. `npm run build && npm test`, deploy, verify on the wall, then flip the flag.
