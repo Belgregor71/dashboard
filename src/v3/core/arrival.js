@@ -133,10 +133,11 @@ function onStateUpdated(entity) {
     emit("arrival:home", { name, awayMs: awayAt != null ? Date.now() - awayAt : 0 });
   }
 
-  announce({
+  const id = `arrival:${entityId}`;
+  const selection = announce({
     // Keyed on the person, not the moment: a second arrival for the same person
     // replaces the first rather than queueing behind it.
-    id: `arrival:${entityId}`,
+    id,
     // HOUSE-MIND S5a: the person entity that changed, as an event (its life is
     // ARRIVAL_LIFE_MS below, not a poll age).
     evidence: { key: `ha:${entityId}`, at: Date.now(), event: true },
@@ -152,12 +153,25 @@ function onStateUpdated(entity) {
     cooldownMs: 0
   });
 
-  setPhase("speaking");
-  record("spoke", "arrival", "said");
-  speak(text, { author: "arrival", onAudio: (audio) => trackSpeech(audio) })
-    .then(() => setPhase("idle"), () => setPhase("idle"));
+  /* HOUSE-MIND S5b (features.v3ArrivalEarnsSpeech): the greeting is spoken only
+     if it won the room. announce() hands back the selection it produced, and
+     this module used to ignore it — so the line was said aloud whether or not
+     something else was holding the glance, and the arbiter could only ask who
+     was already talking, never whether this deserved to. The candidate is still
+     announced either way: losing means it waits in the queue unspoken, not that
+     it never happened. Read per arrival, so a flip needs no reload.
+     Off → spoken unconditionally, exactly as it shipped. */
+  const won = selection?.hero?.id === id;
+  const spoken = won || !globalThis.window?.CONFIG?.features?.v3ArrivalEarnsSpeech;
 
-  last = { name, text, awayMs: awayAt ? Date.now() - awayAt : null, at: new Date().toISOString() };
+  if (spoken) {
+    setPhase("speaking");
+    record("spoke", "arrival", "said");
+    speak(text, { author: "arrival", onAudio: (audio) => trackSpeech(audio) })
+      .then(() => setPhase("idle"), () => setPhase("idle"));
+  }
+
+  last = { name, text, won, spoken, awayMs: awayAt ? Date.now() - awayAt : null, at: new Date().toISOString() };
 }
 
 /** The last arrival, or the last one suppressed and why. For __v3(). */

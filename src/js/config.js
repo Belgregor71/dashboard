@@ -1719,6 +1719,15 @@ window.CONFIG = {
     // 17:18): 2,878 ticks, gate on 99.7%, 0 drops, 0 errors, 11 lanes seen.
     v3EvidenceGate: true,
 
+    // ── HOUSE-MIND S5b (docs/design/HOUSE-MIND.md §S5): the arrival greeting
+    // is spoken only if it won the room. V3's arrival.js reads the selection
+    // announce() returns and calls speak() only when its own candidate is the
+    // hero; a greeting that lost stays in the queue, unspoken. Off: spoken
+    // unconditionally, as it shipped. `__v3().arrival` carries `won` and
+    // `spoken` either way.
+    // Rollback: v3ArrivalEarnsSpeech: false — read per arrival, no reload.
+    v3ArrivalEarnsSpeech: false,
+
     // ── HOUSE-MIND S6a (docs/design/HOUSE-MIND.md §S6): the wall's log. One
     // row per presentation (glance / spread / stage / voice): id, source,
     // evidence key, arbiter decision, start, end. NO presence, person or home
