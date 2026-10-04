@@ -854,6 +854,15 @@ test.describe("the calendar's day slot", () => {
       // ⚠ The bare question is NOT a week question and must not be stolen.
       expect(matchIntent("what's the weather")?.id).toBe("weather.now");
       expect(matchIntent("what's the weather tomorrow")?.id).toBe("weather.tomorrow");
+
+      /* The adjective form. The first is what the house heard, word for word,
+         on 2026-10-05, and answered with the current temperature. */
+      for (const t of ["Show me the seven-day weather forecast", "show me the 7 day forecast",
+        "7-day forecast", "seven day forecast", "what's the five day outlook"]) {
+        expect(matchIntent(t)?.id, `on: "${t}"`).toBe("show.forecast");
+      }
+      // A day count with no forecast after it is not a weather question.
+      expect(matchIntent("we're going on a seven day trip")?.id).not.toBe("show.forecast");
     } finally {
       if (prior === undefined) delete globalThis.window;
       else globalThis.window = prior;

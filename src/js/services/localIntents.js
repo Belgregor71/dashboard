@@ -77,8 +77,15 @@ const INTENTS = [
      "next week", so gateDay would resolve DAY_BEYOND and return null — the
      intent would match here and then be thrown away one function later. The
      day gate exists to stop a SINGLE-day answerer speaking about the wrong day;
-     this intent is about a span and has no day to be wrong about. */
-  { id: "show.forecast", flag: "v3ForecastWeek", re: /\b(next (7|seven|few) days|the (next|coming) week|rest of the week|week.?s (weather|forecast)|weekly forecast|forecast for the (week|next))\b/ },
+     this intent is about a span and has no day to be wrong about.
+
+     ⚠ "SEVEN-DAY" IS THE ADJECTIVE, AND IT WAS MISSING. Every phrase here was
+     the noun form ("next seven days"), so "show me the seven-day weather
+     forecast" — heard word for word on 2026-10-05 — fell to weather.now and was
+     answered with the current temperature, and "7 day forecast" matched nothing.
+     A day count needs "forecast" or "outlook" after it: "a five day trip" is
+     not a weather question. */
+  { id: "show.forecast", flag: "v3ForecastWeek", re: /\b(next (7|seven|few) days|the (next|coming) week|rest of the week|week.?s (weather|forecast)|weekly forecast|forecast for the (week|next)|(5|7|five|seven)[\s-]?day (weather )?(forecast|outlook))\b/ },
 
   { id: "weather.umbrella", re: /\b(umbrella|rain\s*coat|need.*(rain|wet)|is it.*(rain|wet)|going to rain|will it rain|chance of rain|rain.*(today|soon|later))\b/ },
   { id: "weather.jacket", re: /\b(jacket|jumper|coat|cold out|warm out|need.*(warm|layer))\b/ },
@@ -201,7 +208,7 @@ const SURFACES = [
      for next month" would be answered with TODAY if these sat below it. The
      week and the month are qualified readings of the same nouns and have to win
      the match before the unqualified one gets a look. */
-  { id: "show.forecast", flag: "v3ForecastWeek", re: /\b(the forecast|the (weather )?week|next (7|seven) days|rest of the week|weekly forecast)\b/ },
+  { id: "show.forecast", flag: "v3ForecastWeek", re: /\b(the forecast|the (weather )?week|next (7|seven) days|rest of the week|weekly forecast|(5|7|five|seven)[\s-]?day (weather )?(forecast|outlook))\b/ },
   { id: "show.ahead",    flag: "v3CalendarAhead", re: /\b(the month|next month|the month ahead|the weeks ahead|what.s coming up)\b/ },
   { id: "show.day",      re: /\b(the day|my day|the calendar|the diary|my schedule|the agenda)\b/ },
   /* Phase 6. ⚠ Last on purpose, and note that the noun here was ALREADY spoken
