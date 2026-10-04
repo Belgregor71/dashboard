@@ -55,6 +55,9 @@ const latest = new Map();
    for proving on the live box that each source is read once, not six times. */
 const stats = new Map(SOURCES.map((s) => [s.key, { reads: 0, failures: 0, lastError: null, lastTryAt: 0 }]));
 const subscribers = new Set();
+/* Passive listeners (HOUSE-MIND S7, services/houseToday.js). A tap hears every
+   good read but is NOT a subscriber: it never starts or keeps the polling. */
+const taps = new Set();
 const timers = new Map();
 const inFlight = new Map();
 
@@ -64,6 +67,13 @@ function baseUrl() {
 }
 
 function publish(key, entry) {
+  for (const fn of taps) {
+    try {
+      fn(key, entry);
+    } catch (err) {
+      console.warn(`[house-store] tap failed on ${key}: ${err?.message || err}`);
+    }
+  }
   for (const fn of subscribers) {
     try {
       fn(key, entry);
@@ -127,6 +137,16 @@ export function subscribe(fn) {
     if (!subscribers.delete(fn)) return;
     if (subscribers.size === 0) stop();
   };
+}
+
+/**
+ * Hear every good read WITHOUT counting as a subscriber. Init-once callers
+ * only: there is no untap, because a tap that came and went per event would be
+ * a subscription by another name.
+ * @param {(key: string, entry: {value: any, at: number}) => void} fn
+ */
+export function tap(fn) {
+  taps.add(fn);
 }
 
 /** Every held value, as { key: { value, at } }. */

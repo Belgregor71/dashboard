@@ -328,6 +328,46 @@ function namedDay(iso) {
   return `${at.toLocaleDateString("en-AU", { timeZone: "UTC", weekday: "long" })} ${iso}`;
 }
 
+/* ── What the house noticed about the sky TODAY ─────────────────────────────
+   HOUSE-MIND S7 (services/houseToday.js). The day's timed WORLD events, and the
+   only place the prompt holds a clock time for anything that happened.
+
+   ⚠ houseLatelyContext below tells the model it has NO clock time for any of
+   its events. Both are true, and this block says which times it does hold so
+   the two instructions cannot be read against each other.
+
+   An entry is phrased from two known kinds; anything else is not rendered. The
+   watching-since time is stated because the fold lives in memory: after a
+   restart the house saw only part of the day, and an absence the prompt does
+   not name is an absence the model fills.
+
+   Volatile: goes AFTER the cache breakpoint with the rest of the live state.
+─────────────────────────────────────────────────────────────────────────── */
+export function houseTodayContext(today) {
+  if (!today || !Number.isFinite(today.since)) return "";
+  const clock = (ms) => new Date(ms).toLocaleTimeString("en-AU", {
+    timeZone: HOUSE_TIME_ZONE, hour: "2-digit", minute: "2-digit", hour12: false
+  });
+  const lines = [];
+  for (const e of today.entries ?? []) {
+    if (!Number.isFinite(e?.at)) continue;
+    if (e.kind === "condition" && typeof e.from === "string" && typeof e.to === "string") {
+      lines.push(`- about ${clock(e.at)}: the sky changed from ${e.from} to ${e.to}`);
+    } else if (e.kind === "rain-chance" && Number.isFinite(e.pct) && (e.direction === "up" || e.direction === "down")) {
+      lines.push(`- about ${clock(e.at)}: today's rain chance went ${e.direction === "up" ? "above" : "back below"} 50% (${e.pct}%)`);
+    }
+  }
+  return [
+    `What the house has noticed about the weather today, watching since about ${clock(today.since)}:`,
+    ...(lines.length ? lines : ["- nothing has changed since then"]),
+    "Each time is when the house noticed, within about five minutes, so say \"about\". " +
+      "These are the ONLY clock times you hold for anything that happened today: never give a time " +
+      "that is not in this list, and say nothing about the weather before the house started watching. " +
+      "This is about the sky, not the people — nothing here says who was home or what anyone did. " +
+      "Mention it only if asked what the day has been like; never volunteer it."
+  ].join("\n");
+}
+
 export function houseLatelyContext(claims) {
   if (!claims?.ready) return "";
 

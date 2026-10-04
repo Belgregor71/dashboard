@@ -12,6 +12,7 @@ import {
   unresolvedContext,
   latelyContext,
   houseLatelyContext,
+  houseTodayContext,
   takeSentences,
   todayLine,
   GRIEF_LINE,
@@ -27,6 +28,7 @@ import { openItems, resolvedItems } from "../services/unresolved.js";
 import { history as weatherRecord, houseDay } from "../services/weatherHistory.js";
 import { buildClaims } from "../services/lately.js";
 import { buildHouseClaims } from "../services/houseLately.js";
+import { todayClaims } from "../services/houseToday.js";
 import { occupancyDays } from "../services/occupancyDays.js";
 import { readFeatureCensus } from "./censusFeatures.js";
 import { readDepthCensus } from "./census.js";
@@ -145,7 +147,7 @@ function armedTools() {
    is byte-identical to the pre-character prompt — is not observable from
    outside the route, and a rollback path nothing can assert is a rollback path
    nobody should trust. */
-export function converseSystem(text, tools, digest = null, claims = null, houseClaims = null) {
+export function converseSystem(text, tools, digest = null, claims = null, houseClaims = null, today = null) {
   const context =
     process.env.VAULT_ENABLED === "1" ? buildContext(searchVault(text)) : "";
   // todayLine() is appended per request, not baked into the base — the
@@ -192,6 +194,12 @@ export function converseSystem(text, tools, digest = null, claims = null, houseC
        caller and the byte-identical prompt test are untouched. */
     const houseLately = houseLatelyContext(houseClaims);
     if (houseLately) lines.push(houseLately);
+
+    /* Today's timed weather events (HOUSE-MIND S7). Passed in for the same
+       reason as the two above; null — the default, every existing caller, and
+       HOUSE_TODAY unset — contributes nothing. */
+    const todaySoFar = houseTodayContext(today);
+    if (todaySoFar) lines.push(todaySoFar);
   }
 
   return buildConverseSystem(lines, context);
@@ -408,7 +416,8 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
     houseClaims = buildHouseClaims({ features, depth, occupancy }, { today: houseDay() });
   } catch { /* nothing counted yet, or unreadable — the house simply has no past */ }
 
-  const system = converseSystem(text, tools, req.body?.house, claims, houseClaims);
+  // S7: null unless HOUSE_TODAY=1 and the house has watched some of today.
+  const system = converseSystem(text, tools, req.body?.house, claims, houseClaims, todayClaims());
 
   /* Episodic memory, recorded HERE rather than from the page.
      Only this lane is worth remembering: local and Assist turns are the
