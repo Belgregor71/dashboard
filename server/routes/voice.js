@@ -29,6 +29,7 @@ import { history as weatherRecord, houseDay } from "../services/weatherHistory.j
 import { buildClaims } from "../services/lately.js";
 import { buildHouseClaims } from "../services/houseLately.js";
 import { todayClaims } from "../services/houseToday.js";
+import { converseReads } from "../services/houseManifest.js";
 import { occupancyDays } from "../services/occupancyDays.js";
 import { readFeatureCensus } from "./censusFeatures.js";
 import { readDepthCensus } from "./census.js";
@@ -168,6 +169,17 @@ export function converseSystem(text, tools, digest = null, claims = null, houseC
      the family's calendar titles and shopping list upstream, which is a
      separate consent from giving the house a character. */
   if (process.env.VOICE_HOUSE_CONTEXT === "1") {
+    /* HOUSE-MIND S8b (CONVERSE_MANIFEST=1): the same block, built from the
+       manifest's read rows instead of the hand-wired calls below. Byte-identical
+       for the same inputs (tests/house-manifest.spec.js); unset is the rollback
+       and is the assembly exactly as it shipped. Read per call, like the rest. */
+    if (process.env.CONVERSE_MANIFEST === "1") {
+      lines.push(...converseReads({
+        digest, open: openItems(), resolved: resolvedItems(), claims, houseClaims, today
+      }));
+      return buildConverseSystem(lines, context);
+    }
+
     const house = houseContext(digest);
     if (house) lines.push(house);
 
