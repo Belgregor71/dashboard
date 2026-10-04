@@ -560,7 +560,11 @@ before making the arbiter the single authority.
   on for a day. Anything dropped that the room should have seen is a producer bug, not
   a reason to loosen the gate.
 
-### S5b as built (2026-10-04, `v3ArrivalEarnsSpeech` default OFF)
+### S5b as built (2026-10-04; `v3ArrivalEarnsSpeech` flipped ON 2026-10-05)
+
+- **The flip (2026-10-05).** Before it, with the flag forced on over CDP on the G11, an
+  arrival driven to lose the room to a forced rival read `won:false, spoken:false` and
+  made 0 `/api/tts/speak` requests. The winning arrival was not driven live.
 
 - **The precondition, read first.** S5 asked for a week of real arbiter decisions before
   going further. The wall's log (S6a) now holds one: **809 rows, 2026-09-27 → 10-04**,

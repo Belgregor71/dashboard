@@ -1726,7 +1726,12 @@ window.CONFIG = {
     // unconditionally, as it shipped. `__v3().arrival` carries `won` and
     // `spoken` either way.
     // Rollback: v3ArrivalEarnsSpeech: false — read per arrival, no reload.
-    v3ArrivalEarnsSpeech: false,
+    // FLIPPED ON 2026-10-05 by the owner (/flag-flip). Deployed off first
+    // (5892ec3). Seen on the wall with the flag forced on over CDP: an arrival
+    // that lost the room to a forced rival read won:false, spoken:false and made
+    // 0 /api/tts/speak requests. The winning arrival was not driven live (it
+    // speaks aloud); it is the same path in both states.
+    v3ArrivalEarnsSpeech: true,
 
     // ── HOUSE-MIND S6a (docs/design/HOUSE-MIND.md §S6): the wall's log. One
     // row per presentation (glance / spread / stage / voice): id, source,
