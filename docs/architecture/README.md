@@ -59,7 +59,7 @@ A non-zero exit is a failure even though the previous HTML survives it.
 
 ## Last verified
 
-Rendered against `19696cb` with archify `72c750b` — 9/9 checks, 0 errors,
+Rendered against `1c43b1c` with archify `72c750b` — 9/9 checks, 0 errors,
 0 warnings, evidence verified across 5 pinned references. `visual-check` clean:
 containment and readability at 1440×900, 1600×1000, 1920×1080 and 2048×1320
 (smallest node text 7.06px at 1440×900, floor 6px), screenshots in both themes

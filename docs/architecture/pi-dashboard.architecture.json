@@ -7,7 +7,7 @@
     "quality_profile": "showcase",
     "repository": {
       "url": "https://github.com/Belgregor71/dashboard",
-      "revision": "19696cb72d0d820ce03eb4e06f5a8d4968bae032"
+      "revision": "1c43b1c464cb831ab9e36c450e1d483ee7fefe57"
     },
     "views": [
       { "id": "deploy-chain", "label": "Pull-based deploy", "focus": ["github", "deploy", "vite", "server", "kiosk"], "note": "A push to main is the deploy. The G11 polls, pulls, builds and restarts itself — and there is no warm rollback host." },
