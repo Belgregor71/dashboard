@@ -19,7 +19,7 @@ name and the package description still say "pi" for historical reasons.
 | Build | Vite 6: one entry, `src/v3/index.html` → `dist/v3/index.html`, plus `static/js/config.js` copied on every build |
 | Display | Chromium in `--kiosk` mode under systemd, CDP on `127.0.0.1:9222` |
 | Voice | On-device wake word + faster-whisper STT + Kokoro TTS, all on the kiosk host |
-| Tests | Playwright: 118 spec files in `tests/` (plus the contrast sweep in `tests/verify/`), API contracts through browser specs |
+| Tests | Playwright: 123 spec files in `tests/` (plus the contrast sweep in `tests/verify/`), API contracts through browser specs |
 
 The server listens on port **3000** and serves the built `dist/` folder. Every external
 call goes through the server, so the browser never talks to an outside service directly.

@@ -204,10 +204,10 @@ Each slice ships on its own, default-off, with its own rollback.
 | **S2 — observation store** ✅ complete 2026-09-25, all six consumer flags ON | Server keeps a sticky last value per source (weather, calendar, commute, bins, media) and pushes it over one SSE, `/api/house/stream`. Consumers move over one at a time. | One flag per consumer. Off = its own fetch, as today. | Fetches of `/api/weather/now` and `/api/calendar/all` per 5 min drop, measured in the server log. Glance and field agree. `/kiosk-metrics` shows no heap growth. | About 6 duplicate fetchers per source |
 | **S3 — capability arbiter** ✅ built 2026-09-24, flag off | One owner of depth and speech. A declared **reflex lane** (doorbell, timers, commands, barge-in) goes straight through, then notifies. | Flag. Off = direct calls, as today. | Two simultaneous authors resolve by policy, not by call order. Doorbell latency is unchanged, measured. | The collision class in §4 pro 2 |
 | **S4 — prediction** ✅ first rule built 2026-09-24, flag off | Rules fed by routine distributions and the store, ranking through S0's weights. | Flag. | A predicted card earns the glance with a data line behind it. | Three hand rules as the whole of "prediction" |
-| **S5 — one decision for the room** ⏳ proposed 2026-09-25; **S5a built (gate OFF)** | A candidate must carry its evidence (a store key or entity, plus its age). A spoken author speaks only when its candidate won the ranking. The arbiter picks the surface, not the source. | S5a: test-only first, then a flag for the runtime gate. S5b: one flag per migrated author. | Every candidate names its evidence, and a spec goes red on one that does not. A lost arrival stays silent, and a won one speaks as it does today. | "A module decides to speak, and the arbiter can only veto it" |
-| **S6 — the presentation log** ⏳ proposed 2026-09-25 (amended the same day), nothing built | Rows about the WALL (what was shown, where, how long, on what evidence), and COUNTERS about the people (present, cut off, asked about it after), never joined. The owner reads a weekly digest. Nothing feeds back into ranking or wording. | A flag for the page's writes. Off = nothing written. | "Why was X on the wall at 07:12?" is answered from the log. No row carries a person. The digest's counts match what the wall did, spot-checked. | The wall having no history of itself |
-| **S7 — today, answered** ⏳ proposed 2026-09-25, nothing built | A server-side fold of today's timed WORLD events (weather changes, rain crossings), handed to `/converse` next to House Lately. Answered, never announced; never about people. | Its own flag. Off = nothing folded. | A forced day yields exactly its entries. A live `/converse` answer cites only times in the fold. | "What's the day been like?" having no times to answer with |
-| **S8 — the house's tool manifest** ⏳ proposed 2026-09-25, nothing built | A declared, server-side table of what an AI may read and do (name, read or act, route, safety gate, callers), checked by a spec in the style of S1. `/converse` reads its context from it. It is **not** a runtime facade over the page. | S8a is test-only. S8b gets a flag (off = today's hand assembly). S8c has its own flag, off. | The spec goes red on an undeclared AI input, an ungated act, and an unused capability. The converse prompt is byte-identical with the flag on and off. | "Teach the next AI the whole codebase" |
+| **S5 — one decision for the room** S5a ✅ ON 2026-09-27; **S5b built 2026-10-04, flag OFF**; S5c not built | A candidate must carry its evidence (a store key or entity, plus its age). A spoken author speaks only when its candidate won the ranking. The arbiter picks the surface, not the source. | S5a: test-only first, then a flag for the runtime gate. S5b: one flag per migrated author. | Every candidate names its evidence, and a spec goes red on one that does not. A lost arrival stays silent, and a won one speaks as it does today. | "A module decides to speak, and the arbiter can only veto it" |
+| **S6 — the presentation log** S6a ✅ ON 2026-09-27; **S6b + S6c built 2026-10-04** (ride S6a's flag) | Rows about the WALL (what was shown, where, how long, on what evidence), and COUNTERS about the people (present, cut off, asked about it after), never joined. The owner reads a weekly digest. Nothing feeds back into ranking or wording. | A flag for the page's writes. Off = nothing written. | "Why was X on the wall at 07:12?" is answered from the log. No row carries a person. The digest's counts match what the wall did, spot-checked. | The wall having no history of itself |
+| **S7 — today, answered** **built 2026-10-04**, `HOUSE_TODAY` unset | A server-side fold of today's timed WORLD events (weather changes, rain crossings), handed to `/converse` next to House Lately. Answered, never announced; never about people. | Its own flag. Off = nothing folded. | A forced day yields exactly its entries. A live `/converse` answer cites only times in the fold. | "What's the day been like?" having no times to answer with |
+| **S8 — the house's tool manifest** **S8a + S8b built 2026-10-04** (`CONVERSE_MANIFEST` unset); S8c not built | A declared, server-side table of what an AI may read and do (name, read or act, route, safety gate, callers), checked by a spec in the style of S1. `/converse` reads its context from it. It is **not** a runtime facade over the page. | S8a is test-only. S8b gets a flag (off = today's hand assembly). S8c has its own flag, off. | The spec goes red on an undeclared AI input, an ungated act, and an unused capability. The converse prompt is byte-identical with the flag on and off. | "Teach the next AI the whole codebase" |
 | *Deferred* | Merge the client and server minds. | — | Only if S2 and S3 show the split still hurts. | — |
 
 ### S1 as built (2026-09-23)
@@ -560,7 +560,32 @@ before making the arbiter the single authority.
   on for a day. Anything dropped that the room should have seen is a producer bug, not
   a reason to loosen the gate.
 
-### S6 — the presentation log (proposed 2026-09-25; S6-0 done, S6a built 2026-09-27)
+### S5b as built (2026-10-04, `v3ArrivalEarnsSpeech` default OFF)
+
+- **The precondition, read first.** S5 asked for a week of real arbiter decisions before
+  going further. The wall's log (S6a) now holds one: **809 rows, 2026-09-27 → 10-04**,
+  read off the G11 on 10-04.
+  - Every arbiter decision in it is `took`. There is **no** `dropped`, `refused` or
+    `superseded` row: in a week, no two authors collided.
+  - Arrival: 19 glance rows and 18 voice rows. It is an interrupt at score 92, so it won
+    the room essentially every time it fired.
+  - **So S5b would have changed nothing that week.** It is built because the rule is
+    right, not because a defect was observed. The case it covers is an arrival landing
+    while a higher interrupt holds the hero.
+- **What changed:** `src/v3/core/arrival.js` keeps the selection `announce()` returns.
+  With the flag on it calls `speak()` only when its own id is the hero. A greeting that
+  lost is still announced and stays in the queue, unspoken. `__v3().arrival` carries
+  `won` and `spoken` in both flag states. Read per arrival, so a flip needs no reload.
+- **"Won" means the ranker's hero**, as the slice table says. It does not ask whether
+  the glance is painted: an arrival while a subject holds the stage is still spoken.
+- **Spec:** `tests/v3-arrival-speech.spec.js`, 4 tests: won and lost, flag on and off,
+  asserted on the synthesis request. **Inject-defect 2/2 RED**: the gate ignored, and the
+  gate applied with the flag off.
+- **S5c (the briefing, then dinner) is NOT built.** Its condition is "if S5b's live
+  decisions hold up", and there are none yet: the flag is off and the week above has no
+  lost arrival in it.
+
+### S6 — the presentation log (proposed 2026-09-25; S6-0 done, S6a built 2026-09-27, S6b + S6c built 2026-10-04)
 
 **The proposal (owner, 2026-09-25):** build the missing loop, presentation → history →
 mind. The house should know what it showed, for how long, who was there, whether it was
@@ -735,6 +760,40 @@ forbids. The draft did not notice. The amended S6 splits the log in two:
     the game closed. Not the flag: nothing in those specs reaches the glass,
     so no row ever opens.
 
+**S6b as built (2026-10-04, rides `v3PresentationLog`):**
+- **The inventory S6b was waiting on:** a voice turn has a machine-readable topic **only
+  when the local matcher caught it** (`localIntents.js`, recorded as
+  `intent:<id>:matched`). A sentence that falls through to `/converse` carries no label
+  at all. So `followed` is a **floor, not a total**, and the digest says so by omission:
+  it can under-count, it cannot invent.
+- **Page:** `src/v3/core/people-counters.js`, counts in the feature census's own ledger:
+  - `ppl:<source>:present`: a glance, spread or stage row opened with someone in the room.
+  - `ppl:<source>:cut`: a barge-in landed while that author held the air (read from the
+    arbiter BEFORE `silence()` releases the claim).
+  - `ppl:<source>:followed`: a same-topic question while it was up, or within 10 minutes
+    of it leaving the glass. Counted once per showing.
+- **"Same topic" is a declared table** (`TOPIC_SOURCES`), intent id → sources. 24 intents
+  map; the rest follow nothing. The spec checks every key is an intent the matcher can
+  yield and every value a `source` or `author` literal in the code.
+- **No times, no row ids.** The only timestamps are an in-memory map, one number per
+  source, never sent. `__v3().people` exposes ages only. The census's `silent` report now
+  skips `ppl:*`: nobody barging in for a fortnight is a quiet house, not a regression.
+- **Cost:** no timer, listener or request of its own.
+- **Spec:** `tests/v3-people-counters.spec.js`, 11 tests. **Inject-defect 10/10 RED.**
+
+**S6c as built (2026-10-04):**
+- `GET /api/presentations/digest?days=<1..30>` (default 7), in
+  `server/routes/presentations.js`. Per source: shown, seconds on the glass, spoken,
+  refused or dropped (from the rows); present, cut, followed (from the S6b counters).
+  Rows and counters are cut at the same local midnight and are never joined row to row.
+- It returns the numbers and one readable line per source. Read-only: nothing writes, and
+  nothing reads it back into ranking or wording.
+- The window stops at 30 days because the census keeps 30; a longer digest would be rows
+  without counters.
+- **Spec:** `tests/presentation-digest.spec.js`, 6 tests including the route contract.
+  **Inject-defect 6/6 RED.**
+- ⏳ Not yet done: one day spot-checked against the wall, which the slice table asks for.
+
 **What would reopen automatic learning:** only a digest showing a stable pattern that
 points one way, over weeks. Even then it would feed ranking alone (the existing nudge
 path), never the words.
@@ -827,7 +886,39 @@ or "the storm arrived at 17:31".
 - How `/converse` currently phrases House Lately's claims. S7's entries would have to
   follow the same "answered" path, not a new one.
 
-### S8 — the house's tool manifest (proposed 2026-09-25, nothing built)
+### S7 as built (2026-10-04, `HOUSE_TODAY` unset)
+
+- **Server:** `server/services/houseToday.js`. Two entry kinds, both from the store's
+  `weather` read: the observed **condition changed** (from → to), and **today's rain
+  chance crossed 50%** (up or down). The first reading of a day is a baseline, not an
+  event.
+- **"First rain / last rain" is NOT in it, and the reason is a finding.** The nowcast
+  only ever describes rain in the future (`normalizeNowcast` skips the current block), so
+  "it started raining at 17:31" read off it would be a forecast reported as an event.
+  A condition change to a rain label is the honest version of the same fact.
+- **A tap, not a subscription.** `houseStore.tap()` hears reads that were happening
+  anyway and never starts or keeps the polling. So the fold is fed only while a page
+  holds the stream open, which on the wall is always.
+- **In memory, today only, at most 48 entries.** A restart (every deploy) starts the day
+  again. The prompt therefore states when the house started watching and tells the model
+  to say nothing about before it. That is the same lesson as House Lately's: an absence
+  the prompt does not name is an absence the model fills.
+- **Reach:** `/api/voice/converse` only, inside the house-state block, so it also needs
+  `VOICE_HOUSE_CONTEXT=1`. The block says these are the only clock times the model
+  holds, which keeps it consistent with House Lately's "you have no clock time" line.
+- **Never in it:** an entry is rebuilt from two whitelisted shapes, and the renderer
+  drops any other kind. A payload carrying person, presence or home fields leaves no
+  trace in the state (spec).
+- **Left out of the first cut:** door and gate entries (they need a new page → server
+  write, as the design noted).
+- **Flag:** `HOUSE_TODAY=1`, a server env var read per call. Unset: nothing is folded and
+  the prompt is byte-identical.
+- **Spec:** `tests/house-today.spec.js`, 14 tests. **Inject-defect 11/11 RED.**
+- ⏳ **Not done: the live `/converse` call.** The design's own bar is a real answer that
+  cites a time in the fold and none that is not, because only a live call finds invented
+  particulars. That needs the flag set in the G11's `.env`.
+
+### S8 — the house's tool manifest (proposed 2026-09-25; S8a + S8b built 2026-10-04)
 
 **The proposal (owner, 2026-09-25):** a House Capability API. It would have verbs
 (`observe`, `remember`, `attend`, `speak`, `display`, `act`, `explain`, `predict`) over
@@ -912,6 +1003,38 @@ more layers should wait for evidence from those.
   first run is what finds them.
 - Whether `houseDigest()` (the page's snapshot, sent in the request body) belongs in the
   manifest as a read row, or stays a separate, client-supplied input.
+
+### S8a + S8b as built (2026-10-04)
+
+- **The manifest:** `server/services/houseManifest.js`. 14 rows: 10 **read**, 4 **act**,
+  each with its backing function, its gate and its callers. It is a server module, not a
+  test fixture, because S8b reads it at run time. No row names an entity.
+- **The inventory S8a was to find.** Four server files talk to a model, not three:
+  `routes/voice.js` (converse), `routes/ai.js` (briefing), `routes/recipe.js` (recipe),
+  and **`services/conversationLog.js`** (the nightly memory consolidation), which the
+  proposal did not list. `houseDigest()` is declared as a read row (`house.now`), gated
+  by `VOICE_HOUSE_CONTEXT`.
+- **The spec derives, it does not trust** (`tests/house-manifest.spec.js`, 19 tests):
+  - every server file importing the model SDK is a declared caller, and no other;
+  - every renderer `converseSystem()` calls is a declared read;
+  - every tool handed to a model is a declared row, and the act rows equal the tools
+    `planCall()` can translate;
+  - **an act is behind `SAFE_SERVICES`, checked by doing it:** a valid call is allowed
+    with the allowlist intact and refused the moment its service is taken out;
+  - every declared row's backing is called in each of its callers.
+- 🔑 **Its first run found one.** `set_light` was declared, and `toolDefs()` never hands
+  it out: it offers only the tools the roster can use, and no light is rostered. The rule
+  is now "handed ⊆ declared = what `planCall` handles".
+- **S8b:** with `CONVERSE_MANIFEST=1`, `converseSystem()` builds its house-state block
+  from the manifest's read rows (`converseReads()`), in the manifest's order. The spec
+  compares the two assemblies byte for byte in five input shapes and with house context
+  off. S7's day is one more row.
+- **Inject-defect 9/10 RED.** The GREEN one is "the flag is ignored (always on)": the two
+  assemblies produce the same bytes by design, so which one ran cannot be seen from the
+  prompt. That is the property the slice asked for, and it means the flag's off state is
+  not independently observable by a test.
+- **S8c (an outside AI, read-only) is NOT built.** It is the owner's call, and acts stay
+  where they are until §6 item 4 is answered.
 
 ---
 

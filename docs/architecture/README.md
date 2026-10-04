@@ -65,6 +65,6 @@ containment and readability at 1440×900, 1600×1000, 1920×1080 and 2048×1320
 (smallest node text 7.06px at 1440×900, floor 6px), screenshots in both themes
 at 1440×900 and 2048×1320. Redrawn for the incumbent retirement (2026-10-03):
 one surface, `src/js/` as V3's runtime library, the Pi 4 rollback host removed.
-Counts recounted from source on 2026-10-03: 74 flags, 55 `src/js` modules
+Counts recounted from source on 2026-10-04: 76 flags, 55 `src/js` modules
 imported by V3 (+ `js/config.js` by script tag, per `tests/v3-closure.spec.js`),
-34 route modules, 117 specs in `tests/`.
+34 route modules, 123 specs in `tests/`.
