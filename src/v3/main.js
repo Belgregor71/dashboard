@@ -14,6 +14,7 @@ import { initDepth, setDepth, getDepth, onDepth, DEPTH } from "./core/depth.js";
 import { initCensus } from "./core/census.js";
 import { initFeatureCensus } from "./core/feature-census.js";
 import { initPresentationLog, presentationLogState } from "./core/presentation-log.js";
+import { peopleCountersState } from "./core/people-counters.js";
 import { SOURCE_NAMES } from "../js/services/candidateSources.js";
 import { INTENT_IDS, ACTING_INTENT_IDS } from "../js/services/localIntents.js";
 import { LOCATIONS } from "../js/services/alertRouter.js";
@@ -1036,6 +1037,8 @@ function registerHandles() {
     arbiter: arbiterState(),
     // HOUSE-MIND S6a: the wall's log. `armed: false` is the flag off.
     presentations: presentationLogState(),
+    // HOUSE-MIND S6b: the people's counters. Ages only, no times.
+    people: peopleCountersState(),
     // The shared store and the posture derived from it, in the same read as the
     // selection they shaped. Kept together on purpose: "why did the wall stay
     // quiet?" is a question about all three at one instant, and three separate

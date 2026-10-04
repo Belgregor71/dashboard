@@ -331,7 +331,10 @@ export function buildReport(
     totalByBase.set(base, (totalByBase.get(base) ?? 0) + entry.total);
   }
 
+  /* The people's counters (ppl:*, HOUSE-MIND S6b) are not features: nobody
+     barging in for a fortnight is a quiet house, not a regression. */
   const silent = [...lastByBase.entries()]
+    .filter(([key]) => !key.startsWith("ppl:"))
     .filter(([, last]) => last < cutoff)
     .map(([key, last]) => ({ key, last, total: totalByBase.get(key) ?? 0 }))
     .sort((a, b) => (a.last === b.last ? a.key.localeCompare(b.key) : a.last.localeCompare(b.last)));

@@ -20,6 +20,8 @@
 
 import { matchIntent } from "../../js/services/localIntents.js";
 import { record } from "./feature-census.js";
+import { noteQuestion, noteCutOff } from "./people-counters.js";
+import { arbiterState } from "../../js/core/arbiter.js";
 import { answer } from "../../js/services/localAnswers.js";
 import { prepareGoodnight } from "../../js/services/goodnight.js";
 import { voiceSnapshot, houseDigest, couldBeAssist, rememberReply } from "../../js/services/voiceSnapshot.js";
@@ -580,6 +582,8 @@ export async function submit(text, { source = "unknown" } = {}) {
          answers is a lane that goes quiet — and only the first one is invisible
          from every other instrument in the repo. */
       record("intent", intent.id, "matched");
+      // S6b: a question on the topic of something the wall just showed.
+      noteQuestion(intent.id);
       const snap = voiceSnapshot(coords);
 
       /* The photograph veto. Handled before the answerers because it ACTS: the
@@ -960,6 +964,8 @@ function reportSpeaking(on) {
 function initHalfDuplex() {
   setSpeakingObserver(reportSpeaking);
   stream.addEventListener("voice_barge_in", () => {
+    // S6b: who was cut off, read BEFORE silence() releases the claim.
+    noteCutOff(arbiterState().speech?.author ?? null);
     silence();
     // Someone took the floor mid-sentence. The turn is over, but they are
     // still here — hold the readout for the follow-up rather than snapping

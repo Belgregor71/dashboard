@@ -46,6 +46,7 @@
 import { DEPTH, getDepth, onDepth } from "./depth.js";
 import { isInjectedId } from "../../js/services/attentionEngine.js";
 import { setArbiterObserver } from "../../js/core/arbiter.js";
+import { initPeopleCounters, noteShown, noteClosed } from "./people-counters.js";
 
 const ENDPOINT = "/api/presentations";
 const ID_MAX = 160;
@@ -100,12 +101,15 @@ function openRow(key, fields) {
     shown: true,
     start: Date.now()
   });
+  // S6b: counts only, never on the row (people-counters.js).
+  noteShown(fields.surface, fields.source ?? null);
 }
 
 function closeRow(key) {
   const row = open.get(key);
   if (!row) return;
   open.delete(key);
+  noteClosed(row.source);
   post({ ...row, end: Math.max(row.start, Date.now()) });
 }
 
@@ -231,6 +235,7 @@ export function presentationLogState() {
 export function initPresentationLog() {
   if (armed) return;
   armed = true;
+  initPeopleCounters();
   onDepth(() => schedule());
   setArbiterObserver(onArbiter);
   // A reload (every deploy) closes what was up rather than losing it.
