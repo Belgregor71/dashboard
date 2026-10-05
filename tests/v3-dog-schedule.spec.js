@@ -69,7 +69,7 @@ const LOCAL_MIDDAY = new Date("2026-09-11T12:00:00");   // a generic day, awake 
 
 function withFlag(page, on) {
   return page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({ response: res, body: `${await res.text()}\nwindow.CONFIG.features.v3DogSchedule = ${on};\n` });
   });
 }

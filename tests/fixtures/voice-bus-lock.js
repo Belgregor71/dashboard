@@ -72,7 +72,13 @@ async function acquire() {
       writeFileSync(OWNER, String(process.pid));
       return;
     } catch (e) {
-      if (e.code !== "EEXIST") throw e;
+      /* ⚠ ON WINDOWS "SOMEONE ELSE HAS IT" IS NOT ALWAYS EEXIST. A directory
+         another worker is in the middle of removing is delete-pending, and both
+         mkdir on it and a write inside it answer EPERM (EBUSY on some volumes).
+         Seen 2026-10-05 under 10 workers, three times: `EPERM … mkdir …lock`
+         and `EPERM … open …lock\pid`. All of them mean "not yours yet" — look
+         again in 50 ms, still bounded by the deadline below. */
+      if (!["EEXIST", "EPERM", "EBUSY", "ENOENT"].includes(e.code)) throw e;
     }
     if (abandoned()) {
       rmSync(LOCK, { recursive: true, force: true });
@@ -85,19 +91,28 @@ async function acquire() {
   }
 }
 
-export function withVoiceBusLock(base) {
+/* `auto: true` gives the lock to EVERY test in the spec without naming it — for
+   a file where nearly every test waits on a reply playing (v3-voice.spec.js).
+   Naming them one at a time was tried first, 2026-10-05: six were added and the
+   next stress run found two more. */
+export function withVoiceBusLock(base, { auto = false } = {}) {
   return base.extend({
-    // eslint-disable-next-line no-empty-pattern
-    voiceBus: async ({}, use, testInfo) => {
-      const asked = Date.now();
-      await acquire();
-      // Time spent queueing is not the test's to pay for.
-      testInfo.setTimeout(testInfo.timeout + (Date.now() - asked));
-      try {
-        await use(true);
-      } finally {
-        rmSync(LOCK, { recursive: true, force: true });
-      }
-    }
+    voiceBus: [
+      // eslint-disable-next-line no-empty-pattern
+      async ({}, use) => {
+        await acquire();
+        try {
+          await use(true);
+        } finally {
+          rmSync(LOCK, { recursive: true, force: true });
+        }
+      },
+      /* Time spent queueing is not the test's to pay for. A fixture with its own
+         timeout is clocked apart from the test, INCLUDING while it waits — the
+         old `testInfo.setTimeout(+waited)` only credited the wait once it was
+         over, so a queue longer than 30 s died "while setting up voiceBus"
+         before the credit was ever applied (seen 2026-10-05). */
+      { auto, timeout: WAIT_MS + 10_000 }
+    ]
   });
 }

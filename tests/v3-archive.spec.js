@@ -508,7 +508,7 @@ async function bootArchive(
   await page.clock.setFixedTime(MIDDAY);
 
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body:
@@ -605,6 +605,58 @@ const WEATHER_UNKNOWN = {
 
 const groundShown = (page) =>
   expect.poll(() => page.evaluate(() => window.__ground().shown), { timeout: 10_000 }).toBe(true);
+
+/* ⚠⚠ HOISTED TO FILE SCOPE 2026-10-05, because three tests ABOVE the burst block had
+   the same defect and were failing for it: the CLAMP, the BLUR and the WORDS tests each
+   fired ONE `__groundDissolve(ms, 200)` and assumed an exchange followed. When none did
+   (stalled past 200 ms or refused in flight — see below, still not told apart), each
+   test timed out waiting for an exchange that was never going to happen:
+   `--arch-exchange` still at its 1200ms default, no blur, `__swaps` empty. Measured
+   2026-10-05, 10 workers: the WORDS test failed 2 of 3 on the single shot. */
+/* Drive the NEXT memory onto the card. The first photograph never bursts by
+   design, so every test that wants a burst goes through here at least once.
+
+   ⚠⚠ IT VERIFIES THE EXCHANGE RATHER THAN ASSUMING IT, and that is not
+   defensive padding — it is the bug this helper shipped with. `dissolve()`
+   returns TRUE as soon as it has picked an asset, but the frame only actually
+   changes inside its own `settle()`, which runs off the incoming image's load.
+   Called with `stallMs = 0` the load is treated as stalled immediately, so
+   settle never fires, the ground sits on the SAME photograph — and every
+   burst assertion below then failed as a timeout that read exactly like "the
+   burst is broken". It was not: nothing had arrived to burst for.
+   `60, 200` is the pairing every other spec in this file uses.
+
+   ⚠ BUT NOT HERE, since 2026-09-25: under full-suite load it failed twice in
+   four runs ("never changed photograph") and passed 108/108 alone. A 200 ms
+   stall budget sends any incoming photograph slower than that down `fail()`,
+   which keeps the old frame; and `dissolve()` returns false without trying
+   when the page's own rotation is already in flight. Neither is what these
+   tests are about — the burst is — so the stall gets 5 s and a refused
+   dissolve is retried. Which of the two it was is NOT established; the
+   return value is in the failure message so a recurrence names its own. */
+const nextMemory = async (page, settleMs = 60) => {
+  const before = await page.evaluate(() => window.__ground().assetId);
+  const tries = [];
+  try {
+    await expect
+      .poll(
+        async () => {
+          const now = await page.evaluate(() => window.__ground().assetId);
+          if (now !== before) return now;
+          tries.push(await page.evaluate((ms) => window.__groundDissolve(ms, 5_000), settleMs));
+          return now;
+        },
+        { timeout: 15_000, intervals: [0, 1_000] }
+      )
+      .not.toBe(before);
+  } catch (err) {
+    throw new Error(
+      `the ground never changed photograph — there was no exchange to observe ` +
+        `(dissolve returned ${JSON.stringify(tries)}; false = refused, in flight or no asset)\n${err.message}`
+    );
+  }
+};
+
 
 test("flag OFF is a genuine no-op — no nodes, no marker, no hook", async ({ page }) => {
   const pageErrors = await bootArchive(page, { v3Archive: false });
@@ -1068,7 +1120,7 @@ test("the card's exchange is CLAMPED — the wallpaper's minute is not the card'
     document.documentElement.style.getPropertyValue("--arch-exchange"));
 
   // The ambient rotation's own settle, at full length.
-  await page.evaluate(() => window.__groundDissolve(60_000, 200));
+  await nextMemory(page, 60_000);
   await expect.poll(exch, {
     message: "a 60s wallpaper settle must not become a 60s card crossfade"
   }).toBe("2600ms");
@@ -1081,7 +1133,7 @@ test("the card's exchange is CLAMPED — the wallpaper's minute is not the card'
      and the throwing-away would be invisible: the surface would still look
      fine, it would just stop distinguishing "you rejected this" from "ten
      minutes passed". */
-  await page.evaluate(() => window.__groundDissolve(900, 200));
+  await nextMemory(page, 900);
   await expect.poll(exch, {
     message: "a settle already under the ceiling must pass through untouched"
   }).toBe("900ms");
@@ -1113,7 +1165,7 @@ test("the exchange is MARKED by a blur, and the blur is an event with an end", a
     }).observe(card, { attributes: true, attributeFilter: ["class"] });
   });
 
-  await page.evaluate(() => window.__groundDissolve(900, 200));
+  await nextMemory(page, 900);
   await expect.poll(() => page.evaluate(() => window.__blurSeen), {
     message: "an exchange with nothing marking it is the smear this fixed"
   }).toBe(true);
@@ -1159,7 +1211,7 @@ test("the words NEVER change while they are readable", async ({ page }) => {
     }).observe(plate, { subtree: true, childList: true, characterData: true });
   });
 
-  await page.evaluate(() => window.__groundDissolve(900, 200));
+  await nextMemory(page, 900);
   await expect.poll(() => page.evaluate(() => window.__swaps.length)).toBeGreaterThan(0);
 
   const swaps = await page.evaluate(() => window.__swaps);
@@ -2725,50 +2777,6 @@ test.describe("the archive's Live Photo burst", () => {
   }
 
   const clip = (page) => page.evaluate(() => window.__archive().clip);
-
-  /* Drive the NEXT memory onto the card. The first photograph never bursts by
-     design, so every test that wants a burst goes through here at least once.
-
-     ⚠⚠ IT VERIFIES THE EXCHANGE RATHER THAN ASSUMING IT, and that is not
-     defensive padding — it is the bug this helper shipped with. `dissolve()`
-     returns TRUE as soon as it has picked an asset, but the frame only actually
-     changes inside its own `settle()`, which runs off the incoming image's load.
-     Called with `stallMs = 0` the load is treated as stalled immediately, so
-     settle never fires, the ground sits on the SAME photograph — and every
-     burst assertion below then failed as a timeout that read exactly like "the
-     burst is broken". It was not: nothing had arrived to burst for.
-     `60, 200` is the pairing every other spec in this file uses.
-
-     ⚠ BUT NOT HERE, since 2026-09-25: under full-suite load it failed twice in
-     four runs ("never changed photograph") and passed 108/108 alone. A 200 ms
-     stall budget sends any incoming photograph slower than that down `fail()`,
-     which keeps the old frame; and `dissolve()` returns false without trying
-     when the page's own rotation is already in flight. Neither is what these
-     tests are about — the burst is — so the stall gets 5 s and a refused
-     dissolve is retried. Which of the two it was is NOT established; the
-     return value is in the failure message so a recurrence names its own. */
-  const nextMemory = async (page, settleMs = 60) => {
-    const before = await page.evaluate(() => window.__ground().assetId);
-    const tries = [];
-    try {
-      await expect
-        .poll(
-          async () => {
-            const now = await page.evaluate(() => window.__ground().assetId);
-            if (now !== before) return now;
-            tries.push(await page.evaluate((ms) => window.__groundDissolve(ms, 5_000), settleMs));
-            return now;
-          },
-          { timeout: 15_000, intervals: [0, 1_000] }
-        )
-        .not.toBe(before);
-    } catch (err) {
-      throw new Error(
-        `the ground never changed photograph — there is nothing to burst for ` +
-          `(dissolve returned ${JSON.stringify(tries)}; false = refused, in flight or no asset)\n${err.message}`
-      );
-    }
-  };
 
   const burstShown = (page) =>
     expect

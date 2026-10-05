@@ -17,7 +17,7 @@ async function bootV3(page, { soundPresence }) {
   // feature is flipping the flag back, so both states must keep being tested
   // after the default moves.
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body:

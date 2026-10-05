@@ -100,7 +100,7 @@ async function bootV3(page, flags, { weather = reading(), at }) {
   await page.route("**/api/**", (r) => r.fulfill({ status: 503, contentType: "application/json", body: "{}" }));
   await page.route("**/api/weather/now", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(weather) }));
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     const body = (await res.text()) + Object.entries(flags).map(([k, v]) => `\nwindow.CONFIG.features.${k} = ${JSON.stringify(v)};`).join("");
     await route.fulfill({ response: res, body });
   });
@@ -218,6 +218,9 @@ const meanLum = async (page) => {
 };
 
 test("HUMIDITY hazes the low sky on a humid day — and not on a dry one, unknown, or flag off", async ({ browser }) => {
+  /* Four cold WebGL boots in SwiftShader, in sequence: 18.7 to 26.2 s under 10
+     workers (2026-10-05) against the default 30. */
+  test.setTimeout(60_000);
   const ctx = await browser.newContext();
   const read = async (flags, humidity) => {
     const p = await ctx.newPage();

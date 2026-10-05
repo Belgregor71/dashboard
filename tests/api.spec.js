@@ -2,6 +2,9 @@ import { test as base, expect } from "@playwright/test";
 import { withVoiceBusLock } from "./fixtures/voice-bus-lock.js";
 
 // `voiceBus` serialises the tests that post or suffer a barge-in — see the fixture.
+// Since 2026-10-05 the tests here that post a TRANSCRIPT or an UNHEARD report hold it
+// too: both reach every V3 page with a voice stream, and v3-voice.spec.js holds the
+// lock for every one of its tests.
 const test = withVoiceBusLock(base);
 import express from "express";
 import { networkInterfaces } from "os";
@@ -1852,7 +1855,7 @@ test.describe("ai + tts", () => {
     expect(body).toHaveProperty("error");
   });
 
-  test("POST /api/voice/transcript accepts a transcript from loopback", async ({ request }) => {
+  test("POST /api/voice/transcript accepts a transcript from loopback", async ({ request, voiceBus }) => {
     const { status, body } = await expectJson(request, "/api/voice/transcript", {
       method: "post",
       data: { text: "what time is it" },
@@ -2036,7 +2039,7 @@ test.describe("ai + tts", () => {
   // The agent is the only party that can report this, so the route is the whole
   // mechanism: without the fan-out the page's `unheard` cue has no raiser and
   // two of the three designed failures can never appear.
-  test("POST /api/voice/unheard accepts a report from loopback", async ({ request }) => {
+  test("POST /api/voice/unheard accepts a report from loopback", async ({ request, voiceBus }) => {
     const { status, body } = await expectJson(request, "/api/voice/unheard", {
       method: "post",
       data: { reason: "no-speech" },
@@ -2046,7 +2049,7 @@ test.describe("ai + tts", () => {
     expect(body).toHaveProperty("ok", true);
   });
 
-  test("POST /api/voice/unheard takes a bare body — the report is the point, not the reason", async ({ request }) => {
+  test("POST /api/voice/unheard takes a bare body — the report is the point, not the reason", async ({ request, voiceBus }) => {
     // The reason is diagnostic; the page shows one cue for all of them. An
     // agent that reports WITHOUT one must still reach the wall, or a future
     // caller that forgets the field silently loses the cue.
@@ -2055,7 +2058,7 @@ test.describe("ai + tts", () => {
     expect(await res.json()).toHaveProperty("ok", true);
   });
 
-  test("an unheard report reaches the KIOSK stream and NOT the agent's", async ({ request }) => {
+  test("an unheard report reaches the KIOSK stream and NOT the agent's", async ({ request, voiceBus }) => {
     // Both halves in one test on purpose: the agent generated this event, and
     // handing it back would have it re-report its own silence in a loop.
     const http = await import("node:http");

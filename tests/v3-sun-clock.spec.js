@@ -93,7 +93,7 @@ async function bootAt(page, { at, on }) {
   await page.clock.setFixedTime(at);
   await page.route("**/api/**", (route) => route.fulfill({ status: 503, contentType: "application/json", body: "{}" }));
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({ response: res, body: (await res.text()) + `\nwindow.CONFIG.features.v3SunClock = ${on};\n` });
   });
   await page.goto("/v3/");

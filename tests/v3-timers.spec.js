@@ -25,6 +25,21 @@ const MIDDAY = new Date("2026-07-06T02:00:00Z"); // 12:00 Mon 6 Jul, Brisbane
 
 async function boot(page, { on = true, chime = false } = {}) {
   await page.clock.install({ time: MIDDAY });
+  /* ⚠ THE FALLBACK VOICE FINISHES AT ONCE HERE. /api/tts/speak answers 503
+     below, so every line falls through to window.speechSynthesis — a real SAPI
+     voice (muted, not skipped) that takes ~3 s of REAL time per sentence, and
+     each transcript() waits for it. The sixth-timer test says six sentences:
+     17.8 s alone, and it timed out at 30 s under 10 workers (2026-10-05). The
+     fallback path still runs end to end; only the wait for a voice nobody can
+     hear is gone. What the house SAID is read off the request body, as before. */
+  await page.addInitScript(() => {
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    synth.speak = (utterance) => queueMicrotask(() => {
+      utterance.onstart?.(new Event("start"));
+      utterance.onend?.(new Event("end"));
+    });
+  });
   const { pageErrors } = await bootV3(page, {}, { features: { voiceTimers: on, voiceTimerChime: chime } });
   await page.waitForFunction(() => typeof window.__v3Transcript === "function" && !!window.__v3Timers);
   /* Registered AFTER bootV3's catch-all, so it wins (last-registered first).

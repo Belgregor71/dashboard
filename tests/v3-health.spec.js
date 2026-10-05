@@ -154,7 +154,7 @@ async function bootV3(page, { health = HEALTHY, metrics = METRICS } = {}) {
      clears the pill's furthest reach — is measured in tests/v3-archive.spec.js,
      against the real painted boxes. */
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body: `${await res.text()}\nwindow.CONFIG.features.v3ArchivePlane = false;\n`

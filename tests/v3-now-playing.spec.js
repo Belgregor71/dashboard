@@ -75,7 +75,7 @@ async function bootV3(page, { flags = {} } = {}) {
   flags = { v3MediaRooms: false, v3Archive: false, ...flags };
 
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     const body = (await res.text()) +
       Object.entries(flags).map(([k, v]) => `\nwindow.CONFIG.features.${k} = ${JSON.stringify(v)};`).join("");
     await route.fulfill({ response: res, body });

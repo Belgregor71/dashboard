@@ -221,7 +221,7 @@ async function bootV3(page, { groundFraming = true, pool = POOL, png = FOUR_THRE
   page.on("pageerror", (err) => pageErrors.push(err.message));
 
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body:

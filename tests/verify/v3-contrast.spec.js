@@ -420,7 +420,7 @@ async function bootV3(page, { ground, phase, variant = "off" }) {
   page.on("pageerror", (err) => pageErrors.push(err.message));
 
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     const body = Object.entries({ ...PINNED_FLAGS, ...VARIANTS[variant].flags })
       .map(([k, v]) => `window.CONFIG.features.${k} = ${v};`)
       .join("\n");

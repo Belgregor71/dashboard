@@ -195,7 +195,7 @@ async function bootV3(page, { diptych = false, photoVeto = true, pool } = {}) {
   page.on("pageerror", (e) => { throw e; });
 
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body:

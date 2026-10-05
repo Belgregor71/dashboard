@@ -194,9 +194,9 @@ const ROUTES = {
    briefing window; the briefing test passes its own explicit 05:35. */
 const MIDDAY = new Date("2026-07-06T12:00:00");
 
-async function boot(page, on, extra = {}) {
+async function boot(page, on, extra = {}, flags = {}) {
   await page.clock.install({ time: MIDDAY });
-  const { pageErrors } = await bootV3(page, { ...extra, ...ROUTES }, { features: { v3Arbiter: on } });
+  const { pageErrors } = await bootV3(page, { ...extra, ...ROUTES }, { features: { ...flags, v3Arbiter: on } });
   await page.waitForFunction(() => typeof window.__v3Alert === "function" && typeof window.__v3Dinner === "function");
   return pageErrors;
 }
@@ -238,12 +238,29 @@ test.describe("stage — the door outranks dinner and the briefing", () => {
          stage — which tests the refusal (above), not this race. With the flag
          on, wait for the proof the build is in flight; off, there is no log, so
          wait past the warm. */
+      /* ⚠⚠ AND THE DOOR IS RUNG FROM INSIDE THE PAGE, in the same task that sees
+         the proof. The build is in flight for 1200 ms after "took"; polling for
+         it from node (expect.poll backs off to 1 s between looks) and then
+         ringing in a second round-trip spent most of that window before the
+         door moved. Under 10 workers it spent all of it, 1 run in 3
+         (2026-10-05): dinner had mounted, the door simply replaced it, and the
+         log read took/took with no "superseded" — the refusal-free path, not
+         this race. */
       if (on) {
-        await expect.poll(() => stage(page).then((s) => s.decisions)).toContain("stage:dinner:took");
+        await page.evaluate(async () => {
+          const took = () => (window.__v3().arbiter?.decisions ?? [])
+            .some((d) => d.cap === "stage" && d.author === "dinner" && d.action === "took");
+          const t0 = performance.now();
+          while (!took()) {
+            if (performance.now() - t0 > 10_000) throw new Error("dinner never took the stage — nothing to race the door against");
+            await new Promise((r) => setTimeout(r, 10));
+          }
+          await window.__v3Alert();
+        });
       } else {
         await page.waitForTimeout(1400);
+        await page.evaluate(() => window.__v3Alert());
       }
-      await page.evaluate(() => window.__v3Alert());
       await page.evaluate(() => window.__slowDinner);   // let it resolve
       const s = await stage(page);
       if (on) {
@@ -304,42 +321,58 @@ test("the doorbell reaches the speaker as fast with the arbiter as without", asy
   /* ONE ring per fresh page: the alert router's per-location cooldown
      (alertRouter.js) rightly silences a second ring on the same page, which
      would read as a missing sample. */
-  async function measure(on) {
-    const times = [];
-    for (let i = 0; i < 3; i++) {
-      const ctx = await browser.newContext();
-      const p = await ctx.newPage();
-      await boot(p, on);
-      times.push(await p.evaluate(async () => {
-        let hit = null;
-        const real = window.fetch;
-        window.fetch = (url, opts) => {
-          if (String(url).includes("/api/tts/speak") && hit == null) hit = performance.now();
-          return real(url, opts);
-        };
-        const t0 = performance.now();
-        await window.__v3Alert();
-        await new Promise((r) => setTimeout(r, 50));
-        window.fetch = real;
-        return hit == null ? null : hit - t0;
-      }));
-      await ctx.close();
-    }
-    return times;
+  /* ⚠⚠ WHAT THIS USED TO MEASURE WAS THE MACHINE. Three rings OFF, then three
+     ON, medians compared at 50 ms — and ~1500 ms of every sample was
+     NAME_WAIT_MS, the doorbell's fixed wait for a recognised face, which the
+     arbiter is nowhere near. Measured 2026-10-05 under 10 workers, 3 runs:
+     "off 1514 · on 1620" (red), "off 1570 · on 1515" (the arbiter 55 ms FASTER
+     than no arbiter — noise, in both directions), and two timeouts at 30 s,
+     because six cold boots plus 9 s of name-wait IS the test budget.
+     So: the name wait is pinned off (it is not what is under test), the two
+     states are INTERLEAVED so drift in the machine's load lands on both, and
+     the BEST sample of each is compared — load only ever adds time, so the
+     fastest ring is the closest thing to the code's own cost. A real delay in
+     the arbiter's path is in every sample, the fastest included. */
+  async function ring(on) {
+    const ctx = await browser.newContext();
+    const p = await ctx.newPage();
+    await boot(p, on, {}, { v3DoorbellNameWait: false });
+    const t = (await p.evaluate(async () => {
+      let hit = null;
+      const real = window.fetch;
+      window.fetch = (url, opts) => {
+        if (String(url).includes("/api/tts/speak") && hit == null) hit = performance.now();
+        return real(url, opts);
+      };
+      const t0 = performance.now();
+      await window.__v3Alert();
+      /* Wait for the request itself, up to 2 s — a fixed 50 ms here made a ring
+         that was merely SLOW read as one that never happened (an injected 100 ms
+         delay came back "on: [null,null,null]", red for the wrong reason). */
+      while (hit == null && performance.now() - t0 < 2000) await new Promise((r) => setTimeout(r, 10));
+      window.fetch = real;
+      return hit == null ? null : hit - t0;
+    }));
+    await ctx.close();
+    return t;
   }
-  const off = await measure(false);
-  const on = await measure(true);
+  const off = [], on = [];
+  for (let i = 0; i < 3; i++) {
+    off.push(await ring(false));
+    on.push(await ring(true));
+  }
   // Every ring reached the speaker in both states — a dropped doorbell line
   // would read as a missing sample, not a fast one. Asserted BEFORE the
   // arithmetic, so a null is reported as what it is.
   expect(off.every((t) => typeof t === "number"), `off: ${JSON.stringify(off)}`).toBe(true);
   expect(on.every((t) => typeof t === "number"), `on: ${JSON.stringify(on)}`).toBe(true);
 
-  const median = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
-  test.info().annotations.push({ type: "doorbell-to-tts-ms", description: `off ${median(off).toFixed(1)} · on ${median(on).toFixed(1)}` });
-  console.log(`[arbiter] doorbell → TTS request, median ms: off ${median(off).toFixed(1)} · on ${median(on).toFixed(1)}`);
+  const best = (xs) => Math.min(...xs);
+  const all = `off ${off.map((t) => t.toFixed(0)).join("/")} · on ${on.map((t) => t.toFixed(0)).join("/")}`;
+  test.info().annotations.push({ type: "doorbell-to-tts-ms", description: all });
+  console.log(`[arbiter] doorbell → TTS request, ms per ring: ${all}`);
   // The arbiter adds synchronous checks only; 50 ms is far above that and far
   // below anything a person at the door could notice.
-  expect(median(on)).toBeLessThan(median(off) + 50);
+  expect(best(on), all).toBeLessThan(best(off) + 50);
   void page;
 });

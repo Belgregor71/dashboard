@@ -49,7 +49,7 @@ async function bootV3(page, flags, { weather = reading(), at = MIDDAY } = {}) {
   await page.route("**/api/weather/now", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(weather) }));
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     const body = (await res.text()) +
       Object.entries(flags).map(([k, v]) => `\nwindow.CONFIG.features.${k} = ${JSON.stringify(v)};`).join("");
     await route.fulfill({ response: res, body });
@@ -156,6 +156,11 @@ test("rain follows the READING and the FLAG — streaks with both, none without 
   await bootV3(page, ON, { weather: HEAVY });
   const wet = await streakiness(page);
   expect((await page.evaluate(stats)).capMs, "raining, weather on: the 30 fps cap").toBe(RAIN_FRAME_MS);
+  /* ⚠ STOP THE RAIN BEFORE BOOTING THE CONTROLS. The wet page has been read; left
+     open it keeps drawing 1920x1080 at 30 fps in SwiftShader underneath the two
+     boots below, and under 10 workers this test timed out 3 of 3 at 30 s
+     (2026-10-05). Same contention the lean test avoids with reduced motion. */
+  await page.goto("about:blank");
 
   const dry = await page.context().newPage();
   await bootV3(dry, ON, { weather: reading({ cloudPct: 3 }) });
@@ -268,6 +273,10 @@ async function starsIn(page) {
 }
 
 test("stars: on a clear night, behind overcast NOT, by day NOT, with the flag off NOT", async ({ browser }) => {
+  /* FOUR cold WebGL boots in SwiftShader, one after another. Measured under 10
+     workers 2026-10-05: 26.8 / 27.2 / 29.9 s against the default 30 — the budget
+     was the boots, not the stars. */
+  test.setTimeout(60_000);
   const ctx = await browser.newContext();
   const count = async (flags, weather, at) => {
     const p = await ctx.newPage();
@@ -350,6 +359,9 @@ const paneRain = () => {
 };
 
 test("ONE rain: the pane's stands down under the field's — and stays when the field cannot show it", async ({ browser }) => {
+  /* SIX cold WebGL boots in SwiftShader, every one raining. 10 to 23 s under 10
+     workers; timed out at 30 s once in 10 under 12 (2026-10-05). */
+  test.setTimeout(90_000);
   const ctx = await browser.newContext();
   const read = async (flags, depth = 0) => {
     const p = await ctx.newPage();

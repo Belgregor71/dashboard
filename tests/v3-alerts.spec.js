@@ -273,18 +273,30 @@ test("a subject that times out never lands on an empty depth", async ({ page }) 
   expect(empty.recedesTo).toBe(0);
 
   // Driven for real through the timer rather than only read off the probe.
-  const landed = await page.evaluate(async () => {
-    window.__setDepth(3, "spec", { holdMs: 120 });
-    await new Promise((r) => setTimeout(r, 400));
-    const depth = window.__depth().depth;
+  /* ⚠ WAITED FOR, NOT SLEPT FOR. This used to sleep 400 ms and read everything
+     at once, betting the 120 ms hold had long since fired. Under 10 workers it
+     fired late, 4 runs in 6 (2026-10-05): depth and reason were already right,
+     but the hour was read in the first frame of its own 350 ms fade-in, at
+     opacity exactly 0 — which checkVisibility calls hidden, and the test called
+     a blank field. A field that really is blank never becomes visible, so
+     polling for it loses nothing. */
+  await page.evaluate(() => window.__setDepth(3, "spec", { holdMs: 120 }));
+  await expect.poll(() => page.evaluate(() => window.__depth().depth), {
+    message: "the 120 ms hold never receded"
+  }).toBe(0);
+  const readLanding = () => page.evaluate(() => {
     const hour = document.getElementById("hour");
     return {
-      depth,
+      depth: window.__depth().depth,
       reason: window.__depth().reason,
       hour: hour.textContent.trim(),
       shown: hour.checkVisibility({ opacityProperty: true, visibilityProperty: true })
     };
   });
+  await expect.poll(async () => (await readLanding()).shown, {
+    message: "the wall receded onto a blank field"
+  }).toBe(true);
+  const landed = await readLanding();
 
   expect(landed.depth).toBe(0);
   expect(landed.reason).toBe("recede");

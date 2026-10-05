@@ -45,7 +45,7 @@ async function boot(page, on) {
     route.fulfill({ status: 503, contentType: "application/json", body: "{}" })
   );
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     /* ⚠ `v3FieldMat` is pinned OFF, not inherited. It went default-ON 2026-09-22
        and it legitimately restyles the two things the flag-off case below reads
        as proof that NOTHING was restyled — the archive's mat colour and the

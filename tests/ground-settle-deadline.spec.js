@@ -132,7 +132,7 @@ const PNG = Buffer.from(
    keeps that a single unambiguous number. Pinned, never inherited. */
 async function stubGround(page) {
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body:

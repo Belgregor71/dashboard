@@ -52,7 +52,7 @@ async function bootWithCaption(page) {
      is for. Whether the archive should be allowed to cover the caption is a
      different question, asked on the wall, not here. */
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body:

@@ -38,7 +38,7 @@ const PNG = Buffer.from(
 /* Diptych off: one image per frame, so "one per rotation" is one number. */
 async function stubGround(page) {
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body:

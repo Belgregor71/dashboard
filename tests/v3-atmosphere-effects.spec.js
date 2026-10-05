@@ -143,7 +143,7 @@ async function boot(page, on = []) {
   const lines = ["window.CONFIG.features.v3AtmoOverlay = true;", "window.CONFIG.features.v3FieldWeather = false;"];
   for (const [k, name] of Object.entries(FLAG_NAMES)) lines.push(`window.CONFIG.features.${name} = ${on.includes(k)};`);
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({ response: res, body: `${await res.text()}\n${lines.join("\n")}\n` });
   });
   await page.goto("/v3/");

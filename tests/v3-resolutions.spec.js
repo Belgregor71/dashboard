@@ -44,7 +44,7 @@ async function bootV3(page, { enabled = false, resolutions = [] } = {}) {
   page.on("pageerror", (err) => pageErrors.push(err.message));
 
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body: `${await res.text()}\nwindow.CONFIG.features.v3ResolutionVoice = ${enabled};\n`

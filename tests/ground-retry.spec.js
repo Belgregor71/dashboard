@@ -56,7 +56,7 @@ const PNG = Buffer.from(
    flipping either flag back is the rollback path. */
 async function stubGround(page) {
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body:

@@ -314,7 +314,7 @@ async function bootV3(page, { groundMemories = true, groundDiptych = true, pool 
   page.on("pageerror", (err) => pageErrors.push(err.message));
 
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body:
@@ -432,7 +432,7 @@ test("a half that never arrives takes the whole frame down and leaves the DOM as
   page.on("pageerror", (err) => pageErrors.push(err.message));
 
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body: (await res.text()) +

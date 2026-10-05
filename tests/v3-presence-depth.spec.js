@@ -33,7 +33,7 @@ async function bootV3(page) {
      with a real Plex session on the developer's NAS. This file is about
      presence and depth; the memory lane has its own spec. */
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body: (await res.text()) + "\nwindow.CONFIG.features.memoryEngine = false;\n"

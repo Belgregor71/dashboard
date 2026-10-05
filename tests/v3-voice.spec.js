@@ -2,7 +2,15 @@ import { test as coverageTest, expect } from "./fixtures/coverage.js";
 import { withVoiceBusLock } from "./fixtures/voice-bus-lock.js";
 
 // `voiceBus` serialises the tests that post or suffer a barge-in — see the fixture.
-const test = withVoiceBusLock(coverageTest);
+/* ⚠⚠ EVERY test in this file holds it (`auto`), since 2026-10-05. Nearly all of
+   them wait on a reply PLAYING, and a barge-in, an unheard report or a transcript
+   posted by another worker lands on this page too. Captured under 10 workers:
+   the cannot-cue test's own stream log showed a `voice_barge_in` 3.9 s into its
+   four-second reply, in a test that posts none — the reply was cut and
+   `data-fail` stayed null. Control: x8 with no barge-in poster anywhere, 0
+   failures in 494; x5 with them, 3 different tests. The posters outside this
+   file (api.spec.js, v3-people-counters.spec.js) all hold the lock too. */
+const test = withVoiceBusLock(coverageTest, { auto: true });
 
 /* V3's voice turn: which depth it lands on, which cells light, and — the one
    that actually matters for a surface that runs for weeks — whether a subject
@@ -235,7 +243,7 @@ async function bootHalfDuplex(page, { speaking, replySeconds = 30 }) {
   // The catch-all shape this repo insists on: config.js first, because
   // page.route matches LAST-registered first and a later stub must win.
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body: (await res.text()) + "\nwindow.CONFIG.features.voiceHalfDuplex = true;\n"
@@ -473,7 +481,7 @@ test("the thread ends when the room goes quiet", async ({ page }) => {
    off passes the "off" half and silences the house. */
 async function pinVoice(page, on) {
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body: (await res.text()) + `\nwindow.CONFIG.features.voiceSession = ${on};\n`
@@ -539,7 +547,7 @@ test("voiceSession off: the listening rim stays down — and lifts the moment it
 test("half duplex off: V3 reports nothing and installs no observer", async ({ page }) => {
   const speaking = [];
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body: (await res.text()) + "\nwindow.CONFIG.features.voiceHalfDuplex = false;\n"
@@ -607,7 +615,7 @@ const blobLedger = (page) => page.evaluate(() => {
 
 async function bootStreaming(page, { body, spoken }) {
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body: (await res.text()) + "\nwindow.CONFIG.features.voiceStreaming = true;\n"
@@ -799,7 +807,7 @@ test("a reply the room replaced is not blanked out from under it", async ({ page
 
 async function bootFailureCues(page) {
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body: (await res.text()) + "\nwindow.CONFIG.features.voiceFailureCues = true;\n"
@@ -885,7 +893,7 @@ test("the cue stays dark while a reply is still playing", async ({ page, request
 
 async function bootCannot(page, { toolFailed = false, streaming = true, replySeconds = 0.2 } = {}) {
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body: (await res.text())

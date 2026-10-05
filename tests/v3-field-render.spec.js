@@ -55,7 +55,7 @@ async function bootV3(page, flags, { weather = weatherWith(50), clock = "fixed" 
   await page.route("**/api/weather/now", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(weather) }));
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     const body = (await res.text()) +
       Object.entries(flags).map(([k, v]) => `\nwindow.CONFIG.features.${k} = ${JSON.stringify(v)};`).join("");
     await route.fulfill({ response: res, body });

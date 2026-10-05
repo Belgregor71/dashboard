@@ -101,7 +101,7 @@ async function boot(page, on) {
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   await page.route("**/js/config.js", async (route) => {
-    const res = await route.fetch();
+    const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({ response: res, body: `${await res.text()}\nwindow.CONFIG.features.cameraPresence = ${on};\nwindow.CONFIG.features.soundPresence = false;\n` });
   });
   await page.clock.setFixedTime(MIDDAY);
