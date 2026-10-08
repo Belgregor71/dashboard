@@ -61,9 +61,18 @@ async function open(page) {
   const sheetRequests = [];
   page.on("request", (r) => { if (SHEET_URL.test(r.url())) sheetRequests.push(r.url()); });
   page.on("response", (r) => { if (SHEET_URL.test(r.url()) && r.status() >= 400) errors.push(`sheet ${r.status()} ${r.url()}`); });
+  // This spec is the DRAWN sheets: twelve frames on a 4×3 grid, each on its
+  // hand-measured window. features.v3DogSmooth swaps in the interpolated
+  // sheets, which v3-dog-smooth.spec.js covers in both states — so it is
+  // pinned off here, and asserted, whatever the shipped default is.
+  await page.route("**/js/config.js", async (route) => {
+    const res = await route.fetch({ maxRetries: 3 });
+    await route.fulfill({ response: res, body: `${await res.text()}\nwindow.CONFIG.features.v3DogSmooth = false;\n` });
+  });
   await page.clock.setFixedTime(MIDDAY);
   await page.goto("/v3/");
   await page.waitForFunction(() => typeof window.__v3 === "function" && typeof window.dogOccasion?.show === "function");
+  expect(await page.evaluate(() => window.CONFIG.features.v3DogSmooth), "drawn sheets pinned").toBe(false);
   return { errors, sheetRequests };
 }
 

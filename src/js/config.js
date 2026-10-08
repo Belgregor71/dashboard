@@ -1873,7 +1873,14 @@ window.CONFIG = {
     // and play as drawn. Off: the drawn sheets, exactly as before — no smooth
     // sheet is ever requested. Rollback: -> false (read per show; a kiosk
     // cache-bypass reload for the built copy).
-    v3DogSmooth: false,
+    // FLIPPED ON 2026-10-08 at the owner's ask ("push"), after they approved
+    // every look in a side-by-side gallery. Deployed off first (821e007):
+    // live, the drawn peek played its 12 frames from the drawn sheet; then,
+    // with the flag set on the running page, a peek (32 frames), a Christmas
+    // peek (26) and a run (48 a cycle) each played every frame in order from
+    // its smooth sheet at the drawn size and place, 0 overlays/timers after,
+    // 0 exceptions, CSP 0.
+    v3DogSmooth: true,
 
     // ── Public holidays (L3 of the incumbent retirement) ───────────────────
     // QLD public holidays join the calendar every V3 reader sees (the day, the

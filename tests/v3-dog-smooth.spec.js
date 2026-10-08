@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { DOGS, OCCASIONS, artFor, smoothTiming } from "../src/v3/core/dog-occasion.js";
+import { DOGS, MOTION, OCCASIONS, artFor, smoothTiming } from "../src/v3/core/dog-occasion.js";
 import { SMOOTH } from "../src/v3/core/dog-sheets-smooth.js";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -265,6 +265,119 @@ test.describe("smooth dogs", () => {
     expect(sheetRequests, "the drawn sheet is not fetched as well").not.toContain(look.src);
     await page.evaluate(() => window.dogOccasion.hide());
     expect(await page.evaluate(() => window.__dogDone)).toEqual({ shown: false, reason: "hidden" });
+    expect(errors).toEqual([]);
+  });
+
+  /* The data against the PIXELS. Everything else here compares the runtime to
+     dog-sheets-smooth.js; this is the only check that the file describes the
+     sheets that actually shipped. A sheet regenerated without its data (or the
+     reverse) would otherwise pass every test and clip the dogs on the wall. */
+  test("data: every window is the bounding box of its own frame's pixels", async ({ page }) => {
+    test.setTimeout(240_000);
+    await page.goto("/v3/");
+    let frames = 0;
+    for (const [occ, mode, id, , look] of LOOKS) {
+      const at = `${occ}/${mode}/${id}/${look.name}`;
+      const s = SMOOTH[look.src];
+      const count = s.base.length;
+      const boxes = await page.evaluate(async ({ src, grid, cell, n }) => {
+        const img = new Image();
+        img.src = src;
+        await img.decode();
+        const c = new OffscreenCanvas(cell.w, cell.h);
+        const ctx = c.getContext("2d", { willReadFrequently: true });
+        const out = { size: [img.naturalWidth, img.naturalHeight], boxes: [] };
+        for (let i = 0; i < n; i++) {
+          ctx.clearRect(0, 0, cell.w, cell.h);
+          ctx.drawImage(img, (i % grid.columns) * cell.w, Math.floor(i / grid.columns) * cell.h, cell.w, cell.h, 0, 0, cell.w, cell.h);
+          const px = ctx.getImageData(0, 0, cell.w, cell.h).data;
+          let top = cell.h, base = 0, left = cell.w, right = 0, solid = 0;
+          for (let y = 0; y < cell.h; y++) {
+            for (let x = 0; x < cell.w; x++) {
+              if (px[(y * cell.w + x) * 4 + 3] > 24) {
+                solid += 1;
+                if (y < top) top = y;
+                if (y + 1 > base) base = y + 1;
+                if (x < left) left = x;
+                if (x + 1 > right) right = x + 1;
+              }
+            }
+          }
+          out.boxes.push({ top, base, left, right, solid });
+        }
+        return out;
+      }, { src: s.src, grid: s.grid, cell: s.cell, n: count });
+      expect(boxes.size, `${at} decoded size`).toEqual([s.grid.columns * s.cell.w, s.grid.rows * s.cell.h]);
+      expect(boxes.boxes, at).toHaveLength(count);
+      for (let i = 0; i < count; i++) {
+        const b = boxes.boxes[i];
+        // A dog is in the cell at all — an empty cell has no box to compare.
+        expect(b.solid, `${at} frame ${i} solid px`).toBeGreaterThan(s.cell.w * s.cell.h * 0.05);
+        expect([b.top, b.base, b.left, b.right], `${at} frame ${i} box`).toEqual([s.top[i], s.base[i], s.left[i], s.right[i]]);
+        frames += 1;
+      }
+    }
+    expect(frames).toBeGreaterThan(1200);
+  });
+
+  /* Every smooth sheet, in a real browser: each frame of each look is painted
+     from ITS OWN cell, through its own window. A window measured on the wrong
+     cell, or a sheet whose grid is not the one its data says, shows a
+     neighbour's half-face on the wall for one frame — which no count or
+     ordering check can see. The clock is the test's, so 48 looks take seconds. */
+  test("flag on: every frame of every look is painted from its own cell and window", async ({ page }) => {
+    test.setTimeout(240_000);
+    const { errors } = await open(page, true);
+    await page.clock.install({ time: MIDDAY });
+    await page.clock.pauseAt(new Date(MIDDAY.getTime() + 1000));
+    let painted = 0;
+    for (const [occ, mode, id, i, look] of LOOKS) {
+      const at = `${occ}/${mode}/${id}/${look.name}`;
+      const s = SMOOTH[look.src];
+      const timing = smoothTiming(look.timing ?? DOGS[id].timing[mode], s.between, mode);
+      await page.evaluate(([o, m, d, l]) => { window.__dogDone = window.dogOccasion.show(o, { mode: m, dogs: [d], looks: { [d]: l } }); }, [occ, mode, id, i]);
+      await expect.poll(() => page.evaluate(() => window.dogOccasion.state().dogs.length), { timeout: 15_000, message: `${at} mounted` }).toBe(1);
+      // The dog's own beat before its first frame.
+      await page.clock.runFor(MOTION[DOGS[id].motion][mode].delayMs + 1);
+      for (let f = 0; f < timing.length; f++) {
+        const got = await page.evaluate(() => {
+          const dog = document.querySelector(".dogs .dog");
+          const frameEl = dog.querySelector(".dog__frame");
+          const box = frameEl.getBoundingClientRect();
+          const sheet = dog.querySelector(".dog__sheet").getBoundingClientRect();
+          const inner = frameEl.style.clipPath.match(/^inset\((.*)\)$/)?.[1] ?? "";
+          const v = inner.trim().split(/\s+/).map((x) => (x === "0" || x === "0px" ? 0 : x.endsWith("%") ? Number(x.slice(0, -1)) : NaN));
+          const [T, R, B, L] = [v[0], v[1] ?? v[0], v[2] ?? v[0], v[3] ?? v[1] ?? v[0]];
+          const st = window.dogOccasion.state().dogs[0];
+          return {
+            smooth: st.smooth, frame: st.frame, parsed: [T, R, B, L].every(Number.isFinite),
+            sheet: { left: sheet.left, top: sheet.top, width: sheet.width, height: sheet.height },
+            cx: (box.left + (L / 100) * box.width + box.right - (R / 100) * box.width) / 2,
+            cy: (box.top + (T / 100) * box.height + box.bottom - (B / 100) * box.height) / 2,
+            w: box.width * (1 - (L + R) / 100), h: box.height * (1 - (T + B) / 100)
+          };
+        });
+        expect(got.smooth, `${at} smooth`).toBe(true);
+        expect(got.frame, `${at} frame`).toBe(f);
+        expect(got.parsed, `${at} frame ${f} clip read`).toBe(true);
+        const cellW = got.sheet.width / s.grid.columns;
+        const cellH = got.sheet.height / s.grid.rows;
+        // Something is visible, and it is this frame's size (2 px of air a side).
+        expect(Math.abs(got.w / cellW - (s.right[f] - s.left[f] + 4) / s.cell.w), `${at} frame ${f} window width`).toBeLessThan(0.02);
+        expect(got.h / cellH, `${at} frame ${f} window height`).toBeGreaterThan(0.15);
+        const x = (got.cx - (got.sheet.left + (f % s.grid.columns) * cellW)) / cellW;
+        const y = (got.cy - (got.sheet.top + Math.floor(f / s.grid.columns) * cellH)) / cellH;
+        expect(Math.abs(x - (s.left[f] + s.right[f]) / 2 / s.cell.w), `${at} frame ${f} x ${x.toFixed(3)}`).toBeLessThan(0.02);
+        expect(Math.abs(y - (s.top[f] + s.base[f]) / 2 / s.cell.h), `${at} frame ${f} y ${y.toFixed(3)}`).toBeLessThan(0.02);
+        painted += 1;
+        await page.clock.runFor(timing[f]);
+      }
+      await page.evaluate(() => window.dogOccasion.hide());
+      await expect(page.locator(".dogs")).toHaveCount(0);
+    }
+    // 48 looks, well over a thousand frames: the loop above ran.
+    expect(painted).toBe(sum(LOOKS.map(([, , , , l]) => SMOOTH[l.src].base.length)));
+    expect(painted).toBeGreaterThan(1200);
     expect(errors).toEqual([]);
   });
 
