@@ -32,6 +32,17 @@ set -e
 # On Windows a killed run cannot restore config.js (no real SIGINT delivery), so
 # the marker can survive in the tree. Pushing `clock: false` would disable the
 # clock on the kiosk — cheap check, catastrophic miss.
+#
+# The file must be READABLE first: grep exits 2 on a missing or unreadable file,
+# an `if` reads that as false, and `set -e` is suspended inside an `if` — so the
+# gate used to pass exactly when it could not look (found by /harden-tests,
+# 2026-09-19).
+if [ ! -r src/js/config.js ]; then
+  echo "[pre-push] ABORT: src/js/config.js is missing or unreadable, so the"
+  echo "           TEMPORARILY FLIPPED check cannot run. Run the push from the"
+  echo "           repo root, with the file in place."
+  exit 1
+fi
 if grep -q "TEMPORARILY FLIPPED" src/js/config.js; then
   echo "[pre-push] ABORT: src/js/config.js holds a TEMPORARILY FLIPPED flag from an"
   echo "           interrupted flag-reversibility run. Pushing this would deploy a"

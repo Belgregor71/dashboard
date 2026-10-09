@@ -36,7 +36,12 @@ t1=$(read_tot)
 sleep "$SECS"
 t2=$(read_tot)
 
-NCPU=$(nproc)
+# An empty NCPU makes awk's `dp * n * 100 / dt` a silent 0.0 — a dead-quiet
+# reading that looks like a healthy one. Refuse rather than report it.
+NCPU=$(nproc 2>/dev/null)
+case "$NCPU" in
+  ''|*[!0-9]*|0) echo "gpucpu.sh: nproc gave '${NCPU}' — cannot scale to a core" >&2; exit 1 ;;
+esac
 dt=$((t2 - t1))
 [ "$dt" -le 0 ] && { echo "gpucpu.sh: zero jiffies elapsed — window too short" >&2; exit 1; }
 
