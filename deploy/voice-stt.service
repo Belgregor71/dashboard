@@ -88,6 +88,23 @@ Environment=OMP_NUM_THREADS=4
 # ⚠ THE 2 GB CAP IS THE THING TO WATCH: base.en + moonshine small-streaming is
 # roughly 1 GB resident. medium-streaming (~980 MB on its own) is the one to
 # think twice about.
+#
+# ── Moonshine ANSWERS (2026-10-10, owner's call) ─────────────────────────────
+# The shadow's verdict over 49 real turns: 35 same / 14 DIFF against base.en,
+# median 602 ms against 1402 ms. The swap buys ~800 ms a turn; it was NOT shown
+# to be more accurate. STT_ENGINE=moonshine makes it the engine that answers.
+# Whisper (STT_MODEL) stays loaded as the fallback for a moonshine that cannot
+# load or raises on a turn, and naming it as the shadow reuses that same copy —
+# so the roles swap and the journal keeps counting.
+#
+# Environment=STT_ENGINE=moonshine
+# Environment=STT_MOONSHINE_MODEL=small-streaming
+# Environment=STT_SHADOW_ENGINE=whisper
+# Environment=STT_SHADOW_MODEL=base.en
+#
+# ⚠ Moonshine takes neither the decode knobs nor the hotwords, so the household
+# nouns are unbiased on the answering leg. Rollback: remove the four lines above
+# (put the moonshine shadow lines back), daemon-reload, restart.
 
 # Same bounding as voice-tts.service. Measured under a pathologically sustained
 # transcription loop: gpu-process 5.1, renderer 5.3, substrateFps 15, pressure

@@ -14,7 +14,8 @@ Config via env: STT_MODEL (base.en), STT_DEVICE (cpu), STT_COMPUTE (int8),
                 STT_HOST (0.0.0.0), STT_PORT (8123), STT_BEAM (5),
                 STT_CONDITION_PREV, STT_NO_SPEECH, STT_TEMPERATURE,
                 STT_HOTWORDS_FILE, STT_SHADOW_MODEL, STT_SHADOW_COMPUTE,
-                STT_SHADOW_THREADS, STT_SHADOW_ENGINE.
+                STT_SHADOW_THREADS, STT_SHADOW_ENGINE, STT_ENGINE,
+                STT_MOONSHINE_MODEL.
 
 ⚠ EVERY KNOB ADDED AFTER STT_BEAM IS UNSET BY DEFAULT AND ADDS NOTHING TO THE
 DECODE CALL WHEN UNSET. That is deliberate: `decode_kwargs()` starts empty and
@@ -137,6 +138,25 @@ SHADOW_THREADS = int(os.environ.get("STT_SHADOW_THREADS", "2"))
 # wall. STT_SHADOW_THREADS does not apply to this engine; it is always one core.
 SHADOW_ENGINE = os.environ.get("STT_SHADOW_ENGINE", "").strip().lower() or "whisper"
 
+# Which ENGINE answers /transcribe. Unset (or "whisper") = faster-whisper on the
+# byte-identical code path. "moonshine" = moonshine-voice answers, with
+# STT_MOONSHINE_MODEL naming its arch (same names as the shadow's).
+#
+# MEASURED 2026-09-16 → 2026-10-09 by the shadow, 49 real turns on the G11:
+# 35 same / 14 DIFF against base.en, median 602 ms against 1402 ms. The case for
+# the swap is the ~800 ms, NOT accuracy — nobody has ground truth for the 14.
+#
+# ⚠ WHISPER IS STILL LOADED, AND THAT IS THE POINT. STT_MODEL keeps its meaning
+# and stays warm as the fallback: a moonshine that cannot load, or that raises on
+# a turn, costs a log line and whisper answers. This file is still the only
+# thing standing between the room and a deaf house.
+#
+# ⚠ THE DECODE KNOBS AND THE HOTWORDS DO NOT REACH MOONSHINE — it takes neither.
+# They still shape the whisper leg (fallback and shadow), so /health keeps
+# reporting them; with moonshine answering, the household nouns are unbiased.
+ENGINE = os.environ.get("STT_ENGINE", "").strip().lower() or "whisper"
+MOONSHINE_MODEL = os.environ.get("STT_MOONSHINE_MODEL", "small-streaming")
+
 print(f"[stt] loading {MODEL_NAME} ({DEVICE}/{COMPUTE}) …", flush=True)
 _t0 = time.time()
 model = WhisperModel(MODEL_NAME, device=DEVICE, compute_type=COMPUTE)
@@ -214,8 +234,21 @@ def run_model(engine, wav_bytes: bytes) -> dict:
     }
 
 
-def transcribe(wav_bytes: bytes) -> dict:
-    return run_model(model, wav_bytes)
+# The moonshine engine when STT_ENGINE asked for it AND it loaded (main() below).
+live = None
+LIVE_LABEL = f"moonshine:{MOONSHINE_MODEL}"
+
+
+def transcribe(wav_bytes: bytes) -> tuple:
+    """(result, label of the engine that answered). The label never enters the
+    response — the shape the agent reads is the same whoever answered."""
+    if live is not None:
+        try:
+            return live.run(wav_bytes), LIVE_LABEL
+        except Exception as err:  # noqa: BLE001 — the fallback exists for exactly this
+            print(f"[stt] {LIVE_LABEL} failed, {MODEL_NAME} answered this turn: {err}",
+                  flush=True)
+    return run_model(model, wav_bytes), MODEL_NAME
 
 
 # ── The shadow leg ───────────────────────────────────────────────────────────
@@ -244,15 +277,19 @@ shadow = None
 SHADOW_LABEL = SHADOW_MODEL if SHADOW_ENGINE == "whisper" else f"{SHADOW_ENGINE}:{SHADOW_MODEL}"
 
 
-class MoonshineShadow:
-    """moonshine-voice behind the one method the shadow worker calls.
+class MoonshineEngine:
+    """moonshine-voice behind one `run(wav_bytes)` — the shadow worker calls it,
+    and so does the live path when STT_ENGINE=moonshine.
 
-    Imported lazily: the live venv does not carry the package unless the shadow
-    was switched to it, and a missing import must cost a log line (main() below
+    Imported lazily: the live venv does not carry the package unless an env
+    switched to it, and a missing import must cost a log line (main() below
     catches it), never the transcriber.
     """
 
     def __init__(self, arch_name: str):
+        # The handler is threaded and the shadow has its own thread; nothing
+        # says the native transcriber may be entered twice.
+        self._lock = threading.Lock()
         # Before the native library is loaded — it reads the env at session setup.
         os.environ["MOONSHINE_ORT_SINGLE_THREAD"] = "1"
         import moonshine_voice as mv  # noqa: PLC0415 — lazy on purpose, see docstring
@@ -277,7 +314,8 @@ class MoonshineShadow:
         audio = np.frombuffer(raw, dtype="<i2").astype(np.float32) / 32768.0
         if ch > 1:
             audio = audio.reshape(-1, ch).mean(axis=1)
-        out = self._tr.transcribe_without_streaming(audio.tolist(), sample_rate=sr)
+        with self._lock:
+            out = self._tr.transcribe_without_streaming(audio.tolist(), sample_rate=sr)
         text = " ".join(line.text.strip() for line in out.lines if line.text).strip()
         return {
             "text": text,
@@ -291,7 +329,7 @@ def run_shadow(wav_bytes: bytes) -> dict:
     """The shadow's transcription, same {text, audio_ms, took_ms} shape as the
     live leg. Whisper goes through run_model() so the two legs still share one
     decode configuration."""
-    if isinstance(shadow, MoonshineShadow):
+    if isinstance(shadow, MoonshineEngine):
         return shadow.run(wav_bytes)
     return run_model(shadow, wav_bytes)
 
@@ -305,28 +343,30 @@ def _norm(text: str) -> str:
 
 def _shadow_worker():
     while True:
-        wav, live = _shadow_q.get()
+        wav, answer, label = _shadow_q.get()
         try:
             alt = run_shadow(wav)
         except Exception as err:  # noqa: BLE001 — a shadow must never be fatal
             print(f"[stt] shadow failed: {err}", flush=True)
             continue
-        agree = _norm(alt["text"]) == _norm(live["text"])
+        agree = _norm(alt["text"]) == _norm(answer["text"])
         # One line either way, so the AGREEMENT RATE is countable from the
         # journal rather than inferred from the absence of disagreements.
         print(f"[stt] shadow {'same' if agree else 'DIFF'} "
-              f"{MODEL_NAME} {live['took_ms']}ms / "
+              f"{label} {answer['took_ms']}ms / "
               f"{SHADOW_LABEL} {alt['took_ms']}ms", flush=True)
         if not agree:
-            print(f"[stt]   live   {live['text']!r}", flush=True)
+            print(f"[stt]   live   {answer['text']!r}", flush=True)
             print(f"[stt]   shadow {alt['text']!r}", flush=True)
 
 
-def send_shadow(wav_bytes: bytes, live: dict) -> None:
-    if shadow is None:
+def send_shadow(wav_bytes: bytes, answer: dict, label: str) -> None:
+    # A turn the fallback answered, when the fallback IS the shadow, is one
+    # model against itself — it would count as agreement and mean nothing.
+    if shadow is None or (shadow is model and label == MODEL_NAME):
         return
     try:
-        _shadow_q.put_nowait((wav_bytes, live))
+        _shadow_q.put_nowait((wav_bytes, answer, label))
     except queue.Full:
         pass  # a comparison is already running; this turn is not worth queueing
 
@@ -350,7 +390,11 @@ class Handler(BaseHTTPRequestHandler):
             # port, and the contents are household nouns.
             self._send(200, {
                 "ok": True,
-                "model": MODEL_NAME,
+                # The engine that ANSWERS, not the one that was asked for: a
+                # moonshine that failed to load reports whisper here.
+                "engine": "moonshine" if live is not None else "whisper",
+                "model": MOONSHINE_MODEL if live is not None else MODEL_NAME,
+                "fallback": MODEL_NAME if live is not None else None,
                 "device": DEVICE,
                 "decode": sorted(DECODE),
                 "hotwords": len(HOTWORDS.split()) if HOTWORDS else 0,
@@ -375,7 +419,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         wav = self.rfile.read(length)
         try:
-            result = transcribe(wav)
+            result, label = transcribe(wav)
         except Exception as err:  # noqa: BLE001 — report, never crash the server
             self._send(500, {"error": str(err)})
             return
@@ -384,14 +428,27 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, result)
         # AFTER the response. The turn is over as far as the room is concerned;
         # everything the shadow costs is spent on a clock nobody is watching.
-        send_shadow(wav, result)
+        send_shadow(wav, result, label)
 
     def log_message(self, *_args):  # silence default per-request stderr noise
         pass
 
 
 def main():
-    global shadow
+    global shadow, live
+    if ENGINE == "moonshine":
+        # Loaded HERE for the same reason as the shadow: whisper is already
+        # warm above, so a moonshine that cannot load leaves a working house.
+        try:
+            print(f"[stt] loading live {LIVE_LABEL} (1 core) …", flush=True)
+            live = MoonshineEngine(MOONSHINE_MODEL)
+            print(f"[stt] {LIVE_LABEL} answers; {MODEL_NAME} is the fallback", flush=True)
+        except Exception as err:  # noqa: BLE001
+            live = None
+            print(f"[stt] live {LIVE_LABEL} unavailable, {MODEL_NAME} answers: {err}",
+                  flush=True)
+    elif ENGINE != "whisper":
+        print(f"[stt] unknown STT_ENGINE {ENGINE!r}, {MODEL_NAME} answers", flush=True)
     if DECODE:
         print(f"[stt] decode overrides: {sorted(DECODE)}", flush=True)
     if HOTWORDS:
@@ -403,8 +460,13 @@ def main():
         try:
             if SHADOW_ENGINE == "moonshine":
                 print(f"[stt] loading shadow {SHADOW_LABEL} (1 core) …", flush=True)
-                shadow = MoonshineShadow(SHADOW_MODEL)
+                shadow = MoonshineEngine(SHADOW_MODEL)
                 cores = "1 core"
+            elif SHADOW_ENGINE == "whisper" and live is not None and SHADOW_MODEL == MODEL_NAME:
+                # The roles swapped: the fallback is already this model and is
+                # idle while moonshine answers, so it shadows without a second copy.
+                shadow = model
+                cores = "the fallback's threads"
             elif SHADOW_ENGINE == "whisper":
                 print(f"[stt] loading shadow {SHADOW_MODEL} ({DEVICE}/{SHADOW_COMPUTE}) …",
                       flush=True)

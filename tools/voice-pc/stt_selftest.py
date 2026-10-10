@@ -69,7 +69,7 @@ hot = TMP / "hotwords.txt"
 hot.write_text("# comment ignored\n\nMycroft\nliving room\n", encoding="utf-8")
 
 
-def run(port, env_extra, label):
+def run(port, env_extra, label, audio=None):
     """Start a server, ask it one question, stop it. Returns (health, body, log)."""
     env = {**os.environ, "STT_HOST": "127.0.0.1", "STT_PORT": str(port), **env_extra}
     # ⚠ NO PYTHONIOENCODING HERE, DELIBERATELY. Setting it would paper over
@@ -77,7 +77,7 @@ def run(port, env_extra, label):
     # must survive its own banner on a pipe with no help from the parent.
     for stale in ("STT_CONDITION_PREV", "STT_NO_SPEECH", "STT_TEMPERATURE",
                   "STT_HOTWORDS_FILE", "STT_SHADOW_MODEL", "STT_SHADOW_COMPUTE",
-                  "STT_SHADOW_ENGINE"):
+                  "STT_SHADOW_ENGINE", "STT_ENGINE", "STT_MOONSHINE_MODEL"):
         if stale not in env_extra:
             env.pop(stale, None)   # a knob left in the ambient env would fake a pass
     proc = subprocess.Popen([sys.executable, str(SERVER)], env=env,
@@ -97,10 +97,17 @@ def run(port, env_extra, label):
             time.sleep(0.5)
     assert health, f"[{label}] /health never answered"
 
-    req = urllib.request.Request(base + "/transcribe", data=AUDIO,
-                                 headers={"Content-Type": "audio/wav"}, method="POST")
-    with urllib.request.urlopen(req, timeout=60) as r:
-        body = json.loads(r.read())
+    # ⚠ A failed POST must still stop the child. MEASURED 2026-10-10: a 500 here
+    # left the server holding its port, and the NEXT run's /health was answered
+    # by that orphan — a result about the wrong process.
+    try:
+        req = urllib.request.Request(base + "/transcribe", data=audio or AUDIO,
+                                     headers={"Content-Type": "audio/wav"}, method="POST")
+        with urllib.request.urlopen(req, timeout=60) as r:
+            body = json.loads(r.read())
+    except BaseException:
+        proc.kill()
+        raise
 
     time.sleep(6)          # the shadow runs AFTER the response; give it the floor
     proc.terminate()
@@ -116,9 +123,11 @@ print("CASE 1 — flag-off: every knob added after STT_BEAM left unset")
 h, b, log = run(8197, {}, "off")
 assert h["decode"] == [], f"flag-off inserted decode keys: {h['decode']}"
 assert h["hotwords"] == 0 and h["shadow"] is None, h
+assert h["engine"] == "whisper" and h["fallback"] is None, h
 assert sorted(b) == SHAPE, sorted(b)
 assert "shadow" not in log, "the shadow ran with STT_SHADOW_MODEL unset"
-print("  ✅ decode [], response shape unchanged, no shadow")
+assert "moonshine" not in log, "moonshine was touched with STT_ENGINE unset:\n" + log
+print("  ✅ decode [], response shape unchanged, no shadow, whisper answers")
 
 print("=" * 72)
 print("CASE 2 — hardening + shadow on")
@@ -179,6 +188,59 @@ else:
     assert "moonshine:tiny" in lines[0], lines[0]
     assert "1 core" in log, "moonshine was not reported single-threaded:\n" + log
     print(f"  ✅ {lines[0].strip()}")
+
+# The live-engine cases name the arch the box runs, so they use its cached model.
+ARCH = os.environ.get("STT_SELFTEST_MOONSHINE", "small-streaming")
+WHISPER = os.environ.get("STT_MODEL", "base.en")
+
+print("=" * 72)
+print("CASE 6 — STT_ENGINE=moonshine answers, whisper shadows it")
+if not have_moonshine:
+    print("  ⏭  moonshine-voice not installed in this venv")
+else:
+    h, b, log = run(8194, {"STT_ENGINE": "moonshine", "STT_MOONSHINE_MODEL": ARCH,
+                           "STT_SHADOW_MODEL": WHISPER}, "live-moonshine")
+    assert h["engine"] == "moonshine" and h["model"] == ARCH and h["fallback"] == WHISPER, h
+    assert sorted(b) == SHAPE, sorted(b)
+    # The comparison line names who ANSWERED first. /health only says moonshine
+    # loaded; this is what says it was the one asked.
+    lines = [ln for ln in log.splitlines() if ("shadow same" in ln or "shadow DIFF" in ln)]
+    assert lines, "no comparison logged — did moonshine answer at all?\n" + log
+    answered, _, shadowed = lines[0].partition(" / ")
+    assert f"moonshine:{ARCH}" in answered and WHISPER in shadowed, lines[0]
+    assert "answered this turn" not in log, "the fallback answered a healthy turn:\n" + log
+    print(f"  ✅ {lines[0].strip()}")
+
+print("=" * 72)
+print("CASE 7 — a moonshine that cannot LOAD leaves whisper answering")
+h, b, log = run(8193, {"STT_ENGINE": "moonshine", "STT_MOONSHINE_MODEL": "no-such-arch"}, "bad-live")
+assert h["ok"] is True and h["engine"] == "whisper" and h["model"] == WHISPER, h
+assert "unavailable" in log and WHISPER in log, log
+assert sorted(b) == SHAPE, sorted(b)
+print("  ✅ logged and carried on, whisper answers")
+
+print("=" * 72)
+print("CASE 8 — a moonshine that RAISES on a turn hands that turn to whisper")
+if not have_moonshine:
+    print("  ⏭  moonshine-voice not installed in this venv")
+else:
+    # 8-bit PCM: the moonshine leg refuses anything but 16-bit, whisper decodes it.
+    wav8 = TMP / "probe8.wav"
+    with wave.open(str(wav8), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(1)
+        w.setframerate(16000)
+        w.writeframes(bytes(
+            128 + (int(60 * math.sin(2 * math.pi * 440 * i / 16000)) if 4000 < i < 12000 else 0)
+            for i in range(int(16000 * 1.2))))
+    h, b, log = run(8192, {"STT_ENGINE": "moonshine", "STT_MOONSHINE_MODEL": ARCH,
+                           "STT_SHADOW_MODEL": WHISPER}, "live-raises", audio=wav8.read_bytes())
+    assert h["engine"] == "moonshine", h
+    assert sorted(b) == SHAPE, sorted(b)
+    assert "answered this turn" in log, "moonshine did not raise, or nobody said so:\n" + log
+    assert "shadow same" not in log and "shadow DIFF" not in log, \
+        "whisper was compared against itself:\n" + log
+    print("  ✅ 200 with the usual shape, logged, no self-comparison")
 
 print("=" * 72)
 print("ALL CASES PASSED")
