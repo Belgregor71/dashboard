@@ -140,21 +140,44 @@ const lum = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
    rain — faint on purpose — only doubled it (first run: wet 1.04, dry 0.55).
    With no wind the streaks are exactly vertical, so averaging 16 rows down each
    column cancels the dither (it is per-pixel noise) and keeps the streaks. */
-async function streakiness(page) {
-  const { w, h, lum: L } = await page.evaluate(() => window.__substrateSampleRect(0.60, 0.36, 0.125, 16 / 1080));
-  const profile = Array.from({ length: w }, (_, x) => {
-    let s = 0;
-    for (let y = 0; y < h; y++) s += L[y * w + x];
-    return s / h;
-  });
-  let s = 0;
-  for (let i = 1; i < w - 1; i++) s += Math.abs(profile[i - 1] - 2 * profile[i] + profile[i + 1]);
-  return s / (w - 2);
+/* ⚠⚠ AND NOT A SINGLE FRAME EITHER. Which cells hold a drop changes as the
+   sheets fall, so one frame's score is a draw from a wide spread: measured
+   2026-10-10 over 800 frames of heavy rain, median 1.02 but min 0.62, 12 under
+   0.70 — while 3x the dry floor reaches 0.63-0.68 (200 frames each: dry max
+   0.211, off max 0.225). The tails overlap, and the pre-push gate went red on
+   exactly that (wet 0.604 vs 0.616) with nothing wrong and no load needed.
+   So the WET side is the MEDIAN of 5 frames 120 ms apart — a streak takes
+   ~130 ms to cross the band, so they are separate draws. The controls stay
+   one frame: their spread is narrow (0.15-0.23), and every extra full-panel
+   draw in SwiftShader is paid for under 10 workers.
+   One evaluate, so the raining page pays one round trip, not five. */
+async function streakiness(page, frames = 1) {
+  const scores = await page.evaluate(async (frames) => {
+    const out = [];
+    for (let k = 0; k < frames; k++) {
+      const { w, h, lum: L } = window.__substrateSampleRect(0.60, 0.36, 0.125, 16 / 1080);
+      const profile = Array.from({ length: w }, (_, x) => {
+        let s = 0;
+        for (let y = 0; y < h; y++) s += L[y * w + x];
+        return s / h;
+      });
+      let s = 0;
+      for (let i = 1; i < w - 1; i++) s += Math.abs(profile[i - 1] - 2 * profile[i] + profile[i + 1]);
+      out.push(s / (w - 2));
+      if (k < frames - 1) await new Promise((r) => setTimeout(r, 120));
+    }
+    return out;
+  }, frames);
+  return scores.sort((a, b) => a - b)[Math.floor(frames / 2)];
 }
 
 test("rain follows the READING and the FLAG — streaks with both, none without either", async ({ page }) => {
   await bootV3(page, ON, { weather: HEAVY });
-  const wet = await streakiness(page);
+  /* ⚠ bootV3 returns on the FIRST frame, and that one is drawn at boot, before
+     /api/weather/now has answered: read then, the "wet" page scores 0.18 — dry.
+     The cap moving to the rain rate is the trace that the reading has landed. */
+  await page.waitForFunction((ms) => window.__substrate().capMs === ms, RAIN_FRAME_MS);
+  const wet = await streakiness(page, 5);
   expect((await page.evaluate(stats)).capMs, "raining, weather on: the 30 fps cap").toBe(RAIN_FRAME_MS);
   /* ⚠ STOP THE RAIN BEFORE BOOTING THE CONTROLS. The wet page has been read; left
      open it keeps drawing 1920x1080 at 30 fps in SwiftShader underneath the two
