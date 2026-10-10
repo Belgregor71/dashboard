@@ -10,9 +10,78 @@ splits the remaining hypotheses.
 > direct probe of eufy-ws falsified that** — see §3. If you read the earlier
 > version, discard the station/re-homing branch entirely.
 
+> ⚠⚠ **Revised 2026-10-10 — the §4 test was run, and it moved the fault.** Read
+> §0 first. Side Gate is **alive**; the dead set is **two** (Kitchen, Piano
+> Room); and for Kitchen the event is missing **at the camera**, before the
+> HomeBase, the cloud, eufy-ws or HA. §2's chain and §5's re-auth are superseded
+> for Kitchen by that result.
+
 ---
 
-## 1. Status, measured
+## 0. ▶▶ 2026-10-10 — the listen-below-HA walk, and what it found
+
+A listener sat on the eufy-ws socket while the owner walked the house
+(17:01–17:05 AEST). **The positive control passed:** Doorbell, Driveway, Patio
+and Backyard each emitted `motion detected` on the socket and HA recorded the
+on-edge inside the same second.
+
+| Camera | eufy-ws socket | HomeBase's own DB | Eufy app | Verdict |
+|---|---|---|---|---|
+| Doorbell / Driveway / Patio / Backyard | fired | count moved | — | ✅ whole chain works |
+| **Kitchen** (waved at, 17:02) | nothing | unchanged — count 849, last `20261001141315` | **no event** (owner checked) | ❌ **the camera did not detect** |
+| **Side Gate** (walked past, 17:03) | nothing | unchanged — count 13, last `20261003073854` | not checked | ⚠ missed this walk, but **not dead** |
+| **Piano Room** | `motionZone` chatter only | not queryable (own station, `-1100`) | not checked | ❌ no event reached eufy-ws |
+
+**Probed facts:**
+
+- **Side Gate works end to end.** HA holds 5 motion on-edges in 12 days, the last
+  at `2026-10-02T21:38:58Z`; the HomeBase's record of the same event is
+  `20261003073854` local, 4 s apart. It had aged out of the 7-day window that
+  §1's table uses. It is a low-traffic camera. Why it missed a walk-past on
+  10-10 is **not established**.
+- **Kitchen's wave reached nothing** — not the socket, not the HomeBase's
+  database, not the Eufy app. A re-auth (§5) cannot deliver an event that no
+  layer ever recorded. **Do not run §5 on this evidence.**
+- Settings read off eufy-ws the same afternoon: Kitchen
+  `motionDetectionSensitivity` = **1** (the lowest), human-only. Piano Room has
+  **every notification type off** (person, other motion, pet, sound, crying).
+  Guard mode `Home` on all three stations, flat for 12 days.
+
+**HYPOTHESES — not probed, do not act on them as fact:**
+
+- Kitchen under-detects at sensitivity 1 (or its detection has stalled and wants
+  a power-cycle).
+- Piano Room is silent because a standalone camera's events reach eufy-ws only
+  as push notifications, and its notifications are off.
+
+**The next test** is one setting change at a time, in the Eufy app, with the
+listener up and Driveway as control. Before the wave, note Kitchen's
+`detectionStatisticsDetectedEvents` (21129 on 10-10) and
+`detectionStatisticsRecordedEvents` (3274): *detected* moving while *recorded*
+does not would mean the camera sees the motion and a mode rule drops it.
+
+⚠ One loose end: the HomeBase's 10-01 14:13 Kitchen record never reached HA (0
+on-edges in 12 days). One data point, event type unknown.
+
+### The probe that splits camera from pipeline
+
+Ask the HomeBase what **it** recorded, independent of any push:
+
+```js
+// after set_api_schema + start_listening, as in §3
+send("station.database_query_latest_info", { serialNumber: "T8030T1324340CE2" });
+// reply arrives as an EVENT: source "station", event "database query latest",
+// data: [{ device_sn, event_count, crop_local_path }]   // timestamp is in the path, local time
+```
+
+`event_count` moving means the HomeBase recorded it. ⚠
+`station.database_count_by_date` returned a flat 1 per day and is useless here.
+⚠ `device.get_properties` output contains RTSP credentials — do not paste it
+into a doc, a commit or a chat.
+
+---
+
+## 1. Status, measured (2026-09-04 — superseded for Side Gate by §0)
 
 ### On-edge counts — 7 days of HA history, 2026-09-04
 
