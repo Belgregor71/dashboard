@@ -24,6 +24,18 @@ down is the owner's call, not the session's.
 Deployment". 1,937 green tests did not notice the briefing inventing an "8:41" that never
 happened; a glance at the wall did.
 
+### Push & pre-push gate
+
+- Before any `git push`, check that no other Claude session or test run is using the test
+  port (3210), and that the machine is not under heavy load (e.g. a game running). If it
+  is, say so and wait rather than pushing into a likely gate failure.
+- Run the full suite locally and confirm it is green BEFORE pushing; do not use the
+  pre-push gate as the first full run.
+- If a push fails, immediately report the exit code and the failing test/reason. Never
+  stop silently or wait for the owner to say "try again".
+- Check for unpushed commits from other sessions beneath yours before pushing
+  (`git log origin/main..main`).
+
 ### Architecture
 
 - **One frontend: `src/v3/`.** The incumbent surface (`src/index.html`, `src/css/`, 62
@@ -121,6 +133,16 @@ happened; a glance at the wall did.
   hid a dead legibility veil for a month. **If a result names text your fixture did
   not write, the fixture is not what is being measured.** Assert the text, not just
   the count.
+
+### Long runs and background jobs
+
+- Do not stop with a status report while a test suite or background job is still running;
+  wait for it to finish and report the result.
+- Full suite runs take ~12 minutes: run them with a long enough timeout rather than
+  background watchers that hit time limits.
+- After any session (including subagent work), kill stray processes you started (test
+  servers, wrangler, preview servers) and confirm the test port is free.
+- Verify subagent run reports yourself before relying on them.
 
 ### Model Routing — which brain does which job
 
