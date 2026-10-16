@@ -251,6 +251,22 @@ router.get("/api/calendar/holidays", async (req, res) => {
   }
 });
 
+/* Whose feed is whose, for "am I free" once the voice knows who asked
+   (docs/design/HANDOVER-SPEAKER-ID.md). CALENDAR_OWNERS="google:Greg" tags
+   every event from that feed with `owner: "Greg"`; a feed not listed is
+   shared and carries no owner. Unset = no event has the key, which is the
+   payload exactly as it was. Read per request: server.js's static imports
+   evaluate before dotenv.config(). Lives in .env, never in config.js, which
+   ships in the public bundle. */
+export function calendarOwners(raw = process.env.CALENDAR_OWNERS) {
+  const owners = {};
+  for (const pair of String(raw ?? "").split(",")) {
+    const [src, name] = pair.split(":").map((s) => s?.trim());
+    if (src && name) owners[src] = name;
+  }
+  return owners;
+}
+
 router.get("/api/calendar/all", async (_req, res) => {
   const calendarUrls = {
     google: process.env.CALENDAR_GOOGLE_URL,
@@ -266,7 +282,9 @@ router.get("/api/calendar/all", async (_req, res) => {
     const results = await Promise.all(
       urls.map(([sourceName, url]) => fetchCalendar(url, sourceName))
     );
-    const merged = results.flat().filter((ev) => ev.start);
+    const owners = calendarOwners();
+    const merged = results.flat().filter((ev) => ev.start)
+      .map((ev) => (owners[ev.source] ? { ...ev, owner: owners[ev.source] } : ev));
     merged.sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
     reportSuccess("calendar");
     res.json(merged);

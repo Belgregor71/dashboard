@@ -711,6 +711,15 @@ window.CONFIG = {
     // REVERT: voiceTimerChime: false  (the line is spoken immediately, as before)
     voiceTimerChime: true,
 
+    // Speaker ID (docs/design/HANDOVER-SPEAKER-ID.md). When the box's STT names
+    // the voice, the turn carries it: "am I free" counts only the speaker's own
+    // feed plus the shared ones (CALENDAR_OWNERS in .env), and /converse swaps
+    // "you cannot tell who is speaking" for a NEUTRAL speaker-known line — no
+    // tease licence (owner, 2026-10-16). Off, or no speaker on the turn, is
+    // today's behaviour exactly: the speaker is never read.
+    // REVERT: v3SpeakerId: false
+    v3SpeakerId: false,
+
     // RETIRED 2026-08-15 — `motionWakeGate` was here, and the wall outgrew it.
     // Audit M5 built it to stop plain camera motion waking the kiosk (61 wakes
     // measured in 24h, 49 of them plain motion). It lived in

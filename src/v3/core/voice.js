@@ -550,10 +550,15 @@ function handleDogShow(intent) {
 /**
  * One turn. Returns { handled, lane }.
  */
-export async function submit(text, { source = "unknown" } = {}) {
+export async function submit(text, { source = "unknown", speaker = null } = {}) {
   const clean = String(text ?? "").trim();
   if (!enabled || !clean) return { handled: false };
   if (busy) return { handled: false, reason: "busy" };
+
+  /* Speaker ID. Read only with the flag on, and only as a string the server
+     already vetted against the household (routes/voice.js knownSpeaker). Off,
+     or absent, `who` is null and nothing below this line sees a speaker. */
+  const who = flag("v3SpeakerId") && typeof speaker === "string" && speaker ? speaker : null;
 
   busy = true;
   clearLinger();
@@ -584,7 +589,7 @@ export async function submit(text, { source = "unknown" } = {}) {
       record("intent", intent.id, "matched");
       // S6b: a question on the topic of something the wall just showed.
       noteQuestion(intent.id);
-      const snap = voiceSnapshot(coords);
+      const snap = who ? { ...voiceSnapshot(coords), speaker: who } : voiceSnapshot(coords);
 
       /* The photograph veto. Handled before the answerers because it ACTS: the
          other local intents all read state and describe it, and this one is the
@@ -828,6 +833,8 @@ export async function submit(text, { source = "unknown" } = {}) {
       history,
       house: houseDigest({ ...voiceSnapshot(coords), learned: learnedTimes() })
     };
+    // Absent unless identified, so an unidentified turn posts the same body.
+    if (who) body.speaker = who;
 
     /* The streamed path speaks each sentence as it is written, so the room
        hears the first one while the model is still on the second. */
@@ -1012,8 +1019,8 @@ export function initVoice({ enabled: on = false, lat = null, lon = null } = {}) 
   }
   stream.addEventListener("voice_transcript", (event) => {
     try {
-      const { text } = JSON.parse(event.data);
-      if (text) submit(String(text).toLowerCase(), { source: "mic" });
+      const { text, speaker } = JSON.parse(event.data);
+      if (text) submit(String(text).toLowerCase(), { source: "mic", speaker });
     } catch { /* malformed frame — never throw into the stream */ }
   });
 

@@ -935,22 +935,38 @@ def _post(url, data, ctype, timeout):
         return json.loads(r.read().decode("utf-8"))
 
 
+# Who stt_server.py said was speaking on the turn just transcribed, or None.
+# Kept BESIDE transcribe()'s return value rather than in it: that value's
+# three-way contract (text / "" / None) is what the turn loop and the selftests
+# read, and identity is optional — an STT without the speaker lane, or one that
+# could not be sure, simply leaves this None.
+_heard_speaker = None
+
+
 def transcribe(wav):
     """Text, "" when the STT heard nothing, or None when it could not be asked.
 
     The caller only needs truthiness to decide the turn is over — but the two
     falsy answers are different facts about the house and the wall reports them
     with different reasons, so they must not collapse into one empty string."""
+    global _heard_speaker
+    _heard_speaker = None
     try:
-        return (_post(STT_URL, wav, "audio/wav", 30).get("text") or "").strip()
+        reply = _post(STT_URL, wav, "audio/wav", 30)
     except (urllib.error.URLError, OSError, ValueError) as e:
         log("STT unreachable — dropping turn:", e)
         return None
+    speaker = reply.get("speaker")
+    _heard_speaker = speaker if isinstance(speaker, str) and speaker else None
+    return (reply.get("text") or "").strip()
 
 
 def forward(text):
+    # `speaker` only when the STT named one, so an unidentified turn posts the
+    # byte-identical body; the dashboard vets the name against the household.
+    body = {"text": text, "speaker": _heard_speaker} if _heard_speaker else {"text": text}
     try:
-        _post(DASH_URL, json.dumps({"text": text}).encode(), "application/json", 5)
+        _post(DASH_URL, json.dumps(body).encode(), "application/json", 5)
     except (urllib.error.URLError, OSError, ValueError) as e:
         log("dashboard forward failed:", e)
 

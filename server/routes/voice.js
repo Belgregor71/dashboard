@@ -16,7 +16,9 @@ import {
   takeSentences,
   todayLine,
   GRIEF_LINE,
-  SPEAKER_UNKNOWN_LINE
+  SPEAKER_UNKNOWN_LINE,
+  knownSpeaker,
+  speakerKnownLine
 } from "../services/voiceShape.js";
 import { searchVault, buildContext } from "../services/vaultIndex.js";
 import { createSoundDetector } from "../services/soundPresence.js";
@@ -148,7 +150,7 @@ function armedTools() {
    is byte-identical to the pre-character prompt — is not observable from
    outside the route, and a rollback path nothing can assert is a rollback path
    nobody should trust. */
-export function converseSystem(text, tools, digest = null, claims = null, houseClaims = null, today = null) {
+export function converseSystem(text, tools, digest = null, claims = null, houseClaims = null, today = null, speaker = null) {
   const context =
     process.env.VAULT_ENABLED === "1" ? buildContext(searchVault(text)) : "";
   // todayLine() is appended per request, not baked into the base — the
@@ -159,7 +161,13 @@ export function converseSystem(text, tools, digest = null, claims = null, houseC
   // With the character off this is the pre-2026-08-15 prompt byte for byte,
   // which is the rollback path and the property tests/voice.spec.js asserts.
   const base = characterEnabled() ? CHARACTER_BASE : CONVERSE_BASE;
-  const lines = [...base, todayLine()];
+  /* Speaker ID: the unknown-speaker line is SWAPPED, never joined by a second
+     line — a prompt saying both "you cannot tell" and "this is Greg" leaves the
+     model to pick. Unknown (null, or a name outside HOUSEHOLD) leaves the base
+     array untouched, which is the rollback and what tests/voice.spec.js pins. */
+  const who = knownSpeaker(speaker);
+  const stable = who ? base.map((l) => (l === SPEAKER_UNKNOWN_LINE ? speakerKnownLine(who) : l)) : base;
+  const lines = [...stable, todayLine()];
   if (tools.length) lines.push(entityRoster());
 
   /* What the house can see, appended AFTER the stable block and the clock.
@@ -428,8 +436,13 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
     houseClaims = buildHouseClaims({ features, depth, occupancy }, { today: houseDay() });
   } catch { /* nothing counted yet, or unreadable — the house simply has no past */ }
 
+  /* Speaker ID. Trusted because this route is loopbackOnly: the page is the
+     kiosk on this box, and it only ever has a speaker the transcript route
+     (also loopback-gated) handed it. Anything outside HOUSEHOLD is null. */
+  const speaker = knownSpeaker(req.body?.speaker);
+
   // S7: null unless HOUSE_TODAY=1 and the house has watched some of today.
-  const system = converseSystem(text, tools, req.body?.house, claims, houseClaims, todayClaims());
+  const system = converseSystem(text, tools, req.body?.house, claims, houseClaims, todayClaims(), speaker);
 
   /* Episodic memory, recorded HERE rather than from the page.
      Only this lane is worth remembering: local and Assist turns are the
@@ -442,7 +455,7 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
      or fail this one. recordExchange() never throws by contract; the .catch
      is belt and braces on a promise nobody is holding. */
   const remember = (reply) => {
-    recordExchange({ said: text, replied: reply }).catch(() => {});
+    recordExchange({ said: text, replied: reply, speaker }).catch(() => {});
   };
 
   /* Set when any tool call in this turn was refused or failed. It rides the
@@ -544,7 +557,11 @@ router.post("/api/voice/transcript", (req, res) => {
   if (!isLoopback(req)) return res.status(403).json({ error: "loopback only" });
   const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
   if (!text) return res.status(400).json({ error: "text is required" });
-  voiceBus.emit("transcript", { text, source: "mic" });
+  /* Speaker ID: the agent forwards stt_server's `speaker` when it named one.
+     Only a household name rides the event; anything else is dropped, and an
+     event without a speaker is byte-identical to before the lane existed. */
+  const speaker = knownSpeaker(req.body?.speaker);
+  voiceBus.emit("transcript", speaker ? { text, source: "mic", speaker } : { text, source: "mic" });
   return res.json({ ok: true });
 });
 

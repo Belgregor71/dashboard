@@ -78,6 +78,28 @@ export const GRIEF_LINE =
 export const SPEAKER_UNKNOWN_LINE =
   "Two people live in this house, Greg and Brett, and you cannot tell which of them is speaking. Never guess. When describing how people are related, name them and anchor the relationship to Greg or to Brett — say \"Victoria is Brett's sister\", not \"your sister\" or \"your husband\". Plain \"you\" is still fine for anything practical.";
 
+// The only names a voice may be identified as. Anything else arriving as a
+// `speaker` — a typo in an enrolment, a stale store — is treated as unknown,
+// because the failure this whole lane exists to avoid is the house confidently
+// addressing one of them as the other (docs/design/HANDOVER-SPEAKER-ID.md §5).
+export const HOUSEHOLD = Object.freeze(["Greg", "Brett"]);
+
+/** The name if it is a household member, else null. Fails toward unknown. */
+export function knownSpeaker(name) {
+  return typeof name === "string" && HOUSEHOLD.includes(name) ? name : null;
+}
+
+// Swapped in for SPEAKER_UNKNOWN_LINE only when the voice was identified.
+//
+// ⚠ NEUTRAL BY THE OWNER'S CHOICE (2026-10-16): identity serves "am I free" and
+// relationships, nothing else. The tease licence in VOICE.md §3 stays OFF — so
+// the line forbids remarking on who is speaking, and forbids using the name as
+// a hook for a joke. Reopen only on the owner's word.
+export function speakerKnownLine(name) {
+  const other = HOUSEHOLD.find((n) => n !== name);
+  return `Two people live in this house, Greg and Brett. The person speaking now is ${name}, identified by voice, so "I", "me" and "my" mean ${name}, and "your sister" means ${name}'s sister. Do not remark on who is speaking or greet them by name, and never make ${name} or ${other} the subject of a joke. If the question is about ${other}, name ${other} rather than saying "your".`;
+}
+
 // The concierge had no idea what day it was: nothing in the prompt carried a
 // date, so any question needing arithmetic on one was a guess. Live proof — a
 // dog born 20 May 2022, asked in July 2026, came back "two years old".

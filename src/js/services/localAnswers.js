@@ -231,7 +231,13 @@ const ANSWERERS = {
   "cal.free": (s, slots) => {
     if (!Array.isArray(s.calendar)) return null;
     const day = slots?.day ?? DAY_TODAY;
-    const ev = inWindow(s.calendar, day).filter((e) => !isMeal(e));
+    /* Speaker ID: "am I free" is first person, so with a known speaker it
+       counts that person's own feed plus every SHARED one (an event with no
+       `owner`), and never the other person's. No speaker on the snapshot —
+       flag off, or a voice the STT could not name — counts everything, as it
+       always has. Only cal.free: "what's on today" is about the house. */
+    const mine = s.speaker ? (e) => !e?.owner || e.owner === s.speaker : () => true;
+    const ev = inWindow(s.calendar, day).filter((e) => !isMeal(e) && mine(e));
     if (ev.length === 0) return { speech: `You're free — nothing ${day.when}.`, refs: ["calendar"] };
     return { speech: `You've got ${ev.length} thing${ev.length === 1 ? "" : "s"} ${day.when}.`, refs: ["calendar"] };
   },

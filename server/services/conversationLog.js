@@ -3,6 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import Anthropic from "@anthropic-ai/sdk";
 import { VAULT_DIR } from "./vaultIndex.js";
+import { knownSpeaker } from "./voiceShape.js";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CONVERSATION MEMORY — the house remembers past Tuesday.
@@ -100,12 +101,15 @@ const logPathFor = (day) => path.join(LOG_DIR, `${day}.jsonl`);
  * could not act on is a thing a person said, and dropping it makes the repair
  * turn read as the first one. Same reasoning as endTurn() in v3/core/voice.js.
  */
-export async function recordExchange({ said, replied } = {}) {
+export async function recordExchange({ said, replied, speaker } = {}) {
   if (!memoryEnabled()) return false;
 
   const user = typeof said === "string" ? said.trim().slice(0, MAX_ENTRY_CHARS) : "";
   if (!user) return false;                    // nothing was said; nothing to record
   const house = typeof replied === "string" ? replied.trim().slice(0, MAX_ENTRY_CHARS) : "";
+  // Speaker ID: a household name only, and the key is ABSENT otherwise, so an
+  // unidentified turn writes the byte-identical line it always did.
+  const who = knownSpeaker(speaker);
 
   try {
     await mkdir(LOG_DIR, { recursive: true });
@@ -116,7 +120,9 @@ export async function recordExchange({ said, replied } = {}) {
     const existing = await countLines(file);
     if (existing >= MAX_ENTRIES_PER_DAY) return false;
 
-    await appendFile(file, `${JSON.stringify({ at: new Date().toISOString(), said: user, replied: house })}\n`, "utf8");
+    const row = { at: new Date().toISOString(), said: user, replied: house };
+    if (who) row.speaker = who;
+    await appendFile(file, `${JSON.stringify(row)}\n`, "utf8");
     return true;
   } catch (err) {
     // The room got its answer. A memory that could not be written is worth one
@@ -203,7 +209,9 @@ function getAnthropic() {
 /** The transcript as the model sees it. Bounded by MAX_ENTRIES_PER_DAY above. */
 export function renderTranscript(entries) {
   return entries
-    .map((e) => `Person: ${e.said}${e.replied ? `\nHouse: ${e.replied}` : ""}`)
+    // "Greg:" only for a turn the voice identified; everyone else stays "Person:",
+    // so the distiller can never be told a guess as if it were a name.
+    .map((e) => `${knownSpeaker(e.speaker) ?? "Person"}: ${e.said}${e.replied ? `\nHouse: ${e.replied}` : ""}`)
     .join("\n\n");
 }
 
