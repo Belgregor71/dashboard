@@ -77,7 +77,9 @@ def run(port, env_extra, label, audio=None):
     # must survive its own banner on a pipe with no help from the parent.
     for stale in ("STT_CONDITION_PREV", "STT_NO_SPEECH", "STT_TEMPERATURE",
                   "STT_HOTWORDS_FILE", "STT_SHADOW_MODEL", "STT_SHADOW_COMPUTE",
-                  "STT_SHADOW_ENGINE", "STT_ENGINE", "STT_MOONSHINE_MODEL"):
+                  "STT_SHADOW_ENGINE", "STT_ENGINE", "STT_MOONSHINE_MODEL",
+                  "STT_SPEAKER_MODEL", "STT_SPEAKER_STORE", "STT_SPEAKER_FLOOR",
+                  "STT_SPEAKER_MARGIN", "STT_SPEAKER_MIN_MS"):
         if stale not in env_extra:
             env.pop(stale, None)   # a knob left in the ambient env would fake a pass
     proc = subprocess.Popen([sys.executable, str(SERVER)], env=env,
@@ -127,7 +129,9 @@ assert h["engine"] == "whisper" and h["fallback"] is None, h
 assert sorted(b) == SHAPE, sorted(b)
 assert "shadow" not in log, "the shadow ran with STT_SHADOW_MODEL unset"
 assert "moonshine" not in log, "moonshine was touched with STT_ENGINE unset:\n" + log
-print("  ✅ decode [], response shape unchanged, no shadow, whisper answers")
+assert h["speakers"] is None, f"speaker lane reported on with STT_SPEAKER_MODEL unset: {h}"
+assert "speaker" not in log, "the speaker lane ran with STT_SPEAKER_MODEL unset:\n" + log
+print("  ✅ decode [], response shape unchanged, no shadow, no speaker lane, whisper answers")
 
 print("=" * 72)
 print("CASE 2 — hardening + shadow on")

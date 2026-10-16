@@ -15,7 +15,8 @@ Config via env: STT_MODEL (base.en), STT_DEVICE (cpu), STT_COMPUTE (int8),
                 STT_CONDITION_PREV, STT_NO_SPEECH, STT_TEMPERATURE,
                 STT_HOTWORDS_FILE, STT_SHADOW_MODEL, STT_SHADOW_COMPUTE,
                 STT_SHADOW_THREADS, STT_SHADOW_ENGINE, STT_ENGINE,
-                STT_MOONSHINE_MODEL.
+                STT_MOONSHINE_MODEL, STT_SPEAKER_MODEL, STT_SPEAKER_STORE,
+                STT_SPEAKER_FLOOR, STT_SPEAKER_MARGIN, STT_SPEAKER_MIN_MS.
 
 ⚠ EVERY KNOB ADDED AFTER STT_BEAM IS UNSET BY DEFAULT AND ADDS NOTHING TO THE
 DECODE CALL WHEN UNSET. That is deliberate: `decode_kwargs()` starts empty and
@@ -156,6 +157,26 @@ SHADOW_ENGINE = os.environ.get("STT_SHADOW_ENGINE", "").strip().lower() or "whis
 # reporting them; with moonshine answering, the household nouns are unbiased.
 ENGINE = os.environ.get("STT_ENGINE", "").strip().lower() or "whisper"
 MOONSHINE_MODEL = os.environ.get("STT_MOONSHINE_MODEL", "small-streaming")
+
+# ── Speaker ID (docs/design/HANDOVER-SPEAKER-ID.md) ──────────────────────────
+# Unset STT_SPEAKER_MODEL = the whole lane is absent and /transcribe answers the
+# byte-identical shape. Set, the response gains `speaker` (a name or null) and
+# `speaker_score`, and every reader must treat both as optional.
+#
+# ⚠ IT FAILS TOWARD NULL. A name is returned only when the best cosine clears
+# FLOOR *and* beats the runner-up by MARGIN, and only for an utterance at least
+# MIN_MS long — a two-word command is too little voice to be sure of. The
+# defaults are deliberately strict placeholders: the real numbers come from the
+# `[stt] speaker` journal lines after enrolment, the way SPEECH_ON was set.
+#
+# ⚠ VOICEPRINTS ARE BIOMETRICS. STT_SPEAKER_STORE points outside the tree (mode
+# 600) and holds embeddings only; enrolment never writes audio. /health reports
+# the enrolled COUNT, never the names, like the hotword list above.
+SPEAKER_MODEL = os.environ.get("STT_SPEAKER_MODEL", "")
+SPEAKER_STORE = os.environ.get("STT_SPEAKER_STORE", "")
+SPEAKER_FLOOR = float(os.environ.get("STT_SPEAKER_FLOOR", "0.6"))
+SPEAKER_MARGIN = float(os.environ.get("STT_SPEAKER_MARGIN", "0.2"))
+SPEAKER_MIN_MS = int(os.environ.get("STT_SPEAKER_MIN_MS", "1000"))
 
 print(f"[stt] loading {MODEL_NAME} ({DEVICE}/{COMPUTE}) …", flush=True)
 _t0 = time.time()
@@ -371,6 +392,70 @@ def send_shadow(wav_bytes: bytes, answer: dict, label: str) -> None:
         pass  # a comparison is already running; this turn is not worth queueing
 
 
+# ── The speaker lane ─────────────────────────────────────────────────────────
+# Loaded in main() only when STT_SPEAKER_MODEL is set. The embedding runs on its
+# own single thread WHILE the transcriber works (90 ms per 3 s of audio against
+# moonshine's ~600 ms on the G11), so a turn should cost no extra wall time.
+speaker = None        # speaker_id.Embedder
+voices = None         # speaker_id.Store
+_spk_pool = None      # one worker: embeddings never pile up behind each other
+_enrol_lock = threading.Lock()
+_enrol = {"name": None, "left": 0, "embs": []}
+_NAME = re.compile(r"^[A-Za-z][A-Za-z' -]{0,31}$")
+
+
+def speaker_start(wav_bytes: bytes):
+    """Begin the embedding beside the transcription. None when the lane is off
+    or the audio is not something this lane reads; never raises."""
+    if speaker is None:
+        return None
+    import speaker_id  # noqa: PLC0415 — main() already imported it once
+
+    samples = speaker_id.wav_to_samples(wav_bytes)
+    if samples is None:
+        return None
+    ms = round(samples.size * 1000 / speaker_id.SAMPLE_RATE)
+    return ms, _spk_pool.submit(speaker.embed, samples)
+
+
+def speaker_finish(started, result: dict) -> None:
+    """Add `speaker` + `speaker_score` to the response, feed an armed
+    enrolment, and log one line per turn. Fails toward null at every step."""
+    if speaker is None:
+        return
+    import speaker_id  # noqa: PLC0415
+
+    result["speaker"], result["speaker_score"] = None, None
+    if started is None:
+        return
+    ms, fut = started
+    try:
+        emb = fut.result(timeout=5)
+    except Exception as err:  # noqa: BLE001 — identity is optional, the transcript is not
+        print(f"[stt] speaker failed, answering without: {err}", flush=True)
+        return
+    if emb is None:
+        return
+    cents = voices.centroids()
+    scores = {n: round(speaker_id.cosine(emb, c), 3) for n, c in cents.items()}
+    if ms >= SPEAKER_MIN_MS:
+        name, best = speaker_id.identify(emb, cents, SPEAKER_FLOOR, SPEAKER_MARGIN)
+        result["speaker"], result["speaker_score"] = name, best
+    # The tuning record. Scores only — the audio is already gone.
+    print(f"[stt] speaker {result['speaker'] or '-'} {ms}ms scores={scores}", flush=True)
+
+    with _enrol_lock:
+        if _enrol["name"] and ms >= SPEAKER_MIN_MS:
+            _enrol["embs"].append(emb)
+            _enrol["left"] -= 1
+            print(f"[stt] enrol {_enrol['name']}: took a turn, {_enrol['left']} left", flush=True)
+            if _enrol["left"] <= 0:
+                voices.enrol(_enrol["name"], _enrol["embs"])
+                print(f"[stt] enrol {_enrol['name']}: stored "
+                      f"({len(_enrol['embs'])} turns, embeddings only)", flush=True)
+                _enrol.update(name=None, left=0, embs=[])
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send(self, code: int, payload: dict) -> None:
         body = json.dumps(payload).encode("utf-8")
@@ -402,11 +487,57 @@ class Handler(BaseHTTPRequestHandler):
                 # Which engine ACTUALLY loaded, not which was asked for: a
                 # moonshine shadow whose import failed reports null here.
                 "shadow_engine": (SHADOW_ENGINE if shadow is not None else None),
+                # A COUNT, never the names. null = the lane is off or failed to load.
+                "speakers": (voices.summary()["enrolled"] if speaker is not None else None),
             })
+        elif self.path == "/speaker/enrol" and self._local():
+            with _enrol_lock:
+                self._send(200, {"armed": _enrol["name"] is not None, "left": _enrol["left"]})
         else:
             self._send(404, {"error": "not found"})
 
+    def _local(self) -> bool:
+        # Enrolment and forgetting change who the house thinks it is talking to.
+        # Only the box itself may ask, whatever STT_HOST is bound to.
+        return self.client_address[0] in ("127.0.0.1", "::1")
+
+    def _json_body(self) -> dict:
+        length = int(self.headers.get("Content-Length", "0"))
+        if length <= 0 or length > 4096:
+            return {}
+        try:
+            return json.loads(self.rfile.read(length).decode("utf-8"))
+        except ValueError:
+            return {}
+
+    def do_DELETE(self):  # noqa: N802
+        if not (self.path.startswith("/speaker/") and self._local() and speaker is not None):
+            self._send(404, {"error": "not found"})
+            return
+        name = self.path[len("/speaker/"):]
+        if name == "enrol":
+            with _enrol_lock:
+                _enrol.update(name=None, left=0, embs=[])
+            self._send(200, {"armed": False})
+            return
+        self._send(200, {"forgotten": voices.forget(name)})
+
     def do_POST(self):  # noqa: N802
+        if self.path == "/speaker/enrol":
+            if not (self._local() and speaker is not None):
+                self._send(404, {"error": "not found"})
+                return
+            body = self._json_body()
+            name, turns = str(body.get("name", "")), body.get("turns", 5)
+            if not _NAME.match(name) or not isinstance(turns, int) or not 3 <= turns <= 20:
+                self._send(400, {"error": "need {name: letters, turns: 3-20}"})
+                return
+            with _enrol_lock:
+                _enrol.update(name=name, left=turns, embs=[])
+            print(f"[stt] enrol {name}: armed for the next {turns} turns "
+                  f"of at least {SPEAKER_MIN_MS}ms", flush=True)
+            self._send(200, {"armed": True, "left": turns})
+            return
         if self.path != "/transcribe":
             self._send(404, {"error": "not found"})
             return
@@ -418,11 +549,13 @@ class Handler(BaseHTTPRequestHandler):
             self._send(413, {"error": "audio too large"})
             return
         wav = self.rfile.read(length)
+        started = speaker_start(wav)
         try:
             result, label = transcribe(wav)
         except Exception as err:  # noqa: BLE001 — report, never crash the server
             self._send(500, {"error": str(err)})
             return
+        speaker_finish(started, result)
         print(f"[stt] {result['audio_ms']}ms audio -> {result['took_ms']}ms "
               f"-> {result['text']!r}", flush=True)
         self._send(200, result)
@@ -435,7 +568,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global shadow, live
+    global shadow, live, speaker, voices, _spk_pool
     if ENGINE == "moonshine":
         # Loaded HERE for the same reason as the shadow: whisper is already
         # warm above, so a moonshine that cannot load leaves a working house.
@@ -484,6 +617,27 @@ def main():
         except Exception as err:  # noqa: BLE001
             shadow = None
             print(f"[stt] shadow unavailable, continuing without: {err}", flush=True)
+
+    if SPEAKER_MODEL:
+        # Same discipline as the shadow: a speaker model that cannot load costs
+        # the house a log line and its identity, never its transcriber.
+        try:
+            if not SPEAKER_STORE:
+                raise ValueError("STT_SPEAKER_STORE is unset (voiceprints need a home outside the tree)")
+            from concurrent.futures import ThreadPoolExecutor  # noqa: PLC0415
+
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            import speaker_id  # noqa: PLC0415
+
+            voices = speaker_id.Store(SPEAKER_STORE)
+            speaker = speaker_id.Embedder(SPEAKER_MODEL)
+            _spk_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="speaker")
+            print(f"[stt] speaker id on → {speaker.dim}-dim, 1 thread, "
+                  f"{voices.summary()['enrolled']} enrolled, floor {SPEAKER_FLOOR} "
+                  f"margin {SPEAKER_MARGIN} min {SPEAKER_MIN_MS}ms", flush=True)
+        except Exception as err:  # noqa: BLE001
+            speaker = voices = None
+            print(f"[stt] speaker id unavailable, continuing without: {err}", flush=True)
 
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"[stt] listening on http://{HOST}:{PORT}  (POST /transcribe, GET /health)",
