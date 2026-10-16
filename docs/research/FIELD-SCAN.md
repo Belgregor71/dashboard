@@ -129,6 +129,38 @@ session handover.
 - **Amber Case, "The ambient revolution"** (IDEO Edges, 2025-10-21) — success measured as
   *less mental effort, not more interaction*; degrade by hiding a lane, not by showing an error.
 
+## Scan 2026-10-16 — round 2
+
+A web sweep, filtered against every DECLINED row above. Nothing here reopens a declined item
+whose reopen condition has not been met. Ranked by "next glance more useful / calmer / more
+delightful", divided by cost. **All CANDIDATE: nothing is chosen yet, and every item is
+measured before it is built.** Round 1's items that are still unbuilt are re-ranked here
+rather than duplicated.
+
+### CANDIDATE (round 2, ranked)
+
+| # | Item | Link | Why it could matter here | Measure first |
+|---|---|---|---|---|
+| 1 | **The house knows who is speaking** (Build 3) | WeSpeaker https://arxiv.org/abs/2210.17016 · ESPnet-SPK https://arxiv.org/abs/2401.17230 | Per-person answers, reminders to the right person, a named greeting. `docs/design/HANDOVER-SPEAKER-ID.md` is "fully unblocked" | The owner's decisions in handover §6. Introspect the ONNX export. Must fail toward UNKNOWN; voiceprints never in `config.js` |
+| 2 | **Distance-adaptive wall + room presence** (mmWave) | LD2410 / LD2450, native in ESPHome since 2025.3 https://esp32.co.uk/ld2450-zones-home-assistant-coordinates-exclusion-zones/ | Webcam presence is retired and presence is MIC-ONLY. Radar gives a photo + sky from across the room, larger text within ~2 m, and better presence for screensaver/briefing/arrival. Supersedes the round-1 "Distance-adaptive density" row | One LD2410, 48 h false-presence log against the ceiling fan and the TV before any flag |
+| 3 | **"What did I miss" camera timeline + arrival recap** | Gemma 4 E2B/E4B (Apache-2.0, 2026-04) https://simonwillison.net/2026/apr/2/gemma-4 · qwen3-vl:4b per https://docs.frigate.video/configuration/genai/genai_config | Round-1 item, still unbuilt (grep 2026-10-16: no caption code in `server/` beyond Immich). One line per burst; "while you were out…" | Phase 0: caption ~50 real Eufy snapshots on the G11 CPU and on Mandragon (latency, RSS). Local only, per the owner's 2026-09-15 rule |
+| 4 | **One small local model for vision AND the offline `/converse` fallback** | llama.cpp `llama-server` (OpenAI-compatible; HA 2026.8 integration) + the same Gemma 4 E4B | Replaces `llama3.2:1b` and shares weights with #3: one resident model, not two | tok/s + RSS on the G11 with the wall running. ⚠ A resident model has turned GPU specs red. Check kiosk GPU headroom before and after |
+| 5 | **First audio in ~200 ms** | Kyutai Pocket TTS https://github.com/kyutai-labs/pocket-tts (the round-1 row) | Time-to-first-word is the most felt latency in a voice turn | RTF on the G11 with real house lines, then a blind A/B with the owner. "Everywhere or nowhere" |
+| 6 | **A real wake phrase + a barge-in that stops the reply** | livekit-wakeword shadow (round 1, never armed); custom openWakeWord via https://home-assistant.io/voice_control/create_wake_word | Two things are owed: the wake phrase, and barge-in 0.70×2 vs wake 0.60×1 | Arm the shadow and read a week of journal agreement, the way moonshine was proven |
+| 7 | **Family ETA while en route** | Waze Travel Time https://www.home-assistant.io/integrations/waze_travel_time/ (the round-1 row) | Shown only while someone is on the way; gone on arrival | Do the `device_tracker.*` entities carry GPS? That needs the companion app on the phones, which is the owner's call |
+| 8 | **Calendar you can add to by voice** | HA Local Calendar / CalDAV as a write target (the Skylight capture row) | Today's calendars are read-only ICS. "Add the dentist Tuesday at 3", confirmed aloud | The owner picks the write target. Then `calendar.create_event` via the HA proxy behind `SAFE_SERVICES` |
+| 9 | **Occasion-aware archive** | Immich search v2 (merged 2026-08, web modal in v3.2) https://immich.app/blog/2026-august-recap | Combined people + date filters weight the archive toward this week's birthdays/anniversaries (the Aura row), with no new hardware | The Immich version on the NAS. ⚠ v2→v3 has breaking changes, so read the migration guide first |
+| 10 | **"Blank means fine" house exceptions** | ~A$40 of Zigbee door/garage contacts + a power-metering plug on the washer | Hardware is the PARKED row's own reopen condition. "Washing's done", "garage open after dark" | Hardware first; the design sketch is in the round-1 plan |
+
+**Suggested order:** #6 and #1 first (no cost, already owed). Order the hardware for #2 and #10
+now so it soaks while code is built. #3 and #4 are one Phase 0 measurement. Then #5, #7, #8
+and #9 as the owner picks.
+
+### Watch, not do (round 2)
+
+- **Frigate 0.16+**: face recognition and plate labels without Frigate+ (https://heise.de/-10539498), plus GenAI review summaries. Still gated on Eufy RTSP uptime, and 2 of the cams are dead (2026-10-10).
+- **HA 2026.10** (2026-10-07, https://www.home-assistant.io/changelogs/core-2026.10/): one-click AI connection, a vector-tile map, Matter improvements. Nothing to change here yet. Cloud is being renamed "Home Assistant Link" in December.
+
 ---
 
 ## Watched sources (the monthly routine reads these)
@@ -147,7 +179,10 @@ session handover.
   [immich](https://github.com/immich-app/immich/releases) ·
   [MagicMirror](https://github.com/MagicMirrorOrg/MagicMirror/releases) ·
   [TRMNL plugins](https://github.com/usetrmnl/plugins) ·
-  [pipecat smart-turn](https://github.com/pipecat-ai/smart-turn/releases)
+  [pipecat smart-turn](https://github.com/pipecat-ai/smart-turn/releases) ·
+  [wespeaker](https://github.com/wenet-e2e/wespeaker/releases) ·
+  [llama.cpp](https://github.com/ggml-org/llama.cpp/releases)
+- Immich blog (monthly recaps, search v2) — https://immich.app/blog
 - Timeframe — https://hawksley.org/
 - Skylight — https://releasebot.io/updates/skylight · Hearth — https://hearthdisplay.com/pages/features
 - Alexa+ — https://www.aboutamazon.com/news/devices/new-alexa-top-features
