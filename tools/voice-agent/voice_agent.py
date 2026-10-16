@@ -87,13 +87,18 @@ SPEAKING_URL = os.environ.get("SPEAKING_URL", "http://localhost:3000/api/voice/s
 BARGE_URL = os.environ.get("BARGE_URL", "http://localhost:3000/api/voice/barge-in")
 UNHEARD_URL = os.environ.get("UNHEARD_URL", "http://localhost:3000/api/voice/unheard")
 HALF_DUPLEX = os.environ.get("HALF_DUPLEX", "1") == "1"
-# Barging in is destructive — it cuts the house off mid-sentence — so the bar is
-# higher than a normal wake and the score has to HOLD. A single frame spiking
-# over the line is what TV dialogue does; a spoken wake word holds for several.
-# The same discriminator the PROBE_ONLY mode below was built to measure, used
-# where it actually earns its keep instead of on the general wake path.
-BARGE_THRESHOLD = float(os.environ.get("BARGE_THRESHOLD", "0.7"))
-BARGE_FRAMES = int(os.environ.get("BARGE_FRAMES", "2"))
+# The SAME bar as an ordinary wake, measured rather than reasoned. It was 0.70
+# held for 2 frames, on the theory that barging in is destructive, and that
+# was backwards: the bar was higher exactly where the score is worse, through
+# the house's own voice. The journal 2026-08-15..10-16 says the house's own
+# replies scored >=0.3 against hey_mycroft in only 3 of ~135 turns plus every
+# briefing, while a real attempt peaked 0.64 mid-reply and was ignored (the
+# same person woke it 3 s after the reply ended). At 0.60 x 1 it took the
+# floor twice on 2026-10-16 (0.79, 0.99) with no self-interruptions. The G11
+# also sets this via the systemd drop-in barge.conf; the default matches so
+# a lost drop-in does not silently put the old bar back.
+BARGE_THRESHOLD = float(os.environ.get("BARGE_THRESHOLD", "0.6"))
+BARGE_FRAMES = int(os.environ.get("BARGE_FRAMES", "1"))
 # How long to wait for playback to stop after asking, and how long to let the
 # audio device settle once it has. Without the settle the tail of the cut-off
 # reply is the first thing in the capture.
