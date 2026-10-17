@@ -144,7 +144,7 @@ rather than duplicated.
 | 1 | **The house knows who is speaking** (Build 3) | WeSpeaker https://arxiv.org/abs/2210.17016 · ESPnet-SPK https://arxiv.org/abs/2401.17230 | Per-person answers, reminders to the right person, a named greeting. `docs/design/HANDOVER-SPEAKER-ID.md` is "fully unblocked" | The owner's decisions in handover §6. Introspect the ONNX export. Must fail toward UNKNOWN; voiceprints never in `config.js` |
 | 2 | **Distance-adaptive wall + room presence** (mmWave) | LD2410 / LD2450, native in ESPHome since 2025.3 https://esp32.co.uk/ld2450-zones-home-assistant-coordinates-exclusion-zones/ | Webcam presence is retired and presence is MIC-ONLY. Radar gives a photo + sky from across the room, larger text within ~2 m, and better presence for screensaver/briefing/arrival. Supersedes the round-1 "Distance-adaptive density" row | One LD2410, 48 h false-presence log against the ceiling fan and the TV before any flag |
 | 3 | **"What did I miss" camera timeline + arrival recap** | Gemma 4 E2B/E4B (Apache-2.0, 2026-04) https://simonwillison.net/2026/apr/2/gemma-4 · qwen3-vl:4b per https://docs.frigate.video/configuration/genai/genai_config | Round-1 item, still unbuilt (grep 2026-10-16: no caption code in `server/` beyond Immich). One line per burst; "while you were out…" | Phase 0: caption ~50 real Eufy snapshots on the G11 CPU and on Mandragon (latency, RSS). Local only, per the owner's 2026-09-15 rule |
-| 4 | **One small local model for vision AND the offline `/converse` fallback** | llama.cpp `llama-server` (OpenAI-compatible; HA 2026.8 integration) + the same Gemma 4 E4B | Replaces `llama3.2:1b` and shares weights with #3: one resident model, not two | tok/s + RSS on the G11 with the wall running. ⚠ A resident model has turned GPU specs red. Check kiosk GPU headroom before and after |
+| 4 | **One small local model for vision AND the offline `/converse` fallback** — ⛔ MEASURED NO on the G11 2026-10-17, see below | llama.cpp `llama-server` (OpenAI-compatible; HA 2026.8 integration) + the same Gemma 4 E4B | Replaces `llama3.2:1b` and shares weights with #3: one resident model, not two | tok/s + RSS on the G11 with the wall running. ⚠ A resident model has turned GPU specs red. Check kiosk GPU headroom before and after |
 | 5 | **First audio in ~200 ms** | Kyutai Pocket TTS https://github.com/kyutai-labs/pocket-tts (the round-1 row) | Time-to-first-word is the most felt latency in a voice turn | RTF on the G11 with real house lines, then a blind A/B with the owner. "Everywhere or nowhere" |
 | 6 | **A real wake phrase + a barge-in that stops the reply** | livekit-wakeword shadow (round 1, never armed); custom openWakeWord via https://home-assistant.io/voice_control/create_wake_word | Two things are owed: the wake phrase, and barge-in 0.70×2 vs wake 0.60×1 | Arm the shadow and read a week of journal agreement, the way moonshine was proven |
 | 7 | **Family ETA while en route** | Waze Travel Time https://www.home-assistant.io/integrations/waze_travel_time/ (the round-1 row) | Shown only while someone is on the way; gone on arrival | Do the `device_tracker.*` entities carry GPS? That needs the companion app on the phones, which is the owner's call |
@@ -155,6 +155,42 @@ rather than duplicated.
 **Suggested order:** #6 and #1 first (no cost, already owed). Order the hardware for #2 and #10
 now so it soaks while code is built. #3 and #4 are one Phase 0 measurement. Then #5, #7, #8
 and #9 as the owner picks.
+
+### Measured 2026-10-17 — #4 on the G11: NO, it is too slow for a voice turn
+
+Phase 0 for row #4. Gemma 4 E4B-it `Q4_0` (ggml-org, 4.59 GB) on llama.cpp `b11706`, run from
+`~/llm-probe` on the G11 with the wall live. No service was installed. The prompt was the
+**real** converse system prompt, built on the box by `converseSystem()` with its `.env`:
+9,861 chars, **2,291 tokens**, 3 tools armed. `digest` was null, so a live turn is larger.
+
+| Backend | Prompt read | 2,291-token prompt | Generate | 60 tokens | RSS | Wall during inference |
+|---|---|---|---|---|---|---|
+| CPU, 4 threads | 6.7 tok/s | **341 s** | 2.8 tok/s | 21 s | 7.0 GB | 30 fps · gpu 13.9 / renderer 14.0 |
+| Vulkan, Vega 8, `-ngl 99` | 23.2 tok/s | **99 s** | 1.9 tok/s | 31 s | 0.3 GB (+VRAM carve-out) | 30 fps · **gpu 36.9** / renderer 27.5 |
+| *(wall idle, no model)* | | | | | | *30 fps · gpu 11.5 / renderer 11.1* |
+
+- `/converse` gives the fallback **30 s** (`AbortSignal.timeout(30_000)`). The best case
+  here is about 130 s. With the stable prefix cached (llama-server did reuse the prompt
+  cache: a repeat re-read only 6–8 tokens), the volatile ~950 tokens still take ~40 s on
+  Vulkan before a word is generated.
+- Vulkan triples gpu-process (11.5 → 36.9 % of one core), past the §5.4 ceiling of 25
+  sustained, although the substrate held 30 fps. CPU leaves the wall alone but is 3.4×
+  slower to read the prompt.
+- Gemma 4 thinks by default. Every 60-token reply was spent inside "Thinking Process:",
+  and `--reasoning-budget 0` did NOT stop it on this build. A real lane would need the
+  chat-template switch, which was not tested.
+- **Vision (#3) was not measured.** An image costs prompt tokens at the same 23 tok/s, so a
+  non-interactive caption may still be viable. That is #3's own Phase 0.
+
+**Baseline found on the way: the CURRENT offline fallback is dead.** Ollama on
+192.168.0.179 lists `llama3.2:1b`, but a 20-token generate returned HTTP 500 after 175 s:
+"model runner has unexpectedly stopped … resource limitations". It was exercised for real
+on 2026-10-15 18:00, when the Anthropic credit ran out ("credit balance is too low"). The
+briefing fell back to Ollama and timed out at 30 s. **Today the house has no working
+offline voice or briefing.**
+
+Reopen #4 when: a smaller model (Gemma 4 E2B, untested) reads a trimmed fallback prompt
+in under ~10 s, or the lane moves to hardware that is awake (Mandragon sleeps overnight).
 
 ### Watch, not do (round 2)
 
