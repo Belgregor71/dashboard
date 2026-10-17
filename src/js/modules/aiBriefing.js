@@ -32,20 +32,25 @@ export function currentBriefingType() {
 
 // ── Context → prompt strings ───────────────────────────────────
 
-function weatherText(ctx) {
+// Whole numbers only. The feed gives 17.6 and the model repeats it; Kokoro
+// reads the point as a full stop, and the 2026-10-18 morning briefing said
+// "17. 6 degrees now", which the room heard as six degrees.
+const r = Math.round;
+
+export function weatherText(ctx) {
   const w = ctx.weather;
   const parts = [];
   if (w) {
-    if (w.tempC != null && w.condition) parts.push(`${w.tempC}°, ${w.condition}`);
-    if (w.lowC != null && w.highC != null) parts.push(`${w.lowC}° to ${w.highC}°`);
-    if (w.feelsLikeC != null) parts.push(`feels like ${w.feelsLikeC}°`);
+    if (w.tempC != null && w.condition) parts.push(`${r(w.tempC)}°, ${w.condition}`);
+    if (w.lowC != null && w.highC != null) parts.push(`${r(w.lowC)}° to ${r(w.highC)}°`);
+    if (w.feelsLikeC != null) parts.push(`feels like ${r(w.feelsLikeC)}°`);
     if (w.rainChancePct != null) parts.push(`${w.rainChancePct}% chance of rain`);
-    if (w.uv != null) parts.push(`UV ${w.uv}`);
+    if (w.uv != null) parts.push(`UV ${r(w.uv)}`);
   }
   if (ctx.type === "evening" && ctx.tomorrowWeather) {
     const t = ctx.tomorrowWeather;
     const bits = [];
-    if (t.lowC != null && t.highC != null) bits.push(`${t.lowC}° to ${t.highC}°`);
+    if (t.lowC != null && t.highC != null) bits.push(`${r(t.lowC)}° to ${r(t.highC)}°`);
     if (t.condition) bits.push(t.condition);
     if (t.rainChancePct != null) bits.push(`${t.rainChancePct}% rain chance`);
     if (bits.length) parts.push(`Tomorrow: ${bits.join(", ")}`);

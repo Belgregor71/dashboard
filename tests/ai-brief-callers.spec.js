@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { timeLine } from "../src/js/modules/aiBriefing.js";
+import { timeLine, weatherText } from "../src/js/modules/aiBriefing.js";
 import { SYSTEM_PROMPTS_TYPES } from "../server/routes/ai.js";
 
 /* The wall showed this, twice over, with nobody having asked for anything:
@@ -86,5 +86,21 @@ test.describe("the shared Time line carries all four grounded axes", () => {
   // briefing and missed the concierge, which is only possible with two copies.
   test("it states the same four axes the briefing payload does", () => {
     expect(timeLine(when)).toBe("Thursday afternoon, 4:26 pm, winter in Brisbane");
+  });
+});
+
+// 2026-10-18: the feed's 17.6 reached the prompt raw, the model said "17.6",
+// and Kokoro read the point as a full stop — "17. 6 degrees now", heard as six.
+// The live morning's own numbers, so the decimals are the real ones.
+test.describe("the briefing's weather numbers are whole", () => {
+  test("now, range, feels-like and UV are rounded before the model sees them", () => {
+    const text = weatherText({
+      type: "evening",
+      weather: { tempC: 17.6, condition: "Cloudy", lowC: 15.7, highC: 22,
+                 feelsLikeC: 17.2, rainChancePct: 53, uv: 1.35 },
+      tomorrowWeather: { lowC: 14.4, highC: 24.6, condition: "Sunny", rainChancePct: 10 },
+    });
+    expect(text).toBe("18°, Cloudy. 16° to 22°. feels like 17°. 53% chance of rain. UV 1. " +
+      "Tomorrow: 14° to 25°, Sunny, 10% rain chance");
   });
 });
