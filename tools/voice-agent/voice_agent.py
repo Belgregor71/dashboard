@@ -21,7 +21,7 @@ wait for it to actually go quiet, and only then listen.
 
 Config via env: WAKE_MODEL (hey_jarvis), WAKE_THRESHOLD (0.5), MIC_DEVICE
 (plughw:3,0), STT_URL, DASH_URL, SILENCE_RMS, TRAIL_SILENCE_MS, MAX_UTTER_MS,
-SPEAKING_URL, BARGE_URL, BARGE_THRESHOLD, BARGE_FRAMES, UNHEARD_URL,
+SPEAKING_URL, BARGE_URL, BARGE_THRESHOLD, BARGE_FRAMES, BARGE_STOP_QUIET, UNHEARD_URL,
 CAPTURE_VAD (rms|speech|smart), SPEECH_ON, LEAD_SILENCE_MS, CAPTURE_TRACE,
 SMART_TURN_MODEL_PATH, SMART_TURN_FILTERS, SMART_TURN_THREADS, SMART_TURN_ON,
 SMART_AFTER_MS, SMART_EVERY_MS, SMART_TRAIL_MAX_MS.
@@ -104,6 +104,12 @@ BARGE_FRAMES = int(os.environ.get("BARGE_FRAMES", "1"))
 # reply is the first thing in the capture.
 BARGE_WAIT_MS = int(os.environ.get("BARGE_WAIT_MS", "4000"))
 BARGE_SETTLE_MS = int(os.environ.get("BARGE_SETTLE_MS", "250"))
+# A barge-in followed by silence is a STOP, not a miss: the person said the
+# wake word to shut the reply up and had nothing to add. Reporting it as
+# "unheard" put the "didn't catch that" cue on the wall after every deliberate
+# stop (both 2026-10-16 tests did it). Owner's call 2026-10-18: stop quietly.
+# 0 restores the old report.
+BARGE_STOP_QUIET = os.environ.get("BARGE_STOP_QUIET", "1") == "1"
 
 # Energy-based endpointing (dependency-free): capture until trailing silence.
 SILENCE_RMS = int(os.environ.get("SILENCE_RMS", "500"))
@@ -1182,6 +1188,7 @@ def main():
     held = 0          # consecutive above-barge-threshold frames while speaking
     barge_peak = 0.0  # best wake score heard during the reply now playing
     was_speaking = False
+    barged = False    # this turn was opened by a barge-in, not an ordinary wake
     try:
         while True:
             frame = read_frame(proc)
@@ -1257,8 +1264,10 @@ def main():
                     continue
                 time.sleep(BARGE_SETTLE_MS / 1000.0)
                 rearm(oww, proc, "barge-in")
+                barged = True
             elif score >= WAKE_THRESHOLD:
                 held = 0
+                barged = False
                 log(f"WAKE ({score:.2f}) — capturing…")
             else:
                 held = 0
@@ -1271,7 +1280,10 @@ def main():
             send_level(0)
             if pcm is None:
                 log("no speech after wake")
-                report_unheard("no-speech")
+                if barged and BARGE_STOP_QUIET:
+                    log("a barge-in with nothing after it is a stop — not reported")
+                else:
+                    report_unheard("no-speech")
                 rearm(oww, proc, "no speech")
                 continue
             text = transcribe(to_wav(pcm))
