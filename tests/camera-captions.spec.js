@@ -19,15 +19,25 @@ import {
 const IDS = new Set(["doorbell", "driveway", "side_gate"]);
 const img = (s) => Buffer.from(`jpeg:${s}`);
 
-/** A lane whose camera shows `frames` in order, one per fetch, then holds the last. */
+/** A lane whose camera shows `frames` in order, one per fetch, then holds the last.
+    ⚠ The lane's clock is FAKE and each fetch moves it on by one poll, so a watch
+    window is a fixed number of fetches. On wall time a 15 ms window held one
+    fetch or three depending on the OS timer tick (~15.6 ms on Windows), and the
+    burst test went red 3 times in 30 with no defect in the code. */
 function lane(frames, opts = {}) {
   const rows = [];
   const fetched = [];
   const captioned = [];
+  const clock = { t: 1_000_000 };
   let i = 0;
   const l = createCaptionLane({
     cameraIds: IDS,
-    fetchImage: async (id) => { fetched.push(id); return img(frames[Math.min(i++, frames.length - 1)]); },
+    now: () => clock.t,
+    fetchImage: async (id) => {
+      fetched.push(id);
+      clock.t += 5;
+      return img(frames[Math.min(i++, frames.length - 1)]);
+    },
     caption: opts.caption || (async (buf) => { captioned.push(buf.toString()); return `saw ${buf.toString()}`; }),
     write: async (row) => { rows.push(row); },
     pollMs: 5,
@@ -36,7 +46,7 @@ function lane(frames, opts = {}) {
     maxQueue: opts.maxQueue ?? 12,
     log: () => {}
   });
-  return { l, rows, fetched, captioned };
+  return { l, rows, fetched, captioned, clock };
 }
 
 const settled = (l) => expect.poll(() => l.idle(), { timeout: 3000, intervals: [10] }).toBe(true);
@@ -82,8 +92,8 @@ test.describe("the lane", () => {
 
   test("edges inside the gap share a burst; after the gap a new one opens", async () => {
     const frames = Array.from({ length: 200 }, (_, i) => `f${i}`); // a new image on every fetch
-    const { l, rows } = lane(frames, { watchMs: 15, burstGapMs: 150 });
-    const t0 = Date.now();
+    const { l, rows, clock } = lane(frames, { watchMs: 15, burstGapMs: 150 });
+    const t0 = clock.t;
     l.noteEdge("binary_sensor.driveway_motion_detected", t0);
     await settled(l);
     const first = rows.length;
@@ -107,7 +117,10 @@ test.describe("the lane", () => {
       caption: async (buf) => { await gate; return buf.toString(); }
     });
     l.noteEdge("binary_sensor.driveway_motion_detected");
-    await expect.poll(() => l.status().dropped, { timeout: 3000 }).toBeGreaterThan(0);
+    // Release only once the watch has closed: a frame that lands after the
+    // queue drains is rightly captioned, and made this 3-or-4 by timing.
+    await expect.poll(() => l.status().watching.length, { timeout: 3000 }).toBe(0);
+    expect(l.status().dropped).toBeGreaterThan(0);
     release();
     await settled(l);
     // One in flight + two queued; everything after that was dropped.
