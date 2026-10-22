@@ -437,6 +437,21 @@ test.describe("cameras", () => {
     }
   });
 
+  /* Field-scan #3 Phase 1, shadow. The suite runs with CAMERA_CAPTIONS="" (see
+     playwright.config.js), so the lane is off and reports so — and the read is
+     still a bounded list, because rows from an earlier enabled run would be
+     served from data/camera-captions.jsonl. */
+  test("GET /api/camera-captions reports the lane off and a bounded row list", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/camera-captions?limit=3");
+    expect(body.status.enabled).toBe(false);
+    expect(["stopped", "running", "external"]).toContain(body.status.server);
+    expect(Array.isArray(body.rows)).toBe(true);
+    expect(body.rows.length).toBeLessThanOrEqual(3);
+    for (const row of body.rows) {
+      expect(Object.keys(row).sort()).toEqual(["at", "burst", "camera", "caption", "ms"]);
+    }
+  });
+
   test("GET /api/camera/:id/status for a real camera", async ({ request }) => {
     const { body: list } = await expectJson(request, "/api/cameras");
     test.skip(!list.cameras.length, "no cameras configured");

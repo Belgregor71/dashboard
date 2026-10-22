@@ -66,6 +66,10 @@ data/weather-history.jsonl
 # this repo is public — the same reason data/unresolved.json above is ignored,
 # one notch stronger.
 data/occupancy-days.json
+# What the cameras saw, one sentence per motion event (services/cameraCaptions.js).
+# Describes people around the house; owner's ruling 2026-10-22: on disk, 7 days, untracked.
+data/camera-captions.jsonl
+data/camera-captions.jsonl.tmp
 
 # Playwright MCP tool artifacts
 .playwright-mcp/

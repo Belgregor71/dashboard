@@ -67,6 +67,9 @@ export default defineConfig({
       ANTHROPIC_API_KEY: "",
       OLLAMA_URL: "http://127.0.0.1:1",
       KOKORO_URL: "http://127.0.0.1:1",
+      // A dev .env that turns camera captions on must not spawn a 7 GB model
+      // under the suite, nor write captions of the real house from it.
+      CAMERA_CAPTIONS: "",
       // Calendars were the one live upstream the suite still hit, and they made
       // it nondeterministic. arrival-card.spec's "byte-identical" case failed a
       // pre-push run on 2026-07-31 and passed 3/3 in isolation: the greeting

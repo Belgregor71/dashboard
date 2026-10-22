@@ -27,7 +27,9 @@ import calendarRoutes from "./server/routes/calendar.js";
 import commuteRoutes from "./server/routes/commute.js";
 import plexRoutes from "./server/routes/plex.js";
 import newsRoutes from "./server/routes/news.js";
-import cameraRoutes from "./server/routes/camera.js";
+import cameraRoutes, { cameraSnapshotBuffer } from "./server/routes/camera.js";
+import { startCameraCaptions } from "./server/services/cameraCaptions.js";
+import { CAMERA_CONFIG } from "./server/config/cameras.js";
 import photosRoutes from "./server/routes/photos.js";
 import adminRoutes from "./server/routes/admin.js";
 import binsRoutes from "./server/routes/bins.js";
@@ -127,6 +129,13 @@ startRecoveryService({ manager: haEnabledForHealth ? getHaWsManager() : null });
    is asleep for. Inert without HA — a box with no person entities writes nothing
    rather than writing zeroes, and a day of zeroes reads as an empty house. */
 startOccupancyDays({ manager: haEnabledForHealth ? getHaWsManager() : null });
+/* Camera captions, field-scan #3 Phase 1 — shadow only, inert unless
+   CAMERA_CAPTIONS=1. tilt_pan is left out: its snapshot route returns 500. */
+startCameraCaptions({
+  manager: haEnabledForHealth ? getHaWsManager() : null,
+  cameraIds: CAMERA_CONFIG.map((c) => c.id).filter((id) => id !== "tilt_pan"),
+  fetchImage: cameraSnapshotBuffer
+});
 
 // Feature routes
 app.use(systemRoutes);

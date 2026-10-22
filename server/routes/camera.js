@@ -7,6 +7,8 @@ import { normalizeBaseUrl } from "../config.js";
 import { haPost } from "../ha/haRest.js";
 import { fetchWithTimeout } from "../utils/fetch.js";
 import { reportFailure, reportSuccess } from "../services/healthService.js";
+import { readCaptions, captionStatus } from "../services/cameraCaptions.js";
+import { loopbackOnly } from "../middleware/security.js";
 
 const router = express.Router();
 
@@ -236,6 +238,13 @@ async function fetchCameraSnapshot(camera) {
   );
 }
 
+/** The bytes `/api/camera/:id/snapshot` would serve, for the caption lane. */
+export async function cameraSnapshotBuffer(id) {
+  const camera = getCameraConfig(id);
+  if (!camera) throw new Error(`unknown camera ${id}`);
+  return (await fetchCameraSnapshot(camera)).buffer;
+}
+
 async function proxyFetchToResponse(upstream, res, options = {}) {
   res.status(upstream.status);
   const contentType = upstream.headers.get("content-type");
@@ -329,6 +338,20 @@ router.get("/api/camera/:id/snapshot", async (req, res) => {
       error: errorInfo.message || "Camera snapshot error",
       code: errorInfo.code || "snapshot_failed"
     });
+  }
+});
+
+/* Camera captions, Phase 1 shadow (services/cameraCaptions.js). Read-only, and
+   kiosk-only: the rows describe what the cameras saw around the house. */
+router.get("/api/camera-captions", loopbackOnly("Camera captions"), async (req, res) => {
+  const since = Number(req.query.since) || 0;
+  const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 500);
+  try {
+    const rows = await readCaptions({ since, limit });
+    res.set("Cache-Control", "no-store");
+    res.json({ status: captionStatus(), rows });
+  } catch (err) {
+    res.status(500).json({ error: String(err?.message || err) });
   }
 });
 
