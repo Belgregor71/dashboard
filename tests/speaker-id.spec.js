@@ -174,9 +174,38 @@ function silentWav(seconds, rate = 8000) {
   return buf;
 }
 
+/* Every endpoint refreshVoiceCache() awaits in ONE Promise.all
+   (src/js/services/voiceSnapshot.js). The calendar only reaches the voice cache
+   once ALL of them settle, so "the calendar was served" is not "the page has
+   it": the weather legs go to the suite's dead upstream and are the slowest.
+   Found 2026-10-23: a pre-push run spoke "ok" (this file's /converse stub)
+   because cal.free saw no calendar, returned null and fell through. That was
+   under the gate's 10-worker load; the old 300 ms margin held in quiet runs. */
+const VOICE_REFRESH = [
+  "/api/weather/now", "/api/weather/forecast", "/api/weather/nowcast", "/api/calendar/all",
+  "/api/bins", "/api/commute/all", "/api/fuel", "/api/chores", "/api/calendar/holidays"
+];
+
+/** Resolves once every voice-refresh request the page has issued has finished. */
+function voiceRefreshSettled(page) {
+  const inFlight = new Map(VOICE_REFRESH.map((p) => [p, 0]));
+  const key = (req) => VOICE_REFRESH.find((p) => new URL(req.url()).pathname === p);
+  page.on("request", (req) => { const k = key(req); if (k) inFlight.set(k, inFlight.get(k) + 1); });
+  const done = (req) => { const k = key(req); if (k) inFlight.set(k, inFlight.get(k) - 1); };
+  page.on("requestfinished", done);
+  page.on("requestfailed", done);
+  return async () => {
+    const deadline = Date.now() + 15_000;
+    while ([...inFlight.values()].some((n) => n > 0) && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
+  };
+}
+
 async function bootWithTurn(page, { flagOn, text, speaker }) {
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
+  const refreshSettled = voiceRefreshSettled(page);
   const spoken = [];
   const converse = [];
   let calendarServed;
@@ -224,8 +253,9 @@ async function bootWithTurn(page, { flagOn, text, speaker }) {
     });
   });
   await page.route("**/api/voice/stream", async (route) => {
-    await served;                                   // the calendar is in the cache first
-    await new Promise((r) => setTimeout(r, 300));
+    await served;                                   // the calendar was requested and served,
+    await refreshSettled();                         // and the Promise.all it rides in settled
+    await new Promise((r) => setTimeout(r, 300));   // then the page's own apply step
     const payload = speaker ? { text, source: "mic", speaker } : { text, source: "mic" };
     await route.fulfill({
       contentType: "text/event-stream",
