@@ -520,6 +520,82 @@ export async function fetchPeopleNames() {
 }
 
 /**
+ * The named people who carry a birth date — the occasion source for
+ * photoOccasions.js. Measured on the live library 2026-10-24: 10 of 186 named
+ * people have one. Immich's `birthDate` is a plain "YYYY-MM-DD", no time.
+ *
+ * { ok, people: [{ id, name, birthDate }] }. `ok:false` when the fetch failed
+ * (or the key lacks `person.read`), so the caller can refuse to cache a pool
+ * that silently missed somebody's birthday.
+ */
+export async function fetchPeopleBirthdaysResult() {
+  const cfg = config();
+  if (!cfg) return { ok: false, people: [] };
+  try {
+    const res = await fetchWithTimeout(
+      `${cfg.base}/api/people?withHidden=false&size=1000`,
+      { headers: headers(cfg.key, false) },
+      TIMEOUT_MS
+    );
+    if (!res.ok) return { ok: false, people: [] };
+    const data = await res.json();
+    const list = Array.isArray(data?.people) ? data.people : [];
+    const people = list
+      .map((p) => ({ id: p?.id, name: String(p?.name || "").trim(), birthDate: p?.birthDate || null }))
+      .filter((p) => p.id && p.name && typeof p.birthDate === "string");
+    return { ok: true, people };
+  } catch {
+    return { ok: false, people: [] };
+  }
+}
+
+/**
+ * One person's photographs from one calendar day in each of the given years.
+ *
+ * Exists because the on-this-day windows cap at 40 per year, and a birthday
+ * party is exactly the day that cap bites. The window is padded a day either
+ * side because `takenAfter` is an instant and a photograph's day is its own
+ * local one; the caller keeps only the photographs whose `localDateTime` is the
+ * birthday itself.
+ *
+ * @param {string} personId
+ * @param {number} month  0-based, like Date#getMonth
+ * @param {number} day
+ * @param {number[]} years
+ * @returns {Promise<{ok: boolean, assets: Array}>} `ok:false` if ANY year failed
+ */
+export async function personDayResult(personId, month, day, years) {
+  const cfg = config();
+  if (!cfg) return { ok: false, assets: [] };
+  const perYear = await Promise.all(years.map(async (y) => {
+    try {
+      const res = await fetchWithTimeout(
+        `${cfg.base}/api/search/metadata`,
+        {
+          method: "POST",
+          headers: headers(cfg.key),
+          body: JSON.stringify({
+            personIds: [personId],
+            takenAfter: new Date(y, month, day - 1).toISOString(),
+            takenBefore: new Date(y, month, day + 2).toISOString(),
+            size: 100,
+            withExif: true,
+            withPeople: true
+          })
+        },
+        TIMEOUT_MS
+      );
+      if (!res.ok) return { ok: false, items: [] };
+      const data = await res.json();
+      return { ok: true, items: (data?.assets?.items ?? []).filter(usableImage).map(slim) };
+    } catch {
+      return { ok: false, items: [] };
+    }
+  }));
+  return { ok: perYear.every((r) => r.ok), assets: perYear.flatMap((r) => r.items) };
+}
+
+/**
  * Fetch a downscaled rendition (default the ~47 KB preview jpeg). Returns
  * { status, contentType, buffer } or null on failure. Never fetches the original.
  */

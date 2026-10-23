@@ -6,8 +6,9 @@ import { isConfigured, searchRandomResult, onThisDayResult, searchTakenResult, f
 import { getDailySet, getMapTile, hasMapKey, initDailyMemories } from "../services/dailyMemories.js";
 import { clipPathFor, hasClip, hasSkip, warmClip } from "../services/liveMotion.js";
 import { hiddenIds, hide, undo } from "../services/photoVeto.js";
-import { labelPeople, warmRoster } from "../services/photoNames.js";
+import { labelPeople, warmRoster, hiddenNames, shownName } from "../services/photoNames.js";
 import { labelTrips } from "../services/photoTrips.js";
+import { withOccasions, labelOccasions } from "../services/photoOccasions.js";
 import { loopbackOnly } from "../middleware/security.js";
 
 // Dashboard-facing Immich proxy — Phase 9.5 (docs/vision/photo-source-immich.md).
@@ -110,7 +111,12 @@ async function pruneCache() {
    caption to whatever the vault said up to an hour ago, so an edited note would
    look like it had not synced. Neither labeller mutates its input, which is
    what makes this safe against a cache shared between requests. */
-const enrich = (assets) => labelTrips(labelPeople(assets));
+const enrich = (assets) => labelTrips(labelPeople(
+  // A birthday first (photoOccasions): it edits `people` by full name, which
+  // labelPeople then rewrites into a phrase, and it sets the occasion that
+  // labelTrips must not overwrite. A no-op on any day without a mark.
+  labelOccasions(assets, { hideNames: hiddenNames(), nameFor: shownName })
+));
 
 /* ── Warming the pool the V3 archive actually rotates through ────────────────
    Driven off the response rather than by a scheduler of its own, which is the
@@ -149,7 +155,8 @@ router.get("/api/immich/on-this-day", async (_req, res) => {
   if (!isConfigured()) return res.json({ assets: [] });
   warmRoster(); // background, never awaited — see photoNames.js
   const key = `otd:${new Date().toDateString()}`;
-  const assets = await memoised(key, ON_THIS_DAY_TTL_MS, () => onThisDayResult(new Date()));
+  const now = new Date();
+  const assets = await memoised(key, ON_THIS_DAY_TTL_MS, () => withOccasions(onThisDayResult(now), now));
   warmPoolMotion(key, assets);
   /* publicPhoto runs OUTSIDE the memo, for the same reason enrich does and a
      sharper one: `motion` means "a playable clip is on disk RIGHT NOW". Behind

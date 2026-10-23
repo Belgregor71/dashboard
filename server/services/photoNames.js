@@ -1,6 +1,6 @@
 import { fetchPeopleNames } from "./immichClient.js";
 import { getRelationships } from "./vaultIndex.js";
-import { nameSegment, ambiguousGivenNames } from "../../src/js/services/photoMemory.js";
+import { nameSegment, ambiguousGivenNames, displayName } from "../../src/js/services/photoMemory.js";
 
 // What the ambient ground is allowed to call the people in a photograph.
 //
@@ -88,6 +88,13 @@ export function warmRoster() {
  */
 function ambiguity() {
   return roster ? ambiguousGivenNames(roster) : { has: () => true };
+}
+
+/** What the wall calls one person, by the same rule as every caption — the
+ *  given name, or the full name when the given name is shared. photoOccasions
+ *  uses it for "Melanie's birthday". */
+export function shownName(full) {
+  return displayName(full, ambiguity());
 }
 
 /** Test seam: forget the cached roster so a spec starts cold. */

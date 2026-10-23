@@ -78,6 +78,9 @@ export function labelTrips(assets) {
   if (!spans.length) return list;
 
   return list.map((asset) => {
+    // A birthday (photoOccasions.js) is the more particular occasion: a party
+    // on holiday is the birthday, not the trip. Nothing else sets `trip`.
+    if (asset?.trip) return asset;
     const day = dayOf(asset);
     const span = coveringSpan(spans, day);
     return span ? { ...asset, trip: `${span.label} ${day.slice(0, 4)}` } : asset;

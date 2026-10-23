@@ -83,6 +83,14 @@ test.describe("ON — the vault's dates under a photograph", () => {
     expect(labelTrips([asset("2019-10-08T09:00:00.000Z")])[0].trip).toBe("Tasmania 2019");
   });
 
+  test("a birthday already on the photograph wins over the trip it was taken on", () => {
+    // photoOccasions sets `trip` first; a party on holiday is the birthday.
+    const party = asset("2019-10-08T19:00:00.000Z", { trip: "Melanie's birthday 2019" });
+    const [out] = labelTrips([party]);
+    expect(out.trip).toBe("Melanie's birthday 2019");
+    expect(out).toBe(party);
+  });
+
   test("both edges of the span are inside it", () => {
     expect(labelTrips([asset("2019-10-04T23:59:00.000Z")])[0].trip).toBe("Tasmania 2019");
     expect(labelTrips([asset("2019-10-14T00:01:00.000Z")])[0].trip).toBe("Tasmania 2019");
