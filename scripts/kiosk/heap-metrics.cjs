@@ -34,6 +34,8 @@ const ORIGIN = process.env.DASHBOARD_ORIGIN || "http://127.0.0.1:3000";
 // The rotation is 30 s and most of a day's memories carry a motion part, so a
 // healthy afternoon bursts roughly every exchange — 15 minutes of silence is
 // thirty missed opportunities, not a quiet patch.
+// ⚠ INCUMBENT `judge()` ONLY. V3 is judged by evidence counters instead — see
+// judgeV3Motion; this number cried wolf there.
 const BURST_SILENCE_MS = 15 * 60 * 1000;
 
 /* How far past its own deadline a settle's cleanup may be before the frame is
@@ -149,8 +151,6 @@ function judgeV3Motion(clip, clips, uptimeMin) {
     };
   }
 
-  const faults = [];
-  const silentMs = clip.lastBurstAt ? Date.now() - clip.lastBurstAt : null;
   /* ⚠ A FRESH PAGE HAS NOT HAD TIME. The rotation is ten minutes and only some
      of the pool carries a clip, so zero bursts at two minutes uptime is the
      expected reading, not a finding. Judging it would make every post-deploy
@@ -158,10 +158,27 @@ function judgeV3Motion(clip, clips, uptimeMin) {
   if (uptimeMin != null && uptimeMin < V3_BURST_GRACE_MIN) {
     return { assessable: false, why: `only ${uptimeMin} min since load — too early to expect a burst (rotation is ~10 min, ${clips.withClip}/${clips.total} carry a clip)`, faults: [] };
   }
-  if (clip.bursts === 0) {
-    faults.push(`NO BURST EVER: daylight, depth 0, ${clips.withClip}/${clips.total} memories have a clip on disk, uptime ${uptimeMin} min, and the page has played none. Check that the pool's assets carry motion:true before looking at the burst code.`);
-  } else if (silentMs != null && silentMs > BURST_SILENCE_MS) {
-    faults.push(`STALE: last burst was ${Math.round(silentMs / 60000)} min ago in daylight at depth 0, with ${clips.withClip}/${clips.total} clips available.`);
+  /* ⚠⚠ JUDGED BY EVIDENCE, NOT BY A CLOCK (2026-10-23). This was "15 min since
+     the last burst = STALE", an incumbent number (30 s rotation). V3 bursts only
+     on an exchange (~10 min) whose memory carries a clip, and walks the day's
+     pool in shuffled order, landscape first, so hours of correct silence are
+     ordinary: it cried STALE at 17 min while `bursts` was still climbing. The
+     page now counts what it was handed (src/v3/core/archive.js), and a fault
+     is only ever something that should have happened and did not. */
+  if (typeof clip.eligibleSinceBurst !== "number") {
+    return { assessable: false, why: "the page predates the burst evidence counters — reload the kiosk onto the current bundle", faults: [] };
+  }
+  const faults = [];
+  const counts = `${clip.eligible} eligible, ${clip.bursts} played, ${clip.motionSeen}/${clip.exchanges} exchanges carried a clip; server offers ${clips.withClip}/${clips.total}`;
+  /* Two in a row, not one: a burst armed and then cut off by the next memory or
+     a depth change is ordinary, and twice running is not. */
+  if (clip.eligibleSinceBurst >= 2) {
+    faults.push(`ARMED, NEVER PLAYED: ${clip.eligibleSinceBurst} clip memories in a row passed every gate (depth 0, lit, daylight) and none was revealed (${counts}). Look at the clip route and play() before the pool.`);
+  }
+  /* A whole day's pool walked without one clip-carrying memory, while the server
+     says it has clips: the page is not being handed what the server offers. */
+  if (clip.motionSeen === 0 && clip.exchanges >= clips.total) {
+    faults.push(`PAGE NEVER SEES A CLIP: ${clip.exchanges} exchanges (a full pool is ${clips.total}) and not one memory reached the page with motion:true (${counts}). Check the pool's assets carry motion before the burst code.`);
   }
   return { assessable: true, why: null, faults };
 }

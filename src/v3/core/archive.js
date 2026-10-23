@@ -333,6 +333,22 @@ let motionStopTimer = null;
    no ambient archive" about a surface that had one. */
 let burstCount = 0;
 let lastBurstAt = null;
+/* ⚠ THE EVIDENCE COUNTERS: what the probe judges by, instead of a clock.
+   `heap-metrics.cjs` used to call 15 min without a burst STALE. That number came
+   from the incumbent (a 30 s rotation). Here a burst can only happen on an
+   exchange (every ~10 min), only when that memory carries a clip, and the day's
+   pool is WALKED in shuffled order, landscape first. So hours of correct silence
+   are ordinary, and the probe cried wolf live (2026-10-23: STALE at 17 min while
+   `bursts` was still climbing). These say what actually happened:
+     · exchanges: every photograph armBurst was handed
+     · motionSeen: of those, how many carried a finished clip
+     · eligible: of those, how many passed every gate, i.e. SHOULD have burst
+     · eligibleSinceBurst: eligible arms since the last REVEALED burst
+   Monotonic except the last, which a reveal resets. */
+let burstExchanges = 0;
+let motionSeen = 0;
+let burstEligible = 0;
+let eligibleSinceBurst = 0;
 /* ⚠ NO BURST ON THE PAGE'S FIRST PHOTOGRAPH. That exchange coincides with boot
    and is the one moment the panel may have just come back from DPMS, so a clip
    there is a moving image arriving on a screen someone has only just looked at.
@@ -1005,8 +1021,10 @@ function armBurst(assets, settleMs) {
      made and not `motionId`. Every way this can fail — NAS asleep, HEVC source,
      no ffmpeg, encode failed, clip pruned, IMMICH_POOL_MOTION off — collapses
      into false upstream, so the card can never request a clip that 404s. */
+  burstExchanges += 1;
   const asset = assets?.[0];
   if (!asset?.id || asset.motion !== true) return;
+  motionSeen += 1;
 
   // The same three refusals the incumbent makes, plus depth: this surface is
   // only ever looked at from depth 0, and `.archive` is visibility:hidden above
@@ -1014,6 +1032,8 @@ function armBurst(assets, settleMs) {
   if (document.documentElement.dataset.depth !== "0") return;
   if (root?.dataset.panelDark === "1") return;
   if (isNightNow() || reducedMotion()) return;
+  burstEligible += 1;
+  eligibleSinceBurst += 1;
 
   const startMs = settleMs + MOTION_START_PAD_MS;
   const clipSrc = `/api/immich/asset/${encodeURIComponent(asset.id)}/clip`;
@@ -1047,6 +1067,7 @@ function armBurst(assets, settleMs) {
            liveness probe say the wall is playing memories it never showed. */
         burstCount += 1;
         lastBurstAt = Date.now();
+        eligibleSinceBurst = 0;
       },
       () => {}
     );
@@ -1470,6 +1491,11 @@ export function initArchive(host) {
             // samples; a single reading cannot tell quiet from dead.
             bursts: burstCount,
             lastBurstAt,
+            // What the probe judges by — see the note at the declarations.
+            exchanges: burstExchanges,
+            motionSeen,
+            eligible: burstEligible,
+            eligibleSinceBurst,
             /* ⚠ THE GATES ARE PUBLISHED, NOT RE-DERIVED BY THE PROBE. Every one
                of these is a reason `armBurst` REFUSES, and a refusal is correct
                behaviour rather than a fault — so the reader has to be able to

@@ -2,7 +2,7 @@ import { test, expect } from "./fixtures/coverage.js";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { judgeGround, judgeV3Motion, SETTLE_GRACE_MS, BURST_SILENCE_MS } = require("../scripts/kiosk/heap-metrics.cjs");
+const { judgeGround, judgeV3Motion, SETTLE_GRACE_MS } = require("../scripts/kiosk/heap-metrics.cjs");
 
 /* ═══════════════════════════════════════════════════════════════════════════
    THE SETTLE DEADLINE — and the detector that could not see it.
@@ -224,7 +224,8 @@ test("the page arms a deadline for the settle, and clears it when cleanup runs",
 ─────────────────────────────────────────────────────────────────────────── */
 const OK_CLIP = {
   depth: "0", panelDark: false, night: false, reduced: false,
-  bursts: 3, lastBurstAt: Date.now(), armed: false
+  bursts: 3, lastBurstAt: Date.now(), armed: false,
+  exchanges: 12, motionSeen: 4, eligible: 3, eligibleSinceBurst: 0
 };
 const CLIPS = { total: 51, withClip: 24, pending: 0 };
 
@@ -278,24 +279,50 @@ test("a freshly loaded page is too early to judge", () => {
 
 /* ── The two findings it exists to make ──────────────────────────────────── */
 
-test("clips on disk, daylight, depth 0, and NOTHING has ever played → fault", () => {
-  const v = judgeV3Motion({ ...OK_CLIP, bursts: 0, lastBurstAt: null }, CLIPS, 90);
+/* Judged by EVIDENCE since 2026-10-23, not by a clock. A fault is only ever
+   something the page was handed and should have done. */
+
+test("two clip memories in a row passed every gate and neither played → fault", () => {
+  const v = judgeV3Motion({ ...OK_CLIP, bursts: 0, lastBurstAt: null, eligible: 2, eligibleSinceBurst: 2 }, CLIPS, 90);
   expect(v.assessable).toBe(true);
   expect(v.faults).toHaveLength(1);
-  expect(v.faults[0]).toMatch(/NO BURST EVER/);
+  expect(v.faults[0]).toMatch(/ARMED, NEVER PLAYED/);
   // The numbers are IN the fault, so the reader does not have to go and get them.
   expect(v.faults[0]).toMatch(/24\/51/);
+  expect(v.faults[0]).toMatch(/2 eligible, 0 played/);
 });
 
-test("it played once and then went quiet for too long → fault", () => {
-  const v = judgeV3Motion(
-    { ...OK_CLIP, bursts: 2, lastBurstAt: Date.now() - (BURST_SILENCE_MS + 60_000) },
-    CLIPS,
-    90
-  );
+test("ONE armed burst cut off by the next memory is ordinary, not a fault", () => {
+  const v = judgeV3Motion({ ...OK_CLIP, eligibleSinceBurst: 1 }, CLIPS, 90);
   expect(v.assessable).toBe(true);
+  expect(v.faults).toEqual([]);
+});
+
+/* ⚠ THE WOLF, from the live wall 2026-10-23. The old rule called 15 min without a
+   burst STALE; it fired at 17 min while `bursts` was still climbing, because the
+   memories in between carried no clip. An hour of silence with nothing eligible
+   is correct behaviour and must read as healthy. */
+test("an hour without a burst, when nothing eligible came up, is NOT a fault", () => {
+  const v = judgeV3Motion({ ...OK_CLIP, bursts: 75, lastBurstAt: Date.now() - 60 * 60_000, eligibleSinceBurst: 0 }, CLIPS, 7797);
+  expect(v.assessable).toBe(true);
+  expect(v.faults).toEqual([]);
+});
+
+test("a full pool walked with not one clip reaching the page, while the server offers some → fault", () => {
+  const blind = { ...OK_CLIP, bursts: 0, lastBurstAt: null, motionSeen: 0, eligible: 0 };
+  // One short of a full pool: still possible by the order alone.
+  expect(judgeV3Motion({ ...blind, exchanges: CLIPS.total - 1 }, CLIPS, 600).faults).toEqual([]);
+  const v = judgeV3Motion({ ...blind, exchanges: CLIPS.total }, CLIPS, 600);
   expect(v.faults).toHaveLength(1);
-  expect(v.faults[0]).toMatch(/STALE/);
+  expect(v.faults[0]).toMatch(/PAGE NEVER SEES A CLIP/);
+});
+
+test("a page without the evidence counters is a refusal that says to reload", () => {
+  const { exchanges, motionSeen, eligible, eligibleSinceBurst, ...old } = OK_CLIP;
+  const v = judgeV3Motion(old, CLIPS, 90);
+  expect(v.assessable).toBe(false);
+  expect(v.why).toMatch(/reload the kiosk/);
+  expect(v.faults).toEqual([]);
 });
 
 test("a healthy surface reports assessable with NO faults", () => {

@@ -2857,6 +2857,16 @@ test.describe("the archive's Live Photo burst", () => {
     expect(decoded.readyState, "the clip never decoded a frame").toBeGreaterThan(0);
     expect(decoded.w).toBeGreaterThan(0);
     expect(decoded.paused).toBe(false);
+
+    /* The evidence the live probe judges by (heap-metrics judgeV3Motion): this
+       exchange was handed a clip, passed every gate, and the reveal cleared the
+       "armed but not played" run. */
+    const ev = await clip(page);
+    expect(ev.bursts).toBeGreaterThanOrEqual(1);
+    expect(ev.exchanges).toBeGreaterThanOrEqual(1);
+    expect(ev.motionSeen).toBeGreaterThanOrEqual(1);
+    expect(ev.eligible).toBeGreaterThanOrEqual(1);
+    expect(ev.eligibleSinceBurst).toBe(0);
     expect(pageErrors).toEqual([]);
   });
 
@@ -2911,6 +2921,28 @@ test.describe("the archive's Live Photo burst", () => {
     expect(c, "the video was never built — the flag did not take").not.toBeNull();
     expect(c.armed).toBe(false);
     expect(c.src).toBeNull();
+    // Counted as an exchange, never as a clip: the probe must not expect a burst.
+    expect(c.exchanges).toBeGreaterThanOrEqual(1);
+    expect(c.motionSeen).toBe(0);
+    expect(c.eligible).toBe(0);
+    expect(pageErrors).toEqual([]);
+  });
+
+  /* A clip memory exchanged ABOVE depth 0 is refused (correctly), so it counts as
+     seen but NOT eligible: the probe must not call that an armed burst that
+     never played. */
+  test("a clip memory exchanged above depth 0 is seen, not eligible", async ({ page }) => {
+    const pageErrors = await bootMotion(page);
+    await groundShown(page);
+    await page.evaluate(() => window.__setDepth(1, "spec"));
+    await nextMemory(page);
+
+    const c = await clip(page);
+    expect(c.exchanges).toBeGreaterThanOrEqual(1);
+    expect(c.motionSeen).toBeGreaterThanOrEqual(1);
+    expect(c.eligible).toBe(0);
+    expect(c.eligibleSinceBurst).toBe(0);
+    expect(c.armed).toBe(false);
     expect(pageErrors).toEqual([]);
   });
 
