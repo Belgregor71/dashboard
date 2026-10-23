@@ -56,6 +56,17 @@ EVAL="node $SCRIPT_DIR/kiosk-eval.cjs"
 exec >>"$LOG" 2>&1
 cd "$REPO" || exit 1
 
+# ── The exit status is the verdict (2026-10-23). ────────────────────────────
+# This always exited 0: no `set -e`, the trace's status was grep's, the cycle's
+# own non-zero exit ("a transition did not land") was dropped, and a discarded
+# peak row was only a line in the log. A caller (a timer, a soak) could not tell
+# a sweep that measured from one that measured nothing.
+# Deliberately NOT `set -e`: the sweep must still run its restore steps, or a
+# failure halfway leaves a subject mounted on the wall. So every step that can
+# fail calls fail(), the sweep carries on, and the last line decides.
+FAILS=()
+fail() { FAILS+=("$1"); echo "!! FAIL: $1"; }
+
 # [PORT] Was `vcgencmd measure_temp`, which is Broadcom-only and hard-fails on
 # x86. /api/system/metrics autodetects the sensor on both hosts (server/routes/
 # system.js), so the dashboard is now its own thermometer.
@@ -150,15 +161,21 @@ sample() {
   # is fixed in git now; this makes that whole failure class impossible anyway.
   bash "$CPU" "$PIDS" "$secs" > "/tmp/sweep-cpu.$$" &
   local cpujob=$!
-  node scripts/kiosk/perf-metrics.cjs "$label" $((secs - 4))
-  wait $cpujob
+  node scripts/kiosk/perf-metrics.cjs "$label" $((secs - 4)) || fail "$label: perf-metrics exited $?"
+  wait $cpujob || fail "$label: gpucpu.sh exited non-zero"
+  [ -s "/tmp/sweep-cpu.$$" ] || fail "$label: no CPU sample"
   echo "state(post): $($EVAL --state)"
   echo "cpu (% of one core):"; sed 's/^/  /' "/tmp/sweep-cpu.$$"; rm -f "/tmp/sweep-cpu.$$"
 }
 
 trace() {
   echo "trace:"
-  node scripts/kiosk/gpu-trace.cjs 3 | grep -E '"(totalEvents|frameishEvents)"|BeginMainFrame|SwapBuffers' -A2
+  # The grep only trims; the trace's own exit is the one that counts.
+  node scripts/kiosk/gpu-trace.cjs 3 > "/tmp/sweep-trace.$$"
+  local st=$?
+  grep -E '"(totalEvents|frameishEvents)"|BeginMainFrame|SwapBuffers' -A2 "/tmp/sweep-trace.$$"
+  rm -f "/tmp/sweep-trace.$$"
+  [ "$st" -eq 0 ] || fail "trace: gpu-trace.cjs exited $st"
 }
 
 # --- 1. ambient: touch nothing --------------------------------------------------
@@ -190,6 +207,7 @@ if [ "$SURFACE" = "v3" ]; then
   node scripts/kiosk/kiosk-drive.cjs restore
   if [ "$PEAK_OK" -ne 0 ]; then
     echo "!! DISCARD THE PEAK ROW ABOVE — the peak state did not hold for the window (see the error above)."
+    fail "peak: the peak state did not hold for the window"
   fi
 else
   # The incumbent's forced rain-heavy peak lived here. The incumbent was
@@ -207,17 +225,26 @@ trace
 # so a silently gated cycle can never read as success again.
 bash "$CPU" "$PIDS" 26 > "/tmp/sweep-cycle.$$" &
 cyclejob=$!
-node scripts/kiosk/kiosk-drive.cjs cycle
-node scripts/kiosk/perf-metrics.cjs cycle 12
-wait $cyclejob
+node scripts/kiosk/kiosk-drive.cjs cycle || fail "cycle: kiosk-drive.cjs cycle exited $? (a transition did not land)"
+node scripts/kiosk/perf-metrics.cjs cycle 12 || fail "cycle: perf-metrics exited $?"
+wait $cyclejob || fail "cycle: gpucpu.sh exited non-zero"
+[ -s "/tmp/sweep-cycle.$$" ] || fail "cycle: no CPU sample"
 echo "--- cycle cpu (% of one core):"; sed 's/^/  /' "/tmp/sweep-cycle.$$"; rm -f "/tmp/sweep-cycle.$$"
 
 # --- restore ---------------------------------------------------------------------
-echo "heap: $(node scripts/kiosk/heap-metrics.cjs post-sweep)"
+HEAP=$(node scripts/kiosk/heap-metrics.cjs post-sweep) || fail "heap-metrics exited non-zero"
+echo "heap: $HEAP"
 if [ "$SURFACE" = "v3" ]; then
   # Belt and braces: the cycle ends cleared, but a failed step can leave a
   # subject mounted, and the sweep must never be the reason the wall is showing
   # the driveway at midnight.
-  node scripts/kiosk/kiosk-drive.cjs restore
+  node scripts/kiosk/kiosk-drive.cjs restore || fail "restore: kiosk-drive.cjs restore exited $? — CHECK THE WALL"
 fi
+if [ ${#FAILS[@]} -gt 0 ]; then
+  echo "RESULT: FAIL (${#FAILS[@]}) — this sweep's numbers are not a measurement:"
+  printf '  - %s\n' "${FAILS[@]}"
+  echo "===== end $(date -Is) ====="
+  exit 1
+fi
+echo "RESULT: OK"
 echo "===== end $(date -Is) ====="
