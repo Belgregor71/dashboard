@@ -34,6 +34,7 @@ import { renderVocabularyCard } from "./vocabulary-card.js";
 import { setSaidText } from "./spread.js";
 import { vetoCurrent, restoreLastVeto } from "./ground.js";
 import { handleTimerIntent } from "./timers.js";
+import { playMissTone, missTonesPlayed } from "./chime.js";
 import { dogOccasion, OCCASIONS } from "./dog-occasion.js";
 import { planFor } from "./dog-schedule.js";
 import { programmeFor, playDogShow, stopDogShow } from "./dog-show.js";
@@ -1006,7 +1007,8 @@ export function initVoice({ enabled: on = false, lat = null, lon = null } = {}) 
     // reported exactly these two since Phase 4, and the only reason V3's
     // follow-ups could go missing unnoticed is that nothing could see them.
     turns: history.length,
-    conversationId: assistConversationId
+    conversationId: assistConversationId,
+    missTones: missTonesPlayed()
   });
   window.__v3Transcript = (t) => submit(t, { source: "debug" });
 
@@ -1039,6 +1041,10 @@ export function initVoice({ enabled: on = false, lat = null, lon = null } = {}) 
   stream.addEventListener("voice_unheard", () => {
     if (!flag("voiceFailureCues") || busy) return;
     reportUnheard();
+    /* The light alone reached nobody who was not looking (owner, 2026-10-24:
+       "there was no confirmation that it worked or not"). Behind the same
+       `busy` guard as the light, so it can never sound over a reply. */
+    if (flag("v3VoiceMissTone")) playMissTone();
   });
 
   // After the stream exists — it is what the barge-in listener attaches to.

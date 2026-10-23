@@ -942,12 +942,13 @@ test("a reply the room replaced is not blanked out from under it", async ({ page
    pin both ends of it — including the one place it must STAY silent.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-async function bootFailureCues(page) {
+async function bootFailureCues(page, { missTone } = {}) {
   await page.route("**/js/config.js", async (route) => {
     const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
       body: (await res.text()) + "\nwindow.CONFIG.features.voiceFailureCues = true;\n"
+        + (missTone === undefined ? "" : `window.CONFIG.features.v3VoiceMissTone = ${missTone};\n`)
     });
   });
   const pageErrors = await boot(page);
@@ -1006,6 +1007,56 @@ test("the cue stays dark while a reply is still playing", async ({ page, request
      barge-in is the real lever for that and it is already the tested one — but
      it only silences when voiceHalfDuplex armed the listener, which this boot
      does not, so the race is the actual teardown. */
+  await Promise.race([turn, page.waitForTimeout(3000)]);
+  expect(pageErrors).toEqual([]);
+});
+
+/* ── The miss made AUDIBLE (v3VoiceMissTone) ──────────────────────────────────
+   Owner, 2026-10-24: a request dropped with only the rim light to say so, and
+   nobody was looking. `missTones` counts tones actually scheduled on the
+   AudioContext. ⚠ voiceBus is process-wide, so another worker's unheard POST can
+   ADD a tone here — which is why each test reads its own before/after and the
+   negative cases assert on flag or busy state, which a foreign POST cannot pass. */
+const missTones = () => window.__v3Voice().missTones;
+
+test("an unheard wake sounds the miss tone when the flag is on", async ({ page, request }) => {
+  const pageErrors = await bootFailureCues(page, { missTone: true });
+  const before = await page.evaluate(missTones);
+
+  expect((await request.post("/api/voice/unheard", { data: { reason: "no-speech" } })).status()).toBe(200);
+
+  await expect.poll(() => page.evaluate(missTones), { timeout: 5000 }).toBeGreaterThan(before);
+  // The tone rides WITH the light, not instead of it.
+  await expect.poll(() => page.evaluate(failState), { timeout: 5000 }).toBe("unheard");
+  expect(pageErrors).toEqual([]);
+});
+
+test("flag off: the miss is the light alone — the rollback", async ({ page, request }) => {
+  const pageErrors = await bootFailureCues(page, { missTone: false });
+
+  expect((await request.post("/api/voice/unheard", { data: { reason: "no-speech" } })).status()).toBe(200);
+  // Positive control first: the report DID arrive, so a zero below is the flag.
+  await expect.poll(() => page.evaluate(failState), { timeout: 5000 }).toBe("unheard");
+  expect(await page.evaluate(missTones), "the miss tone sounded with the flag off").toBe(0);
+  expect(pageErrors).toEqual([]);
+});
+
+test("the miss tone never sounds over a reply that is still playing", async ({ page, request }) => {
+  await page.route("**/api/tts/speak", (route) =>
+    route.fulfill({ contentType: "audio/wav", body: silentWav(30) })
+  );
+  const pageErrors = await bootFailureCues(page, { missTone: true });
+
+  const turn = page.evaluate(() => window.__v3Transcript("what time is it"));
+  await expect.poll(() => page.evaluate(() => window.__v3Voice().busy), { timeout: 10_000 }).toBe(true);
+  const before = await page.evaluate(missTones);
+
+  expect((await request.post("/api/voice/unheard", { data: { reason: "barge-in-timeout" } })).status()).toBe(200);
+  await page.waitForTimeout(1200);
+  // Still mid-reply, so nothing — ours or a foreign POST — could have passed the guard.
+  expect(await page.evaluate(() => window.__v3Voice().busy)).toBe(true);
+  expect(await page.evaluate(missTones), "a miss tone sounded over a reply").toBe(before);
+
   await Promise.race([turn, page.waitForTimeout(3000)]);
   expect(pageErrors).toEqual([]);
 });

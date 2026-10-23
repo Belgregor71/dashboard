@@ -711,6 +711,14 @@ window.CONFIG = {
     // REVERT: voiceTimerChime: false  (the line is spoken immediately, as before)
     voiceTimerChime: true,
 
+    // A soft two-note tone when the wake word fired and nothing was heard
+    // (src/v3/core/chime.js playMissTone), alongside the `unheard` rim light.
+    // Owner, 2026-10-24, after a request dropped silently: "put the audible
+    // miss after that". Lower, quieter and shorter than the timer chime. Needs
+    // voiceFailureCues on; never sounds while a reply is playing.
+    // REVERT: v3VoiceMissTone: false  (the miss is the rim light only, as before)
+    v3VoiceMissTone: false,
+
     // Speaker ID (docs/design/HANDOVER-SPEAKER-ID.md). When the box's STT names
     // the voice, the turn carries it: "am I free" counts only the speaker's own
     // feed plus the shared ones (CALENDAR_OWNERS in .env), and /converse swaps

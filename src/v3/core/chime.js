@@ -30,8 +30,21 @@ const PEAK_GAIN = 0.3;
 /** How long the caller waits before speaking: the last note plus a breath. */
 export const CHIME_MS = 1_000;
 
+/* The MISS tone (features.v3VoiceMissTone): the wake fired and nothing was
+   heard. Owner, 2026-10-24, after a request dropped with only the rim light to
+   say so: "put the audible miss after that". Deliberately NOT the timer's
+   bell — lower, quieter and shorter, two notes falling a fourth (G5 → D5), so
+   a miss can never be mistaken for a timer going off. No words: saying "sorry?"
+   to a room that may have been the TV is the noise presence-light avoids. */
+const MISS_NOTES = [
+  { hz: 784, at: 0, len: 0.22 },
+  { hz: 587.3, at: 0.14, len: 0.32 }
+];
+const MISS_GAIN = 0.16;
+
 let ctx = null;
 let played = 0;
+let missPlayed = 0;
 let suspendTimer = null;
 
 function context() {
@@ -46,11 +59,11 @@ function context() {
   return ctx;
 }
 
-function bell(ac, { hz, at, len }) {
+function bell(ac, { hz, at, len }, peak = PEAK_GAIN) {
   const t0 = ac.currentTime + 0.02 + at;
   const gain = ac.createGain();
   gain.gain.setValueAtTime(0.0001, t0);
-  gain.gain.exponentialRampToValueAtTime(PEAK_GAIN, t0 + 0.012);
+  gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.012);
   gain.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
   gain.connect(ac.destination);
   // A sine plus a quiet octave reads as a bell rather than a test tone.
@@ -66,30 +79,49 @@ function bell(ac, { hz, at, len }) {
   }
 }
 
+/* Schedule notes on the one context. True when they were scheduled. */
+function ring(notes, peak) {
+  const ac = context();
+  if (!ac) return false;
+  try {
+    if (suspendTimer) { clearTimeout(suspendTimer); suspendTimer = null; }
+    // Two-handler .then: a refused resume is handled here, not re-thrown.
+    if (ac.state === "suspended") ac.resume().then(() => {}, () => {});
+    for (const note of notes) bell(ac, note, peak);
+    return true;
+  } catch {
+    return false;   /* no chime is better than no line */
+  }
+}
+
+/* Suspend once the notes have rung out, unless another chime started. */
+function suspendLater() {
+  if (ctx && !suspendTimer) {
+    suspendTimer = setTimeout(() => {
+      suspendTimer = null;
+      if (ctx?.state === "running") ctx.suspend().then(() => {}, () => {});
+    }, CHIME_MS);
+  }
+}
+
+/** Play the miss tone. Fire and forget: nothing waits on it. */
+export function playMissTone() {
+  if (ring(MISS_NOTES, MISS_GAIN)) missPlayed += 1;
+  setTimeout(suspendLater, CHIME_MS);
+}
+
+/** Miss tones actually scheduled — the spec's evidence. */
+export function missTonesPlayed() {
+  return missPlayed;
+}
+
 /** Play the chime. Resolves after CHIME_MS whether or not a sound was made. */
 export function playChime() {
-  const ac = context();
-  if (ac) {
-    try {
-      if (suspendTimer) { clearTimeout(suspendTimer); suspendTimer = null; }
-      // Two-handler .then: a refused resume is handled here, not re-thrown.
-      if (ac.state === "suspended") ac.resume().then(() => {}, () => {});
-      for (const note of NOTES) bell(ac, note);
-      played += 1;
-    } catch {
-      /* no chime is better than no line */
-    }
-  }
+  if (ring(NOTES, PEAK_GAIN)) played += 1;
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve();
-      /* Suspend after the notes have rung out, unless another chime started. */
-      if (ctx && !suspendTimer) {
-        suspendTimer = setTimeout(() => {
-          suspendTimer = null;
-          if (ctx?.state === "running") ctx.suspend().then(() => {}, () => {});
-        }, CHIME_MS);
-      }
+      suspendLater();
     }, CHIME_MS);
   });
 }
