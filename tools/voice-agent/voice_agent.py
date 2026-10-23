@@ -160,7 +160,14 @@ COOLDOWN_S = float(os.environ.get("COOLDOWN_S", "1.5"))
 # mistake SILENCE_RMS already made in this room.
 CAPTURE_VAD = os.environ.get("CAPTURE_VAD", "speech").strip().lower()
 SPEECH_ON = float(os.environ.get("SPEECH_ON", "0.5"))
-LEAD_SILENCE_MS = int(os.environ.get("LEAD_SILENCE_MS", "1500"))
+# ⚠ 2500, not the 1500 the traces above were simulated at (2026-10-24). 1.5 s
+# was the right number for a silent wake and the wrong one for a person: over
+# 14 days 10 of 40 wakes ended `lead`, one of them the owner pausing after
+# "Hey Mycroft" to phrase a calendar request (WAKE 0.98, voiced=0). The lead
+# only decides how soon an EMPTY wake gives up — speech still has to clear
+# SPEECH_ON to count — so the extra second costs a false wake a second of
+# listening, never a transcript of room tone.
+LEAD_SILENCE_MS = int(os.environ.get("LEAD_SILENCE_MS", "2500"))
 
 # ── CAPTURE_VAD=smart — endpointing on whether the SENTENCE is finished ──────
 # ⚠ THE RULE ABOVE CANNOT TELL A PAUSE FROM AN ENDING, AND NO THRESHOLD FIXES

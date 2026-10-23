@@ -243,7 +243,14 @@ def _():
     va = load()                       # no env at all
     assert va.CAPTURE_VAD == "speech", f"default reverted to {va.CAPTURE_VAD!r}"
     pcm, took = run(va, secs(20, ROOM, 0.03))
-    assert pcm is None and took < 1700, f"silent wake still cost {took}ms"
+    assert pcm is None and 2400 <= took <= 2700, f"silent wake gave up at {took}ms, not the 2.5s default"
+
+
+@case("the DEFAULT lead hears someone who pauses two seconds after the wake word")
+def _(): # 2026-10-24: the owner paused to phrase a calendar request and the 1.5s lead dropped it
+    va = load()
+    pcm, _ = run(va, secs(2.0, ROOM, 0.04) + secs(2, SPEECH, 0.9) + secs(2, ROOM, 0.03))
+    assert pcm is not None, "a two-second pause for thought was treated as silence"
 
 
 @case("measured: the real traces from the wall would endpoint correctly")
@@ -265,7 +272,9 @@ def _():
     silent = [(518, 0.03)] * 20 + [(584, 0.16)] + [(520, 0.04)] * 21
     pcm, took = run(va, silent)
     assert pcm is None, "room tone captured again — whisper would invent a word"
-    assert took < 1700, f"silent wake still cost {took}ms"
+    # 2.5 s lead since 2026-10-24 (a person pausing after the wake word was
+    # being dropped); the half that matters is the pcm None above.
+    assert took < 2700, f"silent wake still cost {took}ms"
 
 
 # ── CAPTURE_VAD=smart ────────────────────────────────────────────────────────
