@@ -313,9 +313,15 @@ test("a TTS failure still returns the surface to idle", async ({ page }) => {
   /* speak() is given a two-handler .then precisely so a failure settles the
      phase. With only the success handler the rejection is unhandled and the
      surface stays `phase="speaking"` — the mic stays gated and the house has
-     gone quiet without saying why. boot() answers /api/tts/speak with 503, so
-     this is the failing path by default; nothing was asserting the recovery. */
+     gone quiet without saying why. boot() answers /api/tts/speak with 503 —
+     but that alone NEVER REJECTS: speak() falls back to the browser voice and
+     resolves. The 2026-09-19 mutation sweep deleted the rejection handler and
+     this test stayed green. So the fallback is made to throw as well (no
+     SpeechSynthesisUtterance), which is what genuinely rejects speak(). */
   const rejections = [];
+  await page.addInitScript(() => {
+    window.SpeechSynthesisUtterance = function () { throw new Error("no speech synthesis (spec)"); };
+  });
   await page.addInitScript(() => {
     window.__rejections = [];
     window.addEventListener("unhandledrejection", (e) => {

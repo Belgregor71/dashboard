@@ -687,6 +687,143 @@ test("streamed: every sentence's WAV releases its object URL", async ({ page }) 
   expect(pageErrors).toEqual([]);
 });
 
+/* ── The paths a 2026-09-19 mutation sweep found nothing reaching ──────────────
+   Each was recorded "unreachable in test". They are not; they need the browser
+   to refuse something the happy path never refuses. */
+
+/* Autoplay policy, a device that went away, a codec refusal: play() REJECTS.
+   tts.js settles on its rejection handler. Without it the chunk's await never
+   returns, so the rest of the reply is never synthesised, the URL is never
+   revoked, and the turn's busy latch is held until the page reloads (weeks). */
+async function refusePlay(page) {
+  await page.addInitScript(() => {
+    HTMLMediaElement.prototype.play = function () {
+      return Promise.reject(new DOMException("play() refused by the spec", "NotAllowedError"));
+    };
+  });
+}
+
+test("streamed: play() refused — every sentence is still tried, and every URL released", async ({ page }) => {
+  await countObjectUrls(page);
+  await refusePlay(page);
+  const spoken = [];
+  const pageErrors = await bootStreaming(page, {
+    spoken,
+    body: sse([
+      ["chunk", { text: "It's nineteen degrees and clear." }],
+      ["chunk", { text: "Rain's coming in about twenty minutes." }],
+      ["chunk", { text: "Worth taking a coat." }],
+      ["done", { reply: "It's nineteen degrees and clear. Rain's coming in about twenty minutes. Worth taking a coat.", source: "claude" }]
+    ])
+  });
+
+  await page.evaluate(() => window.__v3Transcript("zzz how's it looking out there"));
+  // All three asked for: a stuck first chunk would stop at one.
+  await expect.poll(() => spoken.length, { timeout: 10_000 }).toBe(3);
+  await expect.poll(async () => (await blobLedger(page)).created, { timeout: 10_000 }).toBe(3);
+  await expect.poll(async () => (await blobLedger(page)).outstanding, { timeout: 10_000 }).toBe(0);
+  expect(pageErrors).toEqual([]);
+});
+
+test("single-shot: play() refused — the URL is released and the next turn is heard", async ({ page }) => {
+  await countObjectUrls(page);
+  await refusePlay(page);
+  const spoken = [];
+  await page.route("**/api/tts/speak", (route) => {
+    spoken.push(route.request().postDataJSON()?.text);
+    return route.fulfill({ contentType: "audio/wav", body: silentWav(0.05) });
+  });
+  const pageErrors = await boot(page);
+
+  // A local answer speaks on the single-shot leg (only converse streams).
+  const first = await page.evaluate(() => window.__v3Transcript("what time is it"));
+  expect(first.handled).toBe(true);
+  await expect.poll(async () => (await blobLedger(page)).created, { timeout: 10_000 }).toBe(1);
+  await expect.poll(async () => (await blobLedger(page)).outstanding, { timeout: 10_000 }).toBe(0);
+  // The latch came back: a second turn is taken and spoken, not dropped as busy.
+  const second = await page.evaluate(() => window.__v3Transcript("what day is it"));
+  expect(second.handled).toBe(true);
+  await expect.poll(() => spoken.length, { timeout: 10_000 }).toBe(2);
+  expect(pageErrors).toEqual([]);
+});
+
+/* The streamed leg's `finally` revoke is a backstop for a throw AFTER the URL
+   exists and BEFORE the chunk's handlers own it. Nothing on the happy path
+   throws there, so the backstop was never reached. A volume setter that throws
+   (as an out-of-range value does) is one such throw. */
+test("streamed: a chunk that throws after its URL exists still releases it", async ({ page }) => {
+  await countObjectUrls(page);
+  await page.addInitScript(() => {
+    const desc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "volume");
+    Object.defineProperty(HTMLMediaElement.prototype, "volume", {
+      configurable: true,
+      get: desc.get,
+      set() { throw new DOMException("volume refused by the spec", "IndexSizeError"); }
+    });
+  });
+  const spoken = [];
+  const pageErrors = await bootStreaming(page, {
+    spoken,
+    body: sse([
+      ["chunk", { text: "It's nineteen degrees and clear." }],
+      ["chunk", { text: "Worth taking a coat." }],
+      ["done", { reply: "It's nineteen degrees and clear. Worth taking a coat.", source: "claude" }]
+    ])
+  });
+
+  await page.evaluate(() => window.__v3Transcript("zzz how's it looking out there"));
+  await expect.poll(() => spoken.length, { timeout: 10_000 }).toBe(2);
+  await expect.poll(async () => (await blobLedger(page)).created, { timeout: 10_000 }).toBe(2);
+  await expect.poll(async () => (await blobLedger(page)).outstanding, { timeout: 10_000 }).toBe(0);
+  expect(pageErrors).toEqual([]);
+});
+
+/* The browser-voice fallback waits for `voiceschanged` when the voice list is
+   still empty, as it is right after a cold start. The listener is { once: true }:
+   without it every early fallback line leaves a listener behind, and each one
+   re-runs on every later voiceschanged for the life of the page. */
+test("fallback voice: the voiceschanged wait listens once, not for the life of the page", async ({ page }) => {
+  await page.addInitScript(() => {
+    const synth = window.speechSynthesis;
+    const realGet = synth.getVoices.bind(synth);
+    window.__voicesReady = false;
+    synth.getVoices = () => (window.__voicesReady ? realGet() : []);
+    synth.speak = (u) => queueMicrotask(() => { u.onstart?.(new Event("start")); u.onend?.(new Event("end")); });
+    // Count how many times a voiceschanged listener actually RUNS.
+    window.__voicesFires = 0;
+    const add = synth.addEventListener.bind(synth);
+    synth.addEventListener = (type, fn, opts) => add(type, type === "voiceschanged"
+      ? (e) => { window.__voicesFires++; return fn(e); }
+      : fn, opts);
+  });
+  const said = [];
+  // Kokoro down: every line takes the browser-voice fallback.
+  await page.route("**/api/tts/speak", (route) => {
+    said.push(route.request().postDataJSON()?.text);
+    return route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
+  });
+  const pageErrors = await boot(page);
+
+  const turn = page.evaluate(() => window.__v3Transcript("what time is it"));
+  await expect.poll(() => said.length, { timeout: 10_000 }).toBe(1);
+  // The line is waiting on the voice list. Not vacuous: no listener has run yet.
+  expect(await page.evaluate(() => window.__voicesFires)).toBe(0);
+  await page.evaluate(() => {
+    window.__voicesReady = true;
+    window.speechSynthesis.dispatchEvent(new Event("voiceschanged"));
+  });
+  expect((await turn).handled).toBe(true);
+  expect(await page.evaluate(() => window.__voicesFires)).toBe(1);
+
+  // Two more voice-list changes later in the page's life: nothing left to run.
+  await page.evaluate(() => {
+    window.speechSynthesis.dispatchEvent(new Event("voiceschanged"));
+    window.speechSynthesis.dispatchEvent(new Event("voiceschanged"));
+  });
+  expect(await page.evaluate(() => window.__voicesFires)).toBe(1);
+  expect(pageErrors).toEqual([]);
+});
+
 test("streamed: the turn is remembered as one exchange, not per sentence", async ({ page }) => {
   const spoken = [];
   await bootStreaming(page, {

@@ -196,9 +196,15 @@ export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0, onAu
       return;
     }
     console.warn("[TTS] Kokoro unavailable, using browser fallback:", err?.message);
-    const result = await speakWithBrowserTts(text, { rate, pitch, volume });
-    releaseSpeech(mine);
-    return result;
+    /* `finally`, not after the await: a fallback that THROWS (no usable speech
+       synthesis) used to reject past this line with the air still claimed, and
+       every lower-priority speaker after it waited in quiet() for good: a
+       timer's ring left the surface at phase "speaking" (found 2026-10-23). */
+    try {
+      return await speakWithBrowserTts(text, { rate, pitch, volume });
+    } finally {
+      releaseSpeech(mine);
+    }
   }
 }
 
