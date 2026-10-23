@@ -41,7 +41,7 @@ test.describe("OFF ⇒ identity — the rollback path", () => {
     let asked = 0;
     const out = await withOccasions(base, BDAY, {
       fetchPeople: async () => { asked++; return { ok: true, people: [MELANIE] }; },
-      searchDay: async () => { asked++; return { ok: true, assets: [] }; }
+      searchPerson: async () => { asked++; return { ok: true, assets: [] }; }
     });
     expect(out).toBe(base);
     expect(asked).toBe(0);
@@ -80,52 +80,84 @@ test.describe("birthdaysOn", () => {
 });
 
 test.describe("weightPool", () => {
+  // Thirty on-this-day photos of nobody in particular.
   const others = Array.from({ length: 30 }, (_, i) =>
     photo(`o${i}`, `${2011 + (i % 15)}-05-${i % 2 ? "19" : "21"}T08:00:00.000Z`));
+  // Forty photos of Melanie on ordinary days, 2011–2025.
+  const hers = Array.from({ length: 40 }, (_, i) =>
+    photo(`h${String(i).padStart(2, "0")}`, `${2011 + Math.floor(i * 15 / 40)}-0${1 + (i % 4)}-1${i % 10}T10:00:00.000Z`, ["Melanie Smith"]));
+  const mel = (assets) => [{ name: "Melanie Smith", assets }];
 
-  test("only photos of the person taken ON the birthday are marked — not the day after", () => {
+  test("only photos taken ON the birthday are marked — the day after is filler, not 'her birthday'", () => {
     const onDay = photo("b1", "2019-05-20T18:00:00.000Z", ["Melanie Smith", "Kelly Rose"]);
     const dayAfter = photo("b2", "2019-05-21T09:00:00.000Z", ["Melanie Smith"]);
     const notHer = photo("b3", "2019-05-20T12:00:00.000Z", ["Kelly Rose"]);
-    const out = weightPool([onDay, dayAfter, notHer, ...others], [], [MELANIE], BDAY);
-    const marked = out.filter((a) => a.birthdayOf);
-    expect(marked.map((a) => a.id)).toEqual(["b1"]);
-    expect(marked[0].birthdayOf).toBe("Melanie Smith");
+    const out = weightPool([onDay, dayAfter, notHer, ...others], mel([]), BDAY);
+    expect(out.filter((a) => a.birthdayOf).map((a) => a.id)).toEqual(["b1"]);
+    expect(out[0]).toMatchObject({ id: "b1", birthdayOf: "Melanie Smith" });
+    // The day-after photo is hers, so it is featured — unmarked.
+    expect(out[1].id).toBe("b2");
+    expect("birthdayOf" in out[1]).toBe(false);
   });
 
-  test("about half: birthday photos first newest-year first, the rest thinned to as many again", () => {
-    const bday = Array.from({ length: 10 }, (_, i) =>
-      photo(`m${i}`, `${2012 + i}-05-20T10:00:00.000Z`, ["Melanie Smith"]));
-    const out = weightPool([...others, ...bday.slice(0, 4)], bday.slice(4), [MELANIE], BDAY);
-    expect(out).toHaveLength(20);
-    expect(out.slice(0, 10).every((a) => a.birthdayOf === "Melanie Smith")).toBe(true);
-    expect(out.slice(0, 10).map((a) => a.id)).toEqual(["m9", "m8", "m7", "m6", "m5", "m4", "m3", "m2", "m1", "m0"]);
-    expect(out.slice(10).some((a) => a.birthdayOf)).toBe(false);
-    // Spread across the pool, not the first ten of it.
-    const kept = out.slice(10).map((a) => Number(a.id.slice(1)));
-    expect(Math.max(...kept)).toBeGreaterThanOrEqual(25);
+  test("about half: her twelve lead (birthday ones first, newest first), the rest thinned to twelve", () => {
+    const bdays = [2014, 2019, 2017].map((y) => photo(`m${y}`, `${y}-05-20T10:00:00.000Z`, ["Melanie Smith"]));
+    const out = weightPool(others, mel([...bdays, ...hers]), BDAY);
+    expect(out).toHaveLength(24);
+    expect(out.slice(0, 3).map((a) => a.id)).toEqual(["m2019", "m2017", "m2014"]);
+    expect(out.slice(0, 3).every((a) => a.birthdayOf === "Melanie Smith")).toBe(true);
+    // Nine filler photos of her, unmarked, spread across her years.
+    const filler = out.slice(3, 12);
+    expect(filler.every((a) => a.id.startsWith("h") && !("birthdayOf" in a))).toBe(true);
+    const years = filler.map((a) => Number(a.localDateTime.slice(0, 4)));
+    expect(Math.max(...years) - Math.min(...years)).toBeGreaterThanOrEqual(10);
+    // Then twelve of the rest, spread across the pool rather than its first twelve.
+    const rest = out.slice(12);
+    expect(rest.every((a) => a.id.startsWith("o"))).toBe(true);
+    expect(Math.max(...rest.map((a) => Number(a.id.slice(1))))).toBeGreaterThanOrEqual(25);
   });
 
-  test("a thin birthday keeps a floor of six others, so the day's walk is not four photos", () => {
+  test("more birthday photos than the share: all of them, no filler", () => {
+    const many = Array.from({ length: 15 }, (_, i) => photo(`m${i}`, `${2011 + i}-05-20T10:00:00.000Z`, ["Melanie Smith"]));
+    const out = weightPool(others, mel([...many, ...hers]), BDAY);
+    expect(out.slice(0, 15).every((a) => a.birthdayOf)).toBe(true);
+    expect(out.some((a) => a.id.startsWith("h"))).toBe(false);
+    expect(out).toHaveLength(30);
+  });
+
+  test("a person with one photo keeps a floor of six others, so the day's walk is not two photos", () => {
     const one = photo("m1", "2018-05-20T10:00:00.000Z", ["Melanie Smith"]);
-    const out = weightPool(others, [one], [MELANIE], BDAY);
+    const out = weightPool(others, mel([one]), BDAY);
     expect(out).toHaveLength(7);
     expect(out[0].id).toBe("m1");
   });
 
+  test("two birthdays on one day share the twelve", () => {
+    const gregs = Array.from({ length: 20 }, (_, i) => photo(`g${i}`, `${2011 + (i % 14)}-03-0${1 + (i % 9)}T10:00:00.000Z`, ["Greg Dee"]));
+    const out = weightPool(others, [{ name: "Melanie Smith", assets: hers }, { name: "Greg Dee", assets: gregs }], BDAY);
+    expect(out.filter((a) => a.id.startsWith("h"))).toHaveLength(6);
+    expect(out.filter((a) => a.id.startsWith("g"))).toHaveLength(6);
+  });
+
+  test("this year's photographs are not memories yet", () => {
+    const today = photo("now", "2026-05-20T08:00:00.000Z", ["Melanie Smith"]);
+    const out = weightPool(others, mel([today]), BDAY);
+    expect(out).toBe(others);
+  });
+
   test("a photo in both the pool and the person search is counted once", () => {
     const dup = photo("m1", "2018-05-20T10:00:00.000Z", ["Melanie Smith"]);
-    const out = weightPool([dup, ...others], [dup], [MELANIE], BDAY);
+    const out = weightPool([dup, ...others], mel([dup]), BDAY);
     expect(out.filter((a) => a.id === "m1")).toHaveLength(1);
   });
 
   test("a birthday with no photographs leaves the pool exactly as it was", () => {
-    expect(weightPool(others, [], [MELANIE], BDAY)).toBe(others);
+    expect(weightPool(others, mel([]), BDAY)).toBe(others);
   });
 
   test("never mutates the pool's assets (the route memo shares them)", () => {
     const shared = photo("m1", "2018-05-20T10:00:00.000Z", ["Melanie Smith"]);
-    weightPool([shared], [], [MELANIE], BDAY);
+    weightPool([shared], mel([]), BDAY);
     expect("birthdayOf" in shared).toBe(false);
   });
 });
@@ -142,7 +174,7 @@ test.describe("withOccasions", () => {
   test("a failed person search is NOT cacheable either", async () => {
     const out = await withOccasions(base(), BDAY, {
       fetchPeople: async () => ({ ok: true, people: [MELANIE] }),
-      searchDay: async () => ({ ok: false, assets: [] })
+      searchPerson: async () => ({ ok: false, assets: [] })
     });
     expect(out.ok).toBe(false);
   });
@@ -151,24 +183,18 @@ test.describe("withOccasions", () => {
     const b = base();
     const out = await withOccasions(b, new Date(2026, 6, 1), {
       fetchPeople: async () => ({ ok: true, people: [MELANIE] }),
-      searchDay: async () => { throw new Error("must not search"); }
+      searchPerson: async () => { throw new Error("must not search"); }
     });
     expect(out).toBe(b);
   });
 
-  test("searches past years only, never before the person was born, at most fifteen back", async () => {
-    const calls = [];
-    const young = { id: "p-y", name: "Young One", birthDate: "2021-05-20" };
+  test("searches each birthday person once, by their Immich id", async () => {
+    const searched = [];
     await withOccasions(base(), BDAY, {
-      fetchPeople: async () => ({ ok: true, people: [MELANIE, young] }),
-      searchDay: async (id, month, day, years) => { calls.push({ id, month, day, years }); return { ok: true, assets: [] }; }
+      fetchPeople: async () => ({ ok: true, people: [MELANIE, GREG, KELLY] }),
+      searchPerson: async (id) => { searched.push(id); return { ok: true, assets: [] }; }
     });
-    const mel = calls.find((c) => c.id === "p-mel");
-    expect(mel.month).toBe(4);
-    expect(mel.day).toBe(20);
-    expect(mel.years[0]).toBe(2025);
-    expect(mel.years.at(-1)).toBe(2011);
-    expect(calls.find((c) => c.id === "p-y").years).toEqual([2025, 2024, 2023, 2022, 2021]);
+    expect(searched.sort()).toEqual(["p-greg", "p-mel"]);
   });
 
   test("respects the skip list from the env", async () => {
@@ -176,16 +202,16 @@ test.describe("withOccasions", () => {
     const searched = [];
     await withOccasions(base(), BDAY, {
       fetchPeople: async () => ({ ok: true, people: [MELANIE, GREG] }),
-      searchDay: async (id) => { searched.push(id); return { ok: true, assets: [] }; }
+      searchPerson: async (id) => { searched.push(id); return { ok: true, assets: [] }; }
     });
     expect(searched).toEqual(["p-greg"]);
   });
 
-  test("end to end: the person search's photographs are marked and lead the pool", async () => {
+  test("end to end: the person search's birthday photograph is marked and leads the pool", async () => {
     const found = photo("m1", "2019-05-20T19:00:00.000Z", ["Melanie Smith"]);
     const out = await withOccasions(base(), BDAY, {
       fetchPeople: async () => ({ ok: true, people: [MELANIE] }),
-      searchDay: async () => ({ ok: true, assets: [found] })
+      searchPerson: async () => ({ ok: true, assets: [found] })
     });
     expect(out.ok).toBe(true);
     expect(out.assets[0]).toMatchObject({ id: "m1", birthdayOf: "Melanie Smith" });

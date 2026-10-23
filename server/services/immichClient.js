@@ -550,49 +550,36 @@ export async function fetchPeopleBirthdaysResult() {
 }
 
 /**
- * One person's photographs from one calendar day in each of the given years.
+ * Every photograph of one person, in one request — the birthday lane's source
+ * (photoOccasions.js picks the ones taken ON the birthday, then fills from the
+ * rest).
  *
- * Exists because the on-this-day windows cap at 40 per year, and a birthday
- * party is exactly the day that cap bites. The window is padded a day either
- * side because `takenAfter` is an instant and a photograph's day is its own
- * local one; the caller keeps only the photographs whose `localDateTime` is the
- * birthday itself.
+ * One page of 1000. Measured 2026-10-24: the most-photographed person with a
+ * birth date has 580, and only 13 photographs in the whole library were taken
+ * on anyone's birthday — which is why this fetches the person and not the day.
  *
  * @param {string} personId
- * @param {number} month  0-based, like Date#getMonth
- * @param {number} day
- * @param {number[]} years
- * @returns {Promise<{ok: boolean, assets: Array}>} `ok:false` if ANY year failed
+ * @returns {Promise<{ok: boolean, assets: Array}>}
  */
-export async function personDayResult(personId, month, day, years) {
+export async function personPhotosResult(personId) {
   const cfg = config();
   if (!cfg) return { ok: false, assets: [] };
-  const perYear = await Promise.all(years.map(async (y) => {
-    try {
-      const res = await fetchWithTimeout(
-        `${cfg.base}/api/search/metadata`,
-        {
-          method: "POST",
-          headers: headers(cfg.key),
-          body: JSON.stringify({
-            personIds: [personId],
-            takenAfter: new Date(y, month, day - 1).toISOString(),
-            takenBefore: new Date(y, month, day + 2).toISOString(),
-            size: 100,
-            withExif: true,
-            withPeople: true
-          })
-        },
-        TIMEOUT_MS
-      );
-      if (!res.ok) return { ok: false, items: [] };
-      const data = await res.json();
-      return { ok: true, items: (data?.assets?.items ?? []).filter(usableImage).map(slim) };
-    } catch {
-      return { ok: false, items: [] };
-    }
-  }));
-  return { ok: perYear.every((r) => r.ok), assets: perYear.flatMap((r) => r.items) };
+  try {
+    const res = await fetchWithTimeout(
+      `${cfg.base}/api/search/metadata`,
+      {
+        method: "POST",
+        headers: headers(cfg.key),
+        body: JSON.stringify({ personIds: [personId], size: 1000, withExif: true, withPeople: true })
+      },
+      TIMEOUT_MS
+    );
+    if (!res.ok) return { ok: false, assets: [] };
+    const data = await res.json();
+    return { ok: true, assets: (data?.assets?.items ?? []).filter(usableImage).map(slim) };
+  } catch {
+    return { ok: false, assets: [] };
+  }
 }
 
 /**

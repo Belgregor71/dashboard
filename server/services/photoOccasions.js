@@ -1,11 +1,19 @@
-import { fetchPeopleBirthdaysResult, personDayResult } from "./immichClient.js";
+import { fetchPeopleBirthdaysResult, personPhotosResult } from "./immichClient.js";
 
 // A birthday on the ambient ground (FIELD-SCAN round 2, #9).
 //
-// On someone's birthday the on-this-day pool leans toward photographs of them
-// taken ON their birthday in past years — about half of what the wall walks
-// through that day — and each of those says so: "Melanie's birthday 2019".
+// On someone's birthday about half of what the wall walks through that day is
+// photographs of them. The ones taken ON a past birthday come first and say so
+// — "Melanie's birthday 2019". The rest of their share is other photographs of
+// them, spread across the years, captioned as they always are: claiming a
+// birthday for a photograph that was not taken on one would be inventing it.
 // Every other day of the year this does nothing at all.
+//
+// Why the fill exists, measured on the live library 2026-10-24: of 10 people
+// with a birth date, only 13 photographs were taken on anyone's birthday, and
+// after the usual filters 3 survived, all of one person. Birthday photographs
+// alone would have lit one day a year with three pictures (owner chose the
+// fill, 2026-10-24).
 //
 // The occasion source is Immich's own person `birthDate`, so the date is keyed
 // to a face cluster and never to a name typed twice. Measured 2026-10-24: 10 of
@@ -15,7 +23,7 @@ import { fetchPeopleBirthdaysResult, personDayResult } from "./immichClient.js";
 //
 // Two halves, split on the route's memo the same way photoNames/photoTrips are:
 //   withOccasions  — INSIDE the hourly memo. Fetches and reweights the pool,
-//                    marking each birthday photograph with an internal
+//                    marking each photograph taken ON the birthday with an internal
 //                    `birthdayOf` (a FULL name, which must never leave here).
 //   labelOccasions — OUTSIDE it, on the way out. Turns the mark into the
 //                    caption phrase and always deletes the mark.
@@ -45,9 +53,10 @@ export function skipNames() {
 // text somebody typed.
 const key = (n) => String(n || "").trim().replace(/\s+/g, " ").toLowerCase();
 
-const YEARS_BACK = 15;  // the on-this-day pool's own reach
-// The floor under "about half". A day with two birthday photographs would
-// otherwise walk a pool of four, and the ground repeats a pool once it runs out.
+// The birthday person's share of the day, shared between everyone whose
+// birthday it is. The rest of the pool is thinned to as many again.
+const FEATURE = 12;
+// The floor under "about half", for a person with only a photograph or two.
 const MIN_OTHERS = 6;
 
 /**
@@ -78,48 +87,65 @@ function monthDayOf(asset) {
   return typeof raw === "string" && /^\d{4}-\d{2}-\d{2}/.test(raw) ? raw.slice(5, 10) : null;
 }
 
+/** `n` items picked evenly across `list` (all of it when it is no longer). */
+function spread(list, n) {
+  if (list.length <= n) return list;
+  return Array.from({ length: n }, (_, i) => list[Math.floor((i * list.length) / n)]);
+}
+
+const yearOf = (a) => Number(String(a?.localDateTime || "").slice(0, 4));
+
 /**
- * Reweight a day's pool around the birthday photographs.
+ * Reweight a day's pool around today's birthdays.
  *
- * A photograph counts when the person is in it AND it was taken on the
- * birthday's month-day — a photo of them from the day after the party is not
- * "their birthday", and the caption would be making that up. They come first,
- * newest year first (the depth-3 grid reads the pool in order). The rest of the
- * pool is thinned to as many again, floor MIN_OTHERS, picked evenly across it so
- * the years stay spread rather than the most recent few surviving.
+ * Per person, from their photographs (the pool's and the person search's,
+ * past years only — this year's are not memories yet):
+ *   1. Those taken on the birthday's month-day, newest first, MARKED — only
+ *      these will be captioned as a birthday. A photo from the day after the
+ *      party is not "their birthday", and the caption would be making it up.
+ *   2. Filled to their share of FEATURE with their other photographs, spread
+ *      evenly across their timeline and NOT marked: captioned as usual.
+ * The person's photographs lead (the depth-3 grid reads the pool in order); the
+ * rest of the pool is thinned to as many again, floor MIN_OTHERS, picked evenly
+ * across it so the years stay spread.
  *
  * Pure. Never mutates its inputs.
  *
- * @param {Array} pool       the on-this-day assets
- * @param {Array} extra      assets from personDayResult (may overlap the pool)
- * @param {Array<{name}>} birthdays  from birthdaysOn
+ * @param {Array} pool   the on-this-day assets
+ * @param {Array<{name: string, assets: Array}>} found  per birthday person, from personPhotosResult
  * @param {Date} now
  */
-export function weightPool(pool, extra, birthdays, now = new Date()) {
+export function weightPool(pool, found, now = new Date()) {
   const md = `${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  const wanted = birthdays.map((b) => ({ k: key(b.name), name: b.name }));
+  const thisYear = now.getFullYear();
+  const share = Math.max(1, Math.floor(FEATURE / Math.max(1, (found || []).length)));
 
-  const marked = [];
   const seen = new Set();
-  for (const a of [...(pool || []), ...(extra || [])]) {
-    if (!a?.id || seen.has(a.id) || monthDayOf(a) !== md) continue;
-    const people = (a.people || []).map(key);
-    const who = wanted.find((w) => people.includes(w.k));
-    if (!who) continue;
-    seen.add(a.id);
-    marked.push({ ...a, birthdayOf: who.name });
+  const featured = [];
+  for (const { name, assets } of found || []) {
+    const k = key(name);
+    const theirs = [];
+    const mine = new Set();
+    for (const a of [...(pool || []), ...(assets || [])]) {
+      if (!a?.id || seen.has(a.id) || mine.has(a.id)) continue;
+      if (!(yearOf(a) < thisYear) || !(a.people || []).map(key).includes(k)) continue;
+      mine.add(a.id);
+      theirs.push(a);
+    }
+    const byDate = (x, y) => String(y.localDateTime).localeCompare(String(x.localDateTime));
+    const onDay = theirs.filter((a) => monthDayOf(a) === md).sort(byDate);
+    const rest = theirs.filter((a) => monthDayOf(a) !== md).sort(byDate);
+    const picked = [
+      ...onDay.map((a) => ({ ...a, birthdayOf: name })),
+      ...spread(rest, Math.max(0, share - onDay.length))
+    ];
+    for (const a of picked) seen.add(a.id);
+    featured.push(...picked);
   }
-  if (!marked.length) return pool;
-
-  marked.sort((x, y) => String(y.localDateTime).localeCompare(String(x.localDateTime)));
+  if (!featured.length) return pool;
 
   const others = (pool || []).filter((a) => a?.id && !seen.has(a.id));
-  const keep = Math.max(marked.length, MIN_OTHERS);
-  const thinned = others.length <= keep
-    ? others
-    : Array.from({ length: keep }, (_, i) => others[Math.floor((i * others.length) / keep)]);
-
-  return [...marked, ...thinned];
+  return [...featured, ...spread(others, Math.max(featured.length, MIN_OTHERS))];
 }
 
 /**
@@ -140,7 +166,7 @@ export async function withOccasions(result, now = new Date(), deps = {}) {
   if (!occasionsEnabled() || !base?.ok) return base;
 
   const fetchPeople = deps.fetchPeople ?? fetchPeopleBirthdaysResult;
-  const searchDay = deps.searchDay ?? personDayResult;
+  const searchPerson = deps.searchPerson ?? personPhotosResult;
 
   const people = await fetchPeople();
   if (!people.ok) return { ok: false, assets: base.assets };
@@ -148,17 +174,11 @@ export async function withOccasions(result, now = new Date(), deps = {}) {
   const birthdays = birthdaysOn(people.people, now, skipNames());
   if (!birthdays.length) return base;
 
-  const thisYear = now.getFullYear();
-  const searches = await Promise.all(birthdays.map((b) => {
-    const years = [];
-    const oldest = Math.max(thisYear - YEARS_BACK, Number.isFinite(b.birthYear) ? b.birthYear : 0);
-    for (let y = thisYear - 1; y >= oldest; y--) years.push(y);
-    return searchDay(b.id, now.getMonth(), now.getDate(), years);
-  }));
-  const extra = searches.flatMap((s) => s.assets || []);
+  const searches = await Promise.all(birthdays.map((b) => searchPerson(b.id)));
+  const found = birthdays.map((b, i) => ({ name: b.name, assets: searches[i].assets || [] }));
   return {
     ok: searches.every((s) => s.ok),
-    assets: weightPool(base.assets, extra, birthdays, now)
+    assets: weightPool(base.assets, found, now)
   };
 }
 
