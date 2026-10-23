@@ -285,8 +285,16 @@ test("the band and the vocabulary rail are never both on the glass", async ({ pa
     await page.evaluate((d) => window.__setDepth(d, "spec"), depth);
     /* Past the depth exchange before reading. `.depth` transitions visibility
        with a --m-calm DELAY, so for 350ms after the change the outgoing layer is
-       still painted — reading immediately would report the depth we just left. */
-    await page.waitForTimeout(600);
+       still painted — reading immediately would report the depth we just left.
+       ⚠ WAIT FOR THE TRANSITIONS, NOT A TIME. This was a fixed 600 ms, and
+       under 10 workers a style recalc can start the fade late enough to eat the
+       250 ms of slack: reproduced 2026-10-23, 1 in 10 beside v3-field-weather,
+       as `seen[1].band === true` (the depth-0 band still painted at depth 1).
+       getAnimations() flushes style first, so a fade that should have begun is
+       in the list. */
+    await page.waitForFunction(() => document.getAnimations().every((a) =>
+      !(a instanceof CSSTransition) || a.playState !== "running" || !a.effect?.target?.closest?.(".depth")
+    ), null, { timeout: 5_000 });
     seen.push(
       await page.evaluate(() => {
         /* ⚠ checkVisibility, NOT getComputedStyle. Opacity does not inherit, so
