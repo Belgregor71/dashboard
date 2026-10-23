@@ -287,6 +287,45 @@ export function getHealth() {
   return { overall, updatedAt: Date.now(), feeds };
 }
 
+const RESTAMP_WINDOW_MS = 100;
+const RESTAMP_MIN_CAMERAS = 3;
+
+/**
+ * The motion heartbeat's seed from an HA states snapshot: the LATEST motion
+ * `last_changed` that is not part of a re-stamp, or null. Pure; exported for
+ * the spec.
+ *
+ * The heartbeat asks "is ANY camera delivering", so the newest timestamp is
+ * the answer. It used to take whichever motion entity HA listed first. After
+ * the 2026-10-22 restart that was the dead kitchen (silent 4 days) while the
+ * driveway had fired 7 minutes earlier, and the feed read `error` until the
+ * next live edge.
+ *
+ * A timestamp shared (within 100 ms) by 3+ distinct cameras is a reconnect
+ * re-stamp, not an event (2026-09-04: five cameras inside 35 ms), and is
+ * skipped. One camera's motion + person sensors flip together in ~20 ms, so
+ * this counts CAMERAS, not entities.
+ */
+export function motionSeedFrom(states) {
+  const stamps = [];
+  for (const entity of states || []) {
+    const id = entity?.entity_id;
+    if (!id) continue;
+    const m = /^binary_sensor\.(\w+)_(?:motion|person)_detected$/.exec(id);
+    const camera = m ? m[1] : id === DOORBELL_RING_ENTITY ? "doorbell" : null;
+    if (!camera) continue;
+    const at = Date.parse(entity.last_changed || "");
+    if (Number.isFinite(at)) stamps.push({ camera, at });
+  }
+  let best = null;
+  for (const { at } of stamps) {
+    const near = new Set(stamps.filter((s) => Math.abs(s.at - at) <= RESTAMP_WINDOW_MS).map((s) => s.camera));
+    if (near.size >= RESTAMP_MIN_CAMERAS) continue;
+    if (best === null || at > best) best = at;
+  }
+  return best;
+}
+
 function noteMotionEntity(entityId, stateValue, changedAt) {
   const isMotion = MOTION_ENTITY_RE.test(entityId) || entityId === DOORBELL_RING_ENTITY;
   if (!isMotion || stateValue !== "on") return;
@@ -339,10 +378,13 @@ export function startHealthService({ manager = null } = {}) {
         if (!isMotion) continue;
         const changed = Date.parse(entity.last_changed || "");
         if (!Number.isFinite(changed)) continue;
-        const state = getFeedState("motion");
-        if (!state.lastSuccessAt) state.lastSuccessAt = changed;
         // Seeds last-seen only, never the house event log — see seed()'s note.
         coverage.seed(entity.entity_id, changed);
+      }
+      const state = getFeedState("motion");
+      if (!state.lastSuccessAt) {
+        const seeded = motionSeedFrom(states);
+        if (seeded !== null) state.lastSuccessAt = seeded;
       }
     });
   }

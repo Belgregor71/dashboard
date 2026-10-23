@@ -9,7 +9,7 @@ import {
   ERROR_EVENTS,
   ERROR_MIN_MS
 } from "../server/services/motionCoverage.js";
-import { occupancyFrom } from "../server/services/healthService.js";
+import { occupancyFrom, motionSeedFrom } from "../server/services/healthService.js";
 
 // The incident this exists for (2026-08-08): four of nine cameras — kitchen,
 // side gate, piano room, tilt-pan — stopped delivering while five carried on.
@@ -215,6 +215,56 @@ test.describe("seed does not fabricate activity", () => {
     const tracker = createCoverageTracker({ watched: KITCHEN_ONLY, startedAt: T0 });
     expect(tracker.seed("binary_sensor.kitchen_motion_detected", NaN)).toBeNull();
     expect(tracker.snapshot().lastSeen.kitchen).toBeUndefined();
+  });
+});
+
+test.describe("motionSeedFrom — the heartbeat seeds from the LATEST credible stamp", () => {
+  const at = (iso) => ({ last_changed: iso });
+  const ent = (id, iso) => ({ entity_id: `binary_sensor.${id}`, ...at(iso) });
+
+  test("the 2026-10-22 restart: a dead camera listed first does not win", () => {
+    // HA listed the kitchen (silent 4 days) before the driveway (7 min ago).
+    const seeded = motionSeedFrom([
+      ent("kitchen_motion_detected", "2026-10-18T05:25:18Z"),
+      ent("driveway_motion_detected", "2026-10-22T08:16:09.432Z"),
+      ent("driveway_person_detected", "2026-10-22T08:16:09.413Z"),
+      ent("doorbell_motion_detected", "2026-10-22T06:51:09Z")
+    ]);
+    expect(seeded).toBe(Date.parse("2026-10-22T08:16:09.432Z"));
+  });
+
+  test("a reconnect re-stamp across 3+ cameras is not an event", () => {
+    // 2026-09-04: five cameras re-stamped inside 35 ms. The real latest is older.
+    const seeded = motionSeedFrom([
+      ent("kitchen_motion_detected", "2026-09-04T10:00:00.000Z"),
+      ent("side_gate_motion_detected", "2026-09-04T10:00:00.012Z"),
+      ent("piano_room_motion_detected", "2026-09-04T10:00:00.020Z"),
+      ent("backyard_motion_detected", "2026-09-04T10:00:00.035Z"),
+      ent("driveway_motion_detected", "2026-09-04T08:30:00Z")
+    ]);
+    expect(seeded).toBe(Date.parse("2026-09-04T08:30:00Z"));
+  });
+
+  test("one camera's sensors flipping together IS an event — it counts cameras, not entities", () => {
+    // A doorbell press: motion, person and ringing inside a few ms. Three
+    // entities, one camera — an entity count would call this a re-stamp.
+    const seeded = motionSeedFrom([
+      ent("doorbell_motion_detected", "2026-10-22T08:16:09.432Z"),
+      ent("doorbell_person_detected", "2026-10-22T08:16:09.413Z"),
+      ent("doorbell_ringing", "2026-10-22T08:16:09.440Z"),
+      ent("kitchen_motion_detected", "2026-10-18T05:25:18Z")
+    ]);
+    expect(seeded).toBe(Date.parse("2026-10-22T08:16:09.440Z"));
+  });
+
+  test("no motion entities, or only a re-stamp, seeds nothing", () => {
+    expect(motionSeedFrom([{ entity_id: "light.kitchen", last_changed: "2026-10-22T08:00:00Z" }])).toBeNull();
+    expect(motionSeedFrom([])).toBeNull();
+    expect(motionSeedFrom([
+      ent("a_motion_detected", "2026-10-22T08:00:00.000Z"),
+      ent("b_motion_detected", "2026-10-22T08:00:00.010Z"),
+      ent("c_motion_detected", "2026-10-22T08:00:00.020Z")
+    ])).toBeNull();
   });
 });
 
