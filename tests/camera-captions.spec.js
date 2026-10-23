@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import http from "node:http";
 import { EventEmitter } from "node:events";
 import {
-  cameraForEntity, createCaptionLane, captionImage, prune, startCameraCaptions, captionStatus,
+  cameraForEntity, createCaptionLane, captionImage, prune, startCameraCaptions, captionStatus, spawnArgs,
   PROMPT, RETENTION_MS, MAX_ROWS
 } from "../server/services/cameraCaptions.js";
 
@@ -134,6 +134,19 @@ test.describe("the lane", () => {
     await settled(l);
     expect(rows).toEqual([]);
     expect(l.status()).toMatchObject({ errors: 1, lastError: "model down" });
+  });
+});
+
+test.describe("spawnArgs", () => {
+  test("the model server runs at the voice units' priority, nice 10, and the lane's exact flags", () => {
+    const [cmd, args] = spawnArgs({ bin: "/x/llama-server", model: "/m.gguf", mmproj: "/p.gguf", port: 8099 });
+    expect(cmd).toBe("nice");
+    expect(args.slice(0, 3)).toEqual(["-n", "10", "/x/llama-server"]);
+    // -c 2048: the default context cost 2 GB more (measured 2026-10-22).
+    expect(args.slice(3)).toEqual([
+      "-m", "/m.gguf", "--mmproj", "/p.gguf", "--jinja",
+      "-t", "4", "-c", "2048", "-np", "1", "--host", "127.0.0.1", "--port", "8099"
+    ]);
   });
 });
 

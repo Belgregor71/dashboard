@@ -119,6 +119,25 @@ function spawnConfig() {
   return { bin, model, mmproj, port: Number(process.env.CAPTION_PORT) || 8099 };
 }
 
+/**
+ * The command that starts the model server. Pure; exported for the spec.
+ *
+ * Under `nice -n 10`, the same priority as the voice units (deploy/voice-tts.service,
+ * voice-stt.service: Nice=10). As a child of dashboard.service it would
+ * otherwise run at nice 0 and OUTRANK a voice reply: its 4 threads plus TTS's 4
+ * fill the box. The wall needs no protection (measured 2026-10-23: 781 frames
+ * per 26 s idle and captioning alike); the voice turn is what this is for.
+ * `nice` execs the server, so the spawned pid IS the server's pid.
+ */
+export function spawnArgs(cfg) {
+  return ["nice", [
+    "-n", "10", cfg.bin,
+    "-m", cfg.model, "--mmproj", cfg.mmproj, "--jinja",
+    "-t", "4", "-c", "2048", "-np", "1",
+    "--host", "127.0.0.1", "--port", String(cfg.port)
+  ]];
+}
+
 function stopServer(reason) {
   clearTimeout(idleTimer);
   idleTimer = null;
@@ -151,11 +170,8 @@ async function ensureServer() {
   clearTimeout(idleTimer);
   if (!child) {
     const t0 = Date.now();
-    const proc = spawn(cfg.bin, [
-      "-m", cfg.model, "--mmproj", cfg.mmproj, "--jinja",
-      "-t", "4", "-c", "2048", "-np", "1",
-      "--host", "127.0.0.1", "--port", String(cfg.port)
-    ], { stdio: "ignore" });
+    const [cmd, args] = spawnArgs(cfg);
+    const proc = spawn(cmd, args, { stdio: "ignore" });
     proc.on("error", () => { /* surfaced by waitHealthy via exitCode / timeout */ });
     proc.on("exit", () => { if (child === proc) { child = null; childReady = null; } });
     child = proc;
