@@ -842,6 +842,31 @@ The `some avg10` of 4.24 under continuous synthesis is the one non-zero reading 
 recorded rather than rounded away — it is stall pressure on the *box*, not on the
 renderer, whose own CPU held flat. Real bursts are a single 3-6 s chunk.
 
+### Camera captions — the vision model's render cost (2026-10-23 16:45, V3, daylight)
+
+`server/services/cameraCaptions.js` spawns llama-server (Gemma 4 E4B Q4_0 + mmproj,
+`-t 4 -c 2048`) as a child of `dashboard.service`. That means **nice 0 and no CPUWeight**,
+unlike the voice units above. It was measured with the identical binary and arguments,
+captioning real event frames back to back on a side port, over 30 s shared windows (gpucpu.sh +
+perf-metrics.cjs):
+
+| state | gpu-process | renderer | substrateFrames (26 s) | box busy | pressure avg10 | tempC |
+|---|---|---|---|---|---|---|
+| idle baseline | 11.1 | 9.9 | 781 (30 fps) | 5.3 % | 0.00 | 47.3 |
+| captioning (1) | 10.9 | 10.4 | 781 (30 fps) | 53.6 % | 0.00 | 52.0 |
+| captioning (2) | 10.7 | 10.0 | 781 (30 fps) | 53.3 % | 0.00 | 52.3 |
+| after, server killed | 10.7 | 10.1 | 781 (30 fps) | 6.8 % | 0.00 | 47.8 |
+
+The model itself took 376–379 % of one core, about four of the eight threads. **The wall
+did not notice it.** The frame count was identical in every window (30 fps is the ceiling),
+the renderer and gpu-process held within noise, and CPU pressure stayed at zero. A real
+burst is one 25–45 s caption, not this continuous loop.
+
+⚠ **NOT measured: a voice turn during a caption.** The caption server's 4 threads plus
+TTS's 4 threads fill the box. The wall has headroom, but voice latency may not. If a slow
+reply ever coincides with a `[captions]` line in the journal, the first lever is to spawn
+it under `nice -n 10`, as the voice units are bounded.
+
 ### End to end
 
 | scenario | before | after |
