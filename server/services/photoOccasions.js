@@ -58,6 +58,8 @@ const key = (n) => String(n || "").trim().replace(/\s+/g, " ").toLowerCase();
 const FEATURE = 12;
 // The floor under "about half", for a person with only a photograph or two.
 const MIN_OTHERS = 6;
+// Named faces in a filler photograph before it counts as a crowd.
+const MAX_FACES = 4;
 
 /**
  * Whose birthday falls on `now`'s local day, minus the skip list.
@@ -135,9 +137,16 @@ export function weightPool(pool, found, now = new Date()) {
     const byDate = (x, y) => String(y.localDateTime).localeCompare(String(x.localDateTime));
     const onDay = theirs.filter((a) => monthDayOf(a) === md).sort(byDate);
     const rest = theirs.filter((a) => monthDayOf(a) !== md).sort(byDate);
+    // A photograph OF them, not one they are a face in: the live dry run's
+    // filler included "and 26 others" cruise group shots. Crowds only when
+    // there are not enough closer photographs to make up the share.
+    const want = Math.max(0, share - onDay.length);
+    const close = rest.filter((a) => (a.people || []).length <= MAX_FACES);
+    const crowd = rest.filter((a) => (a.people || []).length > MAX_FACES);
     const picked = [
       ...onDay.map((a) => ({ ...a, birthdayOf: name })),
-      ...spread(rest, Math.max(0, share - onDay.length))
+      ...spread(close, want),
+      ...spread(crowd, Math.max(0, want - close.length))
     ];
     for (const a of picked) seen.add(a.id);
     featured.push(...picked);

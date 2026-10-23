@@ -117,6 +117,21 @@ test.describe("weightPool", () => {
     expect(Math.max(...rest.map((a) => Number(a.id.slice(1))))).toBeGreaterThanOrEqual(25);
   });
 
+  test("filler is photographs OF her — a crowd shot only when there are not enough of those", () => {
+    const crowd = (id, y) => photo(id, `${y}-02-01T10:00:00.000Z`,
+      ["Melanie Smith", "A One", "B Two", "C Three", "D Four", "E Five"]);
+    const crowds = Array.from({ length: 20 }, (_, i) => crowd(`c${i}`, 2011 + (i % 14)));
+    const close = hers.slice(0, 5);
+    const out = weightPool(others, mel([...crowds, ...close]), BDAY);
+    const featured = out.slice(0, 12);
+    // All five close photographs, then seven crowds to make up the twelve.
+    expect(featured.filter((a) => a.id.startsWith("h"))).toHaveLength(5);
+    expect(featured.filter((a) => a.id.startsWith("c"))).toHaveLength(7);
+    // With enough close ones, no crowd at all.
+    const plenty = weightPool(others, mel([...crowds, ...hers]), BDAY);
+    expect(plenty.slice(0, 12).some((a) => a.id.startsWith("c"))).toBe(false);
+  });
+
   test("more birthday photos than the share: all of them, no filler", () => {
     const many = Array.from({ length: 15 }, (_, i) => photo(`m${i}`, `${2011 + i}-05-20T10:00:00.000Z`, ["Melanie Smith"]));
     const out = weightPool(others, mel([...many, ...hers]), BDAY);
