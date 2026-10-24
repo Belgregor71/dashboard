@@ -131,6 +131,8 @@ test.describe("what the server will write", () => {
     const lines = buildEvent(req, "voice-3@dashboard", NOW).split("\r\n");
     expect(lines.filter((l) => l.startsWith("ATTENDEE"))).toEqual([]);
     expect(lines.filter((l) => l.startsWith("SUMMARY:"))).toEqual(["SUMMARY:Dentist ATTENDEE:mailto:x@example.com"]);
+    // Not only line breaks: no control character reaches the calendar at all.
+    expect(readEventRequest({ title: "Den\u0000tist\u0007", date: "2026-10-31" }, NOW).title).toBe("Den tist");
     expect(buildEvent(readEventRequest({ title: "Tea, cake; jam", date: "2026-10-31" }, NOW), "u", NOW))
       .toContain("SUMMARY:Tea\\, cake\\; jam");
   });
