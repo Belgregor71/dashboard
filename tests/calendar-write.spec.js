@@ -121,6 +121,11 @@ test.describe("what the room said", () => {
       expect(matchIntent("undo that event").id).toBe("cal.undo");
       // A bare undo is still photo.restore: the WALL decides what it meant.
       expect(matchIntent("undo that").id).toBe("photo.restore");
+      // How whisper wrote the owner's spoken "undo that", twice (2026-10-25).
+      expect(matchIntent("and do that.").id).toBe("photo.restore");
+      expect(matchIntent("And do that.").id).toBe("photo.restore");
+      // Only as the whole sentence.
+      expect(matchIntent("go to the shop and do that")?.id).not.toBe("photo.restore");
     });
   });
 
@@ -334,17 +339,20 @@ test.describe("wired to the wall", () => {
     expect(posts).toEqual([]);
   });
 
-  test("'undo that' after a saved event takes THE EVENT off", async ({ page }) => {
-    const posts = watch(page);
-    await bootV3(page, {
-      "/api/calendar/events/undo": { state: "removed", calendar: "Home", title: "Dentist appointment" },
-      "/api/calendar/events": CONFIRMED
-    }, ON);
-    await turn(page, SAID);
-    await turn(page, "undo that");
-    expect(posts.map((p) => p.path)).toEqual(["/api/calendar/events", "/api/calendar/events/undo"]);
-    expect(await saidText(page)).toBe("Dentist appointment is off the Home calendar.");
-  });
+  // "And do that." is how whisper heard the owner's spoken undo (2026-10-25).
+  for (const undo of ["undo that", "And do that."]) {
+    test(`'${undo}' after a saved event takes THE EVENT off`, async ({ page }) => {
+      const posts = watch(page);
+      await bootV3(page, {
+        "/api/calendar/events/undo": { state: "removed", calendar: "Home", title: "Dentist appointment" },
+        "/api/calendar/events": CONFIRMED
+      }, ON);
+      await turn(page, SAID);
+      await turn(page, undo);
+      expect(posts.map((p) => p.path)).toEqual(["/api/calendar/events", "/api/calendar/events/undo"]);
+      expect(await saidText(page)).toBe("Dentist appointment is off the Home calendar.");
+    });
+  }
 
   test("⚠ a bare 'undo that' with no event saved never asks the calendar", async ({ page }) => {
     const posts = watch(page);

@@ -568,6 +568,10 @@ const PHOTO_VETO_RE =
    into a photograph nobody can find again. */
 const PHOTO_RESTORE_RE =
   /\b(bring (that|it|the photo|the picture) back|put (that|it) back|undo( that)?|i did ?n.t mean (that|it)|bring back (that|the last) (one|photo|picture))\b/;
+/* Whisper's spelling of a spoken "undo that", heard twice running on
+   2026-10-25 and answered by the AI lane instead. Anchored to the WHOLE
+   utterance: "go to the shop and do that" is not an undo. */
+const UNDO_HEARD_AS_RE = /^an(?:d)? do (?:that|it)$/;
 
 /* ── The list write lane ────────────────────────────────────────────────────
    docs/AUGUST-IMPROVEMENTS.md §3. The same principled exception the photograph
@@ -1119,7 +1123,7 @@ export function matchIntent(raw) {
   // the list writes and timers ("put dentist on the calendar for half an hour").
   const calendar = matchCalendar(text, raw);
   if (calendar) return calendar;
-  if (PHOTO_RESTORE_RE.test(text)) return { id: "photo.restore", slots: { scope: restoreScope(text) } };
+  if (PHOTO_RESTORE_RE.test(text) || UNDO_HEARD_AS_RE.test(text)) return { id: "photo.restore", slots: { scope: restoreScope(text) } };
   if (PHOTO_VETO_RE.test(text)) return { id: "photo.veto" };
   // After the photograph patterns: "delete this photo" is a photograph.
   const listWrite = matchListWrite(text);
