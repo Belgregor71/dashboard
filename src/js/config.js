@@ -716,8 +716,12 @@ window.CONFIG = {
     // Owner, 2026-10-24, after a request dropped silently: "put the audible
     // miss after that". Lower, quieter and shorter than the timer chime. Needs
     // voiceFailureCues on; never sounds while a reply is playing.
+    // Shipped OFF 868e3e4 (inject-defect 4/4 RED) → heard on the wall
+    // 2026-10-24 10:25 via a live-page trial (missTones 0→1, wake 0.79, ended
+    // lead at 2.6 s): "yes it was fine" → FLIPPED ON. Owner: play at ANY hour —
+    // no quiet-hours gate, chosen knowing misses happen pre-dawn (16 Oct 05:23).
     // REVERT: v3VoiceMissTone: false  (the miss is the rim light only, as before)
-    v3VoiceMissTone: false,
+    v3VoiceMissTone: true,
 
     // Speaker ID (docs/design/HANDOVER-SPEAKER-ID.md). When the box's STT names
     // the voice, the turn carries it: "am I free" counts only the speaker's own
