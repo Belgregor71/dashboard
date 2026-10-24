@@ -864,10 +864,12 @@ function matchTimer(text) {
    it wrote. Saved at once and said back with its DATE, so a misheard day is
    audible; "undo that" removes it (owner's call, 2026-10-24).
 
-   ⚠ EVERY PATTERN NAMES THE CALENDAR (or the diary), which is the bound that
-   makes taking these from Assist safe — "add dentist on Tuesday" names neither
-   and still goes to Assist. And because the calendar was named, every failure
-   is SPOKEN: a `problem` slot says what was missing instead of guessing it.
+   ⚠ THE BOUND THAT MAKES TAKING THESE FROM ASSIST SAFE: the sentence names the
+   calendar (or the diary), OR it starts "add"/"book" and names a day or a
+   clock time with no list, timer or reminder in it (CAL_IMPLICIT_RE, owner's
+   call 2026-10-24). "add milk" says neither and still goes elsewhere. Once a
+   sentence is claimed, every failure is SPOKEN: a `problem` slot says what
+   was missing instead of guessing it.
 
    ⚠ A DAY IS REQUIRED. "Add dentist to the calendar at 3" does not get today
    quietly assumed — the house asks for the day. A wrong day on two phones is
@@ -882,6 +884,14 @@ const CAL_ADD_PATTERNS = [
   new RegExp(`^${POLITE}(?:add|put|pop|stick|chuck|book|schedule|write) (.+?) (?:to|on|in|into|onto) ${CAL_NOUN}(?: (.*))?$`),
   new RegExp(`^${POLITE}(?:add|put|pop|stick|write) (?:to|on|in|into|onto) ${CAL_NOUN} (.+)$`)
 ];
+/* No calendar named: "add dentist appointment at 2pm next Sunday" was the
+   owner's own first sentence to this (2026-10-24), and it went to the AI lane,
+   which said "Got it" over nothing saved. Claimed only when a day or a clock
+   time is said, and never when a list, timer or reminder is named: "add milk"
+   says neither and stays someone else's sentence. Whisper writes a spoken "add"
+   as "Added" often enough to accept both. */
+const CAL_IMPLICIT_RE = new RegExp(`^${POLITE}(?:add|added|book) (.+)$`);
+const CAL_IMPLICIT_VETO = /\b(?:lists?|timers?|reminders?|alarms?)\b/;
 const CAL_UNDO_RE = new RegExp(
   `\\b(?:take|get|delete|remove) (?:that|it|that event|the last event) (?:off|from) ${CAL_NOUN}\\b|\\bundo (?:that|the) (?:event|calendar( event)?)\\b`
 );
@@ -1013,7 +1023,13 @@ export function parseCalendarAdd(raw, now = new Date()) {
     const m = text.match(re);
     if (m) { rest = [m[1], m[2]].filter(Boolean).join(" "); break; }
   }
-  if (rest === null) return null;
+  if (rest === null) {
+    const m = text.match(CAL_IMPLICIT_RE);
+    if (!m || CAL_IMPLICIT_VETO.test(text)) return null;
+    const timed = RANGE_RE.test(m[1]) || AT_RE.test(m[1]) || BARE_TIME_RE.test(m[1]);
+    if (!timed && resolveCalendarDay(m[1], now).problem) return null;
+    rest = m[1];
+  }
   const problem = (p) => ({ id: "cal.add", slots: { problem: p } });
 
   const cut = (span) => { rest = rest.replace(span, " ").replace(/\s+/g, " ").trim(); };

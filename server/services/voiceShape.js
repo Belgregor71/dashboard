@@ -78,6 +78,14 @@ export const GRIEF_LINE =
 export const SPEAKER_UNKNOWN_LINE =
   "Two people live in this house, Greg and Brett, and you cannot tell which of them is speaking. Never guess. When describing how people are related, name them and anchor the relationship to Greg or to Brett — say \"Victoria is Brett's sister\", not \"your sister\" or \"your husband\". Plain \"you\" is still fine for anything practical.";
 
+// This lane can change nothing the household keeps: the calendar, list and
+// timer writes all live in the wall's own local lanes, each of which reads its
+// write back before it says so. Asked "added dentist appointment at 2pm next
+// Sunday" (2026-10-24), the model answered "Got it, dentist, at 2pm on Sunday
+// 3 November" — a wrong date, and nothing saved anywhere. The owner believed it.
+export const NO_WRITES_LINE =
+  "You cannot add, move or remove anything on the household's calendar, shopping list, reminders or timers: nothing you have can do it. If asked to, say plainly that you couldn't do it from here. Never say it is done, added, booked, noted or got.";
+
 // The only names a voice may be identified as. Anything else arriving as a
 // `speaker` — a typo in an enrolment, a stale store — is treated as unknown,
 // because the failure this whole lane exists to avoid is the house confidently

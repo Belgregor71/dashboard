@@ -17,6 +17,7 @@ import {
   todayLine,
   GRIEF_LINE,
   SPEAKER_UNKNOWN_LINE,
+  NO_WRITES_LINE,
   knownSpeaker,
   speakerKnownLine
 } from "../services/voiceShape.js";
@@ -80,6 +81,7 @@ const CONVERSE_BASE = [
   VOICE_REGISTER,
   GRIEF_LINE,
   SPEAKER_UNKNOWN_LINE,
+  NO_WRITES_LINE,
   "Answer in 1-2 short sentences of plain prose — no markdown, no lists, no follow-up questions unless one is genuinely needed.",
 ];
 
@@ -101,6 +103,7 @@ const CHARACTER_BASE = [
   houseCharacter(),
   GRIEF_LINE,
   SPEAKER_UNKNOWN_LINE,
+  NO_WRITES_LINE,
   "Your reply is spoken aloud, so keep it to 1-2 short sentences of plain prose — no markdown, no lists, no follow-up question unless you genuinely need one to answer.",
 ];
 

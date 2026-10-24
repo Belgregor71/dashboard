@@ -80,10 +80,34 @@ test.describe("what the room said", () => {
     expect(event("add it to the calendar on tuesday")).toEqual({ problem: "title" });
   });
 
-  test("⚠ the calendar must be NAMED — everything else is someone else's sentence", () => {
+  // The owner's own first sentence to it, as whisper wrote it (2026-10-24).
+  test("no calendar named: claimed when a day or a time is said", () => {
+    expect(event("Added dentist appointment at 2pm next Sunday."))
+      .toEqual({ title: "Dentist appointment", date: "2026-10-25", time: "14:00", minutes: 60 });
+    expect(event("add dentist on tuesday"))
+      .toEqual({ title: "Dentist", date: "2026-10-27", time: null, minutes: 60 });
+    expect(event("book the vet for friday at 10"))
+      .toEqual({ title: "Vet", date: "2026-10-30", time: "10:00", minutes: 60 });
+    // A time with no day still asks for the day rather than guessing today.
+    expect(event("add dentist at 3 pm")).toEqual({ problem: "day" });
+  });
+
+  test("⚠ no calendar named and no day or time: someone else's sentence", () => {
+    withFlag(true, () => {
+      for (const s of ["add oat milk", "add five minutes", "add dentist", "book a table"]) {
+        expect(matchIntent(s)?.id, s).not.toBe("cal.add");
+      }
+      // A named list or timer wins even with a day in the sentence.
+      expect(matchIntent("add oat milk to the shopping list for tomorrow").id).toBe("list.add");
+      expect(matchIntent("add five minutes to the timer tonight")?.id).not.toBe("cal.add");
+      expect(matchIntent("add a reminder for tuesday")?.id).not.toBe("cal.add");
+    });
+  });
+
+  test("⚠ precedence — a list or a lookup is someone else's sentence", () => {
     withFlag(true, () => {
       expect(matchIntent("add dentist to the calendar on tuesday at 3").id).toBe("cal.add");
-      expect(matchIntent("add dentist on tuesday")).toBeNull();
+      expect(matchIntent("add dentist on tuesday").id).toBe("cal.add");
       expect(matchIntent("add oat milk to the shopping list").id).toBe("list.add");
       expect(matchIntent("what's on the calendar today").id).toBe("cal.today");
       // A duration in the sentence does not make it a timer.
@@ -103,6 +127,7 @@ test.describe("what the room said", () => {
   test("⚠ flag off: not one of these is claimed", () => {
     withFlag(false, () => {
       expect(matchIntent("add dentist to the calendar on tuesday at 3")).toBeNull();
+      expect(matchIntent("Added dentist appointment at 2pm next Sunday.")).toBeNull();
       expect(matchIntent("take that off the calendar")).toBeNull();
       expect(matchIntent("undo that event").id).toBe("photo.restore");
     });

@@ -7,6 +7,7 @@ import {
   HOUSE_TIME_ZONE,
   GRIEF_LINE,
   SPEAKER_UNKNOWN_LINE,
+  NO_WRITES_LINE,
   MAX_TURNS,
   MAX_TURN_CHARS,
   houseContext,
@@ -339,6 +340,19 @@ test.describe("converseSystem — the flag-off prompt is unchanged", () => {
     // the swap — they are about who died and who is speaking, not about tone.
     expect(out).toContain(GRIEF_LINE);
     expect(out).toContain(SPEAKER_UNKNOWN_LINE);
+  });
+
+  // This lane has no write. Told "added dentist appointment at 2pm next
+  // Sunday", it said "Got it" with a wrong date and saved nothing (2026-10-24).
+  test("both voices are told they cannot write, and never to say it is done", () => {
+    expect(NO_WRITES_LINE).toMatch(/calendar/);
+    expect(NO_WRITES_LINE).toMatch(/shopping list/);
+    expect(NO_WRITES_LINE).toMatch(/never say it is done/i);
+    for (const value of [undefined, "1"]) {
+      if (value === undefined) delete process.env[KEY];
+      else process.env[KEY] = value;
+      expect(converseSystem("add dentist on sunday", []), `character=${value}`).toContain(NO_WRITES_LINE);
+    }
   });
 
   // The ordering IS the cache. todayLine() carries a minute-resolution clock;
