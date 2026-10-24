@@ -92,6 +92,25 @@ test.describe("what the room said", () => {
     expect(event("add dentist at 3 pm")).toEqual({ problem: "day" });
   });
 
+  // The owner's own tries, as whisper wrote them (2026-10-25 08:50).
+  test("whisper's lead-ins and 'I had a' for 'add a' still read as the sentence", () => {
+    const TEST_3PM_TOMORROW = { title: "Test", date: "2026-10-25", time: "15:00", minutes: 60 };
+    expect(event("I'm sorry Add test to calendar at three tomorrow.")).toEqual(TEST_3PM_TOMORROW);
+    expect(event("I had a test to the calendar at 3 p.m. tomorrow.")).toEqual(TEST_3PM_TOMORROW);
+    expect(event("Um, okay add test to the calendar tomorrow"))
+      .toEqual({ title: "Test", date: "2026-10-25", time: null, minutes: 60 });
+    expect(parseCalendarAdd("I had a great day", NOW)).toBeNull();
+  });
+
+  test("a calendar write it cannot read is answered here; a calendar QUESTION is not", () => {
+    expect(event("test, add it to the calendar")).toEqual({ problem: "heard" });
+    expect(parseCalendarAdd("what did I add to the calendar", NOW)).toBeNull();
+    expect(parseCalendarAdd("how do I add something to the calendar", NOW)).toBeNull();
+    withFlag(true, () => {
+      expect(matchIntent("what's on the calendar today").id).toBe("cal.today");
+    });
+  });
+
   test("⚠ no calendar named and no day or time: someone else's sentence", () => {
     withFlag(true, () => {
       for (const s of ["add oat milk", "add five minutes", "add dentist", "book a table"]) {
@@ -336,6 +355,14 @@ test.describe("wired to the wall", () => {
     await bootV3(page, { "/api/calendar/events": CONFIRMED }, ON);
     await turn(page, "add dentist to the calendar at 3");
     expect(await saidText(page)).toContain("What day is that for?");
+    expect(posts).toEqual([]);
+  });
+
+  test("a calendar write it could not read: the house says so itself, and writes nothing", async ({ page }) => {
+    const posts = watch(page);
+    await bootV3(page, { "/api/calendar/events": CONFIRMED }, ON);
+    await turn(page, "test, add it to the calendar");
+    expect(await saidText(page)).toBe("I didn't catch all of that. Try: add the dentist to the calendar on Tuesday at 3.");
     expect(posts).toEqual([]);
   });
 

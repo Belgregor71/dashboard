@@ -884,17 +884,27 @@ function matchTimer(text) {
    so a wrong reading is heard at once and undone. */
 
 const CAL_NOUN = "(?:the |my |our )?(?:home |family |shared |house )?(?:calendar|diary)";
+/* Whisper's lead-ins and mishearings, from the owner's own tries (2026-10-25):
+   "I'm sorry add test to calendar…" and "I had a test to the calendar…" for
+   "add a test". The lead-in is noise before the verb; "i had" is read as a
+   verb only here, where the calendar is named after it. */
+const CAL_LEAD = "(?:(?:i'm |i am )?sorry |um+ |uh+ |oh |ok(?:ay)? |so )*";
 const CAL_ADD_PATTERNS = [
-  new RegExp(`^${POLITE}(?:add|put|pop|stick|chuck|book|schedule|write) (.+?) (?:to|on|in|into|onto) ${CAL_NOUN}(?: (.*))?$`),
-  new RegExp(`^${POLITE}(?:add|put|pop|stick|write) (?:to|on|in|into|onto) ${CAL_NOUN} (.+)$`)
+  new RegExp(`^${CAL_LEAD}${POLITE}(?:add|i had|put|pop|stick|chuck|book|schedule|write) (.+?) (?:to|on|in|into|onto) ${CAL_NOUN}(?: (.*))?$`),
+  new RegExp(`^${CAL_LEAD}${POLITE}(?:add|put|pop|stick|write) (?:to|on|in|into|onto) ${CAL_NOUN} (.+)$`)
 ];
+/* A write to the calendar in a shape the patterns cannot read. The house
+   answers it itself — the AI lane can only say "do it yourself", which is
+   wrong when the house can. A question about the calendar is not a write. */
+const CAL_WRITE_HINT = new RegExp(`\\b(?:add|added|had|put|pop|stick|book|write)\\b.*\\b(?:to|into|onto) ${CAL_NOUN}\\b`);
+const CAL_QUESTION = /^(?:what|when|which|who|whose|did|do|does|have|has|is|are|was|how|can i|could i)\b/;
 /* No calendar named: "add dentist appointment at 2pm next Sunday" was the
    owner's own first sentence to this (2026-10-24), and it went to the AI lane,
    which said "Got it" over nothing saved. Claimed only when a day or a clock
    time is said, and never when a list, timer or reminder is named: "add milk"
    says neither and stays someone else's sentence. Whisper writes a spoken "add"
    as "Added" often enough to accept both. */
-const CAL_IMPLICIT_RE = new RegExp(`^${POLITE}(?:add|added|book) (.+)$`);
+const CAL_IMPLICIT_RE = new RegExp(`^${CAL_LEAD}${POLITE}(?:add|added|book) (.+)$`);
 const CAL_IMPLICIT_VETO = /\b(?:lists?|timers?|reminders?|alarms?)\b/;
 const CAL_UNDO_RE = new RegExp(
   `\\b(?:take|get|delete|remove) (?:that|it|that event|the last event) (?:off|from) ${CAL_NOUN}\\b|\\bundo (?:that|the) (?:event|calendar( event)?)\\b`
@@ -1028,11 +1038,11 @@ export function parseCalendarAdd(raw, now = new Date()) {
     if (m) { rest = [m[1], m[2]].filter(Boolean).join(" "); break; }
   }
   if (rest === null) {
-    const m = text.match(CAL_IMPLICIT_RE);
-    if (!m || CAL_IMPLICIT_VETO.test(text)) return null;
-    const timed = RANGE_RE.test(m[1]) || AT_RE.test(m[1]) || BARE_TIME_RE.test(m[1]);
-    if (!timed && resolveCalendarDay(m[1], now).problem) return null;
-    rest = m[1];
+    const m = CAL_IMPLICIT_VETO.test(text) ? null : text.match(CAL_IMPLICIT_RE);
+    const timed = m && (RANGE_RE.test(m[1]) || AT_RE.test(m[1]) || BARE_TIME_RE.test(m[1]));
+    if (m && (timed || !resolveCalendarDay(m[1], now).problem)) rest = m[1];
+    else if (CAL_WRITE_HINT.test(text) && !CAL_QUESTION.test(text)) return { id: "cal.add", slots: { problem: "heard" } };
+    else return null;
   }
   const problem = (p) => ({ id: "cal.add", slots: { problem: p } });
 

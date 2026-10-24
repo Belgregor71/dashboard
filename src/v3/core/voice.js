@@ -560,6 +560,7 @@ async function handleCalendarAdd(intent) {
   if (s.problem === "day") return `What day is that for? ${CAL_HELP}`;
   if (s.problem === "title") return `What should I call it? ${CAL_HELP}`;
   if (s.problem === "time") return "I didn't catch the time. Say it again with the time, like at 3 pm.";
+  if (s.problem === "heard") return `I didn't catch all of that. ${CAL_HELP}`;
 
   const [y, mo, d] = s.date.split("-").map(Number);
   let body = { title: s.title, date: s.date };
