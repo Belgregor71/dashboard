@@ -491,6 +491,113 @@ async function handleListWrite(intent, snap) {
   return `I can't reach the ${label} right now.`;
 }
 
+/* ── The calendar write lane ────────────────────────────────────────────────
+   docs/research/FIELD-SCAN.md round 2, #8 (features.v3VoiceCalendarAdd).
+   "Add dentist to the calendar on Tuesday at 3" goes onto the shared iCloud
+   Home calendar the family's phones show — saved at once, then said back with
+   the DATE, because a misheard day is the mistake that matters and naming it
+   is what makes it audible. "Undo that" takes it off again (owner's call,
+   2026-10-24: the agent cannot hear a "yes" without the wake word).
+
+   ⚠ THE SAME RULE AS THE LIST LANE ABOVE: every line is built from what the
+   server READ BACK from iCloud, and "is on the calendar" is reachable from
+   `confirmed` alone. The calendar was always named, so failures are spoken. */
+
+/* A bare "undo that" means whichever change happened last. Armed by a saved
+   event and disarmed by any other write, so it never reaches past a list change
+   to delete an event the room has moved on from. */
+let calendarUndoArmed = false;
+
+const CAL_WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const CAL_MONTHS = ["January", "February", "March", "April", "May", "June", "July",
+  "August", "September", "October", "November", "December"];
+const CAL_HELP = "Try: add the dentist to the calendar on Tuesday at 3.";
+
+const nth = (n) => {
+  if (n % 100 >= 11 && n % 100 <= 13) return `${n}th`;
+  return `${n}${["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
+};
+
+/** "today", "tomorrow", "Tuesday the 27th", or "Saturday 14 November". */
+export function calendarDayPhrase(day, now = new Date()) {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const offset = Math.round((new Date(day.getFullYear(), day.getMonth(), day.getDate()) - today) / 86_400_000);
+  if (offset === 0) return "today";
+  if (offset === 1) return "tomorrow";
+  const name = CAL_WEEKDAYS[day.getDay()];
+  if (offset > 1 && offset < 7) return `${name} the ${nth(day.getDate())}`;
+  const year = day.getFullYear() === now.getFullYear() ? "" : ` ${day.getFullYear()}`;
+  return `${name} ${day.getDate()} ${CAL_MONTHS[day.getMonth()]}${year}`;
+}
+
+/** "3 pm", "10:30 am", "midday". */
+export function calendarTimePhrase(d) {
+  const h = d.getHours();
+  const m = d.getMinutes();
+  if (h === 12 && m === 0) return "midday";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}${m ? `:${String(m).padStart(2, "0")}` : ""} ${h < 12 ? "am" : "pm"}`;
+}
+
+/** What the calendar now holds, as a sentence. Read off the server's re-read. */
+function savedLine(res, now = new Date()) {
+  const where = `the ${res.calendar ?? "Home"} calendar`;
+  if (res.allDay) {
+    const [y, mo, d] = String(res.date).split("-").map(Number);
+    return `${res.title} is on ${where} for ${calendarDayPhrase(new Date(y, mo - 1, d), now)}.`;
+  }
+  const start = new Date(res.start);
+  return `${res.title} is on ${where} for ${calendarDayPhrase(start, now)} at ${calendarTimePhrase(start)}.`;
+}
+
+/**
+ * @param {{id: string, slots: object}} intent  cal.add
+ * @returns {Promise<string|null>} the line to speak, or null with the flag off
+ */
+async function handleCalendarAdd(intent) {
+  if (!flag("v3VoiceCalendarAdd")) return null;
+  const s = intent.slots ?? {};
+  if (s.problem === "day") return `What day is that for? ${CAL_HELP}`;
+  if (s.problem === "title") return `What should I call it? ${CAL_HELP}`;
+  if (s.problem === "time") return "I didn't catch the time. Say it again with the time, like at 3 pm.";
+
+  const [y, mo, d] = s.date.split("-").map(Number);
+  let body = { title: s.title, date: s.date };
+  if (s.time) {
+    const [hh, mm] = s.time.split(":").map(Number);
+    const start = new Date(y, mo - 1, d, hh, mm);
+    body = { title: s.title, start: start.toISOString(), end: new Date(start.getTime() + s.minutes * 60_000).toISOString() };
+  }
+
+  const res = await sendJson("/api/calendar/events", "POST", body);
+  if (res?.state === "confirmed") {
+    calendarUndoArmed = true;
+    return savedLine(res);
+  }
+  if (res?.state === "not-saved") return `That didn't save. Nothing's gone on the ${res.calendar ?? "Home"} calendar.`;
+  return "I can't reach the calendar right now.";
+}
+
+/**
+ * @param {boolean} named  the room said "calendar"/"event"; a bare "undo that"
+ *                         with nothing to undo falls through instead
+ * @returns {Promise<string|null>}
+ */
+async function handleCalendarUndo(named) {
+  if (!flag("v3VoiceCalendarAdd")) return null;
+  const res = await sendJson("/api/calendar/events/undo", "POST", {});
+  if (res?.state === "removed") {
+    calendarUndoArmed = false;
+    return `${res.title} is off the ${res.calendar ?? "Home"} calendar.`;
+  }
+  if (res?.state === "nothing-to-undo") {
+    calendarUndoArmed = false;
+    return named ? "There's nothing I added to take off the calendar." : null;
+  }
+  if (res?.state === "still-there") return `${res.title} is still on the calendar. I couldn't take it off.`;
+  return named || calendarUndoArmed ? "I can't reach the calendar right now." : null;
+}
+
 /* ── Goodnight ──────────────────────────────────────────────────────────────
    The second `action.*` the house can be told to DO, and the one the cutover
    dropped. `localIntents.js` has matched "goodnight" since long before V3, and
@@ -620,9 +727,25 @@ export async function submit(text, { source = "unknown", speaker = null } = {}) 
           endTurn(clean, spoken || undefined);
           return { handled: true, lane: "local" };
         }
+      } else if (intent.id === "cal.add" || intent.id === "cal.undo") {
+        const spoken = intent.id === "cal.add"
+          ? await handleCalendarAdd(intent)
+          : await handleCalendarUndo(true);
+        if (spoken) {
+          setPhase("speaking");
+          // Visible while it is said: the line names a day and a time, and
+          // hearing a time without seeing it written is what this surface is for.
+          deepen(DEPTH.GLANCE, `voice-${intent.id}`);
+          await say(spoken);
+          rememberReply(spoken);
+          consecutiveFailures = 0;
+          endTurn(clean, spoken);
+          return { handled: true, lane: "local" };
+        }
       } else if (intent.id.startsWith("list.")) {
         const spoken = await handleListWrite(intent, snap);
         if (spoken) {
+          calendarUndoArmed = false;
           setPhase("speaking");
           await say(spoken);
           rememberReply(spoken);
@@ -638,10 +761,16 @@ export async function submit(text, { source = "unknown", speaker = null } = {}) 
            back to the photographs, and "bring back that photo" (scope "photo")
            skips the list entirely. */
         let spoken = null;
-        if (intent.id === "photo.restore" && intent.slots?.scope !== "photo") {
+        // A saved calendar event is the newest change only while nothing has
+        // been written since; calendarUndoArmed says which.
+        if (intent.id === "photo.restore" && intent.slots?.scope !== "photo" && calendarUndoArmed) {
+          spoken = await handleCalendarUndo(false);
+        }
+        if (!spoken && intent.id === "photo.restore" && intent.slots?.scope !== "photo") {
           spoken = await handleListWrite({ id: "list.undo", slots: { list: "shopping" } }, snap);
         }
         if (!spoken) spoken = await handlePhotoVeto(intent.id);
+        if (spoken && intent.id === "photo.veto") calendarUndoArmed = false;
         if (spoken) {
           setPhase("speaking");
           await say(spoken);

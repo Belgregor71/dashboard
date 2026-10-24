@@ -6,6 +6,8 @@ import ical from "node-ical";
 import { HOLIDAY_REGION_DEFAULT, HOLIDAY_COUNTRY } from "../config.js";
 import { fetchWithTimeout } from "../utils/fetch.js";
 import { reportFailure, reportSuccess } from "../services/healthService.js";
+import { loopbackOnly } from "../middleware/security.js";
+import { calendarWriteConfig, createCalendarWriter, readEventRequest } from "../services/calendarWrite.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -292,6 +294,63 @@ router.get("/api/calendar/all", async (_req, res) => {
     console.error("Calendar ALL proxy error:", err);
     reportFailure("calendar", err?.message);
     res.status(500).json({ error: "Calendar all error" });
+  }
+});
+
+/* ── Voice writes to the shared iCloud calendar (services/calendarWrite.js) ──
+   Loopback-only: the account behind it is the household's, and the only
+   legitimate caller is the kiosk page on this box. Two keys, as with the lists:
+   the wall's v3VoiceCalendarAdd decides whether the sentence is claimed, and
+   VOICE_CALENDAR_WRITES=1 here decides whether anything can be written. */
+const UNDO_WINDOW_MS = 10 * 60_000;
+let lastAdd = null;           // { uid, title, at } — what "undo that" removes
+let writer = null;
+let writerKey = "";
+
+function calendarWriter() {
+  const cfg = calendarWriteConfig();
+  if (!cfg.armed) return { status: 403, error: "calendar writes are not enabled" };
+  if (!cfg.user || !cfg.password) return { status: 503, error: "calendar credentials are not configured" };
+  const key = `${cfg.user}\n${cfg.password}\n${cfg.calendar}`;
+  if (!writer || key !== writerKey) {
+    writer = createCalendarWriter(cfg);
+    writerKey = key;
+  }
+  return { writer, calendar: cfg.calendar };
+}
+
+router.post("/api/calendar/events", loopbackOnly("The calendar write lane"), async (req, res) => {
+  const lane = calendarWriter();
+  if (lane.error) return res.status(lane.status).json({ error: lane.error });
+  const event = readEventRequest(req.body);
+  if (event.error) return res.status(400).json({ error: event.error });
+
+  const uid = `voice-${Date.now()}-${Math.random().toString(36).slice(2, 10)}@dashboard`;
+  try {
+    const result = await lane.writer.add(event, uid);
+    if (result.state === "confirmed") lastAdd = { uid, title: result.title, at: Date.now() };
+    return res.json({ ...result, calendar: lane.calendar });
+  } catch (err) {
+    console.error("[Calendar] write error:", err.message);
+    return res.json({ state: "unreachable", calendar: lane.calendar });
+  }
+});
+
+router.post("/api/calendar/events/undo", loopbackOnly("The calendar write lane"), async (_req, res) => {
+  const lane = calendarWriter();
+  if (lane.error) return res.status(lane.status).json({ error: lane.error });
+  if (!lastAdd || Date.now() - lastAdd.at > UNDO_WINDOW_MS) {
+    lastAdd = null;
+    return res.json({ state: "nothing-to-undo", calendar: lane.calendar });
+  }
+  const { uid, title } = lastAdd;
+  try {
+    const result = await lane.writer.remove(uid);
+    if (result.state === "removed") lastAdd = null;
+    return res.json({ ...result, title, calendar: lane.calendar });
+  } catch (err) {
+    console.error("[Calendar] undo error:", err.message);
+    return res.json({ state: "unreachable", title, calendar: lane.calendar });
   }
 });
 

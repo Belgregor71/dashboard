@@ -231,7 +231,10 @@ test.describe("security middleware", () => {
     ["post", "/api/lists/shopping/items", { item: "csrf" }],
     ["post", "/api/lists/shopping/items/complete", { item: "csrf" }],
     ["delete", "/api/lists/shopping/items", { item: "csrf" }],
-    ["post", "/api/lists/undo", {}]
+    ["post", "/api/lists/undo", {}],
+    // The calendar write lane: an event on the household's shared iCloud calendar.
+    ["post", "/api/calendar/events", { title: "csrf", date: "2099-12-31" }],
+    ["post", "/api/calendar/events/undo", {}]
   ];
 
   for (const [method, path, data] of CROSS_ORIGIN_WRITES) {
@@ -1687,6 +1690,22 @@ test.describe("list writes", () => {
     const res = await request.post("/api/lists/todo.greg/items", { data: { item: "contract test" } });
     expect([400, 403]).toContain(res.status());
   });
+});
+
+/* The calendar write lane (services/calendarWrite.js) — the same shipped-state
+   contract as the lists above: VOICE_CALENDAR_WRITES is unset here, so nothing
+   can reach iCloud, and that default is what is pinned. */
+test.describe("calendar writes", () => {
+  for (const [path, data] of [
+    ["/api/calendar/events", { title: "contract test", date: "2099-12-31" }],
+    ["/api/calendar/events/undo", {}]
+  ]) {
+    test(`POST ${path} is inert until the box arms it`, async ({ request }) => {
+      const res = await request.post(path, { data });
+      expect(res.status(), `${path} was reachable with VOICE_CALENDAR_WRITES unset`).toBe(403);
+      expect((await res.json()).error).toContain("not enabled");
+    });
+  }
 });
 
 test.describe("ai + tts", () => {

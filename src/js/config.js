@@ -723,6 +723,19 @@ window.CONFIG = {
     // REVERT: v3VoiceMissTone: false  (the miss is the rim light only, as before)
     v3VoiceMissTone: true,
 
+    // Add to the calendar by voice (docs/research/FIELD-SCAN.md round 2, #8).
+    // "add dentist to the calendar on Tuesday at 3" → the shared iCloud Home
+    // calendar both phones show, through the loopback /api/calendar/events. Saved
+    // at once and SAID BACK WITH ITS DATE ("Dentist is on the Home calendar for
+    // Tuesday the 27th at 3 pm."); "undo that" removes it within 10 minutes.
+    // Owner's call 2026-10-24: no "shall I?" step, the agent has no follow-up ear.
+    // ⚠ TWO KEYS, as with the lists: this decides whether the sentence is
+    // claimed; the box's VOICE_CALENDAR_WRITES=1 decides whether iCloud can be
+    // written. Every line comes from the server's RE-READ of the event.
+    // Off: the sentence is never matched and goes to Assist as before.
+    // REVERT: v3VoiceCalendarAdd: false
+    v3VoiceCalendarAdd: false,
+
     // Speaker ID (docs/design/HANDOVER-SPEAKER-ID.md). When the box's STT names
     // the voice, the turn carries it: "am I free" counts only the speaker's own
     // feed plus the shared ones (CALENDAR_OWNERS in .env), and /converse swaps

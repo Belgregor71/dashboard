@@ -857,6 +857,223 @@ function matchTimer(text) {
   return null;
 }
 
+/* ── Adding to the calendar ─────────────────────────────────────────────────
+   docs/research/FIELD-SCAN.md round 2, #8 (features.v3VoiceCalendarAdd). The
+   event goes to the shared iCloud "Home" calendar the family's phones show,
+   through the loopback route in server/routes/calendar.js, which re-reads what
+   it wrote. Saved at once and said back with its DATE, so a misheard day is
+   audible; "undo that" removes it (owner's call, 2026-10-24).
+
+   ⚠ EVERY PATTERN NAMES THE CALENDAR (or the diary), which is the bound that
+   makes taking these from Assist safe — "add dentist on Tuesday" names neither
+   and still goes to Assist. And because the calendar was named, every failure
+   is SPOKEN: a `problem` slot says what was missing instead of guessing it.
+
+   ⚠ A DAY IS REQUIRED. "Add dentist to the calendar at 3" does not get today
+   quietly assumed — the house asks for the day. A wrong day on two phones is
+   the expensive mistake here; a second sentence is the cheap one.
+
+   Bare hours with no am/pm read 1-7 as afternoon and 8-11 as morning, unless
+   the room said "morning"/"arvo"/"tonight". The spoken readback names the time,
+   so a wrong reading is heard at once and undone. */
+
+const CAL_NOUN = "(?:the |my |our )?(?:home |family |shared |house )?(?:calendar|diary)";
+const CAL_ADD_PATTERNS = [
+  new RegExp(`^${POLITE}(?:add|put|pop|stick|chuck|book|schedule|write) (.+?) (?:to|on|in|into|onto) ${CAL_NOUN}(?: (.*))?$`),
+  new RegExp(`^${POLITE}(?:add|put|pop|stick|write) (?:to|on|in|into|onto) ${CAL_NOUN} (.+)$`)
+];
+const CAL_UNDO_RE = new RegExp(
+  `\\b(?:take|get|delete|remove) (?:that|it|that event|the last event) (?:off|from) ${CAL_NOUN}\\b|\\bundo (?:that|the) (?:event|calendar( event)?)\\b`
+);
+
+const HOUR_WORDS = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
+  nine: 9, ten: 10, eleven: 11, twelve: 12
+};
+const HOUR = `(?:\\d{1,2}|${Object.keys(HOUR_WORDS).join("|")})`;
+const MERIDIEM = "(?:a ?m|p ?m)";
+/* One clock time, non-capturing, so it can sit inside a range. normalise() has
+   already turned "3:30" and "3.30" into "3 30", and "p.m." into "p m". */
+const MINUTE_WORDS = { fifteen: 15, thirty: 30, "forty five": 45, "forty-five": 45 };
+const MINUTES = "(?:\\d{2}|fifteen|thirty|forty[ -]five)";
+const CLOCK = `(?:noon|midday|(?:(?:half past|quarter past|quarter to) )?${HOUR}(?: ${MINUTES})?(?: ?${MERIDIEM}| o'?clock)?)`;
+const RANGE_RE = new RegExp(`\\b(?:from|between|at) (${CLOCK}) (?:to|until|till|and) (${CLOCK})\\b`);
+const AT_RE = new RegExp(`\\bat (${CLOCK})\\b`);
+const BARE_TIME_RE = new RegExp(`\\b(${HOUR}(?: ${MINUTES})? ?${MERIDIEM}|noon|midday)\\b`);
+const FOR_RE = new RegExp(`\\bfor (${DURATION})\\b`);
+const PART_RE = /\b(?:in the |this |tomorrow )?(morning|afternoon|arvo|evening|night)\b/;
+
+const CAL_MONTHS = MONTHS.split("|");
+const DAY_NUM = "(\\d{1,2})(?:st|nd|rd|th)?";
+const DATE_PATTERNS = [
+  { re: new RegExp(`\\b(?:(?:on|for) )?(?:the )?${DAY_NUM} (?:of )?(${MONTHS})\\b`), day: 1, month: 2 },
+  { re: new RegExp(`\\b(?:(?:on|for) )?(${MONTHS}) (?:the )?${DAY_NUM}\\b`), day: 2, month: 1 },
+  { re: /\b(?:(?:on|for) )?the (\d{1,2})(?:st|nd|rd|th)\b/, day: 1 }
+];
+const WEEKDAY_RE = new RegExp(`\\b(?:(?:on|for) )?(?:(this coming|this|next) )?(${WEEKDAYS.join("|")})\\b`);
+const RELATIVE_RE = /\b(?:(?:on|for) )?(?:the )?(day after tomorrow|today|tonight|tomorrow)\b/;
+
+const pad = (n) => String(n).padStart(2, "0");
+const isoDay = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+/** "half past 3 p m" → { h, m, meridiem } in 12-hour terms, or null. */
+function readClock(raw) {
+  const s = raw.trim();
+  if (s === "noon" || s === "midday") return { h: 12, m: 0, meridiem: "pm" };
+  const m = s.match(new RegExp(`^(?:(half past|quarter past|quarter to) )?(${HOUR})(?: (${MINUTES}))?(?: ?(${MERIDIEM})| o'?clock)?$`));
+  if (!m) return null;
+  let h = /^\d+$/.test(m[2]) ? Number(m[2]) : HOUR_WORDS[m[2]];
+  let min = m[3] ? MINUTE_WORDS[m[3]] ?? Number(m[3]) : 0;
+  if (m[1] === "half past") min = 30;
+  if (m[1] === "quarter past") min = 15;
+  if (m[1] === "quarter to") { min = 45; h = h === 1 ? 12 : h - 1; }
+  if (h > 23 || min > 59) return null;
+  const meridiem = m[4] ? (m[4].startsWith("p") ? "pm" : "am") : null;
+  if (meridiem && (h < 1 || h > 12)) return null;
+  return { h, m: min, meridiem };
+}
+
+/** A 12-hour reading to minutes after midnight, using the part of day said. */
+function toMinutes({ h, m, meridiem }, part) {
+  let hour = h;
+  if (meridiem === "pm" && h < 12) hour += 12;
+  else if (meridiem === "am" && h === 12) hour = 0;
+  else if (!meridiem && h <= 12) {
+    if (part === "morning") hour = h === 12 ? 0 : h;
+    else if (part) hour = h < 12 ? h + 12 : 12;
+    else if (h >= 1 && h <= 7) hour = h + 12;
+  }
+  return hour * 60 + m;
+}
+
+function resolveCalendarDay(text, now) {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  for (const { re, day, month } of DATE_PATTERNS) {
+    const m = text.match(re);
+    if (!m) continue;
+    const dom = Number(m[day]);
+    let d;
+    if (month) {
+      const mon = CAL_MONTHS.indexOf(m[month]);
+      d = new Date(today.getFullYear(), mon, dom);
+      if (d.getMonth() !== mon) return { problem: "day" };
+      if (d < today) d = new Date(today.getFullYear() + 1, mon, dom);
+    } else {
+      d = new Date(today.getFullYear(), today.getMonth(), dom);
+      if (d.getDate() !== dom) return { problem: "day" };
+      if (d < today) d = new Date(today.getFullYear(), today.getMonth() + 1, dom);
+      if (d.getDate() !== dom) return { problem: "day" };
+    }
+    // "Tuesday the 28th" — the number is the authority; the weekday goes too.
+    return { date: d, spans: [m[0], text.match(WEEKDAY_RE)?.[0]].filter(Boolean) };
+  }
+  const wd = text.match(WEEKDAY_RE);
+  if (wd) {
+    const idx = WEEKDAYS.indexOf(wd[2]);
+    const delta = (idx - today.getDay() + 7) % 7;
+    // The same reading resolveDay() takes (owner's call, 2026-08-15): nearest
+    // future occurrence, and "next" only moves it when said ON that weekday.
+    const offset = delta === 0 && wd[1] === "next" ? 7 : delta;
+    return { date: new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset), spans: [wd[0]] };
+  }
+  const rel = text.match(RELATIVE_RE);
+  if (rel) {
+    const offset = { today: 0, tonight: 0, tomorrow: 1, "day after tomorrow": 2 }[rel[1]];
+    return {
+      date: new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset),
+      spans: [rel[0]],
+      part: rel[1] === "tonight" ? "evening" : null
+    };
+  }
+  return { problem: "day" };
+}
+
+/* The title as the room said it. normalise() lowercased it, and "Brett's
+   haircut" should reach the phones capitalised the way whisper wrote it. */
+function titleCase(title, raw) {
+  const words = title.split(" ").map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const m = String(raw ?? "").match(new RegExp(words.join("[^a-z0-9']+"), "i"));
+  const shown = m ? m[0] : title;
+  return shown.charAt(0).toUpperCase() + shown.slice(1);
+}
+
+const DANGLING = /^(?:on|at|for|from|to|in|this|next|and|please)\b\s*|\s*\b(?:on|at|for|from|to|in|this|next|and|please)$/;
+
+/**
+ * "add dentist to the calendar on tuesday at 3 p m" → the event to write.
+ * Pure; `now` is injectable for the tests.
+ *
+ * @returns {null | {id:"cal.add", slots:{problem:"day"|"title"|"time"}} |
+ *          {id:"cal.add", slots:{title:string, date:string, time:string|null, minutes:number}}}
+ */
+export function parseCalendarAdd(raw, now = new Date()) {
+  const text = normalise(raw);
+  let rest = null;
+  for (const re of CAL_ADD_PATTERNS) {
+    const m = text.match(re);
+    if (m) { rest = [m[1], m[2]].filter(Boolean).join(" "); break; }
+  }
+  if (rest === null) return null;
+  const problem = (p) => ({ id: "cal.add", slots: { problem: p } });
+
+  const cut = (span) => { rest = rest.replace(span, " ").replace(/\s+/g, " ").trim(); };
+
+  let start = null;
+  let end = null;
+  const range = rest.match(RANGE_RE);
+  const at = range ? null : rest.match(AT_RE) ?? rest.match(BARE_TIME_RE);
+  if (range) {
+    start = readClock(range[1]);
+    end = readClock(range[2]);
+    if (!start || !end) return problem("time");
+    cut(range[0]);
+  } else if (at) {
+    start = readClock(at[1]);
+    if (!start) return problem("time");
+    cut(at[0]);
+  }
+
+  let minutes = 60;
+  const dur = rest.match(FOR_RE);
+  if (dur) {
+    const ms = parseDuration(dur[1]);
+    if (ms) minutes = Math.round(ms / 60_000);
+    cut(dur[0]);
+  }
+
+  const day = resolveCalendarDay(rest, now);
+  if (day.problem) return problem(day.problem);
+  for (const span of day.spans) cut(span);
+
+  const partMatch = rest.match(PART_RE);
+  const part = day.part ?? (partMatch ? { arvo: "afternoon", night: "evening" }[partMatch[1]] ?? partMatch[1] : null);
+  if (partMatch) cut(partMatch[0]);
+
+  let title = cleanItem(rest);
+  for (let prev = ""; prev !== title; ) { prev = title; title = cleanItem(title.replace(DANGLING, "")); }
+  if (!title || /^(?:it|that|this|something|an? (?:event|appointment))$/.test(title)) return problem("title");
+
+  let time = null;
+  if (start) {
+    const from = toMinutes(start, part);
+    if (end) {
+      let to = toMinutes(end, part);
+      if (to <= from && to + 720 < 1440) to += 720;    // "from 11 to 1"
+      if (to <= from) return problem("time");
+      minutes = to - from;
+    }
+    time = `${pad(Math.floor(from / 60))}:${pad(from % 60)}`;
+  }
+
+  return { id: "cal.add", slots: { title: titleCase(title, raw), date: isoDay(day.date), time, minutes } };
+}
+
+function matchCalendar(text, raw) {
+  if (!featureOn("v3VoiceCalendarAdd")) return null;
+  if (CAL_UNDO_RE.test(text)) return { id: "cal.undo", slots: {} };
+  return parseCalendarAdd(raw);
+}
+
 /* Which undo was meant. "bring back that photo" names a photograph; a bare
    "undo that" names whichever local change happened last, and the caller is the
    only thing that knows what that was. */
@@ -882,6 +1099,10 @@ export function matchIntent(raw) {
   if (featureOn("voiceListWrites") && LIST_UNDO_RE.test(text)) {
     return { id: "list.undo", slots: { list: listTarget(text), named: true } };
   }
+  // Before PHOTO_RESTORE_RE ("undo that event" is not a photograph) and before
+  // the list writes and timers ("put dentist on the calendar for half an hour").
+  const calendar = matchCalendar(text, raw);
+  if (calendar) return calendar;
   if (PHOTO_RESTORE_RE.test(text)) return { id: "photo.restore", slots: { scope: restoreScope(text) } };
   if (PHOTO_VETO_RE.test(text)) return { id: "photo.veto" };
   // After the photograph patterns: "delete this photo" is a photograph.
@@ -972,5 +1193,7 @@ export const ACTING_INTENT_IDS = Object.freeze([
   "timer.cancel",
   "timer.query",
   "reminder.set",
-  "dogs.show"
+  "dogs.show",
+  "cal.add",
+  "cal.undo"
 ]);
