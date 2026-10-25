@@ -297,6 +297,8 @@ test.describe("wired to the wall", () => {
     start: START.toISOString(), end: new Date(START.getTime() + 3_600_000).toISOString()
   };
   const ON = { features: { v3VoiceCalendarAdd: true } };
+  // Pinned, not the default: the default flipped ON on 2026-10-25.
+  const OFF = { features: { v3VoiceCalendarAdd: false } };
   const SAID = "add dentist to the calendar on tuesday at 3 pm";
 
   const turn = (page, said) => page.evaluate((t) => window.__v3Transcript(t), said);
@@ -311,7 +313,7 @@ test.describe("wired to the wall", () => {
 
   test("⚠ flag off: the sentence never reaches the calendar", async ({ page }) => {
     const posts = watch(page);
-    const { pageErrors } = await bootV3(page, { "/api/calendar/events": CONFIRMED });
+    const { pageErrors } = await bootV3(page, { "/api/calendar/events": CONFIRMED }, OFF);
     const res = await turn(page, SAID);
     expect(posts).toEqual([]);
     expect(res.lane).not.toBe("local");

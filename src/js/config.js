@@ -733,8 +733,12 @@ window.CONFIG = {
     // claimed; the box's VOICE_CALENDAR_WRITES=1 decides whether iCloud can be
     // written. Every line comes from the server's RE-READ of the event.
     // Off: the sentence is never matched and goes to Assist as before.
+    // ON 2026-10-25: the owner's spoken trial at 09:45 was read back from the TTS
+    // cache: "Test is on the Home calendar for tomorrow at 3 pm.", then "undo
+    // that" → "Test is off the Home calendar." Three misheard rounds before it
+    // were fixed (e49afe8, 779dcbc, e6aabbc).
     // REVERT: v3VoiceCalendarAdd: false
-    v3VoiceCalendarAdd: false,
+    v3VoiceCalendarAdd: true,
 
     // Speaker ID (docs/design/HANDOVER-SPEAKER-ID.md). When the box's STT names
     // the voice, the turn carries it: "am I free" counts only the speaker's own
