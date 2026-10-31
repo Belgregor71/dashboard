@@ -562,6 +562,13 @@ test.describe("weather", () => {
      ⛔ Loopback-gated, harder than the unresolved list is: that one names
      cameras, this one names residents and counts what they asked. The suite
      runs on loopback, so a 403 here would mean the guard is wrong, not tight. */
+  test("GET /api/house/day answers today's span and a list of beats", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/house/day");
+    expect(body.from).toBeLessThan(body.to);
+    expect(body.to - body.from).toBeLessThanOrEqual(25 * 3_600_000);
+    expect(Array.isArray(body.beats)).toBe(true);
+  });
+
   test("GET /api/house/lately answers even with nothing counted at all", async ({ request }) => {
     const { body } = await expectJson(request, "/api/house/lately");
     expect(typeof body.minDays).toBe("number");

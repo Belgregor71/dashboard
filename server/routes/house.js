@@ -7,6 +7,9 @@ import { buildHouseClaims, MIN_DAYS } from "../services/houseLately.js";
 import { occupancyDays, houseDay } from "../services/occupancyDays.js";
 import { readFeatureCensus } from "./censusFeatures.js";
 import { readDepthCensus } from "./census.js";
+import { readLogged } from "./presentations.js";
+import { dayBeats } from "../services/dayBeats.js";
+import { todayClaims } from "../services/houseToday.js";
 
 /* What the house is currently wondering about (services/unresolved.js).
  *
@@ -99,6 +102,21 @@ router.get("/api/house/lately", loopbackOnly("The house record"), async (_req, r
   } catch (err) {
     console.error("[house] lately read failed:", err.message);
     res.json({ minDays: MIN_DAYS, claims: buildHouseClaims({}, { today }) });
+  }
+});
+
+/* TODAY, AS THE CAMERAS AND THE SKY SAW IT (services/dayBeats.js, for the wall's
+ * replay). Loopback-gated: it names cameras and times, like the lists above. An
+ * unreadable log is a day with nothing to play, not a 502. */
+router.get("/api/house/day", loopbackOnly("The day's record"), async (_req, res) => {
+  const now = Date.now();
+  const from = new Date(now).setHours(0, 0, 0, 0);
+  try {
+    const rows = await readLogged(now);
+    res.json({ from, to: now, beats: dayBeats(rows, todayClaims()?.entries, { from, to: now }) });
+  } catch (err) {
+    console.error("[house] day read failed:", err.message);
+    res.json({ from, to: now, beats: [] });
   }
 });
 

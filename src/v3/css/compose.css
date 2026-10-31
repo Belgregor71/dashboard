@@ -910,6 +910,54 @@ body[data-holiday] .photo::after {
 }
 .plan--locator .plan__fov polygon { fill: rgb(255 196 84 / 0.35); }
 
+/* ── The day in 20 seconds (subjects/day-lapse.js, features.v3DayLapse) ─────
+   Everything moving is transform or opacity. A pulse's size is a share of the
+   plate's width; aspect-ratio keeps it round. Borrows .plan__image, .plan__light.
+─────────────────────────────────────────────────────────────────────────── */
+.lapse {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--scrim-base);
+}
+.lapse__world { position: absolute; }
+.lapse__pulse {
+  position: absolute;
+  width: var(--size);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 196 84 / 0.95) 0%, rgb(255 196 84 / 0.35) 45%, transparent 70%);
+}
+.lapse__pulse--door { background: radial-gradient(circle, rgb(255 244 214 / 1) 0%, rgb(255 150 70 / 0.5) 45%, transparent 70%); }
+.lapse__pulse--bins { background: radial-gradient(circle, rgb(150 230 170 / 0.95) 0%, rgb(90 190 120 / 0.35) 45%, transparent 70%); }
+.lapse__sky {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: linear-gradient(115deg, rgb(20 34 60 / 0.72), rgb(20 34 60 / 0.3));
+}
+.lapse__clock,
+.lapse__note {
+  position: absolute;
+  left: var(--safe);
+  padding: 0.1em 0.45em;
+  border-radius: 10px;
+  background: rgb(8 12 24 / 0.62);
+  color: #fff;
+  font-family: var(--font-measured);
+}
+.lapse__clock {
+  bottom: var(--safe);
+  font-size: 4.2vw;
+  font-variant-numeric: tabular-nums;
+}
+.lapse__note {
+  bottom: calc(var(--safe) + 6.4vw);
+  font-size: 2.2vw;
+  opacity: 0;
+}
+
 /* ── The diorama (core/diorama.js, features.v3Diorama) ──────────────────────
    Above everything in the stage for its few seconds; depth 3 tears it down, so
    it never sits over something asked for. Shares .plan__light for the sun.

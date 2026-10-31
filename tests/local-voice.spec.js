@@ -313,7 +313,7 @@ test.describe("show-me surfaces — the new subjects", () => {
 
        Rewritten 2026-10-03 when the incumbent (whose voiceCommands.js this
        list used to describe) was retired. */
-    const answeredByTheSubject = ["show.camera", "show.sky", "show.status"];
+    const answeredByTheSubject = ["show.camera", "show.sky", "show.status", "show.lapse"];
     const silentByDesign = ["show.year", "show.briefing", "show.tonight"];
     const mustAnswer = INTENT_IDS.filter(
       (id) =>

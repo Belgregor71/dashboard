@@ -150,6 +150,10 @@ const INTENTS = [
      ⚠⚠ NOT IN DAY_INTENTS — BEYOND_RE matches "next month". See show.forecast. */
   { id: "show.ahead", flag: "v3CalendarAhead", re: /\b(next month|the month ahead|rest of the month|the (next|coming) few weeks|the weeks ahead|next couple of weeks)\b/ },
 
+  /* Past tense only: "how's today looking" is a question about what's left of it.
+     No "play ...": a sentence opening with it is a mutation and never reaches here. */
+  { id: "show.lapse", flag: "v3DayLapse", re: /\b(how was (today|the day|your day)|how.s (today|the day|your day) been|replay (today|the day)|day in (20|twenty) seconds)\b/ },
+
   { id: "cal.tomorrow", re: /\b(tomorrow).*(on|happening|calendar|diary|schedule)|what.*(on|doing).*tomorrow\b/ },
   { id: "cal.next", re: /\b(next (event|thing|up)|what.s next|coming up|after this)\b/ },
   { id: "cal.free", re: /\b(am i free|are we free|anything on|much on|busy (today|tomorrow))\b/ },

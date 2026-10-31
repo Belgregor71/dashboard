@@ -40,6 +40,7 @@ import { showMedia } from "./media.js";
 import { showBriefing } from "./briefing.js";
 import { showStatus } from "./status.js";
 import { attachCameraPlan } from "./camera-plan.js";
+import { showLapse } from "./day-lapse.js";
 import { record } from "../core/feature-census.js";
 import { arbiterOn, mayTakeStage, claimStage, releaseStage, noteSuperseded } from "../../js/core/arbiter.js";
 import { logStageOpen, logStageClose } from "../core/presentation-log.js";
@@ -200,6 +201,7 @@ const REGISTRY = {
   "show.sky": () => showSky(),
   "show.day": (_intent, snapshot) => showDay(snapshot),
   "show.tonight": (_intent, snapshot) => showDay(snapshot),
+  "show.lapse": () => showLapse(),   // gated at the matcher, as the note below explains
   /* ⚠ DELIBERATELY NOT FLAG-GATED, though both are flag-gated features. The gate
      lives in localIntents' matcher, which is the single place that decides
      whether the lane recognises these sentences at all — and it has to be there

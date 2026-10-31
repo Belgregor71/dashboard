@@ -1977,6 +1977,14 @@ window.CONFIG = {
     // Deployed OFF 400e389 (inject-defect 7/7 RED). FLIPPED ON 2026-10-31 after
     // the owner saw both plates on the wall and both played as real moments.
     v3DioramaDressed: true,
+
+    // ── The day in 20 seconds (src/v3/subjects/day-lapse.js) ───────────────
+    // On: "how was today?" plays the day back across the empty house plan:
+    // camera pulses, the door, bin night, the rain coming through. Only when
+    // asked. No people in it. Needs data/house-plan/; without it, or with
+    // nothing logged today, the question falls through as it did before.
+    // Rollback: -> false, then a HARD reload of the kiosk.
+    v3DayLapse: false,
   },
 
   /* --------------------------------------------------------------

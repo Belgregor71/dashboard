@@ -131,6 +131,9 @@ async function pruneFile(now) {
   return kept;
 }
 
+/** The log as a reader in this process sees it. */
+export const readLogged = (now = Date.now()) => serial(() => pruneFile(now));
+
 const router = express.Router();
 
 // The wall is the only writer (src/v3/core/presentation-log.js), and it is loopback.
