@@ -37,7 +37,11 @@ async function bootV3(page, { on = true, plan = true } = {}) {
   });
   await page.route("**/js/config.js", async (route) => {
     const res = await route.fetch({ maxRetries: 3 });
-    await route.fulfill({ response: res, body: `${await res.text()}\nwindow.CONFIG.features.v3CameraPlan = ${on};\n` });
+    // The diorama reads the same route, and this spec counts its fetches.
+    await route.fulfill({
+      response: res,
+      body: `${await res.text()}\nwindow.CONFIG.features.v3CameraPlan = ${on};\nwindow.CONFIG.features.v3Diorama = false;\n`
+    });
   });
   await page.goto("/v3/");
   await page.waitForFunction(() => typeof window.__v3 === "function");

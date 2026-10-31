@@ -1966,7 +1966,10 @@ window.CONFIG = {
     // the night's bins sit at the kerb. Needs the diorama pieces in the
     // gitignored data/house-plan/; without them the flag adds nothing.
     // Rollback: -> false, then a HARD reload of the kiosk.
-    v3Diorama: false,
+    // Deployed OFF 89136c4 (inject-defect 13/14 RED, the 14th an unreachable
+    // guard, deleted). FLIPPED ON 2026-10-31 after the owner watched the moments
+    // on the wall.
+    v3Diorama: true,
   },
 
   /* --------------------------------------------------------------
