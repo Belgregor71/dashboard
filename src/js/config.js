@@ -1984,7 +1984,9 @@ window.CONFIG = {
     // asked. No people in it. Needs data/house-plan/; without it, or with
     // nothing logged today, the question falls through as it did before.
     // Rollback: -> false, then a HARD reload of the kiosk.
-    v3DayLapse: false,
+    // Deployed OFF ef63617 (inject-defect 33/35 RED, then 8/8 on the tuning).
+    // FLIPPED ON 2026-11-01 on the owner's word, after a forced run on the wall.
+    v3DayLapse: true,
   },
 
   /* --------------------------------------------------------------
