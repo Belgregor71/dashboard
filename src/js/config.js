@@ -1974,7 +1974,9 @@ window.CONFIG = {
     // On: on a birthday or in a season the dogs already keep, the diorama uses
     // that occasion's dressed plate if data/house-plan/ has one. Needs v3Diorama.
     // Rollback: -> false, then a HARD reload of the kiosk.
-    v3DioramaDressed: false,
+    // Deployed OFF 400e389 (inject-defect 7/7 RED). FLIPPED ON 2026-10-31 after
+    // the owner saw both plates on the wall and both played as real moments.
+    v3DioramaDressed: true,
   },
 
   /* --------------------------------------------------------------
