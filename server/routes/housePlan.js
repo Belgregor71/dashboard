@@ -36,7 +36,10 @@ router.get("/api/house-plan/image", kioskOnly, (_req, res) => {
 
 /* The diorama's pieces (src/v3/core/diorama.js, features.v3Diorama). A fixed list,
    so the name in the path can never reach anything else in the folder. */
-const LAYERS = new Set(["plan-empty", "car-left", "car-right"]);
+const LAYERS = new Set([
+  "plan-empty", "car-left", "car-right",
+  "plan-birthday", "plan-newYear", "plan-australiaDay", "plan-easter", "plan-halloween", "plan-christmas"
+]);
 
 router.get("/api/house-plan/layer/:name", kioskOnly, (req, res) => {
   if (!LAYERS.has(req.params.name)) return res.status(404).json({ error: "No such layer" });

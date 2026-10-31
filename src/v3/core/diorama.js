@@ -21,6 +21,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { DEPTH, onDepth } from "./depth.js";
+import { occasionToday } from "./dog-schedule.js";
 import { getEntity } from "../../js/services/homeAssistant/state.js";
 
 const ROLL_DELAY_MS = 450;   // the fade in takes 350 of this
@@ -36,9 +37,11 @@ let plate = null;            // { width, height, upBearing, crop, cars, bins, bi
 let loading = null;
 let showing = null;          // teardown of the moment on the glass
 const seen = new Map();      // candidate id → key last played
+const dressed = new Map();   // occasion → its decoded Image; held, so a moment never waits on one
 let played = 0;
 
 const dioramaOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3Diorama);
+const dressedOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3DioramaDressed);
 
 const layerUrl = (name) => `/api/house-plan/layer/${name}`;
 
@@ -79,6 +82,14 @@ function warm() {
       return image.decode();
     }));
     plate = { width: meta.width, height: meta.height, upBearing: meta.upBearing ?? 0, ...d };
+    /* One at a time and after the plate is ready: a dressed plate that is missing
+       or broken costs that occasion its dress, and nothing else. */
+    if (!dressedOn()) return;
+    for (const [occasion, name] of Object.entries(d.dressed ?? {})) {
+      const image = new Image();
+      image.src = layerUrl(name);
+      await image.decode().then(() => dressed.set(occasion, image), () => {});
+    }
   };
   loading = load().then(() => { loading = null; }, () => { loading = null; });
   return loading;
@@ -125,7 +136,7 @@ function play(moment) {
   base.className = "diorama__plate";
   base.alt = "";
   base.decoding = "sync";
-  base.src = layerUrl("plan-empty");
+  base.src = dressed.get(occasionToday())?.src ?? layerUrl("plan-empty");
   world.append(base);
 
   for (const id of parkedCars(plate.cars, moment.rolling, (entity) => getEntity(entity)?.state)) {
@@ -202,7 +213,7 @@ export function dioramaSee(candidates) {
 
 /** For __v3(). */
 export function dioramaState() {
-  return { ready: Boolean(plate), showing: Boolean(showing), played };
+  return { ready: Boolean(plate), showing: Boolean(showing), played, dressed: [...dressed.keys()] };
 }
 
 export function initDiorama() {

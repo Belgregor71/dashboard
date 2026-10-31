@@ -1970,6 +1970,11 @@ window.CONFIG = {
     // guard, deleted). FLIPPED ON 2026-10-31 after the owner watched the moments
     // on the wall.
     v3Diorama: true,
+
+    // On: on a birthday or in a season the dogs already keep, the diorama uses
+    // that occasion's dressed plate if data/house-plan/ has one. Needs v3Diorama.
+    // Rollback: -> false, then a HARD reload of the kiosk.
+    v3DioramaDressed: false,
   },
 
   /* --------------------------------------------------------------

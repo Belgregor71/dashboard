@@ -782,7 +782,13 @@ test.describe("feeds", () => {
 
     // The list is the guard. Name the error: with no plan on this machine, a request
     // that got past the list would 404 as well, on the missing file.
-    for (const name of ["cameras", "..%2F..%2Fpackage"]) {
+    // Each dressed plate is on the list: a missing file is a different 404 from a refused name.
+    for (const occasion of ["birthday", "newYear", "australiaDay", "easter", "halloween", "christmas"]) {
+      const res = await request.get(`/api/house-plan/layer/plan-${occasion}`);
+      if (res.status() === 404) expect((await res.json()).error).toBe("No house plan on this box");
+    }
+
+    for (const name of ["cameras", "plan-generic", "..%2F..%2Fpackage"]) {
       const res = await request.get(`/api/house-plan/layer/${name}`);
       expect(res.status()).toBe(404);
       expect((await res.json()).error).toBe("No such layer");

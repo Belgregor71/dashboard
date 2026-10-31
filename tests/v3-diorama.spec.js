@@ -22,33 +22,48 @@ const META = {
       "person.brett": { layer: "car-right", x: 250, y: 600, w: 164, h: 148 }
     },
     bins: [{ x: 66, y: 874 }, { x: 106, y: 874 }],
-    binSize: { w: 30, h: 38 }
+    binSize: { w: 30, h: 38 },
+    dressed: { birthday: "plan-birthday", christmas: "plan-christmas", easter: "plan-easter" }
   }
 };
 
-async function bootV3(page, { on = true, diorama = true } = {}) {
+async function bootV3(page, { on = true, diorama = true, dress = false, date = MIDDAY, birthdays = [], broken = [] } = {}) {
   const pageErrors = [];
+  const layers = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
-  await page.clock.setFixedTime(MIDDAY);
+  await page.clock.setFixedTime(date);
   await page.route("**/api/**", (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/house-plan") {
       return route.fulfill({ json: diorama ? META : { ...META, diorama: undefined } });
     }
+    if (url.pathname === "/api/dogs/birthdays") return route.fulfill({ json: { days: birthdays } });
     if (url.pathname.startsWith("/api/house-plan/layer/")) {
+      const name = url.pathname.split("/").pop();
+      layers.push(name);
+      if (broken.includes(name)) return route.fulfill({ status: 404, contentType: "application/json", body: "{}" });
       return route.fulfill({ status: 200, contentType: "image/png", body: PNG });
     }
     return route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
   });
   await page.route("**/js/config.js", async (route) => {
     const res = await route.fetch({ maxRetries: 3 });
-    await route.fulfill({ response: res, body: `${await res.text()}\nwindow.CONFIG.features.v3Diorama = ${on};\n` });
+    await route.fulfill({
+      response: res,
+      body: `${await res.text()}\nwindow.CONFIG.features.v3Diorama = ${on};\nwindow.CONFIG.features.v3DioramaDressed = ${dress};\n`
+    });
   });
   await page.goto("/v3/");
   await page.waitForFunction(() => typeof window.__v3 === "function");
   if (on && diorama) await page.waitForFunction(() => window.__v3().diorama.ready);
-  return { pageErrors };
+  // The dressed plates decode after `ready`, and the birthday list arrives on its own fetch.
+  if (dress) await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 300)));
+  return { pageErrors, layers };
 }
+
+const plateNow = (page) => page.locator(".diorama__plate").evaluate(
+  (plate) => new URL(plate.src).pathname.split("/").pop()
+);
 
 // The first call makes the state an observed transition; an unknown absence is long enough.
 const arrive = (page, id) => page.evaluate((entity) => {
@@ -181,6 +196,56 @@ test("the wall is not interrupted at depth 3", async ({ page }) => {
   await arrive(page, "person.brett");
   await page.waitForTimeout(300);
   expect(await dioramaNow(page)).toBe(0);
+});
+
+const CHRISTMAS = new Date("2026-12-20T12:00:00+10:00");
+
+test("in a season with a dressed plate, the moment wears it and the cars still park", async ({ page }) => {
+  const { pageErrors } = await bootV3(page, { dress: true, date: CHRISTMAS });
+  await home(page, "person.greg_dee");
+  await arrive(page, "person.brett");
+  await expect(page.locator(".diorama")).toBeVisible();
+  expect(await plateNow(page)).toBe("plan-christmas");
+  expect(await carsNow(page)).toEqual(["car-left", "car-right"]);
+  expect(pageErrors).toEqual([]);
+});
+
+test("a birthday wins over the season", async ({ page }) => {
+  await bootV3(page, { dress: true, date: CHRISTMAS, birthdays: [{ month: 12, day: 20, dogs: [], family: true }] });
+  await arrive(page, "person.brett");
+  await expect(page.locator(".diorama")).toBeVisible();
+  expect(await plateNow(page)).toBe("plan-birthday");
+});
+
+test("an ordinary day stays plain", async ({ page }) => {
+  await bootV3(page, { dress: true });
+  await arrive(page, "person.brett");
+  await expect(page.locator(".diorama")).toBeVisible();
+  expect(await plateNow(page)).toBe("plan-empty");
+});
+
+test("a season with no dressed plate stays plain", async ({ page }) => {
+  await bootV3(page, { dress: true, date: new Date("2026-10-20T12:00:00+10:00") });
+  await arrive(page, "person.brett");
+  await expect(page.locator(".diorama")).toBeVisible();
+  expect(await plateNow(page)).toBe("plan-empty");
+});
+
+test("a broken dressed plate costs that occasion only", async ({ page }) => {
+  const { pageErrors } = await bootV3(page, { dress: true, date: CHRISTMAS, broken: ["plan-christmas"] });
+  expect(await page.evaluate(() => window.__v3().diorama.dressed)).toEqual(["birthday", "easter"]);
+  await arrive(page, "person.brett");
+  await expect(page.locator(".diorama")).toBeVisible();
+  expect(await plateNow(page)).toBe("plan-empty");
+  expect(pageErrors).toEqual([]);
+});
+
+test("flag off: the dressed plates are not fetched and the season stays plain", async ({ page }) => {
+  const { layers } = await bootV3(page, { date: CHRISTMAS });
+  await arrive(page, "person.brett");
+  await expect(page.locator(".diorama")).toBeVisible();
+  expect(await plateNow(page)).toBe("plan-empty");
+  expect(layers.filter((name) => name.startsWith("plan-") && name !== "plan-empty")).toEqual([]);
 });
 
 test("no diorama in the data: an arrival is just the line", async ({ page }) => {

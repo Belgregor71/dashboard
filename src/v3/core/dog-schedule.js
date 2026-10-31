@@ -248,6 +248,9 @@ const BIRTHDAYS_REFRESH_MS = 6 * 3_600_000;
 
 let live = null;
 
+/** Today's occasion, birthdays included, or null while the schedule is not running. */
+export const occasionToday = () => live?.state().today.occasion ?? null;
+
 export function initDogSchedule({ show, isPresent, isBusy }) {
   if (live) return live;
   let days = [];
