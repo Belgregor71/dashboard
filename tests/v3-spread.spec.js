@@ -30,6 +30,9 @@ async function bootV3(page) {
     const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({ response: res, body: (await res.text()) + "\nwindow.CONFIG.features.voiceSession = true;\n" });
   });
+  // An ordinary day: on Halloween or Christmas a delight joins the queue and the
+  // template this file asserts stops being the one its fixture asked for.
+  await page.clock.setFixedTime(new Date("2026-06-16T12:00:00+10:00"));
   await page.goto("/v3/");
   await page.waitForFunction(() => typeof window.__v3 === "function");
   return pageErrors;

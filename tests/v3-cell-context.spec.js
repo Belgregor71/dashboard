@@ -32,6 +32,8 @@ async function bootV3(page) {
   await page.route("**/api/**", (route) =>
     route.fulfill({ status: 503, contentType: "application/json", body: "{}" })
   );
+  // An ordinary day: on Halloween or Christmas a delight takes a third cell.
+  await page.clock.setFixedTime(new Date("2026-06-16T12:00:00+10:00"));
   await page.goto("/v3/");
   await page.waitForFunction(() => typeof window.__v3 === "function");
   return pageErrors;

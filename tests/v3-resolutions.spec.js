@@ -81,6 +81,8 @@ async function bootV3(page, { enabled = false, resolutions = [] } = {}) {
     return route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
   });
 
+  // An ordinary day: on Halloween or Christmas a delight outranks the resolution.
+  await page.clock.setFixedTime(new Date("2026-06-16T12:00:00+10:00"));
   await page.goto("/v3/");
   await page.waitForFunction(() => typeof window.__v3 === "function");
   return { pageErrors, posted, spoke };
@@ -158,7 +160,8 @@ test.describe("flag ON — the line reaches the queue and stays in the Low band"
        announcement with no end is a claim about the present that becomes a
        lie, and there is no timer here to clean it up." A null here is a cell
        that never leaves. */
-    expect(got.announced[0].expiresAt, "the resolution never expires").toBeGreaterThan(Date.now());
+    const pageNow = await page.evaluate(() => Date.now());
+    expect(got.announced[0].expiresAt, "the resolution never expires").toBeGreaterThan(pageNow);
     expect(got.glance, "the resolution took the glance").toBe("");
     expect(got.depth, "the resolution deepened the surface").toBe("0");
     expect(pageErrors).toEqual([]);

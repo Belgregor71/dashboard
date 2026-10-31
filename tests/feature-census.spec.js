@@ -529,6 +529,8 @@ test.describe("wired to the wall", () => {
        afternoon, and `offeredNeverShown` duly called a visible card "alive, and
        pointless" — the report making a claim its own data could not support,
        which is the third time this instrument has done it. */
+    // An ordinary day: on Halloween or Christmas a delight takes a third cell.
+    await page.clock.setFixedTime(new Date("2026-06-16T12:00:00+10:00"));
     await bootV3(page, {}, { features: { v3FeatureCensus: true } });
 
     const tick = await page.evaluate(() => {
