@@ -20,7 +20,7 @@
    diorama in the data the moment simply does not happen.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { DEPTH, getDepth, onDepth } from "./depth.js";
+import { DEPTH, onDepth } from "./depth.js";
 import { getEntity } from "../../js/services/homeAssistant/state.js";
 
 const ROLL_DELAY_MS = 450;   // the fade in takes 350 of this
@@ -187,7 +187,7 @@ function play(moment) {
  * showing is not marked, so the next tick gets it.
  */
 export function dioramaSee(candidates) {
-  if (!dioramaOn() || !plate || showing || getDepth() === DEPTH.SUBJECT) return;
+  if (!dioramaOn() || !plate || showing) return;
   for (const candidate of candidates) {
     const moment = momentFor(candidate);
     if (!moment) continue;
