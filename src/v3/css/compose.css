@@ -858,6 +858,58 @@ body[data-holiday] .photo::after {
   z-index: 1;                    /* over the caption band below, never under it */
 }
 
+/* ── The camera plan (subjects/camera-plan.js, features.v3CameraPlan) ───────
+   The illustration is a daytime picture, so the sun lands on it here: the side
+   away from the real sun falls into shade, and after dark the whole plate drops,
+   or a 2am "show me the patio" floods the room with a green lawn. suncalc's
+   azimuth runs from south, hence the half turn; --plan-up is the plate's own top.
+─────────────────────────────────────────────────────────────────────────── */
+.plan {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+}
+.plan--dive {
+  inset: 0;
+  background: var(--scrim-base);
+}
+.plan--locator {
+  top: var(--safe);
+  right: var(--safe);
+  width: 22vw;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgb(0 0 0 / 0.5);
+}
+.plan__world {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+}
+.plan--dive .plan__world { will-change: transform; }
+.plan__image,
+.plan__light,
+.plan__fov {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.plan__light {
+  background: linear-gradient(
+    calc(var(--sun-az) + 180deg - var(--plan-up)),
+    rgb(8 12 24 / 0.38) 0%,
+    transparent 65%
+  );
+}
+:root[data-night="1"] .plan__light { background: rgb(8 12 24 / 0.68); }
+.plan__fov polygon {
+  fill: rgb(255 196 84 / 0.34);
+  stroke: rgb(255 196 84 / 0.95);
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+}
+.plan--locator .plan__fov polygon { fill: rgb(255 196 84 / 0.6); }
+
 /* ── The caption band ───────────────────────────────────────────────────────
    ⚠ MEASURED 2026-08-08: the camera caption at 2.03:1 and the media title at
    1.01:1 over a bright frame.

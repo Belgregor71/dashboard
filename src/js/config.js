@@ -1948,6 +1948,15 @@ window.CONFIG = {
     // Deployed OFF ea5714b (inject-defect 3/3 RED). FLIPPED ON 2026-10-03 at
     // the owner's ask; live proof = the owner walking to the front door.
     v3DoorbellNameWait: true,
+
+    // ── The camera plan (src/v3/subjects/camera-plan.js) ───────────────────
+    // On: asking for a camera dives from the illustrated house plan onto what
+    // that camera sees, and a doorbell or side gate alert gets a small corner
+    // locator instead (the door never waits). The camera underneath mounts as
+    // before either way. Needs data/house-plan/ on the box, which is gitignored
+    // because this repo is public; without it the flag adds nothing.
+    // Rollback: -> false, then a HARD reload of the kiosk.
+    v3CameraPlan: false,
   },
 
   /* --------------------------------------------------------------

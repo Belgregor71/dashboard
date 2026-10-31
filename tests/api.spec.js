@@ -760,6 +760,21 @@ test.describe("feeds", () => {
     if (status === 200) expect(Array.isArray(body.headlines)).toBe(true);
   });
 
+  /* No plan on most machines (it is gitignored), and the wall must survive that. */
+  test("GET /api/house-plan", async ({ request }) => {
+    const { status, body } = await expectJson(request, "/api/house-plan", { statuses: [200, 404] });
+    if (status === 404) return expect(typeof body.error).toBe("string");
+    expect(body.width).toBeGreaterThan(0);
+    expect(body.height).toBeGreaterThan(0);
+    expect(Object.keys(body.cameras).length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/house-plan/image", async ({ request }) => {
+    const res = await request.get("/api/house-plan/image");
+    expect([200, 404]).toContain(res.status());
+    if (res.status() === 200) expect(res.headers()["content-type"]).toContain("image/webp");
+  });
+
   test("GET /api/bins", async ({ request }) => {
     const { body } = await expectJson(request, "/api/bins");
     expect(typeof body.configured).toBe("boolean");

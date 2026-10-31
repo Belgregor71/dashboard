@@ -46,7 +46,7 @@ happened; a glance at the wall did.
 - **`src/js/` is NOT legacy — it is V3's runtime library**: V3's import closure pulls 55
   files from it, plus `js/config.js` by script tag. The authority is the manifest in
   `tests/v3-closure.spec.js`. Everything left in `src/js/` is load-bearing.
-- `server.js` mounts `server/routes/*.js` (34 route modules) under `/api`. Route order
+- `server.js` mounts `server/routes/*.js` (35 route modules) under `/api`. Route order
   matters — see the measured comments in `server.js` around the static mounts.
 - **`CLAUDE.md` and `.claude/skills/` have a gitignored agent-facing mirror** (`AGENTS.md`,
   `.agents/skills/` — the skills there cite the house rules by section name). Regenerate
@@ -87,7 +87,7 @@ happened; a glance at the wall did.
   half. This is the single most common place a session ends in a live defect: a flip has
   made the house invent a bin time, and a poisoned cache once blanked the whole wall.
   Record both the flip and the rollback proof in the session memory entry.
-- Flags live in `src/js/config.js` under `features:` (80 flags), copied to
+- Flags live in `src/js/config.js` under `features:` (81 flags), copied to
   `static/js/config.js` on every build. That file is **tracked and shipped in the
   public bundle** — never put a secret or an address in it.
 - ⛔ **Every flag must be a lever on the wall.** `tests/flag-surface.spec.js` derives
@@ -98,7 +98,7 @@ happened; a glance at the wall did.
 
 ### Testing & Pre-Push Gate
 
-- `npm test` runs the Playwright suite — 128 spec files in `tests/` (plus 1 in `tests/verify/`,
+- `npm test` runs the Playwright suite — 129 spec files in `tests/` (plus 1 in `tests/verify/`,
   which `npm test` ignores), spanning API
   contracts (`api.spec.js`), the V3 boot (`v3-boot.spec.js`), and per-feature specs.
   Browser specs need `npm run build` first. Test server runs on port 3210 with AI

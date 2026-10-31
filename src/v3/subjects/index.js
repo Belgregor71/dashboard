@@ -39,6 +39,7 @@ import { showYear } from "./memories.js";
 import { showMedia } from "./media.js";
 import { showBriefing } from "./briefing.js";
 import { showStatus } from "./status.js";
+import { attachCameraPlan } from "./camera-plan.js";
 import { record } from "../core/feature-census.js";
 import { arbiterOn, mayTakeStage, claimStage, releaseStage, noteSuperseded } from "../../js/core/arbiter.js";
 import { logStageOpen, logStageClose } from "../core/presentation-log.js";
@@ -85,7 +86,7 @@ export function clearSubject() {
    HTTP connection open and keeps decoding forever — on a surface that runs for
    weeks that is not a leak, it is a fire.
 ─────────────────────────────────────────────────────────────────────────── */
-function showCamera(cameraId, label) {
+function showCamera(cameraId, label, { reflex = false } = {}) {
   const wrap = document.createElement("div");
   wrap.className = "subject subject--camera";
   wrap.dataset.cell = "cameras";
@@ -104,6 +105,7 @@ function showCamera(cameraId, label) {
   caption.textContent = label;
 
   wrap.append(still, live, caption);
+  const removePlan = attachCameraPlan(wrap, caption, cameraId, { reflex });
 
   // Reveal the stream only once it has actually painted something.
   const onLive = () => live.classList.add("is-ready");
@@ -113,6 +115,7 @@ function showCamera(cameraId, label) {
   return {
     node: wrap,
     teardown: () => {
+      removePlan?.();
       live.removeEventListener("load", onLive);
       // Order matters: drop the src BEFORE the node goes, or Chromium can keep
       // the MJPEG connection alive on a detached element.
@@ -189,10 +192,10 @@ const CAMERA_LABELS = {
    answer and not the recipe's.
 ─────────────────────────────────────────────────────────────────────────── */
 const REGISTRY = {
-  "show.camera": (intent) => {
+  "show.camera": (intent, _snapshot, { author } = {}) => {
     const id = intent.slots?.camera;
     if (!id) return null;
-    return showCamera(id, CAMERA_LABELS[id] ?? id.replace(/_/g, " "));
+    return showCamera(id, CAMERA_LABELS[id] ?? id.replace(/_/g, " "), { reflex: author === "doorbell" });
   },
   "show.sky": () => showSky(),
   "show.day": (_intent, snapshot) => showDay(snapshot),
@@ -252,7 +255,7 @@ export async function showSubject(intent, snapshot, { author = null } = {}) {
 
   let built = null;
   try {
-    built = await build(intent, snapshot);
+    built = await build(intent, snapshot, { author });
   } catch {
     // A subject that throws is a subject that cannot be shown. It must not be
     // able to take the depth machinery — or the voice turn — down with it.

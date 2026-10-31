@@ -52,6 +52,7 @@ import immichRoutes from "./server/routes/immich.js";
 import delightRoutes from "./server/routes/delight.js";
 import recipeRoutes from "./server/routes/recipe.js";
 import listsRoutes from "./server/routes/lists.js";
+import housePlanRoutes from "./server/routes/housePlan.js";
 import vaultRoutes from "./server/routes/vault.js";
 import { startVaultIndex } from "./server/services/vaultIndex.js";
 
@@ -178,6 +179,7 @@ app.use(recipeRoutes);
 // and a router that only exists when armed is a router no contract test can see
 // in the state it ships in.
 app.use(listsRoutes);
+app.use(housePlanRoutes);
 
 // House knowledge base (docs/design/VAULT.md). Default-off: with VAULT_ENABLED
 // unset the router is never mounted, the index is never built, and the

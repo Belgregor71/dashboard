@@ -31,6 +31,7 @@ import {
   stopArchiveMotion
 } from "./core/archive.js";
 import { clearSubject, activeSubject, showSubject, subjectRoster } from "./subjects/index.js";
+import { warmCameraPlan } from "./subjects/camera-plan.js";
 import { clearVocabularyCard, vocabularyCardMounted } from "./core/vocabulary-card.js";
 import { clearSpread, spreadMounted } from "./core/spread.js";
 import { railPhrase } from "../js/services/vocabulary.js";
@@ -790,6 +791,7 @@ function boot() {
      Separate stages: the door and an arrival are genuinely two subsystems, and
      the door is the one that must not be lost to the other's bad day. */
   stage("alerts", () => initAlerts());
+  stage("camera plan", () => { warmCameraPlan(); });
   stage("arrival", () => initArrival());
 
   /* The second unasked-for subject, and the one that also fills the recipe book.
