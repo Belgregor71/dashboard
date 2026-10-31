@@ -1,6 +1,6 @@
 import { test, expect } from "./fixtures/coverage.js";
 import { dayBeats, MAX_BEATS, WINDOW_MS } from "../server/services/dayBeats.js";
-import { lapseShare, lapseStart, spotFor } from "../src/v3/subjects/day-lapse.js";
+import { lapseShare, lapseStart, restScale, spotFor } from "../src/v3/subjects/day-lapse.js";
 import { matchIntent } from "../src/js/services/localIntents.js";
 
 /* The day in 20 seconds (features.v3DayLapse). The real plan is gitignored, so the
@@ -99,6 +99,13 @@ test.describe("the run", () => {
     expect(lapseShare(at("10:00"), at("08:00"), MIDDAY)).toBe(0.5);
     expect(lapseShare(MIDDAY, at("08:00"), MIDDAY)).toBe(1);
     expect(lapseShare(at("08:00"), at("08:00"), at("08:00"))).toBe(0);
+  });
+
+  test("a mark grows with each pulse on its spot, up to full size and no further", () => {
+    expect(restScale(0)).toBe(0.4);
+    expect(restScale(1)).toBeGreaterThan(restScale(0));
+    expect(restScale(6)).toBe(1);
+    expect(restScale(16)).toBe(1);
   });
 
   test("each kind of beat finds its place, and a camera off the plan has none", () => {
@@ -237,8 +244,51 @@ test.describe("on the wall", () => {
     // Every note reached, the last one standing.
     await expect(page.locator(".lapse__note")).toHaveText("Heavy rain");
     const left = await page.locator(".lapse__pulse").first().evaluate((node) => Number(getComputedStyle(node).opacity));
-    expect(left).toBeCloseTo(0.3, 1);
+    expect(left).toBeCloseTo(0.5, 1);
     await expect(lapse).toBeVisible();
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("a spot that keeps firing builds up, and the door shares the doorbell's spot", async ({ page }) => {
+    const beat = (hhmm, camera) => ({ at: at(hhmm), kind: "camera", camera, n: 1 });
+    const { pageErrors } = await bootV3(page, {
+      beats: [beat("08:00", "driveway"), beat("08:30", "driveway"), beat("09:00", "driveway"), beat("09:30", "doorbell"), { at: at("10:00"), kind: "door", n: 1 }]
+    });
+    await ask(page, "how was today");
+    await expect(page.locator(".lapse__pulse")).toHaveCount(5);
+    await jumpToEnd(page);
+
+    // Measured box, so a pulse that never settled at its own size can't pass.
+    const widths = await page.locator(".lapse__pulse").evaluateAll((nodes) => nodes.map((node) => Math.round(node.getBoundingClientRect().width)));
+    expect(widths[0]).toBeGreaterThan(0);
+    expect(widths[1]).toBeGreaterThan(widths[0]);
+    expect(widths[2]).toBeGreaterThan(widths[1]);
+    expect(widths[3]).toBe(widths[0]);       // a new spot starts small
+    expect(widths[4]).toBe(widths[1]);       // the door lands on the doorbell's
+
+    const faint = await page.locator(".lapse__pulse").evaluateAll((nodes) => nodes.map((node) => Number(getComputedStyle(node).opacity)));
+    expect(faint[0]).toBeCloseTo(0.5, 2);
+    expect(faint[2]).toBeLessThan(faint[1]);
+    expect(faint[1]).toBeLessThan(faint[0]);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("one pulse is big enough to see across the room", async ({ page }) => {
+    const { pageErrors } = await bootV3(page, { beats: [{ at: at("08:00"), kind: "camera", camera: "driveway", n: 1 }] });
+    await ask(page, "how was today");
+    const pulse = page.locator(".lapse__pulse");
+    await expect(pulse).toHaveCount(1);
+    // Swept: the easing runs across the whole pulse, so the peak is not at its keyframe's offset.
+    const share = await pulse.evaluate((node) => {
+      const animation = node.getAnimations()[0];
+      let peak = 0;
+      for (let ms = 1000; ms < 2800; ms += 10) {
+        animation.currentTime = ms;
+        peak = Math.max(peak, node.getBoundingClientRect().width);
+      }
+      return peak / node.parentElement.getBoundingClientRect().width;
+    });
+    expect(share).toBeCloseTo(0.12, 2);
     expect(pageErrors).toEqual([]);
   });
 

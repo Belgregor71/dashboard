@@ -21,7 +21,7 @@ const PULSE_MS = 1800;
 const SKY_MS = 3200;
 const NOTE_MS = 2600;
 const TICK_MS = 200;
-const REST_OPACITY = 0.3;    // what a pulse leaves behind
+const REST_OPACITY = 0.5;    // what a pulse leaves behind
 
 const NOTES = { door: () => "The door", bins: () => "Bin night", sky: (beat) => beat.to };
 
@@ -47,23 +47,28 @@ export function spotFor(beat, plan) {
   return fov ? fovCentre(fov) : null;
 }
 
+/** The size a pulse settles at, by how many have landed on that spot: 16 on the
+ *  driveway has to read as a busy driveway, not one dot. Pure. */
+export const restScale = (nth) => Math.min(1, 0.4 + nth * 0.1);
+
 async function json(url) {
   const res = await fetch(url);
   return res.ok ? res.json() : null;
 }
 
-function pulseNode(beat, [fx, fy], delay, animations) {
+function pulseNode(beat, [fx, fy], delay, nth, animations) {
   const pulse = document.createElement("div");
   pulse.className = `lapse__pulse lapse__pulse--${beat.kind}`;
   pulse.style.left = `${fx * 100}%`;
   pulse.style.top = `${fy * 100}%`;
-  // Busier windows read bigger, up to a point: one trigger still has to be seen from the couch.
-  pulse.style.setProperty("--size", `${5 + Math.min(beat.n ?? 1, 10) * 0.7}%`);
+  // A share of the plate. Busier windows read bigger; one trigger still has to be seen from the couch.
+  pulse.style.setProperty("--size", `${11 + Math.min(beat.n ?? 1, 10)}%`);
   animations.push(pulse.animate(
     [
       { opacity: 0, transform: "translate(-50%, -50%) scale(0.3)" },
       { opacity: 1, transform: "translate(-50%, -50%) scale(1)", offset: 0.25 },
-      { opacity: REST_OPACITY, transform: "translate(-50%, -50%) scale(0.45)" }
+      // Each fainter than the last: at full strength a stack sets into a flat disc.
+      { opacity: REST_OPACITY / (1 + nth * 0.4), transform: `translate(-50%, -50%) scale(${restScale(nth)})` }
     ],
     { delay, duration: PULSE_MS, easing: "ease-out", fill: "both" }
   ));
@@ -103,6 +108,7 @@ export async function showLapse() {
 
   const animations = [];
   const delayOf = (at) => LEAD_MS + lapseShare(at, start, day.to) * RUN_MS;
+  const landed = new Map();   // spot → pulses so far; the door and the doorbell camera are one spot
   for (const beat of beats) {
     if (beat.kind === "sky") {
       const sky = document.createElement("div");
@@ -110,7 +116,10 @@ export async function showLapse() {
       animations.push(sky.animate({ opacity: [0, 1, 0] }, { delay: delayOf(beat.at), duration: SKY_MS, fill: "backwards" }));
       world.append(sky);
     } else {
-      world.append(pulseNode(beat, spotFor(beat, plan), delayOf(beat.at), animations));
+      const spot = spotFor(beat, plan);
+      const nth = landed.get(spot.join()) ?? 0;
+      landed.set(spot.join(), nth + 1);
+      world.append(pulseNode(beat, spot, delayOf(beat.at), nth, animations));
     }
   }
 
