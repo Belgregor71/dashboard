@@ -903,12 +903,12 @@ body[data-holiday] .photo::after {
 }
 :root[data-night="1"] .plan__light { background: rgb(8 12 24 / 0.68); }
 .plan__fov polygon {
-  fill: rgb(255 196 84 / 0.34);
-  stroke: rgb(255 196 84 / 0.95);
+  fill: rgb(255 196 84 / 0.16);
+  stroke: rgb(255 196 84 / 0.55);
   stroke-width: 2px;
   vector-effect: non-scaling-stroke;
 }
-.plan--locator .plan__fov polygon { fill: rgb(255 196 84 / 0.6); }
+.plan--locator .plan__fov polygon { fill: rgb(255 196 84 / 0.35); }
 
 /* ── The caption band ───────────────────────────────────────────────────────
    ⚠ MEASURED 2026-08-08: the camera caption at 2.03:1 and the media title at

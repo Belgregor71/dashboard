@@ -108,7 +108,7 @@ test("asking for a camera dives from the plan onto it, then leaves the camera", 
 
   await expect.poll(() => scaleOf(page), { intervals: [50] }).toBeGreaterThan(1.5);
 
-  await expect(dive).toHaveCount(0, { timeout: 3000 });
+  await expect(dive).toHaveCount(0, { timeout: 4000 });
   await expect(page.locator(".subject--camera .subject__frame")).toHaveCount(2);
   await expect(page.locator(".subject--camera .subject__caption")).toHaveText("The driveway");
   expect(pageErrors).toEqual([]);

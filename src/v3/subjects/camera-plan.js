@@ -19,10 +19,10 @@
 const SVG = "http://www.w3.org/2000/svg";
 
 const HOLD_MS = 700;        // the depth fade takes 350 of this; the rest reads as the house
-const DIVE_MS = 1500;
+const DIVE_MS = 2200;       // the owner's eye on the wall: 1500 was a touch quick
 const DIVE_SCALE = 2.4;
-const FADE_MS = 600;
-const FADE_AT_MS = 1750;    // starts before the dive lands, so the soft end is short
+const FADE_MS = 700;
+const FADE_AT_MS = 2250;    // starts before the dive lands, so the soft end is short
 const LOCATOR_MS = 8000;    // long enough to place it, then give the corner back
 
 let plan = null;            // { meta, src }
