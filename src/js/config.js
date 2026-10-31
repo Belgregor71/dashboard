@@ -1956,7 +1956,9 @@ window.CONFIG = {
     // before either way. Needs data/house-plan/ on the box, which is gitignored
     // because this repo is public; without it the flag adds nothing.
     // Rollback: -> false, then a HARD reload of the kiosk.
-    v3CameraPlan: false,
+    // Deployed OFF bc84368 (inject-defect 10/10 RED). FLIPPED ON 2026-10-31
+    // after the owner watched the dive and the locator on the wall.
+    v3CameraPlan: true,
   },
 
   /* --------------------------------------------------------------
