@@ -23,7 +23,8 @@ const META = {
     },
     bins: [{ x: 66, y: 874 }, { x: 106, y: 874 }],
     binSize: { w: 30, h: 38 },
-    dressed: { birthday: "plan-birthday", christmas: "plan-christmas", easter: "plan-easter" }
+    dressed: { birthday: "plan-birthday", christmas: "plan-christmas", easter: "plan-easter" },
+    dressedCrop: [0, 78, 1500, 844]
   }
 };
 
@@ -60,6 +61,11 @@ async function bootV3(page, { on = true, diorama = true, dress = false, date = M
   if (dress) await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 300)));
   return { pageErrors, layers };
 }
+
+// How many wall-widths the whole plate spans: 1 stands back, more is closer in.
+const worldShare = (page) => page.locator(".diorama__world").evaluate(
+  (world) => world.getBoundingClientRect().width / window.innerWidth
+);
 
 const plateNow = (page) => page.locator(".diorama__plate").evaluate(
   (plate) => new URL(plate.src).pathname.split("/").pop()
@@ -207,7 +213,15 @@ test("in a season with a dressed plate, the moment wears it and the cars still p
   await expect(page.locator(".diorama")).toBeVisible();
   expect(await plateNow(page)).toBe("plan-christmas");
   expect(await carsNow(page)).toEqual(["car-left", "car-right"]);
+  expect(await worldShare(page)).toBeCloseTo(1, 1);
   expect(pageErrors).toEqual([]);
+});
+
+test("an undressed day keeps the close view", async ({ page }) => {
+  await bootV3(page, { dress: true });
+  await arrive(page, "person.brett");
+  await expect(page.locator(".diorama")).toBeVisible();
+  expect(await worldShare(page)).toBeCloseTo(1500 / 900, 1);
 });
 
 test("a birthday wins over the season", async ({ page }) => {

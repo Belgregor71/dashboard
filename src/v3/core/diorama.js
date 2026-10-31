@@ -118,7 +118,10 @@ function play(moment) {
   const host = document.querySelector(".stage");
   if (!host) return;
 
-  const { scale, left, top } = cropBox(plate.crop, window.innerWidth, window.innerHeight);
+  // A dressed plate stands back: the decorations are all round the house, not at the garage.
+  const wearing = dressed.get(occasionToday());
+  const crop = wearing ? plate.dressedCrop ?? plate.crop : plate.crop;
+  const { scale, left, top } = cropBox(crop, window.innerWidth, window.innerHeight);
   const overlay = document.createElement("div");
   overlay.className = "diorama";
   overlay.style.setProperty("--plan-up", `${plate.upBearing}deg`);
@@ -136,7 +139,7 @@ function play(moment) {
   base.className = "diorama__plate";
   base.alt = "";
   base.decoding = "sync";
-  base.src = dressed.get(occasionToday())?.src ?? layerUrl("plan-empty");
+  base.src = wearing?.src ?? layerUrl("plan-empty");
   world.append(base);
 
   for (const id of parkedCars(plate.cars, moment.rolling, (entity) => getEntity(entity)?.state)) {
