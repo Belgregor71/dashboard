@@ -775,6 +775,20 @@ test.describe("feeds", () => {
     if (res.status() === 200) expect(res.headers()["content-type"]).toContain("image/webp");
   });
 
+  test("GET /api/house-plan/layer/:name", async ({ request }) => {
+    const known = await request.get("/api/house-plan/layer/plan-empty");
+    expect([200, 404]).toContain(known.status());
+    if (known.status() === 200) expect(known.headers()["content-type"]).toContain("image/webp");
+
+    // The list is the guard. Name the error: with no plan on this machine, a request
+    // that got past the list would 404 as well, on the missing file.
+    for (const name of ["cameras", "..%2F..%2Fpackage"]) {
+      const res = await request.get(`/api/house-plan/layer/${name}`);
+      expect(res.status()).toBe(404);
+      expect((await res.json()).error).toBe("No such layer");
+    }
+  });
+
   test("GET /api/bins", async ({ request }) => {
     const { body } = await expectJson(request, "/api/bins");
     expect(typeof body.configured).toBe("boolean");

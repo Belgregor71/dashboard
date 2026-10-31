@@ -1959,6 +1959,14 @@ window.CONFIG = {
     // Deployed OFF bc84368 (inject-defect 10/10 RED). FLIPPED ON 2026-10-31
     // after the owner watched the dive and the locator on the wall.
     v3CameraPlan: true,
+
+    // ── The diorama (src/v3/core/diorama.js) ───────────────────────────────
+    // On: when an arrival or the bins reach the glass, the front of the house
+    // fills the wall for about six seconds: the car rolls up the driveway, or
+    // the night's bins sit at the kerb. Needs the diorama pieces in the
+    // gitignored data/house-plan/; without them the flag adds nothing.
+    // Rollback: -> false, then a HARD reload of the kiosk.
+    v3Diorama: false,
   },
 
   /* --------------------------------------------------------------

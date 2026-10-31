@@ -34,4 +34,15 @@ router.get("/api/house-plan/image", kioskOnly, (_req, res) => {
   });
 });
 
+/* The diorama's pieces (src/v3/core/diorama.js, features.v3Diorama). A fixed list,
+   so the name in the path can never reach anything else in the folder. */
+const LAYERS = new Set(["plan-empty", "car-left", "car-right"]);
+
+router.get("/api/house-plan/layer/:name", kioskOnly, (req, res) => {
+  if (!LAYERS.has(req.params.name)) return res.status(404).json({ error: "No such layer" });
+  res.sendFile(path.join(DIR, `${req.params.name}.webp`), { maxAge: "1d" }, (err) => {
+    if (err && !res.headersSent) res.status(404).json({ error: "No house plan on this box" });
+  });
+});
+
 export default router;

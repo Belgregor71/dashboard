@@ -80,6 +80,7 @@ import { attentionWeights, learnedDeparture } from "../../js/core/routineRuntime
 import { heldNowcast } from "../../js/services/voiceSnapshot.js";
 import { record } from "./feature-census.js";
 import { DEPTH, deepen, sustain, setDepth, getDepth, getReason, onDepth } from "./depth.js";
+import { dioramaSee } from "./diorama.js";
 import { initPresence, onPresence, isPresent, isDwelling } from "./presence.js";
 import { renderSpread, spreadMounted, setSaidText, contextEnabled } from "./spread.js";
 import { logGlance } from "./presentation-log.js";
@@ -424,6 +425,8 @@ export function tickAttention(now = new Date()) {
     const shown = sel.queue.find((c) => c.id === id);
     if (shown) record("attn", shown.source, "shown");
   }
+
+  dioramaSee(onGlass.map((id) => sel.queue.find((c) => c.id === id)).filter(Boolean));
 
   return last;
 }

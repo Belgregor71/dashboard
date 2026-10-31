@@ -910,6 +910,55 @@ body[data-holiday] .photo::after {
 }
 .plan--locator .plan__fov polygon { fill: rgb(255 196 84 / 0.35); }
 
+/* ── The diorama (core/diorama.js, features.v3Diorama) ──────────────────────
+   Above everything in the stage for its few seconds; depth 3 tears it down, so
+   it never sits over something asked for. Shares .plan__light for the sun.
+─────────────────────────────────────────────────────────────────────────── */
+.diorama {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--scrim-base);
+}
+.diorama__world { position: absolute; }
+.diorama__plate {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.diorama__car {
+  position: absolute;
+  filter: drop-shadow(0 6px 8px rgb(0 0 0 / 0.45));   /* the cut-out left its floor shadow behind */
+}
+/* A wheelie bin from above: a charcoal body, the coloured lid inset on it, and the
+   hinge bar along the house side. */
+.diorama__bin {
+  position: absolute;
+  border-radius: 14% / 11%;
+  background: #23272a;
+  box-shadow: 3px 5px 7px rgb(0 0 0 / 0.5);
+}
+.diorama__bin::before {
+  content: "";
+  position: absolute;
+  inset: 8% 16% 8% 8%;
+  border-radius: 12% / 9%;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 0.28), transparent 45%, rgb(0 0 0 / 0.22)),
+    var(--bin);
+}
+.diorama__bin::after {
+  content: "";
+  position: absolute;
+  inset: 16% 5% 16% auto;
+  width: 6%;
+  border-radius: 2px;
+  background: #4a5055;
+}
+
 /* ── The caption band ───────────────────────────────────────────────────────
    ⚠ MEASURED 2026-08-08: the camera caption at 2.03:1 and the media title at
    1.01:1 over a bright frame.

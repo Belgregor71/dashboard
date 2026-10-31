@@ -32,6 +32,7 @@ import {
 } from "./core/archive.js";
 import { clearSubject, activeSubject, showSubject, subjectRoster } from "./subjects/index.js";
 import { warmCameraPlan } from "./subjects/camera-plan.js";
+import { initDiorama, dioramaState } from "./core/diorama.js";
 import { clearVocabularyCard, vocabularyCardMounted } from "./core/vocabulary-card.js";
 import { clearSpread, spreadMounted } from "./core/spread.js";
 import { railPhrase } from "../js/services/vocabulary.js";
@@ -792,6 +793,7 @@ function boot() {
      the door is the one that must not be lost to the other's bad day. */
   stage("alerts", () => initAlerts());
   stage("camera plan", () => { warmCameraPlan(); });
+  stage("diorama", initDiorama);
   stage("arrival", () => initArrival());
 
   /* The second unasked-for subject, and the one that also fills the recipe book.
@@ -1051,6 +1053,7 @@ function registerHandles() {
     announced: announcements(),
     alert: lastAlert(),
     arrival: lastArrival(),
+    diorama: dioramaState(),
     dinner: lastDinner(),
     briefing: lastBriefing(),
     health: lastHealth(),
