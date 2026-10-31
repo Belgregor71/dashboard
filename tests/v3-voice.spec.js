@@ -788,7 +788,11 @@ test("fallback voice: the voiceschanged wait listens once, not for the life of t
     const realGet = synth.getVoices.bind(synth);
     window.__voicesReady = false;
     synth.getVoices = () => (window.__voicesReady ? realGet() : []);
-    synth.speak = (u) => queueMicrotask(() => { u.onstart?.(new Event("start")); u.onend?.(new Event("end")); });
+    window.__fallbackSpoken = 0;
+    synth.speak = (u) => {
+      window.__fallbackSpoken++;
+      queueMicrotask(() => { u.onstart?.(new Event("start")); u.onend?.(new Event("end")); });
+    };
     // Count how many times a voiceschanged listener actually RUNS.
     window.__voicesFires = 0;
     const add = synth.addEventListener.bind(synth);
@@ -814,6 +818,8 @@ test("fallback voice: the voiceschanged wait listens once, not for the life of t
   });
   expect((await turn).handled).toBe(true);
   expect(await page.evaluate(() => window.__voicesFires)).toBe(1);
+  // The wait is what saved the line: giving up early would drop it, and the count above can't see that.
+  expect(await page.evaluate(() => window.__fallbackSpoken)).toBe(1);
 
   // Two more voice-list changes later in the page's life: nothing left to run.
   await page.evaluate(() => {
@@ -821,6 +827,47 @@ test("fallback voice: the voiceschanged wait listens once, not for the life of t
     window.speechSynthesis.dispatchEvent(new Event("voiceschanged"));
   });
   expect(await page.evaluate(() => window.__voicesFires)).toBe(1);
+  expect(pageErrors).toEqual([]);
+});
+
+/* The G11 kiosk has NO browser voices and `voiceschanged` never fires. V3 holds its
+   `busy` latch across speak(), so an unbounded wait turned one failed Kokoro call
+   into a house that refused every later turn until a reload. */
+test("fallback voice: with no voices at all the turn ends and the next one is heard", async ({ page }) => {
+  await page.addInitScript(() => {
+    const synth = window.speechSynthesis;
+    synth.getVoices = () => [];
+    window.__speakCalls = 0;
+    synth.speak = () => { window.__speakCalls++; };
+    window.__voiceListeners = 0;
+    const add = synth.addEventListener.bind(synth);
+    const remove = synth.removeEventListener.bind(synth);
+    synth.addEventListener = (type, fn, opts) => {
+      if (type === "voiceschanged") window.__voiceListeners++;
+      return add(type, fn, opts);
+    };
+    synth.removeEventListener = (type, fn, opts) => {
+      if (type === "voiceschanged") window.__voiceListeners--;
+      return remove(type, fn, opts);
+    };
+  });
+  const said = [];
+  await page.route("**/api/tts/speak", (route) => {
+    said.push(route.request().postDataJSON()?.text);
+    return route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
+  });
+  const pageErrors = await boot(page);
+
+  expect((await page.evaluate(() => window.__v3Transcript("what time is it"))).handled).toBe(true);
+  expect(await page.evaluate(() => window.__v3Voice().busy)).toBe(false);
+  expect((await page.evaluate(() => window.__v3Transcript("what time is it"))).handled).toBe(true);
+
+  // Both turns reached the speech path, and neither handed a line to a voiceless synth.
+  expect(said).toHaveLength(2);
+  expect(said[0]).toBeTruthy();
+  expect(await page.evaluate(() => window.__speakCalls)).toBe(0);
+  // A timed-out wait takes its listener with it; this page runs for weeks.
+  expect(await page.evaluate(() => window.__voiceListeners)).toBe(0);
   expect(pageErrors).toEqual([]);
 });
 

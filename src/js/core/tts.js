@@ -62,19 +62,29 @@ function announce(on) {
 // Blob object URLs pin the full audio buffer for the lifetime of the page
 // unless revoked — on a kiosk that never reloads, every utterance would
 // leak its WAV otherwise.
+const VOICE_WAIT_MS = 3000;
+
 function releaseAudioUrl(url) {
   if (!url) return;
   URL.revokeObjectURL(url);
   if (currentAudioUrl === url) currentAudioUrl = null;
 }
 
+/* Bounded: the kiosk has no voices at all, so `voiceschanged` never fires, and V3
+   holds its `busy` latch across this wait. Unbounded, one failed Kokoro call left
+   the house deaf until a reload (found 2026-11-01). */
 function ensureVoices() {
   return new Promise((resolve) => {
-    const voices = window.speechSynthesis.getVoices();
+    const synth = window.speechSynthesis;
+    const voices = synth.getVoices();
     if (voices.length > 0) return resolve(voices);
-    window.speechSynthesis.addEventListener("voiceschanged", () => {
-      resolve(window.speechSynthesis.getVoices());
-    }, { once: true });
+    const settle = () => {
+      clearTimeout(timer);
+      synth.removeEventListener("voiceschanged", settle);
+      resolve(synth.getVoices());
+    };
+    const timer = setTimeout(settle, VOICE_WAIT_MS);
+    synth.addEventListener("voiceschanged", settle, { once: true });
   });
 }
 
@@ -98,6 +108,10 @@ async function speakWithBrowserTts(text, { rate, pitch, volume }) {
   if (!window.speechSynthesis || !text) return;
 
   const voices = await ensureVoices();
+  if (voices.length === 0) {
+    console.warn("[TTS] no browser voices, line dropped");
+    return;
+  }
 
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.voice = pickVoice(voices);
