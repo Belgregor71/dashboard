@@ -9,7 +9,7 @@
    Flag `v3CastVoice`, read per call. server/routes/cast.js holds the script.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { createSpeech } from "../../js/core/tts.js";
+import { createSpeech, setSpeechRouter } from "../../js/core/tts.js";
 
 const PICK_TIMEOUT_MS = 1500;
 /* Set by ear on the wall: the clones master noticeably louder than Kokoro. */
@@ -46,6 +46,12 @@ export async function speakCast(event, { author = null, onAudio = null } = {}) {
   queue.close();
   await queue.done;
   return true;
+}
+
+/** Every plain line the house says is offered to the cast, keyed on its exact
+ *  words. Anything the script does not hold is spoken as before. */
+export function initCast() {
+  setSpeechRouter((text, voice) => (castOn() ? speakCast(`line:${text}`, voice) : null));
 }
 
 /** Named faces get their own pool, which only holds the household's names. */

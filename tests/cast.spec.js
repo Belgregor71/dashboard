@@ -1,7 +1,7 @@
 import { test, expect } from "./fixtures/coverage.js";
 import { bootV3 } from "./fixtures/v3boot.js";
 import { __resetBags, clipName, drawFrom, exchangeFault, poolFor } from "../server/routes/cast.js";
-import { clipFault, wavStats } from "../scripts/cast-generate.mjs";
+import { clipFault, parseScript, wavStats } from "../scripts/cast-generate.mjs";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    THE CAST — Kath and Kim from preloaded clips. Every line here is invented: the
@@ -90,6 +90,46 @@ function wav(seconds, level, rate = 24000) {
   for (let i = 0; i < samples; i++) buf.writeInt16LE(i % 2 ? level : -level, 44 + i * 2);
   return buf;
 }
+
+test.describe("the script format", () => {
+  const SCRIPT = [
+    "# a note",
+    "== door:doorbell:unknown",
+    "[floor]",
+    "kath! Fact.",
+    "",
+    "kim! Fact two.",
+    "kath: Gag.",
+    "",
+    "== line:It's a Test — really?",
+    "kim: One."
+  ].join("\r\n");
+
+  test("blocks, speakers, the plain mark and the floor all survive", () => {
+    const [first, second, third] = parseScript(SCRIPT);
+    expect(first.event).toBe("door:doorbell:unknown");
+    expect(first.floor).toBe(true);
+    expect(first.lines).toEqual([{ speaker: "kath", text: "Fact.", plain: true }]);
+    expect(second.floor).toBeUndefined();
+    expect(second.lines[1]).toEqual({ speaker: "kath", text: "Gag." });
+    expect(third.event).toBe("line:It's a Test — really?");
+    expect(third.lines).toEqual([{ speaker: "kim", text: "One." }]);
+  });
+
+  test("an id is clip-safe, follows the words, and survives reordering", () => {
+    const id = parseScript(SCRIPT)[2].id;
+    expect(id).toMatch(/^[a-z0-9-]+$/);
+    const moved = parseScript("== line:It's a Test — really?\nkath: Other.\n\nkim: One.");
+    expect(moved[1].id).toBe(id);
+    expect(moved[0].id).not.toBe(id);
+  });
+
+  test("a typo stops the render rather than losing a line", () => {
+    expect(() => parseScript("== e\nsharon: Hello.")).toThrow(/cannot read/);
+    expect(() => parseScript("kath: No event.")).toThrow(/no event/);
+    expect(() => parseScript("== e\nkim: Same.\n\nkim: Same.")).toThrow(/duplicate/);
+  });
+});
 
 test.describe("the generator refuses a bad clip", () => {
   const text = "A sentence of a perfectly ordinary length.";
@@ -225,6 +265,37 @@ test.describe("an exchange holds the room for its whole length", () => {
     reply = null;
     await expect(cast.speakCast("e", { author: "doorbell" })).resolves.toBe(false);
     expect(played).toEqual([]);
+  });
+
+  test.describe("the router in speak()", () => {
+    test.beforeEach(() => cast.initCast());
+    test.afterEach(() => {
+      tts.setSpeechRouter(null);
+      globalThis.window.CONFIG.features.v3CastVoice = false;
+    });
+
+    test("ON: a line the script holds plays the clips, keeping its author", async () => {
+      globalThis.window.CONFIG.features.v3CastVoice = true;
+      tts.speak("The line.", { author: "voice" });
+      await wait(10);
+      expect(played).toEqual([A]);
+      expect(arbiter.arbiterState().speech?.author).toBe("voice");
+    });
+
+    test("ON: a line the script does not hold is spoken as written", async () => {
+      globalThis.window.CONFIG.features.v3CastVoice = true;
+      reply = null;
+      tts.speak("Not in the script.", { author: "voice" });
+      await wait(10);
+      expect(played).toEqual(["Not in the script."]);
+    });
+
+    test("OFF: nothing is asked and the line is spoken as written", async () => {
+      globalThis.window.CONFIG.features.v3CastVoice = false;
+      tts.speak("The line.", { author: "voice" });
+      await wait(10);
+      expect(played).toEqual(["The line."]);
+    });
   });
 
   test("a name becomes its own pool, and no name is the unknown one", () => {

@@ -40,7 +40,7 @@ import { getEntity } from "../../js/services/homeAssistant/state.js";
 import { record } from "./feature-census.js";
 import { ALERT_TTS_RATE } from "../../js/config/alertLines.js";
 import { speak } from "../../js/core/tts.js";
-import { castOn, doorEvent, speakCast } from "./cast.js";
+import { castOn, doorEvent, initCast, speakCast } from "./cast.js";
 import { setPhase, trackSpeech } from "./presence-light.js";
 import { showSubject } from "../subjects/index.js";
 import { DEPTH, setDepth } from "./depth.js";
@@ -230,6 +230,7 @@ export function initAlerts() {
   if (unsubscribe) return unsubscribe;
 
   unsubscribe = on("ha:state-updated", onStateUpdated);
+  initCast();
 
   /* Drive the door without pressing it. The synthetic entity carries a live
      `last_changed` on purpose — passing a stale one is how you check the boot

@@ -36,6 +36,16 @@ let currentFinish = null;
 let onSpeakingChange = null;
 let announced = false;
 
+/* One place for every speaker's plain line to be claimed by something else: V3's
+   cast swaps a known sentence for a preloaded exchange here, so no surface needs
+   to know the cast exists. `fn(text, { author, onAudio })` returns null, or a
+   promise of whether it spoke; false falls through to the ordinary voice. */
+let speechRouter = null;
+
+export function setSpeechRouter(fn) {
+  speechRouter = typeof fn === "function" ? fn : null;
+}
+
 export function setSpeakingObserver(fn) {
   onSpeakingChange = typeof fn === "function" ? fn : null;
   announced = false;
@@ -145,6 +155,10 @@ async function speakWithBrowserTts(text, { rate, pitch, volume }) {
  */
 export async function speak(text, { rate = 0.92, pitch = 1.0, volume = 1.0, onAudio = null, author = null } = {}) {
   if (!text) return;
+
+  // Returns null synchronously when it wants nothing to do with this line.
+  const routed = speechRouter?.(text, { author, onAudio });
+  if (routed && await routed) return;
 
   /* HOUSE-MIND S3: a lower-priority speaker does not cut the one in the air.
      It resolves when the air is free, so its caller's setPhase("idle") cannot

@@ -1,9 +1,20 @@
 #!/usr/bin/env node
-/* Render data/cast/lines.json into clips through the PC's speech server, which
-   hands kath and kim to VoiceStudio. Only new or changed lines are rendered.
+/* Compile data/cast/script.txt into lines.json, then render clips through the
+   PC's speech server, which hands kath and kim to VoiceStudio. Only new or
+   changed lines are rendered.
 
      node scripts/cast-generate.mjs           render
      node scripts/cast-generate.mjs --push    render, then copy to the G11
+
+   The script is blocks separated by blank lines:
+
+     == line:Timer's done.          the event every block below it belongs to
+     [floor]                        optional: this block can never be vetoed
+     kath! Someone's at the door.   ! marks a plain statement of fact
+     kim: I've just done me nails.
+
+   A block's id comes from its words, so a veto stays on that exact exchange and
+   editing a line makes it a new one.
 
    Clips go first on a push: the server re-reads lines.json when its mtime moves,
    and an exchange whose clip has not landed yet would be dropped as incomplete. */
@@ -21,6 +32,39 @@ const REMOTE_DIR = "/home/dashboard/dashboard/data/cast";
 const MIN_SECONDS = 0.3;
 const MIN_RMS = 200; // 16-bit: below this a clip is silence with a little noise
 const ATTEMPTS = 2;
+
+/** The script's text as exchanges. Throws on a line it cannot read: a typo must
+ *  stop the render, not quietly lose a line. */
+export function parseScript(text) {
+  const exchanges = [];
+  let event = null;
+  let block = null;
+  const finish = () => {
+    if (block?.lines.length) {
+      const words = block.lines.map((l) => `${l.speaker}:${l.text}`).join("|");
+      const slug = event.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase().replace(/^-|-$/g, "").slice(0, 28).replace(/-$/, "");
+      const id = `${slug}-${createHash("sha256").update(`${event}|${words}`).digest("hex").slice(0, 6)}`;
+      if (exchanges.some((x) => x.id === id)) throw new Error(`duplicate exchange: ${words}`);
+      exchanges.push({ id, event, ...(block.floor ? { floor: true } : {}), lines: block.lines });
+    }
+    block = null;
+  };
+
+  for (const [index, raw] of text.split(/\r?\n/).entries()) {
+    const line = raw.trim();
+    if (line.startsWith("#")) continue;
+    if (!line) { finish(); continue; }
+    if (line.startsWith("==")) { finish(); event = line.slice(2).trim(); continue; }
+    if (!event) throw new Error(`line ${index + 1}: no event yet`);
+    block ??= { floor: false, lines: [] };
+    if (line === "[floor]") { block.floor = true; continue; }
+    const match = /^(kath|kim)(!|:)\s*(.+)$/.exec(line);
+    if (!match) throw new Error(`line ${index + 1}: cannot read "${line}"`);
+    block.lines.push({ speaker: match[1], text: match[3], ...(match[2] === "!" ? { plain: true } : {}) });
+  }
+  finish();
+  return exchanges;
+}
 
 /** Seconds and loudness of a 16-bit mono WAV, or null when it is not one. */
 export function wavStats(buf) {
@@ -66,7 +110,9 @@ async function main() {
   mkdirSync(clips, { recursive: true });
   const manifestFile = path.join(DIR, "manifest.json");
   const manifest = existsSync(manifestFile) ? JSON.parse(readFileSync(manifestFile, "utf8")) : {};
-  const { exchanges } = JSON.parse(readFileSync(path.join(DIR, "lines.json"), "utf8"));
+  const exchanges = parseScript(readFileSync(path.join(DIR, "script.txt"), "utf8"));
+  writeFileSync(path.join(DIR, "lines.json"), JSON.stringify({ exchanges }, null, 2));
+  console.log(`[cast] ${exchanges.length} exchanges, ${exchanges.reduce((n, x) => n + x.lines.length, 0)} lines`);
 
   let rendered = 0;
   const failed = [];
