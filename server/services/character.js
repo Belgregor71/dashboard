@@ -19,6 +19,10 @@
    the caller. That ordering is the whole reason this file exists separately
    from voiceShape.js rather than being three more lines in it.
 
+   With the cast on (features.v3CastVoice) the AI lanes use the private persona
+   in data/cast/ instead. This remains the flag-off voice and the voice of the
+   two memorial days.
+
    The predecessor of this file — VOICE_REGISTER in routes/ai.js — defined the
    house as "Kath & Kim energy", i.e. as a pointer to somebody else's
    character. See CHARACTER.md's opening note for why that could not be made

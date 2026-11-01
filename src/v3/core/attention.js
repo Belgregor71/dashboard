@@ -81,6 +81,8 @@ import { heldNowcast } from "../../js/services/voiceSnapshot.js";
 import { record } from "./feature-census.js";
 import { DEPTH, deepen, sustain, setDepth, getDepth, getReason, onDepth } from "./depth.js";
 import { dioramaSee } from "./diorama.js";
+import { castSee } from "./cast-see.js";
+import { wallLine } from "./cast.js";
 import { initPresence, onPresence, isPresent, isDwelling } from "./presence.js";
 import { renderSpread, spreadMounted, setSaidText, contextEnabled } from "./spread.js";
 import { logGlance } from "./presentation-log.js";
@@ -182,7 +184,7 @@ function renderGlance(hero) {
   // Same length rule as the spread's dominant cell — css/type.css has carried
   // `.said[data-len="long"]` since V3 shipped and nothing ever set it, so a
   // 60-character line has been trying to hold 132px this whole time.
-  setSaidText(el.said, hero.text ?? "");
+  setSaidText(el.said, wallLine(hero.text ?? ""));
   /* Depth 1's context line. `#glance-measured` has existed since V3 shipped and
      has only ever been blanked — so the one cell the house interrupts you with
      was a bare string with no label, the same defect the spread had. Same
@@ -427,6 +429,7 @@ export function tickAttention(now = new Date()) {
   }
 
   dioramaSee(onGlass.map((id) => sel.queue.find((c) => c.id === id)).filter(Boolean));
+  castSee(onGlass.map((id) => sel.queue.find((c) => c.id === id)).filter(Boolean));
 
   return last;
 }

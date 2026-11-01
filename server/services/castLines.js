@@ -63,7 +63,7 @@ export function splitLines(text, speaker = "kath") {
 const spoken = (text) => text.replace(/^\s*[-*•]\s+/gm, "").replace(/\s*\n\s*/g, " ");
 
 /* A sentence the token limit cut off has no ending, and is not offered. */
-const sentencesOf = (text) => spoken(text).match(/[^.!?]+[.!?]+["')]*/g)?.map((s) => s.trim()) ?? [];
+const sentencesOf = (text) => spoken(text).match(/.+?[.!?]+["')]*(?=\s|$)/g)?.map((s) => s.trim()) ?? [];
 
 /** The most an unprompted or spoken reply may run to, in sentences. */
 export const MAX_REPLY_SENTENCES = 4;

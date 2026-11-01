@@ -184,6 +184,25 @@ router.get("/api/cast/state", loopbackOnly("The cast"), (_req, res) => {
   res.json({ enabled: castEnabled(), exchanges: castEnabled() ? loadExchanges().length : 0 });
 });
 
+/** `old words => new words`, one a line, into a map. Pure. */
+export function parseWall(text) {
+  const lines = {};
+  for (const raw of text.split(/\r?\n/)) {
+    const [from, to] = raw.split(" => ");
+    if (from?.trim() && to?.trim()) lines[from.trim()] = to.trim();
+  }
+  return lines;
+}
+
+router.get("/api/cast/wall", loopbackOnly("The cast"), (_req, res) => {
+  if (!castEnabled()) { res.json({ lines: {} }); return; }
+  try {
+    res.json({ lines: parseWall(readFileSync(path.join(castDir(), "wall.txt"), "utf8")) });
+  } catch {
+    res.json({ lines: {} });
+  }
+});
+
 router.post("/api/cast/pick", loopbackOnly("The cast"), (req, res) => {
   const event = req.body?.event;
   if (typeof event !== "string" || !event) { res.status(400).json({ error: "event is required" }); return; }

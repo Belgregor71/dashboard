@@ -46,7 +46,7 @@ happened; a glance at the wall did.
 - **`src/js/` is NOT legacy — it is V3's runtime library**: V3's import closure pulls 55
   files from it, plus `js/config.js` by script tag. The authority is the manifest in
   `tests/v3-closure.spec.js`. Everything left in `src/js/` is load-bearing.
-- `server.js` mounts `server/routes/*.js` (35 route modules) under `/api`. Route order
+- `server.js` mounts `server/routes/*.js` (36 route modules) under `/api`. Route order
   matters — see the measured comments in `server.js` around the static mounts.
 - **`CLAUDE.md` and `.claude/skills/` have a gitignored agent-facing mirror** (`AGENTS.md`,
   `.agents/skills/` — the skills there cite the house rules by section name). Regenerate
@@ -87,7 +87,7 @@ happened; a glance at the wall did.
   half. This is the single most common place a session ends in a live defect: a flip has
   made the house invent a bin time, and a poisoned cache once blanked the whole wall.
   Record both the flip and the rollback proof in the session memory entry.
-- Flags live in `src/js/config.js` under `features:` (84 flags), copied to
+- Flags live in `src/js/config.js` under `features:` (85 flags), copied to
   `static/js/config.js` on every build. That file is **tracked and shipped in the
   public bundle** — never put a secret or an address in it.
 - ⛔ **Every flag must be a lever on the wall.** `tests/flag-surface.spec.js` derives
@@ -98,7 +98,7 @@ happened; a glance at the wall did.
 
 ### Testing & Pre-Push Gate
 
-- `npm test` runs the Playwright suite — 131 spec files in `tests/` (plus 1 in `tests/verify/`,
+- `npm test` runs the Playwright suite — 133 spec files in `tests/` (plus 1 in `tests/verify/`,
   which `npm test` ignores), spanning API
   contracts (`api.spec.js`), the V3 boot (`v3-boot.spec.js`), and per-feature specs.
   Browser specs need `npm run build` first. Test server runs on port 3210 with AI
@@ -297,6 +297,23 @@ When debugging camera/doorbell staleness, check config sources (preferredSnapsho
     all three come from. Back up before rewriting anything you cannot regenerate.
   - Repo files here are **CRLF** (`core.autocrlf=true`). Read/normalise/write-back or
     the whole file shows as changed.
+
+### The Cast (Kath and Kim)
+
+- Behind `v3CastVoice` (client), `HOUSE_CAST_ENABLED=1` (server) and `data/cast/` on
+  the box. **`data/cast/` is gitignored and must stay that way:** the repo is public,
+  and the script, the persona and the clone audio never enter it. Specs use invented
+  lines only.
+- Edit `data/cast/script.txt`, then `node scripts/cast-generate.mjs --push` with
+  VoiceStudio open on Mandragon. Only changed lines render. `persona.txt` and
+  `wall.txt` are copied by `scp`.
+- The kiosk reaches the clones through `tools/voice-pc/tts_server.py` on 8880, which
+  forwards `kath` and `kim` to VoiceStudio over loopback. Its desktop app hard-codes
+  `--host 127.0.0.1`, so `OMNIVOICE_BIND_HOST` does nothing.
+- ⛔ `claimFault` in `server/services/castLines.js` is why the persona may be
+  "uninformed": a number, day or action the model was not given is dropped before it
+  is said. Do not weaken it to keep a joke. Unit tests could not find the spelled-out
+  number hole; a live eval did. Re-run one after any persona change.
 
 ### UI / CSS Workflow
 

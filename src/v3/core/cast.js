@@ -16,8 +16,15 @@ const PICK_TIMEOUT_MS = 1500;
 const CAST_VOLUME = 0.9;
 const JAB_CHANCE = 0.35;
 
-export function castOn() {
-  return Boolean(window.CONFIG?.features?.v3CastVoice);
+/* Anzac Day and Remembrance Day: the whole cast stands down and the plain house
+   voice speaks, whatever the lane. The owner's rule, not a flag. */
+export function memorialDay(now = new Date()) {
+  const [month, date] = [now.getMonth(), now.getDate()];
+  return (month === 3 && date === 25) || (month === 10 && date === 11);
+}
+
+export function castOn(now = new Date()) {
+  return Boolean(window.CONFIG?.features?.v3CastVoice) && !memorialDay(now);
 }
 
 /** An exchange for this event, or null. Never throws: a caller's fallback is
@@ -96,9 +103,28 @@ async function speakLive(text, { author, onAudio }) {
   return true;
 }
 
+/* The wall's fixed lines in their voices, by exact words. Fetched rather than
+   bundled, because the bundle is public. */
+let wall = {};
+
+async function loadWall() {
+  try {
+    const res = await fetch("/api/cast/wall");
+    if (res.ok) wall = (await res.json()).lines ?? {};
+  } catch {
+    /* the wall keeps its own words */
+  }
+}
+
+/** What the wall shows for this line. Off, or unknown: the line itself. */
+export function wallLine(text) {
+  return castOn() ? wall[text] ?? text : text;
+}
+
 /** Every plain line the house says is offered here, keyed on its exact words.
  *  Off, nothing changes. The script's own version wins; anything else is live. */
 export function initCast() {
+  if (castOn()) loadWall();
   setSpeechRouter((text, voice) => {
     if (!castOn()) return null;
     return speakCast(`line:${text}`, voice).then((spoke) => spoke || speakLive(text, voice));

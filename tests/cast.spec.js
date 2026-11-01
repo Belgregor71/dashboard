@@ -3,7 +3,7 @@ import { bootV3 } from "./fixtures/v3boot.js";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { __resetBags, castVoiceFor, clipName, drawFrom, exchangeFault, excuseClips, poolFor } from "../server/routes/cast.js";
+import { __resetBags, castVoiceFor, clipName, drawFrom, exchangeFault, excuseClips, parseWall, poolFor } from "../server/routes/cast.js";
 import { clipFault, parseScript, wavStats } from "../scripts/cast-generate.mjs";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -290,6 +290,15 @@ test.describe("an exchange holds the room for its whole length", () => {
     expect(posted.map((p) => [p.text, p.voice])).toEqual([["One.", "kim"], ["Two.", "kath"]]);
   });
 
+  test("on Anzac Day and Remembrance Day the whole cast stands down", () => {
+    globalThis.window.CONFIG.features.v3CastVoice = true;
+    expect(cast.castOn(new Date("2027-04-25T09:00:00"))).toBe(false);
+    expect(cast.castOn(new Date("2026-11-11T09:00:00"))).toBe(false);
+    expect(cast.castOn(new Date("2027-04-24T09:00:00"))).toBe(true);
+    expect(cast.castOn(new Date("2026-11-12T09:00:00"))).toBe(true);
+    globalThis.window.CONFIG.features.v3CastVoice = false;
+  });
+
   test("the ordinary voice's request is unchanged", async () => {
     const q = tts.createSpeech({ author: "voice" });
     q.push("Plain.");
@@ -375,7 +384,10 @@ test.describe("an exchange holds the room for its whole length", () => {
   });
 
   test.describe("the router in speak()", () => {
-    test.beforeEach(() => cast.initCast());
+    test.beforeEach(() => {
+      test.skip(cast.memorialDay(), "the cast stands down today, by design");
+      cast.initCast();
+    });
     test.afterEach(() => {
       tts.setSpeechRouter(null);
       globalThis.window.CONFIG.features.v3CastVoice = false;
@@ -405,7 +417,13 @@ test.describe("an exchange holds the room for its whole length", () => {
     });
   });
 
+  test("the wall's words change only with the flag on", () => {
+    globalThis.window.CONFIG.features.v3CastVoice = false;
+    expect(cast.wallLine("Plain.")).toBe("Plain.");
+  });
+
   test("a streamed reply takes a clone with the flag on, and nothing with it off", () => {
+    test.skip(cast.memorialDay(), "the cast stands down today, by design");
     globalThis.window.CONFIG.features.v3CastVoice = false;
     expect(cast.liveVoice()).toEqual({});
     globalThis.window.CONFIG.features.v3CastVoice = true;
@@ -447,7 +465,7 @@ async function ring(page, { on, pick }) {
 test("ON: the door plays both clips in order and never reaches the old voice", async ({ page }) => {
   const { asked, pageErrors } = await ring(page, { on: true, pick: { exchange: { id: "door", clips: CLIPS } } });
   await expect.poll(() => asked.filter((x) => x.includes("/clip/"))).toEqual(CLIPS);
-  expect(asked[0]).toBe("pick:door:doorbell:unknown");
+  expect(asked.find((x) => x.startsWith("pick:"))).toBe("pick:door:doorbell:unknown");
   expect(asked).not.toContain("/api/tts/speak");
   expect(pageErrors).toEqual([]);
 });
@@ -455,7 +473,7 @@ test("ON: the door plays both clips in order and never reaches the old voice", a
 test("ON with nothing to play: the door is still announced in the plain line", async ({ page }) => {
   const { asked, pageErrors } = await ring(page, { on: true, pick: { exchange: null } });
   await expect.poll(() => asked).toContain("/api/tts/speak");
-  expect(asked[0]).toBe("pick:door:doorbell:unknown");
+  expect(asked.find((x) => x.startsWith("pick:"))).toBe("pick:door:doorbell:unknown");
   expect(pageErrors).toEqual([]);
 });
 
@@ -470,6 +488,76 @@ test("OFF: the door never asks the cast anything", async ({ page }) => {
   await expect.poll(() => asked).toContain("/api/tts/speak");
   expect(asked.filter((x) => x.includes("cast"))).toEqual([]);
   expect(pageErrors).toEqual([]);
+});
+
+/* ── Unprompted moments ─────────────────────────────────────────────────── */
+
+test.describe("what can make the cast pipe up", () => {
+  const AFTERNOON = new Date("2026-07-06T15:00:00");
+  const LATE = new Date("2026-07-06T23:00:00");
+  let moments;
+  const room = (over = {}) => ({ now: AFTERNOON, present: true, gaming: false, tally: new Set(), ...over });
+
+  test.beforeAll(async () => {
+    saved.momentsWindow = globalThis.window;
+    globalThis.window = globalThis.window ?? { CONFIG: { features: {} } };
+    moments = await import("../src/v3/core/cast-moments.js");
+  });
+  test.afterAll(() => { globalThis.window = saved.momentsWindow; });
+
+  test("bins, rain and a storm on the wall each find their lines", () => {
+    expect(moments.momentEvent({ id: "bin-night:2026-07-06" })).toBe("bins:eve");
+    expect(moments.momentEvent({ id: "bin-weather:2026-07-06" })).toBe("bins:eve");
+    expect(moments.momentEvent({ id: "rain-incoming:1" })).toBe("weather:rain-coming");
+    expect(moments.momentEvent({ id: "bom:x", text: "Severe thunderstorm warning" })).toBe("weather:storm");
+  });
+
+  test("a warning that is not a storm says nothing rather than the wrong thing", () => {
+    expect(moments.momentEvent({ id: "bom:x", text: "Fire weather warning" })).toBeNull();
+    expect(moments.momentEvent({ id: "weather:Heavy fog" })).toBeNull();
+  });
+
+  test("Anzac Day is silent, and the occasions around it are not", () => {
+    expect(moments.momentEvent({ id: "delight:anzac" })).toBeNull();
+    expect(moments.momentEvent({ id: "delight:easter" })).toBe("occasion:easter");
+    expect(moments.momentEvent({ id: "delight:christmas-eve" })).toBe("occasion:christmas-eve");
+  });
+
+  test("only the household gets a personal moment", () => {
+    expect(moments.momentEvent({ id: "delight:birthday-morning", caption: "Greg's birthday" })).toBe("delight:birthday:greg");
+    expect(moments.momentEvent({ id: "delight:home-after-away", text: "Brett's home!" })).toBe("delight:home-after-away:brett");
+    expect(moments.momentEvent({ id: "delight:birthday-morning", caption: "Sam's birthday" })).toBeNull();
+  });
+
+  test("ordinary wall lines are not moments", () => {
+    expect(moments.momentEvent({ id: "next-event:Dentist" })).toBeNull();
+    expect(moments.momentEvent(null)).toBeNull();
+  });
+
+  test("a good moment passes, and each gate stops it", () => {
+    expect(moments.mayPipeUp("bins:eve", room())).toBe(true);
+    expect(moments.mayPipeUp("bins:eve", room({ now: LATE }))).toBe(false);
+    expect(moments.mayPipeUp("bins:eve", room({ present: false }))).toBe(false);
+    expect(moments.mayPipeUp("bins:eve", room({ gaming: true }))).toBe(false);
+    expect(moments.mayPipeUp(null, room())).toBe(false);
+  });
+
+  test("once a day each, and no more than the cap", () => {
+    expect(moments.mayPipeUp("bins:eve", room({ tally: new Set(["bins:eve"]) }))).toBe(false);
+    const full = new Set(Array.from({ length: moments.MAX_MOMENTS_A_DAY }, (_, i) => `e${i}`));
+    expect(moments.mayPipeUp("bins:eve", room({ tally: full }))).toBe(false);
+    full.delete("e0");
+    expect(moments.mayPipeUp("bins:eve", room({ tally: full }))).toBe(true);
+  });
+});
+
+test.describe("the wall's lines", () => {
+  test("a line maps by exact words, and a malformed row is ignored", () => {
+    expect(parseWall("Old one. => New one.\r\nno arrow here\r\n => empty\r\nOld two. => New two.")).toEqual({
+      "Old one.": "New one.",
+      "Old two.": "New two."
+    });
+  });
 });
 
 /* ── The routes, against the real server ────────────────────────────────── */
@@ -491,6 +579,12 @@ test.describe("cast routes contract", () => {
   test("a clip name cannot climb out of the folder", async ({ request }) => {
     expect((await request.get("/api/cast/clip/..%2F..%2Fserver.js")).status()).toBe(400);
     expect((await request.get("/api/cast/clip/nope.wav")).status()).toBe(404);
+  });
+
+  test("the wall's lines are empty with the switch off", async ({ request }) => {
+    const res = await request.get("/api/cast/wall");
+    expect(res.status()).toBe(200);
+    expect(await res.json()).toEqual({ lines: {} });
   });
 
   test("a veto with nothing played is a 404", async ({ request }) => {

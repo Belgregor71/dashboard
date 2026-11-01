@@ -97,6 +97,11 @@ test.describe("the fact check", () => {
     expect(keepClaims("Bins go out. Oh, and the Broncos signed a", SOURCE)).toBe("Bins go out.");
   });
 
+  test("a decimal is not the end of a sentence", () => {
+    const source = "Weather: top of 27.3 degrees.";
+    expect(keepClaims("It got to 27.3 degrees, Kim. Look at that.", source)).toBe("It got to 27.3 degrees, Kim. Look at that.");
+  });
+
   test("a list is flattened into speech", () => {
     expect(keepClaims("Say this:\n- Be kind.\n- Be there.", SOURCE)).toBe("Say this: Be kind. Be there.");
   });

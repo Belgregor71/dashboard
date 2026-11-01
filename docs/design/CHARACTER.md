@@ -1,5 +1,15 @@
 # CHARACTER.md — who the house is
 
+> **2026-11-01: the owner reversed this page's position on borrowed characters.**
+> With `v3CastVoice` on, two voices speak instead of the resident described below,
+> and their script and persona are private, in gitignored `data/cast/`. This page
+> still describes the plain house voice: the flag-off build, and every Anzac Day
+> and Remembrance Day, when the cast stands down. The rules that outlive any
+> character stay in force under the cast and are enforced in code:
+> facts are never changed (`server/services/castLines.js`), an unknown person at
+> a door is stated plainly first (`server/routes/cast.js`), and nothing claims an
+> action that did not happen.
+
 This is the origin document. `VOICE.md` is downstream of it: this page says who
 is speaking, that page says how they punctuate. When the two disagree, this one
 wins and `VOICE.md` gets edited.
