@@ -783,6 +783,11 @@ test("streamed: a chunk that throws after its URL exists still releases it", asy
    without it every early fallback line leaves a listener behind, and each one
    re-runs on every later voiceschanged for the life of the page. */
 test("fallback voice: the voiceschanged wait listens once, not for the life of the page", async ({ page }) => {
+  // The browser voice only exists on the plain path: the cast excuses itself instead.
+  await page.route("**/js/config.js", async (route) => {
+    const res = await route.fetch();
+    await route.fulfill({ response: res, body: `${await res.text()}\nwindow.CONFIG.features.v3CastVoice = false;` });
+  });
   await page.addInitScript(() => {
     const synth = window.speechSynthesis;
     const realGet = synth.getVoices.bind(synth);

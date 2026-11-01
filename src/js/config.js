@@ -1952,8 +1952,11 @@ window.CONFIG = {
     // The cast: Kath and Kim speak from preloaded clips (src/v3/core/cast.js,
     // server/routes/cast.js). Needs HOUSE_CAST_ENABLED=1 and data/cast/ on the
     // server as well: any of the three missing and the house speaks as before.
+    // Deployed OFF 1e00f70: heard on the wall, barge-in proven by the page's own
+    // audio log (stopped within a second of the wake word), live eval read twice.
+    // FLIPPED ON 2026-11-01 at the owner's ask.
     // Rollback: -> false, with a cache-bypass reload for the build.
-    v3CastVoice: false,
+    v3CastVoice: true,
 
     // ── The camera plan (src/v3/subjects/camera-plan.js) ───────────────────
     // On: asking for a camera dives from the illustrated house plan onto what
