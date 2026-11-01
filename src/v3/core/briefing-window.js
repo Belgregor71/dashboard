@@ -39,6 +39,7 @@ import { DEPTH, setDepth } from "./depth.js";
 import { isPresent, onPresence } from "./presence.js";
 import { setPhase, trackSpeech } from "./presence-light.js";
 import { speak } from "../../js/core/tts.js";
+import { speakLines } from "./cast.js";
 import { mayTakeStage } from "../../js/core/arbiter.js";
 import { record } from "./feature-census.js";
 
@@ -126,7 +127,8 @@ export async function checkBriefingWindow({ now = new Date(), force = false } = 
     if (shown.speech) {
       setPhase("speaking");
       record("spoke", "briefing", "said");
-      speak(shown.speech, { author: "briefing", onAudio: (audio) => trackSpeech(audio) })
+      const voice = { author: "briefing", onAudio: (audio) => trackSpeech(audio) };
+      (shown.castLines?.length ? speakLines(shown.castLines, voice) : speak(shown.speech, voice))
         .then(() => setPhase("idle"), () => setPhase("idle"));
     }
     return last;

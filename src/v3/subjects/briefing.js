@@ -29,6 +29,7 @@
 import { frame, title, prose } from "./dom.js";
 import { generateBriefing, currentBriefingType } from "../../js/modules/aiBriefing.js";
 import { capSentences } from "../../js/services/localAnswers.js";
+import { readCastScript } from "../core/cast.js";
 
 /* Long enough for a cache miss against Claude, short enough that the room does
    not conclude the wall is broken. A cold Ollama fallback will lose this race
@@ -75,7 +76,7 @@ export async function showBriefing({ type = currentBriefingType(), speaks = true
     summary = null;                 // upstream down, no key, 502 — all the same here
   }
 
-  const text = typeof summary === "string" ? summary.trim() : "";
+  const { text, lines: castLines } = readCastScript(typeof summary === "string" ? summary.trim() : "");
   /* No text, no subject. A briefing screen with nothing on it is worse than no
      briefing: it is the surface having moved for a reason the room cannot see,
      which is the one clause of the calm law that survived the rewrite. */
@@ -95,6 +96,7 @@ export async function showBriefing({ type = currentBriefingType(), speaks = true
     teardown,
     // The headline, not the recital. The screen has the whole thing.
     speech: speaks ? capSentences(text) : null,
+    castLines,
     refs: ["briefing"]
   };
 }

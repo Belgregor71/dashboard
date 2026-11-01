@@ -3,6 +3,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { loopbackOnly } from "../middleware/security.js";
 import { reportFailure, reportSuccess } from "../services/healthService.js";
 import { houseCharacter } from "../services/character.js";
+import { keepReply } from "../services/castLines.js";
+import { castActive, castPersona } from "./cast.js";
 
 const router = express.Router();
 
@@ -354,6 +356,12 @@ function briefingTopicLock() {
   return process.env.BRIEFING_TOPIC_LOCK === "1";
 }
 
+/* The cast's briefing: the private persona, then the rules that hold whoever is
+   talking. Built per call because the persona can change without a deploy. */
+export function castBriefSystem(type, persona = castPersona()) {
+  return [persona, TIME_GROUNDING, TOPIC_ORDER_LOCKED[type], ABSENT_TOPIC_LOCKED].join("\n\n");
+}
+
 export function systemPromptFor(type) {
   if (!characterBriefings()) return SYSTEM_PROMPTS[type];
   const map = briefingTopicLock() ? CHARACTER_PROMPTS_LOCKED : CHARACTER_PROMPTS;
@@ -494,6 +502,22 @@ router.post("/api/ai/brief", loopbackOnly("The briefing endpoint"), async (req, 
   // are handed this one value, so the two never diverge in voice.
   const system = systemPromptFor(type);
   const prompt = buildPrompt(body);
+
+  /* A cast briefing with nothing left after its claims are checked falls through
+     to the ordinary one below: the house still has a briefing to give. */
+  if (castActive(body.cast) && TOPIC_ORDER_LOCKED[type]) {
+    try {
+      const castSystem = castBriefSystem(type);
+      const raw = await generateWithClaude(type, castSystem, prompt);
+      const summary = raw && keepReply(raw, prompt);
+      if (summary) {
+        reportSuccess("ai");
+        return res.json({ summary, source: "claude" });
+      }
+    } catch (err) {
+      console.error("[AI] cast brief error:", err.message);
+    }
+  }
 
   try {
     const summary = await generateWithClaude(type, system, prompt);

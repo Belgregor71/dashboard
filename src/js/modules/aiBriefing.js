@@ -185,6 +185,7 @@ export function buildBriefPayload(ctx) {
     fuel:    fuelText(ctx),
     news:    ctx.news.length ? ctx.news.join(" | ") : null,
     home:    homeText(ctx),
+    ...(globalThis.window?.CONFIG?.features?.v3CastVoice ? { cast: true } : {}),
   };
 }
 

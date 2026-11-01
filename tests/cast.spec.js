@@ -277,6 +277,19 @@ test.describe("an exchange holds the room for its whole length", () => {
     ]);
   });
 
+  test("each line of a reply goes out in its own speaker's voice", async () => {
+    const q = tts.createSpeech({ author: "voice", voice: "kath" });
+    q.push({ text: "One.", voice: "kim" });
+    q.push("Two.");
+    q.close();
+    await wait(10);
+    audioFor("One.").onended();
+    await wait(10);
+    audioFor("Two.").onended();
+    await q.done;
+    expect(posted.map((p) => [p.text, p.voice])).toEqual([["One.", "kim"], ["Two.", "kath"]]);
+  });
+
   test("the ordinary voice's request is unchanged", async () => {
     const q = tts.createSpeech({ author: "voice" });
     q.push("Plain.");

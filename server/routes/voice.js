@@ -26,6 +26,8 @@ import { createSoundDetector } from "../services/soundPresence.js";
 import { createCameraDetector } from "../services/cameraPresence.js";
 import { toolDefs, entityRoster, planCall } from "../services/voiceTools.js";
 import { houseCharacter, characterEnabled } from "../services/character.js";
+import { keepClaims, keepReply, splitLines, stripTags } from "../services/castLines.js";
+import { castActive, castPersona } from "./cast.js";
 import { recordExchange } from "../services/conversationLog.js";
 import { openItems, resolvedItems } from "../services/unresolved.js";
 import { history as weatherRecord, houseDay } from "../services/weatherHistory.js";
@@ -153,7 +155,7 @@ function armedTools() {
    is byte-identical to the pre-character prompt — is not observable from
    outside the route, and a rollback path nothing can assert is a rollback path
    nobody should trust. */
-export function converseSystem(text, tools, digest = null, claims = null, houseClaims = null, today = null, speaker = null) {
+export function converseSystem(text, tools, digest = null, claims = null, houseClaims = null, today = null, speaker = null, persona = null) {
   const context =
     process.env.VAULT_ENABLED === "1" ? buildContext(searchVault(text)) : "";
   // todayLine() is appended per request, not baked into the base — the
@@ -163,7 +165,9 @@ export function converseSystem(text, tools, digest = null, claims = null, houseC
   //
   // With the character off this is the pre-2026-08-15 prompt byte for byte,
   // which is the rollback path and the property tests/voice.spec.js asserts.
-  const base = characterEnabled() ? CHARACTER_BASE : CONVERSE_BASE;
+  const base = persona
+    ? [persona, GRIEF_LINE, SPEAKER_UNKNOWN_LINE, NO_WRITES_LINE]
+    : characterEnabled() ? CHARACTER_BASE : CONVERSE_BASE;
   /* Speaker ID: the unknown-speaker line is SWAPPED, never joined by a second
      line — a prompt saying both "you cannot tell" and "this is Greg" leaves the
      model to pick. Unknown (null, or a name outside HOUSEHOLD) leaves the base
@@ -445,7 +449,9 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
   const speaker = knownSpeaker(req.body?.speaker);
 
   // S7: null unless HOUSE_TODAY=1 and the house has watched some of today.
-  const system = converseSystem(text, tools, req.body?.house, claims, houseClaims, todayClaims(), speaker);
+  const cast = castActive(req.body?.cast);
+  const system = converseSystem(text, tools, req.body?.house, claims, houseClaims, todayClaims(), speaker, cast ? castPersona() : null);
+  const known = `${system}\n${text}`;
 
   /* Episodic memory, recorded HERE rather than from the page.
      Only this lane is worth remembering: local and Assist turns are the
@@ -495,17 +501,40 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
     let open = true;
     res.on("close", () => { open = false; });
 
-    try {
-      const reply = await converseWithClaude(messages, system, tools, (chunk) => {
+    /* The cast's lines are split on their speaker tags BEFORE anything else, and
+       each is checked as it arrives: once a sentence is in the air, it has been
+       said. takeSentences merges short sentences, so one chunk can hold two
+       speakers, and `speaker` carries across chunks for a line that continues. */
+    let speaker = "kath";
+    const say = (chunk) => {
+      if (!cast) {
         spoken.push(chunk);
         if (open) res.write(toSse("chunk", { text: chunk }));
-      }, noteToolError);
+        return;
+      }
+      for (const line of splitLines(chunk, speaker)) {
+        speaker = line.speaker;
+        const kept = keepClaims(line.text, known, { toolRan: tools.length > 0 });
+        if (!kept) continue;
+        spoken.push(kept);
+        if (open) res.write(toSse("chunk", { text: kept, speaker }));
+      }
+    };
+
+    try {
+      const reply = await converseWithClaude(messages, system, tools, say, noteToolError);
       if (!open) return res.end();
 
       // `reply` is the model's full text; `spoken` is what actually went out.
       // They agree except when a tool round suppressed emission, and the
-      // client needs the authoritative version for its transcript.
-      const full = reply ?? spoken.join(" ");
+      // client needs the authoritative version for its transcript. Under the
+      // cast the model's text holds tags and may hold dropped sentences, so
+      // only what went out counts.
+      if (cast && spoken.length === 0) {
+        res.write(toSse("failed", { spoken: 0 }));
+        return res.end();
+      }
+      const full = cast ? spoken.join(" ") : reply ?? spoken.join(" ");
       reportSuccess("ai");
       remember(full);
       res.write(toSse("done", { reply: full, source: "claude", ...(toolFailed && { toolFailed: true }) }));
@@ -519,7 +548,9 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
   }
 
   try {
-    const reply = await converseWithClaude(messages, system, tools, null, noteToolError);
+    const raw = await converseWithClaude(messages, system, tools, null, noteToolError);
+    const checked = cast && raw ? keepReply(raw, known, { toolRan: tools.length > 0 }) : raw;
+    const reply = cast && checked ? stripTags(checked) : checked;
     if (reply) {
       reportSuccess("ai");
       remember(reply);
@@ -528,6 +559,9 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
   } catch (err) {
     console.error("[Voice] Claude converse error, falling back to Ollama:", err.message);
   }
+
+  // The local model cannot be trusted with the persona, or be heard in its voices.
+  if (cast) return res.status(502).json({ reply: null });
 
   try {
     const reply = await converseWithOllama(messages, system);

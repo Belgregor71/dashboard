@@ -291,9 +291,13 @@ export function createSpeech({ rate = 0.92, volume = 1.0, onAudio = null, author
   const done = new Promise((resolve) => { resolveDone = resolve; });
 
   const self = {
-    /** A sentence to synthesise, or `{ clip }`: the URL of one already rendered. */
+    /** A sentence to synthesise, `{ text, voice }` for one in a named voice, or
+     *  `{ clip }`: the URL of one already rendered. */
     push(item) {
-      const chunk = typeof item === "string" ? item.trim() : item?.clip ? { clip: item.clip } : null;
+      const chunk = typeof item === "string" ? item.trim()
+        : item?.clip ? { clip: item.clip }
+        : item?.text?.trim() ? { text: item.text.trim(), voice: item.voice }
+        : null;
       if (cancelled || closed || excused || !chunk) return;
       pending.push(chunk);
       if (wake) { wake(); wake = null; }
@@ -313,13 +317,15 @@ export function createSpeech({ rate = 0.92, volume = 1.0, onAudio = null, author
   /** Synthesise and play one chunk. Resolves when it finishes or is cut off. */
   async function playChunk(chunk) {
     let audioUrl = null;
+    const text = chunk.text ?? chunk;
+    const who = chunk.voice ?? voice;
     try {
       const res = await (chunk.clip
         ? fetch(chunk.clip, { signal: AbortSignal.timeout(30_000) })
         : fetch("/api/tts/speak", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(voice ? { text: chunk, rate, voice, excuse: author } : { text: chunk, rate }),
+            body: JSON.stringify(who ? { text, rate, voice: who, excuse: author } : { text, rate }),
             signal: AbortSignal.timeout(30_000)
           }));
       if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);

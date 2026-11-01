@@ -119,7 +119,7 @@ export function drawFrom(pool, event, random = Math.random) {
 const PROBE_MS = 15_000;
 const PROBE_TIMEOUT_MS = 2_500;
 let live = false;
-let probing = false;
+let firstProbe = null;
 
 async function probe() {
   try {
@@ -131,17 +131,30 @@ async function probe() {
   }
 }
 
+/** The private persona block, or "" when there is none. */
+export function castPersona() {
+  try {
+    return readFileSync(path.join(castDir(), "persona.txt"), "utf8").trim();
+  } catch {
+    return "";
+  }
+}
+
+/** An AI lane speaks as the cast only when the page asks and the server can. */
+export const castActive = (asked) => asked === true && castEnabled() && Boolean(castPersona());
+
 /** The voice to synthesise with, or null for the ordinary house voice. */
 export function castVoiceFor(voice) {
   return castEnabled() && SPEAKERS.has(voice) ? voice : null;
 }
 
-export function castLive() {
-  if (!probing) {
-    probing = true;
-    probe();
+/** Only the very first ask waits, or a fresh server would excuse a working PC. */
+export async function castLive() {
+  if (!firstProbe) {
+    firstProbe = probe();
     setInterval(probe, PROBE_MS).unref();
   }
+  await firstProbe;
   return live;
 }
 

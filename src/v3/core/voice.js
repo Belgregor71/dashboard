@@ -27,7 +27,7 @@ import { prepareGoodnight } from "../../js/services/goodnight.js";
 import { voiceSnapshot, houseDigest, couldBeAssist, rememberReply } from "../../js/services/voiceSnapshot.js";
 import { learnedTimes } from "../../js/core/routineRuntime.js";
 import { speak, silence, createSpeech, setSpeakingObserver } from "../../js/core/tts.js";
-import { liveVoice } from "./cast.js";
+import { castOn, liveVoice } from "./cast.js";
 import { setPhase, setFailure, trackSpeech } from "./presence-light.js";
 import { deepen, sustain, setDepth, getDepth, DEPTH } from "./depth.js";
 import { showSubject } from "../subjects/index.js";
@@ -320,7 +320,7 @@ async function converseStreamed(body, speech) {
         try { payload = JSON.parse(data); } catch { continue; }
 
         if (event === "chunk" && payload.text) {
-          speech.push(payload.text);
+          speech.push(payload.speaker ? { text: payload.text, voice: payload.speaker } : payload.text);
           spoke = true;
         } else if (event === "done") {
           reply = payload.reply ?? null;
@@ -967,6 +967,7 @@ export async function submit(text, { source = "unknown", speaker = null } = {}) 
     };
     // Absent unless identified, so an unidentified turn posts the same body.
     if (who) body.speaker = who;
+    if (castOn()) body.cast = true;
 
     /* The streamed path speaks each sentence as it is written, so the room
        hears the first one while the model is still on the second. */

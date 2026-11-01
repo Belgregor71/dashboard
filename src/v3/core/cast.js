@@ -52,6 +52,26 @@ export async function speakCast(event, { author = null, onAudio = null } = {}) {
 /** Whoever reads a live line is chosen at random, one voice per reply. */
 export const castVoice = (random = Math.random) => (random() < 0.5 ? "kath" : "kim");
 
+/** A briefing the cast wrote: `{ text, lines }`, the words for the wall and the
+ *  lines to speak. Untagged text comes back as written, with no lines. */
+export function readCastScript(summary) {
+  const lines = [];
+  for (const raw of String(summary).split("\n")) {
+    const match = /^(kath|kim):\s*(.+)$/i.exec(raw.trim());
+    if (!match) return { text: summary, lines: [] };
+    lines.push({ voice: match[1].toLowerCase(), text: match[2] });
+  }
+  return { text: lines.map((line) => line.text).join(" "), lines };
+}
+
+/** Written lines in their own voices, as one utterance. */
+export async function speakLines(lines, { author = null, onAudio = null } = {}) {
+  const queue = createSpeech({ author, onAudio, volume: CAST_VOLUME });
+  for (const line of lines) queue.push(line);
+  queue.close();
+  await queue.done;
+}
+
 /** Queue options for a reply that is written as it is spoken. Empty with the
  *  flag off, so the queue is the one it always was. */
 export function liveVoice() {

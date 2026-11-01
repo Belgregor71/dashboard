@@ -282,7 +282,7 @@ router.post("/api/tts/speak", loopbackOnly("TTS"), async (req, res) => {
     res.set("Cache-Control", "no-store");
     res.json({ excuse: excuseClips(excuse) });
   };
-  if (castVoice && !castLive()) { sendExcuse(); return; }
+  if (castVoice && !(await castLive())) { sendExcuse(); return; }
 
   try {
     const { buffer, cached } = await getOrSynthesizeTts(text, speed, castVoice);
