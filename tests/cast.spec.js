@@ -1,6 +1,9 @@
 import { test, expect } from "./fixtures/coverage.js";
 import { bootV3 } from "./fixtures/v3boot.js";
-import { __resetBags, clipName, drawFrom, exchangeFault, poolFor } from "../server/routes/cast.js";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { __resetBags, castVoiceFor, clipName, drawFrom, exchangeFault, excuseClips, poolFor } from "../server/routes/cast.js";
 import { clipFault, parseScript, wavStats } from "../scripts/cast-generate.mjs";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -91,6 +94,46 @@ function wav(seconds, level, rate = 24000) {
   return buf;
 }
 
+test.describe("when the clones are out of reach", () => {
+  const saved = {};
+  let dir;
+
+  test.beforeAll(() => {
+    saved.dir = process.env.CAST_DIR;
+    saved.on = process.env.HOUSE_CAST_ENABLED;
+    dir = mkdtempSync(path.join(tmpdir(), "cast-"));
+    mkdirSync(path.join(dir, "clips"));
+    const exchanges = [
+      { id: "door-a", event: "excuse:doorbell", lines: [line("kath", "Door.", { plain: true })] },
+      { id: "live-a", event: "excuse:live", lines: [line("kim", "One."), line("kath", "Two.")] }
+    ];
+    for (const name of ["door-a-0.wav", "live-a-0.wav", "live-a-1.wav"]) writeFileSync(path.join(dir, "clips", name), "x");
+    writeFileSync(path.join(dir, "lines.json"), JSON.stringify({ exchanges }));
+    process.env.CAST_DIR = dir;
+    process.env.HOUSE_CAST_ENABLED = "1";
+    __resetBags();
+  });
+
+  test.afterAll(() => {
+    if (saved.dir === undefined) delete process.env.CAST_DIR; else process.env.CAST_DIR = saved.dir;
+    if (saved.on === undefined) delete process.env.HOUSE_CAST_ENABLED; else process.env.HOUSE_CAST_ENABLED = saved.on;
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("a door keeps its fact, and anyone else gets a whole excuse", () => {
+    expect(excuseClips("doorbell")).toEqual(["/api/cast/clip/door-a-0.wav"]);
+    expect(excuseClips("voice")).toEqual(["/api/cast/clip/live-a-0.wav", "/api/cast/clip/live-a-1.wav"]);
+  });
+
+  test("only the two voices are ever cast, and only with the switch on", () => {
+    expect(castVoiceFor("kath")).toBe("kath");
+    expect(castVoiceFor("bm_george")).toBeNull();
+    process.env.HOUSE_CAST_ENABLED = "";
+    expect(castVoiceFor("kath")).toBeNull();
+    process.env.HOUSE_CAST_ENABLED = "1";
+  });
+});
+
 test.describe("the script format", () => {
   const SCRIPT = [
     "# a note",
@@ -158,6 +201,8 @@ let tts;
 let arbiter;
 let cast;
 let reply = null;
+let excuse = null;
+const posted = [];
 const saved = {};
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const audioFor = (name) => audios.filter((a) => a.name === name).at(-1);
@@ -176,6 +221,10 @@ test.describe("an exchange holds the room for its whole length", () => {
     globalThis.window = { CONFIG: { features: { v3Arbiter: true } } };
     globalThis.fetch = (url, opts) => {
       if (url === "/api/cast/pick") return Promise.resolve({ ok: true, json: async () => ({ exchange: reply }) });
+      if (opts?.body) posted.push(JSON.parse(opts.body));
+      if (opts?.body && excuse) {
+        return Promise.resolve({ ok: true, headers: { get: () => "application/json" }, json: async () => ({ excuse }) });
+      }
       const name = opts?.body ? JSON.parse(opts.body).text : url;
       return Promise.resolve({ ok: true, blob: async () => ({ __name: name }) });
     };
@@ -207,7 +256,52 @@ test.describe("an exchange holds the room for its whole length", () => {
     played.length = 0;
     audios.length = 0;
     speaking.length = 0;
+    posted.length = 0;
+    excuse = null;
     reply = { id: "x", clips: [A, B] };
+  });
+
+  test("a live reply goes out in one clone's voice, naming who it is for", async () => {
+    const q = tts.createSpeech({ author: "voice", voice: "kim" });
+    q.push("One.");
+    q.push("Two.");
+    q.close();
+    await wait(10);
+    audioFor("One.").onended();
+    await wait(10);
+    audioFor("Two.").onended();
+    await q.done;
+    expect(posted).toEqual([
+      { text: "One.", rate: 0.92, voice: "kim", excuse: "voice" },
+      { text: "Two.", rate: 0.92, voice: "kim", excuse: "voice" }
+    ]);
+  });
+
+  test("the ordinary voice's request is unchanged", async () => {
+    const q = tts.createSpeech({ author: "voice" });
+    q.push("Plain.");
+    q.close();
+    await wait(10);
+    audioFor("Plain.").onended();
+    await q.done;
+    expect(posted).toEqual([{ text: "Plain.", rate: 0.92 }]);
+  });
+
+  test("out of reach: one reply gets one excuse, and the rest of it is dropped", async () => {
+    excuse = [A, B];
+    const q = tts.createSpeech({ author: "voice", voice: "kath" });
+    q.push("One.");
+    q.push("Two.");
+    await wait(10);
+    q.push("Three, arriving late.");
+    q.close();
+    expect(played).toEqual([A]);
+    audioFor(A).onended();
+    await wait(10);
+    audioFor(B).onended();
+    await q.done;
+    expect(played).toEqual([A, B]);
+    expect(posted.map((p) => p.text)).toEqual(["One."]);
   });
 
   test("the mic stays gated and the air held between the two speakers", async () => {
@@ -296,6 +390,14 @@ test.describe("an exchange holds the room for its whole length", () => {
       await wait(10);
       expect(played).toEqual(["The line."]);
     });
+  });
+
+  test("a streamed reply takes a clone with the flag on, and nothing with it off", () => {
+    globalThis.window.CONFIG.features.v3CastVoice = false;
+    expect(cast.liveVoice()).toEqual({});
+    globalThis.window.CONFIG.features.v3CastVoice = true;
+    expect(["kath", "kim"]).toContain(cast.liveVoice().voice);
+    globalThis.window.CONFIG.features.v3CastVoice = false;
   });
 
   test("a name becomes its own pool, and no name is the unknown one", () => {

@@ -269,7 +269,7 @@ let activeQueue = null;
  *
  * @returns {{ push(text: string): void, close(): void, cancel(): void, done: Promise<void> }}
  */
-export function createSpeech({ rate = 0.92, volume = 1.0, onAudio = null, author = null } = {}) {
+export function createSpeech({ rate = 0.92, volume = 1.0, onAudio = null, author = null, voice = null } = {}) {
   /* HOUSE-MIND S3: dropped under a higher speaker. An inert queue whose `done`
      settles when the air is free — the caller's await must always settle, for
      the busy-latch reason in (3) above. */
@@ -285,6 +285,7 @@ export function createSpeech({ rate = 0.92, volume = 1.0, onAudio = null, author
   let closed = false;
   let cancelled = false;
   let started = false;
+  let excused = false;             // one reply gets one excuse, not one per sentence
   let wake = null;                 // resolves the pump's wait when a chunk lands
   let resolveDone;
   const done = new Promise((resolve) => { resolveDone = resolve; });
@@ -293,7 +294,7 @@ export function createSpeech({ rate = 0.92, volume = 1.0, onAudio = null, author
     /** A sentence to synthesise, or `{ clip }`: the URL of one already rendered. */
     push(item) {
       const chunk = typeof item === "string" ? item.trim() : item?.clip ? { clip: item.clip } : null;
-      if (cancelled || closed || !chunk) return;
+      if (cancelled || closed || excused || !chunk) return;
       pending.push(chunk);
       if (wake) { wake(); wake = null; }
     },
@@ -318,10 +319,20 @@ export function createSpeech({ rate = 0.92, volume = 1.0, onAudio = null, author
         : fetch("/api/tts/speak", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: chunk, rate }),
+            body: JSON.stringify(voice ? { text: chunk, rate, voice, excuse: author } : { text: chunk, rate }),
             signal: AbortSignal.timeout(30_000)
           }));
       if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);
+
+      // The voice is unavailable: what is queued goes, and this plays instead.
+      if (res.headers?.get("content-type")?.includes("json")) {
+        const { excuse = [] } = await res.json();
+        excused = true;
+        pending.length = 0;
+        pending.push(...excuse.map((clip) => ({ clip })));
+        return;
+      }
+
       const blob = await res.blob();
 
       // Cancelled while Kokoro was working. The URL is created and revoked in

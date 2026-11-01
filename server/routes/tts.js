@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import { fetchWithTimeout } from "../utils/fetch.js";
 import { loopbackOnly } from "../middleware/security.js";
 import { reportFailure, reportSuccess } from "../services/healthService.js";
+import { castLive, castVoiceFor, excuseClips } from "./cast.js";
 
 const router = express.Router();
 
@@ -131,8 +132,10 @@ function pruneCache() {
 pruneCache();
 setInterval(pruneCache, PRUNE_INTERVAL_MS).unref();
 
-function cachePathFor(text, speed) {
-  const key = crypto.createHash("sha256").update(`${text}::${speed}`).digest("hex");
+// The voice joins the key only when one was asked for, so every existing entry
+// keeps its name and a cast line can never be served in the house voice.
+function cachePathFor(text, speed, voice = null) {
+  const key = crypto.createHash("sha256").update(voice ? `${text}::${speed}::${voice}` : `${text}::${speed}`).digest("hex");
   return path.join(CACHE_DIR, `${key}.wav`);
 }
 
@@ -197,11 +200,11 @@ async function isCompleteEntry(cachePath) {
   }
 }
 
-async function synthViaKokoro(url, text, speed, timeoutMs) {
+async function synthViaKokoro(url, text, speed, timeoutMs, castVoice = null) {
   // Read per-call, not at module load: server.js imports this route before it
   // calls dotenv.config(), so a module-level capture would freeze the default
   // (KOKORO_URL below is read per-call for the same reason).
-  const voice = process.env.KOKORO_VOICE ?? "bf_emma";
+  const voice = castVoice ?? process.env.KOKORO_VOICE ?? "bf_emma";
   const upstream = await fetchWithTimeout(`${url}/v1/audio/speech`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -233,8 +236,8 @@ async function synthViaKokoro(url, text, speed, timeoutMs) {
 // short first sentence against the NAS's ~18-35s. That also means the 6s
 // primary timeout below is the whole cost of a sleeping PC, because a dead
 // loopback refuses instantly rather than timing out.
-export async function getOrSynthesizeTts(text, speed) {
-  const cachePath = cachePathFor(text, speed);
+export async function getOrSynthesizeTts(text, speed, castVoice = null) {
+  const cachePath = cachePathFor(text, speed, castVoice);
   const hit = await readCached(cachePath);
   if (hit) return { buffer: hit, cached: true };
 
@@ -243,9 +246,10 @@ export async function getOrSynthesizeTts(text, speed) {
 
   let buffer;
   try {
-    buffer = await synthViaKokoro(primary, text, speed, fallback ? 6_000 : 30_000);
+    // 30 s for a cast voice: a cold clone takes ~19 s, and no fallback has it.
+    buffer = await synthViaKokoro(primary, text, speed, castVoice || !fallback ? 30_000 : 6_000, castVoice);
   } catch (err) {
-    if (!fallback) throw err;
+    if (castVoice || !fallback) throw err;
     console.warn(`[TTS] primary Kokoro (${primary}) failed: ${err.message} — using fallback`);
     buffer = await synthViaKokoro(fallback, text, speed, 30_000);
   }
@@ -262,7 +266,7 @@ export async function getOrSynthesizeTts(text, speed) {
 }
 
 router.post("/api/tts/speak", loopbackOnly("TTS"), async (req, res) => {
-  const { text, rate } = req.body ?? {};
+  const { text, rate, voice, excuse } = req.body ?? {};
   if (!text) { res.status(400).json({ error: "text is required" }); return; }
   if (typeof text !== "string" || text.length > MAX_TEXT_LENGTH) {
     res.status(400).json({ error: `text must be a string of at most ${MAX_TEXT_LENGTH} characters` });
@@ -270,14 +274,24 @@ router.post("/api/tts/speak", loopbackOnly("TTS"), async (req, res) => {
   }
 
   const speed = Number.isFinite(rate) && rate > 0 ? rate : 1.0;
+  const castVoice = castVoiceFor(voice);
+
+  // The PC being off is ordinary life for a cast voice, not a fault, so nothing
+  // below reports to health and the house never falls back to another voice.
+  const sendExcuse = () => {
+    res.set("Cache-Control", "no-store");
+    res.json({ excuse: excuseClips(excuse) });
+  };
+  if (castVoice && !castLive()) { sendExcuse(); return; }
 
   try {
-    const { buffer, cached } = await getOrSynthesizeTts(text, speed);
-    if (!cached) reportSuccess("tts");
+    const { buffer, cached } = await getOrSynthesizeTts(text, speed, castVoice);
+    if (!cached && !castVoice) reportSuccess("tts");
     res.set("Content-Type", "audio/wav");
     res.set("Cache-Control", "no-store");
     res.send(buffer);
   } catch (err) {
+    if (castVoice) { console.warn("[TTS] cast voice failed:", err.message); sendExcuse(); return; }
     console.error("[TTS] Kokoro error:", err.message);
     reportFailure("tts", err.message);
     res.status(502).json({ error: "TTS unavailable" });

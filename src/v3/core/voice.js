@@ -27,6 +27,7 @@ import { prepareGoodnight } from "../../js/services/goodnight.js";
 import { voiceSnapshot, houseDigest, couldBeAssist, rememberReply } from "../../js/services/voiceSnapshot.js";
 import { learnedTimes } from "../../js/core/routineRuntime.js";
 import { speak, silence, createSpeech, setSpeakingObserver } from "../../js/core/tts.js";
+import { liveVoice } from "./cast.js";
 import { setPhase, setFailure, trackSpeech } from "./presence-light.js";
 import { deepen, sustain, setDepth, getDepth, DEPTH } from "./depth.js";
 import { showSubject } from "../subjects/index.js";
@@ -972,7 +973,7 @@ export async function submit(text, { source = "unknown", speaker = null } = {}) 
     if (flag("voiceStreaming")) {
       setPhase("speaking");
       deepen(DEPTH.GLANCE, "voice-converse");
-      const speech = createSpeech({ author: "voice", onAudio: (audio) => trackSpeech(audio) });
+      const speech = createSpeech({ author: "voice", onAudio: (audio) => trackSpeech(audio), ...liveVoice() });
       const { reply, spoke, toolFailed } = await converseStreamed(body, speech);
       speech.close();
       await speech.done;             // let the queue finish what it is saying

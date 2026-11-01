@@ -112,6 +112,52 @@ export function drawFrom(pool, event, random = Math.random) {
   return pool.find((exchange) => exchange.id === id);
 }
 
+/* ── Live voices ─────────────────────────────────────────────────────────────
+   The clones run on the PC, which sleeps. Probed in the background so a line
+   asked for while it is off gets its excuse at once rather than after a
+   timeout, and started on first use so a house without the cast never polls. */
+const PROBE_MS = 15_000;
+const PROBE_TIMEOUT_MS = 2_500;
+let live = false;
+let probing = false;
+
+async function probe() {
+  try {
+    const url = process.env.KOKORO_URL ?? "http://localhost:8880";
+    const res = await fetch(`${url}/health`, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
+    live = res.ok && (await res.json()).cast === true;
+  } catch {
+    live = false;
+  }
+}
+
+/** The voice to synthesise with, or null for the ordinary house voice. */
+export function castVoiceFor(voice) {
+  return castEnabled() && SPEAKERS.has(voice) ? voice : null;
+}
+
+export function castLive() {
+  if (!probing) {
+    probing = true;
+    probe();
+    setInterval(probe, PROBE_MS).unref();
+  }
+  return live;
+}
+
+/** What to play instead of a live line, as clip urls. A speaker with its own
+ *  pool keeps its fact: a door or a timer is never just an excuse. */
+export function excuseClips(author) {
+  const vetoes = readVetoes();
+  const exchanges = loadExchanges();
+  const own = poolFor(exchanges, `excuse:${author}`, vetoes);
+  const event = own.length ? `excuse:${author}` : "excuse:live";
+  const pool = own.length ? own : poolFor(exchanges, event, vetoes);
+  if (pool.length === 0) return [];
+  const exchange = drawFrom(pool, event);
+  return exchange.lines.map((_, index) => `/api/cast/clip/${clipName(exchange.id, index)}`);
+}
+
 /** Test seam. */
 export function __resetBags() {
   bags.clear();

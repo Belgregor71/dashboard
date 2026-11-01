@@ -107,6 +107,14 @@ def synth_wav(text: str, voice: str, speed: float) -> bytes:
     return buf.getvalue()
 
 
+def cast_available() -> bool:
+    try:
+        with urllib.request.urlopen(f"{VOICESTUDIO_URL}/health", timeout=0.5) as res:
+            return res.status == 200
+    except (urllib.error.URLError, TimeoutError):
+        return False
+
+
 def synth_cast(text: str, voice: str, speed: float) -> bytes:
     payload = json.dumps({"model": "omnivoice", "input": text, "voice": CAST_VOICES[voice],
                           "response_format": "wav", "speed": speed}).encode("utf-8")
@@ -134,7 +142,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):  # noqa: N802
         if self.path == "/health":
-            self._json(200, {"ok": True, "voice": DEFAULT_VOICE})
+            self._json(200, {"ok": True, "voice": DEFAULT_VOICE, "cast": cast_available()})
         else:
             self._json(404, {"error": "not found"})
 

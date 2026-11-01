@@ -14,6 +14,7 @@ import { createSpeech, setSpeechRouter } from "../../js/core/tts.js";
 const PICK_TIMEOUT_MS = 1500;
 /* Set by ear on the wall: the clones master noticeably louder than Kokoro. */
 const CAST_VOLUME = 0.9;
+const JAB_CHANCE = 0.35;
 
 export function castOn() {
   return Boolean(window.CONFIG?.features?.v3CastVoice);
@@ -48,10 +49,37 @@ export async function speakCast(event, { author = null, onAudio = null } = {}) {
   return true;
 }
 
-/** Every plain line the house says is offered to the cast, keyed on its exact
- *  words. Anything the script does not hold is spoken as before. */
+/** Whoever reads a live line is chosen at random, one voice per reply. */
+export const castVoice = (random = Math.random) => (random() < 0.5 ? "kath" : "kim");
+
+/** Queue options for a reply that is written as it is spoken. Empty with the
+ *  flag off, so the queue is the one it always was. */
+export function liveVoice() {
+  return castOn() ? { voice: castVoice(), volume: CAST_VOLUME } : {};
+}
+
+/** The fact in the clone's voice, word for word, so it cannot come out wrong.
+ *  The character arrives afterwards: sometimes the other one has a jab at it. */
+async function speakLive(text, { author, onAudio }) {
+  const voice = castVoice();
+  const queue = createSpeech({ author, onAudio, voice, volume: CAST_VOLUME });
+  queue.push(text);
+  if (author === "voice" && Math.random() < JAB_CHANCE) {
+    const jab = await pickCast(`jab:${voice === "kath" ? "kim" : "kath"}`);
+    for (const clip of jab?.clips ?? []) queue.push({ clip });
+  }
+  queue.close();
+  await queue.done;
+  return true;
+}
+
+/** Every plain line the house says is offered here, keyed on its exact words.
+ *  Off, nothing changes. The script's own version wins; anything else is live. */
 export function initCast() {
-  setSpeechRouter((text, voice) => (castOn() ? speakCast(`line:${text}`, voice) : null));
+  setSpeechRouter((text, voice) => {
+    if (!castOn()) return null;
+    return speakCast(`line:${text}`, voice).then((spoke) => spoke || speakLive(text, voice));
+  });
 }
 
 /** Named faces get their own pool, which only holds the household's names. */
