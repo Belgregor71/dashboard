@@ -40,6 +40,7 @@ import { getEntity } from "../../js/services/homeAssistant/state.js";
 import { record } from "./feature-census.js";
 import { ALERT_TTS_RATE } from "../../js/config/alertLines.js";
 import { speak } from "../../js/core/tts.js";
+import { castOn, doorEvent, speakCast } from "./cast.js";
 import { setPhase, trackSpeech } from "./presence-light.js";
 import { showSubject } from "../subjects/index.js";
 import { DEPTH, setDepth } from "./depth.js";
@@ -193,8 +194,12 @@ export async function raiseAlert(entity, { now = Date.now() } = {}) {
   if (line) {
     setPhase("speaking");
     record("spoke", "alert", "said");
-    speak(line, { rate: ALERT_TTS_RATE, author: "doorbell", onAudio: (audio) => trackSpeech(audio) })
-      .then(() => setPhase("idle"), () => setPhase("idle"));
+    const voice = { rate: ALERT_TTS_RATE, author: "doorbell", onAudio: (audio) => trackSpeech(audio) };
+    // Nothing to play means the door is still announced, in the plain line.
+    const said = castOn()
+      ? speakCast(doorEvent(location.prefix, personName), voice).then((spoke) => (spoke ? undefined : speak(line, voice)))
+      : speak(line, voice);
+    said.then(() => setPhase("idle"), () => setPhase("idle"));
   }
 
   last = {
@@ -232,6 +237,10 @@ export function initAlerts() {
      kiosk as well as in a spec. */
   window.__v3Alert = (entityId = "binary_sensor.doorbell_ringing", state = "on") =>
     raiseAlert({ entity_id: entityId, state, last_changed: new Date().toISOString() });
+
+  /* Hear one exchange on the wall without flipping anything: the owner reviews
+     the script by ear, and only this reaches it while the flag is off. */
+  window.__v3Cast = (event, author = "moment") => speakCast(event, { author });
 
   return unsubscribe;
 }

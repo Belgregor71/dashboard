@@ -27,6 +27,7 @@
                                                           comes back)
      briefing the house's scheduled opening         20
      arrival  a greeting                            10
+     moment   the cast piping up unprompted          5
    Barge-in (tts.silence) is the reflex and is never arbitrated.
 
    STAGE, by lane. The REFLEX authors — doorbell, voice, command — always take
@@ -47,7 +48,8 @@ export const SPEECH_PRIORITY = Object.freeze({
   doorbell: 40,
   timer: 30,
   briefing: 20,
-  arrival: 10
+  arrival: 10,
+  moment: 5
 });
 
 export const STAGE_REFLEX = Object.freeze(["doorbell", "voice", "command"]);

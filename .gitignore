@@ -72,6 +72,7 @@ data/camera-captions.jsonl
 data/camera-captions.jsonl.tmp
 # A floor plan with camera coverage on it, and this repo is public.
 data/house-plan/
+data/cast/
 
 # Playwright MCP tool artifacts
 .playwright-mcp/

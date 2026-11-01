@@ -1949,6 +1949,12 @@ window.CONFIG = {
     // the owner's ask; live proof = the owner walking to the front door.
     v3DoorbellNameWait: true,
 
+    // The cast: Kath and Kim speak from preloaded clips (src/v3/core/cast.js,
+    // server/routes/cast.js). Needs HOUSE_CAST_ENABLED=1 and data/cast/ on the
+    // server as well: any of the three missing and the house speaks as before.
+    // Rollback: -> false, with a cache-bypass reload for the build.
+    v3CastVoice: false,
+
     // ── The camera plan (src/v3/subjects/camera-plan.js) ───────────────────
     // On: asking for a camera dives from the illustrated house plan onto what
     // that camera sees, and a doorbell or side gate alert gets a small corner

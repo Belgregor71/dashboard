@@ -22,6 +22,8 @@ import json
 import os
 import sys
 import time
+import urllib.error
+import urllib.request
 import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -54,6 +56,14 @@ VOICES = os.environ.get("KOKORO_VOICES", os.path.join(HERE, "models", "voices-v1
 DEFAULT_VOICE = os.environ.get("TTS_VOICE", "bf_emma")
 HOST = os.environ.get("TTS_HOST", "0.0.0.0")
 PORT = int(os.environ.get("TTS_PORT", "8880"))
+# The Kath and Kim clones live in VoiceStudio, whose desktop app pins its backend
+# to loopback with --host on the command line. So this server, already reachable
+# by the kiosk, forwards these two voices and nothing else. Keys are the wire
+# names, values the VoiceStudio profile names.
+CAST_VOICES = {"kath": "Kath", "kim": "Kim"}
+VOICESTUDIO_URL = os.environ.get("VOICESTUDIO_URL", "http://127.0.0.1:3900")
+# A cold clone took 18.8 s measured, so this has to outlast one.
+VOICESTUDIO_TIMEOUT_S = 30
 
 print(f"[tts] loading kokoro-onnx ({os.path.basename(MODEL)}) …", flush=True)
 _t0 = time.time()
@@ -97,6 +107,15 @@ def synth_wav(text: str, voice: str, speed: float) -> bytes:
     return buf.getvalue()
 
 
+def synth_cast(text: str, voice: str, speed: float) -> bytes:
+    payload = json.dumps({"model": "omnivoice", "input": text, "voice": CAST_VOICES[voice],
+                          "response_format": "wav", "speed": speed}).encode("utf-8")
+    req = urllib.request.Request(f"{VOICESTUDIO_URL}/v1/audio/speech", data=payload,
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=VOICESTUDIO_TIMEOUT_S) as res:
+        return res.read()
+
+
 class Handler(BaseHTTPRequestHandler):
     def _json(self, code, payload):
         body = json.dumps(payload).encode("utf-8")
@@ -138,10 +157,14 @@ class Handler(BaseHTTPRequestHandler):
         speed = float(speed) if isinstance(speed, (int, float)) and speed > 0 else 1.0
         try:
             t0 = time.time()
-            wav = synth_wav(text, voice, speed)
+            wav = synth_cast(text, voice, speed) if voice in CAST_VOICES else synth_wav(text, voice, speed)
             print(f"[tts] {len(text)} chars ({voice}) -> {len(wav)}B "
                   f"in {(time.time() - t0) * 1000:.0f}ms", flush=True)
             self._wav(wav)
+        except (urllib.error.URLError, TimeoutError) as err:
+            # Its own status: VoiceStudio being closed is not a Kokoro failure.
+            print("[tts] voicestudio unavailable:", err, flush=True)
+            self._json(503, {"error": "voicestudio unavailable"})
         except Exception as err:  # noqa: BLE001 — report, never crash the server
             print("[tts] error:", err, flush=True)
             self._json(500, {"error": str(err)})
