@@ -12,6 +12,8 @@
 import { createSpeech } from "../../js/core/tts.js";
 
 const PICK_TIMEOUT_MS = 1500;
+/* Set by ear on the wall: the clones master noticeably louder than Kokoro. */
+const CAST_VOLUME = 0.9;
 
 export function castOn() {
   return Boolean(window.CONFIG?.features?.v3CastVoice);
@@ -39,7 +41,7 @@ export async function pickCast(event) {
 export async function speakCast(event, { author = null, onAudio = null } = {}) {
   const exchange = await pickCast(event);
   if (!exchange) return false;
-  const queue = createSpeech({ author, onAudio });
+  const queue = createSpeech({ author, onAudio, volume: CAST_VOLUME });
   for (const clip of exchange.clips) queue.push({ clip });
   queue.close();
   await queue.done;
