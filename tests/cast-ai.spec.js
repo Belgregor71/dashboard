@@ -65,6 +65,42 @@ test.describe("the fact check", () => {
     expect(claimFault("It's 3 degrees.", "Weather: 31 degrees.")).toBe("number 3");
   });
 
+  test("a number spelled out is checked the same as one in digits", () => {
+    expect(claimFault("It's twenty-seven degrees.", SOURCE)).toBe("number 27");
+    expect(claimFault("It got to forty today.", SOURCE)).toBe("number 40");
+    expect(claimFault("It hasn't rung in five days.", SOURCE)).toBe("number 5");
+    expect(claimFault("It's thirty-one out, Kim.", SOURCE)).toBeNull();
+    expect(claimFault("The dentist is at three.", SOURCE)).toBeNull();
+  });
+
+  test("a spoken figure may stand for part of a written one", () => {
+    const fuel = "Fuel: unleaded is 1.79. Time: 7:30 am.";
+    expect(claimFault("Unleaded's one seventy-nine.", fuel)).toBeNull();
+    expect(claimFault("It's only half seven.", fuel)).toBeNull();
+  });
+
+  test("ordinary speech is not mistaken for a figure", () => {
+    expect(claimFault("I've got one word to say to you.", SOURCE)).toBeNull();
+    expect(claimFault("You two are a disgrace.", SOURCE)).toBeNull();
+    expect(claimFault("Someone's got no sense.", SOURCE)).toBeNull();
+  });
+
+  test("a past or a habit nobody recorded is refused", () => {
+    expect(claimFault("He'll leave the cords out like last time.", SOURCE)).toBe("invents a past");
+    expect(claimFault("It was hot yesterday.", SOURCE)).toBe("invents a past");
+    expect(claimFault("Neither of them, Greg or Brett, ever does the dishes.", SOURCE)).toBe("invents a habit");
+    expect(claimFault("Greg never does the vacuuming.", SOURCE)).toBe("invents a habit");
+    expect(claimFault("It's Greg's turn to vacuum.", SOURCE)).toBeNull();
+  });
+
+  test("a sentence the token limit cut off is not offered", () => {
+    expect(keepClaims("Bins go out. Oh, and the Broncos signed a", SOURCE)).toBe("Bins go out.");
+  });
+
+  test("a list is flattened into speech", () => {
+    expect(keepClaims("Say this:\n- Be kind.\n- Be there.", SOURCE)).toBe("Say this: Be kind. Be there.");
+  });
+
   test("a day it was not told about is refused, and one it was passes", () => {
     expect(claimFault("It's on Tuesday.", SOURCE)).toBe("day Tuesday");
     expect(claimFault("Happy sunday, Kim.", SOURCE)).toBeNull();
@@ -96,6 +132,13 @@ test.describe("reading a written briefing", () => {
       text: "Hot today. Noted.",
       lines: [{ voice: "kath", text: "Hot today." }, { voice: "kim", text: "Noted." }]
     });
+  });
+
+  test("the room hears four lines, and the wall keeps them all", () => {
+    const script = ["Kath: One.", "Kim: Two.", "Kath: Three.", "Kim: Four.", "Kath: Five."].join("\n");
+    const { text, lines } = readCastScript(script);
+    expect(lines.map((line) => line.text)).toEqual(["One.", "Two.", "Three.", "Four."]);
+    expect(text).toBe("One. Two. Three. Four. Five.");
   });
 
   test("an ordinary briefing passes through untouched", () => {

@@ -16,6 +16,30 @@ const TAG = /(?:^|\s)(kath|kim)\s*:\s*/gi;
 const DAYS = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi;
 const NUMBERS = /\d+(?:[.:]\d+)?/g;
 const ACTION = /\b(?:i|we)(?:'ve| have| just)?\s+(?:just\s+)?(?:turned|switched|locked|unlocked|opened|closed|shut|set|added|booked|ordered|sent|called|rang|cancelled|started|stopped|taken|put)\b/i;
+/* Measured on the first live eval: "like last time", said of a household member
+   about something that never happened. It has no number in it to catch. */
+const INVENTED_PAST = /\b(?:last time|as usual|like always|last week|last night|yesterday|the other day)\b/i;
+const HOUSEHOLD_HABIT = /\b(?:greg|brett|he|they|these two)\b(?!'s (?:got|turn))[^.!?]*\b(?:never|always|ever|forever)\b/i;
+
+/* "One" and "two" are left out: they are ordinary speech, and "one word" is not a
+   claim about anything. Above that, the same eval spelled "twenty-seven" out and
+   walked straight past a check that only read digits. */
+const UNITS = { three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+  thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19 };
+const TENS = { twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+const ONES = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9 };
+const NUMBER_WORDS = new RegExp(
+  `\\b(?:(${Object.keys(TENS).join("|")})(?:[- ](${Object.keys(ONES).join("|")}))?|(${Object.keys(UNITS).join("|")}))\\b`, "gi");
+
+/** Every spelled-out number in the sentence, as digits. */
+function spelledNumbers(sentence) {
+  return [...sentence.matchAll(NUMBER_WORDS)].map(([, tens, one, unit]) =>
+    unit ? UNITS[unit.toLowerCase()] : TENS[tens.toLowerCase()] + (one ? ONES[one.toLowerCase()] : 0));
+}
+
+/* Spoken figures may stand for part of a written one: "one seventy-nine" for
+   1.79, "seven" for 7:30. So this is looser than the digit check above. */
+const mentions = (known, n) => new RegExp(`(^|\\D)${n}(\\D|$)`).test(known);
 
 /** Text into `{ speaker, text }` lines. Anything before the first tag belongs to
  *  `speaker`, so a chunk that continues a line keeps its voice. */
@@ -35,7 +59,14 @@ export function splitLines(text, speaker = "kath") {
   return lines;
 }
 
-const sentencesOf = (text) => text.match(/[^.!?]+[.!?]+["')]*|\S[^.!?]*$/g)?.map((s) => s.trim()) ?? [];
+/* Lists and line breaks are for reading, and this is heard. */
+const spoken = (text) => text.replace(/^\s*[-*•]\s+/gm, "").replace(/\s*\n\s*/g, " ");
+
+/* A sentence the token limit cut off has no ending, and is not offered. */
+const sentencesOf = (text) => spoken(text).match(/[^.!?]+[.!?]+["')]*/g)?.map((s) => s.trim()) ?? [];
+
+/** The most an unprompted or spoken reply may run to, in sentences. */
+export const MAX_REPLY_SENTENCES = 4;
 
 /** Why this sentence must not be spoken, or null. */
 export function claimFault(sentence, source, { toolRan = false } = {}) {
@@ -43,6 +74,11 @@ export function claimFault(sentence, source, { toolRan = false } = {}) {
   for (const number of sentence.match(NUMBERS) ?? []) {
     if (!new RegExp(`(^|[^\\d.:])${number.replace(/\./g, "\\.")}($|[^\\d])`).test(known)) return `number ${number}`;
   }
+  for (const number of spelledNumbers(sentence)) {
+    if (!mentions(known, number)) return `number ${number}`;
+  }
+  if (INVENTED_PAST.test(sentence)) return "invents a past";
+  if (HOUSEHOLD_HABIT.test(sentence)) return "invents a habit";
   for (const day of sentence.match(DAYS) ?? []) {
     if (!known.includes(day.toLowerCase())) return `day ${day}`;
   }

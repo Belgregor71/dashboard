@@ -26,7 +26,7 @@ import { createSoundDetector } from "../services/soundPresence.js";
 import { createCameraDetector } from "../services/cameraPresence.js";
 import { toolDefs, entityRoster, planCall } from "../services/voiceTools.js";
 import { houseCharacter, characterEnabled } from "../services/character.js";
-import { keepClaims, keepReply, splitLines, stripTags } from "../services/castLines.js";
+import { MAX_REPLY_SENTENCES, keepClaims, keepReply, splitLines, stripTags } from "../services/castLines.js";
 import { castActive, castPersona } from "./cast.js";
 import { recordExchange } from "../services/conversationLog.js";
 import { openItems, resolvedItems } from "../services/unresolved.js";
@@ -514,6 +514,7 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
       }
       for (const line of splitLines(chunk, speaker)) {
         speaker = line.speaker;
+        if (spoken.length >= MAX_REPLY_SENTENCES) return;
         const kept = keepClaims(line.text, known, { toolRan: tools.length > 0 });
         if (!kept) continue;
         spoken.push(kept);

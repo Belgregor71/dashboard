@@ -52,6 +52,9 @@ export async function speakCast(event, { author = null, onAudio = null } = {}) {
 /** Whoever reads a live line is chosen at random, one voice per reply. */
 export const castVoice = (random = Math.random) => (random() < 0.5 ? "kath" : "kim");
 
+/* The owner's limit for a spoken exchange. The wall keeps the whole briefing. */
+const MAX_BRIEFING_LINES = 4;
+
 /** A briefing the cast wrote: `{ text, lines }`, the words for the wall and the
  *  lines to speak. Untagged text comes back as written, with no lines. */
 export function readCastScript(summary) {
@@ -61,7 +64,7 @@ export function readCastScript(summary) {
     if (!match) return { text: summary, lines: [] };
     lines.push({ voice: match[1].toLowerCase(), text: match[2] });
   }
-  return { text: lines.map((line) => line.text).join(" "), lines };
+  return { text: lines.map((line) => line.text).join(" "), lines: lines.slice(0, MAX_BRIEFING_LINES) };
 }
 
 /** Written lines in their own voices, as one utterance. */
