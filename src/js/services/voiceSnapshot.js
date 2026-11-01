@@ -94,13 +94,13 @@ export async function refreshVoiceCache() {
     storeAttached = true;
     on("house:observation", onObservation);
   }
-  // Skipped while fresh, dropped if the store delivered mid-flight — the same
-  // rule as houseSnapshot's, for the same reason.
-  const read = async (key, url) => {
-    if (viaStore && storeFresh(key)) return null;
-    const value = await getJson(url);
-    return viaStore && storeFresh(key) ? null : value;
-  };
+  // Skipped while fresh, and dropped at the moment it would be applied — the same
+  // rule as houseSnapshot's, for the same reason. Checking when each fetch returns
+  // is too early: Promise.all below waits for the slowest, and a push landing in
+  // that gap was overwritten by the older reading (a voice answering in stale
+  // weather, found by a spec that failed 2 runs in 60).
+  const read = (key, url) => (viaStore && storeFresh(key) ? null : getJson(url));
+  const settle = (key, value) => { if (!viaStore || !storeFresh(key)) applyVoice(key, value); };
   const [weather, forecast, nowcast, calendar, bins, commute, fuel, chores] = await Promise.all([
     read("weather", "/api/weather/now"),
     read("forecast", "/api/weather/forecast"),
@@ -115,12 +115,12 @@ export async function refreshVoiceCache() {
     // Flag-off returns before any fetch; a held year is not re-read for a day.
     refreshHolidays()
   ]);
-  applyVoice("weather", weather);
-  applyVoice("forecast", forecast);
-  applyVoice("nowcast", nowcast);
-  applyVoice("calendar", calendar);
-  applyVoice("bins", bins);
-  applyVoice("commute", commute);
+  settle("weather", weather);
+  settle("forecast", forecast);
+  settle("nowcast", nowcast);
+  settle("calendar", calendar);
+  settle("bins", bins);
+  settle("commute", commute);
   if (fuel) cache.fuel = fuel;
   if (chores) cache.chores = chores;
   cache.fetchedAt = Date.now();

@@ -260,6 +260,28 @@ async function boot(page, features, stream = STREAM) {
 const readings = (page) => page.evaluate(() => window.__v3HouseReadings());
 
 test.describe("v3HouseStore* — the consumers hold the store's reading", () => {
+  /* The race, forced. A refresh's weather fetch returns at once, the store pushes
+     a newer reading, and only then does the slowest fetch in the same Promise.all
+     finish and the results get applied. Left to chance this lost 2 runs in 60. */
+  test("ON: a push landing while a refresh waits on its slowest fetch is not overwritten", async ({ page }) => {
+    const slow = (body) => ({
+      __delayMs: 1500,
+      __fulfill: { status: 200, contentType: "application/json", body: JSON.stringify(body) }
+    });
+    const { pageErrors } = await bootV3(page, {
+      "/api/house/stream": { ...STREAM, __delayMs: 500 },
+      "/api/weather/now": SUN,
+      "/api/fuel": slow({ stations: [] }),
+      "/api/calendar/all": slow([])
+    }, { features: ALL_ON });
+    await page.waitForFunction(() => typeof window.__v3HouseReadings === "function");
+
+    await expect.poll(() => readings(page), { timeout: 5_000 }).toMatchObject({ glance: "Fixture Drizzle", voice: "Fixture Drizzle" });
+    await page.waitForTimeout(2_000);   // past the slow fetches and their apply
+    expect(await readings(page)).toEqual({ glance: "Fixture Drizzle", voice: "Fixture Drizzle", field: "Fixture Drizzle" });
+    expect(pageErrors).toEqual([]);
+  });
+
   test("ON: all three hold the store's reading, and a refresh skips only what it holds", async ({ page }) => {
     const { pageErrors, count } = await boot(page, ALL_ON);
 

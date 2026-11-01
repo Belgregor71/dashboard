@@ -182,12 +182,11 @@ export async function refreshHouseCache() {
   }
   /* Skipped while the store is fresh, and DROPPED if the store delivered while
      this fetch was in flight: a boot fetch resolving after the stream's first
-     snapshot must not overwrite the one reading everybody else now holds. */
-  const read = async (key, url) => {
-    if (viaStore && storeFresh(key)) return null;
-    const value = await getJson(url);
-    return viaStore && storeFresh(key) ? null : value;
-  };
+     snapshot must not overwrite the one reading everybody else now holds. Checked
+     at the moment of applying, not when each fetch returns: Promise.all waits for
+     the slowest, and a push in that gap would otherwise lose to the older value. */
+  const read = (key, url) => (viaStore && storeFresh(key) ? null : getJson(url));
+  const settle = (key, value, at) => { if (!viaStore || !storeFresh(key)) applyHouse(key, value, at); };
   const [weather, calendar, commute, plex] = await Promise.all([
     read("weather", "/api/weather/now"),
     read("calendar", "/api/calendar/all"),
@@ -196,10 +195,10 @@ export async function refreshHouseCache() {
   ]);
 
   const at = Date.now();
-  applyHouse("weather", weather, at);
-  applyHouse("calendar", calendar, at);
-  applyHouse("commute", commute, at);
-  applyHouse("plex", plex, at);
+  settle("weather", weather, at);
+  settle("calendar", calendar, at);
+  settle("commute", commute, at);
+  settle("plex", plex, at);
   cache.fetchedAt = at;
 }
 
