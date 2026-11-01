@@ -20,6 +20,7 @@ import { INTENT_IDS, ACTING_INTENT_IDS } from "../js/services/localIntents.js";
 import { LOCATIONS } from "../js/services/alertRouter.js";
 import { initPresenceLight } from "./core/presence-light.js";
 import { initVoice } from "./core/voice.js";
+import { initCast } from "./core/cast.js";
 import { initGround } from "./core/ground.js";
 import { initScrim, applyScrim, resampleScrim } from "./core/scrim.js";
 import {
@@ -498,6 +499,9 @@ function boot() {
      EventSource), transcripts are refused, the rail stops offering phrases and
      the listening rim stays down. ⚠ presence-light.js KEEPS its stream: it also
      carries sound presence, which is a room sensor (soundPresence), not voice. */
+  // Its own stage, before anything can speak: if the router is not in, every line
+  // falls to the old voice with nothing to say so.
+  stage("cast", () => initCast());
   stage("voice", () => initVoice({ enabled: flag("voiceSession"), lat: CITY.lat, lon: CITY.lon }));
   stage("depth-teardown", () => onDepth(onDepthChange));
 

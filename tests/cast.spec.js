@@ -1,6 +1,6 @@
 import { test, expect } from "./fixtures/coverage.js";
 import { bootV3 } from "./fixtures/v3boot.js";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { __resetBags, castVoiceFor, clipName, drawFrom, exchangeFault, excuseClips, parseWall, poolFor } from "../server/routes/cast.js";
@@ -468,6 +468,43 @@ test("ON: the door plays both clips in order and never reaches the old voice", a
   expect(asked.find((x) => x.startsWith("pick:"))).toBe("pick:door:doorbell:unknown");
   expect(asked).not.toContain("/api/tts/speak");
   expect(pageErrors).toEqual([]);
+});
+
+test("ON: a plain line on a real boot goes out in a clone", async ({ page }) => {
+  await page.clock.install({ time: MIDDAY });
+  const posted = [];
+  page.on("request", (req) => {
+    if (new URL(req.url()).pathname === "/api/tts/speak") posted.push(req.postDataJSON());
+  });
+  await bootV3(page, { "/api/cast/pick": { exchange: null } }, { features: { v3CastVoice: true } });
+  await page.waitForFunction(() => typeof window.__v3Transcript === "function");
+  await page.evaluate(() => window.__v3Transcript("what time is it"));
+  await expect.poll(() => posted.length).toBeGreaterThan(0);
+  expect(["kath", "kim"]).toContain(posted[0].voice);
+});
+
+test("OFF: a plain line on a real boot carries no voice at all", async ({ page }) => {
+  await page.clock.install({ time: MIDDAY });
+  const posted = [];
+  page.on("request", (req) => {
+    if (new URL(req.url()).pathname === "/api/tts/speak") posted.push(req.postDataJSON());
+  });
+  await bootV3(page, {}, { features: { v3CastVoice: false } });
+  await page.waitForFunction(() => typeof window.__v3Transcript === "function");
+  await page.evaluate(() => window.__v3Transcript("what time is it"));
+  await expect.poll(() => posted.length).toBeGreaterThan(0);
+  expect(posted[0].voice).toBeUndefined();
+});
+
+/* The router must not hang off another surface's stage: a stage that throws is
+   caught and the wall carries on, so every line would drop to the old voice with
+   nothing to say so. Source order, because no stage can be failed on demand. */
+test("the router has its own boot stage, ahead of the first thing that can speak", () => {
+  const main = readFileSync("src/v3/main.js", "utf8");
+  const cast = main.indexOf('stage("cast"');
+  expect(cast).toBeGreaterThan(-1);
+  expect(cast).toBeLessThan(main.indexOf('stage("voice"'));
+  expect(readFileSync("src/v3/core/alerts.js", "utf8")).not.toContain("initCast");
 });
 
 test("ON with nothing to play: the door is still announced in the plain line", async ({ page }) => {
