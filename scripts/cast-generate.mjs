@@ -32,6 +32,8 @@ const REMOTE_DIR = "/home/dashboard/dashboard/data/cast";
 const MIN_SECONDS = 0.3;
 const MIN_RMS = 200; // 16-bit: below this a clip is silence with a little noise
 const ATTEMPTS = 2;
+/* Matches createSpeech's default in tts.js: a clip faster than the live lines beside it reads as rushed. */
+const SPEED = 0.92;
 
 /** The script's text as exchanges. Throws on a line it cannot read: a typo must
  *  stop the render, not quietly lose a line. */
@@ -93,7 +95,7 @@ async function render(voice, text) {
   const res = await fetch(SPEECH_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "kokoro", input: text, voice, response_format: "wav", speed: 1 }),
+    body: JSON.stringify({ model: "kokoro", input: text, voice, response_format: "wav", speed: SPEED }),
     signal: AbortSignal.timeout(60_000)
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -119,7 +121,7 @@ async function main() {
   for (const exchange of exchanges) {
     for (const [index, line] of exchange.lines.entries()) {
       const name = `${exchange.id}-${index}.wav`;
-      const hash = createHash("sha256").update(`${line.speaker}::${line.text}`).digest("hex");
+      const hash = createHash("sha256").update(`${line.speaker}::${line.text}::${SPEED}`).digest("hex");
       if (manifest[name] === hash && existsSync(path.join(clips, name))) continue;
 
       let fault = null;
