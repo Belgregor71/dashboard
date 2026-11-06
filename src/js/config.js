@@ -1339,7 +1339,10 @@ window.CONFIG = {
     // lost in the 2026-10-03 retirement). Server half never left —
     // /api/immich/map proxies and caches the tile, MAP_API_KEY stays server-side.
     // Plane surface only. Off: no <img> is built and nothing is fetched.
-    v3ArchiveMap: false,
+    // ON 2026-11-07 (built + deployed off in 96388a1). Live proof was a CDP-driven
+    // tile on the wall — no on-this-day photo from abroad that day; the first
+    // natural one is still owed. Revert: `v3ArchiveMap: false`.
+    v3ArchiveMap: true,
 
     // ── The depth census ────────────────────────────────────────────────────
     // Asked on 2026-08-23 and unanswerable: how many times has each depth been
