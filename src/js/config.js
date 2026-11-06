@@ -1334,6 +1334,13 @@ window.CONFIG = {
     // wall return to the composition above.
     v3ArchivePortrait: true,
 
+    // The travel map: a small Mapbox tile with a pin, under the day, for an
+    // archive photo taken outside Australia (the incumbent's `.screensaver__place-map`,
+    // lost in the 2026-10-03 retirement). Server half never left —
+    // /api/immich/map proxies and caches the tile, MAP_API_KEY stays server-side.
+    // Plane surface only. Off: no <img> is built and nothing is fetched.
+    v3ArchiveMap: false,
+
     // ── The depth census ────────────────────────────────────────────────────
     // Asked on 2026-08-23 and unanswerable: how many times has each depth been
     // reached in the last fortnight? Nothing knew. core/depth.js keeps one

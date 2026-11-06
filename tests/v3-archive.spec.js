@@ -5,6 +5,7 @@ import {
   dayLine,
   plateForFrame,
   plateLine,
+  mapForFrame,
   skyLine,
   yearPositions
 } from "../src/v3/core/archive.js";
@@ -496,6 +497,7 @@ async function bootArchive(
     v3ArchivePlane = false,
     v3ArchivePortrait = false,
     v3ArchiveMotion = false,
+    v3ArchiveMap = false,
     groundMemories = true,
     groundDiptych = false,
     pool = POOL,
@@ -517,6 +519,7 @@ async function bootArchive(
         `\nwindow.CONFIG.features.v3ArchivePlane = ${v3ArchivePlane};` +
         `\nwindow.CONFIG.features.v3ArchivePortrait = ${v3ArchivePortrait};` +
         `\nwindow.CONFIG.features.v3ArchiveMotion = ${v3ArchiveMotion};` +
+        `\nwindow.CONFIG.features.v3ArchiveMap = ${v3ArchiveMap};` +
         `\nwindow.CONFIG.features.groundMemories = ${groundMemories};` +
         `\nwindow.CONFIG.features.groundDiptych = ${groundDiptych};\n`
     });
@@ -3063,4 +3066,104 @@ test.describe("the archive's Live Photo burst", () => {
     );
     expect(js).not.toMatch(/setAttribute\(\s*"data-arch-burst"/);
   });
+});
+
+/* ═══ THE TRAVEL MAP (features.v3ArchiveMap) ══════════════════════════════════
+   The incumbent's pin tile, back on the plane surface. Travel only, real
+   coordinates only, and only once the tile has actually loaded. */
+
+test("the map is for travel photos with coordinates, and nothing else", () => {
+  const kyoto = asset({ country: "Japan", lat: 35.01163, lng: 135.76802 });
+  expect(mapForFrame([kyoto])).toBe("/api/immich/map?lat=35.012&lng=135.768");
+  // Home is not news.
+  expect(mapForFrame([asset({ lat: -27.35, lng: 153.08 })])).toBeNull();
+  // Abroad but no GPS, or a null that Number() would turn into 0,0.
+  expect(mapForFrame([asset({ country: "Japan", lat: null, lng: null })])).toBeNull();
+  expect(mapForFrame([asset({ country: "Japan" })])).toBeNull();
+  // One photograph on the card, one pin — a pair is not a place.
+  expect(mapForFrame([kyoto, kyoto])).toBeNull();
+  expect(mapForFrame([])).toBeNull();
+});
+
+const TRAVEL_POOL = [
+  { id: "t", aspect: 1.78, localDateTime: "2017-07-06T09:00:00Z", city: "Kyoto", country: "Japan",
+    lat: 35.01163, lng: 135.76802, people: [] }
+];
+
+async function routeMap(page) {
+  const hits = [];
+  await page.route("**/api/immich/map**", (route) => {
+    hits.push(route.request().url());
+    return route.fulfill({ contentType: "image/png", body: LANDSCAPE_PNG });
+  });
+  return hits;
+}
+
+test("flag on: a travel photo puts a pin under the sky, clear of the card and the ghost", async ({ page }) => {
+  const hits = await routeMap(page);
+  /* A 16:9 thumb because that is the card's WIDEST reach (x97-1071); the default
+     fixture is near-square and once let a tile under the day pass while every
+     landscape photo on the wall would have been under it. */
+  const pageErrors = await bootArchive(page, {
+    v3ArchivePlane: true, v3ArchiveMap: true, v3ArchivePortrait: true,
+    pool: TRAVEL_POOL, thumb: LANDSCAPE_PNG, weather: WEATHER
+  });
+  await groundShown(page);
+
+  const map = page.locator(".archive__map");
+  await expect(map).toHaveCount(1);
+  await expect(map).toHaveAttribute("data-shown", "1", { timeout: 10_000 });
+  expect(hits.some((u) => u.includes("lat=35.012&lng=135.768")), hits.join("\n")).toBe(true);
+
+  const r = await page.evaluate(() => {
+    const box = (s) => {
+      const e = document.querySelector(s);
+      if (!e) return null;
+      const b = e.getBoundingClientRect();
+      return { l: b.left, t: b.top, r: b.right, b: b.bottom, w: b.width, h: b.height };
+    };
+    return { map: box(".archive__map"), sky: box(".archive__sky"), ghost: box(".archive__ghost"), card: box(".archive__card") };
+  });
+  // Present before positioned: an empty box satisfies every clearance below.
+  for (const k of ["map", "sky", "ghost", "card"]) {
+    expect(r[k], `${k} missing`).not.toBeNull();
+    expect(r[k].w * r[k].h, `${k} has no box`).toBeGreaterThan(0);
+  }
+  expect(r.map.w).toBe(180);
+  expect(r.map.t, "map overlaps the sky").toBeGreaterThanOrEqual(r.sky.b);
+  expect(r.map.l, "map overlaps the card").toBeGreaterThanOrEqual(r.card.r);
+  expect(r.map.b, "map overlaps the ghost").toBeLessThanOrEqual(r.ghost.t);
+
+  // The corner is the transcript's: listening takes the tile off with the sky.
+  const opacity = await page.evaluate(() => {
+    const m = document.querySelector(".archive__map");
+    m.style.transition = "none";
+    document.documentElement.dataset.phase = "listening";
+    return getComputedStyle(m).opacity;
+  });
+  expect(opacity).toBe("0");
+  expect(pageErrors).toEqual([]);
+});
+
+test("flag on: a photo from home builds the tile but never fetches or shows it", async ({ page }) => {
+  const hits = await routeMap(page);
+  // WITH coordinates — a GPS-less fixture fetches nothing whether or not the
+  // travel rule exists (caught by injecting its removal).
+  const home = POOL.map((a) => ({ ...a, country: "Australia", lat: -27.35, lng: 153.08 }));
+  await bootArchive(page, { v3ArchivePlane: true, v3ArchiveMap: true, pool: home });
+  await groundShown(page);
+  // A trace the paint ran: the caption names this pool's place.
+  await expect(page.locator(".archive__line")).toContainText("Nudgee");
+  await expect(page.locator(".archive__map")).toHaveAttribute("data-shown", "0");
+  await expect(page.locator(".archive__map")).not.toHaveAttribute("src", /./);
+  expect(hits).toEqual([]);
+});
+
+test("flag OFF: no tile is built and nothing is fetched, even abroad", async ({ page }) => {
+  const hits = await routeMap(page);
+  await bootArchive(page, { v3ArchivePlane: true, pool: TRAVEL_POOL, v3ArchivePortrait: true });
+  await groundShown(page);
+  await expect(page.locator(".archive__line")).toContainText("Kyoto");
+  await expect(page.locator(".archive__map")).toHaveCount(0);
+  expect(hits).toEqual([]);
 });

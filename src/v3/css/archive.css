@@ -1142,6 +1142,36 @@
 
 .archive__sky[data-blank="1"] { display: none; }
 
+/* ── The travel map (features.v3ArchiveMap) ─────────────────────────────────
+   ⚠ NOT UNDER THE DAY. A 16:9 card is pinned at x97 and runs to y745, so the
+   left column below the day IS the card (measured in the spec, landscape thumb).
+   Under the sky instead: right of the card's widest reach (x1071), above the
+   ghost (y472), clear of the pill/media column at the bottom. 80 = the sky's
+   56px box plus 24 of air. The corner is the transcript's, so it stands down
+   with the sky whenever the house is listening, thinking or speaking.
+   Shown only once the tile has loaded; out with the plate on an exchange (it is
+   the plate's later sibling) and out at night with the rest of the words. */
+:root[data-arch-plane="1"] .archive__map {
+  position: absolute;
+  right: var(--safe);
+  top: calc(var(--safe) + 80px);
+  z-index: 6;
+  width: 180px;
+  height: 120px;
+  border-radius: 8px;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.55);
+  outline: 1px solid rgba(238, 243, 251, 0.14);
+  opacity: 0.9;
+  transition: opacity 2.4s ease;
+}
+.archive__map[data-shown="0"] { display: none; }
+.archive__plate.is-exchanging ~ .archive__map {
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+:root[data-night="1"][data-arch-plane="1"] .archive__map,
+:root[data-arch-plane="1"]:not([data-phase="idle"]) .archive__map { opacity: 0; }
+
 /* ── The fault pill changes corner ──────────────────────────────────────────
    ⚠⚠ IT USED TO STEP DOWN TO y168 AND STAY TOP-LEFT. Owner at the glass
    2026-09-05: *"up top left is distracting — would put them below the media on

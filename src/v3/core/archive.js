@@ -64,7 +64,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { cardRectFor, cardRectForPlane } from "../../js/services/archiveModel.js";
-import { relativeYearPhrase } from "../../js/services/photoMemory.js";
+import { relativeYearPhrase, isTravel } from "../../js/services/photoMemory.js";
 import {
   CHECK_MS as GROUND_ROTATE_MS,
   frameParts,
@@ -116,6 +116,13 @@ const portraitEnabled = () =>
    mind afterwards would be arming timers against an element it never built. */
 const motionEnabled = () =>
   Boolean(globalThis.window?.CONFIG?.features?.v3ArchiveMotion);
+
+/* THE TRAVEL MAP (features.v3ArchiveMap) — the incumbent's pin tile, back on the
+   plane surface. A modifier of the plane like the portrait lean: latched at
+   build as `planeMode && this`, because the bottom-right corner it uses only
+   exists in that composition. */
+const mapEnabled = () =>
+  Boolean(globalThis.window?.CONFIG?.features?.v3ArchiveMap);
 
 /* ── The stage ──────────────────────────────────────────────────────────── */
 const FRAME_W = 1920;
@@ -355,6 +362,8 @@ let eligibleSinceBurst = 0;
    The incumbent gets this from its own `first` early-return; here the archive
    has no entry event of its own, so it is counted. */
 let presented = false;
+let mapMode = false;        // latched at build — see mapEnabled()
+let mapEl = null;           // the <img> pin tile, built only in mapMode
 let dayEl = null;           // "Thursday 4 September"
 let skyEl = null;           // "22° · partly cloudy · 14° / 25°"
 /* THE LAST SKY HANDED OVER, as the finished line rather than the payload.
@@ -841,6 +850,20 @@ function build(host) {
     glass.push(dayEl, skyEl);
   }
 
+  /* One <img>, built once and re-pointed per photo, so its two handlers are
+     init-once too. Shown only after it LOADS: the route 404s with no key and
+     502s when Mapbox is unreachable, and a broken-image box is a claim. */
+  if (mapMode) {
+    mapEl = document.createElement("img");
+    mapEl.className = "archive__map";
+    mapEl.alt = "";
+    mapEl.setAttribute("aria-hidden", "true");
+    mapEl.dataset.shown = "0";
+    mapEl.onload = () => { mapEl.dataset.shown = "1"; };
+    mapEl.onerror = () => { mapEl.dataset.shown = "0"; };
+    glass.push(mapEl);
+  }
+
   host.append(scene, vig, word, plateEl, ...glass, grain);
   root = document.documentElement;
   built = true;
@@ -899,7 +922,32 @@ function applyRect(rect) {
   document.documentElement.style.setProperty("--arch-portrait", rect.lean.toFixed(3));
 }
 
+/**
+ * The pin tile for the one photograph the card names, or null. Travel only —
+ * a pin on Queensland tells this house nothing — and only with real coordinates.
+ * Rounded to 3 dp, the precision the server's tile cache is keyed on.
+ * @returns {string|null}
+ */
+export function mapForFrame(assets) {
+  const list = (assets ?? []).filter(Boolean);
+  if (list.length !== 1) return null;
+  const { lat, lng } = list[0];
+  if (!isTravel(list[0])) return null;
+  if (typeof lat !== "number" || typeof lng !== "number" || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return `/api/immich/map?lat=${lat.toFixed(3)}&lng=${lng.toFixed(3)}`;
+}
+
+function paintMap(assets) {
+  if (!mapEl) return;
+  const url = mapForFrame(assets);
+  if (url === mapEl.getAttribute("src")) return;
+  mapEl.dataset.shown = "0";
+  if (url) mapEl.src = url;
+  else mapEl.removeAttribute("src");
+}
+
 function paintPlate(assets) {
+  paintMap(assets);
   if (!plateEl) return;
   const plate = plateForFrame(assets);
 
@@ -1373,6 +1421,7 @@ export function initArchive(host) {
   if (!built) planeMode = planeEnabled();
   if (!built) portraitMode = planeMode && portraitEnabled();
   if (!built) motionMode = motionEnabled();
+  if (!built) mapMode = planeMode && mapEnabled();
   if (!built) build(host);
 
   // The marker the stylesheet hangs everything off. On the root rather than the
