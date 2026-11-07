@@ -5,5 +5,51 @@
       "maxFindings": 5,
       "maxChars": 8000
     }
+  },
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "dist/v3/index.html",
+          "src/v3/index.html"
+        ],
+        "createdAt": "2026-11-06T20:54:55.781Z",
+        "reason": "Agent: #ground and #now-playing-art get their src from JS at runtime"
+      },
+      {
+        "rule": "buried-raster",
+        "value": "*",
+        "files": [
+          "dist/v3/index.html",
+          "src/v3/index.html"
+        ],
+        "createdAt": "2026-11-06T20:54:56.012Z",
+        "reason": "Agent: photo starts at opacity 0 and fades in once loaded (compose.css img[data-shown])"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "dist/v3/index.html",
+          "src/v3/index.html"
+        ],
+        "createdAt": "2026-11-06T20:54:56.225Z",
+        "reason": "Agent: holiday-only 10% inset warm edge on the photo, under the scrim (compose.css body[data-holiday] .photo::after, v3PublicHolidays)"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "dist/v3/index.html",
+          "src/v3/index.html"
+        ],
+        "createdAt": "2026-11-06T20:54:56.437Z",
+        "reason": "Agent: day-montage event pulses on the house plan (compose.css .lapse__pulse, v3DayLapse), not a background glow"
+      }
+    ]
   }
 }
