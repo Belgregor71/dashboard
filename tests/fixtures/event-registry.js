@@ -35,7 +35,7 @@
 export const EVENTS = {
   "parcel:moment": {
     publishers: ["src/v3/core/parcels.js"],
-    consumers: ["src/v3/core/parcel-animation.js"]
+    consumers: ["src/v3/core/parcel-animation.js", "src/v3/core/parcel-voice.js"]
   },
   "arrival:home": {
     publishers: ["src/v3/core/arrival.js"],

@@ -1968,6 +1968,13 @@ window.CONFIG = {
     // Rollback: -> false, with a cache-bypass reload for the build.
     v3Parcels: true,
 
+    // Kath and Kim remark on a parcel moment from prerendered clips
+    // (src/v3/core/parcel-voice.js; events parcel:delivering / parcel:delivered
+    // in the private data/cast/ script). Needs v3CastVoice too. Silent in quiet
+    // hours (22-07), while gaming, or with no clip. Off: the card stays silent.
+    // Rollback: -> false, with a cache-bypass reload for the build.
+    v3ParcelVoice: false,
+
     // The cast: Kath and Kim speak from preloaded clips (src/v3/core/cast.js,
     // server/routes/cast.js). Needs HOUSE_CAST_ENABLED=1 and data/cast/ on the
     // server as well: any of the three missing and the house speaks as before.
