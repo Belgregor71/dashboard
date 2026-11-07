@@ -384,7 +384,8 @@ export function tickAttention(now = new Date()) {
     template: composition?.template ?? spreadMounted(),
     hero: hero ? { id: hero.id, source: hero.source, text: hero.text, score: hero.score, interrupt: hero.interrupt === true } : null,
     stack: sel.stack.map((c) => ({ id: c.id, source: c.source, score: c.score })),
-    queue: sel.queue.map((c) => ({ id: c.id, source: c.source, score: c.score, interrupt: c.interrupt === true })),
+    // stackOnly: S5d (arrival.js) tells a hot camera trigger from a stale one by it.
+    queue: sel.queue.map((c) => ({ id: c.id, source: c.source, score: c.score, interrupt: c.interrupt === true, stackOnly: c.stackOnly === true })),
     sourceCount: sources.length,
     // S5a: what the evidence gate refused this tick, and why. Always [] with it off.
     dropped: sel.dropped ?? [],

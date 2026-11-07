@@ -163,7 +163,15 @@ function onStateUpdated(entity) {
      (The id is compared by value, not hoisted into a const: the S5a inventory
      reads the candidate literal WHOLE, id through score.) */
   const won = selection?.hero?.id === `arrival:${entityId}`;
-  const spoken = won || !globalThis.window?.CONFIG?.features?.v3ArrivalEarnsSpeech;
+  /* HOUSE-MIND S5d (features.v3ArrivalYieldsToCamera), owner's rule 2026-11-08:
+     the ONLY thing that silences a greeting is a hot camera trigger. It replaces
+     S5b's hero test, because by score a hot trigger (72) never beats arrival (92)
+     while a BOM warning (95) always does: four greetings were lost that way in
+     October. Stale triggers are stackOnly and don't count. Read per arrival. */
+  const camera = selection?.queue?.some((c) => c.source === "cameraTrigger" && !c.stackOnly) ?? false;
+  const spoken = globalThis.window?.CONFIG?.features?.v3ArrivalYieldsToCamera
+    ? !camera
+    : won || !globalThis.window?.CONFIG?.features?.v3ArrivalEarnsSpeech;
 
   if (spoken) {
     setPhase("speaking");
@@ -172,7 +180,7 @@ function onStateUpdated(entity) {
       .then(() => setPhase("idle"), () => setPhase("idle"));
   }
 
-  last = { name, text, won, spoken, awayMs: awayAt ? Date.now() - awayAt : null, at: new Date().toISOString() };
+  last = { name, text, won, camera, spoken, awayMs: awayAt ? Date.now() - awayAt : null, at: new Date().toISOString() };
 }
 
 /** The last arrival, or the last one suppressed and why. For __v3(). */

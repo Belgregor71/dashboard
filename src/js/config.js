@@ -1781,6 +1781,14 @@ window.CONFIG = {
     // speaks aloud); it is the same path in both states.
     v3ArrivalEarnsSpeech: true,
 
+    // ── HOUSE-MIND S5d (docs/design/HOUSE-MIND.md §S5d): an arrival greeting
+    // is silenced ONLY by a hot camera trigger in the queue, never by whatever
+    // holds the hero (a BOM warning at 95 beat arrival's 92 four times in
+    // October). On: overrides v3ArrivalEarnsSpeech's hero test. Ranking and the
+    // glance are unchanged. `__v3().arrival.camera` says whether one was live.
+    // Rollback: v3ArrivalYieldsToCamera: false — read per arrival, no reload.
+    v3ArrivalYieldsToCamera: false,
+
     // ── HOUSE-MIND S6a (docs/design/HOUSE-MIND.md §S6): the wall's log. One
     // row per presentation (glance / spread / stage / voice): id, source,
     // evidence key, arbiter decision, start, end. NO presence, person or home

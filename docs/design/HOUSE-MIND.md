@@ -514,7 +514,7 @@ before making the arbiter the single authority.
 |---|---|---|---|
 | **S5a — evidence** | Every candidate carries `evidence: {key, at}`, an S2 key or an HA entity. First, a spec derives the inventory the way `event-registry.spec.js` does, with an explicit exempt list, and goes red on an undeclared candidate. Then, behind a flag, the ranker drops a candidate with no evidence or stale evidence. | The spec is test-only. The runtime gate gets its own flag; off = today's queue. | Inject a candidate without evidence: the spec goes red, and with the gate on the ranker drops it. Nothing on the wall changes with the gate off. |
 | **S5b — arrival speaks only if it won** | `arrival.js` reads the selection `announce()` returns and calls `speak()` only when its own id is the hero. Arrival is the lowest-risk spoken author: priority 10, and not reflex. | A flag, read per arrival (no reload). Off = speak unconditionally, as today. | Both directions, forced at boot: a higher candidate holding the glance means the greeting is shown in the queue but not spoken; an empty room means it is spoken exactly as before. Both are injected RED. |
-| **S5c — the next authors** | The briefing, then dinner, one at a time, if S5b's live decisions hold up. The timer and doorbell stay reflex. | One flag per author. | The same as S5b, per author. |
+| **S5c — the next authors** ⛔ CLOSED 2026-11-08, not needed (see "S5c — CLOSED") | The briefing, then dinner, one at a time, if S5b's live decisions hold up. The timer and doorbell stay reflex. | One flag per author. | The same as S5b, per author. |
 
 **Not yet inventoried, and not guessed here:** ~~(answered by S5a below)~~
 - How many live candidate sources already have a data line that could become `evidence`.
@@ -585,9 +585,37 @@ before making the arbiter the single authority.
 - **Spec:** `tests/v3-arrival-speech.spec.js`, 4 tests: won and lost, flag on and off,
   asserted on the synthesis request. **Inject-defect 2/2 RED**: the gate ignored, and the
   gate applied with the flag off.
-- **S5c (the briefing, then dinner) is NOT built.** Its condition is "if S5b's live
-  decisions hold up", and there are none yet: the flag is off and the week above has no
-  lost arrival in it.
+- **First live losses (read 2026-11-08 from the wall's log).** Since 10-05, about 45
+  arrivals were spoken and 4 were not (10-06 17:11, 10-13 17:11, 10-16 15:27 and 16:54).
+  Each one showed only as a spread card, alongside a BOM warning (95, interrupt), which
+  outranks arrival's 92. Not proven to be S5b: the rows carry no hero and no person.
+  Owner's verdict: **the only thing that should silence an arrival is a camera trigger.**
+  See S5d.
+
+### S5c — CLOSED 2026-11-08, not needed
+
+S5c was to apply S5b's rule to the briefing, then dinner. Reading the code showed both
+were already covered:
+- **Dinner never speaks.** `dinner.js` and the recipe subject have no `speak()` call.
+  A flag gating its speech would be a dead lever (`flag-surface.spec.js`).
+- **The briefing already has to win before it speaks.** It is a stage author, not a
+  glance candidate. It asks `mayTakeStage("briefing")` before marking the day fired
+  (`briefing-window.js:100`). `showSubject` asks again at mount and marks it
+  superseded if the stage was taken during the build (`subjects/index.js:242`, `:274`).
+  It speaks only after a successful mount, through the speech arbiter at priority 20.
+  There is no path where a briefing that lost the room is still spoken.
+
+S5b was needed because arrival was the one spoken author that ignored its own ranking
+result. The rest are reflexes (doorbell, timers) or already arbitrated (briefing).
+
+### S5d — arrival yields only to a camera trigger (built 2026-11-08, flag off)
+
+Owner's rule, from the losses above. Ranking cannot express it: a hot camera trigger
+scores 72 and can never outrank arrival's 92, while a BOM warning at 95 always does. So
+the rule is a speech gate, not a score. With `v3ArrivalYieldsToCamera` on, the greeting
+is silenced only if a **hot** camera trigger (`source: "cameraTrigger"`, not
+`stackOnly`) is in the selection's queue. Otherwise it is spoken, whatever holds the
+hero. The glance ranking is unchanged. Off → S5b exactly as before.
 
 ### S6 — the presentation log (proposed 2026-09-25; S6-0 done, S6a built 2026-09-27, S6b + S6c built 2026-10-04)
 
