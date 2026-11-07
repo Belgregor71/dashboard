@@ -1972,8 +1972,10 @@ window.CONFIG = {
     // (src/v3/core/parcel-voice.js; events parcel:delivering / parcel:delivered
     // in the private data/cast/ script). Needs v3CastVoice too. Silent in quiet
     // hours (22-07), while gaming, or with no clip. Off: the card stays silent.
+    // Deployed OFF a2ae750; in-page on the G11 11-07 the moment picked
+    // parcel:delivering and fetched its clip. FLIPPED ON 2026-11-07.
     // Rollback: -> false, with a cache-bypass reload for the build.
-    v3ParcelVoice: false,
+    v3ParcelVoice: true,
 
     // The cast: Kath and Kim speak from preloaded clips (src/v3/core/cast.js,
     // server/routes/cast.js). Needs HOUSE_CAST_ENABLED=1 and data/cast/ on the
