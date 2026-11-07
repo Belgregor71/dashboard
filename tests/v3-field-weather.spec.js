@@ -172,6 +172,9 @@ async function streakiness(page, frames = 1) {
 }
 
 test("rain follows the READING and the FLAG — streaks with both, none without either", async ({ page }) => {
+  /* THREE cold WebGL boots. Measured under 10 workers 2026-11-08: 19-27 s
+     passing, and 5 of 40 timed out at the default 30. */
+  test.setTimeout(60_000);
   await bootV3(page, ON, { weather: HEAVY });
   /* ⚠ bootV3 returns on the FIRST frame, and that one is drawn at boot, before
      /api/weather/now has answered: read then, the "wet" page scores 0.18 — dry.
@@ -241,6 +244,8 @@ async function leanUnder(page, bearing) {
   /* ⚠ And ONE readPixels, not 720. Point sampling syncs the GPU per pixel,
      and on a page raining at 30 fps in SwiftShader that ran past the 30 s
      timeout under worker contention. One rect spanning both rows is one sync. */
+  // Same trap as the rain test: the boot frame is drawn before the reading lands.
+  await page.waitForFunction((ms) => window.__substrate().capMs === ms, RAIN_FRAME_MS);
   const { w, lum: L } = await page.evaluate(([fy, h]) => window.__substrateSampleRect(0.55, fy, 360 / 1920, h), [UP, (GAP + 1) / 1080]);
   const a = L.slice(0, w), b = L.slice(GAP * w, GAP * w + w);
   // Mean-removed, so the sky's gradient does not vote.
@@ -336,8 +341,13 @@ async function flashAt(page) {
     // Timed from the CALL: strike() draws a frame itself, ~85 ms in SwiftShader.
     const t = performance.now();
     const ok = window.__v3Atmo.strike();
+    /* ⚠ Stats read HERE, before the sample. The sample is a second full-panel
+       draw plus 285 readPixels; under 10 workers it alone took up to 1.4 s, and
+       read after it `striking` had decayed past STRIKE_MS (1600) — red with the
+       field lit (2026-11-08). */
+    const s = window.__substrate();
     while (performance.now() - t < 80) { /* the attack */ }
-    return { before, during: window.__substrateSample(grid), ok, s: window.__substrate() };
+    return { before, during: window.__substrateSample(grid), ok, s };
   }, GRID);
 }
 const STILL_STORM = reading({ cloudPct: 60, icon: "cloudy", code: 3 });

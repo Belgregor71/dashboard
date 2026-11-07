@@ -223,14 +223,19 @@ test("the artwork's src is dropped after the fade, not left on a hidden node", a
   await page.evaluate((track) => window.__v3NowPlayingSet(track), TRACK);
   expect((await page.evaluate(readBand)).artSrc).toContain("lineman.jpg");
 
-  await page.evaluate(() => window.__v3NowPlayingSet(null));
-
   /* It survives the fade — emptying the band in front of the room and THEN
      fading an empty rectangle is the wrong order — and is gone after it. The
      clear is a setTimeout on purpose: this node lives inside .depth--field,
      which is `visibility: hidden` at every other depth, and a transition event
-     does not fire on a hidden subtree. */
-  expect((await page.evaluate(readBand)).artSrc).toContain("lineman.jpg");
+     does not fire on a hidden subtree.
+     ⚠ Read 300 ms in by a PAGE timer, not by a second evaluate: under 10
+     workers that round trip passed CLEAR_MS (1200) and read null (2026-11-08).
+     A timer set after the clear's always fires before it, at any load. */
+  const midFade = await page.evaluate(() => {
+    window.__v3NowPlayingSet(null);
+    return new Promise((r) => setTimeout(() => r(document.getElementById("now-playing-art").getAttribute("src")), 300));
+  });
+  expect(midFade, "the art was dropped before the fade finished").toContain("lineman.jpg");
 
   await expect
     .poll(async () => (await page.evaluate(readBand)).artSrc, { timeout: 4000 })
