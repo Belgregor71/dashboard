@@ -1959,6 +1959,12 @@ window.CONFIG = {
     // the owner's ask; live proof = the owner walking to the front door.
     v3DoorbellNameWait: true,
 
+    // Parcels: Mail and Packages (HACS, Gmail OAuth) counts in HA become a
+    // `parcel:moment` on the bus (src/v3/core/parcels.js). HA half only; the
+    // animation that plays it is not built yet. Off: nothing subscribes.
+    // Rollback: -> false, with a cache-bypass reload for the build.
+    v3Parcels: false,
+
     // The cast: Kath and Kim speak from preloaded clips (src/v3/core/cast.js,
     // server/routes/cast.js). Needs HOUSE_CAST_ENABLED=1 and data/cast/ on the
     // server as well: any of the three missing and the house speaks as before.

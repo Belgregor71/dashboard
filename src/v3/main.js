@@ -47,6 +47,7 @@ import { connectHouseStream, storeFresh, houseStreamState } from "../js/services
 import { arbiterState } from "../js/core/arbiter.js";
 import { initAttention, lastSelection, tickAttention, announcements } from "./core/attention.js";
 import { initAlerts, lastAlert } from "./core/alerts.js";
+import { initParcels } from "./core/parcels.js";
 import { initArrival, lastArrival } from "./core/arrival.js";
 import { initBriefingWindow, lastBriefing } from "./core/briefing-window.js";
 import { initHealth, lastHealth } from "./core/health.js";
@@ -799,6 +800,7 @@ function boot() {
   stage("camera plan", () => { warmCameraPlan(); });
   stage("diorama", initDiorama);
   stage("arrival", () => initArrival());
+  stage("parcels", () => initParcels());
 
   /* The second unasked-for subject, and the one that also fills the recipe book.
      See core/dinner.js: the incumbent's dinner panel had exactly one caller in
