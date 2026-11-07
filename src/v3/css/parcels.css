@@ -1,7 +1,9 @@
 .parcel-moment {
   position: fixed;
   right: 72px;
-  bottom: 72px;
+  /* Between the sky line (bottom y152) and the media corner (top y771) on the
+     G11, measured 11-07: bottom-anchored, it covered the now-playing lines. */
+  top: 200px;
   z-index: 20;
   width: 480px;
   padding: 28px 36px 34px;
