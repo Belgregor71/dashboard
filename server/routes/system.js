@@ -1,7 +1,6 @@
 import express from "express";
 import os from "os";
 import { readFile, readdir } from "fs/promises";
-import { fetchWithTimeout } from "../utils/fetch.js";
 import { getHealth, getMotionCoverage } from "../services/healthService.js";
 import { getRecoveryLog } from "../services/recoveryService.js";
 
@@ -98,12 +97,6 @@ async function readCpuTemperature() {
   return null;
 }
 
-function normalizePingTarget(target) {
-  if (!target) return "https://1.1.1.1";
-  if (/^https?:\/\//i.test(target)) return target;
-  return `https://${target}`;
-}
-
 router.get("/env.js", (_req, res) => {
   const bomDailyConfig = {
     5: {
@@ -174,22 +167,6 @@ router.get("/api/config", (_req, res) => {
       debug: process.env.CALENDAR_DEBUG === "1"
     }
   });
-});
-
-router.get("/api/system/ping", async (_req, res) => {
-  const target = normalizePingTarget(process.env.STATUS_PING_TARGET || "https://1.1.1.1");
-  const start = Date.now();
-  try {
-    const response = await fetchWithTimeout(target, { method: "HEAD" }, 5000);
-    res.json({ ok: response.ok, status: response.status, latencyMs: Date.now() - start, target });
-  } catch (err) {
-    res.status(502).json({
-      ok: false,
-      error: err instanceof Error ? err.message : "Ping failed",
-      latencyMs: Date.now() - start,
-      target
-    });
-  }
 });
 
 router.get("/api/system/health", (_req, res) => {

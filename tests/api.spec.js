@@ -109,12 +109,6 @@ test.describe("system", () => {
       expect(body.tempC).toBeLessThan(120);
     }
   });
-
-  test("GET /api/system/ping", async ({ request }) => {
-    const { body } = await expectJson(request, "/api/system/ping", { statuses: [200, 502] });
-    expect(typeof body.ok).toBe("boolean");
-    expect(typeof body.target).toBe("string");
-  });
 });
 
 /**
@@ -430,16 +424,6 @@ test.describe("document root", () => {
 });
 
 test.describe("cameras", () => {
-  test("GET /api/cameras", async ({ request }) => {
-    const { body } = await expectJson(request, "/api/cameras");
-    expect(Array.isArray(body.cameras)).toBe(true);
-    for (const camera of body.cameras) {
-      expect(typeof camera.id).toBe("string");
-      expect(typeof camera.name).toBe("string");
-      expect(camera.snapshotUrl).toBe(`/api/camera/${camera.id}/snapshot`);
-    }
-  });
-
   /* Field-scan #3 Phase 1, shadow. The suite runs with CAMERA_CAPTIONS="" (see
      playwright.config.js), so the lane is off and reports so — and the read is
      still a bounded list, because rows from an earlier enabled run would be
@@ -454,19 +438,24 @@ test.describe("cameras", () => {
       expect(Object.keys(row).sort()).toEqual(["at", "burst", "camera", "caption", "ms"]);
     }
   });
+});
 
-  test("GET /api/camera/:id/status for a real camera", async ({ request }) => {
-    const { body: list } = await expectJson(request, "/api/cameras");
-    test.skip(!list.cameras.length, "no cameras configured");
-    const { body } = await expectJson(request, `/api/camera/${list.cameras[0].id}/status`);
-    expect(body.id).toBe(list.cameras[0].id);
-    expect(typeof body.ok).toBe("boolean");
-  });
-
-  test("GET /api/camera/:id/status for unknown camera is a JSON 404", async ({ request }) => {
-    const { body } = await expectJson(request, "/api/camera/__does_not_exist__/status", { statuses: [404] });
-    expect(body).toHaveProperty("error");
-  });
+/* Routes retired with the incumbent's leftovers (2026-11-08). V3 never called
+   them; a 404 here means nobody quietly re-added one. */
+test.describe("retired routes stay gone", () => {
+  for (const path of [
+    "/api/arr/summary",
+    "/api/cameras",
+    "/api/camera/doorbell/status",
+    "/api/calendar/google",
+    "/api/system/ping",
+    "/api/photos",
+    "/api/nrl/broncos"
+  ]) {
+    test(`GET ${path} is 404`, async ({ request }) => {
+      expect((await request.get(path)).status()).toBe(404);
+    });
+  }
 });
 
 test.describe("weather", () => {
@@ -879,30 +868,8 @@ test.describe("feeds", () => {
     expect(body.bins.next.person === null || typeof body.bins.next.person === "string").toBe(true);
   });
 
-  test("GET /api/nrl/broncos", async ({ request }) => {
-    const { body } = await expectJson(request, "/api/nrl/broncos", { statuses: [200, 500, 502] });
-    expect(typeof body).toBe("object");
-  });
-
   test("GET /api/fuel", async ({ request }) => {
     await expectJson(request, "/api/fuel", { statuses: [200, 500, 502] });
-  });
-
-  test("GET /api/photos returns an array", async ({ request }) => {
-    const { body } = await expectJson(request, "/api/photos");
-    expect(Array.isArray(body)).toBe(true);
-  });
-
-  test("GET /api/arr/summary", async ({ request }) => {
-    // Unconfigured services must answer 200-empty, not 500 (the kiosk re-hits
-    // this every 10s); a configured-but-down upstream may still 500/502.
-    const { status, body } = await expectJson(request, "/api/arr/summary", { statuses: [200, 500, 502] });
-    if (status === 200) {
-      expect(typeof body.active).toBe("boolean");
-      for (const svc of ["sonarr", "radarr", "lidarr"]) {
-        expect(Array.isArray(body[svc])).toBe(true);
-      }
-    }
   });
 
   test("GET /api/plex/sessions", async ({ request }) => {

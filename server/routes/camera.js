@@ -264,25 +264,6 @@ function setNoCacheHeaders(res) {
 
 // --- Routes ---
 
-router.get("/api/cameras", (_req, res) => {
-  const cameras = CAMERA_CONFIG.map((camera) => ({
-    id: camera.id,
-    name: camera.name,
-    entity: camera.entity,
-    cameraEntity: camera.cameraEntity,
-    eventImageEntity: camera.eventImageEntity,
-    eventImagePath: camera.eventImagePath,
-    preferredSnapshot: camera.preferredSnapshot,
-    snapshotRefreshMs: camera.snapshotRefreshMs,
-    mode: camera.mode,
-    streamType: camera.streamType,
-    streamFallbacks: camera.streamFallbacks ?? [],
-    snapshotUrl: `/api/camera/${camera.id}/snapshot`,
-    streamUrl: `/api/camera/${camera.id}/stream`
-  }));
-  res.json({ cameras });
-});
-
 router.get("/api/camera/:id/snapshot", async (req, res) => {
   const camera = getCameraConfig(req.params.id);
   if (!camera) { res.status(404).json({ error: "Camera not found" }); return; }
@@ -353,12 +334,6 @@ router.get("/api/camera-captions", loopbackOnly("Camera captions"), async (req, 
   } catch (err) {
     res.status(500).json({ error: String(err?.message || err) });
   }
-});
-
-router.get("/api/camera/:id/status", (req, res) => {
-  const camera = getCameraConfig(req.params.id);
-  if (!camera) { res.status(404).json({ error: "Camera not found" }); return; }
-  res.json(getCameraStatus(camera.id));
 });
 
 router.get("/api/camera/:id/stream", async (req, res) => {

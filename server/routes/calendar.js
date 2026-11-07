@@ -354,26 +354,4 @@ router.post("/api/calendar/events/undo", loopbackOnly("The calendar write lane")
   }
 });
 
-// IMPORTANT: prevent ":source" from matching "all"
-router.get("/api/calendar/:source(google|apple|tripit)", async (req, res) => {
-  const src = req.params.source;
-  const calendarUrls = {
-    google: process.env.CALENDAR_GOOGLE_URL,
-    apple: process.env.CALENDAR_APPLE_URL,
-    tripit: process.env.CALENDAR_TRIPIT_URL
-  };
-  const calendarUrl = calendarUrls[src];
-  if (!calendarUrl) {
-    res.status(500).json({ error: "Calendar URL missing" });
-    return;
-  }
-  try {
-    const events = await fetchCalendar(calendarUrl, src);
-    res.json(events);
-  } catch (err) {
-    console.error("Calendar proxy error:", err);
-    res.status(500).json({ error: "Calendar error" });
-  }
-});
-
 export default router;

@@ -84,9 +84,9 @@ const read = (f) => {
  * ------------------------------------------------------------------ */
 
 /**
- * Mount prefixes, read from server.js rather than hardcoded — `app.use("/api", arrRoutes)`
- * and `app.use("/api/ha", …, createHaRouter())` shift every route inside those
- * modules, and a hardcoded table silently rots the day a mount moves.
+ * Mount prefixes, read from server.js rather than hardcoded — `app.use("/api/ha", …,
+ * createHaRouter())` shifts every route inside that module, and a hardcoded table
+ * silently rots the day a mount moves.
  */
 function readMounts() {
   const src = read("server.js");

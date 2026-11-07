@@ -173,6 +173,18 @@ The bin and fuel tiles and the always-visible todo list are **SUPERSEDED, not LO
 
 ### Server routes whose only frontend caller is on the delete list
 
+> **Resolved 2026-11-08 (re-measured against the tree that day).** Deleted:
+> `arr/summary` (`arr.js`), `cameras`, `camera/:id/status`,
+> `calendar/(google|apple|tripit)`, `system/ping`, `photos` (`photos.js`), the
+> `/api/camera_proxy` mount, and `/api/nrl/broncos` (`nrl.js`, from the
+> already-orphaned list below). `api.spec.js` "retired routes stay gone" pins the
+> 404s. **Wrong in the table below by then:** `calendar/holidays` is live again
+> (the L3 port, `publicHolidays.js`) and `immich/map` is live (the travel map,
+> `src/v3/core/archive.js`). **Kept by the owner:** `camera/:id/stream` (an HLS URL
+> documented in `docs/CAMERAS.md`), `ha/health`, `immich/daily-set` (its service
+> also serves the map tiles), and the rest of the already-orphaned list (vault,
+> recipes, commute/legs, house/lately, weather/lately, ha/snapshot, `/api/config`).
+
 | route | defined at | sole caller | other callers |
 |---|---|---|---|
 | `GET /api/arr/summary` | `server/routes/arr.js:40` | `arrActivity` | none (the route file is orphaned) |

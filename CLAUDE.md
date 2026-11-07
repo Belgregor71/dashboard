@@ -46,7 +46,7 @@ happened; a glance at the wall did.
 - **`src/js/` is NOT legacy — it is V3's runtime library**: V3's import closure pulls 55
   files from it, plus `js/config.js` by script tag. The authority is the manifest in
   `tests/v3-closure.spec.js`. Everything left in `src/js/` is load-bearing.
-- `server.js` mounts `server/routes/*.js` (36 route modules) under `/api`. Route order
+- `server.js` mounts `server/routes/*.js` (33 route modules) under `/api`. Route order
   matters — see the measured comments in `server.js` around the static mounts.
 - **`CLAUDE.md` and `.claude/skills/` have a gitignored agent-facing mirror** (`AGENTS.md`,
   `.agents/skills/` — the skills there cite the house rules by section name). Regenerate

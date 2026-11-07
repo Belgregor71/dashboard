@@ -16,7 +16,6 @@ import { startRecoveryService } from "./server/services/recoveryService.js";
 import { startTtsWarmer } from "./server/services/ttsWarmer.js";
 import { startMemoryConsolidator } from "./server/services/conversationLog.js";
 import { normalizeBaseUrl, ROOT_ENTRY, staleSurfaceWarning } from "./server/config.js";
-import arrRoutes from "./server/routes/arr.js";
 import { createHaRouter } from "./server/ha/haRoutes.js";
 import haSnapshotRoutes from "./server/routes/haSnapshot.js";
 import systemRoutes from "./server/routes/system.js";
@@ -30,12 +29,10 @@ import newsRoutes from "./server/routes/news.js";
 import cameraRoutes, { cameraSnapshotBuffer } from "./server/routes/camera.js";
 import { startCameraCaptions } from "./server/services/cameraCaptions.js";
 import { CAMERA_CONFIG } from "./server/config/cameras.js";
-import photosRoutes from "./server/routes/photos.js";
 import adminRoutes from "./server/routes/admin.js";
 import binsRoutes from "./server/routes/bins.js";
 import choresRoutes from "./server/routes/chores.js";
 import dogsRoutes from "./server/routes/dogs.js";
-import nrlRoutes from "./server/routes/nrl.js";
 import aiRoutes from "./server/routes/ai.js";
 import voiceRoutes from "./server/routes/voice.js";
 import fuelRoutes from "./server/routes/fuel.js";
@@ -105,9 +102,6 @@ const app = express();
 applySecurity(app);
 app.use(express.json({ limit: "256kb" }));
 
-// Arr routes (Sonarr/Radarr/qBittorrent)
-app.use("/api", arrRoutes);
-
 // Home Assistant: snapshot must come before the HA router because the router
 // has a catch-all when HA is disabled that would otherwise swallow this route.
 app.use(haSnapshotRoutes);
@@ -153,12 +147,10 @@ app.use(commuteRoutes);
 app.use(plexRoutes);
 app.use(newsRoutes);
 app.use(cameraRoutes);
-app.use(photosRoutes);
 app.use(adminRoutes);
 app.use(binsRoutes);
 app.use(choresRoutes);
 app.use(dogsRoutes);
-app.use(nrlRoutes);
 app.use(aiRoutes);
 app.use(voiceRoutes);
 app.use(fuelRoutes);
@@ -302,11 +294,10 @@ function attachHaProxy(appInstance) {
       res.status(503).json({
         error: "Home Assistant proxy unavailable",
         detail:
-          "Set HA_HOST (and HA_TOKEN if required) in the dashboard environment to enable /api/image_proxy and /api/camera_proxy."
+          "Set HA_HOST (and HA_TOKEN if required) in the dashboard environment to enable /api/image_proxy."
       });
     };
     appInstance.use("/api/image_proxy", missingHaHandler);
-    appInstance.use("/api/camera_proxy", missingHaHandler);
     return;
   }
 
@@ -358,7 +349,7 @@ function attachHaProxy(appInstance) {
 
   const stallGuard = answerIfUpstreamStalls(HA_UPSTREAM_TIMEOUT_MS);
   appInstance.use("/api/image_proxy", stallGuard, createProxyMiddleware(baseProxyOptions));
-  appInstance.use("/api/camera_proxy", stallGuard, createProxyMiddleware(baseProxyOptions));
+  // The /api/camera_proxy mount went with the incumbent's cameraDiscovery (2026-11-08); V3 has no caller.
 }
 
 app.listen(PORT, () => {
