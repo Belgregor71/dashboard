@@ -1960,10 +1960,13 @@ window.CONFIG = {
     v3DoorbellNameWait: true,
 
     // Parcels: Mail and Packages (HACS, Gmail OAuth) counts in HA become a
-    // `parcel:moment` on the bus (src/v3/core/parcels.js). HA half only; the
-    // animation that plays it is not built yet. Off: nothing subscribes.
+    // `parcel:moment` on the bus (src/v3/core/parcels.js), played as a van +
+    // box card (parcel-animation.js). Off: nothing subscribes.
+    // Deployed OFF 8b66aea; seen in-page on the G11 11-07 (real AusPost count
+    // seeded the baseline, card clear of the media corner, gone at 8 s).
+    // FLIPPED ON 2026-11-07 at the owner's ask.
     // Rollback: -> false, with a cache-bypass reload for the build.
-    v3Parcels: false,
+    v3Parcels: true,
 
     // The cast: Kath and Kim speak from preloaded clips (src/v3/core/cast.js,
     // server/routes/cast.js). Needs HOUSE_CAST_ENABLED=1 and data/cast/ on the
