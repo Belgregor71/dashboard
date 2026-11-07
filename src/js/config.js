@@ -1787,7 +1787,12 @@ window.CONFIG = {
     // October). On: overrides v3ArrivalEarnsSpeech's hero test. Ranking and the
     // glance are unchanged. `__v3().arrival.camera` says whether one was live.
     // Rollback: v3ArrivalYieldsToCamera: false — read per arrival, no reload.
-    v3ArrivalYieldsToCamera: false,
+    // FLIPPED ON 2026-11-08 by the owner (/flag-flip). Deployed off first
+    // (57ac7e9). Seen on the G11 with the flag forced on over CDP: an arrival
+    // that held the hero, with a hot camera trigger in the queue, read
+    // camera:true, spoken:false and made 0 /api/tts/speak requests. The spoken
+    // case was not driven live (it speaks aloud); it is the spec's.
+    v3ArrivalYieldsToCamera: true,
 
     // ── HOUSE-MIND S6a (docs/design/HOUSE-MIND.md §S6): the wall's log. One
     // row per presentation (glance / spread / stage / voice): id, source,

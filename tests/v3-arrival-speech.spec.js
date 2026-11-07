@@ -36,7 +36,8 @@ async function boot(page, on, extra = {}) {
     if (!req.url().includes("/api/tts/speak")) return;
     spoken.push(req.postData() ?? "");
   });
-  const { pageErrors } = await bootV3(page, {}, { features: { v3ArrivalEarnsSpeech: on, ...extra } });
+  // S5d pinned off by default: the S5b tests measure the hero test S5d overrides.
+  const { pageErrors } = await bootV3(page, {}, { features: { v3ArrivalEarnsSpeech: on, v3ArrivalYieldsToCamera: false, ...extra } });
   await page.waitForFunction(() => typeof window.__v3Arrival === "function" && typeof window.__forceCandidate === "function");
   return { pageErrors, greetings: () => spoken.filter((body) => body.includes(GREETING)) };
 }
