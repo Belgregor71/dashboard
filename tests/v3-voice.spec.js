@@ -1325,6 +1325,51 @@ test("the transcript carries its own veil, sized from its own box", async ({ pag
   expect(pageErrors).toEqual([]);
 });
 
+test("the rail carries a veil while it is shown, and none when it is not", async ({ page }) => {
+  /* compose.css `.rail-slot:has(> .rail:not([hidden]))::before`. Measured live at
+     1.14:1 over a bright photo with nothing under it. Both directions in ONE
+     evaluate so the rail's own painter cannot flip `hidden` between reads. */
+  const pageErrors = await boot(page);
+  const r = await page.evaluate(() => {
+    const rail = document.getElementById("rail");
+    const slot = rail?.parentElement;
+    if (!slot) return { missing: true };
+    const read = () => {
+      const v = getComputedStyle(slot, "::before");
+      const box = slot.getBoundingClientRect();
+      return { content: v.content, zIndex: v.zIndex, image: v.backgroundImage,
+               w: box.width, h: box.height, veilW: parseFloat(v.width), veilH: parseFloat(v.height) };
+    };
+    rail.textContent = "who was at the door";
+    rail.hidden = false;
+    const on = { ...read(), text: rail.textContent, isolation: getComputedStyle(slot).isolation };
+    rail.hidden = true;
+    const off = read();
+    return { on, off,
+      safe: parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--safe")) };
+  });
+
+  expect(r.missing, "#rail or its slot was not in the document").toBeUndefined();
+  expect(r.on.text).toBe("who was at the door");
+  expect(r.on.w).toBeGreaterThan(0);
+  expect(r.on.h).toBeGreaterThan(0);
+  expect(r.on.content, "the rail's veil generates no box").not.toBe("none");
+  expect(r.on.image).toContain("radial-gradient");
+  expect(r.on.image, "veil not anchored bottom-right").toContain("100% 100%");
+  expect(r.on.zIndex).toBe("-1");
+  expect(r.on.isolation, "without isolation the veil escapes the slot").toBe("isolate");
+  const stops = r.on.image.match(/\/\s*([\d.]+)\s*\)/g) ?? [];
+  expect(stops.some((s) => parseFloat(s.replace(/[^\d.]/g, "")) > 0.05),
+    `every gradient stop was transparent: ${r.on.image}`).toBe(true);
+  expect(r.on.veilW).toBeCloseTo((r.on.w + r.safe) * 2, 0);
+  expect(r.on.veilH).toBeCloseTo((r.on.h + r.safe) * 2, 0);
+
+  // THE OFF DIRECTION: an empty slot must never dim the corner of a resting photo.
+  expect(r.off.content, "the rail's veil paints with the rail hidden").toBe("none");
+
+  expect(pageErrors).toEqual([]);
+});
+
 test("the veil cannot outlive the transcript", async ({ page }) => {
   const pageErrors = await boot(page);
   await page.evaluate(() => window.__v3Transcript("what time is it"));

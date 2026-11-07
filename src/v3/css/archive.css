@@ -1138,6 +1138,12 @@
 }
 
 :root[data-arch-plane="1"]:not([data-phase="idle"]) .archive__sky { opacity: 0; }
+/* ⚠ PHASE IS NOT ENOUGH. `#heard` lingers seconds after the phase is back to
+   idle, and a timer pill holds this corner for minutes at idle — both were seen
+   with the sky printed over them (z6 vs z1). The sky is ambient, so it yields to
+   both (owner, 2026-11-08). `:has()` because the sky is in the archive subtree,
+   not a later sibling the `~` combinator could reach. */
+:root[data-arch-plane="1"]:has(#heard:not([hidden]), #timers:not([hidden])) .archive__sky { opacity: 0; }
 
 .archive__sky[data-blank="1"] { display: none; }
 

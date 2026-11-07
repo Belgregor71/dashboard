@@ -729,6 +729,29 @@ body[data-holiday] .photo::after {
   text-align: right;
   opacity: 0;
   transition: opacity var(--m-calm) var(--ease);
+  isolation: isolate;            /* keeps the veil below inside this box */
+}
+/* The rail's own veil — `.heard::before` mirrored into the bottom-right corner.
+   Measured live 2026-10-03 at 1.14:1 over a bright table edge: 32px weight-300
+   --ink-faint with only a text-shadow under it. Owner, 2026-11-08: a veil, not
+   the ink (the media band's answer too). On the slot, not `.rail`, because the
+   rail's ::before/::after are its quote marks; gated on a shown rail so an empty
+   slot never dims the corner. */
+.rail-slot:has(> .rail:not([hidden]))::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  right: calc(-1 * var(--safe));
+  bottom: calc(-1 * var(--safe));
+  width: calc((100% + var(--safe)) * 2);
+  height: calc((100% + var(--safe)) * 2);
+  background: radial-gradient(
+    ellipse 100% 100% at 100% 100%,
+    color-mix(in oklch, var(--scrim-base) calc(var(--scrim-opacity) * 100%), transparent) 0%,
+    color-mix(in oklch, var(--scrim-base) calc(var(--scrim-opacity) * 100%), transparent) 74%,
+    transparent 100%
+  );
+  pointer-events: none;
 }
 /* ⚠ DEPTH 1 ONLY. It used to show at depth 2 as well, and that is where it did
    harm: seen on the glass 2026-08-13 sharing the bottom-right corner with a

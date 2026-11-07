@@ -1898,6 +1898,39 @@ test("the sky stands down the moment the house is listening", async ({ page }) =
   await settled("idle", 100);
 });
 
+test("the sky yields the corner to a lingering transcript and to a timer, at idle", async ({ page }) => {
+  /* Phase alone left both collisions open: #heard lingers after idle, and a
+     timer holds the corner for minutes at idle. Driven by `hidden` directly,
+     the same switch heard.js / timers.js flip. */
+  await bootArchive(page, { v3ArchivePlane: true, weather: WEATHER });
+  await groundShown(page);
+  const skyOpacity = () =>
+    page.evaluate(() =>
+      Math.round(parseFloat(getComputedStyle(document.querySelector(".archive__sky")).opacity) * 100)
+    );
+  const show = (id, on) =>
+    page.evaluate(([i, o]) => {
+      document.documentElement.dataset.phase = "idle";
+      const el = document.getElementById(i);
+      if (o) el.textContent = i === "heard" ? "show me the front door" : "PASTA 4:59";
+      el.hidden = !o;
+    }, [id, on]);
+
+  // Positive control first: the sky is on the glass and has real text.
+  await expect(page.locator(".archive__sky")).not.toHaveText("");
+  await expect.poll(skyOpacity).toBe(100);
+
+  await show("heard", true);
+  await expect.poll(skyOpacity, { message: "sky printed over a lingering transcript" }).toBe(0);
+  await show("heard", false);
+  await expect.poll(skyOpacity, { message: "sky never came back after the transcript" }).toBe(100);
+
+  await show("timers", true);
+  await expect.poll(skyOpacity, { message: "sky printed over the timer pill" }).toBe(0);
+  await show("timers", false);
+  await expect.poll(skyOpacity, { message: "sky never came back after the timer" }).toBe(100);
+});
+
 test("after dark the wall is a photograph and an hour, not an instrument panel", async ({ page }) => {
   /* The night rule the plate and the engraved year already obey, extended to
      the two lines the plane added. A dimmed label is a label somebody still
