@@ -2,8 +2,7 @@
    PARCELS — Mail and Packages (HACS, Gmail OAuth) tells the wall a parcel is
    coming, or has come. Behind features.v3Parcels.
 
-   This is the HA half only. It emits `parcel:moment` on the bus; the animation
-   subscribes to that and is built separately.
+   Emits `parcel:moment` on the bus; parcel-animation.js renders the moment.
 
    The entity ids carry the Gmail address (`sensor.<area>_<email>_mail_packages_
    delivering`) and config.js ships in the public bundle, so the sensors are
@@ -18,6 +17,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { on, emit } from "../../js/core/eventBus.js";
+import { initParcelAnimation } from "./parcel-animation.js";
 import { record, localDay } from "./feature-census.js";
 
 export const PARCEL_FRESH_MS = 10 * 60_000;
@@ -78,6 +78,7 @@ export function lastParcel() {
 
 export function initParcels() {
   if (unsubscribe || !flag("v3Parcels")) return unsubscribe;
+  initParcelAnimation();
   unsubscribe = on("ha:state-updated", (entity) => { onStateUpdated(entity); });
 
   /* Drive a parcel without waiting for the post. Goes through the same guards,

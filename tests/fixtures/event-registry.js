@@ -33,6 +33,10 @@
    ════════════════════════════════════════════════════════════════════════ */
 
 export const EVENTS = {
+  "parcel:moment": {
+    publishers: ["src/v3/core/parcels.js"],
+    consumers: ["src/v3/core/parcel-animation.js"]
+  },
   "arrival:home": {
     publishers: ["src/v3/core/arrival.js"],
     consumers: ["src/js/core/personalityRuntime.js"]
@@ -101,6 +105,7 @@ export const EVENTS = {
       "src/v3/core/arrival.js",
       "src/v3/core/media-rooms.js",
       "src/v3/core/now-playing.js",
+      "src/v3/core/parcels.js",
       "src/v3/core/presence.js"
     ]
   },
