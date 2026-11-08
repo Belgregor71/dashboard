@@ -1994,7 +1994,11 @@ window.CONFIG = {
     // a wall line on a storm / 10 mm+ day or a fire danger of High or above,
     // and "what's the weather going to be like today" answered in BOM's words.
     // Off: no line, and that question is answered as weather.now, as before.
-    v3BomOutlook: false,
+    // Deployed OFF 6ec1419; in-page on the G11 11-08 (flag forced, a storm day
+    // emitted, room present): hero at 52, on the glass 1.5-15 s; flag off: gone.
+    // FLIPPED ON 2026-11-08 at the owner's ask.
+    // Rollback: -> false, with a cache-bypass reload for the build.
+    v3BomOutlook: true,
 
     // The cast: Kath and Kim speak from preloaded clips (src/v3/core/cast.js,
     // server/routes/cast.js). Needs HOUSE_CAST_ENABLED=1 and data/cast/ on the
