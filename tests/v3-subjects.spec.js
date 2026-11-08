@@ -679,6 +679,9 @@ test("the briefing fits the stack it is given — no line is clipped away", asyn
 
   const got = await page.evaluate(async () => {
     await window.__v3Briefing({ force: true });
+    // Measure in the said face, not the fallback: the plane card used to load
+    // Figtree upright at depth 0 by accident; the journey only needs the italic.
+    await document.fonts.load("300 96px Figtree");
     const stack = document.querySelector(".subject__prose-stack");
     const prose = document.querySelector(".subject--briefing .subject__prose");
     const sr = stack.getBoundingClientRect();

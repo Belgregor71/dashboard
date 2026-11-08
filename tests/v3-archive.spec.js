@@ -498,6 +498,8 @@ async function bootArchive(
     v3ArchivePortrait = false,
     v3ArchiveMotion = false,
     v3ArchiveMap = false,
+    // This file tests the PLANE surface; the journey supersedes it (v3-journey.spec owns that).
+    v3MemoryJourney = false,
     groundMemories = true,
     groundDiptych = false,
     pool = POOL,
@@ -520,6 +522,7 @@ async function bootArchive(
         `\nwindow.CONFIG.features.v3ArchivePortrait = ${v3ArchivePortrait};` +
         `\nwindow.CONFIG.features.v3ArchiveMotion = ${v3ArchiveMotion};` +
         `\nwindow.CONFIG.features.v3ArchiveMap = ${v3ArchiveMap};` +
+        `\nwindow.CONFIG.features.v3MemoryJourney = ${v3MemoryJourney};` +
         `\nwindow.CONFIG.features.groundMemories = ${groundMemories};` +
         `\nwindow.CONFIG.features.groundDiptych = ${groundDiptych};\n`
     });

@@ -1354,7 +1354,11 @@ window.CONFIG = {
     // arrives through the photograph's own colour. SUPERSEDES v3ArchivePlane /
     // Portrait / Motion / Map while on: none of their nodes are built.
     // Off: initArchive builds the plane surface exactly as before.
-    v3MemoryJourney: false,
+    // ON 2026-11-08 (built + deployed off in c57b1c3). Live proof: forced on in-page
+    // on the G11 with real photos (portrait wash, year after settle, 0 exceptions);
+    // no photo from abroad in that day's pool, so the map is unseen live.
+    // Revert: `v3MemoryJourney: false`.
+    v3MemoryJourney: true,
 
     // ── The depth census ────────────────────────────────────────────────────
     // Asked on 2026-08-23 and unanswerable: how many times has each depth been

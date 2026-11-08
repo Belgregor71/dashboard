@@ -140,7 +140,9 @@ async function boot(page, on = []) {
      (Found by the flipped-suite run, 2026-09-22: the lightning test also timed
      out 3/3 — each strike holds the field at 60 fps for 1.6 s of installed
      clock, ~85 ms a lifted draw in SwiftShader. HYPOTHESIS, not probed.) */
-  const lines = ["window.CONFIG.features.v3AtmoOverlay = true;", "window.CONFIG.features.v3FieldWeather = false;"];
+  const lines = ["window.CONFIG.features.v3AtmoOverlay = true;", "window.CONFIG.features.v3FieldWeather = false;",
+    // The journey hides the overlay at depth 0 (no rain over the photograph): pinned off so the effects are measurable.
+    "window.CONFIG.features.v3MemoryJourney = false;"];
   for (const [k, name] of Object.entries(FLAG_NAMES)) lines.push(`window.CONFIG.features.${name} = ${on.includes(k)};`);
   await page.route("**/js/config.js", async (route) => {
     const res = await route.fetch({ maxRetries: 3 });
