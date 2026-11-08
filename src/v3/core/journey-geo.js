@@ -231,8 +231,12 @@ export function frameGeometry(world, frame, pxW, pxH, litName = null) {
   const h = pxH / ky;
   const x0 = frame.cx - w / 2;
   const y0 = frame.cy - h / 2;
-  const x1 = x0 + w;
-  const y1 = y0 + h;
+  // Gather from a wider box than the frame: the reveal zooms and TRANSLATES
+  // towards the point, which can bring land from outside the first frame in.
+  const gx0 = x0 - w * 0.6;
+  const gy0 = y0 - h * 0.6;
+  const gx1 = x0 + w * 1.6;
+  const gy1 = y0 + h * 1.6;
   const paths = [];
   for (const c of world ?? []) {
     // Only what can be seen — a frame over Thailand builds ~15 paths, not 176.
@@ -240,8 +244,9 @@ export function frameGeometry(world, frame, pxW, pxH, litName = null) {
     for (const shift of [0, -3600, 3600]) {
       for (const r of c.rings) {
         const b = bbox(r);
-        if (b[2] + shift < x0 || b[0] + shift > x1 || b[3] < y0 || b[1] > y1) continue;
-        d += "M" + r[0] + shift + " " + r[1];
+        if (b[2] + shift < gx0 || b[0] + shift > gx1 || b[3] < gy0 || b[1] > gy1) continue;
+        // Parenthesised: "M" + 1900 + 0 is the string "M19000".
+        d += "M" + (r[0] + shift) + " " + r[1];
         for (let i = 2; i < r.length; i += 2) d += "L" + (r[i] + shift) + " " + r[i + 1];
         d += "Z";
       }

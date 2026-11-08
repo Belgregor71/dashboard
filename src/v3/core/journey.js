@@ -74,17 +74,20 @@ const EASE = "cubic-bezier(0.33, 0, 0.2, 1)";
 const SMOOTH = "cubic-bezier(0.45, 0, 0.2, 1)";
 
 /* The legibility target for the words over the photograph, and the most a
-   shade may darken. 4.5 is WCAG AA for the 32px names (the smallest line); the
-   year, the place and the 168px hour are all large text and clear it with room. */
-const CONTRAST_MIN = 4.5;
+   shade may darken. Every line on this surface is ≥32px — WCAG "large text",
+   whose AA floor is 3:1. 3.5 leaves margin, and the --ink-shadow halo adds more
+   at the glyph edge. Solving for 4.5 instead was tried and REJECTED on the
+   bright-sky capture: the shade it needs reads as a dark shape on the sky,
+   which is the "dark box" this surface exists not to have. */
+const CONTRAST_MIN = 3.5;
 const SHADE_MAX = 0.82;
 // What fraction of the shade's peak actually sits under the words.
 const SHADE_COVER = 0.8;
 const SHADE_RGB = [0.04, 0.035, 0.03];
 const INK_FALLBACK = [0.93, 0.92, 0.89];
 
-const MINI_W = 220;
-const MINI_H = 136;
+const MINI_W = 260;
+const MINI_H = 160;
 
 /* ── State ──────────────────────────────────────────────────────────────── */
 let built = false;
@@ -106,6 +109,7 @@ let sampleCanvas = null;
 
 let world = null;         // decoded once, lazily; null = not loaded / failed
 let worldState = "idle";  // idle | loading | ready | failed
+let worldLoad = Promise.resolve(); // settles (never rejects) when the load ends
 
 let seq = 0;
 let presented = false;
@@ -158,8 +162,6 @@ export function buildJourney(host) {
   pinEl.append(ringEl, dot);
   mapEl.append(zoomEl, pinEl);
 
-  const shadeMemory = document.createElement("div");
-  shadeMemory.className = "journey__shade journey__shade--memory";
   const shadeToday = document.createElement("div");
   shadeToday.className = "journey__shade journey__shade--today";
 
@@ -184,7 +186,7 @@ export function buildJourney(host) {
   todayEl = document.createElement("p");
   todayEl.className = "journey__today";
 
-  rootEl.append(frames[0].el, frames[1].el, washEl, mapEl, shadeMemory, shadeToday, memoryEl, todayEl);
+  rootEl.append(frames[0].el, frames[1].el, washEl, mapEl, shadeToday, memoryEl, todayEl);
   host.append(rootEl);
   sampleCanvas = document.createElement("canvas");
   sampleCanvas.width = 16;
@@ -207,7 +209,7 @@ export function buildJourney(host) {
 function loadWorld() {
   if (worldState !== "idle") return;
   worldState = "loading";
-  import("./journey-world.js").then(
+  worldLoad = import("./journey-world.js").then(
     (m) => { world = decodeWorld(m.COUNTRIES); worldState = "ready"; },
     () => { world = null; worldState = "failed"; }
   );
@@ -378,7 +380,11 @@ export function journeyPresent({ src, asset = null, settleMs = TIMING.cutMs } = 
   // The slot may still hold a photograph mid-cleanup; it is about to be reused.
   if (cleanupTimer) dropOutgoing();
   frame.img.src = src;
-  decoded(frame.img).then((ok) => {
+  /* The world is loaded at build and is normally long ready — but the page's
+     FIRST photograph races it, and without this wait the first memory after
+     every boot would arrive with no map and no mini map. worldLoad never
+     rejects; a failed load just means no map. */
+  Promise.all([decoded(frame.img), worldLoad]).then(([ok]) => {
     if (mine !== seq) return;           // superseded while decoding
     if (!ok) {
       last = { ...last, failures: last.failures + 1, reason: "decode failed — kept the photograph on the wall" };

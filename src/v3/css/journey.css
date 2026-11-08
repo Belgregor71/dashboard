@@ -108,7 +108,9 @@
   transform-origin: 0 0;
   will-change: transform;
 }
-:root[data-journey="1"] .journey__zoom > svg { display: block; }
+/* Visible overflow: the zoom translates the map, and an svg clips to its own
+   box by default — the sea would end mid-wall. */
+:root[data-journey="1"] .journey__zoom > svg { display: block; overflow: visible; }
 
 :root[data-journey="1"] .journey__pin {
   position: absolute;
@@ -147,23 +149,14 @@
   pointer-events: none;
   transition: opacity 1.4s var(--ease);
 }
-:root[data-journey="1"] .journey__shade--memory {
-  top: 0;
-  right: 0;
-  width: 1500px;
-  height: 640px;
-  opacity: var(--j-shade-memory, 0.45);
-  background: radial-gradient(ellipse 100% 100% at 100% 0%,
-    var(--j-shade) 0%, oklch(0.12 0.006 60 / 0.85) 40%, oklch(0.12 0.006 60 / 0.35) 66%, transparent 92%);
-}
+/* Hugs the date and the hour (bottom-anchored like them: centre 210px up)
+   and no more: a soft pool of shadow, not a panel. */
 :root[data-journey="1"] .journey__shade--today {
-  left: 0;
-  bottom: 0;
-  width: 1100px;
-  height: 600px;
+  inset: 0;
   opacity: var(--j-shade-today, 0.45);
-  background: radial-gradient(ellipse 100% 100% at 0% 100%,
-    var(--j-shade) 0%, oklch(0.12 0.006 60 / 0.85) 40%, oklch(0.12 0.006 60 / 0.35) 66%, transparent 92%);
+  background: radial-gradient(ellipse 680px 420px at 250px calc(100% - 210px),
+    var(--j-shade) 0%, oklch(0.12 0.006 60 / 0.9) 30%, oklch(0.12 0.006 60 / 0.55) 52%,
+    oklch(0.12 0.006 60 / 0.22) 74%, oklch(0.12 0.006 60 / 0.06) 90%, transparent 100%);
 }
 
 /* ── The memory: year, place, who, and the small map ────────────────────── */
@@ -186,17 +179,35 @@
   transition: opacity 1.4s var(--ease), transform 1.4s var(--ease);
 }
 :root[data-journey="1"] .journey__memory[data-blank="1"] { visibility: hidden; }
+/* The memory's shade is the memory's own: sized by its words, so a short
+   "2017" darkens a little of the sky and a long place a little more — and it
+   leaves with the words, so it is never over the map. */
+:root[data-journey="1"] .journey__memory::before {
+  content: "";
+  position: absolute;
+  inset: -230px -260px -250px -320px;
+  z-index: -1;
+  opacity: var(--j-shade-memory, 0.45);
+  background: radial-gradient(closest-side,
+    var(--j-shade) 0%, oklch(0.12 0.006 60 / 0.9) 30%, oklch(0.12 0.006 60 / 0.55) 52%,
+    oklch(0.12 0.006 60 / 0.22) 74%, oklch(0.12 0.006 60 / 0.06) 90%, transparent 100%);
+  transition: opacity 1.4s var(--ease);
+  pointer-events: none;
+}
 
+/* ⚠ NO overflow:hidden here: it clipped the italic year's overhang and cut
+   every text-shadow halo to a hard rectangle. The words are length-capped
+   upstream (placeLine, namesLine); a rare long place wraps DOWN, away from
+   everything, inside this width. */
 :root[data-journey="1"] .journey__words {
   min-width: 0;
+  max-width: 980px;
   text-align: right;
 }
 :root[data-journey="1"] .journey__words > p {
   margin: 0;
   text-shadow: var(--ink-shadow);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  text-wrap: balance;
 }
 :root[data-journey="1"] .journey__words > p[data-blank="1"] { display: none; }
 
@@ -208,6 +219,10 @@
   line-height: 1;
   letter-spacing: -0.02em;
   font-variant-numeric: lining-nums;
+  /* The italic leans past its box; the padding keeps it, the margin keeps the
+     right edge on the safe line. */
+  padding-right: 0.08em;
+  margin-right: -0.08em !important;
   color: var(--j-memory-ink);
 }
 :root[data-journey="1"] .journey__place {
@@ -233,8 +248,8 @@
 :root[data-journey="1"] .journey__mini {
   position: relative;
   flex: none;
-  width: 220px;
-  height: 136px;
+  width: 260px;
+  height: 160px;
   margin-top: 6px;
   -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 52%, transparent 100%);
   mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 52%, transparent 100%);

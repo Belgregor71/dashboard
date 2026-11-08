@@ -257,6 +257,9 @@ test("abroad: the map, a point, then the photograph and a mini map that stays", 
   expect(during.j.mode).toBe("map");
   expect(during.j.plan).toEqual({ precision: "point", country: "Thailand", pin: true });
   expect(during.paths).toBeGreaterThan(1);
+  // No path may carry a concatenated coordinate ("M" + 1900 + 0 = "M19000").
+  expect(await page.evaluate(() => Math.max(...[...document.querySelectorAll(".journey__zoom path")]
+    .flatMap((p) => [...p.getAttribute("d").matchAll(/[ML](-?[d.]+) /g)].map((m) => Number(m[1])))))).toBeLessThan(7200);
   expect(during.lit).toBe(1);
   // The clock is on the glass DURING the journey; the words wait.
   expect(during.hour).toBe(true);
@@ -421,6 +424,24 @@ test("reduced motion: the journey stays up as a plain crossfade, no map", async 
   expect(j.resting).toBe(false);
   expect(await page.evaluate(() => document.querySelector(".journey").checkVisibility())).toBe(true);
   expect(await page.evaluate(() => window.__archiveFocus())).not.toBeNull();
+});
+
+test("the FIRST photograph after boot already carries its mini map", async ({ page }) => {
+  await boot(page, { pool: [at("dark-1", SAMUI), at("dark-2", SAMUI)] });
+  await firstUp(page);
+  const j = await journey(page);
+  expect(j.seq).toBe(1);
+  expect(j.plan).toEqual({ precision: "point", country: "Thailand", pin: true });
+  expect(j.mini).toBe(true);
+});
+
+test("the words are never clipped: no overflow box around them", async ({ page }) => {
+  await boot(page, { pool: [at("dark-1", SAMUI), at("dark-2", SAMUI)] });
+  await firstUp(page);
+  const clips = await page.evaluate(() =>
+    [...document.querySelectorAll(".journey__memory, .journey__words, .journey__words > p")]
+      .map((el) => getComputedStyle(el).overflow).filter((o) => o !== "visible"));
+  expect(clips).toEqual([]);
 });
 
 test("night: no map journey, but the mini map, the words and the date stay", async ({ page }) => {
