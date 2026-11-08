@@ -80,6 +80,9 @@ test.describe("the wall line", () => {
     expect(c?.source).toBe("outlook");
     expect(c.text).toBe(text);
     expect(c.interrupt).toBeFalsy();
+    // Medium band (50-69): Low never reaches the glass (attention.js), High would light an empty room.
+    expect(c.score).toBeGreaterThanOrEqual(50);
+    expect(c.score).toBeLessThan(70);
     const evening = new Date(NOW); evening.setHours(18, 0, 0, 0);
     expect(outlookCandidate({ outlookText: text, now: evening.getTime() })).toBeNull();
     expect(outlookCandidate({ outlookText: null, now: NOW.getTime() })).toBeNull();

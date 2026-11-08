@@ -124,10 +124,14 @@ export function weatherSevereCandidate({ weatherCondition, weatherTemp, evidence
 }
 
 /* BOM's day-0 outlook — a storm / heavy-rain day or a loud fire danger rating
-   (features.v3BomOutlook; the text is built in weather/bomOutlook.js). Just
-   under the next-event line, so the calendar keeps the hero on an ordinary
-   day, and gone at 6 pm: by then "today" is mostly over. */
+   (features.v3BomOutlook; the text is built in weather/bomOutlook.js).
+   ⚠ MEDIUM BAND, ON PURPOSE: Low (40-49) never earns the glass at any
+   presence (attention.js MEDIUM_MIN_SCORE), and 48 shipped that way once and
+   was queued and never seen. Medium shows only with someone in the room, and
+   just above the next-event line (50): a storm or fire day is "a real change
+   in the day". Never interrupts. Gone at 6 pm: by then "today" is mostly over. */
 export const OUTLOOK_UNTIL_HOUR = 18;
+export const OUTLOOK_SCORE = 52;
 export function outlookCandidate({ outlookText, now, evidence } = {}) {
   if (!outlookText || new Date(now).getHours() >= OUTLOOK_UNTIL_HOUR) return null;
   return {
@@ -136,7 +140,7 @@ export function outlookCandidate({ outlookText, now, evidence } = {}) {
     source: "outlook",
     icon: "🌦",
     text: outlookText,
-    score: 48,
+    score: OUTLOOK_SCORE,
     cooldownMs: 0
   };
 }
