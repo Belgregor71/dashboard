@@ -384,13 +384,13 @@ const PINNED_FLAGS = {
    field off. Any mat number must be read against its archive twin. */
 const VARIANTS = {
   off: { flags: {}, grounds: () => Object.keys(GROUNDS), title: (g, p) => `${g} ground, ${p}` },
-  archive: { flags: { v3Archive: true, v3FieldMat: false }, grounds: () => ["sky"], title: (g, p) => `the archive on a FLAT mat (control), ${p}` },
-  mat: { flags: { v3Archive: true, v3FieldMat: true, v3FieldRender: false }, grounds: () => ["sky"], title: (g, p) => `the LIVING MAT, ${p}` },
+  archive: { flags: { v3Archive: true, v3FieldMat: false, v3MemoryJourney: false }, grounds: () => ["sky"], title: (g, p) => `the archive on a FLAT mat (control), ${p}` },
+  mat: { flags: { v3Archive: true, v3FieldMat: true, v3FieldRender: false, v3MemoryJourney: false }, grounds: () => ["sky"], title: (g, p) => `the LIVING MAT, ${p}` },
   /* The render lift (v3FieldRender) redraws the field the words sit on: a
      horizon, cloud decks, a rounder sun. Its light envelope was held to v2's
      on purpose, and this is the variant that checks it — read against `mat`,
      its twin, for the same reason `mat` is read against `archive`. */
-  render: { flags: { v3Archive: true, v3FieldMat: true, v3FieldRender: true, v3FieldWeather: false }, grounds: () => ["sky"], title: (g, p) => `the LIFTED living mat, ${p}` },
+  render: { flags: { v3Archive: true, v3FieldMat: true, v3FieldRender: true, v3FieldWeather: false, v3MemoryJourney: false }, grounds: () => ["sky"], title: (g, p) => `the LIFTED living mat, ${p}` },
   /* The weather in the field (v3FieldWeather) — the wall as flipped. Its one
      visible change at depth 0 under forced weather is that the overlay's PANE
      rain stands down (the field owns rain there), so this asserts the pane is
@@ -399,7 +399,7 @@ const VARIANTS = {
      Rain under the words is bounded by pixels instead, in
      tests/v3-field-weather.spec.js ("rain never brightens the ground under the
      hour"). Read against `render`, its twin. */
-  weather: { flags: { v3Archive: true, v3FieldMat: true, v3FieldRender: true, v3FieldWeather: true }, grounds: () => ["sky"], title: (g, p) => `the LIFTED mat with the WEATHER in the field, ${p}` },
+  weather: { flags: { v3Archive: true, v3FieldMat: true, v3FieldRender: true, v3FieldWeather: true, v3MemoryJourney: false }, grounds: () => ["sky"], title: (g, p) => `the LIFTED mat with the WEATHER in the field, ${p}` },
   /* Stage 3's causes (v3FieldCauses), FORCED, not merely pinned — a pinned
      flag with no reading behind it draws nothing and measures the twin again.
      Humidity 95 (the haze at its heaviest) and NO wind, so the field stays
@@ -408,11 +408,15 @@ const VARIANTS = {
      low on the LEFT, directly behind the hour's digits. Its worst case, for
      free. By day it is below the horizon. Read against `weather`, its twin. */
   causes: {
-    flags: { v3Archive: true, v3FieldMat: true, v3FieldRender: true, v3FieldWeather: true, v3FieldCauses: true },
+    flags: { v3Archive: true, v3FieldMat: true, v3FieldRender: true, v3FieldWeather: true, v3FieldCauses: true, v3MemoryJourney: false },
     routes: { "/api/weather/now": () => ({ now: { wind_kph: 0, wind_bearing: null, wind_gust_kph: null, cloud_pct: 20, humidity_pct: 95, uv: null, rain_chance_pct: null, temp_c: 14, feels_like_c: null, condition: { code: 1, label: "Mostly clear", icon: "clear", intensity: null, thunder: false } }, day: {} }) },
     grounds: () => ["sky"],
     title: (g, p) => `the field's CAUSES forced (humid 95, the moon), ${p}`
-  }
+  },
+  /* The Memory Journey (v3MemoryJourney) — depth 0 as flipped 2026-11-08. The
+     variants above pin the PLANE card because they measure the field as its mat;
+     the journey pauses the field under its own photograph. */
+  journey: { flags: { v3Archive: true, v3MemoryJourney: true }, grounds: () => ["sky"], title: (g, p) => `the MEMORY JOURNEY, ${p}` }
 };
 
 async function bootV3(page, { ground, phase, variant = "off" }) {
@@ -530,6 +534,14 @@ async function bootV3(page, { ground, phase, variant = "off" }) {
      STOOD DOWN, and asserting that is the pin check (a pane still painting
      means v3FieldWeather did not take). Everywhere else it must paint. */
   const fieldOwnsRain = variant === "weather" || variant === "causes";
+  /* The journey takes the whole overlay off depth 0 (no rain over the
+     photograph): assert THAT, since a pane painting there is its defect. */
+  if (variant === "journey") {
+    expect(await page.evaluate(() => {
+      const o = document.querySelector(".atmo-overlay");
+      return o && document.documentElement.dataset.depth === "0" ? getComputedStyle(o).display : "not measured";
+    }), "the overlay paints over the journey's photograph").toBe("none");
+  } else {
   if (fieldOwnsRain) {
     await expect.poll(async () => (await layerState())?.warmOpacity ?? 0, { timeout: 5000 }).toBeGreaterThan(0);
   } else {
@@ -551,6 +563,7 @@ async function bootV3(page, { ground, phase, variant = "off" }) {
   // The accent is cool by day and keeps its warm 40 at night — assert which, so
   // a hue that silently stayed at 65 cannot pass as measured.
   expect(weatherLayer.hue, "the accent hue was not moved by the force").toBe(weatherLayer.night ? "40" : "240");
+  }
 
   /* ⚠ THE MAT VARIANT MUST PROVE ITSELF, for exactly the reason every other pin
      in this function does. A v3FieldMat that silently did not take leaves the
