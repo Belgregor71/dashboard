@@ -129,6 +129,39 @@ session handover.
 - **Amber Case, "The ambient revolution"** (IDEO Edges, 2025-10-21) — success measured as
   *less mental effort, not more interaction*; degrade by hiding a lane, not by showing an error.
 
+## Scan 2026-11-08 — round 3
+
+A web sweep of the watched sources for what is new since round 2 (2026-10-16), filtered
+against every ADOPTED, IN PROGRESS and DECLINED row above and against round 2's closing
+note (#5, #7 and #10 not needed, #2 deferred until the hardware is bought). It was a quiet
+month. Nothing here meets a declined item's reopen condition. Both candidates are checks
+before an upgrade, not new features. **All CANDIDATE: nothing is chosen, and each is
+measured before anything is built.**
+
+### CANDIDATE (round 3, ranked)
+
+| # | Item | Link | Why it could matter here | Measure first |
+|---|---|---|---|---|
+| 1 | **Check the names the wall says before HA moves to 2026.11** | HA 2026.11 release notes (2026-11-04) https://www.home-assistant.io/blog/2026/11/04/release-202611/ · "Naming things in Home Assistant" (2026-11-03) https://www.home-assistant.io/blog/2026/11/03/naming-things-in-home-assistant/ | 2026.11 builds each entity's name from its device and area, and lists this as a breaking change. `friendly_name` changes with it and is "planned for deprecation" (no date given). Entity IDs do not change. This wall reads `friendly_name` and shows or says it: arrival names, the briefing (people, media player, to-do lists), voice snapshot (problem names), alert names and the BOM location. A name with the device in front would change what the house says aloud. The post does not say whether `person.*` names change. They have no device, so probably not (**UNVERIFIED**) | Read the HA version first. Before upgrading, save `friendly_name` for every entity the wall reads from `/api/ha/states`. Read it again after the upgrade and diff. If nothing the wall says has changed, there is nothing to build. Keep watching for the date `friendly_name` is removed |
+| 2 | **Immich 3.3 birthday memories, held against `IMMICH_OCCASIONS`** | Immich v3.3.0 (2026-10-07) https://immich.app/blog/v3.3.0-release · October recap (2026-10-30) https://immich.app/blog/2026-october-recap | Immich now builds its own "special memory featuring previous birthdays" when a person has a birthday. Round 2's #9 built that lean by hand. If Immich's memory gives the same pool, #9 could read it and shrink. The recap also says Immich was hit by the Brotli flaw (see the notes below) and fixed it in a 3.3 patch. v3.3.0 came out before round 2 but was not listed there | The NAS ran **3.1.0** on 2026-10-24. Upgrade to the newest 3.3 patch. Re-run #9's dry run, then check that `personIds` search and the API key's scope still work. On the next real birthday (17 Nov), compare Immich's birthday memory with the `IMMICH_OCCASIONS` pool. The memory's API shape is not in the release notes (**UNVERIFIED**). Keep #9 as it is unless the memory is clearly as good |
+
+### Watch, not do (round 3)
+
+- **Everything Presence Lite / One / Pro joined Works with Home Assistant** (2026-10-27, https://www.home-assistant.io/blog/2026/10/27/everything-smart-home-joins-works-with-home-assistant/). They are ESPHome mmWave sensors and need no cloud. The Lite tracks up to 3 people in 4 zones. The post does not name the radar chip and says nothing about distance reporting. This is a ready-made option for the deferred #2. Buying hardware is still the owner's call, so #2 stays deferred.
+- **livekit-wakeword v2.0.0** (2026-11-03) trains a streaming ONNX model from a typed phrase, and v1 models no longer load. **v2.1.1** (2026-11-06) adds a JS/TS client (https://github.com/livekit/livekit-wakeword/releases). Round 2 #6 is closed and the owner kept "Hey Mycroft", so nothing to do. If a new phrase is ever wanted, this is the cheapest way to train one.
+- **Moonshine v0.1.6** (2026-11-06, https://github.com/moonshine-ai/moonshine/releases). The repo README now lists text to speech and intent recognition next to STT. Model size, speed and licence for the TTS are not given (**UNVERIFIED**). The house TTS (Kokoro plus the cast) works, so this is a watch only. "Everywhere or nowhere" still applies.
+- **HA 2026.11 MCP server** can now be limited to read-only tools, and an LLM API is only available once an admin attaches it (same release notes link as #1). This is a safer shape for the ledger's "use HA's own `/api/mcp`" note. It is still not enabled on this instance, so nothing changes.
+- **Skylight** (https://releasebot.io/updates/skylight): it now sends a notification when someone adds a calendar event (2026-10-28), plus scheduled household messages (2026-10-21). Now that #8 writes to the calendar, a quiet "new on the calendar" line could fit here one day. Nobody has asked for it.
+- **Frigate 0.18.1 / 0.18.2** (2026-10-13 / 2026-10-15, https://github.com/blakeblackshear/frigate/releases). Bug fixes, then a security-only release. Still waiting on Eufy RTSP uptime and the two dead cameras.
+- **llama.cpp b12192** (2026-11-07, https://github.com/ggml-org/llama.cpp/releases). No Vulkan speed-up for RDNA4 or Vega in the recent builds. #4's reopen condition is not met.
+
+### Notes that are not items (round 3)
+
+- **Node.js security releases, 2026-10-21** (https://nodejs.org/en/blog/vulnerability/october-2026-security-releases). There are 10 CVEs. The worst are a Brotli decoder out-of-bounds write that can lead to remote code execution (CVE-2026-111497) and two TLS hostname bypasses. They are fixed in **22.23.4, 24.22.1 and 26.12.1**. The listed trigger is decompressing attacker-supplied Brotli with `node:zlib`. Undici is also updated. Whether `fetch` decoding a `br` upstream response reaches the flaw is **UNVERIFIED**. This is not a field-scan item. **Measured 2026-11-08: the G11 runs Node `v20.19.2`.** Node 20 is not in the fixed list because it is past end of life, so no patched 20.x exists. Moving the box to 22.23.4+ or 24.22.1+ is owed whether or not `fetch` reaches the flaw. Python's `brotli` 1.2.1 is said to be patched too, which matters for the voice venvs (search snippet only, **UNVERIFIED**).
+- The HA 2026.11 calendar trigger offset sign change only affects HA-side YAML automations. This repo reads ICS directly.
+
+**Nothing new** (checked 2026-11-08): openWakeWord (latest v0.6.0, Feb) · faster-whisper (latest v1.2.1) · kokoro (no releases) · pipecat smart-turn (no releases) · wespeaker (latest 1.2.0, Jul) · MagicMirror (v2.38.0, 2026-10-01, before the window) · ImmichFrame v1.0.39 (2026-10-07, needs Immich 3.2+, not used here) · pocket-tts v4.0.0/4.0.1 (2026-10-20/21, new English models; #5 is not needed, so it does not reopen) · ha-llmvision v1.7.3-beta.1 (2026-11-06, only an Anthropic base-URL option) · Timeframe (one post on window shades, 2026-10-30) · Hearth (no dated changes) · Alexa+ (shopping-list update 2026-10-29, from a search snippet only, **UNVERIFIED**) · Gemini for Home (no dated changes) · TRMNL plugins (the page shows no dates) · Hacker News (one story, "$48 e-paper display", 2026-11-02, but the Ars Technica page failed to load, **UNVERIFIED**).
+
 ## Scan 2026-10-16 — round 2
 
 A web sweep, filtered against every DECLINED row above. Nothing here reopens a declined item
