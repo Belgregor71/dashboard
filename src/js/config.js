@@ -1990,6 +1990,12 @@ window.CONFIG = {
     // Rollback: -> false, with a cache-bypass reload for the build.
     v3ParcelVoice: true,
 
+    // BOM's own forecast for today (src/js/services/weather/bomOutlook.js):
+    // a wall line on a storm / 10 mm+ day or a fire danger of High or above,
+    // and "what's the weather going to be like today" answered in BOM's words.
+    // Off: no line, and that question is answered as weather.now, as before.
+    v3BomOutlook: false,
+
     // The cast: Kath and Kim speak from preloaded clips (src/v3/core/cast.js,
     // server/routes/cast.js). Needs HOUSE_CAST_ENABLED=1 and data/cast/ on the
     // server as well: any of the three missing and the house speaks as before.

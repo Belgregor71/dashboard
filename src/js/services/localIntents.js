@@ -92,7 +92,11 @@ const INTENTS = [
   { id: "weather.sunscreen", re: /\b(sunscreen|sun\s*block|uv|burn)\b/ },
   { id: "weather.wind", re: /\b(wind(y|s)?|breeze|gust)\b/ },
   { id: "weather.tomorrow", re: /\b(weather|forecast|hot|cold|rain|temp).*(tomorrow)|tomorrow.*(weather|forecast|like)\b/ },
-  { id: "weather.today", re: /\b((high|top|max|low|min).*(today)|how (hot|cold|warm).*(today|get)|how (hot|cold|warm) will it|today.s (high|top|max))\b/ },
+  /* Future tense about the day — "what's the weather going to be like (today)",
+     "today's forecast", "how's today looking". Below weather.tomorrow, so a
+     named tomorrow still goes there; a named later day rides the day slot. */
+  { id: "weather.outlook", flag: "v3BomOutlook", re: /\b((going to|gonna) be like|(weather|forecast)\b.*\btoday|today.s (weather|forecast)|how.s (today|the day) looking)\b/ },
+  { id: "weather.today", re:/\b((high|top|max|low|min).*(today)|how (hot|cold|warm).*(today|get)|how (hot|cold|warm) will it|today.s (high|top|max))\b/ },
   { id: "weather.now", re: /\b(weather|temperature|how.s (it )?outside|outside like|how (hot|cold|warm) is it|what.s it like)\b/ },
 
   // ── The chore roster ────────────────────────────────────────────────────
@@ -476,6 +480,7 @@ const DAY_INTENTS = {
 
   "weather.now": () => true,
   "weather.today": () => true,
+  "weather.outlook": () => true,
   "weather.tomorrow": (d) => d.offset === 1,
   "weather.umbrella": () => true,
   "weather.jacket": () => true,

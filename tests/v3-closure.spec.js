@@ -157,6 +157,8 @@ const SHARED_BOTH = [
   "js/services/vocabulary.js",
   "js/services/voiceSnapshot.js",
   "js/services/weather/bom.js",
+  // ENTERED 2026-11-08 through houseSnapshot / voiceSnapshot / localAnswers (v3BomOutlook). Import-free.
+  "js/services/weather/bomOutlook.js",
   "js/vendor/suncalc.js",
   /* ⚠ ENTERED V3'S CLOSURE 2026-08-17, and like goodnight.js above it entered
      by a CARVE-OUT rather than a new import: `getBaseCategory` lived in

@@ -123,6 +123,24 @@ export function weatherSevereCandidate({ weatherCondition, weatherTemp, evidence
   };
 }
 
+/* BOM's day-0 outlook — a storm / heavy-rain day or a loud fire danger rating
+   (features.v3BomOutlook; the text is built in weather/bomOutlook.js). Just
+   under the next-event line, so the calendar keeps the hero on an ordinary
+   day, and gone at 6 pm: by then "today" is mostly over. */
+export const OUTLOOK_UNTIL_HOUR = 18;
+export function outlookCandidate({ outlookText, now, evidence } = {}) {
+  if (!outlookText || new Date(now).getHours() >= OUTLOOK_UNTIL_HOUR) return null;
+  return {
+    id: `outlook:${outlookText}`,
+    evidence: laneEvidence(evidence, "outlook"),
+    source: "outlook",
+    icon: "🌦",
+    text: outlookText,
+    score: 48,
+    cooldownMs: 0
+  };
+}
+
 /** Next calendar event readout — medium band. */
 export function nextEventCandidate({ nextEventActive, nextEventText, nextEventTitle, nextEventSub, evidence } = {}) {
   if (!nextEventActive || !nextEventText) return null;
@@ -619,6 +637,7 @@ export function robotCandidate({ robotProblems, robotConsumables, evidence } = {
 export const SOURCES = [
   bomCandidate,
   weatherSevereCandidate,
+  outlookCandidate,
   nextEventCandidate,
   commuteCandidate,
   departureCandidate,
@@ -653,6 +672,7 @@ export const SOURCES = [
 export const SOURCE_NAMES = [
   "bom",
   "weather",
+  "outlook",
   "nextEvent",
   "commute",
   "departure",

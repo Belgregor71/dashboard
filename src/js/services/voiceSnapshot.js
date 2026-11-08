@@ -34,6 +34,7 @@ import { getTimes } from "../vendor/suncalc.js";
 import { on } from "../core/eventBus.js";
 import { storeFresh } from "./houseStream.js";
 import { refreshHolidays, withHolidays } from "./publicHolidays.js";
+import { bomOutlook } from "./weather/bomOutlook.js";
 
 /* Refreshed on a timer; never fetched at answer time. */
 const cache = {
@@ -323,6 +324,8 @@ export function voiceSnapshot({ lat, lon } = {}) {
     weather: cache.weather,
     forecast: cache.forecast,
     nowcast: cache.nowcast,
+    // BOM's day-0 forecast; read only by weather.outlook, whose row is flag-gated.
+    outlook: bomOutlook(byId),
     // Public holidays join here and nowhere upstream (features.v3PublicHolidays).
     calendar: withHolidays(cache.calendar),
     /* Tonight's dish, from the same parse houseSnapshot uses. Derived rather

@@ -51,6 +51,7 @@ export const TOPIC_SOURCES = Object.freeze({
   "weather.wind": ["bom", "weather"],
   "weather.tomorrow": ["bom", "weather"],
   "weather.today": ["bom", "weather"],
+  "weather.outlook": ["outlook", "bom", "weather"],
   "weather.now": ["bom", "weather"],
   "show.sky": ["bom", "weather"],
   "show.forecast": ["bom", "weather"],

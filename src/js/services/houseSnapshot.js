@@ -47,6 +47,7 @@ import { plainTitle } from "./eventTitle.js";
 import { resolveMediaImage } from "./mediaImage.js";
 import { isTvAudio } from "./mediaSource.js";
 import { getBomWarnings } from "./weather/bom.js";
+import { bomOutlook, outlookLine } from "./weather/bomOutlook.js";
 import { robotAttentionFrom, cameraSnapshotUrl } from "./candidateSources.js";
 import { CONFIG } from "../core/config.js";
 import { on } from "../core/eventBus.js";
@@ -647,6 +648,7 @@ export function houseSnapshot({
      saying so with nothing in config.js changed. Flag off reads nothing, so the
      queue carries no robot candidate, exactly as on the incumbent. */
   const robot = haLive && flag("robotCandidate") ? robotAttentionFrom(byId) : null;
+  const outlook = haLive && flag("v3BomOutlook") ? bomOutlook(byId, now) : null;
   const weather = weatherFrom(cache.weather);
   const nextEvent = nextEventFrom(cache.calendar, now);
   const nowPlaying = haLive ? nowPlayingFrom(byId) : null;
@@ -665,6 +667,7 @@ export function houseSnapshot({
        Null whenever the entity gave no structured warning — the ladder reads
        that as "severity unknown" and leaves the old interrupt score alone. */
     bomWarningDetail: bom?.top ?? null,
+    outlookText: outlook ? outlookLine(outlook) : null,
     robotProblems: robot?.problems ?? null,
     robotConsumables: robot?.consumables ?? null,
     insight,
@@ -713,6 +716,7 @@ export function houseSnapshot({
     evidence: {
       bom: bom?.summary ? haEvidence(byId[bom.warningsEntityId], now) : null,
       robot: robot ? haEvidence(robotEntity(byId), now) : null,
+      outlook: outlook ? haEvidence(byId[outlook.entityId], now) : null,
       weather: evidenceOf("weather", cache.readAt.weather),
       calendar: evidenceOf("calendar", cache.readAt.calendar),
       commute: evidenceOf("commute", cache.readAt.commute),

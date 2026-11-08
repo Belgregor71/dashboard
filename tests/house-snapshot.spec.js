@@ -26,7 +26,7 @@ import { rankQueue } from "../src/js/services/attentionRank.js";
 /* Exactly the keys focusHero.readState() returns, transcribed from the module.
    A missing key here is a candidate the engine will never see again. */
 const READ_STATE_KEYS = [
-  "bomWarning", "bomWarningDetail", "robotProblems", "robotConsumables", "insight",
+  "bomWarning", "bomWarningDetail", "outlookText", "robotProblems", "robotConsumables", "insight",
   "weatherCondition", "weatherTemp",
   "commuteActive", "commuteText",
   "nextEventActive", "nextEventText", "nextEventTitle", "nextEventSub",

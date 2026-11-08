@@ -60,7 +60,7 @@ const EXEMPT = [
 /* How many candidate literals each producer file holds. A new one is red here
    until it is declared — with its evidence — and counted. */
 const PRODUCERS = {
-  "src/js/services/candidateSources.js": 11,
+  "src/js/services/candidateSources.js": 12,
   "src/js/services/insightRules.js": 4,
   "src/js/services/predictiveRules.js": 4,
   "src/js/services/memoryEngine.js": 1,

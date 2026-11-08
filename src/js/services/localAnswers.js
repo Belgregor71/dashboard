@@ -27,6 +27,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { MEAL_PREFIX } from "./mealEvent.js";
+import { outlookSpeech } from "./weather/bomOutlook.js";
 
 const TZ = "Australia/Brisbane";
 
@@ -130,6 +131,16 @@ const ANSWERERS = {
     const d = s.weather?.day;
     if (!d || d.high_c == null) return null;
     return { speech: `Today's top is ${round(d.high_c)}, low of ${round(d.low_c)}.`, refs: ["weather"] };
+  },
+
+  /* BOM's forecast in its own words (features.v3BomOutlook gates the intent).
+     No BOM today — integration down, or a stale day 0 just after midnight —
+     falls back to the high/low, then to now: the question still has an answer. */
+  "weather.outlook": (s, slots) => {
+    if (future(slots)) return forecastSpeech(s, slots.day);
+    const speech = outlookSpeech(s.outlook);
+    if (speech) return { speech, refs: ["weather"] };
+    return ANSWERERS["weather.today"](s, slots) ?? ANSWERERS["weather.now"](s, slots);
   },
 
   "weather.tomorrow": (s, slots) => forecastSpeech(s, slots?.day ?? DAY_TOMORROW),
