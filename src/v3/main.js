@@ -130,7 +130,9 @@ function applySubstratePause() {
    05:00 wake must not start a field for it. Flag off, `covered` is computed
    exactly as it was and the behaviour is identical. */
 const archiveCovers = () =>
-  document.documentElement.dataset.archive === "1" && !flag("v3FieldMat");
+  document.documentElement.dataset.archive === "1" &&
+  // The Memory Journey is opaque whatever the mat says, so the field pauses.
+  (!flag("v3FieldMat") || document.documentElement.dataset.journey === "1");
 
 /* How hard the field darkens itself under the words. The geometry is in gl.js.
 

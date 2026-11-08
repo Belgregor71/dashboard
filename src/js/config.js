@@ -1344,6 +1344,18 @@ window.CONFIG = {
     // natural one is still owed. Revert: `v3ArchiveMap: false`.
     v3ArchiveMap: true,
 
+    // ── The Memory Journey ──────────────────────────────────────────────────
+    // Depth 0 redesigned (core/journey.js, css/journey.css): one photograph at a
+    // time, as large as it can be; the memory's year, place and who top-right;
+    // today's date above the hour bottom-left. A memory from ABROAD arrives
+    // through a small map — a point, a move towards it, the photograph surfacing
+    // — drawn from LOCAL Natural Earth geometry (core/journey-world.js), so it
+    // works offline and sends no photo coordinates anywhere. Home or unknown
+    // arrives through the photograph's own colour. SUPERSEDES v3ArchivePlane /
+    // Portrait / Motion / Map while on: none of their nodes are built.
+    // Off: initArchive builds the plane surface exactly as before.
+    v3MemoryJourney: false,
+
     // ── The depth census ────────────────────────────────────────────────────
     // Asked on 2026-08-23 and unanswerable: how many times has each depth been
     // reached in the last fortnight? Nothing knew. core/depth.js keeps one

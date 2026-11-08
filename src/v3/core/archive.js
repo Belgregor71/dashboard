@@ -70,6 +70,7 @@ import {
   frameParts,
   poolYears
 } from "./ground.js";
+import { buildJourney, journeyPresent, journeyDay, journeyStop } from "./journey.js";
 
 /* ⚠ Read the flag PER CALL, never at module load. ES imports hoist above the
    point where /js/config.js assigns window.CONFIG, so a module-level read is
@@ -123,6 +124,15 @@ const motionEnabled = () =>
    exists in that composition. */
 const mapEnabled = () =>
   Boolean(globalThis.window?.CONFIG?.features?.v3ArchiveMap);
+
+/* THE MEMORY JOURNEY (features.v3MemoryJourney) — a THIRD composition, and it
+   SUPERSEDES the other two rather than modifying them: with it latched, none of
+   the card, ghost, year, plate, sky, map tile or burst is built, and
+   core/journey.js paints depth 0 instead. The seam into it is the same one the
+   card uses — `present()` — so the pool, the rotation, the veto and the
+   unfolding of a diptych pair all stay here and in ground.js. */
+const journeyEnabled = () =>
+  Boolean(globalThis.window?.CONFIG?.features?.v3MemoryJourney);
 
 /* ── The stage ──────────────────────────────────────────────────────────── */
 const FRAME_W = 1920;
@@ -362,6 +372,7 @@ let eligibleSinceBurst = 0;
    The incumbent gets this from its own `first` early-return; here the archive
    has no entry event of its own, so it is counted. */
 let presented = false;
+let journeyMode = false;    // latched at build — see journeyEnabled()
 let mapMode = false;        // latched at build — see mapEnabled()
 let mapEl = null;           // the <img> pin tile, built only in mapMode
 let dayEl = null;           // "Thursday 4 September"
@@ -994,6 +1005,7 @@ function paintSky() {
  * unconditionally and the flag-off path costs one function call a minute.
  */
 export function archiveDay(now = new Date()) {
+  if (journeyMode) journeyDay(dayLine(now));
   if (!dayEl) return;
   dayEl.textContent = dayLine(now);
 }
@@ -1147,6 +1159,7 @@ function armBurst(assets, settleMs) {
  * the rest of its hold. Wired to onDepth in main.js.
  */
 export function stopArchiveMotion() {
+  journeyStop();
   clearMotionTimers();
   stopClip();
 }
@@ -1169,6 +1182,12 @@ function present(index) {
   heldIndex = index;
   const seq = ++presentSeq;
   const settleMs = held.settleMs;
+
+  if (journeyMode) {
+    journeyPresent({ src, asset: assetsAt(index)?.[0] ?? null, settleMs });
+    armHalf(held, index);
+    return;
+  }
   root?.style.setProperty("--arch-exchange", `${settleMs}ms`);
 
   const next = slot ^ 1;
@@ -1292,15 +1311,7 @@ function present(index) {
      enough for a veto, a day boundary or a retry to have replaced the whole
      frame, and putting half two of a memory the room already dismissed onto the
      card would read as the wall arguing back. */
-  clearTimeout(halfTimer);
-  halfTimer = null;
-  if (index + 1 < held.srcs.length) {
-    halfTimer = setTimeout(() => {
-      halfTimer = null;
-      if (heldFrame !== held) return;
-      present(index + 1);
-    }, halfHold);
-  }
+  armHalf(held, index);
 
   /* ── The burst, last ──────────────────────────────────────────────────────
      ⚠ THE PREVIOUS BURST IS TORN DOWN BEFORE THE NEXT IS ARMED, unconditionally
@@ -1321,6 +1332,20 @@ function present(index) {
   // Not on the page's first photograph — see `presented`.
   if (presented) armBurst(assetsAt(index), settleMs);
   presented = true;
+}
+
+/* ONE pending half, cleared before re-arm, never chained past the last
+   photograph. Shared by the card and the journey. */
+function armHalf(held, index) {
+  clearTimeout(halfTimer);
+  halfTimer = null;
+  if (index + 1 < held.srcs.length) {
+    halfTimer = setTimeout(() => {
+      halfTimer = null;
+      if (heldFrame !== held) return;
+      present(index + 1);
+    }, halfHold);
+  }
 }
 
 /**
@@ -1402,7 +1427,8 @@ export function archivePhoto(frame, meta = {}) {
 export function archiveFocusId() {
   if (!built || !enabled()) return null;
   if (document.documentElement.dataset.depth !== "0") return null;
-  if (globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return null;
+  // The journey stays up under reduced motion (plain crossfade); the card does not.
+  if (!journeyMode && globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return null;
   return heldFrame?.assets?.[heldIndex]?.id ?? null;
 }
 
@@ -1418,11 +1444,18 @@ export function initArchive(host) {
   /* ⚠ LATCHED BEFORE build(), AND ONLY BEFORE build(). Every branch below the
      build reads it, and a page that changed composition after the fact would be
      holding nodes the stylesheet is no longer positioning. */
-  if (!built) planeMode = planeEnabled();
+  if (!built) journeyMode = journeyEnabled();
+  if (!built) planeMode = !journeyMode && planeEnabled();
   if (!built) portraitMode = planeMode && portraitEnabled();
-  if (!built) motionMode = motionEnabled();
+  if (!built) motionMode = !journeyMode && motionEnabled();
   if (!built) mapMode = planeMode && mapEnabled();
+  if (!built && journeyMode) {
+    buildJourney(host);
+    root = document.documentElement;
+    built = true;
+  }
   if (!built) build(host);
+  if (journeyMode) document.documentElement.dataset.journey = "1";
 
   // The marker the stylesheet hangs everything off. On the root rather than the
   // host so a rule can combine it with data-depth / data-night / data-phase,
@@ -1467,6 +1500,7 @@ export function initArchive(host) {
        tests/v3-archive.spec.js branches on this rather than on the config,
        because the latch — not the flag — is what the nodes were built from. */
     plane: planeMode,
+    journey: journeyMode,
     gain,
     lit: litYear || null,
     years: lastYears.slice(),

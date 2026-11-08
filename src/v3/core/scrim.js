@@ -345,7 +345,7 @@ const SENTINEL = [1, 0, 1];
  * hand-rolled OKLCH->sRGB conversion would be a second opinion that can drift
  * from it silently.
  */
-function resolveColor(css) {
+export function resolveColor(css) {
   if (!css) return null;
   if (!probeCanvas) probeCanvas = document.createElement("canvas");
   probeCanvas.width = 1;
