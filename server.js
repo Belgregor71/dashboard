@@ -27,7 +27,9 @@ import commuteRoutes from "./server/routes/commute.js";
 import plexRoutes from "./server/routes/plex.js";
 import newsRoutes from "./server/routes/news.js";
 import cameraRoutes, { cameraSnapshotBuffer } from "./server/routes/camera.js";
-import { startCameraCaptions } from "./server/services/cameraCaptions.js";
+import { startCameraCaptions, askLocalVision } from "./server/services/cameraCaptions.js";
+import { startPhotoScreen, screenOneWith } from "./server/services/photoScreen.js";
+import { onThisDayResult, fetchRendition } from "./server/services/immichClient.js";
 import { CAMERA_CONFIG } from "./server/config/cameras.js";
 import adminRoutes from "./server/routes/admin.js";
 import binsRoutes from "./server/routes/bins.js";
@@ -46,7 +48,7 @@ import censusRoutes from "./server/routes/census.js";
 import censusFeatureRoutes from "./server/routes/censusFeatures.js";
 import cspReportRoutes from "./server/routes/cspReport.js";
 import memoriesRoutes from "./server/routes/memories.js";
-import immichRoutes from "./server/routes/immich.js";
+import immichRoutes, { forgetCachedSearches } from "./server/routes/immich.js";
 import delightRoutes from "./server/routes/delight.js";
 import recipeRoutes from "./server/routes/recipe.js";
 import listsRoutes from "./server/routes/lists.js";
@@ -131,6 +133,19 @@ startCameraCaptions({
   manager: haEnabledForHealth ? getHaWsManager() : null,
   cameraIds: CAMERA_CONFIG.map((c) => c.id).filter((id) => id !== "tilt_pan"),
   fetchImage: cameraSnapshotBuffer
+});
+/* The overnight photo screen — inert unless PHOTO_SCREEN=1, and then only
+   between midnight and 5am. Shares the caption lane's model server. */
+startPhotoScreen({
+  fetchPool: async (date) => {
+    const result = await onThisDayResult(date);
+    return result.ok ? result.assets.map((a) => a.id).filter(Boolean) : [];
+  },
+  screenOne: (id) => screenOneWith({
+    fetchImage: async (assetId) => (await fetchRendition(assetId, "preview"))?.buffer ?? null,
+    ask: askLocalVision
+  }, id),
+  onFlag: forgetCachedSearches
 });
 
 // Feature routes

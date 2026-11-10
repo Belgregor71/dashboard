@@ -666,6 +666,21 @@ test.describe("weather", () => {
     expect(body).toEqual({ acknowledged: false });
   });
 
+  test("GET /api/immich/screened lists flagged ids and counts, off by default", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/immich/screened");
+    expect(body.enabled).toBe(false);
+    expect(Array.isArray(body.flagged)).toBe(true);
+    for (const key of ["ok", "flag", "allowed"]) expect(typeof body[key]).toBe("number");
+  });
+
+  test("POST /api/immich/screened/:id/allow refuses a bad id and an unflagged one", async ({ request }) => {
+    await expectJson(request, "/api/immich/screened/not-a-uuid/allow", { method: "post", data: {}, statuses: [400] });
+    const { body } = await expectJson(request, "/api/immich/screened/00000000-0000-4000-8000-0000000000ff/allow", {
+      method: "post", data: {}
+    });
+    expect(body).toEqual({ allowed: false });
+  });
+
   test("GET /api/weather/radar/meta", async ({ request }) => {
     const { status, body } = await expectJson(request, "/api/weather/radar/meta", { statuses: [200, 502] });
     if (status === 200) {

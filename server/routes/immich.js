@@ -6,6 +6,7 @@ import { isConfigured, searchRandomResult, onThisDayResult, searchTakenResult, f
 import { getDailySet, getMapTile, hasMapKey, initDailyMemories } from "../services/dailyMemories.js";
 import { clipPathFor, hasClip, hasSkip, warmClip } from "../services/liveMotion.js";
 import { hiddenIds, hide, undo } from "../services/photoVeto.js";
+import { flaggedIds, allow, screenStatus } from "../services/photoScreen.js";
 import { labelPeople, warmRoster, hiddenNames, shownName } from "../services/photoNames.js";
 import { labelTrips } from "../services/photoTrips.js";
 import { withOccasions, labelOccasions } from "../services/photoOccasions.js";
@@ -183,7 +184,7 @@ router.get("/api/immich/on-this-day", async (_req, res) => {
    metadata, all of it re-fetchable, so the cost of over-clearing is one extra
    Immich round trip and the cost of under-clearing is a feature that looks
    broken. */
-function forgetCachedSearches() {
+export function forgetCachedSearches() {
   mem.clear();
 }
 
@@ -212,6 +213,21 @@ router.post("/api/immich/hidden/undo", loopbackOnly("The photo veto"), express.j
   const result = undo();
   forgetCachedSearches();
   res.json(result);
+});
+
+/* ── The overnight screen's review (services/photoScreen.js) ────────────────
+   What the model flagged, and the way to overrule it. Loopback: the list names
+   the photographs somebody would least want listed. To look at one, open
+   /api/immich/asset/<id>/thumb. */
+router.get("/api/immich/screened", loopbackOnly("The photo screen"), (_req, res) => {
+  res.json({ ...screenStatus(), flagged: flaggedIds() });
+});
+
+router.post("/api/immich/screened/:id/allow", loopbackOnly("The photo screen"), (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: "bad asset id" });
+  const allowed = allow(req.params.id);
+  if (allowed) forgetCachedSearches();
+  res.json({ allowed });
 });
 
 router.get("/api/immich/random", async (req, res) => {

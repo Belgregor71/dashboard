@@ -1,5 +1,6 @@
 import { fetchWithTimeout } from "../utils/fetch.js";
 import { isHidden } from "./photoVeto.js";
+import { isScreenedOut } from "./photoScreen.js";
 
 // Read-only Immich client — Phase 9.5 (docs/vision/photo-source-immich.md). The
 // house's photo source lives on the Synology (LAN, on-device). This module holds
@@ -198,7 +199,7 @@ export function isLowResolution(a) {
   return Math.max(w, h) < MIN_LONG_EDGE;
 }
 
-function usableImage(a) {
+export function usableImage(a) {
   if (!(a && a.id && a.type === "IMAGE" && !a.isTrashed && !a.isArchived)) return false;
   if (excludeScreenshots() && isScreenshot(a)) return false;
   if (isLowResolution(a)) return false;
@@ -210,6 +211,9 @@ function usableImage(a) {
      because the list starts empty and filters nothing until something is in
      it. See services/photoVeto.js. */
   if (isHidden(a.id)) return false;
+  // The overnight screen's flag (services/photoScreen.js). Same choke point,
+  // same argument: its list starts empty, so it filters nothing until it runs.
+  if (isScreenedOut(a.id)) return false;
   return true;
 }
 

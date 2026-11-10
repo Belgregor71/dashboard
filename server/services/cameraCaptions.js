@@ -77,7 +77,7 @@ export function prune(rows, now = Date.now()) {
 // --- the model -------------------------------------------------------------
 
 /** One sentence for one JPEG from an OpenAI-compatible server. Thinking off. */
-export async function captionImage(baseUrl, buffer, { timeoutMs = CAPTION_TIMEOUT_MS } = {}) {
+export async function captionImage(baseUrl, buffer, { timeoutMs = CAPTION_TIMEOUT_MS, prompt = PROMPT, maxTokens = 80 } = {}) {
   const res = await fetch(`${baseUrl}/v1/chat/completions`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -85,7 +85,7 @@ export async function captionImage(baseUrl, buffer, { timeoutMs = CAPTION_TIMEOU
     body: JSON.stringify({
       model: "gemma-4-e4b-it",
       temperature: 0,
-      max_tokens: 80,
+      max_tokens: maxTokens,
       // Gemma 4 thinks by default and spends the whole budget doing it.
       // llama-server reads the template kwarg; LM Studio only reasoning_effort.
       chat_template_kwargs: { enable_thinking: false },
@@ -94,7 +94,7 @@ export async function captionImage(baseUrl, buffer, { timeoutMs = CAPTION_TIMEOU
         role: "user",
         content: [
           { type: "image_url", image_url: { url: `data:image/jpeg;base64,${buffer.toString("base64")}` } },
-          { type: "text", text: PROMPT }
+          { type: "text", text: prompt }
         ]
       }]
     })
@@ -189,6 +189,20 @@ function armIdle() {
   if (!child) return;
   idleTimer = setTimeout(() => stopServer("idle"), IDLE_MS);
   idleTimer.unref?.();
+}
+
+/**
+ * One question about one JPEG, on this box's own model server: spawned if it is
+ * not up, stopped again after IDLE_MS. Shared with photoScreen.js — the server
+ * takes one request at a time (-np 1), so the two lanes queue, never overlap.
+ */
+export async function askLocalVision(buffer, opts) {
+  const base = await ensureServer();
+  try {
+    return await captionImage(base, buffer, opts);
+  } finally {
+    armIdle();
+  }
 }
 
 process.on("exit", () => { if (child) try { child.kill("SIGTERM"); } catch { /* gone */ } });
@@ -367,14 +381,7 @@ export function startCameraCaptions({ manager, cameraIds, fetchImage, timing = {
     ...timing,
     cameraIds: new Set(cameraIds),
     fetchImage,
-    caption: async (buffer) => {
-      const base = await ensureServer();
-      try {
-        return await captionImage(base, buffer);
-      } finally {
-        armIdle();
-      }
-    },
+    caption: (buffer) => askLocalVision(buffer),
     write: appendRow
   });
   manager.on("event", ({ eventType, data }) => {
