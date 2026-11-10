@@ -127,8 +127,9 @@ test.describe("bounds — this runs for weeks and feeds a prompt", () => {
 });
 
 test.describe("noteCoverage — motionCoverage's table becoming observations", () => {
-  const table = (level) => [
-    { id: "kitchen", label: "Kitchen", silentMs: 2 * 3600_000, elsewhere: 19, skipped: false, level }
+  // "ok" here means the camera FIRED: coming back is a fresh event, not a level.
+  const table = (level, silentMs = level === "ok" ? 0 : 2 * 3600_000) => [
+    { id: "kitchen", label: "Kitchen", silentMs, elsewhere: 19, skipped: false, level }
   ];
 
   test("only warn and error open anything", () => {
@@ -198,11 +199,32 @@ test.describe("noteCoverage — motionCoverage's table becoming observations", (
   test("the ack ends with the fault: a camera that comes back and fails AGAIN is news", () => {
     noteCoverage(both("error", "ok"), T0);
     acknowledge("camera-silent:kitchen", T0);
-    noteCoverage(both("ok", "ok"), T0 + 1000);          // it reports → resolved
+    noteCoverage(both("ok", "ok").map((c) => ({ ...c, silentMs: 0 })), T0 + 1000); // it FIRES → resolved
     noteCoverage(both("error", "ok"), T0 + 2000);       // and dies again → a NEW item
     expect(isAcknowledged("camera-silent:kitchen")).toBe(false);
     expect(verdict(both("error", "ok")).level).toBe("error");
     expect(verdict(both("error", "ok")).detail).toContain("Kitchen");
+  });
+
+  /* FOUND LIVE 2026-11-11. A restart empties the tracker's house events, so
+     every camera reads "ok" with the SAME silence. That is the detector losing
+     its evidence, not the camera reporting — the store held nine false "is
+     reporting again" resolutions for a camera that had not fired in a month. */
+  test("a restart (level ok, silence unchanged) does NOT resolve it, and the ack survives", () => {
+    noteCoverage(both("error", "error"), T0);
+    acknowledge("camera-silent:kitchen", T0);
+    const afterRestart = both("ok", "ok").map((c) => ({ ...c, elsewhere: 0, silentMs: c.silentMs + 60_000 }));
+    const out = noteCoverage(afterRestart, T0 + 60_000);
+    expect(out.resolved).toEqual([]);
+    expect(resolvedItems()).toHaveLength(0);
+    expect(openItems().map((i) => i.key).sort()).toEqual(["camera-silent:kitchen", "camera-silent:side_gate"]);
+    expect(isAcknowledged("camera-silent:kitchen")).toBe(true);
+    // The evidence it opened with is kept, not overwritten by the lost count.
+    expect(openItems().find((i) => i.key === "camera-silent:kitchen").evidence).toContain("40 motion events");
+    // And a real event still resolves it.
+    noteCoverage(both("ok", "ok").map((c) => ({ ...c, silentMs: 0 })), T0 + 120_000);
+    expect(openItems()).toHaveLength(0);
+    expect(resolvedItems()).toHaveLength(2);
   });
 
   test("nothing open under that key → nothing to acknowledge", () => {
@@ -566,7 +588,7 @@ test.describe("noteCoverage supplies what the voice needs", () => {
     id: "kitchen",
     label: "Kitchen",
     level,
-    silentMs: 3 * 60 * 60 * 1000,
+    silentMs: level === "ok" ? 0 : 3 * 60 * 60 * 1000,
     elsewhere: 22
   }];
 

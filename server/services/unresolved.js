@@ -307,16 +307,32 @@ function prune(now) {
  * so they fall out here for free rather than needing a second check.
  */
 export function noteCoverage(cameras, now = Date.now()) {
+  /* ⚠ A CAMERA "REPORTS AGAIN" ONLY ON EVIDENCE THAT IT REPORTED. The level
+     also reads "ok" when the DETECTOR has lost its evidence — every restart
+     empties the tracker's house events, so `elsewhere` is 0 and nothing
+     diverges. Reading that as recovery made the house record "the kitchen
+     camera is reporting again, on its own" after each restart for a camera
+     that had not fired in a month (found live 2026-11-11, nine times in the
+     store), and threw away an acknowledgement with it. So an open item stays
+     open until the camera's last event is NEWER than the item. */
+  const items = load().items;
+  const stillSilent = (c) => {
+    const open = items.find((i) => i.key === `camera-silent:${c.id}` && i.status === "open");
+    return Boolean(open) && now - c.silentMs <= open.firstSeen;
+  };
   const diverging = (Array.isArray(cameras) ? cameras : [])
-    .filter((c) => c && (c.level === "warn" || c.level === "error"))
+    .filter((c) => c && (c.level === "warn" || c.level === "error" || stillSilent(c)))
     .map((c) => {
       const name = `the ${String(c.label ?? c.id).toLowerCase()} camera`;
+      const faulted = c.level === "warn" || c.level === "error";
       return {
         key: `camera-silent:${c.id}`,
         // Plain and factual. What it saw, and the thing that makes the silence
         // strange rather than merely quiet — the house being busy elsewhere.
         what: `${name} has been silent for ${formatAge(c.silentMs)}`,
-        evidence: `${c.elsewhere} motion events arrived from other cameras in that time`,
+        // Kept open without a fault level: the count is the detector's lost
+        // one, so the evidence already on the item stands.
+        evidence: faulted ? `${c.elsewhere} motion events arrived from other cameras in that time` : undefined,
         /* The two halves of the sentence this becomes if it ever clears. Same
            reason the wording lives here at all: `cleared` is a claim about what
            NORMAL looks like for this kind of device, and only the adapter knows
