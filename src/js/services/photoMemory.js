@@ -350,7 +350,11 @@ export function buildOnThisDayMemory(assets, now = new Date()) {
     recurring: { month: now.getMonth() + 1, day: now.getDate() },
     title,
     tags: [seasonOf(now)],
-    photos: photos.map((p) => ({ immich: p.id })),
+    /* OLDEST FIRST. The card shows photos[0] (memoryRuntime withPhoto), and the
+       title above is the oldest photo's age — so the oldest must be the one
+       shown. Newest-first put a 2025 photograph under "13 years ago" on the
+       wall (2026-11-11). */
+    photos: [...photos].reverse().map((p) => ({ immich: p.id })),
     sensitivity: "normal",
     cooldownMonths: 6
   };

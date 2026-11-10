@@ -59,7 +59,10 @@ test.describe("buildOnThisDayMemory — a photo-backed memory entry", () => {
     expect(entry.id).toBe("immich-otd:2026-7-12");
     expect(entry.recurring).toEqual({ month: 7, day: 12 });
     expect(entry.title).toBe("7 years ago"); // 2026 − oldest (2019)
-    expect(entry.photos).toEqual([{ immich: "a" }, { immich: "b" }]);
+    // The card shows photos[0], so the photo the title dates must come FIRST:
+    // newest-first put a 2025 photograph under "13 years ago" (2026-11-11).
+    expect(entry.photos).toEqual([{ immich: "b" }, { immich: "a" }]);
+    expect(assets.find((a) => a.id === entry.photos[0].immich).localDateTime).toMatch(/^2019-/);
     expect(entry.sensitivity).toBe("normal");
     expect(entry.tags).toContain("winter"); // Southern-Hemisphere July
   });
