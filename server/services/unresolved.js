@@ -364,6 +364,30 @@ export function resolve(key, resolution, now = Date.now()) {
   return true;
 }
 
+/**
+ * "I know about that one." The item STAYS OPEN — nothing is explained, so the
+ * house must not later say it "is reporting again" — but healthService stops
+ * counting it towards the fault on the glass and the self-heal reconnects.
+ *
+ * Why it exists: on 2026-11-11 "MOTION COVERAGE DOWN" had been on the wall for
+ * a month over two cameras whose fault was traced to the cameras themselves. A
+ * fault the room cannot act on and that never clears teaches it to stop reading
+ * faults. The ack lives on the open item, so it ends by itself: when the camera
+ * reports, observe() resolves the item, and the next failure opens a new one
+ * with no ack on it.
+ */
+export function acknowledge(key, now = Date.now()) {
+  const item = load().items.find((i) => i.key === key && i.status === "open");
+  if (!item) return false;
+  item.ackedAt = now;
+  persist();
+  return true;
+}
+
+export function isAcknowledged(key) {
+  return load().items.some((i) => i.key === key && i.status === "open" && Number.isFinite(i.ackedAt));
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    THE AMBIENT VOICE — resolutions only. See the header for why only these.
 

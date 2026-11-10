@@ -4,9 +4,12 @@ import os from "os";
 import path from "path";
 import {
   observe, noteCoverage, openItems, resolvedItems, resolve, forget, __reset,
+  acknowledge, isAcknowledged,
   ambientLine, ambientResolutions, markAired,
   MAX_OPEN, MAX_PROMPTED, RESOLVED_TTL_MS, MAX_AMBIENT, AMBIENT_WINDOW_MS
 } from "../server/services/unresolved.js";
+import { unackedVerdict } from "../server/services/healthService.js";
+import { verdictFor } from "../server/services/motionCoverage.js";
 import { unresolvedContext } from "../server/services/voiceShape.js";
 import { houseCharacter } from "../server/services/character.js";
 
@@ -154,6 +157,57 @@ test.describe("noteCoverage — motionCoverage's table becoming observations", (
     noteCoverage(table("ok"), T0 + 1000);
     expect(openItems()).toHaveLength(0);
     expect(resolvedItems()).toHaveLength(1);
+  });
+
+  /* ACKNOWLEDGING — "I know about that one". The fault leaves the health
+     verdict (so the glass and the self-heal loop) while the item stays open. */
+  const both = (kitchen, gate) => [
+    { id: "kitchen", label: "Kitchen", silentMs: 5 * 3600_000, elsewhere: 40, skipped: false, level: kitchen },
+    { id: "side_gate", label: "Side gate", silentMs: 5 * 3600_000, elsewhere: 40, skipped: false, level: gate }
+  ];
+  const verdict = (cameras) => unackedVerdict(cameras, verdictFor(cameras));
+
+  test("with nothing acknowledged the verdict is the tracker's own", () => {
+    noteCoverage(both("error", "error"), T0);
+    expect(isAcknowledged("camera-silent:kitchen")).toBe(false);
+    expect(verdict(both("error", "error"))).toEqual(verdictFor(both("error", "error")));
+    expect(verdict(both("error", "error")).level).toBe("error");
+  });
+
+  test("an acknowledged camera leaves the verdict but does NOT mask the other one", () => {
+    noteCoverage(both("error", "error"), T0);
+    expect(acknowledge("camera-silent:kitchen", T0)).toBe(true);
+    const out = verdict(both("error", "error"));
+    expect(out.level).toBe("error");
+    expect(out.detail).toContain("Side gate");
+    expect(out.detail).not.toContain("Kitchen");
+  });
+
+  test("every faulted camera acknowledged → ok, and the items are still OPEN", () => {
+    noteCoverage(both("error", "error"), T0);
+    acknowledge("camera-silent:kitchen", T0);
+    acknowledge("camera-silent:side_gate", T0);
+    expect(verdict(both("error", "error"))).toEqual({ level: "ok", detail: null });
+    expect(openItems().map((i) => i.key).sort()).toEqual(["camera-silent:kitchen", "camera-silent:side_gate"]);
+    expect(resolvedItems()).toHaveLength(0);
+    // Still open after the next sweep refreshes it — the ack survives a refresh.
+    noteCoverage(both("error", "error"), T0 + 60_000);
+    expect(isAcknowledged("camera-silent:kitchen")).toBe(true);
+  });
+
+  test("the ack ends with the fault: a camera that comes back and fails AGAIN is news", () => {
+    noteCoverage(both("error", "ok"), T0);
+    acknowledge("camera-silent:kitchen", T0);
+    noteCoverage(both("ok", "ok"), T0 + 1000);          // it reports → resolved
+    noteCoverage(both("error", "ok"), T0 + 2000);       // and dies again → a NEW item
+    expect(isAcknowledged("camera-silent:kitchen")).toBe(false);
+    expect(verdict(both("error", "ok")).level).toBe("error");
+    expect(verdict(both("error", "ok")).detail).toContain("Kitchen");
+  });
+
+  test("nothing open under that key → nothing to acknowledge", () => {
+    expect(acknowledge("camera-silent:kitchen", T0)).toBe(false);
+    expect(isAcknowledged("camera-silent:kitchen")).toBe(false);
   });
 
   test("never throws on a malformed table", () => {

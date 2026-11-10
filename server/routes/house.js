@@ -1,7 +1,7 @@
 import express from "express";
 import { loopbackOnly } from "../middleware/security.js";
 import {
-  openItems, resolvedItems, resolve, forget, ambientResolutions, markAired
+  openItems, resolvedItems, resolve, acknowledge, forget, ambientResolutions, markAired
 } from "../services/unresolved.js";
 import { buildHouseClaims, MIN_DAYS } from "../services/houseLately.js";
 import { occupancyDays, houseDay } from "../services/occupancyDays.js";
@@ -130,6 +130,17 @@ router.post("/api/house/unresolved/:key/resolve", loopbackOnly("Resolving"), (re
   } catch (err) {
     console.error("[house] resolving failed:", err.message);
     res.status(500).json({ error: "could not resolve" });
+  }
+});
+
+/* "I know about that one." The item stays open; the fault leaves the glass
+   (services/unresolved.js, `acknowledge`). */
+router.post("/api/house/unresolved/:key/ack", loopbackOnly("Acknowledging"), (req, res) => {
+  try {
+    res.json({ acknowledged: acknowledge(req.params.key) });
+  } catch (err) {
+    console.error("[house] acknowledging failed:", err.message);
+    res.status(500).json({ error: "could not acknowledge" });
   }
 });
 

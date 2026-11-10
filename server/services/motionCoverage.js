@@ -90,6 +90,26 @@ export function cameraLevel({ silentMs, elsewhere }) {
   return "ok";
 }
 
+/**
+ * The feed's verdict over a per-camera table: the worst camera, named. Pure, and
+ * separate from evaluate() so healthService can ask it about a SUBSET — the
+ * cameras nobody has acknowledged (see `acknowledge` in unresolved.js).
+ */
+export function verdictFor(cameras) {
+  const rank = { ok: 0, warn: 1, error: 2 };
+  const worst = cameras.reduce(
+    (acc, camera) => (rank[camera.level] > rank[acc.level] ? camera : acc),
+    { level: "ok" }
+  );
+  if (worst.level === "ok") return { level: "ok", detail: null };
+  return {
+    level: worst.level,
+    detail:
+      `${worst.label} silent ${formatAge(worst.silentMs)} ` +
+      `while ${worst.elsewhere} motion events arrived from other cameras`
+  };
+}
+
 export function createCoverageTracker({ watched = watchedCameras(), startedAt = Date.now() } = {}) {
   const houseEvents = []; // ascending [{ at, camera }]
   const lastSeen = new Map(); // cameraId → ts of its most recent `on` edge
@@ -180,19 +200,7 @@ export function createCoverageTracker({ watched = watchedCameras(), startedAt = 
         };
       });
 
-      const rank = { ok: 0, warn: 1, error: 2 };
-      const worst = cameras.reduce(
-        (acc, camera) => (rank[camera.level] > rank[acc.level] ? camera : acc),
-        { level: "ok" }
-      );
-
-      if (worst.level === "ok") {
-        return { level: "ok", detail: null, cameras };
-      }
-      const detail =
-        `${worst.label} silent ${formatAge(worst.silentMs)} ` +
-        `while ${worst.elsewhere} motion events arrived from other cameras`;
-      return { level: worst.level, detail, cameras };
+      return { ...verdictFor(cameras), cameras };
     },
 
     /** Test/diagnostic seam — the raw table without a verdict. */

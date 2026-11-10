@@ -1,6 +1,6 @@
 import { haPost } from "../ha/haRest.js";
-import { createCoverageTracker } from "./motionCoverage.js";
-import { noteCoverage } from "./unresolved.js";
+import { createCoverageTracker, verdictFor } from "./motionCoverage.js";
+import { noteCoverage, isAcknowledged } from "./unresolved.js";
 
 // Watchdog: tracks per-feed freshness/failures, evaluates every minute, and
 // pushes a phone notification (via HA notify) when a feed degrades or recovers.
@@ -138,6 +138,12 @@ export function getMotionCoverage() {
   return coverage.evaluate({ occupancy: currentOccupancy() });
 }
 
+/** The coverage verdict over the cameras nobody has acknowledged; `full` if none are. */
+export function unackedVerdict(cameras, full) {
+  const unacked = cameras.filter((c) => !isAcknowledged(`camera-silent:${c.id}`));
+  return unacked.length === cameras.length ? full : verdictFor(unacked);
+}
+
 function evaluateFeed(id) {
   const config = FEEDS[id];
   const state = getFeedState(id);
@@ -167,6 +173,15 @@ function evaluateFeed(id) {
       noteCoverage(cameras, now);
     } catch (err) {
       console.warn("[health] recording unresolved coverage failed:", err.message);
+    }
+    /* An acknowledged camera is a known fault: off the glass, out of the
+       self-heal loop, still in the per-camera table and still open in the
+       store. Read AFTER noteCoverage so the store is current. A store that
+       cannot be read acknowledges nothing — the fault shows. */
+    try {
+      return unackedVerdict(cameras, { level, detail });
+    } catch (err) {
+      console.warn("[health] reading acknowledgements failed:", err.message);
     }
     return { level, detail };
   }

@@ -658,6 +658,14 @@ test.describe("weather", () => {
     });
     expect(rubbish.body.aired).toBe(0);
   });
+  // ⚠ This key cannot collide with a real observation, so nothing is written.
+  test("POST /api/house/unresolved/:key/ack refuses a key with nothing open", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/house/unresolved/contract-test:no-such-observation/ack", {
+      method: "post", data: {}
+    });
+    expect(body).toEqual({ acknowledged: false });
+  });
+
   test("GET /api/weather/radar/meta", async ({ request }) => {
     const { status, body } = await expectJson(request, "/api/weather/radar/meta", { statuses: [200, 502] });
     if (status === 200) {
