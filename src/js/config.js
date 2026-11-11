@@ -2062,6 +2062,15 @@ window.CONFIG = {
     // Deployed OFF ef63617 (inject-defect 33/35 RED, then 8/8 on the tuning).
     // FLIPPED ON 2026-11-01 on the owner's word, after a forced run on the wall.
     v3DayLapse: true,
+
+    // ── The robot on the house plan (src/v3/core/robot-watch.js) ───────────
+    // On: the vacuum's trail and position are drawn on the plan as a diorama
+    // moment when it heads out, finishes or gets stuck, and "where's the vacuum"
+    // opens the plan with the robot on it. Needs v3Diorama, a `robot.affine` in
+    // data/house-plan/ and ROBOT_VACUUM_ENTITY in the box's .env; missing any of
+    // them, nothing is drawn. Its "stuck" card is separate from robotCandidate's.
+    // Rollback: -> false, then a HARD reload of the kiosk.
+    v3RobotPlan: false,
   },
 
   /* --------------------------------------------------------------

@@ -814,6 +814,14 @@ test.describe("feeds", () => {
     }
   });
 
+  /* No robot on most machines: ROBOT_VACUUM_ENTITY arms it. */
+  test("GET /api/robot/track", async ({ request }) => {
+    const { status, body } = await expectJson(request, "/api/robot/track", { statuses: [200, 404] });
+    if (status === 404) return expect(body.error).toBe("No robot on this box");
+    expect(Array.isArray(body.trail)).toBe(true);
+    for (const key of ["state", "startedAt", "endedAt", "robot", "dock"]) expect(body).toHaveProperty(key);
+  });
+
   test("GET /api/bins", async ({ request }) => {
     const { body } = await expectJson(request, "/api/bins");
     expect(typeof body.configured).toBe("boolean");

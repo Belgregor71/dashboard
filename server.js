@@ -53,6 +53,8 @@ import delightRoutes from "./server/routes/delight.js";
 import recipeRoutes from "./server/routes/recipe.js";
 import listsRoutes from "./server/routes/lists.js";
 import housePlanRoutes from "./server/routes/housePlan.js";
+import robotRoutes from "./server/routes/robot.js";
+import { startRobotTrack } from "./server/services/robotTrack.js";
 import vaultRoutes from "./server/routes/vault.js";
 import { startVaultIndex } from "./server/services/vaultIndex.js";
 
@@ -189,6 +191,7 @@ app.use(recipeRoutes);
 // in the state it ships in.
 app.use(listsRoutes);
 app.use(housePlanRoutes);
+app.use(robotRoutes);
 
 // House knowledge base (docs/design/VAULT.md). Default-off: with VAULT_ENABLED
 // unset the router is never mounted, the index is never built, and the
@@ -379,4 +382,6 @@ app.listen(PORT, () => {
   // never inside a turn. Self-gates on VOICE_MEMORY_ENABLED and defers its
   // first pass five minutes — boot is the one moment the box is busy.
   startMemoryConsolidator();
+  // The robot vacuum's run, for the house plan. Self-gates on ROBOT_VACUUM_ENTITY.
+  startRobotTrack();
 });

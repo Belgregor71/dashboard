@@ -1004,6 +1004,29 @@ body[data-holiday] .photo::after {
   position: absolute;
   filter: drop-shadow(0 6px 8px rgb(0 0 0 / 0.45));   /* the cut-out left its floor shadow behind */
 }
+/* The robot vacuum on the plate (core/robot-layer.js, features.v3RobotPlan): an
+   SVG in plate pixels, so it sits right at any crop. */
+.robot {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.robot__trail {
+  fill: none;
+  stroke: rgb(130 220 255 / 0.8);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.robot__dot {
+  fill: #fff;
+  stroke: rgb(30 140 235);
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.6));
+}
+.robot[data-state="error"] .robot__dot {
+  fill: rgb(255 122 60);
+  stroke: #fff;
+}
 /* A wheelie bin from above: a charcoal body, the coloured lid inset on it, and the
    hinge bar along the house side. */
 .diorama__bin {

@@ -901,6 +901,12 @@ export async function submit(text, { source = "unknown", speaker = null } = {}) 
           if (reply.showVocabulary && renderVocabularyCard(snap)) {
             deepen(DEPTH.SPREAD, "voice-vocabulary");
           }
+          /* "Where's the vacuum" also puts it on the house plan (features.v3RobotPlan).
+             A decline has already emptied the stage, so step down as the show.* path does. */
+          if (intent.id === "house.vacuum" && window.CONFIG?.features?.v3RobotPlan) {
+            if (await showSubject({ id: "show.robot" }, snap, { author: "voice" })) deepen(DEPTH.SUBJECT, "voice-show.robot");
+            else if (getDepth() > DEPTH.GLANCE) setDepth(DEPTH.GLANCE, "voice-house.vacuum");
+          }
           await say(reply.speech, reply.refs);
           rememberReply(reply.speech);
           consecutiveFailures = 0;

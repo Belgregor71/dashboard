@@ -7,6 +7,9 @@
                already home is parked, and the car of the person who just got in
                rolls up the driveway.
      bins      the same view with the night's bins out at the kerb.
+     robot     the inside of the house with the vacuum's trail and where it is,
+               as it heads out, finishes or gets stuck (features.v3RobotPlan;
+               the candidates come from core/robot-watch.js).
 
    It hangs off the attention tick rather than the arrival or bin code, because
    "this reached the glass" already carries every rule about quiet, decay and
@@ -23,6 +26,7 @@
 import { DEPTH, onDepth } from "./depth.js";
 import { occasionToday } from "./dog-schedule.js";
 import { getEntity } from "../../js/services/homeAssistant/state.js";
+import { robotLayer, robotTrack } from "./robot-layer.js";
 
 const ROLL_DELAY_MS = 450;   // the fade in takes 350 of this
 const ROLL_MS = 2800;
@@ -42,6 +46,7 @@ let played = 0;
 
 const dioramaOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3Diorama);
 const dressedOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3DioramaDressed);
+const robotOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3RobotPlan);
 
 const layerUrl = (name) => `/api/house-plan/layer/${name}`;
 
@@ -53,7 +58,8 @@ export function momentFor(candidate) {
     const bins = String(candidate.text ?? "").toLowerCase().match(/\b(red|yellow|green)\b/g);
     return bins ? { bins: [...new Set(bins)] } : null;
   }
-  return null;
+  const robot = /^robot-(start|done|stuck):/.exec(id);
+  return robot ? { robot: robot[1] } : null;
 }
 
 /** Who to park: everyone home, bar the car that is rolling in. Pure. */
@@ -120,7 +126,9 @@ function play(moment) {
 
   // A dressed plate stands back: the decorations are all round the house, not at the garage.
   const wearing = dressed.get(occasionToday());
-  const crop = wearing ? plate.dressedCrop ?? plate.crop : plate.crop;
+  // The robot is indoors: its own crop, or the whole plate until one is set.
+  const crop = moment.track ? plate.robot.crop ?? [0, 0, plate.width, plate.height]
+    : wearing ? plate.dressedCrop ?? plate.crop : plate.crop;
   const { scale, left, top } = cropBox(crop, window.innerWidth, window.innerHeight);
   const overlay = document.createElement("div");
   overlay.className = "diorama";
@@ -176,6 +184,9 @@ function play(moment) {
   const light = document.createElement("div");
   light.className = "plan__light";
   world.append(light);
+  // Over the light, not under it: the night shade would take the trail with the plate.
+  const robot = moment.track ? robotLayer(moment.track, plate) : null;
+  if (robot) world.append(robot);
   overlay.append(world);
   host.append(overlay);
 
@@ -205,11 +216,18 @@ export function dioramaSee(candidates) {
   for (const candidate of candidates) {
     const moment = momentFor(candidate);
     if (!moment) continue;
+    // No calibration on the box is no robot moment, as no diorama is no moment at all.
+    if (moment.robot && (!robotOn() || !plate.robot?.affine)) continue;
     const key = `${candidate.expiresAt ?? ""}`;
     if (seen.get(candidate.id) === key) continue;
     if (seen.size > 32) seen.clear();
     seen.set(candidate.id, key);
-    play(moment);
+    if (moment.robot) {
+      // The run is fetched now, so the trail is the one that just happened.
+      robotTrack().then((track) => { if (track?.robot && !showing) play({ ...moment, track }); });
+    } else {
+      play(moment);
+    }
     return;
   }
 }

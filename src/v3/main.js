@@ -34,6 +34,7 @@ import {
 import { clearSubject, activeSubject, showSubject, subjectRoster } from "./subjects/index.js";
 import { warmCameraPlan } from "./subjects/camera-plan.js";
 import { initDiorama, dioramaState } from "./core/diorama.js";
+import { initRobotWatch, robotWatchState } from "./core/robot-watch.js";
 import { clearVocabularyCard, vocabularyCardMounted } from "./core/vocabulary-card.js";
 import { clearSpread, spreadMounted } from "./core/spread.js";
 import { railPhrase } from "../js/services/vocabulary.js";
@@ -802,6 +803,7 @@ function boot() {
   stage("alerts", () => initAlerts());
   stage("camera plan", () => { warmCameraPlan(); });
   stage("diorama", initDiorama);
+  stage("robot watch", () => initRobotWatch());
   stage("arrival", () => initArrival());
   stage("parcels", () => initParcels());
   stage("parcel voice", () => initParcelVoice());
@@ -1064,6 +1066,7 @@ function registerHandles() {
     alert: lastAlert(),
     arrival: lastArrival(),
     diorama: dioramaState(),
+    robot: robotWatchState(),
     dinner: lastDinner(),
     briefing: lastBriefing(),
     health: lastHealth(),

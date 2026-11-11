@@ -27,7 +27,8 @@
      fuel         the briefing context's fuel price; not an S2 key (S2 was
                   built without fuel and chores).
      resolutions  the server's unresolved/resolved store (/api/house/resolutions).
-     immich       an on-this-day photo memory, fetched from Immich.
+     robot        the vacuum's run, as the server tracks it (/api/robot/track).
+     immich      an on-this-day photo memory, fetched from Immich.
      memory       an owner-authored memory entry. The entry IS the evidence.
      clock        a fact the date alone establishes (Christmas Eve). Cannot go
                   stale: the date is re-read on every call.
@@ -72,6 +73,7 @@ export const EVIDENCE_KEYS = Object.freeze({
   plex: POLLED_MAX_AGE_MS,
   fuel: POLLED_MAX_AGE_MS,
   resolutions: POLLED_MAX_AGE_MS,
+  robot: POLLED_MAX_AGE_MS,
   immich: null,
   memory: null,
   clock: null,
