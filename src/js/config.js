@@ -184,11 +184,10 @@ window.CONFIG = {
     cameraCandidate: true, // V3: gates the camera-trigger candidate lane (v3/core/attention.js LANE_GATES)
 
     // The robot vacuum's "needs a human" states — the only thing it knows that
-    // nobody is ever told: a `device_class: problem` sensor that is ON (empty
-    // water tank, dirty/clean dock tank), or a consumable past its service life.
-    // Selected by device_class rather than entity id, because the dock sensors
-    // carry a room prefix that would silently stop matching if the robot moved.
-    // A chore, so it is low-band and stackOnly — a water tank must never take the
+    // nobody is ever told: the vacuum stopped in `error`, or a consumable whose
+    // lifespan has reached zero. Its sensors are found from the vacuum entity's
+    // own id, never a brand name (the Roborock became an Ecovacs on 2026-11-11).
+    // A chore, so it is low-band and stackOnly — a spent filter must never take the
     // centred hero — and it carries NO expiresAt, because unlike a camera trigger
     // this is a state, not an event: it should sit there until someone empties it.
     // Default OFF → no candidate at all (readState reads nothing). Flip only after

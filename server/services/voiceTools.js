@@ -62,7 +62,8 @@ export const VOICE_ENTITIES = [
 //     — the Eufy camera config surface. Turning one off breaks the motion-wake
 //     chain and the cameras, and recoveryService.js exists precisely to re-arm
 //     them. A voice model must not be able to reach it.
-//   · switch.roborock_* and switch.qbittorrent_* — settings, not requests.
+//   · the vacuum's switches (switch.*_deebot_*) and switch.qbittorrent_* —
+//     settings, not requests.
 //   · script.dashboard_* — see above.
 //
 // There are NO light.* entities in this house at all (checked: zero). set_light

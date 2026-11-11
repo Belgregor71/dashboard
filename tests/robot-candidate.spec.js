@@ -4,73 +4,67 @@ import { robotAttentionFrom, robotCandidate, collectSources } from "../src/js/se
 
 // Pure unit tests — candidateSources carries no DOM and no imports by design.
 //
-// Entity shapes below are copied from the live house (2026-08-06), including the
-// `piano_room_` prefix the dock sensors actually carry: that prefix is exactly why
-// selection is by device_class rather than by entity id.
+// Entity shapes below are copied from the live house (2026-11-11, Ecovacs T80S),
+// including the `piano_room_deebot` object id every one of its entities carries:
+// the robot's sensors are found from the vacuum's own id, not a brand name.
 
 const entities = (overrides = {}) => ({
-  "binary_sensor.roborock_s7_maxv_water_shortage": {
-    state: "off", attributes: { device_class: "problem" }
-  },
-  "binary_sensor.piano_room_roborock_s7_maxv_dock_dirty_water_box": {
-    state: "off", attributes: { device_class: "problem" }
-  },
-  "binary_sensor.piano_room_roborock_s7_maxv_dock_clean_water_box": {
-    state: "off", attributes: { device_class: "problem" }
-  },
-  // Not a problem sensor — must never be read as one however it is set.
-  "binary_sensor.roborock_s7_maxv_cleaning": {
-    state: "on", attributes: { device_class: "running" }
-  },
-  "binary_sensor.roborock_s7_maxv_mop_attached": {
-    state: "on", attributes: { device_class: "connectivity" }
-  },
-  "sensor.roborock_s7_maxv_main_brush_time_left": { state: "120", attributes: { device_class: "duration" } },
-  "sensor.roborock_s7_maxv_filter_time_left": { state: "60", attributes: { device_class: "duration" } },
-  // An unrelated house entity, to prove the scan is robot-scoped.
-  "binary_sensor.doorbell_ringing": { state: "on", attributes: { device_class: "problem" } },
+  "vacuum.piano_room_deebot": { state: "docked", attributes: {} },
+  "binary_sensor.piano_room_deebot_mop_attached": { state: "on", attributes: {} },
+  "sensor.piano_room_deebot_station_state": { state: "idle", attributes: { device_class: "enum" } },
+  "sensor.piano_room_deebot_battery": { state: "0", attributes: { device_class: "battery" } },
+  "sensor.piano_room_deebot_main_brush_lifespan": { state: "99.14", attributes: {} },
+  "sensor.piano_room_deebot_filter_lifespan": { state: "97.85", attributes: {} },
+  // The live house has one of these at `unknown`.
+  "sensor.piano_room_deebot_unit_care_lifespan": { state: "unknown", attributes: {} },
+  // Somebody else's spent lifespan, to prove the scan is robot-scoped.
+  "sensor.printer_drum_lifespan": { state: "0", attributes: {} },
   ...overrides
 });
 
 test.describe("robotAttentionFrom — what actually needs a human", () => {
   test("a healthy robot reports nothing", () => {
+    // The fixture holds a flat battery, an unknown lifespan and a printer's
+    // spent drum: none of them is the robot asking for anything.
     expect(robotAttentionFrom(entities())).toEqual({ problems: [], consumables: [] });
   });
 
-  test("picks up a problem sensor that is ON, prefix and all", () => {
+  test("a vacuum in error has stopped and needs a hand", () => {
     const { problems } = robotAttentionFrom(entities({
-      "binary_sensor.piano_room_roborock_s7_maxv_dock_dirty_water_box": {
-        state: "on", attributes: { device_class: "problem" }
-      }
+      "vacuum.piano_room_deebot": { state: "error", attributes: {} }
     }));
-    expect(problems).toEqual(["dirty tank needs emptying"]);
+    expect(problems).toEqual(["stopped and needs a hand"]);
   });
 
-  test("ignores ON sensors whose device_class is not 'problem'", () => {
-    // `cleaning` and `mop_attached` are both ON in the fixture by design.
-    expect(robotAttentionFrom(entities()).problems).toEqual([]);
+  test("cleaning, returning and docked are not problems", () => {
+    for (const state of ["cleaning", "returning", "docked", "idle", "paused", "unavailable"]) {
+      expect(robotAttentionFrom(entities({ "vacuum.piano_room_deebot": { state, attributes: {} } })).problems).toEqual([]);
+    }
   });
 
-  test("never reads non-robot entities, even a problem-class one that is on", () => {
-    // The doorbell fixture is device_class problem AND on.
-    expect(robotAttentionFrom(entities()).problems).toEqual([]);
-  });
-
-  test("a negative time_left is an overdue consumable", () => {
+  test("a lifespan at zero is a spent consumable, named from its own id", () => {
     const { consumables } = robotAttentionFrom(entities({
-      "sensor.roborock_s7_maxv_main_brush_time_left": { state: "-5.98", attributes: {} },
-      "sensor.roborock_s7_maxv_filter_time_left": { state: "-2.83", attributes: {} }
+      "sensor.piano_room_deebot_main_brush_lifespan": { state: "0", attributes: {} },
+      "sensor.piano_room_deebot_filter_lifespan": { state: "0.0", attributes: {} }
     }));
     expect(consumables).toEqual(["filter", "main brush"]); // sorted for a stable id
   });
 
-  test("unknown/unavailable is NOT overdue", () => {
-    // NaN must not read as negative — a missing reading is not a due one.
+  test("unknown, unavailable and empty are NOT spent", () => {
+    // A missing reading is not a due one, and "" must not coerce to zero.
     const { consumables } = robotAttentionFrom(entities({
-      "sensor.roborock_s7_maxv_filter_time_left": { state: "unknown", attributes: {} },
-      "sensor.roborock_s7_maxv_main_brush_time_left": { state: "unavailable", attributes: {} }
+      "sensor.piano_room_deebot_filter_lifespan": { state: "unknown", attributes: {} },
+      "sensor.piano_room_deebot_main_brush_lifespan": { state: "unavailable", attributes: {} },
+      "sensor.piano_room_deebot_side_brush_lifespan": { state: "", attributes: {} }
     }));
     expect(consumables).toEqual([]);
+  });
+
+  test("a house with no vacuum reports nothing, whatever else is spent", () => {
+    const { "vacuum.piano_room_deebot": _gone, ...rest } = entities({
+      "sensor.piano_room_deebot_filter_lifespan": { state: "0", attributes: {} }
+    });
+    expect(robotAttentionFrom(rest)).toEqual({ problems: [], consumables: [] });
   });
 
   test("survives junk input", () => {
@@ -113,7 +107,7 @@ test.describe("robotCandidate — a chore, and it stays one", () => {
     const c = robotCandidate({
       robotProblems: ["clean tank needs filling", "dirty tank needs emptying"]
     });
-    expect(c.text).toBe("Roborock — clean tank needs filling and dirty tank needs emptying.");
+    expect(c.text).toBe("The vacuum — clean tank needs filling and dirty tank needs emptying.");
   });
 
   test("the id tracks WHICH problem, so a new one is not swallowed by the old cooldown", () => {

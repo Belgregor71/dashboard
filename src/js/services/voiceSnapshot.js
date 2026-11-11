@@ -211,14 +211,9 @@ function sleepFrom(byId) {
 }
 
 function vacuumFrom(entities) {
-  const problem = entities.find(
-    (e) =>
-      e?.attributes?.device_class === "problem" &&
-      /roborock|vacuum/.test(e.entity_id ?? "") &&
-      e.state === "on"
-  );
-  if (!problem) return { problem: null };
-  return { problem: (problem.attributes?.friendly_name ?? "something").toLowerCase() };
+  // The Ecovacs robot has no problem sensors: its own `error` state is the fault.
+  const stopped = entities.some((e) => e?.entity_id?.startsWith("vacuum.") && e.state === "error");
+  return { problem: stopped ? "it's stopped and needs a hand" : null };
 }
 
 function downloadsFrom(byId) {

@@ -627,7 +627,7 @@ export function houseSnapshot({
      written. These two readers are MAP-shaped: `getBomWarnings` does
      `haStates[entityId]` and `robotAttentionFrom` does `Object.entries()` and
      regex-tests the KEY. Handed an array, the first looks up a numeric index
-     that cannot exist and the second tests "0", "1", "2"… against /roborock/i.
+     that cannot exist and the second tests "0", "1", "2"… for a `vacuum.` id.
      Neither throws. Both return a cheerful empty answer, which is the exact
      failure mode this file's own header warns about — absent read as empty.
 
@@ -735,11 +735,10 @@ function haEvidence(entity, now) {
   return evidenceOf(`ha:${entity.entity_id}`, entity.last_updated ?? entity.last_changed ?? now);
 }
 
-/* The robot reading is spread over a dozen roborock sensors. The vacuum entity
-   names the device; any roborock entity stands in when there is none. */
+/* The robot reading is spread over a dozen sensors; the vacuum entity names the
+   device, as it does in robotAttentionFrom. */
 function robotEntity(byId) {
-  const ids = Object.keys(byId).filter((id) => /roborock/i.test(id));
-  const id = ids.find((x) => x.startsWith("vacuum.")) ?? ids[0];
+  const id = Object.keys(byId).find((x) => x.startsWith("vacuum."));
   return id ? byId[id] : null;
 }
 

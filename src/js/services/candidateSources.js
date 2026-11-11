@@ -526,67 +526,40 @@ export function cameraTriggerCandidate({ cameraTriggerName, cameraTriggerAt, cam
  * The robot vacuum's "needs a human" states — the only thing it knows that nobody
  * is told. Two kinds, deliberately ranked differently:
  *
- *   problems     — `device_class: problem` binary sensors that are ON right now
- *                  (water shortage, dirty/clean tank). Actionable today.
- *   consumables  — `*_time_left` sensors gone NEGATIVE, i.e. past their service
- *                  life. Real, but measured in hours against a ~300 h life, so
- *                  they belong at the very bottom of the band.
+ *   problems     — the vacuum itself in `error`: it has stopped and wants a hand.
+ *   consumables  — its `*_lifespan` sensors (percent left) at zero. Real, but
+ *                  never urgent, so they sit at the very bottom of the band.
  *
- * Selecting problems by device_class rather than by entity id is deliberate: the
- * dock sensors carry a room prefix (`piano_room_…`) that would silently stop
- * matching if the robot were ever moved or renamed.
+ * The robot's sensors are found from the vacuum entity's own id, never a brand
+ * name: the ids carry the room and the device name (`piano_room_deebot_…`), and
+ * a brand match went silent the day the Roborock was replaced.
  */
-const ROBOT_PROBLEM_LABELS = {
-  water_shortage: "water tank's empty",
-  dock_dirty_water_box: "dirty tank needs emptying",
-  dock_clean_water_box: "clean tank needs filling"
-};
-
-const ROBOT_CONSUMABLE_LABELS = {
-  main_brush_time_left: "main brush",
-  side_brush_time_left: "side brush",
-  filter_time_left: "filter",
-  sensor_time_left: "sensors",
-  dock_strainer_time_left: "dock strainer",
-  dock_maintenance_brush_time_left: "dock brush"
-};
-
-function labelFromSuffix(entityId, table) {
-  // Match on the id's TAIL so a room prefix never breaks the lookup.
-  const key = Object.keys(table).find((suffix) => entityId.endsWith(suffix));
-  return key ? table[key] : null;
-}
+const ROBOT_STOPPED = "stopped and needs a hand";
 
 /**
  * Pure entity reader — takes the HA state map, returns what needs a human.
  * No DOM, no imports: unit-testable in plain node like the rest of this module.
  */
 export function robotAttentionFrom(entities = {}) {
-  const problems = [];
+  const all = Object.entries(entities || {});
+  const vacuum = all.find(([entityId]) => entityId.startsWith("vacuum."));
+  if (!vacuum) return { problems: [], consumables: [] };
+
+  const [vacuumId, robot] = vacuum;
+  const prefix = `sensor.${vacuumId.slice("vacuum.".length)}_`;
+  const suffix = "_lifespan";
   const consumables = [];
 
-  for (const [entityId, entity] of Object.entries(entities || {})) {
-    if (!/roborock/i.test(entityId)) continue;
-    const state = entity?.state;
-
-    if (entityId.startsWith("binary_sensor.")) {
-      if (entity?.attributes?.device_class !== "problem" || state !== "on") continue;
-      const label = labelFromSuffix(entityId, ROBOT_PROBLEM_LABELS);
-      if (label) problems.push(label);
-      continue;
-    }
-
-    if (entityId.startsWith("sensor.")) {
-      const label = labelFromSuffix(entityId, ROBOT_CONSUMABLE_LABELS);
-      if (!label) continue;
-      const hoursLeft = Number(state);
-      // `unknown`/`unavailable` coerce to NaN — a missing reading is not an
-      // overdue one, so require a real negative number.
-      if (Number.isFinite(hoursLeft) && hoursLeft < 0) consumables.push(label);
+  for (const [entityId, entity] of all) {
+    if (!entityId.startsWith(prefix) || !entityId.endsWith(suffix)) continue;
+    // parseFloat, not Number: `unknown` and "" must be NaN, and a missing
+    // reading is not a spent one.
+    if (Number.parseFloat(entity?.state) <= 0) {
+      consumables.push(entityId.slice(prefix.length, -suffix.length).replaceAll("_", " "));
     }
   }
 
-  return { problems: problems.sort(), consumables: consumables.sort() };
+  return { problems: robot?.state === "error" ? [ROBOT_STOPPED] : [], consumables: consumables.sort() };
 }
 
 /** Join a list the way a person would say it. */
@@ -610,8 +583,8 @@ export function robotCandidate({ robotProblems, robotConsumables, evidence } = {
       evidence: laneEvidence(evidence, "robot"),
       source: "robot",
       icon: "🤖",
-      text: `Roborock — ${readableList(problems)}.`,
-      title: "Roborock",
+      text: `The vacuum — ${readableList(problems)}.`,
+      title: "The vacuum",
       sub: readableList(problems),
       score: 44,
       stackOnly: true,
@@ -625,12 +598,12 @@ export function robotCandidate({ robotProblems, robotConsumables, evidence } = {
       evidence: laneEvidence(evidence, "robot"),
       source: "robot",
       icon: "🤖",
-      text: `Roborock's ${readableList(consumables)} due for a change.`,
-      title: "Roborock",
+      text: `The vacuum's ${readableList(consumables)} due for a change.`,
+      title: "The vacuum",
       sub: `${readableList(consumables)} due`,
       score: 40,
       stackOnly: true,
-      // Past a ~300 h service life, so this is not urgent — mention it once a day.
+      // Spent, but not urgent — mention it once a day.
       cooldownMs: 24 * 60 * 60 * 1000
     };
   }

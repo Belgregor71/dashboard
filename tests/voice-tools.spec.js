@@ -199,7 +199,7 @@ test("every input the tool definitions permit is allowed, on a safe service", ()
 // switch.doorbell_motion_detection can break the motion-wake chain and the
 // cameras in one sentence. recoveryService.js exists to re-arm exactly these.
 test("no camera-config or appliance-settings switch is voice-reachable", () => {
-  const FORBIDDEN = /_(motion_detection|camera_enabled|status_led|audio_recording|microphone|speaker|rtsp_stream|antitheft_detection|auto_nightvision|pet_detection|motion_tracking)|^switch\.(roborock|qbittorrent)|_notification_/;
+  const FORBIDDEN = /_(motion_detection|camera_enabled|status_led|audio_recording|microphone|speaker|rtsp_stream|antitheft_detection|auto_nightvision|pet_detection|motion_tracking)|^switch\.(roborock|qbittorrent)|deebot|_notification_/;
 
   for (const entity of VOICE_ENTITIES) {
     expect(

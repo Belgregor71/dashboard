@@ -436,8 +436,9 @@ test("a quiet warnings sensor is still no warning", () => {
 
 test("the robot's overdue consumables reach the queue when the flag is on", () => {
   const entities = [
-    sensor("sensor.roborock_s7_maxv_filter_time_left", "-2.86", 5),
-    sensor("sensor.roborock_s7_maxv_main_brush_time_left", "-6.00", 5)
+    sensor("vacuum.piano_room_deebot", "docked", 5),
+    sensor("sensor.piano_room_deebot_filter_lifespan", "0", 5),
+    sensor("sensor.piano_room_deebot_main_brush_lifespan", "0", 5)
   ];
   const snap = withWindow({ robotCandidate: true }, () => houseSnapshot({ now: NOW, entities }));
 
@@ -448,7 +449,10 @@ test("the robot's overdue consumables reach the queue when the flag is on", () =
 test("the same house says nothing about the robot with the flag off", () => {
   // The gate is what keeps the shape fix from flipping a default-off feature on
   // by side effect — this house has real overdue consumables right now.
-  const entities = [sensor("sensor.roborock_s7_maxv_filter_time_left", "-2.86", 5)];
+  const entities = [
+    sensor("vacuum.piano_room_deebot", "docked", 5),
+    sensor("sensor.piano_room_deebot_filter_lifespan", "0", 5)
+  ];
   const snap = withWindow({ robotCandidate: false }, () => houseSnapshot({ now: NOW, entities }));
 
   expect(snap.robotConsumables).toBeNull();

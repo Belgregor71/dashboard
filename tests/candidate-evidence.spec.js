@@ -303,8 +303,7 @@ test.describe("S5a — every candidate the real lanes produce is evidenced", () 
       entities: [
         entity("binary_sensor.driveway_motion_detected", "off", 4),
         entity("sensor.nudgee_warnings", "Severe Thunderstorm Warning for Brisbane", 90), // CONFIG.weather.bom.warningsEntityId
-        entity("vacuum.roborock_s8", "docked", 30),
-        entity("binary_sensor.roborock_s8_water_shortage", "on", 30, { device_class: "problem" })
+        entity("vacuum.piano_room_deebot", "error", 30)
       ]
     });
     const cands = collectSources({ ...snap, now: NOW });
@@ -319,7 +318,7 @@ test.describe("S5a — every candidate the real lanes produce is evidenced", () 
     expect(keyOf("weather")).toBe("weather");
     expect(keyOf("nextEvent")).toBe("calendar");
     expect(keyOf("bom")).toBe("ha:sensor.nudgee_warnings");
-    expect(keyOf("robot")).toBe("ha:vacuum.roborock_s8");
+    expect(keyOf("robot")).toBe("ha:vacuum.piano_room_deebot");
     expect(keyOf("cameraTrigger")).toBe("ha:binary_sensor.driveway_motion_detected");
   });
 
