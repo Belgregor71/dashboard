@@ -54,10 +54,12 @@ test("Home Assistant coming back is neither a start nor a finish", () => {
   const docked = run([["docked", [0, 0]], ["unavailable", null], ["docked", [0, 0]]]);
   expect(docked.startedAt).toBeNull();
   expect(docked.endedAt).toBeNull();
-  // A real clean either side of the gap still starts once and ends once.
-  const through = run([["docked", null], ["cleaning", [0, 0]], ["unknown", null], ["cleaning", [800, 0]], ["docked", [0, 0]]]);
+  // A real clean with a gap of each kind in it still starts once and ends once.
+  const through = run([
+    ["docked", null], ["cleaning", [0, 0]], ["unavailable", null], ["cleaning", [800, 0]], ["unknown", null], ["docked", [0, 0]]
+  ]);
   expect(through.startedAt).toBe(101);
-  expect(through.endedAt).toBe(104);
+  expect(through.endedAt).toBe(105);
 });
 
 test("docking ends the run, keeps its trail, and the next clean starts a new one", () => {
