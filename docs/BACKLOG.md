@@ -6,10 +6,10 @@ Where a doc and the code disagreed, the code won and the doc is flagged for corr
 
 Ordering: **security → new features → the measurement debt that gates them → cleanup.**
 
-> ## ✅ EVERYTHING IN THIS FILE IS CLOSED EXCEPT **M2**, THE 72-HOUR SOAK (2026-08-25).
-> P0, **F1**–**F8**, **P4**, **M1**, all of **P3** and the stale-docs list are done. **M2 has
-> never been run** — a 23.6 h soak ran clean at the cutover and the 72 h one is still owed;
-> take `/kiosk-metrics` at 0 h / 24 h / 72 h.
+> ## ✅ EVERYTHING IN THIS FILE IS CLOSED (M2, the last item, closed 2026-11-11).
+> P0, **F1**–**F8**, **P4**, **M1**, all of **P3** and the stale-docs list were done by
+> 2026-08-25. **M2** was closed on the owner's call on ONE reading at 74 h — see M2 below
+> for what that reading does and does not show.
 >
 > **2026-08-30 — the honesty hole below is now CLOSED for the lists, and only for them.**
 > The list write lane ships flag-off (`voiceListWrites` + `VOICE_LIST_WRITES=1`): it writes
@@ -910,9 +910,20 @@ live ambient is exactly the transition this row exists to measure.
 2026-08-15 without a new baseline, because it shipped no new cost: two of its three flags had
 no code in the V3 bundle at all. The reading is still owed for its own sake — see M1.
 
-### M2 · The 72 h soak
-Never run. A 23.6 h soak ran clean at the cutover (`V3-CUTOVER.md:576`) — the 72 h one is still
-owed. Take `/kiosk-metrics` at 0 h / 24 h / 72 h.
+### M2 · The 72 h soak — CLOSED 2026-11-11 (owner's call)
+A 23.6 h soak ran clean at the cutover (`V3-CUTOVER.md:576`). The 72 h one ran on the page
+loaded about 2026-11-08 14:43 AEST, with no bundle reload until 2026-11-11 16:42.
+
+| Sample | Uptime | Depth | Heap MB | domNodes | cdpNodes | Listeners | lottie | live faults |
+|---|---|---|---|---|---|---|---|---|
+| 2026-11-11 16:41 | 4438 min (74 h) | 2 | 7.2 | 83 | 288 | 90 | 0/0 | none |
+| after reload, 16:43 | 0.5 min | 0 | 4.9 | 77 | 199 | 20 | 0/0 | none |
+
+⚠ **This is one reading, not a trend.** No 0 h or 24 h row was taken on that page, so it
+shows the page was inside the V3 band after three days (domNodes 70–108 and cdpNodes
+200–400 in earlier V3 rows), not that nothing climbed. The two rows are at different depths
+and are not a diff. Rendering cost (`gpucpu.sh`) was not measured. Closed on that basis by
+the owner; a future soak should take the 0 h row at the reload that starts it.
 
 ---
 
