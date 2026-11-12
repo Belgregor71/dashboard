@@ -179,6 +179,16 @@ function syncFieldMat() {
      data-field-mat half prevents. */
   if (fieldWeather()) document.documentElement.dataset.fieldWeather = "1";
   else delete document.documentElement.dataset.fieldWeather;
+  /* The three look flags from the 2026-11-12 visual audit (phase 4). Each is
+     pure CSS hanging off its own root marker; off, the marker never exists. */
+  // Spelled out, not looped: tests/flag-surface.spec.js finds a flag's reader by its literal.
+  mark("subjectField", flag("v3SubjectField"));   // depths 2-3 sit on the field, not the dimmed photograph
+  mark("hourHeavy", flag("v3HourWeight"));        // the hour at weight 300 over the journey's photograph
+  mark("forecastTint", flag("v3ForecastTint"));   // the week's icons pulled toward the palette
+}
+function mark(attr, on) {
+  if (on) document.documentElement.dataset[attr] = "1";
+  else delete document.documentElement.dataset[attr];
 }
 const fieldWeather = () => flag("v3FieldRender") && flag("v3FieldWeather");
 

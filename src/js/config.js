@@ -2016,6 +2016,23 @@ window.CONFIG = {
     // Rollback: -> false, with a cache-bypass reload for the build.
     v3OverlayPriority: false,
 
+    // Three look flags from the same audit (phase 4). Each is one CSS rule in
+    // src/v3/css/compose.css hanging off a root marker main.js stamps; each is a
+    // taste call for the owner's eye on the glass, so each is its own lever.
+    // None has been seen on the wall. Rollback for any: -> false, with a
+    // cache-bypass reload for the build.
+    //
+    // Depths 2 and 3 sit on the plain living field instead of the ground
+    // photograph dimmed to near-black (faces were still recognisable under ten
+    // rows of status). Depth 1 keeps its photograph. Off: as before.
+    v3SubjectField: false,
+    // The hour at weight 300, not 200, while the Memory Journey's photograph is
+    // behind it at depth 0 (hairline strokes over a textured photo). Off: 200.
+    v3HourWeight: false,
+    // The week forecast's icons desaturated and slightly dimmed, so the one
+    // cartoon-coloured thing on the wall sits nearer the palette. Off: full colour.
+    v3ForecastTint: false,
+
     // BOM's own forecast for today (src/js/services/weather/bomOutlook.js):
     // a wall line on a storm / 10 mm+ day or a fire danger of High or above,
     // and "what's the weather going to be like today" answered in BOM's words.

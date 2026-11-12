@@ -7,8 +7,10 @@ part: tokens, colour/radius/shadow tokens, viewport units off sizes, a shared pi
 rule, empty states re-anchored, and `tests/v3-token-lint.spec.js`. Owner's scope calls:
 item 6 for empty states only, item 19 skipped, item 20 withdrawn. Phase 3 built:
 `core/overlay-priority.js` behind `v3OverlayPriority` (default OFF), and motion tokens
-NAMED, NOT RETIMED (owner's call: nothing changes speed); item 13 withdrawn. Not
-deployed at the time of writing; check `git log origin/main..main`.
+NAMED, NOT RETIMED (owner's call: nothing changes speed); item 13 withdrawn. Phase 4
+built as three default-OFF look flags: `v3SubjectField` (item 5), `v3HourWeight`
+(item 10), `v3ForecastTint` (item 15); item 12 withdrawn. Not deployed at the time of
+writing; check `git log origin/main..main`.
 
 ## How this was done, and what it can and cannot claim
 
@@ -283,10 +285,12 @@ Target: `--ink-dim` text with a 2px `--error` strike, so the words stay legible 
 Files: `css/type.css:135-139`.
 Impact medium. Effort trivial.
 
-**12. Night grade on the journey photograph.**
-Problem: full-brightness photo at 23:30 in the capture [V].
-Files: `css/journey.css`, driven by the existing `data-night`.
-Impact medium. Effort low. Depends on what the display schedule already does.
+**12. Night grade on the journey photograph. — WITHDRAWN 2026-11-12.**
+The audit's [V] claim was a misreading. A night grade already exists:
+`css/journey.css:303` steps the photograph and its backdrop back to opacity 0.72 on
+`data-night`. In the capture a 28% step over a dark ground was judged by eye as "as
+bright as by day", which it is not. If the owner wants it deeper, that is one number.
+No change.
 
 **13. Atmosphere pane stands down over camera frames. — WITHDRAWN 2026-11-12.**
 The audit's [C] claim was wrong. `.atmo-overlay` is z-index 4 and `.stage` is 10

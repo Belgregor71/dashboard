@@ -65,6 +65,15 @@ html, body {
 }
 .photo img[data-shown="1"] { opacity: 1; }
 
+/* features.v3SubjectField — depths 2 and 3 sit on the living field, which is
+   already drawing beneath the photograph there. Dimmed to near-black the photo
+   was a muddy ground with faces still recognisable under the rows. Opacity on
+   the CONTAINER, never display or visibility on the <img>: core/scrim.js and
+   core/ground.js still read the node. Depth 1 keeps its photograph. */
+.photo { transition: opacity var(--m-calm) var(--ease); }
+:root[data-subject-field="1"][data-depth="2"] .photo,
+:root[data-subject-field="1"][data-depth="3"] .photo { opacity: 0; }
+
 /* A public holiday (features.v3PublicHolidays): the incumbent's warm edge,
    ported value for value. On the photo, UNDER the scrim, so it can only warm
    the picture and never sits on top of a word. */
@@ -328,6 +337,10 @@ body[data-holiday] .photo::after {
               transform var(--m-calm) var(--ease),
               visibility 0s linear 0s;
 }
+/* features.v3HourWeight — over the Memory Journey's photograph the 200-weight
+   hour is hairlines on texture. One step up, only there; on the field it keeps
+   200. Not transitioned: a weight change mid-exchange would relayout per frame. */
+:root[data-hour-heavy="1"][data-journey="1"][data-depth="0"] .hour { font-weight: 300; }
 /* The sun-dimmed hour (features.v3SunClock; core/sun-clock.js). main.js writes
    --clock-dim once a minute from the sun's altitude — 0.7 at astronomical
    twilight up to 1 with the sun 6° up — and only while the flag is on, together
@@ -1368,6 +1381,9 @@ body[data-holiday] .photo::after {
   flex: 0 0 auto;
 }
 .subject__dayicon svg { display: block; width: 100%; height: 100%; }
+/* features.v3ForecastTint — the icons are the one cartoon-coloured thing on the
+   wall. Seven 120px boxes, depth 3 only, so the filter's cost is small and brief. */
+:root[data-forecast-tint="1"] .subject__dayicon { filter: saturate(0.55); opacity: 0.88; }
 
 .subject__daytemps {
   display: flex;
