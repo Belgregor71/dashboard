@@ -12,6 +12,28 @@ built as three default-OFF look flags: `v3SubjectField` (item 5), `v3HourWeight`
 (item 10), `v3ForecastTint` (item 15); item 12 withdrawn. Not deployed at the time of
 writing; check `git log origin/main..main`.
 
+**Phase 5 outcome (2026-11-13), each item checked against the code before building:**
+
+- *Drift periods to two* — WITHDRAWN. The periods are co-prime on purpose so the two
+  ghosts never share a phase (`css/archive.css:240`).
+- *Media loops when hidden* — CONFIRMED, NOT FIXED. A timed track's disc and ring keep
+  animating while another depth is up: `.now-playing[data-shown="1"]` sets
+  `visibility: visible`, which overrides the hidden depth layer (`css/compose.css:501`).
+  Pausing them is the wrong fix: progress is set by a negative `animation-delay`, so a
+  paused ring resumes behind the track. Needs a `/kiosk-metrics` reading with music
+  playing at depth 3 before anything changes.
+- *Reduced motion in Web Animations* — RECORDED, NOT BUILT (owner's call). `core/diorama.js`,
+  `subjects/camera-plan.js` and `subjects/day-lapse.js` do not read
+  `prefers-reduced-motion`; `core/journey.js` and `core/dog-occasion.js` do. Nothing on
+  the kiosk sets it.
+- *Unreferenced weather video* — DONE. 11 of 12 files in `static/assets/weather_bg/`
+  deleted (about 16 MB). `clear.mp4` STAYS: `tests/v3-archive.spec.js:2808` uses it as
+  its decodable H.264 fixture. The audit's "no reference in `src/` or `server/`" was
+  true and still missed that test.
+- *Hour drift for burn-in* — NOT BUILT (owner's call). It would move the clock for no
+  reason the room can see, and the panel is off 21:00 to 05:00.
+- *72-hour soak row* — OWED. Needs the deploy first.
+
 ## How this was done, and what it can and cannot claim
 
 - **Surface audited:** `src/v3/` — the only frontend since the incumbent was retired on 2026-10-03. 10 stylesheets (5,017 lines), 51 core modules, 14 subjects.
