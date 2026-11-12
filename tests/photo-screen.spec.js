@@ -177,6 +177,16 @@ test.describe("the document question", () => {
     expect(isScreenedOut(A)).toBe(true);
   });
 
+  test("a NO is kept too — a clean photograph is not re-asked every night", async () => {
+    let asked = 0;
+    const docOne = async () => { asked++; return "NO"; };
+    await screenAssets([A], { screenOne: NO, docOne });
+    const second = await screenAssets([A], { screenOne: NO, docOne });
+    expect(asked).toBe(1);
+    expect(second).toMatchObject({ screened: 0, known: 1 });
+    expect(docVerdictOf(A)).toBe("ok");
+  });
+
   test("IT FAILS OPEN: an unreadable or failed document answer hides nothing and is asked again", async () => {
     const out = await screenAssets([A, B], {
       screenOne: NO,
