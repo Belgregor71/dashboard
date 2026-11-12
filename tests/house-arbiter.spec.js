@@ -336,7 +336,11 @@ test("the doorbell reaches the speaker as fast with the arbiter as without", asy
   async function ring(on) {
     const ctx = await browser.newContext();
     const p = await ctx.newPage();
-    await boot(p, on, {}, { v3DoorbellNameWait: false });
+    /* The cast voice is pinned off for the same reason as the name wait. With
+       it on, two stubbed /api/cast/pick round-trips sit before the TTS request
+       and each takes ~4 ms or ~200 ms in the driver: "off 17/635/482 · on
+       560/504/385" (red, 2026-11-12). Pinned off, 8 of 8 rings read 2-3 ms. */
+    await boot(p, on, {}, { v3DoorbellNameWait: false, v3CastVoice: false });
     const t = (await p.evaluate(async () => {
       let hit = null;
       const real = window.fetch;
