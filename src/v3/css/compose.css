@@ -374,6 +374,28 @@ body[data-holiday] .photo::after {
    glass permanently, empty. `.heard` and `.rail` get away with a bare `hidden`
    only because neither sets `display`.
 ─────────────────────────────────────────────────────────────────────────── */
+/* ── The pill ───────────────────────────────────────────────────────────────
+   One idiom, two users: a STATE the house is reporting, on its own ground.
+   What differs stays with each — its corner, its size, its border, its gap. */
+.fault,
+.timers {
+  display: inline-flex;
+  margin: 0;
+  border-radius: var(--r-pill);
+  background: color-mix(in oklch, var(--surface-sunk) 92%, transparent);
+  font-family: var(--font-measured);
+  font-optical-sizing: auto;
+  font-variation-settings: "GRAD" var(--grade);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .fault {
   position: absolute;
   left: var(--safe);
@@ -383,7 +405,6 @@ body[data-holiday] .photo::after {
      sibling only wins on paint order while every layer stays at opacity 1, and
      a layer mid-fade IS a stacking context. */
   z-index: 1;
-  display: inline-flex;
   align-items: center;
   /* ⚠ TIGHTER 2026-09-05, AND THE TYPE DID NOT MOVE. Owner at the wall: "the
      error pills are too big". The font stays at --t-rail because --t-rail IS the
@@ -404,27 +425,13 @@ body[data-holiday] .photo::after {
      floor has stopped mattering anywhere else. 24px on 6/14 padding, weight 400,
      a quieter border and an 8px dot: 38px of pill against the old 54. */
   gap: 8px;
-  margin: 0;
   padding: 6px 14px;
-  border-radius: 999px;
-  background: color-mix(in oklch, var(--surface-sunk) 92%, transparent);
   border: 1px solid color-mix(in oklch, var(--error) 30%, transparent);
-  font-family: var(--font-measured);
-  font-optical-sizing: auto;
-  font-variation-settings: "GRAD" var(--grade);
-  font-size: 24px;
-  font-weight: 400;
-  line-height: 1;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
+  font-size: var(--t-fyi);
   /* One line, always. A wrapped pill has stopped being a pill, and health.js
      writes labels short enough that this can never bite — the ellipsis is the
      guard for a feed the server grows that this file has never heard of. */
-  white-space: nowrap;
   max-width: calc(100% - var(--safe) * 2);
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .fault[hidden] { display: none; }
 
@@ -549,7 +556,7 @@ body[data-holiday] .photo::after {
   width: auto;
   max-width: 240px;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: var(--r-tile);
   display: block;
 }
 /* No artwork, or artwork that 404'd. `display: none` and not `opacity: 0`, so
@@ -664,27 +671,12 @@ body[data-holiday] .photo::after {
   right: var(--safe);
   top: var(--safe);
   z-index: 1;
-  display: inline-flex;
   align-items: baseline;
   gap: 16px;
-  margin: 0;
   padding: 8px 20px;
-  border-radius: 999px;
-  background: color-mix(in oklch, var(--surface-sunk) 92%, transparent);
   border: 1px solid color-mix(in oklch, var(--ink-dim) 25%, transparent);
-  font-family: var(--font-measured);
-  font-optical-sizing: auto;
-  font-variation-settings: "GRAD" var(--grade);
   font-size: var(--t-rail);
-  font-weight: 400;
-  line-height: 1;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
-  white-space: nowrap;
   max-width: calc(50% - var(--safe));
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .timers[hidden] { display: none; }
 .timers__time {
@@ -911,8 +903,8 @@ body[data-holiday] .photo::after {
 .plan--locator {
   top: var(--safe);
   right: var(--safe);
-  width: 22vw;
-  border-radius: 12px;
+  width: 422px;
+  border-radius: var(--r-card);
   box-shadow: 0 8px 32px rgb(0 0 0 / 0.5);
 }
 .plan__world {
@@ -932,18 +924,18 @@ body[data-holiday] .photo::after {
 .plan__light {
   background: linear-gradient(
     calc(var(--sun-az) + 180deg - var(--plan-up)),
-    rgb(8 12 24 / 0.38) 0%,
+    color-mix(in srgb, var(--plan-night) 38%, transparent) 0%,
     transparent 65%
   );
 }
-:root[data-night="1"] .plan__light { background: rgb(8 12 24 / 0.68); }
+:root[data-night="1"] .plan__light { background: color-mix(in srgb, var(--plan-night) 68%, transparent); }
 .plan__fov polygon {
-  fill: rgb(255 196 84 / 0.16);
-  stroke: rgb(255 196 84 / 0.55);
+  fill: color-mix(in srgb, var(--plan-amber) 16%, transparent);
+  stroke: color-mix(in srgb, var(--plan-amber) 55%, transparent);
   stroke-width: 2px;
   vector-effect: non-scaling-stroke;
 }
-.plan--locator .plan__fov polygon { fill: rgb(255 196 84 / 0.35); }
+.plan--locator .plan__fov polygon { fill: color-mix(in srgb, var(--plan-amber) 35%, transparent); }
 
 /* ── The day in 20 seconds (subjects/day-lapse.js, features.v3DayLapse) ─────
    Everything moving is transform or opacity. A pulse's size is a share of the
@@ -962,34 +954,34 @@ body[data-holiday] .photo::after {
   width: var(--size);
   aspect-ratio: 1;
   border-radius: 50%;
-  background: radial-gradient(circle, rgb(255 196 84 / 0.95) 0%, rgb(255 196 84 / 0.35) 45%, transparent 70%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--plan-amber) 95%, transparent) 0%, color-mix(in srgb, var(--plan-amber) 35%, transparent) 45%, transparent 70%);
 }
-.lapse__pulse--door { background: radial-gradient(circle, rgb(255 244 214 / 1) 0%, rgb(255 150 70 / 0.5) 45%, transparent 70%); }
-.lapse__pulse--bins { background: radial-gradient(circle, rgb(150 230 170 / 0.95) 0%, rgb(90 190 120 / 0.35) 45%, transparent 70%); }
+.lapse__pulse--door { background: radial-gradient(circle, var(--lapse-door-core) 0%, color-mix(in srgb, var(--lapse-door) 50%, transparent) 45%, transparent 70%); }
+.lapse__pulse--bins { background: radial-gradient(circle, color-mix(in srgb, var(--lapse-bins-core) 95%, transparent) 0%, color-mix(in srgb, var(--lapse-bins) 35%, transparent) 45%, transparent 70%); }
 .lapse__sky {
   position: absolute;
   inset: 0;
   opacity: 0;
-  background: linear-gradient(115deg, rgb(20 34 60 / 0.72), rgb(20 34 60 / 0.3));
+  background: linear-gradient(115deg, color-mix(in srgb, var(--lapse-sky) 72%, transparent), color-mix(in srgb, var(--lapse-sky) 30%, transparent));
 }
 .lapse__clock,
 .lapse__note {
   position: absolute;
   left: var(--safe);
   padding: 0.1em 0.45em;
-  border-radius: 10px;
-  background: rgb(8 12 24 / 0.62);
-  color: #fff;
+  border-radius: var(--r-card);
+  background: color-mix(in srgb, var(--plan-night) 62%, transparent);
+  color: var(--ink);
   font-family: var(--font-measured);
 }
 .lapse__clock {
   bottom: var(--safe);
-  font-size: 4.2vw;
+  font-size: var(--t-measured-1);
   font-variant-numeric: tabular-nums;
 }
 .lapse__note {
-  bottom: calc(var(--safe) + 6.4vw);
-  font-size: 2.2vw;
+  bottom: calc(var(--safe) + 112px);
+  font-size: var(--t-measured-2);
   opacity: 0;
 }
 
@@ -1026,25 +1018,25 @@ body[data-holiday] .photo::after {
 }
 .robot__trail {
   fill: none;
-  stroke: rgb(130 220 255 / 0.8);
+  stroke: color-mix(in srgb, var(--robot-trail) 80%, transparent);
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 .robot__dot {
-  fill: #fff;
-  stroke: rgb(30 140 235);
+  fill: var(--ink);
+  stroke: var(--robot-ring);
   filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.6));
 }
 .robot[data-state="error"] .robot__dot {
-  fill: rgb(255 122 60);
-  stroke: #fff;
+  fill: var(--robot-error);
+  stroke: var(--ink);
 }
 /* A wheelie bin from above: a charcoal body, the coloured lid inset on it, and the
    hinge bar along the house side. */
 .diorama__bin {
   position: absolute;
   border-radius: 14% / 11%;
-  background: #23272a;
+  background: var(--bin-body);
   box-shadow: 3px 5px 7px rgb(0 0 0 / 0.5);
 }
 .diorama__bin::before {
@@ -1061,8 +1053,8 @@ body[data-holiday] .photo::after {
   position: absolute;
   inset: 16% 5% 16% auto;
   width: 6%;
-  border-radius: 2px;
-  background: #4a5055;
+  border-radius: var(--r-hair);
+  background: var(--bin-hinge);
 }
 
 /* ── The caption band ───────────────────────────────────────────────────────
@@ -1248,6 +1240,9 @@ body[data-holiday] .photo::after {
   min-height: 0;
   overflow: hidden;
 }
+/* An empty subject's one line sits where the glance sets its sentence (dom.js
+   empty()), so the wall keeps one anchor for a single sentence. */
+.subject__list[data-empty="1"] { justify-content: flex-end; }
 
 /* A row is a lead and a line. `baseline` and not `center`: the two are set in
    different faces at different sizes, and centring them makes the time look
@@ -1529,7 +1524,7 @@ body[data-holiday] .photo::after {
   margin: 0;
   min-height: 0;
   overflow: hidden;
-  border-radius: 6px;
+  border-radius: var(--r-tile);
 }
 .subject__plate img {
   width: 100%;
@@ -1673,7 +1668,7 @@ body[data-holiday] .photo::after {
   bottom: -0.8rem;
   z-index: -1;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0));
-  border-radius: 2px;
+  border-radius: var(--r-hair);
 }
 
 :root[data-night="1"] .ground-caption { opacity: 0; }

@@ -166,7 +166,7 @@
   height: 116px;
   border-radius: 50%;
   overflow: hidden;
-  box-shadow: 0 6px 20px oklch(0.05 0 0 / 0.55), 0 1px 2px oklch(0.05 0 0 / 0.6);
+  box-shadow: var(--lift-1);
 }
 .mdisc__plate img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .mdisc__plate img[data-blank="1"] { visibility: hidden; }
@@ -210,17 +210,17 @@
 .mframe__still {
   height: 126px;
   max-width: 260px;
-  border-radius: 6px;
+  border-radius: var(--r-tile);
   overflow: hidden;
   align-self: flex-end;
-  box-shadow: 0 6px 20px oklch(0.05 0 0 / 0.55), 0 1px 2px oklch(0.05 0 0 / 0.6);
+  box-shadow: var(--lift-1);
 }
 .mframe__still img { height: 100%; width: auto; object-fit: cover; display: block; }
 .mframe__still img[data-blank="1"] { visibility: hidden; }
 .mframe__rule {
   position: relative;
   height: 3px;
-  border-radius: 2px;
+  border-radius: var(--r-hair);
   background: oklch(0.93 0.010 85 / 0.16);
   overflow: hidden;
   opacity: 0;
@@ -306,7 +306,7 @@
   inset: 0;
   border-radius: 50%;
   overflow: hidden;
-  box-shadow: 0 6px 20px oklch(0.05 0 0 / 0.5), 0 1px 2px oklch(0.05 0 0 / 0.55);
+  box-shadow: var(--lift-1);
 }
 .cell__plate img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .cell__plate img[data-blank="1"] { visibility: hidden; }
@@ -333,9 +333,9 @@
 .cell__still {
   height: 108px;
   max-width: 100%;
-  border-radius: 6px;
+  border-radius: var(--r-tile);
   overflow: hidden;
-  box-shadow: 0 6px 20px oklch(0.05 0 0 / 0.5), 0 1px 2px oklch(0.05 0 0 / 0.55);
+  box-shadow: var(--lift-1);
 }
 .cell__still img { height: 100%; width: auto; object-fit: cover; display: block; }
 .cell__still img[data-blank="1"] { visibility: hidden; }
@@ -390,7 +390,7 @@
   height: 424px;
   border-radius: 50%;
   overflow: hidden;
-  box-shadow: 0 18px 60px oklch(0.05 0 0 / 0.6), 0 2px 6px oklch(0.05 0 0 / 0.5);
+  box-shadow: var(--lift-2);
 }
 .subject__plate-disc img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .subject__plate-disc img[data-blank="1"] { visibility: hidden; }

@@ -307,7 +307,7 @@
   right: 36px;
   top: 150px;
   font-family: var(--font-measured);
-  font-size: 400px;
+  font-size: var(--t-display);
   font-weight: 100;
   line-height: 1;
   letter-spacing: 0.02em;
@@ -630,7 +630,7 @@
   top: 120px;
   z-index: 6;
   font-family: var(--font-said);
-  font-size: 150px;
+  font-size: var(--t-word);
   font-weight: 400;
   line-height: 0.9;
   letter-spacing: 0.06em;
@@ -1163,7 +1163,7 @@
   z-index: 6;
   width: 180px;
   height: 120px;
-  border-radius: 8px;
+  border-radius: var(--r-tile);
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.55);
   outline: 1px solid rgba(238, 243, 251, 0.14);
   opacity: 0.9;

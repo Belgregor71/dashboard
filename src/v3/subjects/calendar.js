@@ -14,7 +14,7 @@
    a broken subject.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { frame, title, column } from "./dom.js";
+import { frame, title, column, empty } from "./dom.js";
 import { plainTitle } from "../../js/services/eventTitle.js";
 
 /* Six rows at 96px inside the safe area. The fix for a seventh is not a smaller
@@ -81,7 +81,7 @@ export function showDay(snapshot, { now = new Date() } = {}) {
   node.appendChild(title(now.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", timeZone: TZ })));
 
   if (events.length === 0) {
-    node.appendChild(column([{ text: "Nothing on today." }]));
+    node.appendChild(empty("Nothing on today."));
   } else {
     const rows = events.slice(0, MAX_ROWS).map((e) => ({
       lead: e.allDay ? "all day" : clock(e.at),

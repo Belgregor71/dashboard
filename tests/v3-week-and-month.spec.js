@@ -384,6 +384,31 @@ test("⚠ a cold calendar mounts NOTHING; an empty month is a real answer", asyn
   expect(pageErrors).toEqual([]);
 });
 
+/* 2026-11-12: an empty subject's one line sat at the top with three quarters of
+   the wall bare beneath it. It takes the glance's anchor now; a list WITH rows
+   must still start at the top. */
+test("an empty subject sets its one line at the bottom; a full one still starts at the top", async ({ page }) => {
+  await bootV3(page);
+  const where = async (drive) => {
+    await page.evaluate(drive);
+    await page.evaluate(() => window.__setDepth(3, "spec"));
+    return page.evaluate(() => {
+      const t = document.querySelector("#subject-mount .subject__text");
+      const r = t.getBoundingClientRect();
+      return { text: t.textContent, top: Math.round(r.top), bottom: Math.round(r.bottom), h: r.height };
+    });
+  };
+  const none = await where(() => window.__v3Subject("show.ahead", {}, { calendar: [] }));
+  expect(none.text).toBe("Nothing on for the next month.");
+  expect(none.h).toBeGreaterThan(40);
+  expect(none.bottom).toBeLessThanOrEqual(1080 - 96);      // on the safe line
+  expect(none.top).toBeGreaterThan(1080 * 0.7);
+
+  const some = await where(() => window.__v3Subject("show.list", { list: "shopping" }, { todos: { shopping: ["milk", "eggs"], tasks: null } }));
+  expect(some.text).toBe("milk");
+  expect(some.top).toBeLessThan(1080 * 0.3);
+});
+
 test("a crowded month is capped, and whatever it cut is counted and said", async ({ page }) => {
   const { pageErrors } = await bootV3(page);
   const got = await page.evaluate(async () => {

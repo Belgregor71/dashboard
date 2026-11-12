@@ -1,6 +1,12 @@
 # Visual design and UX audit — 2026-11-12
 
-Audit only. No code, flag, asset or config was changed. Nothing here has been implemented.
+Written as an audit only: no code, flag, asset or config was changed while producing it.
+
+**Status since (2026-11-12):** Phase 1 built (`d208874`, `a6cc25a`). Phase 2 built in
+part: tokens, colour/radius/shadow tokens, viewport units off sizes, a shared pill
+rule, empty states re-anchored, and `tests/v3-token-lint.spec.js`. Owner's scope calls:
+item 6 for empty states only, item 19 skipped, item 20 withdrawn. Not deployed at the
+time of writing; check `git log origin/main..main`.
 
 ## How this was done, and what it can and cannot claim
 
@@ -318,10 +324,11 @@ Target: tracking above 0.02em only on uppercase.
 Files: `css/archive.css:590-600`.
 Impact low while the journey is on.
 
-**20. Fault pill in one corner.**
-Problem: top-left on the journey, bottom-right on the plane [V].
-Files: `css/archive.css`, `css/compose.css`.
-Impact low. Effort low.
+**20. Fault pill in one corner. — WITHDRAWN 2026-11-12.**
+The pill is top-left on the journey and bottom-right on the plane [V], but the plane's
+corner was the owner's own call at the glass on 2026-09-05 ("up top left is
+distracting"), recorded at `css/archive.css:1180`. The audit read a deliberate
+decision as drift. Dropped by the owner; no change.
 
 ---
 

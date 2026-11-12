@@ -14,7 +14,7 @@
    returns null in that case, and null means we do not show a subject at all.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { frame, title, column } from "./dom.js";
+import { frame, title, column, empty } from "./dom.js";
 
 /* Twelve at 96px is the panel's honest ceiling. A shopping list longer than
    that is a scroll, and a scroll is a thing you operate — this surface has no
@@ -42,10 +42,12 @@ export function showList(snapshot, which = "shopping") {
   node.dataset.cell = which === "todo" ? "todo" : "shopping";
   node.appendChild(title(spec.heading));
 
-  const rows = items.length === 0
-    ? [{ text: spec.empty }]
-    : items.slice(0, MAX_ROWS).map((item) => ({ text: String(item) }));
+  if (items.length === 0) {
+    node.appendChild(empty(spec.empty));
+    return { node, teardown };
+  }
 
+  const rows = items.slice(0, MAX_ROWS).map((item) => ({ text: String(item) }));
   if (items.length > MAX_ROWS) rows.push({ text: `and ${items.length - MAX_ROWS} more` });
   node.appendChild(column(rows));
 

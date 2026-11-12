@@ -19,7 +19,7 @@
 .dogs {
   /* One cell's height at scale 1. 34vh ≈ 367px on the 1080 panel — the
      sheets' own 362px cell, so the art is shown at ~1:1, not upscaled. */
-  --dog-h: 34vh;
+  --dog-h: 367.2px;
   position: fixed;
   left: 0;
   right: 0;
@@ -180,11 +180,11 @@
    313.5px cell, so the art is shown at ~1:1. The dogs cross the lower third:
    Benji's box top sits about 30% up the glass. */
 .dogs[data-mode="run"] {
-  --dog-h: 29vh;
+  --dog-h: 313.2px;
 }
 
 .dogs[data-mode="run"] .dog {
-  bottom: var(--dog-ground, 4vh);
+  bottom: var(--dog-ground, 43.2px);
 }
 
 .dogs[data-mode="run"]:not([data-still]) .dog {

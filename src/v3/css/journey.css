@@ -217,7 +217,7 @@
   font-family: var(--font-said);
   font-style: italic;
   font-weight: 300;
-  font-size: 128px;
+  font-size: var(--t-memory);
   line-height: 1;
   letter-spacing: -0.02em;
   font-variant-numeric: lining-nums;

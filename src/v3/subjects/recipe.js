@@ -20,7 +20,7 @@
    knowing about rather than discovering on a bill.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { frame, title, column, getJson } from "./dom.js";
+import { frame, title, column, empty, getJson } from "./dom.js";
 
 /* Ingredients are a glance; the method is a read.
 
@@ -138,7 +138,7 @@ export async function showRecipe(snapshot) {
     const { node, teardown } = frame("recipe");
     node.dataset.cell = "menu";
     node.appendChild(title("Dinner"));
-    node.appendChild(column([{ text: "Nothing's planned for tonight." }]));
+    node.appendChild(empty("Nothing's planned for tonight."));
     return { node, teardown };
   }
 
@@ -154,7 +154,7 @@ export async function showRecipe(snapshot) {
     /* The dish is still the answer to "what's for dinner" even when the method
        is missing, so this is a subject rather than a fall-through. Saying which
        half is absent beats an empty rectangle. */
-    node.appendChild(column([{ text: "No method saved for this one yet." }]));
+    node.appendChild(empty("No method saved for this one yet."));
     return { node, teardown };
   }
 

@@ -30,7 +30,7 @@
    a sentence, because the person asked.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { frame, title, column } from "./dom.js";
+import { frame, title, column, empty } from "./dom.js";
 import { displayTitleOf } from "./calendar.js";
 
 const TZ = "Australia/Brisbane";
@@ -127,7 +127,7 @@ export function showAhead(snapshot, { now = new Date() } = {}) {
   node.appendChild(title("The month ahead"));
 
   if (events.length === 0) {
-    node.appendChild(column([{ text: "Nothing on for the next month." }]));
+    node.appendChild(empty("Nothing on for the next month."));
     return { node, teardown };
   }
 

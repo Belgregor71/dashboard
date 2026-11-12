@@ -80,6 +80,15 @@ export function column(rows) {
   return list;
 }
 
+/** A subject with nothing in it: one said line, at the BOTTOM of the frame where
+ *  the glance sets its sentence (compose.css). At the top it left three quarters
+ *  of the wall empty beneath it. */
+export function empty(text) {
+  const list = column([{ text }]);
+  list.dataset.empty = "1";
+  return list;
+}
+
 /** One line of prose at reading scale — the briefing's shape, and the only
  *  place in V3 where the house says more than a sentence. */
 export function prose(text) {

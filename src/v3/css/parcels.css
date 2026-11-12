@@ -15,7 +15,7 @@
   /* The timer pill's hairline: on the plain field the card had no edge at all. */
   border: 1px solid color-mix(in oklch, var(--ink-dim) 25%, transparent);
   color: var(--ink);
-  border-radius: 12px;
+  border-radius: var(--r-card);
   pointer-events: none;
   animation: parcel-presence 8s both;
 }

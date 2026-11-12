@@ -219,6 +219,37 @@
      signage works: the scrim handles the average case, this survives the
      highlight that the scrim did not anticipate. */
   --ink-shadow: 0 2px 18px oklch(0.05 0 0 / 0.75), 0 1px 3px oklch(0.05 0 0 / 0.55);
+
+  /* ── Named 2026-11-12 (visual audit, phase 2) ─────────────────────────────
+     Values that were already on the wall as literals. tests/v3-token-lint.spec.js
+     now refuses a type size, a corner or a hex colour that is not a token. */
+  --t-display: 400px;        /* the plane's engraved year */
+  --t-word:    150px;        /* the plane's word */
+  --t-memory:  128px;        /* the journey's year */
+  --t-fyi:      24px;        /* THE one size under the floor: the fault pill, on its own ground */
+
+  --r-hair: 2px;
+  --r-tile: 6px;
+  --r-card: 12px;
+  --r-pill: 999px;
+
+  --lift-1: 0 6px 20px oklch(0.05 0 0 / 0.55), 0 1px 2px oklch(0.05 0 0 / 0.6);
+  --lift-2: 0 18px 60px oklch(0.05 0 0 / 0.6), 0 2px 6px oklch(0.05 0 0 / 0.5);
+
+  /* The house plan, the day lapse and the robot: drawn over an illustration, so
+     these are the illustration's colours, not the wall's inks. */
+  --plan-night: rgb(8 12 24);
+  --plan-amber: rgb(255 196 84);
+  --lapse-sky: rgb(20 34 60);
+  --lapse-door-core: rgb(255 244 214);
+  --lapse-door: rgb(255 150 70);
+  --lapse-bins-core: rgb(150 230 170);
+  --lapse-bins: rgb(90 190 120);
+  --robot-trail: rgb(130 220 255);
+  --robot-ring: rgb(30 140 235);
+  --robot-error: rgb(255 122 60);
+  --bin-body: #23272a;
+  --bin-hinge: #4a5055;
 }
 
 /* ── Night ──────────────────────────────────────────────────────────────────
