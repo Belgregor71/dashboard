@@ -27,7 +27,7 @@
    an overseas memory (~5-20 paths), which REPLACES the previous one.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { decodeWorld, mapPlan, frameGeometry, yearOf, placeLine, namesLine, photoFit } from "./journey-geo.js";
+import { decodeWorld, mapPlan, frameGeometry, yearOf, placeLine, namesLine, photoFit, memoryRight } from "./journey-geo.js";
 import { requiredAlpha, resolveColor } from "./scrim.js";
 
 /* ── Timing — the numbers to turn ──────────────────────────────────────────
@@ -439,6 +439,10 @@ function begin(slot, asset, settleMs) {
   // The words leave with the outgoing photograph and wait.
   memoryEl.dataset.meta = "out";
   pendingMeta = () => {
+    // Written while the words are out, so the block never moves on the glass.
+    const right = memoryRight(fit);
+    if (right == null) rootEl.style.removeProperty("--j-memory-right");
+    else rootEl.style.setProperty("--j-memory-right", `${right}px`);
     paintWords(words);
     paintMini(plan);
     memoryEl.dataset.meta = "in";

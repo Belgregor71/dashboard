@@ -212,6 +212,13 @@ test("the week mounts a cell per day, each with a name, an icon and two temperat
   expect(got.rains.length).toBe(7);
   expect(got.rains).toContain("");           // the 12% day is below the floor
   expect(got.rains).toContain("71%");
+  /* …and the dry day's empty line must be as TALL as a wet day's. It was 1em
+     against a 1.24 line, so dry days sat ~6px low (measured 2026-11-12). */
+  const tops = await page.evaluate(() =>
+    [...document.querySelectorAll("#subject-mount .subject__dayname")].map((n) => Math.round(n.getBoundingClientRect().top)));
+  expect(tops.length).toBe(7);
+  expect(tops[0]).toBeGreaterThan(0);
+  expect(new Set(tops).size, `day names on one line: ${tops}`).toBe(1);
   expect(pageErrors).toEqual([]);
 });
 

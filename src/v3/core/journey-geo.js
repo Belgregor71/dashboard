@@ -339,3 +339,15 @@ export function photoFit(aspect, W = 1920, H = 1080) {
   const h = Math.min(H, W / a);
   return { mode: "contain", x: (W - w) / 2, y: (H - h) / 2, w, h };
 }
+
+/* A side mat narrower than this cannot hold the memory block (the year alone is
+   ~265px), so the block straddled the photograph's edge. Then it sits wholly on
+   the photograph, one gutter in; a wider mat (a portrait) keeps it at the safe
+   line. The result stays inside journey.js's shade sample (x ≥ 1080).
+   Returns the block's CSS `right` in px, or null for "leave it at --safe". */
+const MAT_HOLDS_MEMORY_PX = 480;
+const MEMORY_INSET_PX = 28;
+export function memoryRight(fit) {
+  const mat = fit?.mode === "contain" ? Math.round(fit.x) : 0;
+  return mat > 0 && mat < MAT_HOLDS_MEMORY_PX ? mat + MEMORY_INSET_PX : null;
+}

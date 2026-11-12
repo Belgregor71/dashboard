@@ -163,7 +163,9 @@
 :root[data-journey="1"] .journey__memory {
   position: absolute;
   top: var(--safe);
-  right: var(--safe);
+  /* journey.js moves it onto the photograph when a narrow side mat would
+     otherwise put the year half on the mat and half on the photo. */
+  right: var(--j-memory-right, var(--safe));
   z-index: 5;
   display: flex;
   align-items: flex-start;

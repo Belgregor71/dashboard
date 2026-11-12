@@ -113,6 +113,48 @@ test("someone at the door puts the door on the screen, without anyone asking", a
   expect(pageErrors).toEqual([]);
 });
 
+/* Found 2026-11-12: the dogs (z-index 15) stayed up over the door's camera and
+   covered its caption. Only the voice handler ever took them off. */
+test("the door takes the dogs off the glass", async ({ page }) => {
+  await bootV3(page);
+  await page.waitForFunction(() => typeof window.dogOccasion?.show === "function");
+  await page.evaluate(() => { window.dogOccasion.show("generic"); });
+  await page.waitForFunction(() => window.dogOccasion.state().running && document.querySelector(".dogs"));
+
+  const alert = await page.evaluate(() => window.__v3Alert("binary_sensor.doorbell_ringing", "on"));
+  expect(alert.shown).toBe(true);
+  expect(await page.evaluate(() => document.querySelector(".subject__caption")?.textContent)).toBe("The front door");
+  expect(await page.evaluate(() => window.dogOccasion.state().running)).toBe(false);
+  await expect(page.locator(".dogs")).toHaveCount(0);
+});
+
+/* The page also has a system face for anything unclassed, and a misheard line
+   that stays readable — both were visible defects in the same audit. */
+test("unclassed text is never the browser's serif; a misheard line keeps its ink", async ({ page }) => {
+  await bootV3(page);
+  const got = await page.evaluate(() => {
+    const p = document.body.appendChild(document.createElement("p"));
+    p.textContent = "probe";
+    const family = getComputedStyle(p).fontFamily;
+    p.remove();
+    const h = document.getElementById("heard");
+    h.textContent = "show me the front door";
+    h.hidden = false;
+    h.dataset.failed = "misheard";
+    const cs = getComputedStyle(h);
+    const dim = getComputedStyle(document.documentElement).getPropertyValue("--ink-dim").trim();
+    const probe = document.body.appendChild(document.createElement("i"));
+    probe.style.color = dim;
+    const dimRgb = getComputedStyle(probe).color;
+    probe.remove();
+    return { family, color: cs.color, dimRgb, line: cs.textDecorationLine, lineColor: cs.textDecorationColor };
+  });
+  expect(got.family).toContain("Roboto Flex");
+  expect(got.line).toBe("line-through");
+  expect(got.color).toBe(got.dimRgb);
+  expect(got.lineColor).not.toBe(got.color);
+});
+
 test("a sensor stuck on since this morning is not somebody at the door", async ({ page }) => {
   const pageErrors = await bootV3(page);
 

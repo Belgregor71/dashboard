@@ -135,11 +135,16 @@
 .heard[data-failed="misheard"] {
   text-decoration: line-through;
   text-decoration-thickness: 2px;
-  color: oklch(0.52 0.05 27);
+  /* The line carries the failure; the words stay readable (they were a dim red
+     at weight 300, the faintest text on the wall). */
+  text-decoration-color: var(--error);
+  color: var(--ink-dim);
 }
 
 /* ── Global floor enforcement ───────────────────────────────────────────────
    A guard, not a style. If anything in V3 ever renders below the floor it is a
    bug, and the pre-push type sweep asserts against this same number.
 ─────────────────────────────────────────────────────────────────────────── */
-body { font-size: var(--t-rail); }
+/* The family too: an unclassed node fell back to the UA serif (`.ground-caption`
+   was on the glass in Times New Roman). */
+body { font-size: var(--t-rail); font-family: var(--font-measured); }

@@ -1388,7 +1388,9 @@ body[data-holiday] .photo::after {
    cells buries the 71% somebody actually asked about. */
 .subject__dayrain {
   color: var(--ink-dim);
-  min-height: 1em;
+  /* One LINE, not 1em: a wet day's row is line-height 1.24 tall, so a dry day's
+     cell was 11.5px shorter and its centred stack sat ~6px low. */
+  min-height: 1.24em;
 }
 
 /* ── The month ahead ────────────────────────────────────────────────────────

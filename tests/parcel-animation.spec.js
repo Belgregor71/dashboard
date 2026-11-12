@@ -31,6 +31,28 @@ test("parcel events show the right copy, replace rather than stack, and clean up
   await expect(moment).toHaveCount(0, { timeout: 9000 });
 });
 
+test("the card is set on the system's type and gives the wall to a subject", async ({ page }) => {
+  await preview(page);
+  await page.evaluate(() => window.parcel());
+  const moment = page.locator(".parcel-moment");
+  await expect(moment.locator("span")).toHaveText("1 parcel out for delivery");
+  const type = await moment.evaluate((el) => [...el.querySelectorAll("strong, span")].map((n) => {
+    const cs = getComputedStyle(n);
+    return { px: parseFloat(cs.fontSize), family: cs.fontFamily, fits: n.scrollWidth <= n.clientWidth };
+  }));
+  expect(type.length).toBe(2);
+  for (const t of type) {
+    expect(t.px).toBeGreaterThanOrEqual(32);          // --t-rail, the floor
+    expect(t.family).toContain("Figtree");
+    expect(t.fits).toBe(true);
+  }
+  await expect(moment).toBeVisible();
+  await page.evaluate(() => { document.documentElement.dataset.depth = "3"; });
+  await expect(moment).toBeHidden();
+  await page.evaluate(() => { document.documentElement.dataset.depth = "0"; });
+  await expect(moment).toBeVisible();
+});
+
 test("flag off keeps parcel events silent", async ({ page }) => {
   await preview(page, false);
   await page.evaluate(() => window.parcel());

@@ -5,7 +5,8 @@ import {
   placeLine,
   namesLine,
   yearOf,
-  photoFit
+  photoFit,
+  memoryRight
 } from "../src/v3/core/journey-geo.js";
 import { COUNTRIES } from "../src/v3/core/journey-world.js";
 
@@ -105,13 +106,14 @@ const PHOTOS = {
   dark: svg(1600, 900, `<rect width="1600" height="900" fill="#0b0c12"/><circle cx="1200" cy="300" r="60" fill="#3a3f55"/>`),
   portrait: svg(900, 1200,
     `<rect width="900" height="1200" fill="#c9774a"/><rect y="700" width="900" height="500" fill="#2f5d3a"/><circle cx="450" cy="420" r="160" fill="#f3d2a0"/>`),
+  classic: svg(1200, 900, `<rect width="1200" height="900" fill="#6f8f6a"/>`),
   pano: svg(2400, 533, `<rect width="2400" height="533" fill="#5b88b5"/><rect y="330" width="2400" height="203" fill="#7a6a4c"/>`)
 };
 const kindOf = (id) => Object.keys(PHOTOS).find((k) => id.startsWith(k)) ?? "dark";
 
 const at = (id, extra = {}) => ({
   id,
-  aspect: kindOf(id) === "portrait" ? 0.75 : kindOf(id) === "pano" ? 4.5 : 1.778,
+  aspect: kindOf(id) === "portrait" ? 0.75 : kindOf(id) === "pano" ? 4.5 : kindOf(id) === "classic" ? 1.333 : 1.778,
   localDateTime: "2019-07-06T09:00:00Z",
   city: null,
   state: null,
@@ -353,6 +355,31 @@ test("a bright photograph earns a darker shade than a dark one", async ({ browse
   const dark = await shade("dark");
   expect(bright.memory).toBeGreaterThan(dark.memory + 0.3);
   expect(bright.today).toBeGreaterThan(dark.today + 0.3);
+});
+
+test("a narrow side mat moves the memory onto the photograph; a wide one or none leaves it", () => {
+  expect(memoryRight(photoFit(4 / 3))).toBe(268);      // 240px mat + one gutter
+  expect(memoryRight(photoFit(0.75))).toBe(null);      // 555px mat holds the block
+  expect(memoryRight(photoFit(16 / 9))).toBe(null);    // cover: no mat
+  expect(memoryRight(photoFit(4.5))).toBe(null);       // mats above and below only
+});
+
+/* Found on the glass 2026-11-12: over a 4:3 photograph the year sat half on the
+   photo and half on its 240px mat. */
+test("the memory never straddles a 4:3 photograph's edge", async ({ page }) => {
+  await boot(page, { pool: [at("classic-1", NUDGEE), at("classic-2", NUDGEE)] });
+  await firstUp(page);
+  await expect(page.locator(".journey__memory[data-meta='in']")).toHaveCount(1);
+  const r = await page.evaluate(() => {
+    const words = document.querySelector(".journey__words").getBoundingClientRect();
+    const img = document.querySelector(".journey__frame.is-top img");
+    return { text: document.querySelector(".journey__words").textContent, l: words.left, r: words.right, w: words.width, imgRight: 1920 - parseFloat(img.style.left) };
+  });
+  expect(r.text).toContain("Nudgee");
+  expect(r.w).toBeGreaterThan(50);
+  expect(r.imgRight).toBe(1680);
+  expect(r.r).toBeLessThanOrEqual(r.imgRight);
+  expect(r.l).toBeGreaterThan(240);
 });
 
 test("portrait and panorama are shown whole on their own colour", async ({ page }) => {

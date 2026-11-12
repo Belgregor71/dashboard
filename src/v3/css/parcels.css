@@ -1,38 +1,46 @@
+/* The parcel moment, on the system's own tokens (it shipped with a literal font,
+   eleven hex colours and 26px text, under the --t-rail floor). */
 .parcel-moment {
   position: fixed;
-  right: 72px;
+  right: var(--safe);
   /* Between the sky line (bottom y152) and the media corner (top y771) on the
-     G11, measured 11-07: bottom-anchored, it covered the now-playing lines. */
+     G11, measured 11-07: bottom-anchored, it covered the now-playing lines.
+     ~400px tall at this width, so it ends near y600. */
   top: 200px;
-  z-index: 20;
-  width: 480px;
-  padding: 28px 36px 34px;
+  /* Above the stage (10) and the dogs (15), below the house's light (20). */
+  z-index: 16;
+  width: 560px;
+  padding: var(--gutter) 36px 34px;
   background: var(--surface);
   color: var(--ink);
-  border-radius: 24px;
+  border-radius: 12px;
   pointer-events: none;
   animation: parcel-presence 8s both;
 }
+/* A subject owns the whole wall: the card sat over two forecast columns and a
+   doorbell frame. Hidden, not removed — its 8 s clock keeps running. */
+:root[data-depth="3"] .parcel-moment { visibility: hidden; }
 .parcel-moment svg { display: block; width: 100%; overflow: hidden; }
 .parcel-road { stroke: var(--ink-dim); stroke-width: 2; opacity: .35; }
-.parcel-van { animation: parcel-arrive 1.3s cubic-bezier(.16, 1, .3, 1) both; }
-.parcel-van-body { fill: #e4e9de; }
-.parcel-window { fill: #526961; }
-.parcel-detail { fill: none; stroke: #8d9d92; stroke-width: 5; stroke-linecap: round; }
-.parcel-wheel { fill: #29312e; }
-.parcel-hub { fill: #a8b6a8; }
-.parcel-box { transform-origin: 331px 163px; animation: parcel-settle 900ms 800ms cubic-bezier(.16, 1, .3, 1) both; }
-.parcel-box-top { fill: #e8bf83; }
-.parcel-box-left { fill: #c08c53; }
-.parcel-box-right { fill: #d9a76b; }
-.parcel-tape { fill: #f2dbad; }
+.parcel-van { animation: parcel-arrive 1.3s var(--ease) both; }
+.parcel-van-body { fill: var(--ink); }
+.parcel-window { fill: var(--surface-lift); }
+.parcel-detail { fill: none; stroke: var(--ink-faint); stroke-width: 5; stroke-linecap: round; }
+.parcel-wheel { fill: var(--surface-sunk); }
+.parcel-hub { fill: var(--ink-dim); }
+.parcel-box { transform-origin: 331px 163px; animation: parcel-settle 900ms 800ms var(--ease) both; }
+/* Cardboard is the house's one warm signal, shaded by face. */
+.parcel-box-top { fill: var(--warm); }
+.parcel-box-left { fill: color-mix(in oklch, var(--warm) 68%, var(--surface-sunk)); }
+.parcel-box-right { fill: color-mix(in oklch, var(--warm) 84%, var(--surface-sunk)); }
+.parcel-tape { fill: color-mix(in oklch, var(--warm) 55%, var(--ink)); }
 .parcel-confirm { opacity: 0; }
 .parcel-moment--delivered .parcel-confirm { animation: parcel-confirm 450ms 1.6s both; }
-.parcel-confirm circle { fill: #b5d9a0; }
-.parcel-confirm path { fill: none; stroke: #25372c; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
-.parcel-copy { padding-top: 12px; font-family: Figtree, sans-serif; }
-.parcel-copy strong { display: block; font-size: 36px; font-weight: 550; line-height: 1.2; }
-.parcel-copy span { display: block; margin-top: 10px; font-size: 26px; color: var(--ink-dim); }
+.parcel-confirm circle { fill: var(--ok); }
+.parcel-confirm path { fill: none; stroke: var(--surface-sunk); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.parcel-copy { padding-top: 12px; font-family: var(--font-said); }
+.parcel-copy strong { display: block; font-size: var(--t-measured-2); font-weight: 400; line-height: 1.2; letter-spacing: -0.02em; }
+.parcel-copy span { display: block; margin-top: 10px; font-size: var(--t-rail); font-weight: 300; color: var(--ink-dim); }
 @keyframes parcel-arrive { from { transform: translateX(-275px); } to { transform: translateX(0); } }
 @keyframes parcel-settle { from { transform: translateY(-40px) rotate(-12deg); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes parcel-confirm { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
