@@ -2012,9 +2012,14 @@ window.CONFIG = {
     // phase 3). On: a subject reaching depth 3 takes the dogs off the glass, and
     // the door puts away a finished turn's lingering transcript. The door taking
     // the dogs off is NOT behind this flag (it shipped as a defect fix).
-    // Off: both overlays stay up, as before. Not yet seen on the wall.
+    // Off: both overlays stay up, as before.
+    // Deployed OFF 6e0a62c. Seen in-page on the G11 2026-11-13 06:10, both ways:
+    // forced off, the dogs stayed up over the status readout; forced on, they
+    // left as it opened. The door-clears-transcript half was NOT run on the wall
+    // (it would speak the doorbell line); it rests on tests/v3-alerts.spec.js.
+    // FLIPPED ON 2026-11-13 at the owner's ask.
     // Rollback: -> false, with a cache-bypass reload for the build.
-    v3OverlayPriority: false,
+    v3OverlayPriority: true,
 
     // Three look flags from the same audit (phase 4). Each is one CSS rule in
     // src/v3/css/compose.css hanging off a root marker main.js stamps; each is a
