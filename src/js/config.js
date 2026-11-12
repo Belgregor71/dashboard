@@ -2019,19 +2019,24 @@ window.CONFIG = {
     // Three look flags from the same audit (phase 4). Each is one CSS rule in
     // src/v3/css/compose.css hanging off a root marker main.js stamps; each is a
     // taste call for the owner's eye on the glass, so each is its own lever.
-    // None has been seen on the wall. Rollback for any: -> false, with a
-    // cache-bypass reload for the build.
+    // Deployed OFF 6e0a62c. Seen in-page on the G11 2026-11-13 06:00 with all
+    // three forced on: hour 200 -> 300 over the journey photo, the photograph at
+    // opacity 0 behind ten status rows, seven forecast icons at saturate(0.55);
+    // forced back off, the wall read 200 / opacity 1 / no markers again.
+    // FLIPPED ON 2026-11-13 together, at the owner's ask (one flip for the three
+    // look flags). Rollback for any ONE: -> false, with a cache-bypass reload
+    // for the build; they do not depend on each other.
     //
     // Depths 2 and 3 sit on the plain living field instead of the ground
     // photograph dimmed to near-black (faces were still recognisable under ten
     // rows of status). Depth 1 keeps its photograph. Off: as before.
-    v3SubjectField: false,
+    v3SubjectField: true,
     // The hour at weight 300, not 200, while the Memory Journey's photograph is
     // behind it at depth 0 (hairline strokes over a textured photo). Off: 200.
-    v3HourWeight: false,
+    v3HourWeight: true,
     // The week forecast's icons desaturated and slightly dimmed, so the one
     // cartoon-coloured thing on the wall sits nearer the palette. Off: full colour.
-    v3ForecastTint: false,
+    v3ForecastTint: true,
 
     // BOM's own forecast for today (src/js/services/weather/bomOutlook.js):
     // a wall line on a storm / 10 mm+ day or a fire danger of High or above,
