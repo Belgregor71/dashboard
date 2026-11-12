@@ -28,7 +28,9 @@ async function boot(page, on) {
   return pageErrors;
 }
 
-const photoOpacity = (page) => page.evaluate(() => getComputedStyle(document.querySelector(".photo")).opacity);
+// Rounded: a finished fade can report 1.9e-13 rather than 0.
+const photoOpacity = (page) => page.evaluate(() =>
+  String(Math.round(parseFloat(getComputedStyle(document.querySelector(".photo")).opacity) * 1000) / 1000));
 
 for (const on of [true, false]) {
   const state = on ? "ON" : "OFF";
@@ -40,7 +42,12 @@ for (const on of [true, false]) {
     for (const [depth, want] of [[1, "1"], [2, on ? "0" : "1"], [3, on ? "0" : "1"], [0, "1"]]) {
       await page.evaluate((d) => window.__setDepth(d, "spec"), depth);
       expect(await page.evaluate(() => window.__depth().depth)).toBe(depth);
-      await expect.poll(() => photoOpacity(page), { message: `depth ${depth}` }).toBe(want);
+      /* ⚠ Wait OUT the fade (--m-calm, 350 ms) and then read once. A poll for
+         "1" passes on the first frame of a fade to 0 — two injected defects
+         (the rule ignoring its flag; the rule reaching depth 1) stayed green
+         that way on 2026-11-12. */
+      await page.waitForTimeout(500);
+      expect(await photoOpacity(page), `depth ${depth}`).toBe(want);
     }
     expect(pageErrors).toEqual([]);
   });
