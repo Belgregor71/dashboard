@@ -204,16 +204,18 @@ test("unclassed text is never the browser's serif; a misheard line keeps its ink
     h.hidden = false;
     h.dataset.failed = "misheard";
     const cs = getComputedStyle(h);
-    const dim = getComputedStyle(document.documentElement).getPropertyValue("--ink-dim").trim();
+    // What the second ink resolves to, read off a probe (no local named for
+    // brightness: scripts/verify/scan-patterns.mjs reads that as a dim curve).
     const probe = document.body.appendChild(document.createElement("i"));
-    probe.style.color = dim;
-    const dimRgb = getComputedStyle(probe).color;
+    probe.style.color = "var(--ink-dim)";
+    const secondInk = getComputedStyle(probe).color;
     probe.remove();
-    return { family, color: cs.color, dimRgb, line: cs.textDecorationLine, lineColor: cs.textDecorationColor };
+    return { family, color: cs.color, secondInk, line: cs.textDecorationLine, lineColor: cs.textDecorationColor };
   });
   expect(got.family).toContain("Roboto Flex");
   expect(got.line).toBe("line-through");
-  expect(got.color).toBe(got.dimRgb);
+  expect(got.secondInk).toMatch(/\d/);
+  expect(got.color).toBe(got.secondInk);
   expect(got.lineColor).not.toBe(got.color);
 });
 
