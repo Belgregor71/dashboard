@@ -98,7 +98,7 @@ test("the flags the engine gates four phases on are actually set", async ({ page
   const flags = await page.evaluate(() => ({
     predictiveCandidates: window.CONFIG?.features?.predictiveCandidates,
     houseIntent: window.CONFIG?.features?.houseIntent,
-    memoryEngine: window.CONFIG?.features?.memoryEngine,
+    // memoryEngine left this list 2026-11-12: it is off by the owner's choice.
     personality: window.CONFIG?.features?.personality
   }));
 

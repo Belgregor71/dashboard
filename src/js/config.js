@@ -111,7 +111,10 @@ window.CONFIG = {
     // ON here (2026-07-12) to enable the structured memory engine on the Pi with
     // authored data/memories/ entries. Verify __forceMemory surfaces gently, the
     // rarity budget holds, and /kiosk-metrics stays flat. One-line revert (-> false).
-    memoryEngine: true,
+    // OFF 2026-11-12, owner's call: the thumbnail + "On this day" line in the
+    // spread is covered by the ambient archive and the memory journey. This also
+    // silences calendar-anniversary lines, which rode the same candidate.
+    memoryEngine: false,
 
     // Phase 9.5 "The Photo Source" (docs/vision/photo-source-immich.md). Points the
     // memory engine + screensaver at the household's Immich library on the Synology

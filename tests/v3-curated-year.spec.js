@@ -141,7 +141,8 @@ async function showYear(page) {
 
 test("the memory runtime is armed on V3 — the handle exists and reads enabled", async ({ page }) => {
   const { pageErrors } = await bootV3(page, {
-    routes: { "/api/memories": { memories: [authoredToday()] } }
+    routes: { "/api/memories": { memories: [authoredToday()] } },
+    flags: { memoryEngine: true }   // default off since 2026-11-12; this is the on state
   });
 
   const state = await page.evaluate(() =>
