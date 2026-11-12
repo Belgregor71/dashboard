@@ -6,7 +6,7 @@ import { isConfigured, searchRandomResult, onThisDayResult, searchTakenResult, f
 import { getDailySet, getMapTile, hasMapKey, initDailyMemories } from "../services/dailyMemories.js";
 import { clipPathFor, hasClip, hasSkip, warmClip } from "../services/liveMotion.js";
 import { hiddenIds, hide, undo } from "../services/photoVeto.js";
-import { flaggedIds, allow, screenStatus } from "../services/photoScreen.js";
+import { flaggedIds, documentIds, allow, screenStatus } from "../services/photoScreen.js";
 import { labelPeople, warmRoster, hiddenNames, shownName } from "../services/photoNames.js";
 import { labelTrips } from "../services/photoTrips.js";
 import { withOccasions, labelOccasions } from "../services/photoOccasions.js";
@@ -220,7 +220,7 @@ router.post("/api/immich/hidden/undo", loopbackOnly("The photo veto"), express.j
    the photographs somebody would least want listed. To look at one, open
    /api/immich/asset/<id>/thumb. */
 router.get("/api/immich/screened", loopbackOnly("The photo screen"), (_req, res) => {
-  res.json({ ...screenStatus(), flagged: flaggedIds() });
+  res.json({ ...screenStatus(), flagged: flaggedIds(), documents: documentIds() });
 });
 
 router.post("/api/immich/screened/:id/allow", loopbackOnly("The photo screen"), (req, res) => {

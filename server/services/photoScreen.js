@@ -47,6 +47,23 @@ export const PROMPT =
   "Is any person in it naked, or showing bare buttocks, bare breasts or genitals, or wearing only underwear? " +
   "Swimwear at a beach or pool does not count. Answer with exactly one word: YES or NO.";
 
+/* The second question, off unless PHOTO_SCREEN_DOCS=1: a photograph OF a page
+   is not a memory. On 2026-11-12 the wall showed a 2013 newspaper clipping as
+   "on this day". MEASURED that afternoon on the G11, this wording, whole frame
+   at 896 px, over that day's pool of 41: YES on the clipping, NO on the other
+   40, 0 errors, ~55 s each. ⚠ Recall is ONE photograph here too. Same store,
+   same choke point, same review; its verdicts are kept apart (`docs`) so each
+   photograph is asked each question once. */
+export const DOC_PROMPT =
+  "Is this a photograph OF a document: a newspaper or magazine page, a printed or handwritten page, a letter, " +
+  "a form, a receipt, a ticket, or a screenshot of a phone or computer screen? " +
+  "A photograph of people, animals or a place that merely has some writing in it does not count. " +
+  "Answer with exactly one word: YES or NO.";
+
+export function docsEnabled() {
+  return process.env.PHOTO_SCREEN_DOCS === "1";
+}
+
 export const TILE_PX = 896;
 /* Quiet hours only. A pool is about an hour of four cores at the voice units'
    own priority (cameraCaptions.js spawnArgs), so it runs while nobody is
@@ -97,21 +114,21 @@ export function verdictFrom(answers) {
 
 // --- the store ----------------------------------------------------------------
 
-/** @type {{ verdicts: Record<string, "ok"|"flag"|"allowed"> } | null} */
+/** `verdicts` is the undressed question, `docs` the document one.
+ *  @type {{ verdicts: Record<string, "ok"|"flag"|"allowed">, docs: Record<string, "ok"|"flag"|"allowed"> } | null} */
 let state = null;
+
+const readMap = (map) => Object.fromEntries(
+  Object.entries(map ?? {}).filter(([, v]) => v === "ok" || v === "flag" || v === "allowed"));
 
 function load() {
   if (state) return state;
   try {
     const raw = JSON.parse(readFileSync(overrideFile ?? DEFAULT_FILE, "utf8"));
-    const verdicts = {};
-    for (const [id, v] of Object.entries(raw?.verdicts ?? {})) {
-      if (v === "ok" || v === "flag" || v === "allowed") verdicts[id] = v;
-    }
-    state = { verdicts };
+    state = { verdicts: readMap(raw?.verdicts), docs: readMap(raw?.docs) };
   } catch {
     // Missing or unreadable: nothing is screened, so nothing is hidden.
-    state = { verdicts: {} };
+    state = { verdicts: {}, docs: {} };
   }
   return state;
 }
@@ -132,13 +149,24 @@ export function verdictOf(id) {
   return load().verdicts[id] ?? null;
 }
 
-/** Has the screen flagged this photograph, with nobody having allowed it since? */
-export function isScreenedOut(id) {
-  return typeof id === "string" && load().verdicts[id] === "flag";
+export function docVerdictOf(id) {
+  return load().docs[id] ?? null;
 }
 
+/** Has the screen flagged this photograph, with nobody having allowed it since? */
+export function isScreenedOut(id) {
+  return typeof id === "string" && (load().verdicts[id] === "flag" || load().docs[id] === "flag");
+}
+
+const flagsIn = (map) => Object.entries(map).filter(([, v]) => v === "flag").map(([id]) => id);
+
 export function flaggedIds() {
-  return Object.entries(load().verdicts).filter(([, v]) => v === "flag").map(([id]) => id);
+  return [...new Set([...flagsIn(load().verdicts), ...flagsIn(load().docs)])];
+}
+
+/** The ones flagged as a document, so the review can tell the two apart. */
+export function documentIds() {
+  return flagsIn(load().docs);
 }
 
 export function counts() {
@@ -147,15 +175,15 @@ export function counts() {
   return out;
 }
 
-function record(id, verdict) {
-  load().verdicts[id] = verdict;
+function record(id, verdict, map = "verdicts") {
+  load()[map][id] = verdict;
   persist();
 }
 
 /** The review: "that one is fine". It is shown again and never re-screened. */
 export function allow(id) {
   if (!isScreenedOut(id)) return false;
-  record(id, "allowed");
+  for (const map of ["verdicts", "docs"]) if (load()[map][id] === "flag") record(id, "allowed", map);
   return true;
 }
 
@@ -168,29 +196,38 @@ export function __reset({ file = null } = {}) {
 // --- the run --------------------------------------------------------------------
 
 /**
- * Screen every id that has no verdict yet. Effects are injected:
+ * Ask every question an id has no verdict for yet. Effects are injected:
  *   screenOne(id) → Promise<string[]>   the model's answer per tile
+ *   docOne(id)    → Promise<string>     the document question, or null for none
  *   keepGoing()   → boolean             false stops before the next photograph
  *   onFlag(id)                          a photograph was just hidden
+ * `screened` counts answers kept, so a photograph asked both counts twice.
  */
-export async function screenAssets(ids, { screenOne, keepGoing = () => true, onFlag = () => {}, log = () => {} }) {
+export async function screenAssets(ids, { screenOne, docOne = null, keepGoing = () => true, onFlag = () => {}, log = () => {} }) {
   const out = { screened: 0, flagged: 0, errors: 0, known: 0 };
   for (const id of ids) {
-    if (verdictOf(id)) { out.known++; continue; }
+    const questions = [
+      !verdictOf(id) && ["verdicts", screenOne],
+      docOne && !docVerdictOf(id) && !isScreenedOut(id) && ["docs", async (x) => [await docOne(x)]]
+    ].filter(Boolean);
+    if (!questions.length) { out.known++; continue; }
     if (!keepGoing()) break;
-    try {
-      const verdict = verdictFrom(await screenOne(id));
-      if (!verdict) { out.errors++; continue; } // unreadable: stays showable, asked again next run
-      record(id, verdict);
-      out.screened++;
-      if (verdict === "flag") {
-        out.flagged++;
-        log(`flagged ${id}`);
-        onFlag(id);
+    for (const [map, ask] of questions) {
+      if (isScreenedOut(id)) break; // hidden by the first question: the second buys nothing
+      try {
+        const verdict = verdictFrom(await ask(id));
+        if (!verdict) { out.errors++; continue; } // unreadable: stays showable, asked again next run
+        record(id, verdict, map);
+        out.screened++;
+        if (verdict === "flag") {
+          out.flagged++;
+          log(`flagged ${id}${map === "docs" ? " (document)" : ""}`);
+          onFlag(id);
+        }
+      } catch (err) {
+        out.errors++;
+        log(`${id} failed: ${String(err?.message || err).slice(0, 120)}`);
       }
-    } catch (err) {
-      out.errors++;
-      log(`${id} failed: ${String(err?.message || err).slice(0, 120)}`);
     }
   }
   return out;
@@ -218,21 +255,30 @@ export async function screenOneWith({ fetchImage, ask }, id) {
     "stream=width,height", "-of", "csv=p=0", "pipe:0"], image)).toString().trim().split(",").map(Number);
   const answers = [];
   for (const crop of tilePlan(dims[0], dims[1])) {
-    const tile = await run("ffmpeg", ["-v", "error", "-i", "pipe:0", "-vf",
-      `${crop},scale=w=${TILE_PX}:h=${TILE_PX}:force_original_aspect_ratio=decrease`,
-      "-frames:v", "1", "-c:v", "mjpeg", "-q:v", "4", "-f", "image2", "pipe:1"], image);
-    const answer = await ask(tile, { prompt: PROMPT, maxTokens: 8 });
+    const answer = await ask(await tileOf(image, crop), { prompt: PROMPT, maxTokens: 8 });
     answers.push(answer);
     if (/^\s*yes\b/i.test(answer)) break;
   }
   return answers;
 }
 
+const tileOf = (image, crop) => run("ffmpeg", ["-v", "error", "-i", "pipe:0", "-vf",
+  `${crop},scale=w=${TILE_PX}:h=${TILE_PX}:force_original_aspect_ratio=decrease`,
+  "-frames:v", "1", "-c:v", "mjpeg", "-q:v", "4", "-f", "image2", "pipe:1"], image);
+
+/** One photograph → the model's answer to the document question, asked of the
+ *  whole frame: a page fills it, so nothing is shrunk away. Same effects. */
+export async function docOneWith({ fetchImage, ask }, id) {
+  const image = await fetchImage(id);
+  if (!image) throw new Error("no image");
+  return ask(await tileOf(image, "null"), { prompt: DOC_PROMPT, maxTokens: 8 });
+}
+
 let running = false;
 let timer = null;
 
 export function screenStatus() {
-  return { enabled: enabled(), running, ...counts() };
+  return { enabled: enabled(), docs: docsEnabled(), running, ...counts() };
 }
 
 /**
@@ -240,7 +286,7 @@ export function screenStatus() {
  * photograph is judged before the day it could first be shown.
  *   fetchPool(date) → Promise<string[]>  asset ids for that day's pool
  */
-export function startPhotoScreen({ fetchPool, screenOne, onFlag, tickMs = TICK_MS }) {
+export function startPhotoScreen({ fetchPool, screenOne, docOne, onFlag, tickMs = TICK_MS }) {
   if (timer) return;
   const log = (line) => console.log(`[photo-screen] ${line}`);
   const tick = async () => {
@@ -250,7 +296,9 @@ export function startPhotoScreen({ fetchPool, screenOne, onFlag, tickMs = TICK_M
       const now = new Date();
       const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
       const ids = [...new Set([...(await fetchPool(tomorrow)), ...(await fetchPool(now))])];
-      const out = await screenAssets(ids, { screenOne, onFlag, log, keepGoing: () => enabled() && inWindow() });
+      const out = await screenAssets(ids, {
+        screenOne, docOne: docsEnabled() ? docOne : null, onFlag, log, keepGoing: () => enabled() && inWindow()
+      });
       if (out.screened || out.errors) log(`screened ${out.screened}, flagged ${out.flagged}, errors ${out.errors}, already known ${out.known}`);
     } catch (err) {
       log(`run failed: ${String(err?.message || err).slice(0, 160)}`);

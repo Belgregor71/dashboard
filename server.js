@@ -28,7 +28,7 @@ import plexRoutes from "./server/routes/plex.js";
 import newsRoutes from "./server/routes/news.js";
 import cameraRoutes, { cameraSnapshotBuffer } from "./server/routes/camera.js";
 import { startCameraCaptions, askLocalVision } from "./server/services/cameraCaptions.js";
-import { startPhotoScreen, screenOneWith } from "./server/services/photoScreen.js";
+import { startPhotoScreen, screenOneWith, docOneWith } from "./server/services/photoScreen.js";
 import { onThisDayResult, fetchRendition } from "./server/services/immichClient.js";
 import { CAMERA_CONFIG } from "./server/config/cameras.js";
 import adminRoutes from "./server/routes/admin.js";
@@ -137,16 +137,19 @@ startCameraCaptions({
   fetchImage: cameraSnapshotBuffer
 });
 /* The overnight photo screen — inert unless PHOTO_SCREEN=1, and then only
-   between midnight and 5am. Shares the caption lane's model server. */
+   between midnight and 5am. Shares the caption lane's model server. The
+   document question is asked only with PHOTO_SCREEN_DOCS=1 as well. */
+const photoScreenEffects = {
+  fetchImage: async (assetId) => (await fetchRendition(assetId, "preview"))?.buffer ?? null,
+  ask: askLocalVision
+};
 startPhotoScreen({
   fetchPool: async (date) => {
     const result = await onThisDayResult(date);
     return result.ok ? result.assets.map((a) => a.id).filter(Boolean) : [];
   },
-  screenOne: (id) => screenOneWith({
-    fetchImage: async (assetId) => (await fetchRendition(assetId, "preview"))?.buffer ?? null,
-    ask: askLocalVision
-  }, id),
+  screenOne: (id) => screenOneWith(photoScreenEffects, id),
+  docOne: (id) => docOneWith(photoScreenEffects, id),
   onFlag: forgetCachedSearches
 });
 

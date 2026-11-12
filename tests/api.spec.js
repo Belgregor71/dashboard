@@ -669,7 +669,9 @@ test.describe("weather", () => {
   test("GET /api/immich/screened lists flagged ids and counts, off by default", async ({ request }) => {
     const { body } = await expectJson(request, "/api/immich/screened");
     expect(body.enabled).toBe(false);
+    expect(body.docs).toBe(false);
     expect(Array.isArray(body.flagged)).toBe(true);
+    expect(Array.isArray(body.documents)).toBe(true);
     for (const key of ["ok", "flag", "allowed"]) expect(typeof body[key]).toBe("number");
   });
 

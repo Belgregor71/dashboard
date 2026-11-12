@@ -4,7 +4,7 @@ import os from "os";
 import path from "path";
 import {
   tilePlan, verdictFrom, inWindow, screenAssets, verdictOf, isScreenedOut, flaggedIds, allow, counts,
-  enabled, __reset
+  enabled, docsEnabled, docVerdictOf, documentIds, __reset
 } from "../server/services/photoScreen.js";
 import { usableImage } from "../server/services/immichClient.js";
 
@@ -141,6 +141,82 @@ test.describe("the store and the review", () => {
     __reset({ file: STORE });
     rmSync(STORE, { force: true });
     expect(isScreenedOut(A)).toBe(false); // an unreadable store hides nothing
+  });
+});
+
+/* The second question (PHOTO_SCREEN_DOCS): a photograph OF a page. */
+test.describe("the document question", () => {
+  const NO = async () => ["NO"];
+
+  test("a document is screened out and listed apart; a clean photograph is not", async () => {
+    const out = await screenAssets([A, B], { screenOne: NO, docOne: async (id) => (id === A ? "YES" : "NO") });
+    expect(out).toMatchObject({ screened: 4, flagged: 1, errors: 0 });
+    expect(isScreenedOut(A)).toBe(true);
+    expect(isScreenedOut(B)).toBe(false);
+    expect(documentIds()).toEqual([A]);
+    expect(flaggedIds()).toEqual([A]);
+    expect(verdictOf(A)).toBe("ok"); // not undressed: the two answers are kept apart
+    expect(usableImage({ id: A, type: "IMAGE" })).toBe(false);
+  });
+
+  test("without docOne nothing is asked, and nothing is hidden for being a page", async () => {
+    const out = await screenAssets([A], { screenOne: NO });
+    expect(out).toMatchObject({ screened: 1, flagged: 0 });
+    expect(docVerdictOf(A)).toBeNull();
+    expect(isScreenedOut(A)).toBe(false);
+  });
+
+  test("a photograph screened before the question existed is asked it ONCE, and only it", async () => {
+    await screenAssets([A], { screenOne: NO });
+    const asked = { nude: 0, doc: 0 };
+    const again = { screenOne: async () => { asked.nude++; return ["NO"]; }, docOne: async () => { asked.doc++; return "YES"; } };
+    await screenAssets([A], again);
+    const second = await screenAssets([A], again);
+    expect(asked).toEqual({ nude: 0, doc: 1 });
+    expect(second.known).toBe(1);
+    expect(isScreenedOut(A)).toBe(true);
+  });
+
+  test("IT FAILS OPEN: an unreadable or failed document answer hides nothing and is asked again", async () => {
+    const out = await screenAssets([A, B], {
+      screenOne: NO,
+      docOne: async (id) => { if (id === A) throw new Error("model down"); return "It appears to be"; }
+    });
+    expect(out).toMatchObject({ screened: 2, flagged: 0, errors: 2 });
+    expect(isScreenedOut(A)).toBe(false);
+    expect(isScreenedOut(B)).toBe(false);
+    expect(docVerdictOf(A)).toBeNull();
+    expect(docVerdictOf(B)).toBeNull();
+  });
+
+  test("a photograph already hidden is not asked the second question", async () => {
+    let asked = 0;
+    await screenAssets([A], { screenOne: async () => ["YES"], docOne: async () => { asked++; return "NO"; } });
+    expect(asked).toBe(0);
+    expect(documentIds()).toEqual([]);
+  });
+
+  test("allow() overrules a document flag, and it is never asked again", async () => {
+    let asked = 0;
+    const docOne = async () => { asked++; return "YES"; };
+    await screenAssets([A], { screenOne: NO, docOne });
+    expect(allow(A)).toBe(true);
+    expect(isScreenedOut(A)).toBe(false);
+    await screenAssets([A], { screenOne: NO, docOne });
+    expect(asked).toBe(1);
+    expect(isScreenedOut(A)).toBe(false);
+    __reset({ file: STORE }); // and the allowance survives a restart
+    expect(isScreenedOut(A)).toBe(false);
+    expect(docVerdictOf(A)).toBe("allowed");
+  });
+
+  test("off unless PHOTO_SCREEN_DOCS=1", () => {
+    const before = process.env.PHOTO_SCREEN_DOCS;
+    delete process.env.PHOTO_SCREEN_DOCS;
+    expect(docsEnabled()).toBe(false);
+    process.env.PHOTO_SCREEN_DOCS = "1";
+    expect(docsEnabled()).toBe(true);
+    if (before === undefined) delete process.env.PHOTO_SCREEN_DOCS; else process.env.PHOTO_SCREEN_DOCS = before;
   });
 });
 
