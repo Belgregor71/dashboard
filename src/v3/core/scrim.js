@@ -483,7 +483,29 @@ export function applyScrim(img, opts = {}) {
 
   root.style.setProperty("--scrim-opacity", applied.toFixed(3));
 
+  /* A settled diptych also gets one opacity PER HALF, for the flat wrapped-line
+     veil only (compose.css). The single number above is driven by the brighter
+     half, and laid flat over the whole wall it blacked out the darker
+     photograph (newsprint beside an indoor shot, 2026-11-12). Mid-fade the veil
+     falls back to the single number, which may only rise. */
+  const halves = target.length === 2 && !opts.transitioning
+    ? [0, 1].map((h) => chooseAlpha(
+        cells.filter((_, n) => (n % GRID_W < GRID_W / 2 ? 0 : 1) === h),
+        { scrim, ink: inks[0].rgb }
+      ).alpha)
+    : null;
+  if (halves) {
+    root.style.setProperty("--scrim-opacity-l", halves[0].toFixed(3));
+    root.style.setProperty("--scrim-opacity-r", halves[1].toFixed(3));
+    root.dataset.scrimPair = "1";
+  } else {
+    root.style.removeProperty("--scrim-opacity-l");
+    root.style.removeProperty("--scrim-opacity-r");
+    delete root.dataset.scrimPair;
+  }
+
   last = {
+    halfAlphas: halves ? halves.map((a) => Number(a.toFixed(3))) : null,
     alpha: Number(applied.toFixed(3)),
     measured: Number(chosen.alpha.toFixed(3)),
     reached: chosen.reached,
@@ -539,6 +561,6 @@ export function initScrim() {
   // ⚠ The frame we last measured, falling back to #ground: on a diptych,
   // #ground is only the LEFT half, and a sweep that reads it alone would report
   // a number for half a wall while claiming it measured the wall.
-  window.__applyScrim = (opts) =>
-    applyScrim(currentImgs.length ? currentImgs : document.getElementById("ground"), opts);
+  window.__applyScrim = (opts, imgs) =>
+    applyScrim(imgs ?? (currentImgs.length ? currentImgs : document.getElementById("ground")), opts);
 }

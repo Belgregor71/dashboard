@@ -838,6 +838,18 @@ body[data-holiday] .photo::after {
   pointer-events: none;
 }
 
+/* A diptych is two photographs, and the single opacity is the brighter one's:
+   flat over both it blacks out the darker half. core/scrim.js solves one per
+   half once the pair has settled; the step lands on the seam. */
+:root[data-scrim-pair="1"] .depth--glance:has(.said[data-wrapped])::before,
+:root[data-scrim-pair="1"] .depth--spread:has(.said[data-wrapped])::before {
+  background: linear-gradient(
+    to right,
+    color-mix(in oklch, var(--scrim-base) calc(var(--scrim-opacity-l) * 100%), transparent) 50%,
+    color-mix(in oklch, var(--scrim-base) calc(var(--scrim-opacity-r) * 100%), transparent) 50%
+  );
+}
+
 /* Italic, and real — see the note on `.rail` in type.css. */
 .vocab__item {
   font-family: var(--font-said);

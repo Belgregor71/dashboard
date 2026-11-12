@@ -335,3 +335,44 @@ test("a one-line spread is NOT veiled — the photograph pays only when it must"
   expect(got.wrapped).toBeNull();
   expect(got.veiled).toBe(false);
 });
+
+/* The line the wall showed on 2026-11-12 as "Shower or two ·" / "6–15 mm today". */
+const readSep = (page) => page.evaluate(() => {
+  const said = document.querySelector("#spread-lattice .said");
+  const sep = said?.querySelector(".said__sep");
+  const range = document.createRange();
+  range.selectNodeContents(said);
+  const tops = new Set([...range.getClientRects()].filter((r) => r.width && r.height).map((r) => Math.round(r.top)));
+  return {
+    text: said?.textContent ?? null,
+    lines: tops.size,
+    wrapped: said?.dataset.wrapped ?? null,
+    sepBreak: said?.dataset.sepBreak ?? null,
+    sepHeight: sep ? sep.getBoundingClientRect().height : null
+  };
+});
+
+test("a wrapped line breaks AT its separator and the dot goes with the break", async ({ page }) => {
+  await bootV3(page);
+  const LINE = "Shower or two · 6–15 mm today";
+  await dwell(page, [{ id: "spec:sep", source: "outlook", score: 42, cooldownMs: 0, text: LINE }, ORDINARY[1]]);
+
+  const got = await readSep(page);
+  expect(got.text, "the words changed; voice.js compares this node's text").toBe(LINE);
+  expect(got.lines, "the fixture line did not wrap — this test cannot fail").toBe(2);
+  expect(got.wrapped).toBe("1");
+  expect(got.sepBreak).toBe("1");
+  expect(got.sepHeight, "the separator is still drawn on the wrapped line").toBe(0);
+});
+
+test("a one-line separator keeps its dot and is not called wrapped", async ({ page }) => {
+  await bootV3(page);
+  await dwell(page, [{ id: "spec:sep1", source: "commute", score: 42, cooldownMs: 0, text: "11 min · 18 min" }, ORDINARY[1]]);
+
+  const got = await readSep(page);
+  expect(got.text).toBe("11 min · 18 min");
+  expect(got.lines).toBe(1);
+  expect(got.wrapped, "the separator's own span was counted as a second line").toBeNull();
+  expect(got.sepBreak).toBeNull();
+  expect(got.sepHeight).toBeGreaterThan(0);
+});

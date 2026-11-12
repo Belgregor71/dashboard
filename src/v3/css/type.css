@@ -43,6 +43,14 @@
   margin: 0;
 }
 
+/* A wrapped line breaks at its first " · " and the dot goes with the break
+   (core/spread.js markWrapped). Zero-height block: a line break, nothing drawn. */
+.said[data-sep-break] .said__sep:first-of-type {
+  display: block;
+  height: 0;
+  overflow: hidden;
+}
+
 .said--1 { font-size: var(--t-said-1); }
 .said--2 { font-size: var(--t-said-2); }
 

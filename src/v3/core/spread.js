@@ -39,6 +39,7 @@ import { logSpread } from "./presentation-log.js";
    02, and css/type.css already carries the matching `.said[data-len="long"]`
    rule — which, until now, nothing in V3 ever set. */
 const SAID_LONG_MAX = 40;
+const SEP = " · ";
 
 function lattice() {
   return document.getElementById("spread-lattice");
@@ -72,7 +73,15 @@ function lattice() {
  */
 export function setSaidText(node, text) {
   if (!node) return;
-  node.textContent = text ?? "";
+  /* Each " · " rides in its own span so markWrapped can turn the first one into
+     the line break. textContent is unchanged, which voice.js compares against. */
+  node.replaceChildren(...String(text ?? "").split(SEP).flatMap((part, i) => {
+    if (!i) return [part];
+    const sep = document.createElement("span");
+    sep.className = "said__sep";
+    sep.textContent = SEP;
+    return [sep, part];
+  }));
   if ((text ?? "").trim().length > SAID_LONG_MAX) node.dataset.len = "long";
   else delete node.dataset.len;
   markWrapped(node);
@@ -107,11 +116,28 @@ export function setSaidText(node, text) {
  */
 export function markWrapped(node) {
   if (!node) return;
+  delete node.dataset.sepBreak;   // measure the line as written, not as last broken
+  const lines = lineCount(node);
+  if (lines > 1) node.dataset.wrapped = "1";
+  else delete node.dataset.wrapped;
+  /* A line that wraps anyway breaks AT its separator and drops the dot, rather
+     than leaving "Shower or two ·" hanging on line one (type.css). Not if the
+     break would cost another line: an early separator before a long tail. */
+  if (lines > 1 && node.querySelector(".said__sep")) {
+    node.dataset.sepBreak = "1";
+    if (lineCount(node) > lines) delete node.dataset.sepBreak;
+  }
+}
+
+/* Line boxes, counted as distinct tops: a separator span adds rects of its own
+   on the same line, so the rect count alone would call one line three. */
+function lineCount(node) {
   const range = document.createRange();
   range.selectNodeContents(node);
-  if (range.getClientRects().length > 1) node.dataset.wrapped = "1";
-  else delete node.dataset.wrapped;
+  const tops = new Set();
+  for (const r of range.getClientRects()) if (r.width && r.height) tops.add(Math.round(r.top));
   range.detach();
+  return tops.size;
 }
 
 /* ── The context line ───────────────────────────────────────────────────────

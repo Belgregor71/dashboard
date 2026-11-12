@@ -437,6 +437,55 @@ test("the opacity only rises while two photographs are on the glass", async ({ p
   expect(settled.alpha).toBe(SCRIM_MIN);
 });
 
+test("a diptych's veil is solved per half, so a bright half cannot black out a dark one", async ({ page }) => {
+  await boot(page);
+  const got = await page.evaluate(async () => {
+    const flat = async (level) => {
+      const c = document.createElement("canvas");
+      c.width = 64;
+      c.height = 36;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = `rgb(${level}, ${level}, ${level})`;
+      ctx.fillRect(0, 0, 64, 36);
+      const img = new Image();
+      await new Promise((resolve) => { img.onload = resolve; img.onerror = resolve; img.src = c.toDataURL("image/png"); });
+      return img;
+    };
+    const root = document.documentElement;
+    const read = (report) => ({
+      reason: report.reason,
+      alpha: report.alpha,
+      halves: report.halfAlphas,
+      attr: root.dataset.scrimPair ?? null,
+      left: root.style.getPropertyValue("--scrim-opacity-l"),
+      right: root.style.getPropertyValue("--scrim-opacity-r")
+    });
+    const pair = [await flat(255), await flat(0)];
+    return {
+      settled: read(window.__applyScrim({}, pair)),
+      fading: read(window.__applyScrim({ transitioning: true }, pair)),
+      single: read(window.__applyScrim({}, [pair[0]]))
+    };
+  });
+
+  expect(got.settled.reason).toBe("measured");
+  // The wall's one number is still the bright half's; the dark half gets its own.
+  expect(got.settled.halves[0]).toBe(got.settled.alpha);
+  expect(got.settled.halves[0]).toBeGreaterThan(SCRIM_MIN);
+  expect(got.settled.halves[1]).toBe(SCRIM_MIN);
+  expect(got.settled.attr).toBe("1");
+  expect(Number(got.settled.left)).toBe(got.settled.halves[0]);
+  expect(Number(got.settled.right)).toBe(SCRIM_MIN);
+
+  // Mid-fade and on a single photograph the veil is the one number, as before.
+  for (const off of [got.fading, got.single]) {
+    expect(off.reason).toBe("measured");
+    expect(off.halves).toBeNull();
+    expect(off.attr).toBeNull();
+    expect(off.left).toBe("");
+  }
+});
+
 test("the ground survives an upstream that never answers", async ({ page }) => {
   const pageErrors = await boot(page);
   // Immich is unconfigured in this harness, so /api/immich/random returns an
