@@ -29,6 +29,7 @@
 
 import { decodeWorld, mapPlan, frameGeometry, yearOf, placeLine, namesLine, photoFit, memoryRight } from "./journey-geo.js";
 import { requiredAlpha, resolveColor } from "./scrim.js";
+import { MOTION } from "./motion.js";
 
 /* ── Timing — the numbers to turn ──────────────────────────────────────────
    Milliseconds. Turnable live on the wall over CDP with
@@ -50,7 +51,7 @@ export const TIMING = {
   washPhotoMs: 2000,
 
   // Abroad: map in, point, move towards it, photograph surfaces from the map.
-  mapInMs: 700,
+  mapInMs: MOTION.scene,
   pinAtMs: 450,
   zoomFromMs: 650,
   zoomMs: 1900,

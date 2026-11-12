@@ -88,7 +88,7 @@
 }
 
 .dog[data-phase="exiting"] .dog__body {
-  animation: var(--dog-exit) var(--dog-exit-ms) cubic-bezier(0.55, 0, 0.8, 0.3) forwards;
+  animation: var(--dog-exit) var(--dog-exit-ms) var(--ease-leave) forwards;
 }
 
 .dog[data-phase="still"] .dog__body {

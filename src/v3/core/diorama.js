@@ -24,15 +24,16 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { DEPTH, onDepth } from "./depth.js";
+import { MOTION } from "./motion.js";
 import { occasionToday } from "./dog-schedule.js";
 import { getEntity } from "../../js/services/homeAssistant/state.js";
 import { robotLayer, robotTrack } from "./robot-layer.js";
 
 const ROLL_DELAY_MS = 450;   // the fade in takes 350 of this
 const ROLL_MS = 2800;
-const FADE_IN_MS = 350;
+const FADE_IN_MS = MOTION.calm;
 const FADE_AT_MS = 5600;     // long enough to read it after the car stops
-const FADE_MS = 700;
+const FADE_MS = MOTION.scene;
 const BIN_STAGGER_MS = 260;
 
 const BIN_INK = { red: "#a8281f", yellow: "#dcae12", green: "#2f7a36" };

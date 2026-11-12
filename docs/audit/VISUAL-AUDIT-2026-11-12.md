@@ -5,8 +5,10 @@ Written as an audit only: no code, flag, asset or config was changed while produ
 **Status since (2026-11-12):** Phase 1 built (`d208874`, `a6cc25a`). Phase 2 built in
 part: tokens, colour/radius/shadow tokens, viewport units off sizes, a shared pill
 rule, empty states re-anchored, and `tests/v3-token-lint.spec.js`. Owner's scope calls:
-item 6 for empty states only, item 19 skipped, item 20 withdrawn. Not deployed at the
-time of writing; check `git log origin/main..main`.
+item 6 for empty states only, item 19 skipped, item 20 withdrawn. Phase 3 built:
+`core/overlay-priority.js` behind `v3OverlayPriority` (default OFF), and motion tokens
+NAMED, NOT RETIMED (owner's call: nothing changes speed); item 13 withdrawn. Not
+deployed at the time of writing; check `git log origin/main..main`.
 
 ## How this was done, and what it can and cannot claim
 
@@ -286,10 +288,12 @@ Problem: full-brightness photo at 23:30 in the capture [V].
 Files: `css/journey.css`, driven by the existing `data-night`.
 Impact medium. Effort low. Depends on what the display schedule already does.
 
-**13. Atmosphere pane stands down over camera frames.**
-Problem: rain streaks draw across full-bleed photographs and would across a doorbell frame [V on photos, C on camera].
-Files: `css/atmosphere.css`, `core/atmosphere-fx.js`.
-Impact medium. Effort low.
+**13. Atmosphere pane stands down over camera frames. — WITHDRAWN 2026-11-12.**
+The audit's [C] claim was wrong. `.atmo-overlay` is z-index 4 and `.stage` is 10
+(`css/atmosphere.css:26`, `css/compose.css:52`), so a full-bleed camera or media frame
+already covers the rain pane, and the audit's own camera capture shows no streaks. The
+rain seen at depth 3 was over an EMPTY subject (no forecast data), where the resting
+photograph shows through. No change.
 
 **14. One pill.**
 Problem: two sizes, two borders [V].

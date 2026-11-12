@@ -2008,6 +2008,14 @@ window.CONFIG = {
     // Rollback: -> false, with a cache-bypass reload for the build.
     v3ParcelVoice: true,
 
+    // Overlay priority (src/v3/core/overlay-priority.js; visual audit 2026-11-12,
+    // phase 3). On: a subject reaching depth 3 takes the dogs off the glass, and
+    // the door puts away a finished turn's lingering transcript. The door taking
+    // the dogs off is NOT behind this flag (it shipped as a defect fix).
+    // Off: both overlays stay up, as before. Not yet seen on the wall.
+    // Rollback: -> false, with a cache-bypass reload for the build.
+    v3OverlayPriority: false,
+
     // BOM's own forecast for today (src/js/services/weather/bomOutlook.js):
     // a wall line on a storm / 10 mm+ day or a fire danger of High or above,
     // and "what's the weather going to be like today" answered in BOM's words.

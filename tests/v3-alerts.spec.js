@@ -128,6 +128,68 @@ test("the door takes the dogs off the glass", async ({ page }) => {
   await expect(page.locator(".dogs")).toHaveCount(0);
 });
 
+/* ── features.v3OverlayPriority (core/overlay-priority.js) ──────────────────
+   Pinned BOTH ways, whatever config.js says: a subject takes the dogs off, the
+   door puts a finished turn's transcript away — and off, neither happens. */
+async function bootPriority(page, on) {
+  await page.route("**/js/config.js", async (route) => {
+    const res = await route.fetch({ maxRetries: 3 });
+    await route.fulfill({
+      response: res,
+      body: `${await res.text()}\nwindow.CONFIG.features.v3OverlayPriority = ${on};\nwindow.CONFIG.features.v3DogVoice = true;\n`
+    });
+  });
+  await bootV3(page);
+  await page.waitForFunction(() => typeof window.dogOccasion?.show === "function");
+  expect(await page.evaluate(() => window.CONFIG.features.v3OverlayPriority)).toBe(on);
+}
+const dogsUp = async (page) => {
+  await page.evaluate(() => { window.dogOccasion.show("generic"); });
+  await page.waitForFunction(() => window.dogOccasion.state().running && document.querySelector(".dogs"));
+};
+const openDay = (page) => page.evaluate(async () => {
+  const shown = await window.__v3Subject("show.day", {}, { calendar: [] });
+  window.__setDepth(3, "spec");
+  return { shown, depth: window.__depth().depth, text: document.querySelector("#subject-mount .subject__text")?.textContent ?? null };
+});
+
+for (const on of [true, false]) {
+  test(`overlay priority ${on ? "ON: a subject takes the dogs off" : "OFF: the dogs stay up over a subject"}`, async ({ page }) => {
+    await bootPriority(page, on);
+    await dogsUp(page);
+    const day = await openDay(page);
+    expect(day.depth).toBe(3);
+    expect(day.text).toBe("Nothing on today.");
+    expect(await page.evaluate(() => window.dogOccasion.state().running)).toBe(!on);
+    await expect(page.locator(".dogs")).toHaveCount(on ? 0 : 1);
+  });
+
+  test(`overlay priority ${on ? "ON: the door puts a finished turn's transcript away" : "OFF: the transcript lingers over the door"}`, async ({ page }) => {
+    await bootPriority(page, on);
+    await page.evaluate(() => window.__v3Transcript("what time is it"));
+    const heard = page.locator("#heard");
+    await expect(heard).toHaveText("what time is it");
+    await expect(heard).toBeVisible();
+    // The turn must have ENDED: only a lingering readout is the door's to clear.
+    await page.waitForFunction(() => document.documentElement.dataset.phase === "idle");
+    await page.waitForTimeout(600);
+    await expect(heard).toBeVisible();
+
+    const alert = await page.evaluate(() => window.__v3Alert("binary_sensor.doorbell_ringing", "on"));
+    expect(alert.shown).toBe(true);
+    if (on) await expect(heard).toBeHidden();
+    else await expect(heard).toBeVisible();
+  });
+}
+
+test("overlay priority ON: dogs that were ASKED for are not taken off by their own turn", async ({ page }) => {
+  await bootPriority(page, true);
+  await page.evaluate(() => window.__v3Transcript("show me the dogs"));
+  await page.waitForFunction(() => window.dogOccasion.state().running && document.querySelector(".dogs"));
+  await page.waitForTimeout(1500);
+  expect(await page.evaluate(() => window.dogOccasion.state().running)).toBe(true);
+});
+
 /* The page also has a system face for anything unclassed, and a misheard line
    that stays readable — both were visible defects in the same audit. */
 test("unclassed text is never the browser's serif; a misheard line keeps its ink", async ({ page }) => {

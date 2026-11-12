@@ -192,6 +192,16 @@ function clearLinger() {
   }
 }
 
+/** Put a FINISHED turn's lingering readout away now (core/overlay-priority.js:
+ *  the door arrived). A live turn has no linger timer and keeps its transcript. */
+export function clearHeard() {
+  if (!lingerTimer) return false;
+  clearLinger();
+  hideHeard();
+  clearDeixis();
+  return true;
+}
+
 function clearReplyTimer() {
   if (replyTimer) {
     clearTimeout(replyTimer);

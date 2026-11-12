@@ -69,6 +69,7 @@ import { initCommands } from "./core/commands.js";
 import { clockDim } from "./core/sun-clock.js";
 import { initAtmosphereFx, atmosphereSun, onStrike } from "./core/atmosphere-fx.js";
 import { dogOccasion } from "./core/dog-occasion.js";
+import { yieldTo } from "./core/overlay-priority.js";
 import { initDogSchedule } from "./core/dog-schedule.js";
 import { isPresent } from "./core/presence.js";
 import { holidayToday } from "../js/services/publicHolidays.js";
@@ -420,6 +421,7 @@ function paintRail() {
    vocabulary card — and leaving clears whichever one was there. */
 function onDepthChange(next, prev) {
   if (prev === DEPTH.SUBJECT && next !== DEPTH.SUBJECT) clearSubject();
+  if (next === DEPTH.SUBJECT && prev !== DEPTH.SUBJECT) yieldTo("subject");
   if (prev === DEPTH.SPREAD && next !== DEPTH.SPREAD) {
     clearSpread();
     clearVocabularyCard();

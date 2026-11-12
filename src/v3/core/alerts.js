@@ -45,8 +45,7 @@ import { setPhase, trackSpeech } from "./presence-light.js";
 import { showSubject } from "../subjects/index.js";
 import { DEPTH, setDepth } from "./depth.js";
 import { requestPanelWake } from "./display.js";
-import { dogOccasion } from "./dog-occasion.js";
-import { stopDogShow } from "./dog-show.js";
+import { yieldTo } from "./overlay-priority.js";
 
 /* How long the door holds the screen. Longer than an ordinary subject's 30 s
    (depth.js HOLD_MS) because the two are not the same event: "show me the
@@ -140,9 +139,9 @@ export async function raiseAlert(entity, { now = Date.now() } = {}) {
 
   if (!alert) return null;
 
-  // The door outranks the dogs: z-index 15 put them over the camera's caption.
-  stopDogShow();
-  dogOccasion.hide();
+  // The door outranks the dogs (z-index 15 put them over the camera's caption)
+  // and, flag on, a finished turn's leftover transcript. core/overlay-priority.js.
+  yieldTo("alert");
 
   const { location } = alert;
   let { personName, line } = alert;

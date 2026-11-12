@@ -179,8 +179,11 @@
   --m-quick: 150ms;
   --m-base:  250ms;
   --m-calm:  350ms;
+  --m-scene: 700ms;          /* an overlay coming or going: map in, plan and diorama fades */
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --settle: 1200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-leave: cubic-bezier(0.55, 0, 0.8, 0.3);   /* depart (it was the dogs' exit curve) */
+  --ease-drift: cubic-bezier(0.4, 0, 0.2, 1);      /* long slow moves */
+  --settle: 1200ms var(--ease-drift);
 
   /* ── Legibility over photography ──────────────────────────────────────────
      Blur is NOT a material in V3. backdrop-filter re-reads the layer beneath
@@ -282,6 +285,7 @@
     --m-quick: 0ms;
     --m-base:  0ms;
     --m-calm:  0ms;
+    --m-scene: 0ms;
     --settle:  0ms linear;
   }
   *, *::before, *::after {
