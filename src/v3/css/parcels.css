@@ -12,6 +12,8 @@
   width: 560px;
   padding: var(--gutter) 36px 34px;
   background: var(--surface);
+  /* The timer pill's hairline: on the plain field the card had no edge at all. */
+  border: 1px solid color-mix(in oklch, var(--ink-dim) 25%, transparent);
   color: var(--ink);
   border-radius: 12px;
   pointer-events: none;
@@ -26,8 +28,9 @@
 .parcel-van-body { fill: var(--ink); }
 .parcel-window { fill: var(--surface-lift); }
 .parcel-detail { fill: none; stroke: var(--ink-faint); stroke-width: 5; stroke-linecap: round; }
-.parcel-wheel { fill: var(--surface-sunk); }
-.parcel-hub { fill: var(--ink-dim); }
+/* Lighter than the card, or the wheels vanish into it. */
+.parcel-wheel { fill: var(--ink-faint); }
+.parcel-hub { fill: var(--surface-sunk); }
 .parcel-box { transform-origin: 331px 163px; animation: parcel-settle 900ms 800ms var(--ease) both; }
 /* Cardboard is the house's one warm signal, shaded by face. */
 .parcel-box-top { fill: var(--warm); }
