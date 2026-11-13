@@ -604,7 +604,9 @@ export function artFor(occasionId, mode, id, lookIndex) {
   return {
     ...drawn, src: s.src, grid: s.grid, frames: s.frames,
     timing: smoothTiming(timing, s.between, mode),
-    stillFrame: at(staged.stillFrame), scale: drawn.scale * s.scale, smooth: true
+    stillFrame: at(staged.stillFrame), scale: drawn.scale * s.scale, smooth: true,
+    // Smooth index of each drawn frame: dog-fx cues are keyed by drawn frame.
+    keys: timing.map((_, k) => at(k))
   };
 }
 
@@ -762,6 +764,12 @@ function paintFrame(dog, i) {
   // late callback, not a paint (58ms "frames" from a chained 91ms loop).
   dog.paintedAt = performance.now();
   dog.el.dataset.frame = String(i);
+  // features.v3DogFx: marks on the glass, cued by DRAWN frame. A cell point
+  // lands on the page through the frame box, which is L.w × L.h cells.
+  dogFx.frame(dog.id, dog.keys ? dog.keys.indexOf(i) : i, (cx, cy) => {
+    const r = dog.frame.getBoundingClientRect();
+    return { x: r.left + ((cellLeft + cx) / L.w) * r.width, y: r.top + ((cellTop + cy) / L.h) * r.height, cell: r.width / L.w };
+  });
 }
 
 function setPhase(dog, phase) {
@@ -906,7 +914,7 @@ function build(ids, staged, sizes) {
       id, el, frame, sheet, layout, pad: layout.pad, phase: "waiting", look, lookName: art.name,
       grid: art.grid, frames: art.frames, motion: m,
       timing: art.timing, timed: art.timed, holdMs: art.holdMs,
-      stillFrame: art.stillFrame, smooth: art.smooth
+      stillFrame: art.stillFrame, smooth: art.smooth, keys: art.keys
     };
   });
 
@@ -983,7 +991,7 @@ export async function show(occasionId, { mode = "peek", dogs, looks: pinned } = 
   if (still) built.root.dataset.still = "1";
   document.body.append(built.root);
   // features.v3DogFx: effects on the glass (dog-fx.js). Never on the still form.
-  if (!still) dogFx.begin(occasionId);
+  if (!still) dogFx.begin(occasionId, { mode, looks: Object.fromEntries(ids.map((id) => [id, arts[id].name])) });
   runs += 1;
   lastLooks.set(worn, { ...lastLooks.get(worn), ...looks });
 

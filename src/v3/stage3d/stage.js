@@ -33,26 +33,59 @@ const VERT = `
 attribute vec4 tint;
 attribute float size;
 attribute float spin;
+attribute float shape;
 varying vec4 vTint;
 varying float vSpin;
+varying float vShape;
 void main() {
   vTint = tint;
   vSpin = spin;
+  vShape = shape;
   gl_PointSize = size;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }`;
 
-/* uShape: 0 snow (soft disc), 1 confetti (tumbling slip), 2 spark (glow),
-   3 bat (silhouette; spin is the flap phase). */
+/* shape, per particle: 0 snow (soft disc), 1 confetti (tumbling slip),
+   2 spark (glow), 3 bat (silhouette; spin is the flap phase). The glass
+   marks (Phase 2): 4 lick smear, 5 nose fog, 6 paw print; spin is their
+   angle. WebGL cannot read the page behind it, so a mark is a translucent
+   sheen with a highlight, never a refraction of the photo. */
 const FRAG = `
-uniform int uShape;
 uniform float uAlpha;
 varying vec4 vTint;
 varying float vSpin;
+varying float vShape;
+vec2 turn(vec2 p, float r) { float c = cos(r), s = sin(r); return vec2(c * p.x - s * p.y, s * p.x + c * p.y); }
 void main() {
+  int uShape = int(vShape + 0.5);
   vec2 p = gl_PointCoord - 0.5;
   float a = 0.0;
-  if (uShape == 0) {
+  vec3 col = vTint.rgb;
+  // Marks carry a faint dark edge as well as a light body, so they read over
+  // black fur, white fur and the photo alike: light alone vanished on white.
+  if (uShape == 4) {
+    vec2 q = turn(p, vSpin);
+    float e = length(vec2(q.x / 0.24, q.y / 0.48));
+    float body = smoothstep(1.0, 0.6, e) * 0.24;
+    float rim = smoothstep(0.1, 0.0, abs(e - 0.9));
+    float glint = smoothstep(0.06, 0.0, abs(q.x + 0.08 + 0.06 * q.y)) * smoothstep(0.34, 0.06, abs(q.y)) * 0.3;
+    col = mix(col, vec3(0.12), rim * 0.6);
+    a = max(body + glint, rim * 0.22);
+  } else if (uShape == 5) {
+    float d = length(p) * (1.0 + 0.025 * sin(atan(p.y, p.x) * 5.0 + vSpin * 3.0));
+    a = smoothstep(0.5, 0.1, d) * 0.5;
+  } else if (uShape == 6) {
+    vec2 q = turn(vec2(p.x, -p.y), vSpin);
+    float d = length(vec2(q.x / 1.25, q.y + 0.13)) - 0.17;
+    d = min(d, length(q - vec2(-0.29, 0.10)) - 0.085);
+    d = min(d, length(q - vec2(-0.11, 0.27)) - 0.09);
+    d = min(d, length(q - vec2(0.11, 0.27)) - 0.09);
+    d = min(d, length(q - vec2(0.29, 0.10)) - 0.085);
+    float fill = smoothstep(0.02, -0.02, d);
+    float ring = smoothstep(0.03, 0.0, abs(d + 0.01));
+    col = mix(col, vec3(0.1), ring * 0.7);
+    a = max(fill * 0.3, ring * 0.38);
+  } else if (uShape == 0) {
     a = smoothstep(0.5, 0.15, length(p));
   } else if (uShape == 1) {
     float c = cos(vSpin), s = sin(vSpin);
@@ -72,7 +105,7 @@ void main() {
     float wing = step(ax, 0.48) * step(p.y, top) * step(top - 0.14 - scallop, p.y);
     a = max(body, wing);
   }
-  gl_FragColor = vec4(vTint.rgb, vTint.a * clamp(a, 0.0, 1.0) * uAlpha);
+  gl_FragColor = vec4(col, vTint.a * clamp(a, 0.0, 1.0) * uAlpha);
 }`;
 
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -155,8 +188,34 @@ const EFFECTS = {
       p.y = p.base + Math.sin(p.x * 0.012) * 26;
       return p.x > -60 && p.x < w + 60;
     }
+  },
+  /* Phase 2: marks on the glass. Every slot is dormant until mark() wakes it
+     at a cue's point; it rises fast, holds, then dries away over its life.
+     Fog lifts sooner than a lick dries; a paw print lingers. */
+  glass: {
+    count: 24, shape: 4,
+    // Dormant: every field set, or the position buffer takes NaN.
+    spawn(p) { Object.assign(p, { x: 0, y: 0, life: 0, maxLife: 1, size: 0, spin: 0, shape: 4, r: 0, g: 0, b: 0, a: 0 }); },
+    step(p, dt) {
+      if (p.life <= 0) return true;
+      p.life -= dt;
+      const age = p.maxLife - p.life;
+      const left = Math.max(0, p.life) / p.maxLife;
+      p.a = Math.min(1, age / 0.15) * Math.min(1, left / 0.45);
+      if (p.shape === 5) p.size = p.full * (0.85 + 0.15 * left);
+      if (p.life <= 0) { p.a = 0; p.size = 0; }
+      return true;
+    }
   }
 };
+
+const MARK = {
+  smear: { shape: 4, life: 5, rgb: [0.92, 0.96, 1] },
+  fog: { shape: 5, life: 3.2, rgb: [0.9, 0.93, 0.96] },
+  paw: { shape: 6, life: 6, rgb: [0.88, 0.9, 0.93] }
+};
+// gl_PointSize beyond the driver's range is clamped silently; keep marks inside it.
+const MARK_MAX_PX = 512;
 
 let renderer = null;
 let canvas = null;
@@ -195,6 +254,7 @@ function ensure() {
   return true;
 }
 
+/* One Points system (one geometry, one material) per effect in the moment. */
 function build(effect) {
   const def = EFFECTS[effect];
   const w = innerWidth, h = innerHeight;
@@ -205,36 +265,45 @@ function build(effect) {
   const tint = new Float32Array(n * 4);
   const size = new Float32Array(n);
   const spin = new Float32Array(n);
+  const shape = new Float32Array(n);
   const geometry = new BufferGeometry();
   geometry.setAttribute("position", new BufferAttribute(pos, 3));
   geometry.setAttribute("tint", new BufferAttribute(tint, 4));
   geometry.setAttribute("size", new BufferAttribute(size, 1));
   geometry.setAttribute("spin", new BufferAttribute(spin, 1));
+  geometry.setAttribute("shape", new BufferAttribute(shape, 1));
   const material = new ShaderMaterial({
     vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthTest: false, depthWrite: false,
-    uniforms: { uShape: { value: def.shape }, uAlpha: { value: 0 } }
+    uniforms: { uAlpha: { value: 0 } }
   });
   const points = new Points(geometry, material);
   points.frustumCulled = false;
   scene.add(points);
-  return { effect, def, parts, geometry, material, points, pos, tint, size, spin, t: 0, nextBurst: 0, fadeFrom: null, frames: 0, w, h };
+  return { effect, def, parts, geometry, material, points, pos, tint, size, spin, shape, t: 0, nextBurst: 0, w, h };
 }
 
-function step(dt) {
-  const { def, parts, w, h } = sys;
-  sys.t += dt;
-  def.tick?.call(def, sys, w, h);
+function stepSystem(s, dt, alpha) {
+  const { def, parts, w, h } = s;
+  s.t += dt;
+  def.tick?.call(def, s, w, h);
   for (let i = 0; i < parts.length; i++) {
     const p = parts[i];
     if (!def.step(p, dt, w, h)) def.spawn(p, w, h, false);
-    sys.pos[i * 3] = p.x; sys.pos[i * 3 + 1] = p.y;
-    sys.tint[i * 4] = p.r; sys.tint[i * 4 + 1] = p.g; sys.tint[i * 4 + 2] = p.b; sys.tint[i * 4 + 3] = p.a;
-    sys.size[i] = p.size; sys.spin[i] = p.spin;
+    s.pos[i * 3] = p.x; s.pos[i * 3 + 1] = p.y;
+    s.tint[i * 4] = p.r; s.tint[i * 4 + 1] = p.g; s.tint[i * 4 + 2] = p.b; s.tint[i * 4 + 3] = p.a;
+    s.size[i] = p.size; s.spin[i] = p.spin; s.shape[i] = p.shape ?? def.shape;
   }
-  for (const k of ["position", "tint", "size", "spin"]) sys.geometry.attributes[k].needsUpdate = true;
+  for (const k of ["position", "tint", "size", "spin", "shape"]) s.geometry.attributes[k].needsUpdate = true;
+  s.material.uniforms.uAlpha.value = alpha;
+}
+
+function step(dt) {
+  sys.t += dt;
   const fadeIn = Math.min(1, sys.t / FADE_IN_S);
   const fadeOut = sys.fadeFrom == null ? 1 : Math.max(0, 1 - (performance.now() - sys.fadeFrom) / FADE_OUT_MS);
-  sys.material.uniforms.uAlpha.value = fadeIn * fadeOut;
+  // A mark is a moment on the glass and rises on its own; only particles fade in.
+  if (sys.particles) stepSystem(sys.particles, dt, fadeIn * fadeOut);
+  if (sys.glass) stepSystem(sys.glass, dt, fadeOut);
 }
 
 function loop(now) {
@@ -253,9 +322,12 @@ function teardown(reason) {
   clearTimeout(deadline); deadline = null;
   clearTimeout(fadeTimer); fadeTimer = null;
   if (sys) {
-    scene.remove(sys.points);
-    sys.geometry.dispose();
-    sys.material.dispose();
+    for (const s of [sys.particles, sys.glass]) {
+      if (!s) continue;
+      scene.remove(s.points);
+      s.geometry.dispose();
+      s.material.dispose();
+    }
     sys = null;
     lastEnd = reason;
   }
@@ -263,19 +335,42 @@ function teardown(reason) {
   if (canvas) canvas.style.display = "none";
 }
 
-/** Start an effect on the glass. False if the stage cannot (dead, unknown). */
-export function play(effect, deadlineMs) {
-  if (!EFFECTS[effect] || !ensure()) return false;
+/** Start a moment on the glass: the occasion's particles (`effect`, or null)
+    and/or `glass`, the layer cue marks land on. False if the stage cannot
+    (dead, unknown effect, nothing asked for). */
+export function play(effect, deadlineMs, { glass = false } = {}) {
+  if ((effect != null && (!EFFECTS[effect] || effect === "glass")) || (effect == null && !glass) || !ensure()) return false;
   teardown("replaced");
   moments += 1;
   renderer.setSize(innerWidth, innerHeight, false);
   Object.assign(camera, { left: 0, right: innerWidth, top: innerHeight, bottom: 0 });
   camera.updateProjectionMatrix();
-  sys = build(effect);
+  sys = {
+    effect: effect ?? null,
+    particles: effect ? build(effect) : null,
+    glass: glass ? build("glass") : null,
+    marked: 0, t: 0, fadeFrom: null, frames: 0
+  };
   canvas.style.display = "block";
   last = 0;
   raf = requestAnimationFrame(loop);
   deadline = setTimeout(() => teardown("deadline"), deadlineMs);
+  return true;
+}
+
+/** Leave a mark on the glass: `kind` smear | fog | paw, centred at (x, y) in
+    page px with y measured DOWN from the top, `px` across, `angle` radians.
+    False when no moment with a glass layer is live, or the moment is fading.
+    With every slot awake, the oldest mark gives way. */
+export function mark(kind, x, y, px, angle = 0) {
+  const m = MARK[kind];
+  if (!m || !sys?.glass || sys.fadeFrom != null || !(px > 0) || !Number.isFinite(x + y)) return false;
+  const parts = sys.glass.parts;
+  const slot = parts.find((p) => p.life <= 0) ?? parts.reduce((a, b) => (b.life < a.life ? b : a));
+  const size = Math.min(MARK_MAX_PX, px);
+  Object.assign(slot, { x, y: sys.glass.h - y, life: m.life, maxLife: m.life, size, full: size, spin: angle,
+    shape: m.shape, r: m.rgb[0], g: m.rgb[1], b: m.rgb[2], a: 0 });
+  sys.marked += 1;
   return true;
 }
 
@@ -289,17 +384,24 @@ export function stop() {
 
 /** Readout for __v3().stage and the specs. */
 export function state() {
+  const glass = sys?.glass;
   return {
     loaded: true,
     live: Boolean(renderer),
     dead,
     effect: sys?.effect ?? null,
-    particles: sys?.parts.length ?? 0,
+    particles: sys?.particles?.parts.length ?? 0,
+    glass: Boolean(glass),
+    // Marks landed this moment, and those still on the glass with their kinds.
+    marked: sys?.marked ?? 0,
+    marks: glass ? glass.parts.filter((p) => p.life > 0).map((p) => ({
+      kind: Object.keys(MARK).find((k) => MARK[k].shape === p.shape), x: Math.round(p.x), y: Math.round(glass.h - p.y), px: Math.round(p.size)
+    })) : [],
     frames: sys?.frames ?? 0,
     // What the last frame really drew: a loop that counts frames but draws
     // nothing, or draws at zero alpha, is not an effect on the glass.
     drawnPoints: sys?.frames ? renderer.info.render.points : 0,
-    alpha: sys?.material.uniforms.uAlpha.value ?? 0,
+    alpha: sys?.particles?.material.uniforms.uAlpha.value ?? sys?.glass?.material.uniforms.uAlpha.value ?? 0,
     running: raf !== null,
     shown: canvas?.style.display === "block",
     moments,

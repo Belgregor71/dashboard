@@ -210,6 +210,11 @@ test.describe("smooth dogs", () => {
       expect(on.timing, at).toHaveLength(count);
       // The reduced-motion portrait is still the same DRAWN frame.
       expect(on.stillFrame, `${at} still`).toBe(mode === "run" ? 0 : count - 1);
+      // dog-fx cues are keyed by drawn frame: one key per drawn frame, rising, on the same still.
+      expect(on.keys, `${at} keys`).toHaveLength(look.frames.length);
+      expect(on.keys[0], at).toBe(0);
+      expect(on.keys.every((k, j) => j === 0 || k > on.keys[j - 1]), `${at} keys rise`).toBe(true);
+      expect(on.keys[OCCASIONS[occ][mode].stillFrame], `${at} still key`).toBe(on.stillFrame);
       expect(on.scale, `${at} scale`).toBeCloseTo((OCCASIONS[occ][mode].cellScale ?? 1) * s.scale, 9);
       expect(on.holdMs, at).toBe(look.holdMs ?? OCCASIONS[occ][mode].holdMs);
       smooth += 1;

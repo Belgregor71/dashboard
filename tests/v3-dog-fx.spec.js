@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { EFFECT_FOR, DEADLINE_MS } from "../src/v3/core/dog-fx.js";
+import { CUES } from "../src/v3/core/dog-fx-cues.js";
+import { OCCASIONS, DOGS } from "../src/v3/core/dog-occasion.js";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    DOG FX — features.v3DogFx: a three.js stage over the dog peeks.
@@ -22,6 +24,13 @@ import { EFFECT_FOR, DEADLINE_MS } from "../src/v3/core/dog-fx.js";
      · an end() before the chunk arrives plays nothing → a late load starting an
                                                           effect after the dogs left
      · a lost context kills the stage; the dogs carry on → one GPU fault ending dogs
+     · Phase 2, glass marks: each cued look lands every
+       cue, of its kind, inside the dog's box, and no
+       sooner than its DRAWN frame's choreographed
+       start, smooth on and off                        → a cue on the wrong frame
+                                                          (an in-between), in the
+                                                          wrong place, or missing
+     · a look with no cue, and flag off, leave none    → marks where none is cued
 
    In the `isolated` project: WebGL pages in parallel already flake
    (v3-field-weather.spec.js). The clock is fixed at midday (no screensaver).
@@ -32,7 +41,9 @@ const CHUNK = /\/assets\/stage-[^/]*\.js$/;
 const COUNTS = { snow: 260, confetti: 220, fireworks: 360, bats: 9 };
 const stage = (page) => page.evaluate(() => window.__v3().stage);
 
-async function open(page, on, { clock = false } = {}) {
+const lookIndex = (name) => OCCASIONS.generic.peek.dogs.benji.findIndex((l) => l.name === name);
+
+async function open(page, on, { clock = false, smooth = null } = {}) {
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   page.on("console", (m) => {
@@ -42,7 +53,8 @@ async function open(page, on, { clock = false } = {}) {
   page.on("request", (r) => { if (CHUNK.test(new URL(r.url()).pathname)) chunks.push(r.url()); });
   await page.route("**/js/config.js", async (route) => {
     const res = await route.fetch({ maxRetries: 3 });
-    await route.fulfill({ response: res, body: `${await res.text()}\nwindow.CONFIG.features.v3DogFx = ${on};\n` });
+    const pin = smooth == null ? "" : `window.CONFIG.features.v3DogSmooth = ${smooth};\n`;
+    await route.fulfill({ response: res, body: `${await res.text()}\nwindow.CONFIG.features.v3DogFx = ${on};\n${pin}` });
   });
   if (clock) await page.clock.install({ time: MIDDAY });
   else await page.clock.setFixedTime(MIDDAY);
@@ -64,6 +76,12 @@ test.describe("v3DogFx stage", () => {
     await expect.poll(() => page.evaluate(() => window.dogOccasion.state().dogs.length), { timeout: 10_000 }).toBe(1);
     await page.waitForTimeout(1500);
     expect(await stage(page)).toMatchObject({ loaded: false, loading: false });
+    await page.evaluate(() => window.dogOccasion.hide());
+    // A cued look too: past its first cue, nothing loaded, nothing fired.
+    await page.evaluate((i) => { window.dogOccasion.show("generic", { dogs: ["benji"], looks: { benji: i } }); }, lookIndex("lickscreen"));
+    await expect.poll(() => page.evaluate(() => window.dogOccasion.state().dogs.length), { timeout: 10_000 }).toBe(1);
+    await page.waitForTimeout(2500);
+    expect(await stage(page)).toMatchObject({ loaded: false, loading: false, fired: [] });
     expect(await page.locator("canvas.stage3d").count()).toBe(0);
     expect(chunks).toEqual([]);
     await page.evaluate(() => window.dogOccasion.hide());
@@ -101,8 +119,10 @@ test.describe("v3DogFx stage", () => {
       expect((await stage(page)).lastEnd).toBe("stopped");
     }
 
-    // An occasion with no cue: the dogs show, the stage stays empty.
-    await page.evaluate(() => { window.dogOccasion.show("generic", { dogs: ["benji"] }); });
+    // A look with no particles and no cue: the dogs show, the stage stays empty.
+    expect(lookIndex("tennisball"), "an uncued generic look").toBeGreaterThanOrEqual(0);
+    expect(CUES.generic.benji.tennisball).toBeUndefined();
+    await page.evaluate((i) => { window.dogOccasion.show("generic", { dogs: ["benji"], looks: { benji: i } }); }, lookIndex("tennisball"));
     await expect.poll(() => page.evaluate(() => window.dogOccasion.state().dogs.length), { timeout: 10_000 }).toBe(1);
     await page.waitForTimeout(1500);
     expect(await stage(page)).toMatchObject({ effect: null, running: false, moments });
@@ -112,6 +132,58 @@ test.describe("v3DogFx stage", () => {
     expect(chunks.length, "the chunk is fetched once").toBe(1);
     expect(errors).toEqual([]);
   });
+
+  for (const smooth of [true, false]) {
+    test(`glass marks land on their cued frames, in the dog's box (smooth ${smooth ? "on" : "off"})`, async ({ page }) => {
+      test.setTimeout(90_000);
+      const { errors } = await open(page, true, { smooth });
+      // Load the chunk first: a cue that fires before the stage is up is missed by design.
+      await page.evaluate(() => { window.dogFx.begin("christmas"); window.dogFx.end(); });
+      await expect.poll(async () => (await stage(page)).loaded, { timeout: 15_000 }).toBe(true);
+
+      const looks = Object.keys(CUES.generic.benji);
+      expect(looks.sort()).toEqual(["lickscreen", "noseboop", "pawsup"]);
+      for (const look of looks) {
+        const i = lookIndex(look);
+        expect(i, `${look} is a generic look`).toBeGreaterThanOrEqual(0);
+        const cues = CUES.generic.benji[look];
+        const timing = OCCASIONS.generic.peek.dogs.benji[i].timing ?? DOGS.benji.timing.peek;
+        const startOf = (k) => timing.slice(0, k).reduce((a, b) => a + b, 0);
+
+        await page.evaluate((n) => { window.dogOccasion.show("generic", { dogs: ["benji"], looks: { benji: n } }); }, i);
+        await expect.poll(async () => (await stage(page)).fired.length, { timeout: 15_000, message: `${look}: every cue landed` })
+          .toBe(cues.length);
+        const s = await stage(page);
+        expect(s, look).toMatchObject({ effect: null, glass: true, particles: 0, running: true, shown: true, marked: cues.length });
+        expect(s.fired.map((f) => [f.frame, f.effect]), `${look}: the cued frames, in order`)
+          .toEqual(cues.map((c) => [c.frame, c.effect]));
+        for (const f of s.fired) {
+          // Timers are never early: a mark before its drawn frame's start fired on an in-between.
+          expect(f.ms, `${look} frame ${f.frame} fired at ${f.ms} ms`).toBeGreaterThanOrEqual(startOf(f.frame) - 15);
+        }
+        expect(s.marks.map((m) => m.kind).sort(), `${look}: marks on the glass`).toEqual(cues.map((c) => c.effect).sort());
+        const box = await page.evaluate(() => {
+          const r = document.querySelector(".dog--benji .dog__frame")?.getBoundingClientRect();
+          return r && { left: r.left, right: r.right, top: r.top, bottom: r.bottom, h: r.height };
+        });
+        expect(box, "the dog is on the glass").not.toBeNull();
+        expect(box.h).toBeGreaterThan(50);
+        for (const m of s.marks) {
+          expect(m.px, `${look} ${m.kind} size`).toBeGreaterThan(10);
+          expect(m.x, `${look} ${m.kind} x`).toBeGreaterThanOrEqual(box.left);
+          expect(m.x, `${look} ${m.kind} x`).toBeLessThanOrEqual(box.right);
+          // The dog rises and bobs after a mark lands; the glass does not.
+          expect(m.y, `${look} ${m.kind} y`).toBeGreaterThanOrEqual(box.top - box.h * 0.25);
+          expect(m.y, `${look} ${m.kind} y`).toBeLessThanOrEqual(box.bottom + box.h * 0.25);
+        }
+
+        await page.evaluate(() => window.dogOccasion.hide());
+        await expectEmptied(page, look);
+      }
+      expect(await page.locator("canvas.stage3d").count()).toBe(1);
+      expect(errors).toEqual([]);
+    });
+  }
 
   test("reduced motion: the still portrait, and no stage", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
