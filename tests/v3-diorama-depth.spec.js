@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { sunVector, coverDistance, shadowLength } from "../src/v3/stage3d/diorama-deep.js";
+import { sunVector, coverDistance, shadowLength, duskOf } from "../src/v3/stage3d/diorama-deep.js";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    THE DEEP DIORAMA — features.v3DioramaDepth (Phase 3 of the three.js stage).
@@ -49,7 +49,7 @@ const META = {
 };
 const CHUNK = /\/assets\/(stage|diorama-deep)-[^/]*\.js$/;
 
-async function boot(page, { on = true, depthMap = true } = {}) {
+async function boot(page, { on = true, depthMap = true, night = false, nightMap = true } = {}) {
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   page.on("console", (m) => {
@@ -65,6 +65,7 @@ async function boot(page, { on = true, depthMap = true } = {}) {
     if (url.pathname.startsWith("/api/house-plan/layer/")) {
       const name = url.pathname.split("/").pop();
       layers.push(name);
+      if (name === "plan-night" && !nightMap) return route.fulfill({ status: 404, contentType: "application/json", body: "{}" });
       if (name === "plan-depth" && !depthMap) return route.fulfill({ status: 404, contentType: "application/json", body: "{}" });
       return route.fulfill({ status: 200, contentType: "image/png", body: PNG });
     }
@@ -74,7 +75,7 @@ async function boot(page, { on = true, depthMap = true } = {}) {
     const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
-      body: `${await res.text()}\nwindow.CONFIG.features.v3Diorama = true;\nwindow.CONFIG.features.v3DioramaDressed = false;\nwindow.CONFIG.features.v3DioramaDepth = ${on};\n`
+      body: `${await res.text()}\nwindow.CONFIG.features.v3Diorama = true;\nwindow.CONFIG.features.v3DioramaDressed = false;\nwindow.CONFIG.features.v3DioramaDepth = ${on};\nwindow.CONFIG.features.v3DioramaNight = ${night};\n`
     });
   });
   await page.goto("/v3/");
@@ -82,6 +83,8 @@ async function boot(page, { on = true, depthMap = true } = {}) {
   expect(await page.evaluate(() => window.CONFIG.features.v3DioramaDepth), "the flag reached the page").toBe(on);
   // The height map and the chunk load after `ready`.
   if (on && depthMap) await page.waitForFunction(() => window.__v3().diorama.deep?.ready, null, { timeout: 15_000 });
+  // The night plate decodes after the deep module is in.
+  if (on && depthMap && night && nightMap) await page.waitForFunction(() => window.__v3().diorama.deep?.night, null, { timeout: 15_000 });
   else await page.waitForTimeout(500);
   return { errors, layers, chunks };
 }
@@ -117,6 +120,12 @@ test("the sun turns with the plate, and the camera covers the crop", () => {
   expect(shadowLength(sunVector(0, 80, 0))).toBeLessThan(4);
   expect(shadowLength(sunVector(0, 20, 0))).toBeGreaterThan(4);
   expect(shadowLength(sunVector(0, -20, 0))).toBe(48);
+  // Dusk: none by day, all of it by 6° below the horizon, half way at -2°.
+  expect(duskOf(30)).toBe(0);
+  expect(duskOf(2)).toBe(0);
+  expect(duskOf(-2)).toBe(0.5);
+  expect(duskOf(-6)).toBe(1);
+  expect(duskOf(-40)).toBe(1);
   // Below 8°, shadows would cross whole rooms: held at 8°.
   expect(sunVector(0, -20, 0)[2]).toBeCloseTo(Math.sin((8 * Math.PI) / 180), 6);
   // A crop wider than the wall covers on its height; taller, on its width.
@@ -197,6 +206,56 @@ test.describe("v3DioramaDepth", () => {
     await page.evaluate(() => window.__dioramaShow({ bins: ["red"] }));
     await expect.poll(async () => (await deepStage(page))?.world, { timeout: 5000 }).toMatchObject({ night: true, shadowPx: 0 });
     await expectEmptied(page, "night");
+  });
+
+  test("night plate: fades in after dark with the headlights on; by day neither; flag off, never fetched", async ({ page }) => {
+    test.setTimeout(90_000);
+    const { layers } = await boot(page, { night: true });
+    expect(layers).toContain("plan-night");
+    const dark = () => page.evaluate(() => {
+      document.documentElement.style.setProperty("--sun-alt", "-20");
+      document.documentElement.dataset.night = "1";
+    });
+
+    // Day: the plate is loaded but unused, the shadows are cast, no headlights.
+    await page.evaluate(() => window.__dioramaShow({ rolling: "person.brett" }));
+    await expect.poll(async () => (await deepStage(page))?.world, { timeout: 5000 })
+      .toMatchObject({ nightPlate: true, dusk: 0, headlights: false });
+    expect((await deepStage(page)).world.shadowPx).toBeGreaterThan(0);
+    await expectEmptied(page, "day");
+
+    // Dark: the night plate all the way in, the car's lights on, no sun shadows.
+    await dark();
+    await page.evaluate(() => window.__dioramaShow({ rolling: "person.brett" }));
+    await expect.poll(async () => (await deepStage(page))?.world, { timeout: 5000 })
+      .toMatchObject({ nightPlate: true, dusk: 1, headlights: true, shadowPx: 0 });
+    // Parked: the lights are off.
+    await expect.poll(async () => (await deepStage(page))?.world, { timeout: 6000 }).toMatchObject({ rolling: 0, headlights: false });
+    await expectEmptied(page, "night arrival");
+
+    // A bin night after dark: the plate, but no car rolling in, so no lights.
+    await page.evaluate(() => window.__dioramaShow({ bins: ["red"] }));
+    await expect.poll(async () => (await deepStage(page))?.world, { timeout: 5000 })
+      .toMatchObject({ nightPlate: true, dusk: 1, headlights: false });
+    await expectEmptied(page, "night bins");
+  });
+
+  test("night flag off, or no night plate on the box: the night tint, never the plate", async ({ page }) => {
+    test.setTimeout(60_000);
+    for (const opts of [{ night: false }, { night: true, nightMap: false }]) {
+      const { layers } = await boot(page, opts);
+      if (!opts.night) expect(layers, "flag off fetches no night plate").not.toContain("plan-night");
+      expect((await diorama(page)).deep.night).toBe(false);
+      await page.evaluate(() => {
+        document.documentElement.style.setProperty("--sun-alt", "-20");
+        document.documentElement.dataset.night = "1";
+      });
+      await page.evaluate(() => window.__dioramaShow({ rolling: "person.brett" }));
+      await expect.poll(async () => (await deepStage(page))?.world, { timeout: 5000, message: JSON.stringify(opts) })
+        .toMatchObject({ nightPlate: false, dusk: 0, headlights: false, night: true, shadowPx: 0 });
+      await expectEmptied(page, JSON.stringify(opts));
+      await page.unrouteAll({ behavior: "ignoreErrors" });
+    }
   });
 
   test("rain on a wet day only", async ({ page }) => {

@@ -56,6 +56,7 @@ const dioramaOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3Diorama);
 const dressedOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3DioramaDressed);
 const robotOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3RobotPlan);
 const depthOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3DioramaDepth);
+const nightOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3DioramaNight);
 const reducedMotion = () => Boolean(globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
 
 const layerUrl = (name) => `/api/house-plan/layer/${name}`;
@@ -108,6 +109,12 @@ function warm() {
         ([, module]) => { images.set("plan-depth", map); deep = module; },
         () => {}
       );
+      // The night plate (features.v3DioramaNight). Missing or broken: the night tint, as before.
+      if (deep && nightOn()) {
+        const night = new Image();
+        night.src = layerUrl("plan-night");
+        await night.decode().then(() => images.set("plan-night", night), () => {});
+      }
     }
     /* One at a time and after the plate is ready: a dressed plate that is missing
        or broken costs that occasion its dress, and nothing else. */
@@ -255,6 +262,9 @@ function playDeep(moment, crop, wearing) {
     } : null,
     raining: root.dataset.atmoRaining === "1",
     night: root.dataset.night === "1",
+    // A dressed plate has no night version: it keeps the tint.
+    nightPlate: nightOn() && !wearing ? images.get("plan-night") ?? null : null,
+    dusk: deep.duskOf(parseFloat(css.getPropertyValue("--sun-alt")) || 45),
     sunAz: parseFloat(css.getPropertyValue("--sun-az")) || 0,
     sunAlt: parseFloat(css.getPropertyValue("--sun-alt")) || 45,
     timing: { rollDelay: ROLL_DELAY_MS, roll: ROLL_MS, binStagger: BIN_STAGGER_MS, fadeAt: FADE_AT_MS }
@@ -314,7 +324,7 @@ export function dioramaState() {
   return {
     ready: Boolean(plate), showing: Boolean(showing), played, dressed: [...dressed.keys()],
     // features.v3DioramaDepth: `stage.memory` must read 0/0 between moments.
-    deep: deep ? { ready: true, shown: deepShown, stage: deep.state() } : null
+    deep: deep ? { ready: true, night: images.has("plan-night"), shown: deepShown, stage: deep.state() } : null
   };
 }
 

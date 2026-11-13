@@ -2114,6 +2114,14 @@ window.CONFIG = {
     // FLIPPED ON 2026-11-14 after the owner saw it on the wall.
     v3DioramaDepth: true,
 
+    // Phase 4 of the three.js stage: on the deep diorama, the owner's night plate
+    // (data/house-plan/plan-night.webp on the box, the same drawing with the
+    // lights on) fades in as the sun goes down, the wall shadows fade out, and
+    // the car rolling in has its headlights on. No night plate, or a dressed
+    // plate: the night tint, as before. Off: plan-night is never fetched.
+    // Needs v3DioramaDepth. Rollback: -> false, then a HARD reload of the kiosk.
+    v3DioramaNight: false,
+
     // ── The day in 20 seconds (src/v3/subjects/day-lapse.js) ───────────────
     // On: "how was today?" plays the day back across the empty house plan:
     // camera pulses, the door, bin night, the rain coming through. Only when

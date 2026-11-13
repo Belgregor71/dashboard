@@ -20,13 +20,18 @@
        drawn from above as the flat diorama draws them, and drop in the same
        way; the robot's run is painted on a canvas laid on the plate.
      · Rain is the stage's own particle layer over the world.
+     · Phase 4 (features.v3DioramaNight): the owner's night plate, pixel-aligned
+       with the day one, fades in as the sun goes down (`dusk`, 0 by day, 1 by
+       full dark), the wall shadows fade out with the daylight, and the car
+       rolling in has its headlights on. No night plate, or a dressed plate
+       (which has no night version): the night tint, as before.
      · Every geometry, material and texture made here is disposed by dispose();
        the stage calls it at the end of every moment (info.memory back to 0).
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import {
   Scene, Color, PerspectiveCamera, PlaneGeometry, ShaderMaterial, MeshBasicMaterial,
-  Mesh, Group, Texture, CanvasTexture, SRGBColorSpace, Vector3
+  Mesh, Group, Texture, CanvasTexture, SRGBColorSpace, Vector3, AdditiveBlending
 } from "three";
 import { play as stagePlay, stop as stageStop } from "./stage.js";
 
@@ -59,10 +64,14 @@ uniform sampler2D uTrail;
 uniform float uTrailOn;
 uniform float uShadow;
 uniform float uNight;
+uniform sampler2D uNightPlate;
+uniform float uDusk;
 varying vec2 vUv;
 void main() {
   vec3 col = texture2D(uPlate, vUv).rgb;
   col *= 1.0 - uShadow * texture2D(uShade, vUv).a;
+  // The night plate: the same drawing with the lights on, faded in by the sun.
+  col = mix(col, texture2D(uNightPlate, vUv).rgb, uDusk);
   if (uTrailOn > 0.5) {
     vec4 t = texture2D(uTrail, vUv);
     col = mix(col, t.rgb, t.a);
@@ -82,6 +91,12 @@ export function sunVector(azRad, altDeg, upBearingDeg) {
   const b = azRad + Math.PI - (upBearingDeg * Math.PI) / 180;
   const e = (Math.max(altDeg, 8) * Math.PI) / 180; // a sun on the horizon would cast endless shadows
   return [Math.sin(b) * Math.cos(e), Math.cos(b) * Math.cos(e), Math.sin(e)];
+}
+
+/** How dark it is, 0 (sun 2° up or higher) to 1 (6° below the horizon, civil
+    dusk's end). The wall's own night switch is at -2°, inside this ramp. Pure. */
+export function duskOf(altDeg) {
+  return clamp01((2 - altDeg) / 8);
 }
 
 /** How far a wall's shadow reaches across the floor, in plate px. Pure. */
@@ -144,6 +159,32 @@ function shadowCanvas(depth, away, reach) {
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = "destination-out";
   ctx.drawImage(walls, 0, 0);
+  return canvas;
+}
+
+/* Headlights from above: two warm beams widening ahead of the car, drawn
+   once. The car art faces +x (it rolls in nose first), so the beams do too. */
+function beamCanvas() {
+  const w = 256, h = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.filter = "blur(7px)"; // soft-edged pools of light, not drawn cones
+  for (const y of [0.3, 0.7]) {
+    const g = ctx.createRadialGradient(0, h * y, 2, 0, h * y, w);
+    g.addColorStop(0, "rgba(255,244,214,0.9)");
+    g.addColorStop(0.35, "rgba(255,236,190,0.35)");
+    g.addColorStop(1, "rgba(255,230,180,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(0, h * y - h * 0.05);
+    ctx.lineTo(w, h * y - h * 0.32);
+    ctx.lineTo(w, h * y + h * 0.32);
+    ctx.lineTo(0, h * y + h * 0.05);
+    ctx.closePath();
+    ctx.fill();
+  }
   return canvas;
 }
 
@@ -213,8 +254,11 @@ function world(o) {
     const reach = shadowLength(sun);
     const flat = Math.hypot(sun[0], sun[1]) || 1;
     const away = [-sun[0] / flat, -sun[1] / flat];       // shadows fall this way, unit length
-    const light = o.night ? 0.45 : 1;
-    const shadow = o.night ? 0 : SHADOW;                 // no sun, no sun shadows
+    // With the night plate the sun fades the day out; without it, the night switch tints.
+    const dusk = o.nightPlate ? o.dusk : 0;
+    const tinted = !o.nightPlate && o.night;
+    const light = tinted ? 0.45 : 1 - 0.4 * dusk;
+    const shadow = tinted ? 0 : SHADOW * (1 - dusk);     // no sun, no sun shadows
 
     // The plate: one flat quad over exactly the crop. The push-in only ever moves closer.
     const trail = o.robot ? keep(new CanvasTexture(trailCanvas(o.robot, W, H))) : null;
@@ -231,7 +275,9 @@ function world(o) {
           uTrailOn: { value: trail ? 1 : 0 },
           uRect: { value: [cx / W, 1 - (cy + ch) / H, cw / W, ch / H] },
           uShadow: { value: shadow },
-          uNight: { value: o.night ? 1 : 0 }
+          uNight: { value: tinted ? 1 : 0 },
+          uNightPlate: { value: o.nightPlate ? keep(texture(o.nightPlate, false)) : shade },
+          uDusk: { value: dusk }
         }
       }))
     );
@@ -258,6 +304,18 @@ function world(o) {
     o.parked.forEach(car);
     const rolling = o.rolling ? car(o.rolling) : null;
     const rollFrom = o.rolling ? -(o.rolling.box.x + o.rolling.box.w + 20) : 0;
+    // Headlights on the car rolling in, once the night plate is fading in. Additive, so they light.
+    let beams = null;
+    if (rolling && dusk > 0) {
+      const { w: bw, h: bh } = o.rolling.box;
+      const map = keep(new CanvasTexture(beamCanvas()));
+      map.colorSpace = SRGBColorSpace;
+      // Short, so they light the drive and the garage floor rather than the rooms past its wall.
+      beams = new Mesh(keep(new PlaneGeometry(bw * 0.8, bh * 1.0)),
+        keep(new MeshBasicMaterial({ map, transparent: true, opacity: 0.85 * dusk, blending: AdditiveBlending, depthWrite: false, depthTest: false })));
+      beams.position.set(bw / 2 + bw * 0.4 - 2, 0, CAR_Z - 0.5);
+      rolling.add(beams);
+    }
     const restX = rolling?.position.x ?? 0;
 
     // Bins drop in as the flat ones do: from 24% of their height above, fading in.
@@ -280,7 +338,10 @@ function world(o) {
       zoom = 1 / (1 - PUSH * easeInOut(clamp01(t / glideS)));
       camera.position.set(centre.x, centre.y, cover / zoom);
       camera.lookAt(centre);
-      if (rolling) rolling.position.x = restX + rollFrom * (1 - easeOut(clamp01((ms - o.timing.rollDelay) / o.timing.roll)));
+      const rolled = clamp01((ms - o.timing.rollDelay) / o.timing.roll);
+      if (rolling) rolling.position.x = restX + rollFrom * (1 - easeOut(rolled));
+      // The lights go off as the car comes to rest, over the last quarter of the roll.
+      if (beams) beams.material.opacity = 0.85 * dusk * (1 - clamp01((rolled - 0.75) / 0.25));
       bins.forEach(({ group, restY, drop }, i) => {
         const k = clamp01((ms - o.timing.rollDelay - i * o.timing.binStagger) / BIN_MS);
         group.visible = ms >= o.timing.rollDelay + i * o.timing.binStagger;
@@ -303,6 +364,9 @@ function world(o) {
         bins: bins.filter((b) => b.group.visible).length,
         trail: Boolean(trail),
         night: Boolean(o.night),
+        nightPlate: Boolean(o.nightPlate),
+        dusk: Math.round(dusk * 100) / 100,
+        headlights: Boolean(beams?.visible && beams.material.opacity > 0),
         shadowPx: Math.round(reach * (shadow > 0 ? 1 : 0)),
         zoom: Math.round(zoom * 1000) / 1000
       })
