@@ -1969,7 +1969,10 @@ window.CONFIG = {
     // show. Off: the stage module is never imported, so three is never fetched
     // and the dogs are exactly as before. Rollback: -> false (read per show; a
     // kiosk cache-bypass reload for the built copy).
-    v3DogFx: false,
+    // Phase 2 added the glass marks (lick smear, nose fog, paw prints) on Benji's
+    // generic looks. Deployed OFF b8860d7 / e7b735e (live gates 40 + 45 shows clean).
+    // FLIPPED ON 2026-11-14 on the owner's word. Rollback: v3DogFx: false.
+    v3DogFx: true,
 
     // ── Public holidays (L3 of the incumbent retirement) ───────────────────
     // QLD public holidays join the calendar every V3 reader sees (the day, the
@@ -2120,7 +2123,9 @@ window.CONFIG = {
     // the car rolling in has its headlights on. No night plate, or a dressed
     // plate: the night tint, as before. Off: plan-night is never fetched.
     // Needs v3DioramaDepth. Rollback: -> false, then a HARD reload of the kiosk.
-    v3DioramaNight: false,
+    // Deployed OFF a32958d (inject-defect 6/6 RED, night gate 29/30, the 30th a
+    // real doorbell). FLIPPED ON 2026-11-14 on the owner's word.
+    v3DioramaNight: true,
 
     // ── The day in 20 seconds (src/v3/subjects/day-lapse.js) ───────────────
     // On: "how was today?" plays the day back across the empty house plan:
