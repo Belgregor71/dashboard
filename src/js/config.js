@@ -1961,6 +1961,16 @@ window.CONFIG = {
     // 0 exceptions, CSP 0.
     v3DogSmooth: true,
 
+    // Effects on the glass around a dog peek, drawn by a three.js stage
+    // (core/dog-fx.js → stage3d/stage.js; docs/design/HANDOVER-threejs-stage.md).
+    // Phase 1: snow at Christmas, confetti on a birthday, fireworks at New Year,
+    // bats at Halloween; other occasions and reduced motion get none. One
+    // renderer for the page's life, capped at 30 fps, scene emptied after every
+    // show. Off: the stage module is never imported, so three is never fetched
+    // and the dogs are exactly as before. Rollback: -> false (read per show; a
+    // kiosk cache-bypass reload for the built copy).
+    v3DogFx: false,
+
     // ── Public holidays (L3 of the incumbent retirement) ───────────────────
     // QLD public holidays join the calendar every V3 reader sees (the day, the
     // ahead list, "what's on Monday") and, on the day, the ground photo gets

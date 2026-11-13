@@ -70,7 +70,7 @@ async function open(page, on) {
   page.on("response", (r) => { if (SHEET_URL.test(r.url()) && r.status() >= 400) errors.push(`sheet ${r.status()} ${r.url()}`); });
   await page.route("**/js/config.js", async (route) => {
     const res = await route.fetch({ maxRetries: 3 });
-    await route.fulfill({ response: res, body: `${await res.text()}\nwindow.CONFIG.features.v3DogSmooth = ${on};\n` });
+    await route.fulfill({ response: res, body: `${await res.text()}\nwindow.CONFIG.features.v3DogSmooth = ${on};\nwindow.CONFIG.features.v3DogFx = false;\n` });
   });
   await page.clock.setFixedTime(MIDDAY);
   await page.goto("/v3/");

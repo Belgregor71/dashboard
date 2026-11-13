@@ -69,6 +69,7 @@ import { initCommands } from "./core/commands.js";
 import { clockDim } from "./core/sun-clock.js";
 import { initAtmosphereFx, atmosphereSun, onStrike } from "./core/atmosphere-fx.js";
 import { dogOccasion } from "./core/dog-occasion.js";
+import { dogFx } from "./core/dog-fx.js";
 import { yieldTo } from "./core/overlay-priority.js";
 import { initDogSchedule } from "./core/dog-schedule.js";
 import { isPresent } from "./core/presence.js";
@@ -1096,6 +1097,8 @@ function registerHandles() {
     // this row the channel is only observable when it succeeds.
     command: window.__v3Commands?.() ?? null,
     dogs: dogOccasion.state(),
+    // features.v3DogFx: the three.js stage. `memory` must read 0/0 between moments.
+    stage: dogFx.state(),
     dogSchedule: window.__dogSchedule?.state() ?? null,
     // Cutover §4. `failed: []` is the assertion worth making on a healthy
     // wall — a stage that started throwing in production is otherwise silent
@@ -1123,6 +1126,8 @@ function registerHandles() {
      nothing — no DOM, no timers, no decoded sheets. Named without the `__`
      because it is the module's real API, not a readout. */
   window.dogOccasion = dogOccasion;
+  // features.v3DogFx by hand: `dogFx.begin("christmas")` / `dogFx.end()`.
+  window.dogFx = dogFx;
 
   /* Push one entity onto the bus exactly as the SSE would deliver it. The way
      to drive motion, or any other cause, without walking into the kitchen —

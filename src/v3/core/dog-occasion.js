@@ -68,6 +68,7 @@
 
 import { SHEETS, CELL_SCALE } from "./dog-sheets.js";
 import { SMOOTH } from "./dog-sheets-smooth.js";
+import { dogFx } from "./dog-fx.js";
 
 /* A constant rate, as a per-frame array: the run cycle's frames are strides,
    not expressions, so they share one duration — but the shape stays the same
@@ -918,6 +919,7 @@ function teardown() {
   if (!run) return;
   for (const id of run.timers) clearTimeout(id);
   run.root?.remove();
+  dogFx.end();
   run.cancel?.();
   // Release the decoded bitmaps — every look of this mode, not just the ones
   // shown: a preload() of all looks must not leave the unpicked ones decoded
@@ -980,6 +982,8 @@ export async function show(occasionId, { mode = "peek", dogs, looks: pinned } = 
   run.still = still;
   if (still) built.root.dataset.still = "1";
   document.body.append(built.root);
+  // features.v3DogFx: effects on the glass (dog-fx.js). Never on the still form.
+  if (!still) dogFx.begin(occasionId);
   runs += 1;
   lastLooks.set(worn, { ...lastLooks.get(worn), ...looks });
 

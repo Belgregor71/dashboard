@@ -37,8 +37,9 @@ export default defineConfig({
      `projects: undefined` — a project-level testIgnore would otherwise empty
      the contrast gate without a sound. */
   projects: [
-    { name: "isolated", testMatch: /camera-presence\.spec\.js$/ },
-    { name: "suite", testIgnore: ["verify/**", /camera-presence\.spec\.js$/], dependencies: ["isolated"] }
+    // v3-dog-fx: WebGL pages in parallel flake (v3-field-weather.spec.js), so the stage runs apart.
+    { name: "isolated", testMatch: /(camera-presence|v3-dog-fx)\.spec\.js$/ },
+    { name: "suite", testIgnore: ["verify/**", /(camera-presence|v3-dog-fx)\.spec\.js$/], dependencies: ["isolated"] }
   ],
   timeout: 30_000,
   fullyParallel: false,
