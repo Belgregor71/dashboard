@@ -187,6 +187,18 @@ test.describe("v3DioramaDepth", () => {
     await expectEmptied(page, "bins");
   });
 
+  test("no sun after dark: night casts no wall shadows, the day does", async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => window.__dioramaShow({ bins: ["red"] }));
+    await expect.poll(async () => (await deepStage(page))?.world, { timeout: 5000 }).toMatchObject({ night: false });
+    expect((await deepStage(page)).world.shadowPx).toBeGreaterThan(0);
+    await expectEmptied(page, "day");
+    await page.evaluate(() => { document.documentElement.dataset.night = "1"; });
+    await page.evaluate(() => window.__dioramaShow({ bins: ["red"] }));
+    await expect.poll(async () => (await deepStage(page))?.world, { timeout: 5000 }).toMatchObject({ night: true, shadowPx: 0 });
+    await expectEmptied(page, "night");
+  });
+
   test("rain on a wet day only", async ({ page }) => {
     test.setTimeout(60_000);
     await boot(page);
