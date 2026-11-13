@@ -196,6 +196,39 @@ guard), `src/v3/stage3d/stage.js` (the chunk: 523 KB / 131 KB gzip), two lines i
 - Not done: the owner has not watched the effects on the wall. `/flag-flip v3DogFx` waits
   for that and for Phase 2 (the handover's order).
 
+## Phase 2 results (2026-11-13, `e7b735e`, DEPLOYED with the flag OFF)
+
+Built: `src/v3/core/dog-fx-cues.js` (occasion → dog → look → `[{ frame, effect, x, y, size, angle }]`,
+read off gridded contact sheets of the drawn art). Only Benji has the three generic looks, so all
+11 cues are his: lickscreen 4 smears (frames 3-6), noseboop 2 fogs (5, 6), pawsup 5 prints (5, 8, 9).
+`paintFrame` reports every painted frame through `dogFx.frame()`; with `v3DogSmooth` on, `artFor`
+now returns `keys` (smooth index of each drawn frame) so cues fire on the drawn key, never on an
+in-between. The stage gained a dormant `glass` layer (24 slots) that `mark()` wakes; shape is now a
+per-particle attribute. Marks are drawn in the shader, no textures: a light body plus a faint dark
+edge. On a light-only first try, prints vanished over white fur and the fog vanished over the black
+nose, so they would have read only over the photo.
+
+- Spec: two new tests (smooth on / off): every cue fires, in order, on its kind, no earlier than
+  its drawn frame's choreographed start, and lands inside the dog's box. Flag off with a cued look
+  fires nothing, and the uncued `tennisball` look plays no moment. `v3-dog-smooth` asserts `keys`.
+- Inject-defect, all RED for the named reason: raw smooth index (fired at 186 ms, before 445);
+  marks never land (0 of 4); y not flipped (171 vs ≥515); cues for any look (tennisball moment);
+  flag ignored for glass (flag-off test); keys off by one (dog-smooth). Every restore was clean.
+- Full suite: flag off 2698 / 1 skipped; flag on (temporary flip, restored) 2698 / 1.
+- **Live (G11, flag on in the page, then off):** 30 forced peeks cycling the three looks: bad 0
+  (every show fired its full cue count, `info.memory` 0/0 after each), one stage canvas, 0
+  exceptions, CSP 0. Heap 4.18 → 6.07 MB (the one-time three load, as in Phase 1); a second
+  batch of 15 on the loaded stage went 6.06 → 6.10 MB, nodes 213 → 213, listeners 25 → 25. CDP
+  captures of each look over the real photo: sheen across the tongue, fog on the nose, prints on
+  the fur. Probe: `~/glass-gate.cjs` on the box; captures in `~/glass-gate/` (they hold a family
+  photo, ⛔ never commit).
+- Placement is approximate by design: the dog keeps rising after a mark lands, and the mark stays
+  where the glass was touched.
+
+**Owed:** the owner watches each look pinned on the wall
+(`CONFIG.features.v3DogFx=true; dogOccasion.show("generic",{dogs:["benji"],looks:{benji:0}})`,
+then 1 and 2), then `/flag-flip v3DogFx` before 3 December.
+
 ## Art to ask the owner for (they said "as much as it takes")
 
 - A night version of the house plate, pixel-aligned (Phase 4).
