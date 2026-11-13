@@ -229,6 +229,41 @@ nose, so they would have read only over the photo.
 (`CONFIG.features.v3DogFx=true; dogOccasion.show("generic",{dogs:["benji"],looks:{benji:0}})`,
 then 1 and 2), then `/flag-flip v3DogFx` before 3 December.
 
+## Phase 3 results (2026-11-14, `v3DioramaDepth`, default off)
+
+**First build (`a65719b`): REJECTED by the owner on the wall** ("it doesn't look good at all").
+It did what the plan said: the plate lifted by the height map in the vertex shader, slope
+shading in the fragment shader, a 6° tilt. On the real plate, every floor looked crumpled
+(method A's furniture ramp), every raised edge smeared a white streak (a displaced vertical face
+stretches a 1 px strip of the picture), and a black bar showed at the crop's edge. The cause is
+the approach, not a tuning slip: **displacing a painted illustration smears it.** 🔑 The phase
+had skipped its own gate. The owner never saw the Phase 0 stills before Phase 3 was built.
+
+**Direction B (owner's choice, built after stills were approved):** the picture stays flat.
+- **Wall shadows from the real sun.** The height map only says where the walls are
+  (depth > 0.6, so furniture and hedges cast nothing). The shadow is drawn **once per moment**
+  on a half-res canvas: 12 offset copies of the wall mask along the shadow direction, blurred,
+  with the wall tops cut out. Length = 22 px ÷ tan(elevation), capped at 48 px; darkness 0.6;
+  none at night. A first try marched toward the sun per pixel in the shader. It striped, and it
+  cost 16 texture taps per pixel per frame for a sun that does not move in six seconds.
+- **A push-in, never a pull-back.** Zoom goes from 1 to 1/0.92 over the moment, so the view
+  never leaves the crop.
+- **Cars:** the cut-outs, with a shadow cast away from the sun. **Bins:** drawn from above as
+  `.diorama__bin` draws them, dropping in the same way. **Robot:** the run painted on a canvas
+  over the plate. **Rain:** the stage's particle layer (`data-atmo-raining`).
+- `stage.js` gained a `world` slot under the particles and an `owner`, so the dogs and the
+  diorama never stop or replace each other. A refused deep moment plays flat.
+- `window.__dioramaShow(moment)` plays a moment by hand with no candidate, so a live probe
+  leaves nothing in the wall's log.
+
+Spec `tests/v3-diorama-depth.spec.js` (isolated): 11 tests. Inject-defect 16/16 RED, both
+directions where there is an off state (rain always/never, shadows by day/at night, flag
+ignored, refused moment claiming it played). `v3-diorama` and `v3-robot-plan` pin the flag off.
+
+**Owed:** the live gate on B, the owner's eye on a forced arrival and bin night on the wall,
+then `/flag-flip v3DioramaDepth`. Phase 4 replaces the night tint with the owner's night plate
+(received 11-14 in chat, portrait; it needs saving to disk, rotating and an alignment check).
+
 ## Art to ask the owner for (they said "as much as it takes")
 
 - A night version of the house plate, pixel-aligned (Phase 4).
