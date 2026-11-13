@@ -170,6 +170,32 @@ perspective photos is a poor bet for a top-down illustration.
 **Owed for the gate:** the owner's eye on the stills (8° = what would ship, 25° = exaggerated to
 judge the map). They are in the session scratchpad only, ⛔ never in the repo.
 
+## Phase 1 results (2026-11-13, `b8860d7`, DEPLOYED with the flag OFF)
+
+Built: `src/v3/core/dog-fx.js` (flag, occasion → effect, the one `import()`, generation
+guard), `src/v3/stage3d/stage.js` (the chunk: 523 KB / 131 KB gzip), two lines in
+`dog-occasion.js`, `__v3().stage`, `window.dogFx`. Shapes are drawn in one fragment shader
+(no textures). Effects: snow 260, confetti 220, fireworks 360 (bursts), bats 9.
+
+- Spec `tests/v3-dog-fx.spec.js` (isolated project), 6 tests. It caught two real defects
+  while it was being written: a dead stage still played (`ensure()` returned true for the
+  lost renderer), and dormant fireworks sparks put NaN into the position buffer.
+- Inject-defect: all six went RED for the named reason. They were: begin never called;
+  flag ignored; reduced motion ignored; geometry not disposed; no deadline; no generation
+  check. Every restore was proven byte-identical.
+- Full suite: flag off 2696 passed / 1 skipped; flag on (temporary flip, restored)
+  2696 / 1. `flag-reversibility.mjs` skips flags whose default is off, so the
+  flag-on half was done by hand.
+- **Live (G11, flag set on in the running page, then off again):** 40 forced peeks, 10 per
+  occasion. Every one drew its effect (all particles, alpha 1), and `info.memory` was 0/0
+  after each. There was one stage canvas throughout, no context loss and 0 exceptions;
+  CSP showed 0 violations. Heap was 4.11 → 6.10 MB across the first 40 (the one-time
+  load), then a second batch of 20 on the loaded stage went 6.10 → 6.22 MB with listeners
+  flat (25 → 25), so per-show growth is flat. Snow was seen over the Christmas peek in
+  a CDP capture. The probe is `~/fx-gate.cjs` on the box.
+- Not done: the owner has not watched the effects on the wall. `/flag-flip v3DogFx` waits
+  for that and for Phase 2 (the handover's order).
+
 ## Art to ask the owner for (they said "as much as it takes")
 
 - A night version of the house plate, pixel-aligned (Phase 4).
