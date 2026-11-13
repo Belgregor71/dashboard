@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { sunVector, coverDistance } from "../src/v3/stage3d/diorama-deep.js";
+import { sunVector, coverDistance, shadowLength } from "../src/v3/stage3d/diorama-deep.js";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    THE DEEP DIORAMA — features.v3DioramaDepth (Phase 3 of the three.js stage).
@@ -9,7 +9,8 @@ import { sunVector, coverDistance } from "../src/v3/stage3d/diorama-deep.js";
        diorama as before                               → flag off = the build before
      · flag ON: the moment is the stage's world, not the
        DOM; the rolling car is short of its bay mid-roll
-       and in it at the end; the glide tilts           → a deep moment that draws
+       and in it at the end; the camera pushes in,
+       never out past the crop; walls cast a shadow    → a deep moment that draws
                                                           nothing that moves
      · bins drop in, the colours named                 → the bin moment lost on the stage
      · after every moment: info.memory 0/0, loop off,
@@ -112,7 +113,11 @@ test("the sun turns with the plate, and the camera covers the crop", () => {
   expect(z).toBeCloseTo(0.5, 6);
   // The same sun on a plate whose up is east sits to the plate's left.
   expect(sunVector(Math.PI, 30, 90)[0]).toBeLessThan(-0.8);
-  // Below 8°, the walls would black the plate out: held at 8°.
+  // Shadows: short under a high sun, long but capped under a low one.
+  expect(shadowLength(sunVector(0, 80, 0))).toBeLessThan(4);
+  expect(shadowLength(sunVector(0, 20, 0))).toBeGreaterThan(4);
+  expect(shadowLength(sunVector(0, -20, 0))).toBe(48);
+  // Below 8°, shadows would cross whole rooms: held at 8°.
   expect(sunVector(0, -20, 0)[2]).toBeCloseTo(Math.sin((8 * Math.PI) / 180), 6);
   // A crop wider than the wall covers on its height; taller, on its width.
   const tan = Math.tan((30 * Math.PI) / 360);
@@ -141,14 +146,17 @@ test.describe("v3DioramaDepth", () => {
     await expect.poll(() => deepStage(page), { timeout: 5000 })
       .toMatchObject({ owner: "diorama", running: true, shown: true, world: { name: "diorama", cars: 2, bins: 0, trail: false } });
     expect(await flatNow(page), "deep, not the DOM diorama as well").toBe(0);
-    // Mid-roll: short of its bay. The glide has begun to tilt.
+    // Mid-roll: short of its bay. The push-in has begun, and the walls cast a shadow.
     await page.waitForTimeout(900);
     const mid = (await deepStage(page)).world;
     expect(mid.rolling).toBeLessThan(0);
-    expect(mid.tilt).toBeGreaterThan(0);
-    // Parked, and the tilt held at or under 8°.
+    expect(mid.zoom).toBeGreaterThan(1);
+    expect(mid.shadowPx).toBeGreaterThan(0);
+    // Parked; the push-in never past 8% (zoom ≤ 1/0.92), never back out past the crop (zoom ≥ 1).
     await expect.poll(async () => (await deepStage(page)).world?.rolling, { timeout: 5000 }).toBe(0);
-    expect((await deepStage(page)).world.tilt).toBeLessThanOrEqual(8);
+    const { zoom } = (await deepStage(page)).world;
+    expect(zoom).toBeGreaterThanOrEqual(1);
+    expect(zoom).toBeLessThanOrEqual(1.087);
     expect((await deepStage(page)).frames).toBeGreaterThan(10);
     await expectEmptied(page, "arrival");
     expect((await diorama(page)).showing).toBe(false);
