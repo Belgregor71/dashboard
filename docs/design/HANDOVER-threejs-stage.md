@@ -264,6 +264,36 @@ ignored, refused moment claiming it played). `v3-diorama` and `v3-robot-plan` pi
 then `/flag-flip v3DioramaDepth`. Phase 4 replaces the night tint with the owner's night plate
 (received 11-14 in chat, portrait; it needs saving to disk, rotating and an alignment check).
 
+**Flipped on 2026-11-14 (`ab4b42e`)** after the owner saw B on the wall. The suite passed
+2709/1 with the flag on, and `flag-reversibility.mjs` was green. In-page rollback was proven
+on the G11: the deployed config played deep; `config.js` intercepted to off played flat; a
+clean reload played deep again.
+
+## Phase 4 results (2026-11-14, `a32958d`, `v3DioramaNight`, DEPLOYED with the flag OFF)
+
+The owner's night plate (a ChatGPT render, 1048×1501) is the day plate on its side. Rotated
+90° anticlockwise, its edges correlate 0.90 with `plan-empty` (clockwise: −0.03), so it needs
+no warp. Shipped by `scp` as `data/house-plan/plan-night.webp` (q90) and allowlisted.
+
+- `duskOf(alt) = clamp((2 − alt) / 8)`: 0 with the sun 2° up, 1 at 6° below. The night plate
+  fades in by it; wall shadows ×(1 − dusk); cars ×(1 − 0.4·dusk). With no night plate, or
+  a dressed plate (which has no night version), the night tint applies as before.
+- Headlights on the car rolling in: two blurred beams, 0.8 car widths long, additive, off
+  over the last quarter of the roll. 🔑 The first version, long and hard-edged, shone through
+  the garage wall into the bathroom in the stills. Short beams that go off on parking fixed it.
+- Spec: 3 new tests (night/day/bins; flag off and missing plate). Inject-defect 6/6 RED: plate
+  never shown, plate by day, flag ignored, headlights never, headlights left on parked, sun
+  shadows in the dark. Full suite 2711/1 in both flag states.
+- **Live (`~/night-gate.cjs 20 10`, made dark around each moment):** 29/30 clean (plate fully
+  in, headlights on for arrivals and off for bins, `info.memory` 0/0). The 30th was stopped
+  mid-moment by a real doorbell event (its live stream started 08:46:56–08:47:04, the row's
+  start was 08:46:56), which takes the wall by design. Heap 4.60 → 6.33 → 6.44 MB. Nodes
+  206 → 227 in that batch, the camera view's DOM by the timing (not separately proven).
+  One canvas, 0 exceptions, CSP 0.
+
+**Owed:** the owner's eye on the wall after sunset (a forced arrival and bin night), then
+`/flag-flip v3DioramaNight`.
+
 ## Art to ask the owner for (they said "as much as it takes")
 
 - A night version of the house plate, pixel-aligned (Phase 4).
