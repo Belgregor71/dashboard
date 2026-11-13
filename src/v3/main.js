@@ -33,7 +33,7 @@ import {
 } from "./core/archive.js";
 import { clearSubject, activeSubject, showSubject, subjectRoster } from "./subjects/index.js";
 import { warmCameraPlan } from "./subjects/camera-plan.js";
-import { initDiorama, dioramaState } from "./core/diorama.js";
+import { initDiorama, dioramaState, dioramaShow } from "./core/diorama.js";
 import { initRobotWatch, robotWatchState } from "./core/robot-watch.js";
 import { clearVocabularyCard, vocabularyCardMounted } from "./core/vocabulary-card.js";
 import { clearSpread, spreadMounted } from "./core/spread.js";
@@ -1128,6 +1128,8 @@ function registerHandles() {
   window.dogOccasion = dogOccasion;
   // features.v3DogFx by hand: `dogFx.begin("christmas")` / `dogFx.end()`.
   window.dogFx = dogFx;
+  // A diorama moment by hand, no candidate: `__dioramaShow({ bins: ["red"] })`.
+  window.__dioramaShow = dioramaShow;
 
   /* Push one entity onto the bus exactly as the SSE would deliver it. The way
      to drive motion, or any other cause, without walking into the kitchen —

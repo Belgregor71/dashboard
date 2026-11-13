@@ -1,8 +1,9 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    THE STAGE — features.v3DogFx. A three.js layer on the glass, over the dogs.
 
-   Reached ONLY through the dynamic import() in core/dog-fx.js, so three lives
-   in its own chunk and is never fetched while the flag is off.
+   Reached ONLY through dynamic import()s (core/dog-fx.js, and the deep diorama
+   via stage3d/diorama-deep.js for features.v3DioramaDepth), so three lives in
+   its own chunk and is never fetched while both flags are off.
    docs/design/HANDOVER-threejs-stage.md has the design and Phase 0's numbers.
 
    Rules, each one measured or paid for elsewhere:
@@ -27,6 +28,7 @@ import {
 
 const FRAME_GAP_MS = 1000 / 30 - 4;
 const FADE_IN_S = 0.8;
+const WORLD_FADE_IN_S = 0.35; // the flat diorama's MOTION.calm
 const FADE_OUT_MS = 600;
 
 const VERT = `
@@ -85,6 +87,10 @@ void main() {
     float ring = smoothstep(0.03, 0.0, abs(d + 0.01));
     col = mix(col, vec3(0.1), ring * 0.7);
     a = max(fill * 0.3, ring * 0.38);
+  } else if (uShape == 7) {
+    // Rain: a thin slanted streak, brightest in the middle.
+    vec2 q = turn(p, 0.18);
+    a = smoothstep(0.05, 0.0, abs(q.x)) * smoothstep(0.5, 0.1, abs(q.y)) * 0.55;
   } else if (uShape == 0) {
     a = smoothstep(0.5, 0.15, length(p));
   } else if (uShape == 1) {
@@ -189,6 +195,20 @@ const EFFECTS = {
       return p.x > -60 && p.x < w + 60;
     }
   },
+  // Phase 3: over the deep diorama on a wet day (data-atmo-raining).
+  rain: {
+    count: 320, shape: 7,
+    spawn(p, w, h, first) {
+      Object.assign(p, { x: rand(-0.1 * w, w), y: first ? rand(0, h) : h + 30, vx: 0, vy: -rand(900, 1300),
+        size: rand(18, 30), spin: 0, r: 0.78, g: 0.86, b: 0.95, a: rand(0.35, 0.7) });
+      p.vx = -p.vy * 0.18; // along the streak's slant
+    },
+    step(p, dt) {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      return p.y > -30;
+    }
+  },
   /* Phase 2: marks on the glass. Every slot is dormant until mark() wakes it
      at a cue's point; it rises fast, holds, then dries away over its life.
      Fog lifts sooner than a lick dries; a paw print lingers. */
@@ -248,6 +268,7 @@ function ensure() {
   }
   renderer.setPixelRatio(1);
   renderer.setClearColor(0x000000, 0);
+  renderer.autoClear = false; // a world scene and the particles share each frame; loop() clears once
   canvas.addEventListener("webglcontextlost", () => { dead = true; teardown("context-lost"); });
   scene = new Scene();
   camera = new OrthographicCamera(0, 1, 1, 0, -10, 10);
@@ -304,6 +325,11 @@ function step(dt) {
   // A mark is a moment on the glass and rises on its own; only particles fade in.
   if (sys.particles) stepSystem(sys.particles, dt, fadeIn * fadeOut);
   if (sys.glass) stepSystem(sys.glass, dt, fadeOut);
+  if (sys.world) {
+    sys.world.step(sys.t);
+    // The world is opaque: the whole canvas fades, as the flat diorama's overlay did.
+    canvas.style.opacity = String(Math.min(1, sys.t / WORLD_FADE_IN_S) * fadeOut);
+  }
 }
 
 function loop(now) {
@@ -312,6 +338,8 @@ function loop(now) {
   const dt = last ? Math.min(0.1, (now - last) / 1000) : 1 / 30;
   last = now;
   step(dt);
+  renderer.clear();
+  if (sys.world) renderer.render(sys.world.scene, sys.world.camera);
   renderer.render(scene, camera);
   sys.frames++;
 }
@@ -328,27 +356,43 @@ function teardown(reason) {
       s.geometry.dispose();
       s.material.dispose();
     }
+    sys.world?.dispose();
     sys = null;
     lastEnd = reason;
   }
   if (renderer) renderer.renderLists.dispose();
-  if (canvas) canvas.style.display = "none";
+  if (canvas) {
+    canvas.style.display = "none";
+    canvas.style.opacity = "";
+  }
 }
 
-/** Start a moment on the glass: the occasion's particles (`effect`, or null)
-    and/or `glass`, the layer cue marks land on. False if the stage cannot
-    (dead, unknown effect, nothing asked for). */
-export function play(effect, deadlineMs, { glass = false } = {}) {
-  if ((effect != null && (!EFFECTS[effect] || effect === "glass")) || (effect == null && !glass) || !ensure()) return false;
+/** Start a moment on the glass: the occasion's particles (`effect`, or null),
+    `glass` (the layer cue marks land on) and/or `world`, a function (w, h) →
+    { scene, camera, step(t), dispose(), info() } drawn under the particles
+    (the deep diorama). `owner` names who may stop it: a live moment of another
+    owner is never replaced, so the dogs and the diorama cannot end each other.
+    False if the stage cannot (dead, busy, unknown effect, nothing asked for). */
+export function play(effect, deadlineMs, { glass = false, world = null, owner = "dogs" } = {}) {
+  if ((effect != null && (!EFFECTS[effect] || effect === "glass")) || (effect == null && !glass && !world)) return false;
+  if ((sys && sys.owner !== owner) || !ensure()) return false;
   teardown("replaced");
-  moments += 1;
   renderer.setSize(innerWidth, innerHeight, false);
   Object.assign(camera, { left: 0, right: innerWidth, top: innerHeight, bottom: 0 });
   camera.updateProjectionMatrix();
+  let built = null;
+  try {
+    built = world ? world(innerWidth, innerHeight) : null;
+  } catch {
+    return false;
+  }
+  moments += 1;
   sys = {
+    owner,
     effect: effect ?? null,
     particles: effect ? build(effect) : null,
     glass: glass ? build("glass") : null,
+    world: built,
     marked: 0, t: 0, fadeFrom: null, frames: 0
   };
   canvas.style.display = "block";
@@ -376,8 +420,8 @@ export function mark(kind, x, y, px, angle = 0) {
 
 /** Fade the effect out and empty the stage. The fade's end is a setTimeout,
     not the loop, so it tears down even if rAF never fires again. */
-export function stop() {
-  if (!sys || sys.fadeFrom != null) return;
+export function stop(owner = "dogs") {
+  if (!sys || sys.owner !== owner || sys.fadeFrom != null) return;
   sys.fadeFrom = performance.now();
   fadeTimer = setTimeout(() => teardown("stopped"), FADE_OUT_MS);
 }
@@ -389,7 +433,9 @@ export function state() {
     loaded: true,
     live: Boolean(renderer),
     dead,
+    owner: sys?.owner ?? null,
     effect: sys?.effect ?? null,
+    world: sys?.world?.info() ?? null,
     particles: sys?.particles?.parts.length ?? 0,
     glass: Boolean(glass),
     // Marks landed this moment, and those still on the glass with their kinds.

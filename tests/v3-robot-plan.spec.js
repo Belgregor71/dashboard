@@ -171,7 +171,7 @@ async function bootV3(page, { on = true, calibrated = true, track = DOCKED } = {
     const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
-      body: `${await res.text()}\nwindow.CONFIG.features.v3Diorama = true;\nwindow.CONFIG.features.v3RobotPlan = ${on};\n`
+      body: `${await res.text()}\nwindow.CONFIG.features.v3Diorama = true;\nwindow.CONFIG.features.v3RobotPlan = ${on};\nwindow.CONFIG.features.v3DioramaDepth = false;\n`
     });
   });
   await page.goto("/v3/");

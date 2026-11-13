@@ -21,13 +21,17 @@
 
    Plate, cars and positions are private: see server/routes/housePlan.js. With no
    diorama in the data the moment simply does not happen.
+
+   With features.v3DioramaDepth and a height map (plan-depth) on the box, the
+   same moment plays on the three.js stage instead (stage3d/diorama-deep.js);
+   anything that stops it there plays this flat one.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { DEPTH, onDepth } from "./depth.js";
 import { MOTION } from "./motion.js";
 import { occasionToday } from "./dog-schedule.js";
 import { getEntity } from "../../js/services/homeAssistant/state.js";
-import { robotLayer, robotTrack } from "./robot-layer.js";
+import { robotLayer, robotTrack, toPlate } from "./robot-layer.js";
 
 const ROLL_DELAY_MS = 450;   // the fade in takes 350 of this
 const ROLL_MS = 2800;
@@ -40,6 +44,9 @@ const BIN_INK = { red: "#a8281f", yellow: "#dcae12", green: "#2f7a36" };
 
 let plate = null;            // { width, height, upBearing, crop, cars, bins, binSize }
 let loading = null;
+const images = new Map();    // layer name → its decoded Image; the deep diorama makes textures of them
+let deep = null;             // stage3d/diorama-deep.js once it and the height map are in (v3DioramaDepth)
+let deepShown = 0;
 let showing = null;          // teardown of the moment on the glass
 const seen = new Map();      // candidate id → key last played
 const dressed = new Map();   // occasion → its decoded Image; held, so a moment never waits on one
@@ -48,6 +55,8 @@ let played = 0;
 const dioramaOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3Diorama);
 const dressedOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3DioramaDressed);
 const robotOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3RobotPlan);
+const depthOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3DioramaDepth);
+const reducedMotion = () => Boolean(globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
 
 const layerUrl = (name) => `/api/house-plan/layer/${name}`;
 
@@ -86,9 +95,20 @@ function warm() {
     await Promise.all(names.map((name) => {
       const image = new Image();
       image.src = layerUrl(name);
-      return image.decode();
+      return image.decode().then(() => images.set(name, image));
     }));
     plate = { width: meta.width, height: meta.height, upBearing: meta.upBearing ?? 0, ...d };
+    /* Depth, after the plate is ready: no height map on the box, or a chunk that
+       will not load, leaves the flat diorama exactly as it was. Flag off, none
+       of this is fetched. */
+    if (depthOn()) {
+      const map = new Image();
+      map.src = layerUrl("plan-depth");
+      await Promise.all([map.decode(), import("../stage3d/diorama-deep.js")]).then(
+        ([, module]) => { images.set("plan-depth", map); deep = module; },
+        () => {}
+      );
+    }
     /* One at a time and after the plate is ready: a dressed plate that is missing
        or broken costs that occasion its dress, and nothing else. */
     if (!dressedOn()) return;
@@ -130,6 +150,7 @@ function play(moment) {
   // The robot is indoors: its own crop, or the whole plate until one is set.
   const crop = moment.track ? plate.robot.crop ?? [0, 0, plate.width, plate.height]
     : wearing ? plate.dressedCrop ?? plate.crop : plate.crop;
+  if (playDeep(moment, crop, wearing)) return;
   const { scale, left, top } = cropBox(crop, window.innerWidth, window.innerHeight);
   const overlay = document.createElement("div");
   overlay.className = "diorama";
@@ -206,6 +227,52 @@ function play(moment) {
   played += 1;
 }
 
+/* The same moment on the three.js stage (features.v3DioramaDepth). False sends
+   it to the flat diorama: flag off, reduced motion (the flat plate is that
+   form), no height map, a dead stage, or the dogs holding it. */
+function playDeep(moment, crop, wearing) {
+  if (!deep || !depthOn() || reducedMotion()) return false;
+  const root = document.documentElement;
+  const css = getComputedStyle(root);
+  const box = (car) => ({ image: images.get(car.layer), box: car });
+  const affine = plate.robot?.affine;
+  const track = moment.track;
+  const ok = deep.playDeep({
+    plate,
+    base: wearing ?? images.get("plan-empty"),
+    depth: images.get("plan-depth"),
+    crop,
+    parked: parkedCars(plate.cars, moment.rolling, (entity) => getEntity(entity)?.state)
+      .map((id) => box(plate.cars[id])),
+    rolling: plate.cars[moment.rolling] ? box(plate.cars[moment.rolling]) : null,
+    bins: (moment.bins ?? []).map((colour, i) => ({ colour: BIN_INK[colour], box: { ...plate.bins?.[i], ...plate.binSize } }))
+      .filter((bin, i) => bin.colour && plate.bins?.[i]),
+    robot: track?.robot && affine ? {
+      trail: (track.trail ?? []).map((point) => toPlate(point, affine)),
+      at: toPlate(track.robot, affine),
+      size: plate.width * 0.011,
+      error: track.state === "error"
+    } : null,
+    raining: root.dataset.atmoRaining === "1",
+    night: root.dataset.night === "1",
+    sunAz: parseFloat(css.getPropertyValue("--sun-az")) || 0,
+    sunAlt: parseFloat(css.getPropertyValue("--sun-alt")) || 45,
+    timing: { rollDelay: ROLL_DELAY_MS, roll: ROLL_MS, binStagger: BIN_STAGGER_MS, fadeAt: FADE_AT_MS }
+  }, FADE_AT_MS + FADE_MS + 50);
+  if (!ok) return false;
+  const remove = () => {
+    if (showing !== remove) return;
+    showing = null;
+    clearTimeout(timer);
+    deep.stopDeep();
+  };
+  const timer = setTimeout(remove, FADE_AT_MS);
+  showing = remove;
+  played += 1;
+  deepShown += 1;
+  return true;
+}
+
 /**
  * Called by the attention tick with the candidates on the glass. A candidate stays
  * there across ticks, so each plays once; a second arrival by the same person
@@ -233,9 +300,22 @@ export function dioramaSee(candidates) {
   }
 }
 
+/** By hand (window.__dioramaShow): play a moment without a candidate, so a live
+    probe leaves nothing in the wall's log. `{ rolling: "person.x" }` or
+    `{ bins: ["red"] }`. False when there is no plate or a moment is showing. */
+export function dioramaShow(moment) {
+  if (!plate || showing) return false;
+  play(moment);
+  return true;
+}
+
 /** For __v3(). */
 export function dioramaState() {
-  return { ready: Boolean(plate), showing: Boolean(showing), played, dressed: [...dressed.keys()] };
+  return {
+    ready: Boolean(plate), showing: Boolean(showing), played, dressed: [...dressed.keys()],
+    // features.v3DioramaDepth: `stage.memory` must read 0/0 between moments.
+    deep: deep ? { ready: true, shown: deepShown, stage: deep.state() } : null
+  };
 }
 
 export function initDiorama() {

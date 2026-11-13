@@ -38,8 +38,8 @@ export default defineConfig({
      the contrast gate without a sound. */
   projects: [
     // v3-dog-fx: WebGL pages in parallel flake (v3-field-weather.spec.js), so the stage runs apart.
-    { name: "isolated", testMatch: /(camera-presence|v3-dog-fx)\.spec\.js$/ },
-    { name: "suite", testIgnore: ["verify/**", /(camera-presence|v3-dog-fx)\.spec\.js$/], dependencies: ["isolated"] }
+    { name: "isolated", testMatch: /(camera-presence|v3-dog-fx|v3-diorama-depth)\.spec\.js$/ },
+    { name: "suite", testIgnore: ["verify/**", /(camera-presence|v3-dog-fx|v3-diorama-depth)\.spec\.js$/], dependencies: ["isolated"] }
   ],
   timeout: 30_000,
   fullyParallel: false,

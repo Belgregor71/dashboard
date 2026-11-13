@@ -51,7 +51,7 @@ async function bootV3(page, { on = true, diorama = true, dress = false, date = M
     const res = await route.fetch({ maxRetries: 3 });
     await route.fulfill({
       response: res,
-      body: `${await res.text()}\nwindow.CONFIG.features.v3Diorama = ${on};\nwindow.CONFIG.features.v3DioramaDressed = ${dress};\n`
+      body: `${await res.text()}\nwindow.CONFIG.features.v3Diorama = ${on};\nwindow.CONFIG.features.v3DioramaDressed = ${dress};\nwindow.CONFIG.features.v3DioramaDepth = false;\n`
     });
   });
   await page.goto("/v3/");

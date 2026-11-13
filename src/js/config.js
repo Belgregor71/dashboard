@@ -2101,6 +2101,16 @@ window.CONFIG = {
     // the owner saw both plates on the wall and both played as real moments.
     v3DioramaDressed: true,
 
+    // Phase 3 of the three.js stage (docs/design/HANDOVER-threejs-stage.md):
+    // the diorama's moments play on the stage with depth: the plate lifted by
+    // a height map (data/house-plan/plan-depth.webp on the box), a 6 degree
+    // camera glide, walls shaded from the real sun, rain on a wet day, the cars,
+    // bins and robot trail on it. No height map, reduced motion, a dead stage or
+    // the dogs holding the stage: the flat diorama plays as before. Off: neither
+    // the map nor the stage chunk is fetched. Needs v3Diorama.
+    // Rollback: -> false, then a HARD reload of the kiosk.
+    v3DioramaDepth: false,
+
     // ── The day in 20 seconds (src/v3/subjects/day-lapse.js) ───────────────
     // On: "how was today?" plays the day back across the empty house plan:
     // camera pulses, the door, bin night, the rain coming through. Only when

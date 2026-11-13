@@ -804,7 +804,8 @@ test.describe("feeds", () => {
     // The list is the guard. Name the error: with no plan on this machine, a request
     // that got past the list would 404 as well, on the missing file.
     // Each dressed plate is on the list: a missing file is a different 404 from a refused name.
-    for (const occasion of ["birthday", "newYear", "australiaDay", "easter", "halloween", "christmas"]) {
+    // plan-depth is the deep diorama's height map (features.v3DioramaDepth).
+    for (const occasion of ["birthday", "newYear", "australiaDay", "easter", "halloween", "christmas", "depth"]) {
       const res = await request.get(`/api/house-plan/layer/plan-${occasion}`);
       if (res.status() === 404) expect((await res.json()).error).toBe("No house plan on this box");
     }
