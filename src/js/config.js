@@ -1369,7 +1369,9 @@ window.CONFIG = {
     // corner shades are solved WITH the grade so the words keep 3.5:1. Five looks,
     // each approved by the owner from stills on 2026-11-14. Needs v3MemoryJourney.
     // Off: no `data-grade`, no grade node, the journey exactly as before.
-    v3GoldenHour: false,
+    // FLIPPED ON 2026-11-14 on the owner's word ("flip all outstanding"); golden seen
+    // live, dusk/night/rain not yet. Rollback: -> false, then a HARD reload of the kiosk.
+    v3GoldenHour: true,
 
     // Photo transitions (round 2, Phase C): a home memory's daytime exchange on the
     // journey runs through a shader instead of the colour wash: a light leak in golden
@@ -1378,7 +1380,9 @@ window.CONFIG = {
     // veto, the first photograph and the night keep their own reveals. Each look approved
     // by the owner from stills on 2026-11-14. Needs v3MemoryJourney.
     // Off: the chunk is never fetched, no canvas exists, the wash is exactly as before.
-    v3PhotoTransitions: false,
+    // FLIPPED ON 2026-11-14 on the owner's word ("flip all outstanding"); live gate 49/49,
+    // owner's eye not yet. Rollback: -> false, then a HARD reload of the kiosk.
+    v3PhotoTransitions: true,
 
     // Rain on the glass (round 2, Phase D): while it rains (data-atmo-raining), drops
     // land on the glass in front of the journey photograph, each a small upside-down
@@ -1387,7 +1391,9 @@ window.CONFIG = {
     // Approved by the owner from a still on 2026-11-14. Needs v3MemoryJourney.
     // Drive it on a dry day: window.__v3Atmo.force({rain: "heavy"}).
     // Off: no canvas, no texture, the chunk is never fetched for it.
-    v3RainGlass: false,
+    // FLIPPED ON 2026-11-14 on the owner's word ("flip all outstanding"); live gate clean
+    // (rain-gate.cjs), owner's eye not yet. Rollback: -> false, then a HARD reload of the kiosk.
+    v3RainGlass: true,
 
     // ── The depth census ────────────────────────────────────────────────────
     // Asked on 2026-08-23 and unanswerable: how many times has each depth been
@@ -2171,7 +2177,9 @@ window.CONFIG = {
     // data/house-plan/ and ROBOT_VACUUM_ENTITY in the box's .env; missing any of
     // them, nothing is drawn. Its "stuck" card is separate from robotCandidate's.
     // Rollback: -> false, then a HARD reload of the kiosk.
-    v3RobotPlan: false,
+    // FLIPPED ON 2026-11-14 on the owner's word ("flip all outstanding"); the asked view was
+    // seen live 11-11, a real clean not yet.
+    v3RobotPlan: true,
   },
 
   /* --------------------------------------------------------------
