@@ -416,7 +416,10 @@ const VARIANTS = {
   /* The Memory Journey (v3MemoryJourney) — depth 0 as flipped 2026-11-08. The
      variants above pin the PLANE card because they measure the field as its mat;
      the journey pauses the field under its own photograph. */
-  journey: { flags: { v3Archive: true, v3MemoryJourney: true }, grounds: () => ["sky"], title: (g, p) => `the MEMORY JOURNEY, ${p}` }
+  journey: { flags: { v3Archive: true, v3MemoryJourney: true }, grounds: () => ["sky"], title: (g, p) => `the MEMORY JOURNEY, ${p}` },
+  /* The grade over the journey (v3GoldenHour), FORCED in bootV3 — rain by day,
+     night by night. Read against `journey`, its twin. */
+  grade: { flags: { v3Archive: true, v3MemoryJourney: true, v3GoldenHour: true }, grounds: () => ["sky"], title: (g, p) => `the MEMORY JOURNEY under the GRADE (${p === "night" ? "night" : "rain"}), ${p}` }
 };
 
 async function bootV3(page, { ground, phase, variant = "off" }) {
@@ -536,7 +539,7 @@ async function bootV3(page, { ground, phase, variant = "off" }) {
   const fieldOwnsRain = variant === "weather" || variant === "causes";
   /* The journey takes the whole overlay off depth 0 (no rain over the
      photograph): assert THAT, since a pane painting there is its defect. */
-  if (variant === "journey") {
+  if (variant === "journey" || variant === "grade") {
     expect(await page.evaluate(() => {
       const o = document.querySelector(".atmo-overlay");
       return o && document.documentElement.dataset.depth === "0" ? getComputedStyle(o).display : "not measured";
@@ -620,6 +623,23 @@ async function bootV3(page, { ground, phase, variant = "off" }) {
       expect(c.moon[0], "fixture: the pinned night's moon must be UP (8° east)").toBeGreaterThan(0);
       expect(c.moon[2], "fixture: the pinned night's moon is ~62% lit").toBeGreaterThan(0.5);
     }
+  }
+
+  /* The grade (v3GoldenHour) FORCED, not merely pinned: at this sweep's pinned
+     clocks the house would choose no look by day, so a pin alone measures the
+     `journey` twin again. Rain by day — the one look that can LIGHTEN what sits
+     behind the words (a grey veil over shadow); the multiply looks only darken.
+     Night by night, the look the wall actually wears then (rain never shows after
+     dark). Forced on the photograph already on the glass, which re-solves its
+     shades, and read back off the node before anything is measured. */
+  if (variant === "grade") {
+    const want = phase === "night" ? "night" : "rain";
+    const got = await page.evaluate((look) => {
+      const set = window.__journeyGrade?.(look) ?? null;
+      const el = document.querySelector(".journey__frame.is-top .journey__grade");
+      return { set, look: el?.dataset.look ?? null, shown: el ? getComputedStyle(el).display !== "none" : false };
+    }, want);
+    expect(got, "the grade's force did not take — this would measure the ungraded journey").toEqual({ set: want, look: want, shown: true });
   }
 
   await page.evaluate(() => window.__v3Refresh?.());

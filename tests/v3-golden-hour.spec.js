@@ -59,19 +59,28 @@ test("no look leaves the pixel exactly as sampled", () => {
 test("the multiply looks only ever darken, at both corners, by the stated amount", () => {
   for (const look of ["dusk", "golden", "late", "night"]) {
     for (const corner of ["memory", "today"]) {
-      const [, a] = GRADE_EFFECT[look].multiply[corner];
+      // Over a grey stand-in, the lightest outcome is the smallest alpha listed.
+      const a = Math.min(...GRADE_EFFECT[look].multiply[corner].map(([, x]) => x));
       for (const p of PIXELS) {
         const out = gradePixel(p, look, corner, GREY);
         out.forEach((v, i) => expect(v).toBeCloseTo(p[i] * (1 - a + a * 0.5), 6));
+        out.forEach((v, i) => expect(v).toBeLessThanOrEqual(p[i]));
       }
     }
   }
 });
 
-test("rain can LIGHTEN a shadow (the veil), and that is what the solver must see", () => {
-  const black = gradePixel([0, 0, 0], "rain", "memory", GREY);
-  const [, a] = GRADE_EFFECT.rain.veil.memory;
-  black.forEach((v) => expect(v).toBeCloseTo(0.5 * a, 6));
+test("rain can LIGHTEN a shadow (the veil), and the solver sees the corner's WORST point", () => {
+  for (const corner of ["memory", "today"]) {
+    const black = gradePixel([0, 0, 0], "rain", corner, GREY);
+    // Over black the veil is all there is: the densest entry over the block is the brightest.
+    const a = Math.max(...GRADE_EFFECT.rain.veil[corner].map(([, x]) => x));
+    black.forEach((v) => expect(v).toBeCloseTo(0.5 * a, 6));
+  }
+  // The today block's TOP edge (⅔ down) is lighter and denser than the gradient's end —
+  // the model must carry it, or the date line is solved for a veil it never sits under.
+  const [top, end] = GRADE_EFFECT.rain.veil.today;
+  expect(top[1]).toBeGreaterThan(end[1]);
   // And a saturated colour loses saturation before the veil.
   const red = gradePixel([1, 0, 0], "rain", "today", () => null);
   expect(red[1]).toBeGreaterThan(0);

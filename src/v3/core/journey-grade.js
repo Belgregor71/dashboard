@@ -32,19 +32,34 @@ export function gradeOf({ sunAltDeg, cloud = null, raining = false } = {}) {
 }
 
 /* What each look does under each corner's words, for the shade solver. `memory` is the
-   top-right block (year, place), `today` the bottom-left (date, hour).
+   top-right block (x ≥ 1080, y < 360), `today` the bottom-left (x < 840, y ≥ 720) — the
+   same blocks solveShades samples. Each corner lists the gradient at the ENDS of the
+   stretch it spans; the solver tries every entry and keeps the brightest result, so the
+   shade is solved for the corner's worst point, not its average.
    multiply: [css colour, alpha] — CSS multiply at that alpha: out = rgb·(1 − a + a·c).
-   For the gradients the stop used is the one under the corner, and where a corner sits
-   between stops the LIGHTER stop is used: multiply only darkens, so a lighter colour
-   claims less darkening than the wall really gets and the shade can only come out
-   safe-side. Rain is the one look that can LIGHTEN a pixel (a grey veil over shadow),
-   so it is modelled exactly: filter on the photo, then the veil over it. */
+   Multiply only darkens, so its worst point is the LIGHTEST colour over the block.
+   Rain is the one look that can LIGHTEN a pixel (a grey veil over shadow): filter on
+   the photo, then the veil, both ends of the block's stretch of the gradient.
+   Measured, not assumed: modelling the date block at the gradient's END stop put the
+   real wall at 3.35:1 under rain (v3-contrast `grade`, 2026-11-14); its top edge sits
+   at 67 % down, under a lighter, denser veil.
+   Positions: dusk is 200deg over the wall (gradient length 1672 px): memory spans
+   t 0–0.37, today t 0.63–1. Rain is top-to-bottom: memory t 0–⅓, today t ⅔–1. The
+   golden/late radials centre on the memory corner; the today block's nearest point is
+   ~0.58 of the radius out, just past the 55 % / 60 % stop. Interpolated in oklch. */
 export const GRADE_EFFECT = Object.freeze({
-  dusk:   { multiply: { memory: ["oklch(0.62 0.10 300)", 0.55], today: ["oklch(0.30 0.06 270)", 0.55] } },
-  golden: { multiply: { memory: ["oklch(0.93 0.09 72)", 1], today: ["oklch(0.80 0.13 52)", 1] } },
-  late:   { multiply: { memory: ["oklch(0.97 0.04 80)", 1], today: ["oklch(0.90 0.07 68)", 1] } },
-  night:  { multiply: { memory: ["oklch(0.32 0.05 265)", 0.62], today: ["oklch(0.32 0.05 265)", 0.62] } },
-  rain:   { saturate: 0.62, brightness: 0.92, veil: { memory: ["oklch(0.62 0.01 250)", 0.38], today: ["oklch(0.45 0.01 250)", 0.30] } }
+  dusk:   { multiply: { memory: [["oklch(0.62 0.10 300)", 0.55]], today: [["oklch(0.42 0.075 281)", 0.55]] } },
+  golden: { multiply: { memory: [["oklch(0.93 0.09 72)", 1]], today: [["oklch(0.80 0.13 52)", 1]] } },
+  late:   { multiply: { memory: [["oklch(0.97 0.04 80)", 1]], today: [["oklch(0.905 0.07 68)", 1]] } },
+  night:  { multiply: { memory: [["oklch(0.32 0.05 265)", 0.62]], today: [["oklch(0.32 0.05 265)", 0.62]] } },
+  rain:   {
+    saturate: 0.62,
+    brightness: 0.92,
+    veil: {
+      memory: [["oklch(0.62 0.01 250)", 0.38], ["oklch(0.563 0.01 250)", 0.353]],
+      today: [["oklch(0.507 0.01 250)", 0.327], ["oklch(0.45 0.01 250)", 0.30]]
+    }
+  }
 });
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
@@ -70,15 +85,22 @@ function saturate([r, g, b], s) {
 export function gradePixel(rgb, look, corner, resolve) {
   const fx = look ? GRADE_EFFECT[look] : null;
   if (!fx) return rgb;
-  if (fx.multiply) {
-    const [css, a] = fx.multiply[corner];
+  const base = fx.multiply ? rgb : saturate(rgb, fx.saturate).map((v) => clamp01(v * fx.brightness));
+  let best = null;
+  let bestL = -1;
+  for (const [css, a] of (fx.multiply ?? fx.veil)[corner]) {
     const c = resolve(css);
-    if (!c) return rgb;
-    return rgb.map((v, i) => clamp01(v * (1 - a + a * c[i])));
+    if (!c) continue;
+    const out = fx.multiply
+      ? base.map((v, i) => clamp01(v * (1 - a + a * c[i])))
+      : base.map((v, i) => v * (1 - a) + c[i] * a);
+    const l = lum(out);
+    if (l > bestL) { bestL = l; best = out; }
   }
-  let out = saturate(rgb, fx.saturate).map((v) => clamp01(v * fx.brightness));
-  const [css, a] = fx.veil[corner];
-  const c = resolve(css);
-  if (c) out = out.map((v, i) => v * (1 - a) + c[i] * a);
-  return out;
+  // Nothing resolved (a browser that cannot parse oklch): multiply's untinted pixel is
+  // its brightest, so that is safe-side. Rain's is NOT — the veil can lighten — but the
+  // only browser this runs in (the kiosk's Chromium) resolves oklch.
+  return best ?? base;
 }
+
+const lum = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
