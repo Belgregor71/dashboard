@@ -47,7 +47,38 @@ for (const on of [true, false]) {
          (the rule ignoring its flag; the rule reaching depth 1) stayed green
          that way on 2026-11-12. */
       await page.waitForTimeout(500);
-      expect(await photoOpacity(page), `depth ${depth}`).toBe(want);
+      /* Then poll, never before: past 500 ms a WRONG fade has already reached
+         its wrong end, so the poll cannot pass on it. Needed since the field's
+         exposure (2026-11-14) draws a frame on the depth change, which under
+         the full suite's software GL started the fade late (read 0.008). */
+      await expect.poll(() => photoOpacity(page), { message: `depth ${depth}`, timeout: 2000 }).toBe(want);
+    }
+    expect(pageErrors).toEqual([]);
+  });
+
+  /* 2026-11-14: a daytime spread read on the wall as BLACK — the field's envelope
+     was set as a dim mat, and the subject field made it the whole backdrop. The
+     gain must reach the PIXELS (not just the stat), only at depths 2 and 3, and
+     never with the flag off. */
+  test(`v3SubjectField ${state}: the field ${on ? "brightens behind a spread and subject" : "draws the same at every depth"}`, async ({ page }) => {
+    const pageErrors = await boot(page, on);
+    const at = (d) => page.evaluate((depth) => {
+      window.__setDepth(depth, "spec");
+      const s = window.__substrate();
+      // Mid-panel: outside every ink-guard zone (gl.js), so the gain is all that differs.
+      const [[r, g, b]] = window.__substrateSample([[0.5, 0.55]]);
+      return { depth: window.__depth().depth, backend: s.backend, exposure: s.exposure, lum: r + g + b };
+    }, d);
+    const field = await at(0);
+    expect(field.backend).toBe("webgl2");
+    expect(field.depth).toBe(0);
+    expect(field.lum, "the field draws something to compare against").toBeGreaterThan(30);
+    for (const [depth, gain] of [[1, 1], [2, on ? 2.2 : 1], [3, on ? 2.2 : 1], [0, 1]]) {
+      const r = await at(depth);
+      expect(r.depth).toBe(depth);
+      expect(r.exposure, `exposure at depth ${depth}`).toBe(gain);
+      if (gain > 1) expect(r.lum, `pixels at depth ${depth}`).toBeGreaterThan(field.lum * 1.8);
+      else expect(Math.abs(r.lum - field.lum), `pixels at depth ${depth}`).toBeLessThan(field.lum * 0.15);
     }
     expect(pageErrors).toEqual([]);
   });

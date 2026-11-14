@@ -33,6 +33,12 @@
        at its real place and phase with moonlight on the rims, humidity's haze
        on the low sky. Behind uCauses; each is skipped when its reading is
        unknown. At 0 the v4 program runs unchanged.
+   v6 (2026-11-14): uExposure, for v3SubjectField. The envelope above was set
+       for a MAT around a photo card; with the subject field it is a spread's
+       whole backdrop, and a daytime overcast field read on the wall as black
+       (live sample 47/255 mid-panel at 09:00). A gain before the ink guard, so
+       the guarded word zones stay as dark as they were measured. At 1 the v5
+       program runs unchanged.
 
    ⚠ THE 480x270 ARGUMENT ABOVE WAS RIGHT ON A PI AND IS WRONG ON THE G11.
    Stage 0 measured it: 480x270 -> 1920x1080 at the same frame cap costs +0.4
@@ -41,7 +47,7 @@
    program has almost no detail for the extra pixels to resolve.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-export const SHADER_VERSION = 5;
+export const SHADER_VERSION = 6;
 
 /* The backing store per render tier. Base is the store that was measured and
    shipped; lifted is the panel. Exported so the fallback path can put a cloned
@@ -146,6 +152,7 @@ uniform float uSurge;    // 0..1 where the gust pattern is right now (JS)
 uniform float uDriftT;   // the drift's clock — uTime, stretched by gusts
 uniform float uHumid;    // 0..1 relative humidity; < 0 = unknown
 uniform vec3  uMoon;     // (altitude norm, azimuth rotated, lit fraction); z < 0 = unknown
+uniform float uExposure; // v3SubjectField: > 1 only while the field is a spread's backdrop
 
 float hash(vec2 v){ return fract(sin(dot(v, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 v){
@@ -389,6 +396,7 @@ void main(){
 
   col = mix(col, vec3(0.09, 0.10, 0.12), uRain * 0.5);
   col *= 1.0 - smoothstep(0.35, 1.15, distance(uv, vec2(0.5))) * 0.55;
+  col *= uExposure;
 
   /* THE INK GUARD. When this field is the matting (features.v3FieldMat) the
      words sit ON it rather than on a flat --surface, and the sweep measured the
@@ -432,7 +440,8 @@ void main(){
 const DEFAULTS = {
   sunAlt: 0, sunAz: 0, wind: [0, 0], cloud: 0.3, rain: 0, inkGuard: 0, lift: 0, weather: 0,
   // Stage 3 causes: unknown by default, and unknown means no effect.
-  causes: 0, gust: 0, humid: -1, moon: [0, 0, -1]
+  causes: 0, gust: 0, humid: -1, moon: [0, 0, -1],
+  exposure: 1
 };
 
 export function createGlSubstrate(canvas) {
@@ -476,7 +485,7 @@ export function createGlSubstrate(canvas) {
 
   const U = {};
   for (const n of ["uRes", "uTime", "uSunAlt", "uSunAz", "uWind", "uCloud", "uRain", "uInkGuard", "uLift",
-    "uWeather", "uStrike", "uStrikePos", "uCauses", "uGust", "uSurge", "uDriftT", "uHumid", "uMoon"]) {
+    "uWeather", "uStrike", "uStrikePos", "uCauses", "uGust", "uSurge", "uDriftT", "uHumid", "uMoon", "uExposure"]) {
     U[n] = gl.getUniformLocation(prog, n);
   }
 
@@ -574,6 +583,7 @@ export function createGlSubstrate(canvas) {
     gl.uniform1f(U.uDriftT, driftT);
     gl.uniform1f(U.uHumid, on ? causes.humid : -1);
     gl.uniform3f(U.uMoon, causes.moon[0], causes.moon[1], on ? causes.moon[2] : -1);
+    gl.uniform1f(U.uExposure, causes.exposure);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     frames++;
   }
@@ -673,7 +683,7 @@ export function createGlSubstrate(canvas) {
     },
     stats: () => ({
       frames, seconds: (performance.now() - t0) / 1000, animating: raf !== null, paused,
-      inkGuard: causes.inkGuard, lift: causes.lift ? 1 : 0, store: [canvas.width, canvas.height],
+      inkGuard: causes.inkGuard, exposure: causes.exposure, lift: causes.lift ? 1 : 0, store: [canvas.width, canvas.height],
       shader: SHADER_VERSION, weather: weatherOn() ? 1 : 0, causes: causesOn() ? 1 : 0,
       gust: causesOn() ? causes.gust : 0, humid: causesOn() ? causes.humid : -1, moon: causes.moon, driftT,
       /* When driftT was last advanced — the last DRAW, not now. `seconds` is

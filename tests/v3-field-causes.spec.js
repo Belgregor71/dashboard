@@ -130,7 +130,7 @@ test("flag ON compiles v5 and the tier is live — and it NEEDS the lift", async
   const unlifted = await p2.evaluate(stats);
   await ctx.close();
   expect(on.backend, "the v5 shader failed to compile — the wall would drop to 2D").toBe("webgl2");
-  expect(on.shader).toBe(5);
+  expect(on.shader).toBe(6);
   expect(on.causes).toBe(1);
   expect(unlifted.causes, "causes on the v2 program: a tier the shader cannot draw").toBe(0);
   expect(errors).toEqual([]);

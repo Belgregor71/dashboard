@@ -155,6 +155,17 @@ const archiveCovers = () =>
    again; going higher only darkens the room for nothing. */
 const INK_GUARD = 0.70;
 
+/* How much brighter the field draws while it IS a spread's backdrop
+   (features.v3SubjectField hides the photograph at depths 2 and 3). Its
+   envelope was set as a dim mat around a photo card, and a daytime overcast
+   spread read on the wall as black: 47/255 mid-panel at 09:00 on 2026-11-14.
+   A gain, so night stays night. Applied before the ink guard (gl.js), and the
+   contrast sweep's `2-spread` surface measures it. Flag off: always 1. */
+const SPREAD_EXPOSURE = 2.2;
+const fieldExposure = () =>
+  flag("v3SubjectField") && getDepth() >= DEPTH.SPREAD ? SPREAD_EXPOSURE : 1;
+let sentExposure = 1; // the gl backend's own default
+
 function syncSubstrateCover() {
   const covered = flag("v3SubstrateCoveredPause")
     && archiveCovers()
@@ -321,6 +332,7 @@ function pushCauses() {
      toCauses: the field darkens itself under the words only while it IS the
      matting. Flag off sends 0, and 0 is a real off inside the shader. */
   inkGuard: flag("v3FieldMat") ? INK_GUARD : 0,
+  exposure: (sentExposure = fieldExposure()),
   /* The render tier (features.v3FieldRender): the lifted sky on the full-panel
      store at a real 15 fps. Rides here for the same reason as the guard — it is
      how the field is drawn, not a reading — and for the same payoff: this runs
@@ -897,7 +909,13 @@ function boot() {
     // Stamped once at boot as well as per minute, or the mat is flat until the
     // first causes tick — up to 60s of the wall showing the old opaque surface.
     syncFieldMat();
-    onDepth(() => { syncFieldMat(); syncSubstrateCover(); });
+    onDepth(() => {
+      syncFieldMat();
+      syncSubstrateCover();
+      // The spread's backdrop brightens on the way in, not up to a minute later.
+      const exposure = fieldExposure();
+      if (substrate && exposure !== sentExposure) { sentExposure = exposure; substrate.update({ exposure }); }
+    });
     /* The house's lightning lane lights the field too (v3FieldWeather). Always
        registered; the substrate refuses a strike unless its weather tier is
        on, so the flag is read in ONE place — the causes below. */
