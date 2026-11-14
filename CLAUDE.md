@@ -108,6 +108,11 @@ happened; a glance at the wall did.
   contract scan, build, `npm test`, known-defect pattern scan, contrast sweep.
   Flag reversibility is deliberately NOT here (too slow) — it runs in `/flag-flip`.
   Wire per clone: `git config core.hooksPath .githooks`. Never `--no-verify` unless asked.
+- **Doc-only pushes take the fast path: `/doc-deploy`.** When every outgoing file is
+  `docs/**` or a top-level `*.md`, the hook runs gate 0 only, and the G11's
+  `update-dashboard.sh` pulls without a rebuild or a restart. The hook decides from the
+  pushed range, not the session: one code file and the full gates run. The rule lives in
+  both files; change them together, and re-copy the script to the box (it is a copy).
 - Contract-test philosophy: upstreams (HA, Sonarr, calendars) may be down on any machine,
   so tests assert known status sets + JSON shapes, never live data. When adding a server
   route, add its contract test in the same change.
