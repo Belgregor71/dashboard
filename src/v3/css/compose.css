@@ -74,6 +74,18 @@ html, body {
 :root[data-subject-field="1"][data-depth="2"] .photo,
 :root[data-subject-field="1"][data-depth="3"] .photo { opacity: 0; }
 
+/* …and the spread's wrapped-line veil (below, ~L838) is solved for the FIELD,
+   not the photograph. It uses --scrim-opacity, which core/scrim.js solves
+   against the PHOTOGRAPH; with the photo hidden it laid 82% near-black over the
+   sky and a wrapped spread read on the wall as a black screen (2026-11-14,
+   "Showers / 15–35 mm today"). Removing the veil outright FAILED the sweep: the
+   32px --ink-dim cell labels need the ground at ~70/255 or darker, and the
+   field behind a spread (SPREAD_EXPOSURE) is ~114. A fixed 0.5 veil takes it to
+   ~57 — a dark sky you can see, not a black one (0.45 failed the vocabulary
+   card at 2.92:1, night, flat mat). Overridden on the spread
+   only: --scrim itself is resolved on :root and the scrim keeps the photo's. */
+:root[data-subject-field="1"][data-depth="2"] .depth--spread { --scrim-opacity: 0.5; }
+
 /* A public holiday (features.v3PublicHolidays): the incumbent's warm edge,
    ported value for value. On the photo, UNDER the scrim, so it can only warm
    the picture and never sits on top of a word. */

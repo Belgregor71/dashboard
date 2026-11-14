@@ -83,6 +83,37 @@ for (const on of [true, false]) {
     expect(pageErrors).toEqual([]);
   });
 
+  /* 2026-11-14, the second half of the black spread: the exposure fix was live
+     and the wall was STILL black, because a wrapped headline laid the
+     photograph's veil (solved at 0.82 for a photo that was hidden) over the
+     field. Proven only with a REAL wrapped spread: a bare depth 2 has no veil. */
+  test(`v3SubjectField ${state}: a wrapped spread's veil is ${on ? "solved for the field (0.5)" : "the photograph's"}`, async ({ page }) => {
+    const pageErrors = await boot(page, on);
+    await page.evaluate(() => {
+      window.__v3Presence("dwell");
+      window.__forceCandidate([
+        { id: "w-a", source: "weather", score: 68, text: "Showers, possible storm 15 to 35 mm today", title: "Showers", sub: "", cooldownMs: 0 },
+        { id: "w-b", source: "tonightsMenu", score: 55, text: "Prawn fried rice for dinner", title: "Prawn fried rice", sub: "Dinner", cooldownMs: 0 }
+      ]);
+      window.__v3Tick();
+    });
+    const wrapped = page.locator(".depth--spread .said[data-wrapped]");
+    await expect(wrapped).toHaveCount(1, { timeout: 10_000 });
+    await expect(wrapped).toContainText("Showers");
+    expect(await page.evaluate(() => window.__depth().depth)).toBe(2);
+    // The veil must still EXIST (the small labels need it), at the field's opacity, not the photo's.
+    const veil = await page.evaluate(() => {
+      const b = getComputedStyle(document.querySelector(".depth--spread"), "::before");
+      return { content: b.content, alpha: Number((b.backgroundColor.match(/\/\s*([\d.]+)\)/) || [])[1] ?? NaN),
+        photoSolved: Number(getComputedStyle(document.documentElement).getPropertyValue("--scrim-opacity")) };
+    });
+    expect(veil.content).toBe('""');
+    expect(veil.alpha, "the veil's alpha").toBeGreaterThan(0);
+    if (on) expect(veil.alpha).toBeCloseTo(0.5, 2);
+    else expect(veil.alpha).toBeCloseTo(veil.photoSolved, 2);
+    expect(pageErrors).toEqual([]);
+  });
+
   test(`v3HourWeight ${state}: the hour is ${on ? "300 over the journey's photograph, 200 everywhere else" : "200 everywhere"}`, async ({ page }) => {
     await boot(page, on);
     const weight = (journey, depth) => page.evaluate(([j, d]) => {
