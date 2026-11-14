@@ -17,7 +17,12 @@ const PHOTOS = {
 };
 const at = (id) => ({ id, aspect: 1, localDateTime: "2019-07-06T09:00:00Z", city: "Nudgee", state: "Queensland", country: "Australia", lat: -27.37, lng: 153.08, people: [] });
 
-async function boot(page, { on }) {
+// Black and white stripes: every drop's lens sees white over black, so a drop that may
+// lighten what is under it cannot hide.
+const STRIPES = svg(`<rect width="900" height="900" fill="#101010"/>` +
+  Array.from({ length: 30 }, (_, i) => `<rect x="${i * 30}" width="15" height="900" fill="#f4f4f4"/>`).join(""));
+
+async function boot(page, { on, photos = PHOTOS }) {
   const errors = [];
   const chunks = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -41,10 +46,10 @@ async function boot(page, { on }) {
   });
   await page.route("**/api/voice/stream", (r) => r.fulfill({ status: 200, contentType: "text/plain", body: "" }));
   await page.route("**/api/immich/on-this-day", (r) =>
-    r.fulfill({ contentType: "application/json", body: JSON.stringify({ assets: Object.keys(PHOTOS).map(at) }) }));
+    r.fulfill({ contentType: "application/json", body: JSON.stringify({ assets: Object.keys(photos).map(at) }) }));
   await page.route("**/api/immich/asset/*/thumb", (r) => {
     const id = new URL(r.request().url()).pathname.split("/").at(-2);
-    return r.fulfill({ contentType: "image/svg+xml", body: PHOTOS[id] ?? PHOTOS["p-3"] });
+    return r.fulfill({ contentType: "image/svg+xml", body: photos[id] ?? Object.values(photos)[0] });
   });
   await page.goto("/v3/");
   await page.waitForFunction(() => typeof window.__journey === "function" && typeof window.__v3Atmo?.force === "function");
@@ -127,6 +132,44 @@ test("between bursts nothing renders: the loop goes idle while it rains", async 
   // A 15 fps loop left running is ~22 frames here; one burst (heavy: every 3 s) is 1.
   expect(s.on).toBe(true);
   expect(s.frames - f0).toBeLessThanOrEqual(1);
+});
+
+test("a drop never lightens the wall: the words keep the contrast their shades were solved for", async ({ page }) => {
+  await boot(page, { on: true, photos: { "s-1": STRIPES, "s-2": STRIPES } });
+  await expect.poll(() => page.evaluate(() => typeof window.__journey().transition), { timeout: 10_000 }).toBe("object");
+  // The rest ease finished, so the photograph holds still between the two shots.
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.finish()));
+  const dry = await page.screenshot();
+  // Drops spread over the wall by a fixed sequence, so the run is the same every time.
+  await page.evaluate(() => { let i = 0; Math.random = () => ((i++ * 0.6180339887) % 1); });
+  await startRain(page);
+  expect((await rainState(page)).drops).toBeGreaterThan(10);
+  const wet = await page.screenshot();
+  const d = await page.evaluate(async ([a, b]) => {
+    const px = async (b64) => {
+      const bytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
+      const bmp = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
+      const c = new OffscreenCanvas(bmp.width, bmp.height);
+      const ctx = c.getContext("2d");
+      ctx.drawImage(bmp, 0, 0);
+      return ctx.getImageData(0, 0, bmp.width, bmp.height).data;
+    };
+    const [x, y] = [await px(a), await px(b)];
+    let lighter = 0, darker = 0, at = null, n = 0;
+    for (let i = 0; i < x.length; i += 4) {
+      for (let k = 0; k < 3; k++) {
+        const v = y[i + k] - x[i + k];
+        if (v > 12) n++;
+        if (v > lighter) { lighter = v; at = [(i / 4) % 1920, Math.floor(i / 4 / 1920)]; }
+        darker = Math.max(darker, -v);
+      }
+    }
+    return { lighter, darker, at, n };
+  }, [dry.toString("base64"), wet.toString("base64")]);
+  // The drops are THERE (something darkened) before "nothing lightened" means anything.
+  expect(d.darker, JSON.stringify(d)).toBeGreaterThan(30);
+  // A glint or a lens over a brighter patch is >80; resampling noise is a few units.
+  expect(d.lighter, JSON.stringify(d)).toBeLessThan(12);
 });
 
 test("leaving depth 0 releases the texture and keeps the drops; coming back puts them back", async ({ page }) => {

@@ -236,9 +236,11 @@ void main() {
   float z = sqrt(1.0 - r * r);
   // A lens: the picture around the drop, about 2.5x its size, upside down.
   vec3 col = texture2D(uPhoto, vC - q * (vS * 1.25) / uRes).rgb;
-  col *= mix(0.62, 1.04, z);
-  float spec = pow(max(0.0, 1.0 - length(q - vec2(-0.35, 0.42)) * 2.6), 3.0);
-  col += vec3(spec * 0.35);
+  col *= mix(0.62, 1.0, z);
+  // NEVER brighter than the photograph under this very pixel: the corner shades are solved
+  // against the photograph, so a drop that lightened it could take the hour below 3:1
+  // (the contrast sweep found 2.39:1 with a glint, 11-14). Drops darken or keep, only.
+  col = min(col, texture2D(uPhoto, gl_FragCoord.xy / uRes).rgb);
   float a = 1.0 - smoothstep(0.86, 1.0, r);
   gl_FragColor = vec4(col * a, a);
 }`;
