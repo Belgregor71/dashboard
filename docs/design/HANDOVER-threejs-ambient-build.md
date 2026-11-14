@@ -183,8 +183,84 @@ Not planned: globe flight (wait until the flat overseas map has been seen live) 
 - `tests/`: three new specs, `v3-field-causes.spec.js`, `v3-contrast.spec.js`, `flag-surface` picks the flags up itself
 - `docs/design/HANDOVER-threejs-ambient-ideas.md`: results per phase
 
+## Phase F (added 2026-11-14): `v3JourneyGlobe`, the overseas reveal as a globe flight
+
+**Why now.** Ideas doc item 4 was gated on "get the owner's eye on the flat map first". That
+happened 2026-11-14: the flat reveal was forced on the wall (Riomaggiore, then Paris and London,
+via a CDP intercept of `/api/immich/on-this-day`, nothing deployed). Owner: "it's ok. but we
+could build better with the three.js". **Design only. Nothing is built. Owner's yes/no on the
+stills comes before any code.**
+
+**What the wall does today** (`journey.js`, `mode === "map"`): a flat SVG of the destination
+country fades in (`mapInMs`), a pin lands at 450 ms, the SVG zooms 1.7x over 1.9 s, and the
+photograph cross-fades over it from 2.3 s (`mapPhotoMs` 1.5 s). Seen live it reads as "a map,
+then a photo". It doesn't say **how far away** the place is, and that distance is the memory.
+
+**The proposal, in four beats, inside the same ~3.8 s budget as today's reveal:**
+
+| Beat | ms (start) | What is on the glass |
+|---|---|---|
+| 1 Home | 0 | A globe, centred on home, a small warm dot on home. Night side dimmed, not black |
+| 2 Turn | ~300 | The globe turns along the great circle home → place, an arc drawing itself with it; the camera lifts a little mid-flight on a long hop |
+| 3 Arrive + dive | ~1700 | Centred on the place, destination country lit gold, pin + ring land; camera closes in until the country fills the middle third |
+| 4 Bloom | ~2300 | The photograph opens **out of the pin** (a soft radial reveal from the pin's screen point), not a cross-fade over the whole map; the year and place come in after it settles, as now |
+
+- **The terminator is real**: the globe is lit for the photo's own moment (subsolar point from
+  `localDateTime` + the place's offset). Riomaggiore at 18:41 in March has the line running
+  through Liguria, so the journey quietly says "dusk" before the photo shows it. That's a pure
+  function, so it can be unit-tested.
+- **Night mode stays a wash**, exactly as today (`plan && !night`): no globe motion after dark.
+- Short hops (NZ, Vanuatu) skip the lift; the turn is shorter, and so is the beat.
+- Country-only photos (no point): the country lights, no pin, the bloom comes from the country's
+  centroid (`mapPlan` already returns `precision`).
+
+**Stills, 2026-11-14** (real three.js 0.187, the journey's own Natural Earth data, headless
+software GL; scratchpad only, ⚠ they hold a family photograph and are never committed):
+`1-home`, `2-turning`, `3-arrived`, `4-dive`, `5-bloom`, `6-settled`. Seen and judged:
+- Works: the turn shows distance, the gold country reads at a glance, the pin bloom is clearly
+  better than the full-wall cross-fade.
+- ⚠ The lifted arc pokes out past the globe's limb on its way home (`3-arrived`). Fade the arc's
+  far end, or clip it at the horizon.
+- ⚠ The dusk band at the terminator reads as a vertical stripe at whole-globe zoom. Narrow it.
+- The first dive tried was too deep (pin filled the wall, texture visibly blurred at a
+  4096×2048 equirect). Stop at about one country across the middle third.
+
+**How it's built (fits round 2, doesn't add to it):**
+- **The same full-wall canvas as Phase C**, not a third WebGL context. The globe is one more
+  scene on it; C's transition shader does the bloom (the pin's screen point becomes the wipe
+  origin). Hence: **F needs C**.
+- Globe texture: an equirect canvas drawn **once per page** from `journey-world.js` (already
+  lazy, 56 KB), destination country re-tinted per reveal (repaint one country, re-upload). No
+  Mapbox, no tiles, nothing leaves the house: same guarantee as today.
+- Geometry: one sphere (128×96), one tube arc rebuilt per reveal and disposed, two small pins,
+  a ring. `renderer.info.memory` must be back to the canvas's own baseline after each reveal.
+- ⚠ **Home must not enter the public repo.** It's needed only to ~1° (it's a dot on a planet).
+  Serve it rounded from the server, from the location the weather route already reads, never as
+  a literal in `src/`. (Found while checking: `server/routes/fuel.js:28` already carries a
+  4-decimal fallback latitude as a literal. Separate issue, owner's call.)
+- `~/three-iife.js` on the box is TRIMMED (no `Texture`): the globe needs `CanvasTexture`,
+  `SphereGeometry`, `TubeGeometry`, `CatmullRomCurve3`, `RingGeometry`. Check the trim before
+  building, or the dynamic `import("three")` route C uses.
+- Fallback: any failure (context lost, world chunk failed, texture not ready by beat 1) →
+  today's flat SVG reveal, which stays in the code behind the flag-off path.
+
+**Spec (when built):** globe canvas present during an overseas reveal (assert the node first);
+the pin's projected screen point is inside the lit country's screen box; bloom origin equals
+that point; AU, at-sea and night photos never start the globe; flag off never fetches the
+chunk; memory back to baseline after the reveal; the terminator function against two known
+dates (equinox noon at Greenwich → subsolar ≈ 0°,0°). Inject both directions: globe forced on
+for an AU photo must go RED; globe forced off for a non-AU photo must go RED.
+
+**Cost: UNMEASURED.** The Phase A spike measured a full-wall 2D dissolve at 30 fps (22.1 gpu
+points). A 128×96 sphere + fragment lighting at 1920×1080 is more fill, for ~3 s, a few times a
+day. Measure it in the Phase C canvas before promising 30 fps.
+
+**Order:** owner's yes/no on the stills → C built and seen → F as its own flag, own deploy,
+own owner's eye, then `/flag-flip`.
+
 ## Not in this plan
-- Globe flight, album glow, depth parallax (rejected), rain outside the card, beat reaction.
+- Album glow, depth parallax (rejected), rain outside the card, beat reaction. (Globe flight
+  moved to Phase F above, 2026-11-14.)
 - Owner gates already queued by another session (`v3DogFx` flip, `v3DioramaNight`): this plan
   adds four more owner's-eye gates behind them, one per flag.
 
