@@ -170,6 +170,7 @@ replaced by *"never move for a reason the room can't see"* plus a measured ceili
 | **V3 archive — depth 0, mid-settle** (96 s per photograph) | **≤ 35** peak episode | **31.6** (2026-08-22, gain 4) · 28.4 at gain 2 · 27.3 (2026-08-20), decays to the row above | ~1.1× |
 | **V3 archive — depth 0, PLANE composition** (2026-09-12, `6707979`, `loops:3`) | **≤ 25** sustained | **19.4–19.8** settled · 19.0 lit-night (`loops:2`) · **27.4** mid-settle (vs ≤ 35) | ~1.3× · 1.3× |
 | ↳ of which: the substrate drawing UNDER the opaque archive | — | **~1.4** gpu / **~7.5** renderer, for pixels nobody can see | see the 2026-09-12 section |
+| **V3 depth 0 — the MEMORY JOURNEY at rest** (`v3MemoryJourney`, 2026-11-15, `fbd3b15`, `anims:0`) | **≤ 8** quiescent | **0.1** gpu / **0.2** renderer (field paused under the photo) | ~80× — see the 2026-11-15 section |
 
 > **2026-08-22 — the exchange fix, and the gain raised to 4.** Both readings above were
 > retaken on `fe352bf` (daylight, depth 0, renderer 1306 / gpu 1161, 30 s windows,
@@ -1157,3 +1158,36 @@ was fired by hand with GC-forced samples either side, on the same page:
 
 The difference between the samples is the composition (pair → single card) and a page at 1.6
 min into boot. It is not a trend. A third sample 30-60 min later is what would make it one.
+
+## V3 depth 0 — the Memory Journey at rest (2026-11-15, `fbd3b15`)
+
+The first sweep since `v3MemoryJourney` (11-08) made depth 0 one full-wall photograph. On the wall
+then: the journey, plus round 2's `v3GoldenHour`, `v3PhotoTransitions`, `v3RainGlass` and
+`v3RobotPlan` (on since 11-14, `1c9a340`). `v3ColdGlass` was deployed off. `scripts/kiosk/kiosk-sweep.sh`
+ran 06:57-06:59 AEST in daylight, with no rain and no grade (the sun was above 15°), on a page hard-reloaded
+at 06:52 (uptime 6-8 min). nproc 8. gpu-process 1162, renderer 78361.
+
+| sample | state | gpu-process | renderer |
+|---|---|---|---|
+| ambient (26 s) | depth 0, `anims:0`, one photo, field **paused** (frames 0) | **0.1** | **0.2** |
+| peak: live camera at depth 3 (26 s) | field unpaused at 15 fps under the subject | **7.4** | **6.3** |
+| subject cycle (12 s) | 9/10 subjects mounted (`show.media` had no data) | 0.3 | 2.0 |
+
+The previous sweep (2026-11-01, plane composition, before the journey) read **7.1 / 6.0** ambient,
+**10.0 / 12.4** peak and **29.6 / 26.6** cycle.
+
+| heap-metrics | uptime | heap MB | dom | cdpNodes | listeners | lottie |
+|---|---|---|---|---|---|---|
+| t1 | 6.4 min | 6.3 | 82 | 245 | 20 | 0 / 0 |
+| post-sweep | 8.4 min | 6.5 | 82 | 246 | 20 | 0 / 0 |
+
+🔑 **At rest the journey draws nothing.** The photo is opaque and full-wall, so
+`main.js` pauses the sky field under it, and with no Ken Burns or settle running there is no
+frame to make. That is about 70× less than the plane composition's ambient. The cost now sits
+entirely in the moments: an exchange, a rain burst, a depth change.
+
+⚠ **Not in this table:** a photo exchange with the `v3PhotoTransitions` canvas on top (none fell
+inside a window), and **heavy rain** with `v3RainGlass` drop bursts (dry morning). The rain-glass live
+gate (11-14) counted ≈7-8 frames/s average at heavy, so it is the continuous cost to measure next.
+⚠ This is t0 after a reload. It is not a trend until the same heap-metrics sample is taken again
+at 30-60 min and around 24 h.
