@@ -201,6 +201,25 @@ canvas lives in the top frame). Driven by a MutationObserver on the root's
 - Spec: thresholds on the pure function; layer absent flag-off; contrast sweep with the state forced.
 - ⚠ Frost cannot be seen for real until about May. Mist can.
 
+**✅ BUILT 2026-11-15 (`bdf9fcb`), committed, default off.** As planned, except:
+- `coldGlassOf` lives in `journey-grade.js` (no new module). The window starts at **−2°**, not at
+  civil dawn: below −2° `main.js` stamps `data-night`, the ink dims, and frost under the dimmed hour
+  measured **2:1**. The glass also refuses to show after dark when forced. Ramp: 0 at −2°, full at 0°,
+  gone by 10°, in tenths; mornings only (suncalc azimuth < 0).
+- Layer: one `.journey__glass` over both frames, **under the corner shades** (same z-index, earlier
+  in the DOM). Each look is a static SVG (`src/v3/assets/glass-{mist,frost}.svg`, which Vite inlines as a
+  `data:` URI, allowed by the CSP `img-src`). The recipes were copied from the approved stills, so the
+  image is rasterised once and each change of strength is only an opacity step.
+- The shades are solved over the glass (`glassPixel`). Two things were measured on the way: a plain veil
+  modelled a sky paler than the frost as GREY, so the shade eased off under the glass; the fix is that
+  the worst pixel is now the brighter of the photograph and the veiled one. Even then the place line sat
+  at 3.18:1, because the frost reaches the shade's thin edge, so while glass is on the shade is solved at
+  0.6 coverage, not 0.8. Sweep `glass` variant (frost forced, k 1): worst **3.97:1** by day (journey twin
+  3.69), and the place line went from 3.18 to 4.41. Cost: under full frost the memory shade sits at
+  its cap of 0.82.
+- Lever: `window.__coldGlass("frost" | "mist", k)`, and `__coldGlass()` hands it back to the weather.
+  The flag still gates it.
+
 ### Every phase B–E, in this order (house rules)
 `/inject-defect` in both directions → full suite in both flag states (check `lms ps`, port 3210)
 → push → deploy OFF → live gate on the G11 (copy of `~/glass-gate.cjs`: 30+ moments,
