@@ -1,0 +1,195 @@
+# HANDOVER for Opus: three.js ambient ideas, round 2 (build plan)
+
+## ⚠⚠ RETARGETED 2026-11-14 (Opus) — read this before anything below
+
+The plan below targets two surfaces **that are not on the wall**. `v3MemoryJourney` is ON:
+
+- `archive.js:1447-1458` latches `journeyMode`, which sets `planeMode = false`. **There is no
+  `.archive__card` and no perspective plane.** Phases C/D's "canvas inside the card" have no node to go in.
+- `.journey` is opaque and covers the whole wall (`journey.css:34-42`), so `main.js:135-138` counts
+  it as a cover and **pauses the sky field at depth 0** (live: `__substrate().paused === true`,
+  `data-journey="1"`). Phase B's golden hour in `substrate/gl.js` would never be seen.
+- The owner noticed it first: "since we changed the ambient photos to full screen … the
+  weather/time of day/night tinting background hasn't been visible".
+
+**Owner's answer (⛔ don't re-ask): weather and time of day go ON THE PHOTO ITSELF.** So:
+
+| Phase | Was | Now |
+|---|---|---|
+| B `v3GoldenHour` | uniform in the field shader | **a grade layer** inside `.journey`, over both `.journey__frame`s, under the words. Tint + opacity from a pure `gradeOf({ sunAltDeg, cloud, raining })`: warm at golden hour, cool and dim at night, grey and soft in rain. CSS only. The journey's per-photo corner shades (journey.js solves them per photo) must be re-solved **with the grade included**, or the year/place/hour lose contrast |
+| C `v3PhotoTransitions` | canvas in `.archive__card`, fed from `present()` | **one transparent canvas over the two journey frames**, fed from `journeyPresent` (`archive.js:1186`). UVs follow `data-fit` (cover vs contain on its backdrop). The journey's WAAPI moves must be matched, or the canvas is skipped while they run |
+| D `v3RainGlass` | drops on the card | drops over the full-screen photo, same canvas as C |
+| E `v3ColdGlass` | fixed edge layer | unchanged in shape; it now sits over the journey |
+
+Cost risk changes too: the second WebGL context is **full-wall (1920×1080), not card-sized**.
+Phase A measures that one. A card-sized measurement would answer the wrong question.
+
+Also found the same day: the field's luminance envelope was set as a dim MAT, so a spread's
+backdrop (`v3SubjectField` hides the photo at depths 2/3) read as black in daylight. Fixed
+separately with `uExposure` (shader v6, `SPREAD_EXPOSURE` in `main.js`). The grade in B must not
+assume the field is visible anywhere except behind a spread.
+
+Planned 2026-11-14 on Fable. **Nothing is built. No repo file was changed.** This file is the
+whole handover; it follows `docs/design/HANDOVER-threejs-ambient-ideas.md` (`cd009dc`, local,
+unpushed), which has the idea descriptions and the measured G11 limits.
+
+## Start here (Opus)
+
+1. Copy this file to `docs/design/HANDOVER-threejs-ambient-build.md` and commit it (the
+   planning session was in plan mode and could not write into the repo or the memory dir).
+2. Add one line to the memory entry `project-threejs-dog-diorama-stage.md`: owner's picks and
+   the pointer to that doc.
+3. Run **Phase A** (spike + stills). Build nothing before the owner has seen the stills.
+
+## Owner's answers (asked 2026-11-14, ⛔ don't re-ask)
+
+- Build: photo transitions + rain on glass (one arc), golden-hour light, cold-morning glass.
+- Globe flight: **wait** until the flat overseas map has been seen live. Album glow: not picked.
+- Cold glass rule: **mist on humid dawns (90%+ humidity), a frostier look below about 8 °C**,
+  both clearing as the sun climbs.
+- Not yet asked: which of the three transition looks to keep. The stills decide that.
+
+## What was read, and what was not
+
+- Read: `stage3d/stage.js` (whole), `archive.js` `present()` and the timing constants,
+  `archive.css` card / plane / Ken Burns rules, `substrate/index.js` `toCauses`, the `gl.js`
+  uniform list and `frameMsFor`.
+- **Not verified (check before relying on it):** that `data-atmo-raining` is the right rain
+  signal for the card; how `archive.js` knows a frame is an occasion photo; the z-order of
+  `#substrate` against the archive plane (is the field visible around the card at depth 0?);
+  the contrast sweep spec's file name and how it forces a state; where `v3FieldCauses` is
+  read in `main.js`. No Plan/Explore subagent was run.
+
+**Verdict: YES-BUT.** All four chosen items are buildable inside the G11's budget, but only
+two of them should use three.js, and none of them should use the shared full-screen stage.
+
+## Context
+
+`docs/design/HANDOVER-threejs-ambient-ideas.md` (`cd009dc`) pitched six ideas. The owner chose
+(2026-11-14):
+
+1. Photo transitions (`v3PhotoTransitions`)
+2. Rain on the glass (`v3RainGlass`)
+3. Golden-hour light (`v3GoldenHour`)
+4. Cold-morning glass (`v3ColdGlass`): mist on humid dawns (90%+ humidity), frost look below about 8 °C
+
+Not planned: globe flight (wait until the flat overseas map has been seen live) and album glow (not picked).
+
+## What the code says that the handover did not
+
+- **The photo card is not flat on the screen.** It sits on a perspective plane
+  (`archive.css` `.archive__scene` perspective 2800px, `.archive__plane` rotateY) that
+  *breathes* on a 90 s loop (`arch-breathe`). A quad on the full-screen stage canvas would
+  have to track a moving 3D transform to line up, which is the "flash at hand-off" risk.
+- **Fix: put a canvas inside the card**, as a sibling of `.archive__img` with the same box.
+  CSS then applies the plane, the breathe and the mask to it for free, so alignment is not
+  computed at all.
+- **The CSS cross-fade keeps running underneath, unchanged.** The canvas only covers it for
+  `settleMs`. So the fallback (stage dead, image not decoded, flag off) is simply "don't show
+  the canvas", and the plate swap (`PLATE_SWAP_RATIO`) and motion clip start
+  (`settleMs + MOTION_START_PAD_MS`) need no change.
+- **A separate card canvas removes the stage-owner problem.** Dogs and the diorama keep
+  `stage3d/stage.js`; the card never competes for it. The cost is a second small WebGL
+  context for the life of the page (created once, on first use). That cost is unmeasured:
+  Phase A measures it.
+- **Golden hour belongs in the sky field (`substrate/gl.js`), not on the stage.** The field
+  already has `uSunAlt`, `uSunAz`, `uCloud` and `uInkGuard` (the text contrast guard), and its
+  15 fps cost is already budgeted. A 40-minute stage moment would also block every dog popup
+  (`play()` refuses a second owner). Trade-off: the light crosses the wall around the card,
+  not the photo itself.
+- **Cold glass needs no WebGL**: one static texture layer with an opacity driven by data.
+- Temperature and humidity are already on the page: `weather.now.temp_c`,
+  `weather.now.humidity_pct` (`main.js:317`, `archive.js:541`).
+
+## Build order (each is its own flag, default off, its own deploy and owner's eye)
+
+### Phase A: spike on the wall, ships nothing
+- A card-sized second WebGL context beside the live page: gpu points at 30 fps for 2.6 s,
+  and at 15 fps continuous, alone and with a dog moment playing on the stage. Template:
+  `~/stage-ceiling.cjs` on the G11.
+- Confirm `texImage2D` from a `/api/immich/asset/<id>/thumb` `<img>` does not taint.
+- **Stills for the owner before any build** (handover lesson 5), rendered headless with a
+  real photo into the scratchpad (never committed):
+  developing print, light leak, sun wipe at 25/50/75%; rain drops on the card; golden-hour
+  field at three sun altitudes; mist and frost edges.
+- Gate: owner says yes/no per look. A "no" removes that look from the plan.
+
+### Phase B: `v3GoldenHour` (first: cheapest, visible twice a day)
+- `src/v3/substrate/index.js` `toCauses()`: add `golden = goldenOf(sunAltitudeDeg) * (1 - cloud)`,
+  a pure function like the diorama's `duskOf` (window about −1° to +8° altitude, both dawn and dusk).
+- `src/v3/substrate/gl.js`: `uGolden` uniform, shafts at `uSunAz` plus slow motes, drawn
+  before the ink guard; `SHADER_VERSION` 6; `frameMsFor()` returns the base 66 ms while
+  `golden > 0` so motes move on a still day. Zero when the flag is off (same pattern as `uCauses`).
+- Flag wired in `main.js` where `v3FieldCauses` is.
+- Spec: extend `tests/v3-field-causes.spec.js` pattern (uniform value by altitude, zero under
+  full cloud, zero flag-off, loop idle again after the window). Add the state to the contrast sweep
+  and FORCE it there, not just pin the flag.
+
+### Phase C: `v3PhotoTransitions`
+- New `src/v3/stage3d/card-stage.js`, dynamic `import()` only (three stays out of a flag-off
+  build): one `WebGLRenderer` on a canvas appended to `.archive__card`, one quad, one
+  `ShaderMaterial` with `uOld`, `uNew`, `uT`, `uLook`, `uSunAz`. Cover-crop UVs computed from
+  image and card aspect (matches `object-fit: cover`). New texture sampled at the Ken Burns
+  start scale `1 + 0.075 * --arch-amp` (it moves under 0.2 px in 2.6 s, so a constant is enough).
+- Same rules as `stage.js`: rAF capped at 30, `setTimeout` deadline at `settleMs`, both
+  textures disposed, `renderer.info.memory` back to 0, `webglcontextlost` marks it dead.
+- `src/v3/core/archive.js` `present()`: after the slots swap, call
+  `cardStage.run(oldImg, newImg, settleMs, look)` when flag on, depth 0, not panel-dark, both
+  images `complete`, not journey mode. When it runs, skip the `is-exchanging` blur on the card
+  (the dissolve is the cover). Nothing else in `present()` changes.
+- Looks: developing print by default; light leak only when the frame is an occasion photo
+  (birthday lean / on-this-day, already known to `archive.js`); sun wipe if approved, using
+  `sun-clock.js` azimuth. Veto exchanges use the same look at their own shorter `settleMs`.
+- Spec `tests/v3-photo-transitions.spec.js`: canvas exists and is shown mid-exchange (assert
+  the node first); hidden and memory 0 after `settleMs`; **hand-off proof**: screenshot the card
+  on the last canvas frame and just after hide, per-channel difference under a small threshold;
+  flag off creates no canvas and never fetches the chunk; plate swap and clip start times
+  unchanged in both flag states.
+
+### Phase D: `v3RainGlass` (needs C)
+- Same card canvas. While `data-atmo-raining` is set (the diorama's rain source) and the card
+  is visible: about 40 drops simulated in JS, drawn as point sprites that sample the current
+  photo texture with a lens offset. The canvas is transparent between drops, so cost follows
+  drop area, not card area.
+- 15 fps cap, and **the loop stops when no drop is moving and the Ken Burns has settled**
+  (the canvas keeps its last frame). Rain can last hours; idle frames must cost nothing.
+- Holds one texture while raining; released (memory 0) when rain ends, at depth > 0, at night-off.
+- Drops are on the card only. Outside the photo WebGL can only draw a sheen (lesson 2): skipped.
+- Spec: no drops when dry; drops and a live texture when raining; loop idle when drops rest;
+  memory 0 after rain ends; an exchange mid-rain swaps the texture.
+
+### Phase E: `v3ColdGlass`
+- One fixed, `pointer-events:none` layer with a static edge texture (`src/v3/assets/`, SVG
+  `feTurbulence` or painted art if the owner prefers), masked to the edges, two variants (mist, frost).
+- `coldGlassOf({ tempC, humidityPct, sunAltDeg })` pure function in a small new module: mist
+  when humidity ≥ 90% near sunrise, frost when temp ≤ 8 °C, both fade to 0 as the sun climbs
+  (about 10°). Opacity set on the element on the weather tick with a CSS transition on the
+  element (never on `:root`).
+- Spec: thresholds on the pure function; layer absent flag-off; contrast sweep with the state forced.
+- ⚠ Frost cannot be seen for real until about May. Mist can.
+
+### Every phase B–E, in this order (house rules)
+`/inject-defect` in both directions → full suite in both flag states (check `lms ps`, port 3210)
+→ push → deploy OFF → live gate on the G11 (copy of `~/glass-gate.cjs`: 30+ moments,
+`info.memory` 0, heap/nodes/listeners flat, CSP 0) → owner's eye with the flag set in-page →
+`/flag-flip <flag>` with rollback proof → `/kiosk-metrics` for the continuous ones (B, D)
+→ `node scripts/mirror-agents.mjs` if CLAUDE.md changes → memory entry.
+
+## Files touched
+- `src/v3/substrate/gl.js`, `src/v3/substrate/index.js`, `src/v3/main.js` (B)
+- `src/v3/stage3d/card-stage.js` (new), `src/v3/core/archive.js` `present()`, `src/v3/css/archive.css` (C, D)
+- new small cold-glass module + CSS + one asset (E)
+- `src/js/config.js`: four flags, default off
+- `tests/`: three new specs, `v3-field-causes.spec.js`, `v3-contrast.spec.js`, `flag-surface` picks the flags up itself
+- `docs/design/HANDOVER-threejs-ambient-ideas.md`: results per phase
+
+## Not in this plan
+- Globe flight, album glow, depth parallax (rejected), rain outside the card, beat reaction.
+- Owner gates already queued by another session (`v3DogFx` flip, `v3DioramaNight`): this plan
+  adds four more owner's-eye gates behind them, one per flag.
+
+## Open risks
+- The second WebGL context's cost is a HYPOTHESIS ("small") until Phase A measures it. If it
+  is not small, C and D fall back to the stage canvas with a tracked quad, which is a bigger build.
+- Golden hour in the field does not light the photo. If the stills say it must, that is a
+  different (CSS overlay) design with a contrast cost.
