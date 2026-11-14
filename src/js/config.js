@@ -1371,6 +1371,15 @@ window.CONFIG = {
     // Off: no `data-grade`, no grade node, the journey exactly as before.
     v3GoldenHour: false,
 
+    // Photo transitions (round 2, Phase C): a home memory's daytime exchange on the
+    // journey runs through a shader instead of the colour wash: a light leak in golden
+    // light, a wipe from the sun's side in plain daylight, a developing print in twilight
+    // and rain (src/v3/stage3d/journey-stage.js, three in its own chunk). The map, a
+    // veto, the first photograph and the night keep their own reveals. Each look approved
+    // by the owner from stills on 2026-11-14. Needs v3MemoryJourney.
+    // Off: the chunk is never fetched, no canvas exists, the wash is exactly as before.
+    v3PhotoTransitions: false,
+
     // ── The depth census ────────────────────────────────────────────────────
     // Asked on 2026-08-23 and unanswerable: how many times has each depth been
     // reached in the last fortnight? Nothing knew. core/depth.js keeps one

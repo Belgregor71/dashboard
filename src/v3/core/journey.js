@@ -30,7 +30,21 @@
 import { decodeWorld, mapPlan, frameGeometry, yearOf, placeLine, namesLine, photoFit, memoryRight } from "./journey-geo.js";
 import { requiredAlpha, resolveColor } from "./scrim.js";
 import { MOTION } from "./motion.js";
-import { gradePixel } from "./journey-grade.js";
+import { gradePixel, transitionLook } from "./journey-grade.js";
+
+/* features.v3PhotoTransitions — read per call, so an in-page flip lands on the next
+   photograph. Off: the stage chunk (and three) is never fetched. */
+const transitionsOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3PhotoTransitions);
+let glStage = null;       // stage3d/journey-stage.js once loaded
+let glLoad = "idle";      // idle | loading | ready | failed
+function loadGl() {
+  if (glLoad !== "idle") return;
+  glLoad = "loading";
+  import("../stage3d/journey-stage.js").then(
+    (m) => { glStage = m; glLoad = "ready"; },
+    () => { glLoad = "failed"; }
+  );
+}
 
 /* ── Timing — the numbers to turn ──────────────────────────────────────────
    Milliseconds. Turnable live on the wall over CDP with
@@ -195,6 +209,7 @@ export function buildJourney(host) {
   sampleCanvas.height = 9;
   built = true;
   loadWorld();
+  if (transitionsOn()) loadGl();
 
   window.__journey = probe;
   window.__journeyTiming = (patch) => {
@@ -328,6 +343,53 @@ function setGrade(frame, look) {
   frame.el.dataset.grade = look || "";
 }
 
+/* One frame as the wall shows it, minus the grade (which sits over the GL canvas in the
+   frame, as it sits over the photograph): the surface colour, the backdrop behind a
+   contained photo with its drop shadow, the photograph at its fit and `scale`. */
+function compose(frame, W, H, scale) {
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const ctx = c.getContext("2d");
+  const fit = frame.fit;
+  if (!ctx || !fit) return null;
+  ctx.fillStyle = getComputedStyle(rootEl).backgroundColor;
+  ctx.fillRect(0, 0, W, H);
+  if (fit.mode !== "cover") {
+    ctx.drawImage(frame.canvas, -0.02 * W, -0.02 * H, 1.04 * W, 1.04 * H);
+    // journey.css's box-shadow (0 24px 80px); a canvas shadowBlur is the same sigma.
+    ctx.shadowColor = "rgb(3 3 3 / 0.45)";
+    ctx.shadowOffsetY = 24;
+    ctx.shadowBlur = 80;
+  }
+  const w = fit.w * scale;
+  const h = fit.h * scale;
+  ctx.drawImage(frame.img, fit.x + (fit.w - w) / 2, fit.y + (fit.h - h) / 2, w, h);
+  return c;
+}
+
+/* The photograph's scale on the glass right now (the 30 s rest ease may still run). */
+function scaleNow(img) {
+  const t = getComputedStyle(img).transform;
+  return !t || t === "none" ? 1 : new DOMMatrix(t).a;
+}
+
+/* Hand the exchange to the shader. False = keep the wash. Shortcut: the outgoing
+   picture is drawn under the INCOMING frame's grade, so a change of light between two
+   photographs snaps at the start instead of crossing; upgrade if that is ever seen. */
+function runTransition(frame, out, total, look) {
+  if (!glStage || !out?.fit || !out.el.classList.contains("is-shown")) return false;
+  const W = window.innerWidth || 1920;
+  const H = window.innerHeight || 1080;
+  const from = compose(out, W, H, scaleNow(out.img));
+  const to = compose(frame, W, H, TIMING.restScale);
+  if (!from || !to) return false;
+  const az = parseFloat(getComputedStyle(docRoot()).getPropertyValue("--sun-az"));
+  // suncalc azimuth: 0 south, negative east. The front comes FROM the sun's side, from above.
+  const dir = [Number.isFinite(az) ? -Math.sin(az) || 1 : 1, -0.35];
+  return glStage.run({ host: frame.el, before: frame.gradeEl ?? null, from, to, ms: total, look, dir });
+}
+
 function applyShades(shades) {
   if (!shades) return;
   rootEl.style.setProperty("--j-shade-memory", shades.memory.toFixed(3));
@@ -386,6 +448,7 @@ function finishReveal() {
     try { a.cancel(); } catch { /* already gone */ }
   }
   revealAnims = [];
+  glStage?.stop();
   if (pendingMeta) {
     const run = pendingMeta;
     pendingMeta = null;
@@ -443,6 +506,7 @@ function begin(slot, asset, settleMs) {
     left: `${fit.x}px`, top: `${fit.y}px`, width: `${fit.w}px`, height: `${fit.h}px`
   });
   frame.el.dataset.fit = fit.mode;
+  frame.fit = fit;
   const mean = paintBackdrop(frame.canvas, img) ?? [0.12, 0.11, 0.1];
 
   // main.js stamps `data-grade` only while v3GoldenHour is on; absent, no layer is made.
@@ -466,6 +530,12 @@ function begin(slot, asset, settleMs) {
   if (!presented || reduced || dark || settleMs < TIMING.briskBelowMs) mode = "cut";
   else if (plan && !night) mode = "map";
   presented = true;
+  // The shader takes a home memory's wash by day. The map keeps its own reveal, and after
+  // dark the photograph sits at 0.72 over the surface, which a composed texture would not.
+  if (mode === "wash" && !night && transitionsOn()) {
+    if (!glStage) loadGl();
+    else if (runTransition(frame, frames[top], settleMs, transitionLook(look))) mode = "gl";
+  }
 
   // Swap the stack: the incoming frame goes up OVER the outgoing one, which
   // stays opaque beneath it until the cleanup — fading both would dip dark.
@@ -486,7 +556,10 @@ function begin(slot, asset, settleMs) {
   };
 
   let total;
-  if (mode === "cut") {
+  if (mode === "gl") {
+    // The frame is opaque at once: the shader's first frame already shows the outgoing picture.
+    total = settleMs;
+  } else if (mode === "cut") {
     total = TIMING.cutMs;
     track(frame.el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: total, easing: EASE, fill: "backwards" }));
   } else if (mode === "wash") {
@@ -512,8 +585,11 @@ function begin(slot, asset, settleMs) {
   try { restAnim?.cancel(); } catch { /* gone */ }
   restAnim = null;
   if (!reduced && !dark) {
+    // Under the shader the photograph HOLDS its start scale (the scale the shader drew it
+    // at) and eases only once the canvas has gone, so the hand-off lands on the same pixels.
     restAnim = img.animate([{ transform: `scale(${TIMING.restScale})` }, { transform: "none" }], {
-      duration: TIMING.restMs, easing: "cubic-bezier(0.2, 0.6, 0.2, 1)"
+      duration: TIMING.restMs, easing: "cubic-bezier(0.2, 0.6, 0.2, 1)",
+      ...(mode === "gl" ? { delay: total, fill: "backwards" } : {})
     });
   }
 
@@ -634,6 +710,7 @@ function probe() {
     today: todayEl?.textContent || null,
     shades: last.shades,
     grade: frames[top]?.look ?? null,
+    transition: glStage ? glStage.state() : glLoad,
     failures: last.failures,
     reason: last.reason,
     timers: {

@@ -104,3 +104,18 @@ export function gradePixel(rgb, look, corner, resolve) {
 }
 
 const lum = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+/**
+ * Which transition (features.v3PhotoTransitions) carries one photograph into the next.
+ * Tied to the light the incoming photograph wears: a warm light leak in golden light, a
+ * wipe from the sun's side of the wall in plain daylight, the developing print otherwise
+ * (twilight, rain). Night never gets here: journey.js keeps its plain wash after dark.
+ *
+ * @param {string|null} grade  the incoming photograph's look (journey-grade gradeOf)
+ * @returns {"print"|"leak"|"wipe"}
+ */
+export function transitionLook(grade) {
+  if (grade === "golden" || grade === "late") return "leak";
+  if (grade == null) return "wipe";
+  return "print";
+}
