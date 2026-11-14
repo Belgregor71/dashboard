@@ -136,7 +136,10 @@ test("no snap at the start: the first shader frames are the outgoing picture as 
   // The boot photograph's 30 s rest ease, finished: the wall holds still for the reference.
   await page.evaluate(() => document.getAnimations().forEach((a) => a.finish()));
   // The noon wipe comes down from the top: the bottom half is untouched until uT ≈ 0.4.
-  const clip = { x: 0, y: 600, width: 1920, height: 480 };
+  // Not the bottom-left corner: the "today" shade there is re-solved for the INCOMING photo
+  // at the start and fades over 1.4 s (journey.css), by however much the random pair differs.
+  // That made this flake 2-4 in 6 (11-14), and it is not the shader's snap.
+  const clip = { x: 840, y: 600, width: 1080, height: 480 };
   const before = await page.screenshot({ clip });
   await page.evaluate(() => window.__groundDissolve(2600, 5_000));
   await expect.poll(() => page.evaluate(() => window.__journey().transition.shown), { timeout: 10_000 }).toBe(true);
