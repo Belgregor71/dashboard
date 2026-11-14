@@ -52,6 +52,27 @@ if grep -q "TEMPORARILY FLIPPED" src/js/config.js; then
   exit 1
 fi
 
+# Doc-only push: gates 1-5 test code the push does not touch, so they are skipped.
+# Doc-only = every outgoing file is under docs/ or is a top-level *.md (README,
+# CLAUDE.md, ...). Nothing at runtime reads those (2026-11-15: only comments in
+# server/ name docs/). The SAME rule is in deploy/update-dashboard.sh, which then
+# skips the kiosk's rebuild and restart; change both together. A new branch
+# (remote sha all zeros) or anything unreadable falls through to the full gates.
+ZERO=0000000000000000000000000000000000000000
+DOC_ONLY=no
+while read -r _lref lsha _rref rsha; do
+  [ "$lsha" = "$ZERO" ] && continue                    # deleting a ref ships nothing
+  if [ "$rsha" = "$ZERO" ] || ! files=$(git diff --name-only "$rsha" "$lsha" 2>/dev/null) || [ -z "$files" ]; then
+    DOC_ONLY=no; break
+  fi
+  if echo "$files" | grep -qvE '^(docs/.*|[^/]+\.md)$'; then DOC_ONLY=no; break; fi
+  DOC_ONLY=yes
+done
+if [ "$DOC_ONLY" = yes ]; then
+  echo "[pre-push] doc-only push (docs/** and top-level *.md only): gates 1-5 skipped."
+  exit 0
+fi
+
 echo "[pre-push] 1/5 cross-layer contract scan (~1s, runs first so it fails fast)"
 node scripts/verify/scan-contracts.mjs
 

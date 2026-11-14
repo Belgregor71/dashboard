@@ -56,6 +56,14 @@ if echo "$CHANGED_FILES" | grep -qE '^package(-lock)?\.json$'; then
   npm install >> "$LOG_FILE" 2>&1
 fi
 
+# Doc-only deploy: docs/** and top-level *.md are never read at runtime, so a
+# rebuild and a service restart (a blip on the wall) buy nothing. Same rule as
+# .githooks/pre-push; change both together.
+if ! echo "$CHANGED_FILES" | grep -qvE '^(docs/.*|[^/]+\.md)$'; then
+  log "Doc-only deploy, no build or restart, now at $(git rev-parse HEAD)"
+  exit 0
+fi
+
 npm run build >> "$LOG_FILE" 2>&1
 
 sudo systemctl restart "$SERVICE"
