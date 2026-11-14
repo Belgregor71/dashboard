@@ -87,7 +87,7 @@ for (const on of [true, false]) {
      and the wall was STILL black, because a wrapped headline laid the
      photograph's veil (solved at 0.82 for a photo that was hidden) over the
      field. Proven only with a REAL wrapped spread: a bare depth 2 has no veil. */
-  test(`v3SubjectField ${state}: a wrapped spread's veil is ${on ? "solved for the field (0.5)" : "the photograph's"}`, async ({ page }) => {
+  test(`v3SubjectField ${state}: a wrapped spread's veil is ${on ? "solved for the field (0.33) and its small text is full ink" : "the photograph's"}`, async ({ page }) => {
     const pageErrors = await boot(page, on);
     await page.evaluate(() => {
       window.__v3Presence("dwell");
@@ -109,8 +109,19 @@ for (const on of [true, false]) {
     });
     expect(veil.content).toBe('""');
     expect(veil.alpha, "the veil's alpha").toBeGreaterThan(0);
-    if (on) expect(veil.alpha).toBeCloseTo(0.5, 2);
+    if (on) expect(veil.alpha).toBeCloseTo(0.33, 2);
     else expect(veil.alpha).toBeCloseTo(veil.photoSolved, 2);
+    /* The thin veil is only legal because the small text went up to full ink:
+       read the colour a real small node paints, against the hour's --ink. */
+    const ink = await page.evaluate(() => {
+      const small = document.querySelector(".depth--spread .measured, .depth--spread .cell__label");
+      return { found: Boolean(small), text: small?.textContent ?? "", color: small && getComputedStyle(small).color,
+        ink: getComputedStyle(document.getElementById("hour")).color };
+    });
+    expect(ink.found, "a small spread node to read").toBe(true);
+    expect(ink.text.length).toBeGreaterThan(0);
+    if (on) expect(ink.color).toBe(ink.ink);
+    else expect(ink.color).not.toBe(ink.ink);
     expect(pageErrors).toEqual([]);
   });
 

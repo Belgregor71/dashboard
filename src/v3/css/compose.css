@@ -83,8 +83,16 @@ html, body {
    field behind a spread (SPREAD_EXPOSURE) is ~114. A fixed 0.5 veil takes it to
    ~57 — a dark sky you can see, not a black one (0.45 failed the vocabulary
    card at 2.92:1, night, flat mat). Overridden on the spread
-   only: --scrim itself is resolved on :root and the scrim keeps the photo's. */
-:root[data-subject-field="1"][data-depth="2"] .depth--spread { --scrim-opacity: 0.5; }
+   only: --scrim itself is resolved on :root and the scrim keeps the photo's.
+
+   Then the owner's call (same day): the small text goes up to full ink, so the
+   veil can thin and the sky can show. var(--ink), not a fixed colour, so the
+   night set (tokens.css) still dims it; size carries the hierarchy. */
+:root[data-subject-field="1"][data-depth="2"] .depth--spread {
+  --scrim-opacity: 0.33;
+  --ink-dim: var(--ink);
+  --ink-faint: var(--ink);
+}
 
 /* A public holiday (features.v3PublicHolidays): the incumbent's warm edge,
    ported value for value. On the photo, UNDER the scrim, so it can only warm
