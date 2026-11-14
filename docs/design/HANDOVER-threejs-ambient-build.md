@@ -146,6 +146,30 @@ Not planned: globe flight (wait until the flat overseas map has been seen live) 
   flag off creates no canvas and never fetches the chunk; plate swap and clip start times
   unchanged in both flag states.
 
+**✅ BUILT 2026-11-14 (`8b95103`, `13b51c6`), DEPLOYED OFF, live gate passed. What was built
+differs from the bullets above in four places:**
+- Module is `src/v3/stage3d/journey-stage.js` (not `card-stage.js`). Its canvas goes **inside the
+  incoming `.journey__frame`**, over the photo and **under `.journey__grade`**, not over both
+  frames: that way the grade and corner shades sit on top without being re-modelled.
+- Textures are **composed 2D canvases** (surface colour + backdrop + drop shadow for a contained
+  photo + the photo at its fit and scale), not the raw `<img>`, so no UV maths in the shader. The
+  photo's 30 s rest ease is held at its start scale (`delay` + `fill: backwards`) until the canvas
+  hides, so the shader and the photo meet on the same pixels.
+- It replaces **only the daytime home wash**. The map, cut (first photo, veto, reduced motion,
+  dark panel) and night (photo at 0.72 opacity over the surface) keep their own reveals.
+- **The look follows the grade, not occasions** (`transitionLook` in `journey-grade.js`): leak in
+  golden/late light, wipe when there is no grade, print in dusk/rain. The occasion rule needed
+  plumbing that does not exist (the birthday lean is server-side). ⚠ With `v3GoldenHour` OFF every
+  transition is a wipe.
+- Known shortcut: the outgoing picture sits under the INCOMING frame's grade, so a change of light
+  between two photos snaps at the start instead of crossing.
+- Live gate (`~/transition-gate.cjs` on the G11, flag set in-page, `data-night` cleared per
+  exchange): 49/49 shader moments ended `done`, `info.memory` 0 every time, no context loss,
+  0 page errors, 0 CSP. Heap/nodes/listeners flat on the warm renderer (6.17→6.15 MB, 223→223,
+  25→25). The first batch's +1.4 MB / +2 nodes / +4 listeners is the one-time cost of three + the renderer.
+- ⏳ NOT measured: GPU cost of the moment with the canvas on top (Phase A's open hypothesis) and the
+  owner's eye in daylight.
+
 ### Phase D: `v3RainGlass` (needs C)
 - Same card canvas. While `data-atmo-raining` is set (the diorama's rain source) and the card
   is visible: about 40 drops simulated in JS, drawn as point sprites that sample the current
