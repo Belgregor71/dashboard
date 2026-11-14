@@ -30,6 +30,7 @@
 import { decodeWorld, mapPlan, frameGeometry, yearOf, placeLine, namesLine, photoFit, memoryRight } from "./journey-geo.js";
 import { requiredAlpha, resolveColor } from "./scrim.js";
 import { MOTION } from "./motion.js";
+import { gradePixel } from "./journey-grade.js";
 
 /* ── Timing — the numbers to turn ──────────────────────────────────────────
    Milliseconds. Turnable live on the wall over CDP with
@@ -202,6 +203,18 @@ export function buildJourney(host) {
     }
     return { ...TIMING };
   };
+  /* The grade, judged in front of the wall: re-grades the photograph ALREADY on the glass
+     (and re-solves its shades), so each look is compared against the same picture. Null
+     clears it. The next photograph takes the house's own `data-grade` again. */
+  window.__journeyGrade = (look = null) => {
+    const frame = frames[top];
+    if (!frame?.el.classList.contains("is-shown") || !last.fit) return null;
+    setGrade(frame, look);
+    const shades = solveShades(frame, last.fit, window.innerWidth || 1920, window.innerHeight || 1080, frame.look);
+    applyShades(shades);
+    if (shades) last = { ...last, shades };
+    return frame.look;
+  };
 }
 
 /* Loaded once, from our own server, as a separate chunk: ~55 KB that only an
@@ -264,7 +277,7 @@ const css = ([r, g, b], a = 1) =>
    photograph as the wall shows it. Samples the composed frame (backdrop + photo
    at its fit) on a 16x9 grid and solves against the brightest cell under each
    block, not the mean — a mean lets one bright patch hide under a dark one. */
-function solveShades(frame, fit, W, H) {
+function solveShades(frame, fit, W, H, look = null) {
   const ctx = sampleCanvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) return null;
   ctx.imageSmoothingEnabled = true;
@@ -280,13 +293,15 @@ function solveShades(frame, fit, W, H) {
     return null;
   }
   const ink = resolveColor(getComputedStyle(docRoot()).getPropertyValue("--ink").trim()) ?? INK_FALLBACK;
-  const worst = (c0, c1, r0, r1) => {
+  // The grade (v3GoldenHour) sits between the photograph and the shade, so each cell is
+  // judged as the wall shows it: graded first, then the brightest picked.
+  const worst = (c0, c1, r0, r1, corner) => {
     let best = null;
     let bestL = -1;
     for (let r = r0; r <= r1; r++) {
       for (let c = c0; c <= c1; c++) {
         const i = (r * 16 + c) * 4;
-        const rgb = [data[i] / 255, data[i + 1] / 255, data[i + 2] / 255];
+        const rgb = gradePixel([data[i] / 255, data[i + 1] / 255, data[i + 2] / 255], look, corner, resolveColor);
         const l = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
         if (l > bestL) { bestL = l; best = rgb; }
       }
@@ -295,7 +310,28 @@ function solveShades(frame, fit, W, H) {
     return Number.isFinite(a) ? Math.max(0.12, a) : SHADE_MAX;
   };
   // Memory: top-right (x ≥ 1080, y < 360). Today: bottom-left (x < 840, y ≥ 720).
-  return { memory: worst(9, 15, 0, 2), today: worst(0, 6, 6, 8) };
+  return { memory: worst(9, 15, 0, 2, "memory"), today: worst(0, 6, 6, 8, "today") };
+}
+
+/* The grade layer lives INSIDE each frame, so each photograph wears the light it arrived
+   in and a change of light crosses the wall under the dissolve, never as a snap over a
+   photograph already on the glass. Made on first use: flag off, the node never exists. */
+function setGrade(frame, look) {
+  frame.look = look || null;
+  if (!look && !frame.gradeEl) return;
+  if (!frame.gradeEl) {
+    frame.gradeEl = document.createElement("div");
+    frame.gradeEl.className = "journey__grade";
+    frame.el.append(frame.gradeEl);
+  }
+  frame.gradeEl.dataset.look = look || "";
+  frame.el.dataset.grade = look || "";
+}
+
+function applyShades(shades) {
+  if (!shades) return;
+  rootEl.style.setProperty("--j-shade-memory", shades.memory.toFixed(3));
+  rootEl.style.setProperty("--j-shade-today", shades.today.toFixed(3));
 }
 
 function svgFor(geo, w, h, { sea, mini }) {
@@ -409,11 +445,11 @@ function begin(slot, asset, settleMs) {
   frame.el.dataset.fit = fit.mode;
   const mean = paintBackdrop(frame.canvas, img) ?? [0.12, 0.11, 0.1];
 
-  const shades = solveShades(frame, fit, W, H);
-  if (shades) {
-    rootEl.style.setProperty("--j-shade-memory", shades.memory.toFixed(3));
-    rootEl.style.setProperty("--j-shade-today", shades.today.toFixed(3));
-  }
+  // main.js stamps `data-grade` only while v3GoldenHour is on; absent, no layer is made.
+  const look = docRoot().dataset.grade || null;
+  setGrade(frame, look);
+  const shades = solveShades(frame, fit, W, H, look);
+  applyShades(shades);
 
   const plan = world ? mapPlan(asset, world) : null;
   const words = {
@@ -597,6 +633,7 @@ function probe() {
     mini: miniEl?.dataset.shown === "1",
     today: todayEl?.textContent || null,
     shades: last.shades,
+    grade: frames[top]?.look ?? null,
     failures: last.failures,
     reason: last.reason,
     timers: {

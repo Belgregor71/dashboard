@@ -74,6 +74,45 @@
   box-shadow: 0 24px 80px oklch(0.05 0 0 / 0.45);
 }
 
+/* ── The grade (features.v3GoldenHour) ──────────────────────────────────────
+   The hour's light, worn by the photograph: over the photo and its backdrop, under the
+   shades and the words. Values copied from the stills the owner approved on 2026-11-14
+   (journey-grade.js says which look; the shade solver models each one). The node only
+   exists once a look has been asked for. Each frame is already a stacking context
+   (positioned, z-index), so the multiply stays inside its own frame: the outgoing
+   photograph is never tinted by the incoming one's light. */
+:root[data-journey="1"] .journey__grade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+:root[data-journey="1"] .journey__grade[data-look=""] { display: none; }
+:root[data-journey="1"] .journey__grade[data-look="dusk"] {
+  background: linear-gradient(200deg, oklch(0.62 0.10 300 / 0.55), oklch(0.30 0.06 270 / 0.55));
+  mix-blend-mode: multiply;
+}
+:root[data-journey="1"] .journey__grade[data-look="golden"] {
+  background: radial-gradient(150% 130% at 100% 10%, oklch(0.93 0.09 72), oklch(0.80 0.13 52) 55%, oklch(0.62 0.10 40));
+  mix-blend-mode: multiply;
+}
+:root[data-journey="1"] .journey__grade[data-look="late"] {
+  background: radial-gradient(150% 130% at 100% 10%, oklch(0.97 0.04 80), oklch(0.90 0.07 68) 60%, oklch(0.83 0.07 58));
+  mix-blend-mode: multiply;
+}
+:root[data-journey="1"] .journey__grade[data-look="night"] {
+  background: oklch(0.32 0.05 265 / 0.62);
+  mix-blend-mode: multiply;
+}
+/* The still used backdrop-filter; a filter on the photograph itself is the same picture
+   without a full-wall backdrop pass on every frame of the 30 s rest ease. */
+:root[data-journey="1"] .journey__grade[data-look="rain"] {
+  background: linear-gradient(oklch(0.62 0.01 250 / 0.38), oklch(0.45 0.01 250 / 0.30));
+}
+:root[data-journey="1"] .journey__frame[data-grade="rain"] .journey__photo,
+:root[data-journey="1"] .journey__frame[data-grade="rain"] .journey__backdrop {
+  filter: saturate(0.62) brightness(0.92);
+}
+
 /* ── The colour wash (home / unknown) ───────────────────────────────────── */
 :root[data-journey="1"] .journey__wash {
   display: none;

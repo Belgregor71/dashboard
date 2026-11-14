@@ -10,6 +10,7 @@ import lottie from "lottie-web/build/player/lottie_light.js";
 import { getPosition, getMoonPosition, getMoonIllumination } from "../js/vendor/suncalc.js";
 import { stage, guard, bootReport } from "./core/boot.js";
 import { initSubstrate, toCauses } from "./substrate/index.js";
+import { gradeOf } from "./core/journey-grade.js";
 import { initDepth, setDepth, getDepth, onDepth, DEPTH } from "./core/depth.js";
 import { initCensus } from "./core/census.js";
 import { initFeatureCensus } from "./core/feature-census.js";
@@ -296,8 +297,31 @@ function syncSun() {
   return s;
 }
 
+/* The grade (features.v3GoldenHour): which light the journey photograph wears. Stamped
+   on the root; journey.js reads it as each photograph arrives, so a change lands under
+   the next dissolve. Cloud through toCauses, the same reading the field uses. Flag off
+   removes the stamp and nothing else exists to remove. */
+function syncGrade(s) {
+  const root = document.documentElement;
+  if (!flag("v3GoldenHour")) {
+    if (root.dataset.grade !== undefined) delete root.dataset.grade;
+    return;
+  }
+  const category = weather?.now?.condition?.icon ?? null;
+  const c = toCauses({
+    sunAltitudeDeg: s.altitudeDeg,
+    cloudPct: weather?.now?.cloud_pct ?? null,
+    category,
+    intensity: weather?.now?.condition?.intensity ?? null
+  });
+  const look = gradeOf({ sunAltDeg: s.altitudeDeg, cloud: c.cloud, raining: c.rain > 0 || category === "rain" || category === "storm" });
+  if (look) root.dataset.grade = look;
+  else delete root.dataset.grade;
+}
+
 function pushCauses() {
   const s = syncSun();
+  syncGrade(s);
   if (!substrate) return;
   // Before the update, so a covered field takes its causes without drawing
   // them. Also what makes a live flag flip land within a minute either way.

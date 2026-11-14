@@ -1362,6 +1362,15 @@ window.CONFIG = {
     // Revert: `v3MemoryJourney: false`.
     v3MemoryJourney: true,
 
+    // The grade (round 2, Phase B): the journey photograph wears the hour's light.
+    // Golden and late golden from the real sun (none under heavy cloud), twilight,
+    // night, and a grey softened look in rain. CSS layer inside each journey frame,
+    // chosen as each photograph arrives (src/v3/core/journey-grade.js), and the
+    // corner shades are solved WITH the grade so the words keep 3.5:1. Five looks,
+    // each approved by the owner from stills on 2026-11-14. Needs v3MemoryJourney.
+    // Off: no `data-grade`, no grade node, the journey exactly as before.
+    v3GoldenHour: false,
+
     // ── The depth census ────────────────────────────────────────────────────
     // Asked on 2026-08-23 and unanswerable: how many times has each depth been
     // reached in the last fortnight? Nothing knew. core/depth.js keeps one
