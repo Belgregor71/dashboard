@@ -259,7 +259,9 @@ function decoded(img, ms = 8000) {
   return new Promise((resolve) => {
     let done = false;
     const finish = (ok) => { if (!done) { done = true; clearTimeout(t); resolve(ok); } };
-    const t = setTimeout(() => finish(false), ms);
+    // Judged by the image at the deadline too: a HIDDEN page (display off at night) never
+    // settles decode(), and a loaded photograph was refused — the wall had none until morning.
+    const t = setTimeout(() => finish(img.complete && img.naturalWidth > 0), ms);
     const p = img.decode ? img.decode() : Promise.reject(new Error("no decode"));
     p.then(
       () => finish(img.naturalWidth > 0),

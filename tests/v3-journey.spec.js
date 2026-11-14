@@ -234,6 +234,18 @@ test("flag ON: the journey replaces the plane, and today is on the glass", async
   expect(errors).toEqual([]);
 });
 
+test("a decode that never settles (a hidden page) still puts a loaded photograph up", async ({ page }) => {
+  // Live 11-14 22:00: the display was off, the page `hidden`, decode() never settled, and a
+  // photograph with naturalWidth 1440 was refused at the 8 s deadline — the wall had none.
+  await page.addInitScript(() => { HTMLImageElement.prototype.decode = () => new Promise(() => {}); });
+  const errors = await boot(page, { pool: [at("dark-1", NUDGEE), at("dark-2", NUDGEE)] });
+  await expect.poll(async () => (await journey(page))?.shownFrames ?? 0, { timeout: 20_000 }).toBeGreaterThan(0);
+  const j = await journey(page);
+  expect(j.failures).toBe(0);
+  expect(j.reason).toBe("presented");
+  expect(errors).toEqual([]);
+});
+
 test("home: the colour wash, no map, no mini map", async ({ page }) => {
   await boot(page, { pool: [at("bright-1", NUDGEE), at("bright-2", NUDGEE)] });
   await firstUp(page);
