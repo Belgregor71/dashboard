@@ -35,13 +35,15 @@ import { gradePixel, transitionLook } from "./journey-grade.js";
 /* features.v3PhotoTransitions — read per call, so an in-page flip lands on the next
    photograph. Off: the stage chunk (and three) is never fetched. */
 const transitionsOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3PhotoTransitions);
+// features.v3RainGlass — drops on the glass while it rains, on the same canvas. Read per call.
+const rainOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3RainGlass);
 let glStage = null;       // stage3d/journey-stage.js once loaded
 let glLoad = "idle";      // idle | loading | ready | failed
 function loadGl() {
   if (glLoad !== "idle") return;
   glLoad = "loading";
   import("../stage3d/journey-stage.js").then(
-    (m) => { glStage = m; glLoad = "ready"; },
+    (m) => { glStage = m; glLoad = "ready"; syncRain(); },
     () => { glLoad = "failed"; }
   );
 }
@@ -209,7 +211,13 @@ export function buildJourney(host) {
   sampleCanvas.height = 9;
   built = true;
   loadWorld();
-  if (transitionsOn()) loadGl();
+  if (transitionsOn() || rainOn()) loadGl();
+  // Rain comes and goes with the weather, the depth, the night and the panel: all stamped
+  // on the root. Init-once; syncRain is an early return while the flag is off.
+  new MutationObserver(syncRain).observe(docRoot(), {
+    attributes: true,
+    attributeFilter: ["data-atmo-raining", "data-depth", "data-night", "data-panel-dark"]
+  });
 
   window.__journey = probe;
   window.__journeyTiming = (patch) => {
@@ -346,7 +354,7 @@ function setGrade(frame, look) {
 /* One frame as the wall shows it, minus the grade (which sits over the GL canvas in the
    frame, as it sits over the photograph): the surface colour, the backdrop behind a
    contained photo with its drop shadow, the photograph at its fit and `scale`. */
-function compose(frame, W, H, scale) {
+function compose(frame, W, H, scale, alpha = 1) {
   const c = document.createElement("canvas");
   c.width = W;
   c.height = H;
@@ -355,6 +363,7 @@ function compose(frame, W, H, scale) {
   if (!ctx || !fit) return null;
   ctx.fillStyle = getComputedStyle(rootEl).backgroundColor;
   ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = alpha; // after dark the photograph and backdrop sit at 0.72 (journey.css)
   if (fit.mode !== "cover") {
     ctx.drawImage(frame.canvas, -0.02 * W, -0.02 * H, 1.04 * W, 1.04 * H);
     // journey.css's box-shadow (0 24px 80px); a canvas shadowBlur is the same sigma.
@@ -388,6 +397,31 @@ function runTransition(frame, out, total, look) {
   // suncalc azimuth: 0 south, negative east. The front comes FROM the sun's side, from above.
   const dir = [Number.isFinite(az) ? -Math.sin(az) || 1 : 1, -0.35];
   return glStage.run({ host: frame.el, before: frame.gradeEl ?? null, from, to, ms: total, look, dir });
+}
+
+/* Rain on the glass (v3RainGlass): on while it rains on the photograph the room can see,
+   with no reveal in flight (a reveal ends by asking again). Shortcut: the drops leave the
+   glass for the length of each exchange (~3 s every ten minutes), because the canvas
+   lives in the top frame; upgrade if that is ever noticed. */
+function syncRain() {
+  if (!built || (!rainOn() && !glStage?.state().rain.on)) return;
+  if (!glStage) { loadGl(); return; }
+  const root = docRoot();
+  const raining = root.dataset.atmoRaining === "1";
+  const frame = frames[top];
+  const want = rainOn() && raining && (root.dataset.depth ?? "0") === "0" && root.dataset.panelDark !== "1" &&
+    !revealTimer && !reducedMotion() && frame?.fit && frame.el.classList.contains("is-shown");
+  if (!want) { glStage.rainStop({ dry: !raining }); return; }
+  const night = root.dataset.night === "1";
+  const W = window.innerWidth || 1920;
+  const H = window.innerHeight || 1080;
+  glStage.rain({
+    host: frame.el,
+    before: frame.gradeEl ?? null,
+    key: `${seq}|${night}`,
+    amount: parseFloat(root.style.getPropertyValue("--atmo-rain")) || 0.5,
+    photo: () => compose(frame, W, H, 1, night ? 0.72 : 1)
+  });
 }
 
 function applyShades(shades) {
@@ -496,6 +530,7 @@ export function journeyPresent({ src, asset = null, settleMs = TIMING.cutMs } = 
 
 function begin(slot, asset, settleMs) {
   finishReveal();
+  glStage?.rainStop();
   const W = window.innerWidth || 1920;
   const H = window.innerHeight || 1080;
   const frame = frames[slot];
@@ -612,6 +647,7 @@ function begin(slot, asset, settleMs) {
     zoomEl.innerHTML = "";
     clearTimeout(cleanupTimer);
     cleanupTimer = setTimeout(dropOutgoing, TIMING.cleanupMs);
+    syncRain();
   }, total + 60);
 }
 
@@ -683,6 +719,7 @@ export function journeyDay(text) {
 export function journeyStop() {
   if (!built) return;
   finishReveal();
+  glStage?.rainStop();
   try { restAnim?.finish(); } catch { /* gone */ }
   restAnim = null;
 }

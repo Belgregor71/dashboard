@@ -1380,6 +1380,15 @@ window.CONFIG = {
     // Off: the chunk is never fetched, no canvas exists, the wash is exactly as before.
     v3PhotoTransitions: false,
 
+    // Rain on the glass (round 2, Phase D): while it rains (data-atmo-raining), drops
+    // land on the glass in front of the journey photograph, each a small upside-down
+    // lens of the picture, and now and then a big one slides down. Drawn in bursts on
+    // Phase C's canvas (src/v3/stage3d/journey-stage.js); between bursts nothing renders.
+    // Approved by the owner from a still on 2026-11-14. Needs v3MemoryJourney.
+    // Drive it on a dry day: window.__v3Atmo.force({rain: "heavy"}).
+    // Off: no canvas, no texture, the chunk is never fetched for it.
+    v3RainGlass: false,
+
     // ── The depth census ────────────────────────────────────────────────────
     // Asked on 2026-08-23 and unanswerable: how many times has each depth been
     // reached in the last fortnight? Nothing knew. core/depth.js keeps one

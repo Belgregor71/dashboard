@@ -21,7 +21,8 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import {
-  WebGLRenderer, Scene, OrthographicCamera, PlaneGeometry, Mesh, ShaderMaterial, CanvasTexture, LinearFilter, Vector2
+  WebGLRenderer, Scene, OrthographicCamera, PlaneGeometry, Mesh, ShaderMaterial, CanvasTexture, LinearFilter, Vector2,
+  BufferGeometry, BufferAttribute, Points
 } from "three";
 
 const FRAME_GAP_MS = 1000 / 30 - 4;
@@ -100,14 +101,15 @@ function ensure() {
   canvas.setAttribute("aria-hidden", "true");
   canvas.style.display = "none";
   try {
-    renderer = new WebGLRenderer({ canvas, alpha: false, antialias: false, powerPreference: "low-power" });
+    // alpha: the rain (v3RainGlass) is transparent between drops; a transition still draws opaque.
+    renderer = new WebGLRenderer({ canvas, alpha: true, antialias: false, powerPreference: "low-power" });
   } catch {
     canvas = null;
     dead = true;
     return false;
   }
   renderer.setPixelRatio(1);
-  canvas.addEventListener("webglcontextlost", () => { dead = true; end("context-lost"); });
+  canvas.addEventListener("webglcontextlost", () => { dead = true; end("context-lost"); rainStop({ dry: true }); });
   scene = new Scene();
   camera = new OrthographicCamera(-1, 1, 1, -1, -1, 1);
   return true;
@@ -165,6 +167,7 @@ function end(reason) {
 export function run({ host, before = null, from, to, ms, look = "print", dir = [1, 0], onEnd = null }) {
   if (!host || !from || !to || !(ms > 0) || !ensure()) return false;
   end("replaced");
+  rainStop();
   const W = from.width;
   const H = from.height;
   renderer.setSize(W, H, false);
@@ -197,6 +200,186 @@ export function run({ host, before = null, from, to, ms, look = "print", dir = [
   return true;
 }
 
+/* ═══ RAIN ON THE GLASS — features.v3RainGlass (Phase D) ════════════════════
+   Drops on the glass in front of the photograph, each a small inverted lens of the
+   picture around it. Same canvas, same place (in the top frame, under the grade, so
+   the hour's light tints the drops too), transparent between drops.
+     · Drawn in BURSTS: a few drops land every few seconds and, now and then, a big
+       one slides down and swallows what it meets. Between bursts NOTHING renders:
+       the canvas keeps its last frame. Rain lasts hours; idle costs one timer.
+     · ONE texture while it rains (the top frame, composed), released on every stop:
+       memory back to 0. The drops themselves survive a photograph change; dry
+       weather clears them. */
+
+const RAIN_MAX = 40;
+const RAIN_GAP_MS = 1000 / 15 - 4;
+const SLIDE_MAX_PX_S = 260;
+
+const DROP_VERT = `
+attribute float aSize;
+varying vec2 vC;
+varying float vS;
+void main() { vC = position.xy * 0.5 + 0.5; vS = aSize; gl_PointSize = aSize; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
+
+const DROP_FRAG = `
+uniform sampler2D uPhoto;
+uniform vec2 uRes;
+varying vec2 vC;
+varying float vS;
+void main() {
+  vec2 p = gl_PointCoord * 2.0 - 1.0;
+  p.y = -p.y;
+  // A drop sags: fuller below its middle than above.
+  vec2 q = vec2(p.x, p.y * (p.y < 0.0 ? 0.9 : 1.15));
+  float r = length(q);
+  if (r > 1.0) discard;
+  float z = sqrt(1.0 - r * r);
+  // A lens: the picture around the drop, about 2.5x its size, upside down.
+  vec3 col = texture2D(uPhoto, vC - q * (vS * 1.25) / uRes).rgb;
+  col *= mix(0.62, 1.04, z);
+  float spec = pow(max(0.0, 1.0 - length(q - vec2(-0.35, 0.42)) * 2.6), 3.0);
+  col += vec3(spec * 0.35);
+  float a = 1.0 - smoothstep(0.86, 1.0, r);
+  gl_FragColor = vec4(col * a, a);
+}`;
+
+let rainLive = null;   // { mesh, texture, key, W, H }
+let drops = [];        // { x, y, r, vy } in wall px, y down
+let rainAmount = 0.5;
+let rainTimer = null;
+let rainRaf = null;
+let rainLast = 0;
+let rainFrames = 0;
+
+const gapMs = () => 9000 - 6000 * rainAmount;
+
+function spawn(n, W, H) {
+  for (let i = 0; i < n; i++) {
+    const big = Math.random() < 0.12;
+    drops.push({ x: Math.random() * W, y: Math.random() * H * 0.95, r: big ? 9 + Math.random() * 6 : 3 + Math.random() * 5, vy: 0 });
+  }
+  while (drops.length > RAIN_MAX) drops.shift(); // the oldest dries
+}
+
+function drawRain() {
+  const { mesh, W, H } = rainLive;
+  const pos = mesh.geometry.attributes.position;
+  const size = mesh.geometry.attributes.aSize;
+  drops.forEach((d, i) => {
+    pos.array[i * 3] = (d.x / W) * 2 - 1;
+    pos.array[i * 3 + 1] = 1 - (d.y / H) * 2;
+    size.array[i] = d.r * 2;
+  });
+  pos.needsUpdate = true;
+  size.needsUpdate = true;
+  mesh.geometry.setDrawRange(0, drops.length);
+  renderer.render(scene, camera);
+  rainFrames += 1;
+}
+
+/* One step of the sliders: they speed up, wander a little, swallow what they touch. */
+function slide(dt) {
+  const { H } = rainLive;
+  for (const d of drops.filter((x) => x.vy > 0)) {
+    d.vy = Math.min(SLIDE_MAX_PX_S, d.vy + 500 * dt);
+    d.y += d.vy * dt;
+    d.x += Math.sin(d.y * 0.03) * 0.4;
+    drops = drops.filter((o) => {
+      if (o === d || o.vy > 0 || Math.hypot(o.x - d.x, o.y - d.y) > d.r + o.r) return true;
+      d.r = Math.min(18, Math.hypot(d.r, o.r * 0.7));
+      return false;
+    });
+  }
+  drops = drops.filter((d) => d.y - d.r <= H);
+}
+
+function rainLoop(now) {
+  rainRaf = null;
+  if (!rainLive) return;
+  if (now - rainLast >= RAIN_GAP_MS) {
+    slide(Math.min(0.2, (now - rainLast) / 1000));
+    rainLast = now;
+    drawRain();
+  }
+  // The canvas keeps its last frame once nothing moves.
+  if (drops.some((d) => d.vy > 0)) rainRaf = requestAnimationFrame(rainLoop);
+}
+
+function burst() {
+  rainTimer = setTimeout(burst, gapMs());
+  spawn(1 + Math.round(rainAmount * 3), rainLive.W, rainLive.H);
+  if (Math.random() < 0.2 + 0.4 * rainAmount) {
+    const big = drops.filter((d) => d.vy === 0 && d.r >= 9).sort((a, b) => b.r - a.r)[0];
+    if (big) big.vy = 1;
+  }
+  drawRain();
+  if (!rainRaf && drops.some((d) => d.vy > 0)) {
+    rainLast = performance.now();
+    rainRaf = requestAnimationFrame(rainLoop);
+  }
+}
+
+/**
+ * Rain on the glass in `host` (the top journey frame), before `before` (its grade).
+ * `photo()` returns a wall-sized 2D canvas of the frame as the wall shows it; it is
+ * only called when `key` changes (a new photograph, night coming on). Refused while
+ * a transition holds the canvas: the caller asks again when the reveal ends.
+ *
+ * @returns {boolean}
+ */
+export function rain({ host, before = null, photo, key, amount = 0.5 }) {
+  rainAmount = Math.max(0, Math.min(1, Number(amount) || 0));
+  if (!host || typeof photo !== "function" || live || !ensure()) return false;
+  if (rainLive && rainLive.key === key && canvas.parentNode === host) return true;
+  rainStop();
+  const src = photo();
+  if (!src) return false;
+  const W = src.width;
+  const H = src.height;
+  renderer.setSize(W, H, false);
+  host.insertBefore(canvas, before);
+  const tex = texture(src);
+  const geo = new BufferGeometry();
+  geo.setAttribute("position", new BufferAttribute(new Float32Array(RAIN_MAX * 3), 3));
+  geo.setAttribute("aSize", new BufferAttribute(new Float32Array(RAIN_MAX), 1));
+  const material = new ShaderMaterial({
+    vertexShader: DROP_VERT,
+    fragmentShader: DROP_FRAG,
+    transparent: true,
+    premultipliedAlpha: true,
+    depthTest: false,
+    depthWrite: false,
+    uniforms: { uPhoto: { value: tex }, uRes: { value: new Vector2(W, H) } }
+  });
+  const mesh = new Points(geo, material);
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+  rainLive = { mesh, texture: tex, key, W, H };
+  if (!drops.length) spawn(4 + Math.round(rainAmount * 8), W, H);
+  drawRain();
+  canvas.style.display = "block";
+  rainTimer = setTimeout(burst, gapMs());
+  return true;
+}
+
+/** Stop the rain and let go of its texture. `dry` also clears the drops off the glass. */
+export function rainStop({ dry = false } = {}) {
+  if (dry) drops = [];
+  if (rainRaf) cancelAnimationFrame(rainRaf);
+  rainRaf = null;
+  clearTimeout(rainTimer);
+  rainTimer = null;
+  if (!rainLive) return;
+  const { mesh, texture: tex } = rainLive;
+  canvas.style.display = "none";
+  scene.remove(mesh);
+  mesh.geometry.dispose();
+  mesh.material.dispose();
+  tex.dispose();
+  renderer.renderLists.dispose();
+  rainLive = null;
+}
+
 /** Stop now (depth change, a newer photograph): the photograph under it is already right. */
 export function stop() {
   end("stopped");
@@ -214,6 +397,13 @@ export function state() {
     frames: live?.frames ?? 0,
     moments,
     lastEnd,
-    memory: renderer ? { ...renderer.info.memory } : null
+    memory: renderer ? { ...renderer.info.memory } : null,
+    rain: {
+      on: Boolean(rainLive),
+      drops: drops.length,
+      sliding: drops.filter((d) => d.vy > 0).length,
+      running: rainRaf !== null,
+      frames: rainFrames
+    }
   };
 }
