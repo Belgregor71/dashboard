@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+<!-- v3ColdGlass mist, from the still approved 2026-11-14. Radii are 72%x78% (veil) and 70%x76% (mask) of the wall. -->
+<defs>
+<radialGradient id="v" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="1" gradientTransform="translate(960 540) scale(1382.4 842.4)"><stop offset=".45" stop-color="#ebeff2" stop-opacity="0"/><stop offset="1" stop-color="#ebeff2" stop-opacity=".62"/></radialGradient>
+<radialGradient id="m" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="1" gradientTransform="translate(960 540) scale(1344 820.8)"><stop offset=".42" stop-color="#000"/><stop offset=".92" stop-color="#fff"/></radialGradient>
+<mask id="k" maskUnits="userSpaceOnUse" x="0" y="0" width="1920" height="1080"><rect width="1920" height="1080" fill="url(#m)"/></mask>
+<filter id="t" filterUnits="userSpaceOnUse" x="0" y="0" width="1920" height="1080"><feTurbulence type="fractalNoise" baseFrequency="0.006" numOctaves="4" seed="3"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.4 -0.35"/></filter>
+</defs>
+<rect width="1920" height="1080" fill="url(#v)"/>
+<g mask="url(#k)" opacity=".7"><rect width="1920" height="1080" filter="url(#t)"/></g>
+</svg>

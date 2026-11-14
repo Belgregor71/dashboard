@@ -119,3 +119,45 @@ export function transitionLook(grade) {
   if (grade == null) return "wipe";
   return "print";
 }
+
+/* COLD GLASS (features.v3ColdGlass) — mist or frost on the wall's edges on a cold or humid
+   morning, clearing as the sun climbs. Owner's rule (2026-11-14): mist at 90 %+ humidity,
+   frost at or below about 8 °C. Frost wins when both hold. Mornings only (the sun in the
+   east), from where the wall's night ends (main.js: night below −2°, when the ink dims
+   and white glass under it fails contrast), full at sunrise, gone by 10°. */
+export const COLD_GLASS = Object.freeze({ frostAtOrBelowC: 8, mistFromPct: 90, fromAlt: -2, fullAlt: 0, clearAlt: 10 });
+
+/**
+ * @param {{tempC?:number|null, humidityPct?:number|null, sunAltDeg:number, morning:boolean}} s
+ * @returns {{look:"mist"|"frost", k:number}|null}  k: strength 0.1..1 in tenths, so it moves in steps
+ */
+export function coldGlassOf({ tempC = null, humidityPct = null, sunAltDeg, morning = false } = {}) {
+  const c = COLD_GLASS;
+  if (!morning || !Number.isFinite(sunAltDeg) || sunAltDeg <= c.fromAlt || sunAltDeg >= c.clearAlt) return null;
+  const look = Number.isFinite(tempC) && tempC <= c.frostAtOrBelowC ? "frost"
+    : Number.isFinite(humidityPct) && humidityPct >= c.mistFromPct ? "mist" : null;
+  if (!look) return null;
+  const k = Math.round(10 * Math.min(1, (sunAltDeg - c.fromAlt) / (c.fullAlt - c.fromAlt), (c.clearAlt - sunAltDeg) / c.clearAlt)) / 10;
+  return k > 0 ? { look, k } : null;
+}
+
+/* What the glass does behind the words, for the shade solver: a veil of its colour at the
+   glass's peak under the word blocks (gradient + texture through the edge mask, read off
+   assets/glass-*.svg at the year and the hour), times its strength. The glass sits UNDER
+   the shades, so the shades are solved over it. */
+export const GLASS_EFFECT = Object.freeze({
+  mist: [[235 / 255, 239 / 255, 242 / 255], 0.5],
+  frost: [[216 / 255, 235 / 255, 246 / 255], 0.62]
+});
+
+/** The WORST pixel under the glass at strength k (0 = no glass): the brighter of the
+    photograph and the photograph veiled. The glass is speckled, so the photograph shows
+    between its flecks — over a sky paler than the frost, a plain veil would model the
+    corner DARKER than the wall shows it, and the shade would ease off (measured: it did). */
+export function glassPixel(rgb, look, k) {
+  const fx = look ? GLASS_EFFECT[look] : null;
+  if (!fx || !(k > 0)) return rgb;
+  const a = fx[1] * Math.min(1, k);
+  const veiled = rgb.map((v, i) => v * (1 - a) + fx[0][i] * a);
+  return lum(veiled) > lum(rgb) ? veiled : rgb;
+}

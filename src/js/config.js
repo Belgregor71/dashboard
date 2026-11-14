@@ -1395,6 +1395,14 @@ window.CONFIG = {
     // (rain-gate.cjs), owner's eye not yet. Rollback: -> false, then a HARD reload of the kiosk.
     v3RainGlass: true,
 
+    // Cold glass (round 2, Phase E): mist on a humid morning (90%+), frost at or below
+    // 8 °C, on the wall's edges over the journey photograph, clearing as the sun climbs
+    // (gone by 10° altitude). One static SVG layer (src/v3/assets/glass-*.svg) under the
+    // corner shades, which are solved over it. Approved from stills on 2026-11-14.
+    // Needs v3MemoryJourney. Force it: window.__coldGlass("frost") / ("mist", 0.5) / ().
+    // Off: no `data-cold-glass`, no glass node, the journey exactly as before.
+    v3ColdGlass: false,
+
     // ── The depth census ────────────────────────────────────────────────────
     // Asked on 2026-08-23 and unanswerable: how many times has each depth been
     // reached in the last fortnight? Nothing knew. core/depth.js keeps one

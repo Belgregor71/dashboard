@@ -30,7 +30,7 @@
 import { decodeWorld, mapPlan, frameGeometry, yearOf, placeLine, namesLine, photoFit, memoryRight } from "./journey-geo.js";
 import { requiredAlpha, resolveColor } from "./scrim.js";
 import { MOTION } from "./motion.js";
-import { gradePixel, transitionLook } from "./journey-grade.js";
+import { gradePixel, transitionLook, glassPixel } from "./journey-grade.js";
 
 /* features.v3PhotoTransitions — read per call, so an in-page flip lands on the next
    photograph. Off: the stage chunk (and three) is never fetched. */
@@ -101,6 +101,7 @@ const CONTRAST_MIN = 3.5;
 const SHADE_MAX = 0.82;
 // What fraction of the shade's peak actually sits under the words.
 const SHADE_COVER = 0.8;
+const GLASS_SHADE_COVER = 0.6; // v3ColdGlass on: see solveShades
 const SHADE_RGB = [0.04, 0.035, 0.03];
 const INK_FALLBACK = [0.93, 0.92, 0.89];
 
@@ -124,6 +125,7 @@ let placeEl = null;
 let whoEl = null;
 let todayEl = null;
 let sampleCanvas = null;
+let glassEl = null;       // cold glass (v3ColdGlass), made on first use
 
 let world = null;         // decoded once, lazily; null = not loaded / failed
 let worldState = "idle";  // idle | loading | ready | failed
@@ -218,6 +220,8 @@ export function buildJourney(host) {
     attributes: true,
     attributeFilter: ["data-atmo-raining", "data-depth", "data-night", "data-panel-dark"]
   });
+  new MutationObserver(syncGlass).observe(docRoot(), { attributes: true, attributeFilter: ["data-cold-glass", "data-cold-glass-k"] });
+  syncGlass();
 
   window.__journey = probe;
   window.__journeyTiming = (patch) => {
@@ -318,6 +322,9 @@ function solveShades(frame, fit, W, H, look = null) {
     return null;
   }
   const ink = resolveColor(getComputedStyle(docRoot()).getPropertyValue("--ink").trim()) ?? INK_FALLBACK;
+  // The cold glass (v3ColdGlass) sits over the grade and under the shades: judged too.
+  const glass = docRoot().dataset.coldGlass || null;
+  const k = Number(docRoot().dataset.coldGlassK) || 0;
   // The grade (v3GoldenHour) sits between the photograph and the shade, so each cell is
   // judged as the wall shows it: graded first, then the brightest picked.
   const worst = (c0, c1, r0, r1, corner) => {
@@ -326,12 +333,15 @@ function solveShades(frame, fit, W, H, look = null) {
     for (let r = r0; r <= r1; r++) {
       for (let c = c0; c <= c1; c++) {
         const i = (r * 16 + c) * 4;
-        const rgb = gradePixel([data[i] / 255, data[i + 1] / 255, data[i + 2] / 255], look, corner, resolveColor);
+        const rgb = glassPixel(gradePixel([data[i] / 255, data[i + 1] / 255, data[i + 2] / 255], look, corner, resolveColor), glass, k);
         const l = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
         if (l > bestL) { bestL = l; best = rgb; }
       }
     }
-    const a = requiredAlpha(best, SHADE_RGB, ink, { target: CONTRAST_MIN, coverage: SHADE_COVER, maxAlpha: SHADE_MAX });
+    // Under the glass the flecks reach the shade's thin edge (the place line) as brightly as
+    // its core, so the shade is solved at the edge's coverage. Measured: 3.18:1 at 0.8.
+    const cover = glass && k > 0 ? GLASS_SHADE_COVER : SHADE_COVER;
+    const a = requiredAlpha(best, SHADE_RGB, ink, { target: CONTRAST_MIN, coverage: cover, maxAlpha: SHADE_MAX });
     return Number.isFinite(a) ? Math.max(0.12, a) : SHADE_MAX;
   };
   // Memory: top-right (x ≥ 1080, y < 360). Today: bottom-left (x < 840, y ≥ 720).
@@ -399,6 +409,28 @@ function runTransition(frame, out, total, look) {
   // suncalc azimuth: 0 south, negative east. The front comes FROM the sun's side, from above.
   const dir = [Number.isFinite(az) ? -Math.sin(az) || 1 : 1, -0.35];
   return glStage.run({ host: frame.el, before: frame.gradeEl ?? null, from, to, ms: total, look, dir });
+}
+
+/* Cold glass (v3ColdGlass): main.js stamps the look and its strength on the root (flag off,
+   never, so the node is never made). One layer over both frames; the shades of the
+   photograph on the glass are re-solved over it, since the glass lightens what the words
+   sit on. The look stays on the node while it fades out. */
+function syncGlass() {
+  const root = docRoot();
+  const look = root.dataset.coldGlass || null;
+  if (!look && !glassEl) return;
+  if (!glassEl) {
+    glassEl = document.createElement("div");
+    glassEl.className = "journey__glass";
+    mapEl.after(glassEl); // under the shades: same z-index, earlier in the DOM
+  }
+  if (look) glassEl.dataset.look = look;
+  glassEl.style.opacity = look ? String(Math.min(1, Number(root.dataset.coldGlassK) || 0)) : "0";
+  const frame = frames[top];
+  if (!frame?.el.classList.contains("is-shown") || !last.fit) return;
+  const shades = solveShades(frame, last.fit, window.innerWidth || 1920, window.innerHeight || 1080, frame.look);
+  applyShades(shades);
+  if (shades) last = { ...last, shades };
 }
 
 /* Rain on the glass (v3RainGlass): on while it rains on the photograph the room can see,

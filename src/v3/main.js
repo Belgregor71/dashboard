@@ -10,7 +10,7 @@ import lottie from "lottie-web/build/player/lottie_light.js";
 import { getPosition, getMoonPosition, getMoonIllumination } from "../js/vendor/suncalc.js";
 import { stage, guard, bootReport } from "./core/boot.js";
 import { initSubstrate, toCauses } from "./substrate/index.js";
-import { gradeOf } from "./core/journey-grade.js";
+import { gradeOf, coldGlassOf } from "./core/journey-grade.js";
 import { initDepth, setDepth, getDepth, onDepth, DEPTH } from "./core/depth.js";
 import { initCensus } from "./core/census.js";
 import { initFeatureCensus } from "./core/feature-census.js";
@@ -319,9 +319,40 @@ function syncGrade(s) {
   else delete root.dataset.grade;
 }
 
+/* Cold glass (features.v3ColdGlass): mist or frost on a cold or humid morning. Stamped on
+   the root for journey.js, only on a change (it re-solves the shades on every write).
+   `__coldGlass(look, k)` forces a look for the owner's eye and the contrast sweep; the
+   flag still gates it, and `__coldGlass()` hands it back to the weather. */
+let glassForce = null;
+function syncColdGlass(s) {
+  const root = document.documentElement;
+  // Never after dark, forced or not: the night ink is dimmed and white glass under it fails.
+  const g = !flag("v3ColdGlass") || root.dataset.night === "1" ? null : glassForce ?? coldGlassOf({
+    tempC: weather?.now?.temp_c ?? null,
+    humidityPct: weather?.now?.humidity_pct ?? null,
+    sunAltDeg: s.altitudeDeg,
+    morning: s.azimuthRad < 0 // suncalc: negative azimuth is east of south
+  });
+  const k = g ? g.k.toFixed(1) : undefined;
+  if (root.dataset.coldGlassK !== k) {
+    if (k) root.dataset.coldGlassK = k;
+    else delete root.dataset.coldGlassK;
+  }
+  if (root.dataset.coldGlass !== g?.look) {
+    if (g) root.dataset.coldGlass = g.look;
+    else delete root.dataset.coldGlass;
+  }
+}
+window.__coldGlass = (look = null, k = 1) => {
+  glassForce = look === "mist" || look === "frost" ? { look, k: Math.max(0.1, Math.min(1, Number(k) || 1)) } : null;
+  syncColdGlass(syncSun());
+  return document.documentElement.dataset.coldGlass ?? null;
+};
+
 function pushCauses() {
   const s = syncSun();
   syncGrade(s);
+  syncColdGlass(s);
   if (!substrate) return;
   // Before the update, so a covered field takes its causes without drawing
   // them. Also what makes a live flag flip land within a minute either way.

@@ -419,7 +419,11 @@ const VARIANTS = {
   journey: { flags: { v3Archive: true, v3MemoryJourney: true }, grounds: () => ["sky"], title: (g, p) => `the MEMORY JOURNEY, ${p}` },
   /* The grade over the journey (v3GoldenHour), FORCED in bootV3 — rain by day,
      night by night. Read against `journey`, its twin. */
-  grade: { flags: { v3Archive: true, v3MemoryJourney: true, v3GoldenHour: true }, grounds: () => ["sky"], title: (g, p) => `the MEMORY JOURNEY under the GRADE (${p === "night" ? "night" : "rain"}), ${p}` }
+  grade: { flags: { v3Archive: true, v3MemoryJourney: true, v3GoldenHour: true }, grounds: () => ["sky"], title: (g, p) => `the MEMORY JOURNEY under the GRADE (${p === "night" ? "night" : "rain"}), ${p}` },
+  /* The cold glass over the journey (v3ColdGlass), FORCED in bootV3 — frost at full
+     strength, the glass that lightens most (it is morning-only on the wall; forced
+     at night too, which is the stricter case). Read against `journey`, its twin. */
+  glass: { flags: { v3Archive: true, v3MemoryJourney: true, v3ColdGlass: true }, grounds: () => ["sky"], title: (g, p) => `the MEMORY JOURNEY under FROST (cold glass), ${p}` }
 };
 
 async function bootV3(page, { ground, phase, variant = "off" }) {
@@ -539,7 +543,7 @@ async function bootV3(page, { ground, phase, variant = "off" }) {
   const fieldOwnsRain = variant === "weather" || variant === "causes";
   /* The journey takes the whole overlay off depth 0 (no rain over the
      photograph): assert THAT, since a pane painting there is its defect. */
-  if (variant === "journey" || variant === "grade") {
+  if (variant === "journey" || variant === "grade" || variant === "glass") {
     expect(await page.evaluate(() => {
       const o = document.querySelector(".atmo-overlay");
       return o && document.documentElement.dataset.depth === "0" ? getComputedStyle(o).display : "not measured";
@@ -640,6 +644,25 @@ async function bootV3(page, { ground, phase, variant = "off" }) {
       return { set, look: el?.dataset.look ?? null, shown: el ? getComputedStyle(el).display !== "none" : false };
     }, want);
     expect(got, "the grade's force did not take — this would measure the ungraded journey").toEqual({ set: want, look: want, shown: true });
+  }
+
+  /* The cold glass FORCED, not merely pinned: the sweep's clocks are not cold mornings,
+     so a pin alone measures the `journey` twin. Read back off the node, and held until
+     the glass and the re-solved shades have finished their 1.4 s fades (MEASURE needs
+     a still screen). */
+  if (variant === "glass" && phase === "night") {
+    // After dark the glass refuses even a force (the night ink is dimmed): assert THAT.
+    expect(await page.evaluate(() => [window.__coldGlass?.("frost") ?? null, document.querySelectorAll(".journey__glass").length]),
+      "the cold glass painted after dark").toEqual([null, 0]);
+  } else if (variant === "glass") {
+    expect(await page.evaluate(() => window.__coldGlass?.("frost") ?? null), "the cold glass's force did not take").toBe("frost");
+    await expect.poll(() => page.evaluate(() => {
+      const el = document.querySelector(".journey__glass");
+      const j = document.querySelector(".journey");
+      const want = Number(getComputedStyle(j).getPropertyValue("--j-shade-memory"));
+      return el?.dataset.look === "frost" && Number(getComputedStyle(el).opacity) === 1 &&
+        Math.abs(Number(getComputedStyle(document.querySelector(".journey__memory"), "::before").opacity) - want) < 0.002;
+    }), { timeout: 10_000, message: "the frost (and its shades) never settled on the glass" }).toBe(true);
   }
 
   await page.evaluate(() => window.__v3Refresh?.());

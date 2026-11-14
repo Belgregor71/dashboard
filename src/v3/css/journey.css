@@ -193,6 +193,22 @@
   opacity: 0;
 }
 
+/* ── Cold glass (v3ColdGlass) ───────────────────────────────────────────── */
+/* Mist or frost on the wall's edges, over the photograph and UNDER the shades
+   (journey.js solves the shades over it). A static image: rasterised once, so
+   a change of strength is an opacity step on its own layer, never a repaint. */
+:root[data-journey="1"] .journey__glass {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background: center / 100% 100% no-repeat;
+  opacity: 0;
+  transition: opacity 1.4s var(--ease);
+}
+:root[data-journey="1"] .journey__glass[data-look="mist"] { background-image: url(../assets/glass-mist.svg); }
+:root[data-journey="1"] .journey__glass[data-look="frost"] { background-image: url(../assets/glass-frost.svg); }
+
 /* ── The shades ─────────────────────────────────────────────────────────── */
 :root[data-journey="1"] .journey__shade {
   position: absolute;
