@@ -182,6 +182,15 @@ differs from the bullets above in four places:**
 - Spec: no drops when dry; drops and a live texture when raining; loop idle when drops rest;
   memory 0 after rain ends; an exchange mid-rain swaps the texture.
 
+**✅ BUILT 2026-11-14 (`25a5f6f`), committed, not deployed.** As planned, except: drops are
+drawn in BURSTS (a few land every 3-9 s; rAF only while one slides), not a continuous 15 fps loop;
+the texture is the top frame composed at rest scale (×0.72 after dark), not the raw photo; and
+C's renderer became `alpha: true`. Drops leave the glass for the ~3 s of each exchange (the
+canvas lives in the top frame). Driven by a MutationObserver on the root's
+`data-atmo-raining` / `data-depth` / `data-night` / `data-panel-dark`. Lever on the wall:
+`window.CONFIG.features.v3RainGlass = true; window.__v3Atmo.force({ rain: "heavy" })`.
+⏳ Live gate, GPU cost during a slide, owner's eye.
+
 ### Phase E: `v3ColdGlass`
 - One fixed, `pointer-events:none` layer with a static edge texture (`src/v3/assets/`, SVG
   `feTurbulence` or painted art if the owner prefers), masked to the edges, two variants (mist, frost).
