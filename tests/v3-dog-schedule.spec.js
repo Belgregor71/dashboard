@@ -303,6 +303,24 @@ test.describe("dog schedule", () => {
     }
   });
 
+  test("20–30 Nov 2026: ~4 generic + ~4 Christmas an hour, and only then", () => {
+    expect(kind("2026-11-19")).toBe("generic:2");
+    expect(kind("2026-11-20")).toBe("generic:8");
+    expect(kind("2026-11-30")).toBe("generic:8");
+    expect(kind("2026-12-01")).toBe("generic:2");
+    expect(kind("2027-11-25"), "this year only").toBe("generic:2");
+    const { shows, perHour, minGap } = simulate("2026-11-25T12:00", 3000, 21);
+    const xmas = shows.filter((s) => s.occasion === "christmas").length / 3000;
+    const generic = shows.filter((s) => s.occasion === "generic").length / 3000;
+    expect(xmas).toBeGreaterThan(3.2); expect(xmas).toBeLessThan(4.4);
+    expect(generic).toBeGreaterThan(3.2); expect(generic).toBeLessThan(4.4);
+    expect(perHour).toBeLessThanOrEqual(8.8);
+    expect(minGap).toBeGreaterThanOrEqual(5 * 60_000);
+    // The run belongs to the Christmas popups, never the generic ones.
+    expect(shows.some((s) => s.occasion === "christmas" && s.mode === "run")).toBe(true);
+    expect(shows.every((s) => s.occasion === "christmas" || s.mode === "peek")).toBe(true);
+  });
+
   test("delivered rates, per present hour, on the real loop", () => {
     // The dice compensates for the gap's dead time (rollRate), or a peak of 5
     // would deliver ~3.3.

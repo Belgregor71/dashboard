@@ -48,6 +48,13 @@ export const GENERIC = { rate: 2, cap: 4, minGapMin: 10 };
 export const SEASONAL = { floor: 2, peak: 10, cap: 10, minGapMin: 3, taperPerDay: 4 };
 export const BIRTHDAY = { rate: 10, cap: 10, minGapMin: 3 };
 
+/* 20–30 Nov 2026 only, owner's ask (kids staying): generic doubled to 4 an
+   hour PLUS 4 Christmas popups an hour, mixed at random. The day stays
+   "generic" (house not dressed, no Christmas line) — only the popups surprise.
+   A 5-minute gap allows 12 an hour, so 8 can be delivered through it.
+   Dates are day numbers, so they fill in once dayNo exists below. */
+export const PRELUDE = { from: [2026, 11, 20], to: [2026, 11, 30], generic: 4, christmas: 4, cap: 12, minGapMin: 5 };
+
 /* Occasions with a run mode, and how often a popup is the run instead. */
 export const RUN_SHARE = { christmas: 0.2 };
 
@@ -132,6 +139,15 @@ export function planFor(date, birthdays = []) {
       runShare: 0
     };
   }
+  const d = dayOf(date);
+  if (d >= dayNo(...PRELUDE.from) && d <= dayNo(...PRELUDE.to)) {
+    const rate = PRELUDE.generic + PRELUDE.christmas;
+    return {
+      kind: "prelude", occasion: "generic", rate, cap: PRELUDE.cap,
+      minGapMs: PRELUDE.minGapMin * 60_000, dogs: [...DOGS], runShare: 0,
+      mix: { christmas: PRELUDE.christmas / rate }
+    };
+  }
   const season = seasonOf(date);
   if (season) {
     const rate = seasonRate(season.day, season.window);
@@ -207,12 +223,14 @@ export function createDogSchedule({
     const p = 1 - Math.exp(-rollRate(plan) * (tickMs / 3_600_000));
     if (random() >= p) return { fired: false, reason: "dice", plan };
 
-    const run = plan.runShare > 0 && random() < plan.runShare;
+    const occasion = plan.mix && random() < plan.mix.christmas ? "christmas" : plan.occasion;
+    const runShare = occasion === plan.occasion ? plan.runShare : RUN_SHARE[occasion] ?? 0;
+    const run = runShare > 0 && random() < runShare;
     const dogs = run ? [...DOGS] : chooseDogs(plan.dogs, random);
     const mode = run ? "run" : "peek";
     shown.push(t);
     fired += 1;
-    Promise.resolve(show(plan.occasion, { mode, dogs })).then((r) => {
+    Promise.resolve(show(occasion, { mode, dogs })).then((r) => {
       if (!r?.shown) {
         const i = shown.indexOf(t);
         if (i >= 0) shown.splice(i, 1);
@@ -221,7 +239,7 @@ export function createDogSchedule({
       const i = shown.indexOf(t);
       if (i >= 0) shown.splice(i, 1);
     });
-    return { fired: true, occasion: plan.occasion, mode, dogs, plan };
+    return { fired: true, occasion, mode, dogs, plan };
   }
 
   function tick() {
