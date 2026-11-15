@@ -333,7 +333,15 @@ own owner's eye, then `/flag-flip`.
   antialias is off (C's renderer), so the limb may show stair-steps. Judge it on the wall.
 - Lever on the wall: `window.CONFIG.features.v3JourneyGlobe = true`, then an overseas asset via the
   `~/jr-travel-*.cjs` intercept and `__groundDissolve(2600)`. Read `__journey().transition.globe`.
-- ⏳ Live gate (memory 0, GPU cost of a flight, 4096 paint time) → owner's eye → `/flag-flip v3JourneyGlobe`.
+- Live gate 2026-11-15 14:27 (`~/globe-gate.cjs`: Fetch intercepts config.js + on-this-day, then a
+  Page.navigate, because a dissolve alone never re-fetches the pool): 30/30 flights (Paris, London,
+  Riomaggiore), 30/30 ended `done`, 0 page errors, 0 CSP. Afterwards the wall was restored as served.
+  The leftover `memory {1,1}` was the rain on the glass (it was raining), not the globe. The GPU
+  process used 17.6% of one core over 25 s of back-to-back flights.
+- **Owner saw it live: "looks really good… I would slow down the flyover just a bit… not too much".**
+  The turn is now `900 + 850k` ms (was `700 + 700k`) and the dive 700 ms (was 600). A long hop takes
+  4.25 s (was 3.8 s).
+- ⏳ `/flag-flip v3JourneyGlobe`.
 
 ## Not in this plan
 - Album glow, depth parallax (rejected), rain outside the card, beat reaction. (Globe flight

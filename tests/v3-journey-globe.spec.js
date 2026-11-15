@@ -50,8 +50,8 @@ test("a long hop turns longer and lifts; a short hop does neither, and arrives s
   expect(nz).toBeLessThan(25);
   const long = globeBeats(italy);
   const short = globeBeats(nz);
-  // A long hop lands on the flat map's own 3.8 s.
-  expect(long).toMatchObject({ turnFrom: 300, turnMs: 1400, diveFrom: 1700, bloomFrom: 2300, total: 3800 });
+  // The owner's "a bit slower" (11-15): a long hop turns 1.75 s and is 4.25 s in all.
+  expect(long).toMatchObject({ turnFrom: 300, turnMs: 1750, diveFrom: 2050, bloomFrom: 2750, total: 4250 });
   expect(long.lift).toBeGreaterThan(0);
   expect(short.lift).toBe(0);
   expect(short.turnMs).toBeLessThan(long.turnMs);
@@ -172,9 +172,9 @@ test("flag ON: abroad flies in on the globe, the pin lands in the lit country, t
   expect(first.j.transition.memory.textures).toBe(3);
   expect(await page.evaluate(() => document.querySelectorAll(".journey__zoom path").length)).toBe(0);
 
-  // Arrived (Brisbane → Ko Samui ≈ 63°: the bloom starts at ~2.1 s). The pin is on the glass inside
+  // Arrived (Brisbane → Ko Samui ≈ 63°: the bloom starts at ~2.5 s). The pin is on the glass inside
   // Thailand's box, and the bloom's origin IS the pin.
-  await expect.poll(async () => (await journey(page)).transition.globe.t ?? 0, { timeout: 8_000 }).toBeGreaterThan(2150);
+  await expect.poll(async () => (await journey(page)).transition.globe.t ?? 0, { timeout: 8_000 }).toBeGreaterThan(2550);
   const g = (await journey(page)).transition.globe;
   expect(g.on, "still flying when judged").toBe(true);
   expect(g.countryBox, "Thailand must be on the near side of the globe").not.toBeNull();
@@ -203,7 +203,7 @@ test("a country with no point: the country lights, no pin, the bloom opens from 
   const { errors } = await boot(page, { on: true, pool: [at("f-1", FRANCE), at("f-2", FRANCE)] });
   await exchange(page);
   expect((await journey(page)).mode).toBe("globe");
-  await expect.poll(async () => (await journey(page)).transition.globe.t ?? 0, { timeout: 8_000 }).toBeGreaterThan(2350);
+  await expect.poll(async () => (await journey(page)).transition.globe.t ?? 0, { timeout: 8_000 }).toBeGreaterThan(2800);
   const g = (await journey(page)).transition.globe;
   expect(g).toMatchObject({ on: true, pin: false });
   expect(g.countryBox).not.toBeNull();

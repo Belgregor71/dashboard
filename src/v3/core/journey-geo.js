@@ -295,14 +295,15 @@ export function subsolar(localDateTime, lng) {
 /**
  * The four beats of the globe flight, in ms. A long hop turns for 1.4 s and lifts; a short one
  * (NZ, Vanuatu) turns faster, does not lift, and so arrives sooner. The bloom is the map's own
- * photograph duration, so a long hop lands on today's 3.8 s total.
+ * photograph duration. Owner, 11-15, seen live: "slow down the flyover just a bit.. not too much":
+ * the turn is ~25% longer than the stills' timing and the dive 100 ms, so a long hop is 4.25 s.
  */
 export function globeBeats(deg, bloomMs = 1500) {
   const k = clamp(deg / 90, 0, 1);
   const turnFrom = 300;
-  const turnMs = Math.round(700 + 700 * k);
+  const turnMs = Math.round(900 + 850 * k);
   const diveFrom = turnFrom + turnMs;
-  const diveMs = 600;
+  const diveMs = 700;
   const bloomFrom = diveFrom + diveMs;
   return {
     turnFrom, turnMs, diveFrom, diveMs, bloomFrom, bloomMs,
