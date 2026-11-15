@@ -58,6 +58,15 @@ router.get("/api/weather/forecast", async (_req, res) => {
   }
 });
 
+// Where the globe flight (v3JourneyGlobe) starts. Whole degrees (~100 km): it is a dot on a
+// planet, and the public bundle must never carry the house's location. null when unset.
+router.get("/api/weather/home", (_req, res) => {
+  const lat = Number(process.env.WEATHER_LAT);
+  const lng = Number(process.env.WEATHER_LON);
+  const ok = Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0);
+  res.json({ home: ok ? { lat: Math.round(lat), lng: Math.round(lng) } : null });
+});
+
 // Phase 3 nowcast: the next short-range precip window (or null). Always JSON,
 // degrades to { nowcast: null } when coords are missing or upstream is down —
 // the predictive rain-incoming rule treats null as "no rain coming".

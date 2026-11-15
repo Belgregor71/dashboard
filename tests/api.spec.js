@@ -501,6 +501,16 @@ test.describe("weather", () => {
     expect(Array.isArray(body.days)).toBe(true);
   });
 
+  test("GET /api/weather/home is whole degrees or null, never the house's location", async ({ request }) => {
+    const { body } = await expectJson(request, "/api/weather/home", { statuses: [200] });
+    expect(body).toHaveProperty("home");
+    if (body.home !== null) {
+      expect(Object.keys(body.home).sort()).toEqual(["lat", "lng"]);
+      expect(Number.isInteger(body.home.lat)).toBe(true);
+      expect(Number.isInteger(body.home.lng)).toBe(true);
+    }
+  });
+
   test("GET /api/weather/nowcast keeps its shape and degrades to null when upstream is down", async ({ request }) => {
     const { body } = await expectJson(request, "/api/weather/nowcast", { statuses: [200, 502] });
     expect(body).toHaveProperty("nowcast");

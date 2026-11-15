@@ -1403,6 +1403,15 @@ window.CONFIG = {
     // Off: no `data-cold-glass`, no glass node, the journey exactly as before.
     v3ColdGlass: false,
 
+    // Globe flight (round 2, Phase F): an overseas memory by day flies in on a globe
+    // instead of the flat map: centred on home, a turn along the great circle with the
+    // arc drawing itself, the country lit gold, a dive, and the photograph opening out of
+    // the pin. Lit for the photo's own moment (the terminator). On Phase C's canvas
+    // (src/v3/stage3d/journey-stage.js); home comes rounded from /api/weather/home.
+    // Approved from stills on 2026-11-14. Needs v3MemoryJourney. Any failure: the flat map.
+    // Off: the flat map exactly as before; neither the chunk nor /api/weather/home is fetched for it.
+    v3JourneyGlobe: false,
+
     // ── The depth census ────────────────────────────────────────────────────
     // Asked on 2026-08-23 and unanswerable: how many times has each depth been
     // reached in the last fortnight? Nothing knew. core/depth.js keeps one

@@ -256,6 +256,73 @@ export function frameGeometry(world, frame, pxW, pxH, litName = null) {
   return { viewBox: `${x0} ${y0} ${w} ${h}`, kx, ky, x0, y0, paths };
 }
 
+/* ── The globe (features.v3JourneyGlobe) ─────────────────────────────────── */
+
+const RAD = Math.PI / 180;
+
+/** A point on the unit globe, in three's SphereGeometry frame (lon 0 on +X, lon 90 on −Z, north +Y),
+ *  so an equirect texture with lon −180 at its left edge lands where the outlines say. */
+export function lonLatVec(lat, lng) {
+  const c = Math.cos(lat * RAD);
+  return [c * Math.cos(lng * RAD), Math.sin(lat * RAD), -c * Math.sin(lng * RAD)];
+}
+
+/** Great-circle angle between two { lat, lng }, in degrees. */
+export function arcDeg(a, b) {
+  const p = lonLatVec(a.lat, a.lng);
+  const q = lonLatVec(b.lat, b.lng);
+  return Math.acos(clamp(p[0] * q[0] + p[1] * q[1] + p[2] * q[2], -1, 1)) / RAD;
+}
+
+/**
+ * Where the sun was overhead when the photograph was taken: the globe is lit for the photo's
+ * own moment. `localDateTime` is Immich's wall-clock time ("…Z" is not UTC), read as a string.
+ * shortcut: local clock is taken as solar time at `lng` (no time zone, no DST, no equation of
+ * time), so the terminator can sit up to ~1 h (15°) off; upgrade if Immich ever sends a UTC time.
+ * @returns {{lat:number, lng:number} | null}
+ */
+export function subsolar(localDateTime, lng) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(localDateTime ?? ""));
+  if (!m || !Number.isFinite(lng)) return null;
+  const [y, mo, d, h, mi] = m.slice(1).map(Number);
+  const day = (Date.UTC(y, mo - 1, d) - Date.UTC(y, 0, 0)) / 86400000;
+  const lat = -23.44 * Math.cos((2 * Math.PI / 365) * (day + 10));
+  let lon = lng - (h + mi / 60 - 12) * 15;
+  lon = ((((lon + 180) % 360) + 360) % 360) - 180;
+  return { lat, lng: lon };
+}
+
+/**
+ * The four beats of the globe flight, in ms. A long hop turns for 1.4 s and lifts; a short one
+ * (NZ, Vanuatu) turns faster, does not lift, and so arrives sooner. The bloom is the map's own
+ * photograph duration, so a long hop lands on today's 3.8 s total.
+ */
+export function globeBeats(deg, bloomMs = 1500) {
+  const k = clamp(deg / 90, 0, 1);
+  const turnFrom = 300;
+  const turnMs = Math.round(700 + 700 * k);
+  const diveFrom = turnFrom + turnMs;
+  const diveMs = 600;
+  const bloomFrom = diveFrom + diveMs;
+  return {
+    turnFrom, turnMs, diveFrom, diveMs, bloomFrom, bloomMs,
+    total: bloomFrom + bloomMs,
+    lift: deg > 40 ? 0.9 * clamp((deg - 40) / 80, 0, 1) : 0
+  };
+}
+
+export const GLOBE_FAR = 4.2;   // camera distance with the whole globe in view (approved still)
+export const GLOBE_NEAR = 1.95; // the deepest dive: the approved still; deeper blurred the 4096 texture
+
+/** How close the camera dives: the country about a third of the wall across, never deeper than the
+ *  approved still. `spanDeg` is the country's main ring width in degrees. 30° vertical fov, 16:9. */
+export function diveDistance(spanDeg, latDeg) {
+  if (!Number.isFinite(spanDeg) || spanDeg <= 0) return GLOBE_NEAR;
+  const chord = spanDeg * RAD * Math.cos(clamp(latDeg, -80, 80) * RAD);
+  const halfW = Math.tan(15 * RAD) * (16 / 9);
+  return clamp(1 + (3 * chord) / (2 * halfW), GLOBE_NEAR, 2.6);
+}
+
 /* ── The words ──────────────────────────────────────────────────────────── */
 
 /** The memory's year, from the ISO string only — never a sliced number. */

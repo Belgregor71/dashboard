@@ -27,7 +27,10 @@
    an overseas memory (~5-20 paths), which REPLACES the previous one.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { decodeWorld, mapPlan, frameGeometry, yearOf, placeLine, namesLine, photoFit, memoryRight } from "./journey-geo.js";
+import {
+  decodeWorld, mapPlan, frameGeometry, yearOf, placeLine, namesLine, photoFit, memoryRight,
+  subsolar, arcDeg, globeBeats, diveDistance
+} from "./journey-geo.js";
 import { requiredAlpha, resolveColor } from "./scrim.js";
 import { MOTION } from "./motion.js";
 import { gradePixel, transitionLook, glassPixel } from "./journey-grade.js";
@@ -37,6 +40,22 @@ import { gradePixel, transitionLook, glassPixel } from "./journey-grade.js";
 const transitionsOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3PhotoTransitions);
 // features.v3RainGlass — drops on the glass while it rains, on the same canvas. Read per call.
 const rainOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3RainGlass);
+// features.v3JourneyGlobe — an overseas memory flies in on a globe, on the same canvas. Read per call.
+const globeOn = () => Boolean(globalThis.window?.CONFIG?.features?.v3JourneyGlobe);
+let home = null;          // { lat, lng } to whole degrees, from the server; never a literal in src/
+let homeState = "idle";   // idle | loading | ready | none
+function loadHome() {
+  if (homeState !== "idle") return;
+  homeState = "loading";
+  fetch("/api/weather/home").then((r) => r.json()).then(
+    (j) => {
+      const ok = Number.isFinite(j?.home?.lat) && Number.isFinite(j?.home?.lng);
+      home = ok ? { lat: j.home.lat, lng: j.home.lng } : null;
+      homeState = ok ? "ready" : "none";
+    },
+    () => { homeState = "none"; }
+  );
+}
 let glStage = null;       // stage3d/journey-stage.js once loaded
 let glLoad = "idle";      // idle | loading | ready | failed
 function loadGl() {
@@ -213,7 +232,8 @@ export function buildJourney(host) {
   sampleCanvas.height = 9;
   built = true;
   loadWorld();
-  if (transitionsOn() || rainOn()) loadGl();
+  if (transitionsOn() || rainOn() || globeOn()) loadGl();
+  if (globeOn()) loadHome();
   // Rain comes and goes with the weather, the depth, the night and the panel: all stamped
   // on the root. Init-once; syncRain is an early return while the flag is off.
   new MutationObserver(syncRain).observe(docRoot(), {
@@ -411,6 +431,35 @@ function runTransition(frame, out, total, look) {
   return glStage.run({ host: frame.el, before: frame.gradeEl ?? null, from, to, ms: total, look, dir });
 }
 
+/* Hand an overseas reveal to the globe (v3JourneyGlobe). Returns its length in ms, or 0 =
+   keep the flat map (no stage yet, no home, nothing on the glass to fly from, a refusal). */
+function runGlobe(frame, out, plan, mean, asset, W, H) {
+  if (!glStage?.globe || !home || !world || !out?.fit || !out.el.classList.contains("is-shown")) return 0;
+  const country = plan.country ? world.find((c) => c.name === plan.country) : null;
+  let place;
+  if (plan.point) place = { lat: 90 - plan.point.y / 10, lng: plan.point.x / 10 - 180 };
+  else if (country) place = { lat: 90 - (country.main[1] + country.main[3]) / 20, lng: (country.main[0] + country.main[2]) / 20 - 180 };
+  else return 0;
+  const beats = globeBeats(arcDeg(home, place), TIMING.mapPhotoMs);
+  const span = country ? (country.main[2] - country.main[0]) / 10 : 0;
+  const from = compose(out, W, H, scaleNow(out.img));
+  const to = compose(frame, W, H, TIMING.restScale);
+  if (!from || !to) return 0;
+  const ok = glStage.globe({
+    host: frame.el,
+    before: frame.gradeEl ?? null,
+    from, to, world, home, place,
+    litName: country?.name ?? null,
+    pin: Boolean(plan.point),
+    // No readable time: noon at the place, so the memory is simply in daylight.
+    sun: subsolar(asset?.localDateTime, place.lng) ?? { lat: place.lat, lng: place.lng },
+    sea: [mean[0] * 0.45 + 0.035, mean[1] * 0.45 + 0.033, mean[2] * 0.45 + 0.03],
+    beats,
+    near: diveDistance(span, place.lat)
+  });
+  return ok ? beats.total : 0;
+}
+
 /* Cold glass (v3ColdGlass): main.js stamps the look and its strength on the root (flag off,
    never, so the node is never made). One layer over both frames; the shades of the
    photograph on the glass are re-solved over it, since the glass lightens what the words
@@ -605,6 +654,13 @@ function begin(slot, asset, settleMs) {
     if (!glStage) loadGl();
     else if (runTransition(frame, frames[top], settleMs, transitionLook(look))) mode = "gl";
   }
+  // Abroad by day: the globe flight, or the flat map below if it cannot (fallback, any reason).
+  let globeMs = 0;
+  if (mode === "map" && globeOn()) {
+    loadHome();
+    if (!glStage) loadGl();
+    else if ((globeMs = runGlobe(frame, frames[top], plan, mean, asset, W, H))) mode = "globe";
+  }
 
   // Swap the stack: the incoming frame goes up OVER the outgoing one, which
   // stays opaque beneath it until the cleanup — fading both would dip dark.
@@ -628,6 +684,9 @@ function begin(slot, asset, settleMs) {
   if (mode === "gl") {
     // The frame is opaque at once: the shader's first frame already shows the outgoing picture.
     total = settleMs;
+  } else if (mode === "globe") {
+    total = globeMs; // same: the globe's first frame is the outgoing picture
+    rootEl.dataset.reveal = "globe";
   } else if (mode === "cut") {
     total = TIMING.cutMs;
     track(frame.el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: total, easing: EASE, fill: "backwards" }));
@@ -658,7 +717,7 @@ function begin(slot, asset, settleMs) {
     // at) and eases only once the canvas has gone, so the hand-off lands on the same pixels.
     restAnim = img.animate([{ transform: `scale(${TIMING.restScale})` }, { transform: "none" }], {
       duration: TIMING.restMs, easing: "cubic-bezier(0.2, 0.6, 0.2, 1)",
-      ...(mode === "gl" ? { delay: total, fill: "backwards" } : {})
+      ...(mode === "gl" || mode === "globe" ? { delay: total, fill: "backwards" } : {})
     });
   }
 
@@ -782,6 +841,7 @@ function probe() {
     shades: last.shades,
     grade: frames[top]?.look ?? null,
     transition: glStage ? glStage.state() : glLoad,
+    home: homeState,
     failures: last.failures,
     reason: last.reason,
     timers: {
