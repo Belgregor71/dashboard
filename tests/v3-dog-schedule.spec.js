@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import {
   easterSunday, seasonOf, seasonRate, planFor, isQuiet, chooseDogs, rollRate,
-  createDogSchedule, SEASONS, GENERIC, SEASONAL
+  createDogSchedule, SEASONS, GENERIC, SEASONAL, DOG_QUIET
 } from "../src/v3/core/dog-schedule.js";
 import { parseBirthdays } from "../server/routes/dogs.js";
 import { OCCASIONS } from "../src/v3/core/dog-occasion.js";
@@ -48,7 +48,7 @@ function simulate(iso, hours, seed = 1) {
   });
   let awake = 0;
   while (awake < hours * 60) {
-    if (!isQuiet(new Date(t))) awake += 1;
+    if (!isQuiet(new Date(t), DOG_QUIET)) awake += 1;
     s.tick();
     t += 60_000;
   }
@@ -235,15 +235,19 @@ test.describe("dog schedule", () => {
       show: (...a) => { calls.push(a); return Promise.resolve({ shown: true }); },
       isPresent: () => present, isBusy: () => busy, now: () => at(iso), random: () => 0
     });
-    expect(make("2026-09-26T22:00").tick()).toMatchObject({ fired: false, reason: "quiet" });
-    expect(make("2026-09-26T06:59").tick()).toMatchObject({ fired: false, reason: "quiet" });
+    // The dogs' quiet is the screen's off window, 21:00–05:00.
+    expect(make("2026-09-26T21:00").tick()).toMatchObject({ fired: false, reason: "quiet" });
+    expect(make("2026-09-26T04:59").tick()).toMatchObject({ fired: false, reason: "quiet" });
     expect(make("2026-09-26T12:00", { present: false }).tick()).toMatchObject({ fired: false, reason: "absent" });
     expect(make("2026-09-26T12:00", { busy: true }).tick()).toMatchObject({ fired: false, reason: "busy" });
     expect(calls).toEqual([]);
-    // Positive control, same conditions otherwise: 07:00 and 21:59 fire.
-    expect(make("2026-09-26T07:00").tick()).toMatchObject({ fired: true, occasion: "generic" });
-    expect(make("2026-09-26T21:59").tick()).toMatchObject({ fired: true, occasion: "generic" });
+    // Positive control, same conditions otherwise: 05:00 and 20:59 fire.
+    expect(make("2026-09-26T05:00").tick()).toMatchObject({ fired: true, occasion: "generic" });
+    expect(make("2026-09-26T20:59").tick()).toMatchObject({ fired: true, occasion: "generic" });
     expect(calls).toHaveLength(2);
+    // The voices sharing isQuiet keep 22:00–07:00.
+    expect(isQuiet(at("2026-09-26T06:00"))).toBe(true);
+    expect(isQuiet(at("2026-09-26T21:30"))).toBe(false);
   });
 
   test("the cap and the gap hold; a popup that never reached the glass gives its slot back", async () => {

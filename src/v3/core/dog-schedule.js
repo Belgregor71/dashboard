@@ -31,12 +31,17 @@
    takes a set). Each draws his own outfit. Christmas also has the run across
    the glass: about one Christmas popup in five, always the pair.
 
-   Quiet hours are health.js's, 22:00–07:00, and deliberately NOT V3's solar
+   Quiet hours are the screen's own off window, 21:00–05:00 (DOG_QUIET), and NOT V3's solar
    night — sunset would stop the dogs at six on a December evening, which is
    exactly when the family is home to see them.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export const QUIET = { from: 22, to: 7 };
+/* The dogs run whenever the screen is lit (owner, 2026-11-15): the display's
+   own off window, DISPLAY_OFF_START/END in server/routes/display.js. The voices
+   that import isQuiet keep QUIET.
+   shortcut: hard-coded to the 21:00–05:00 default, read the env if it ever changes. */
+export const DOG_QUIET = { from: 21, to: 5 };
 export const TICK_MS = 60_000;
 export const PAIR_SHARE = 0.5;
 
@@ -167,9 +172,9 @@ export function planFor(date, birthdays = []) {
   };
 }
 
-export function isQuiet(date) {
+export function isQuiet(date, q = QUIET) {
   const h = date.getHours();
-  return QUIET.from > QUIET.to ? h >= QUIET.from || h < QUIET.to : h >= QUIET.from && h < QUIET.to;
+  return q.from > q.to ? h >= q.from || h < q.to : h >= q.from && h < q.to;
 }
 
 /* The dice's rate, not the delivered one. The gap after each popup is dead
@@ -212,7 +217,7 @@ export function createDogSchedule({
   function decide() {
     const date = now();
     const t = date.getTime();
-    if (isQuiet(date)) return { fired: false, reason: "quiet" };
+    if (isQuiet(date, DOG_QUIET)) return { fired: false, reason: "quiet" };
     if (!isPresent()) return { fired: false, reason: "absent" };
     if (isBusy()) return { fired: false, reason: "busy" };
     const plan = planOf(date, birthdays() ?? []);
