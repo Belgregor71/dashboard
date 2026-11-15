@@ -47,6 +47,7 @@ async function boot(page, { on }) {
         `\nwindow.CONFIG.features.v3GoldenHour = false;` +
         // v3RainGlass shares the chunk and the canvas: pinned off where the transition is the subject.
         `\nwindow.CONFIG.features.v3RainGlass = false;` +
+        `\nwindow.CONFIG.features.v3JourneyGlobe = false;` +
         `\nwindow.CONFIG.features.v3PhotoTransitions = ${on};\n`
     });
   });

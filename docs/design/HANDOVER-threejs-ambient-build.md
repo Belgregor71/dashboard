@@ -310,6 +310,31 @@ day. Measure it in the Phase C canvas before promising 30 fps.
 **Order:** owner's yes/no on the stills → C built and seen → F as its own flag, own deploy,
 own owner's eye, then `/flag-flip`.
 
+**✅ BUILT 2026-11-15 (`530f8ec`), default off.** Matches the plan, with these differences:
+- Pure half in `journey-geo.js`: `lonLatVec` (three's SphereGeometry frame: a spec checks it against
+  the sphere's own vertices and uvs), `arcDeg`, `subsolar`, `globeBeats`, `diveDistance`.
+  Short cut in `subsolar`: Immich gives only `localDateTime`, so the local clock is treated as solar
+  time at the place. There is no time zone and no DST, so the terminator can be up to about 15° off.
+- Scene is `globe()` in `stage3d/journey-stage.js`, on C's canvas inside the incoming frame, under
+  the grade. The camera orbits along the slerped direction, as the stills did; the globe itself does
+  not rotate. The first 400 ms fade the outgoing picture onto the globe. The bloom is an overlay
+  quad, not C's shader: a radial mask from the pin's screen point, 260 px feather, which reaches every
+  corner exactly at the deadline. The canvas then hides over the incoming photograph, which is held at
+  the rest scale, as in C.
+- Fixes for the two still notes: the arc fades past the horizon (`dot(p, cam) = 1/D`), and the dusk
+  band is narrowed (`exp(-(16d)²)·0.22`, day `smoothstep(-0.06, 0.1)`).
+- Dive: the country about a third of the wall across, never nearer than 1.95 (the approved still)
+  and never further than 2.6.
+- Texture: 4096×2048, painted once per page in the stills' palette. It is repainted whole only
+  when the lit country changes, because overpainting gold leaves an anti-aliased rim.
+- Home: `GET /api/weather/home` → `{ home: { lat, lng } | null }`, `WEATHER_LAT/LON` rounded to
+  whole degrees. It is fetched only when the flag is on. With no home, the wall falls back to the flat map.
+- Not built: the camera lift is the stills' 0.9 on long hops only (`globeBeats().lift`), and the
+  antialias is off (C's renderer), so the limb may show stair-steps. Judge it on the wall.
+- Lever on the wall: `window.CONFIG.features.v3JourneyGlobe = true`, then an overseas asset via the
+  `~/jr-travel-*.cjs` intercept and `__groundDissolve(2600)`. Read `__journey().transition.globe`.
+- ⏳ Live gate (memory 0, GPU cost of a flight, 4096 paint time) → owner's eye → `/flag-flip v3JourneyGlobe`.
+
 ## Not in this plan
 - Album glow, depth parallax (rejected), rain outside the card, beat reaction. (Globe flight
   moved to Phase F above, 2026-11-14.)

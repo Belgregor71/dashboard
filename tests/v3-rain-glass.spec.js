@@ -41,6 +41,7 @@ async function boot(page, { on, photos = PHOTOS }) {
         `\nwindow.CONFIG.features.v3AtmoOverlay = true;` +
         `\nwindow.CONFIG.features.v3GoldenHour = false;` +
         `\nwindow.CONFIG.features.v3PhotoTransitions = false;` +
+        `\nwindow.CONFIG.features.v3JourneyGlobe = false;` +
         `\nwindow.CONFIG.features.v3RainGlass = ${on};\n`
     });
   });

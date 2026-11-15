@@ -144,7 +144,9 @@ async function boot(page, { pool, journey = true, clock = MIDDAY, thumbs = null,
         `\nwindow.CONFIG.features.groundDiptych = false;` +
         // The wash and the cut are this spec's subject; v3PhotoTransitions replaces the
         // daytime wash and has its own spec (v3-photo-transitions.spec.js).
-        `\nwindow.CONFIG.features.v3PhotoTransitions = false;\n`
+        `\nwindow.CONFIG.features.v3PhotoTransitions = false;` +
+        // The flat map is this spec's subject; v3JourneyGlobe replaces it (v3-journey-globe.spec.js).
+        `\nwindow.CONFIG.features.v3JourneyGlobe = false;\n`
     });
   });
   // Sever the process-wide voice bus (see v3-archive.spec.js for why).
