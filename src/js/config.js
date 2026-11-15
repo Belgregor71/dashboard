@@ -1410,7 +1410,10 @@ window.CONFIG = {
     // (src/v3/stage3d/journey-stage.js); home comes rounded from /api/weather/home.
     // Approved from stills on 2026-11-14. Needs v3MemoryJourney. Any failure: the flat map.
     // Off: the flat map exactly as before; neither the chunk nor /api/weather/home is fetched for it.
-    v3JourneyGlobe: false,
+    // FLIPPED ON 2026-11-15: live gate 30/30 flights done, 0 errors, CSP 0; owner saw it on the wall
+    // ("looks really good") and asked for a slower flyover (2019263), then saw that too. Suite 2764/0
+    // on, reversibility green. Rollback: -> false, then a HARD reload of the kiosk.
+    v3JourneyGlobe: true,
 
     // ── The depth census ────────────────────────────────────────────────────
     // Asked on 2026-08-23 and unanswerable: how many times has each depth been
