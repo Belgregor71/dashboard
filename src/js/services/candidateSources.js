@@ -409,6 +409,8 @@ export function plexCandidate({ plexActive, plexText, plexSub, plexImage, mediaR
  */
 export function tonightsMenuCandidate({ menuActive, menuName, now, timely, evidence } = {}) {
   if (!menuActive || !menuName) return null;
+  // Dinner is over: from 18:30 the card is gone, not a stack card all night (owner, 2026-11-16).
+  if (timely && minutesOfDay(now) >= MENU_WINDOW.toMin) return null;
   const timelyNow = Boolean(timely) && inWindow(now, MENU_WINDOW);
   return {
     id: `tonights-menu:${menuName}`,

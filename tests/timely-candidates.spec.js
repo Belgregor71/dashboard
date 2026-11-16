@@ -97,14 +97,17 @@ test("menu: in its window it scores 72 AND stops being stack-only", () => {
   expect(c.stackOnly).toBe(false);
 });
 
-test("menu: outside the window it is the quiet stack card it always was", () => {
+test("menu: before the window it is the quiet stack card it always was", () => {
   const early = tonightsMenuCandidate({ ...MENU, now: at("2026-08-11T16:59:00"), timely: true });
-  const late = tonightsMenuCandidate({ ...MENU, now: at("2026-08-11T18:30:00"), timely: true });
+  expect(early.score).toBe(40);
+  expect(early.stackOnly).toBe(true);
+});
 
-  for (const c of [early, late]) {
-    expect(c.score).toBe(40);
-    expect(c.stackOnly).toBe(true);
-  }
+test("menu: from 18:30 dinner is over and the card is gone for the night", () => {
+  const lastMinute = tonightsMenuCandidate({ ...MENU, now: at("2026-08-11T18:29:00"), timely: true });
+  expect(lastMinute.title).toBe(MENU.menuName);
+  expect(tonightsMenuCandidate({ ...MENU, now: at("2026-08-11T18:30:00"), timely: true })).toBeNull();
+  expect(tonightsMenuCandidate({ ...MENU, now: at("2026-08-11T21:15:00"), timely: true })).toBeNull();
 });
 
 test("menu: dinner happens at the weekend too", () => {
