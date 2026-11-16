@@ -289,6 +289,32 @@ test.describe("the briefing", () => {
     expect(payload.chores).toBe("Brett feeds the dogs tonight");
   });
 
+  /* 12 Nov: dinner is a timed event at 18:00 and the evening briefing is built at
+     or after 18:00, so the "still ahead" filter dropped tonight's meal and the
+     model was told about one dinner only, tomorrow's. Invented dishes. */
+  test("tonight's dinner is still told once its start time has passed", () => {
+    const ago = (ms) => new Date(Date.now() - ms);
+    const ev = (title, start, allDay = false) => ({ title, start, allDay, time: "6:00 pm" });
+    const payload = buildBriefPayload(briefCtx({
+      type: "evening",
+      calendar: {
+        // Two all-day events fill the cap of two; the meal must survive them.
+        today: [
+          ev("Public holiday", ago(64_800_000), true),
+          ev("Aunt's birthday", ago(64_800_000), true),
+          ev("Dentist", ago(3_600_000)),
+          ev("Meal: Laksa", ago(18_000)),
+        ],
+        tomorrow: [ev("Meal: Dumplings", new Date(Date.now() + 86_400_000))]
+      }
+    }));
+    expect(payload.events).toBe(
+      "Tonight: Public holiday; Aunt's birthday; Meal: Laksa at 6:00 pm. Tomorrow: Meal: Dumplings at 6:00 pm"
+    );
+    // The off direction: an ordinary event that has started is still dropped.
+    expect(payload.events).not.toContain("Dentist");
+  });
+
   test("flag off is no line at all, not an empty one", () => {
     // briefingData does not fetch /api/chores with the flag off, so ctx.chores
     // is null and buildPrompt omits the line entirely — the prompt is byte for

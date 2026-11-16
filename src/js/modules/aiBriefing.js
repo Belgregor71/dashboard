@@ -7,6 +7,7 @@
 
 import { gatherBriefingContext } from "./briefingData.js";
 import { isFuelCycleLow } from "../services/insightRules.js";
+import { MEAL_PREFIX } from "../services/mealEvent.js";
 
 // Same rolling price map the insight engine records (attentionEngine /
 // insightEngine keep it fresh); read-only here.
@@ -65,10 +66,16 @@ function fmtEvent(ev) {
 function eventsText(ctx) {
   const now = new Date();
   if (ctx.type === "evening") {
-    const tonight = ctx.calendar.today
-      .filter(ev => ev.allDay || ev.start > now)
-      .slice(0, 2)
-      .map(fmtEvent);
+    /* Dinner is typed as a timed event at 18:00 and this briefing is generated at
+       or after 18:00, so "still ahead" dropped tonight's meal every night and left
+       tomorrow's as the only dinner the model was told about (12 Nov: soup night,
+       the wall said pizza). Tonight's meal is passed whatever its start time, and
+       outside the cap of two so all-day events cannot push it out. */
+    const isMeal = ev => MEAL_PREFIX.test(ev.title);
+    const tonight = [
+      ...ctx.calendar.today.filter(ev => !isMeal(ev) && (ev.allDay || ev.start > now)).slice(0, 2),
+      ...ctx.calendar.today.filter(isMeal).slice(0, 1),
+    ].map(fmtEvent);
     const tomorrow = ctx.calendar.tomorrow.slice(0, 3).map(fmtEvent);
     const parts = [];
     if (tonight.length)  parts.push(`Tonight: ${tonight.join("; ")}`);
