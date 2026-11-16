@@ -588,6 +588,54 @@ test.describe("what can make the cast pipe up", () => {
   });
 });
 
+/* A reload used to wipe the day's tally, so the storm line came back after
+   every deploy. The tally now lives in localStorage. */
+test.describe("a reload does not repeat the day's storm", () => {
+  const AFTERNOON = new Date("2026-07-06T15:00:00");
+  const STORM = [{ id: "bom:x", text: "Severe thunderstorm warning" }];
+  const KEY = "dashboard:cast-moments-heard";
+  let store;
+
+  test.beforeAll(async () => {
+    saved.seeWindow = globalThis.window;
+    saved.seeStorage = globalThis.localStorage;
+    saved.seeDocument = globalThis.document;
+    globalThis.window = { CONFIG: { features: { v3CastVoice: true } } };
+    // presence.js reads the night flag; presence-light.js sets a style property once a moment speaks.
+    globalThis.document = { documentElement: { dataset: {}, style: { setProperty() {}, removeProperty() {} } } };
+    store = new Map();
+    globalThis.localStorage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
+    const presence = await import("../src/v3/core/presence.js");
+    presence.initPresence();
+    window.__v3Presence(true);
+  });
+  test.afterAll(() => {
+    globalThis.window = saved.seeWindow;
+    globalThis.localStorage = saved.seeStorage;
+    globalThis.document = saved.seeDocument;
+  });
+
+  test("said once, remembered, and a fresh page load stays silent", async () => {
+    const first = await import("../src/v3/core/cast-see.js?load=1");
+    first.castSee(STORM, AFTERNOON);
+    // Positive control: the storm WAS taken, so silence below is the tally's doing.
+    expect(JSON.parse(store.get(KEY))).toEqual({ day: AFTERNOON.toDateString(), heard: ["weather:storm"] });
+
+    const reloaded = await import("../src/v3/core/cast-see.js?load=2");
+    reloaded.castSee([...STORM, { id: "bin-night:2026-07-06" }], AFTERNOON);
+    // The bins moment is taken instead: the storm was skipped, not the tick.
+    expect(JSON.parse(store.get(KEY)).heard).toEqual(["weather:storm", "bins:eve"]);
+  });
+
+  test("yesterday's tally does not silence today", async () => {
+    store.set(KEY, JSON.stringify({ day: "Sun Jul 05 2026", heard: ["weather:storm"] }));
+    const fresh = await import("../src/v3/core/cast-see.js?load=3");
+    fresh.castSee(STORM, AFTERNOON);
+    expect(JSON.parse(store.get(KEY)).heard).toEqual(["weather:storm"]);
+    expect(JSON.parse(store.get(KEY)).day).toBe(AFTERNOON.toDateString());
+  });
+});
+
 test.describe("the wall's lines", () => {
   test("a line maps by exact words, and a malformed row is ignored", () => {
     expect(parseWall("Old one. => New one.\r\nno arrow here\r\n => empty\r\nOld two. => New two.")).toEqual({
