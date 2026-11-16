@@ -134,8 +134,14 @@ test("collectSources injects one clock, and a caller's own clock wins", () => {
      now, so asserting it survives a defaulted clock would be an assertion about
      what time the suite happens to run — green all morning and red every
      afternoon. That is precisely the time-of-day flake CLAUDE.md names. */
+  /* Since a24937e the menu is also gone from 18:30, so the expectation is read
+     off the real clock the defaulted path used, not assumed. */
+  const minute = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+  const before = minute();
   const bare = collectSources({ ...MENU, timely: true });
-  expect(bare.find((c) => c.source === "tonightsMenu")).toBeTruthy();
+  const after = minute();
+  test.skip(before !== after, "the call straddled a minute; the window edge cannot be judged");
+  expect(Boolean(bare.find((c) => c.source === "tonightsMenu"))).toBe(before < 18 * 60 + 30);
 });
 
 test("an unusable clock is not a window — and never fails open", () => {
