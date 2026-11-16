@@ -117,7 +117,9 @@ function commuteText(ctx) {
   if (ctx.commute.greg)  parts.push(`Greg's drive ${ctx.commute.greg.mins} min`);
   if (ctx.commute.brett) parts.push(`Brett's drive ${ctx.commute.brett.mins} min`);
   const delay = Math.max(ctx.commute.greg?.delayMin ?? 0, ctx.commute.brett?.delayMin ?? 0);
-  if (delay >= 5) parts.push(`traffic adding ~${delay} min`);
+  // The drive time already includes the delay (TomTom travelTimeInSeconds). "Traffic
+  // adding ~8 min" after "drive 34 min" was summed to 42 on 6 of 6 live runs.
+  if (delay >= 5) parts.push(`that already includes ~${delay} min of traffic`);
   return parts.length ? parts.join(", ") : null;
 }
 
