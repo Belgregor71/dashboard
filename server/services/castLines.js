@@ -97,6 +97,11 @@ export function keepClaims(text, source, options = {}) {
     .join(" ");
 }
 
+/** The truth gate for an untagged reply: untouched when `on` is false, else the
+ *  sentences that pass, or null when none do. */
+export const gateReply = (text, source, on, options) =>
+  (on && text ? keepClaims(text, source, options) || null : text);
+
 /** A whole tagged reply with its faults removed, tags intact, or null. */
 export function keepReply(text, source, options = {}) {
   const lines = splitLines(text)

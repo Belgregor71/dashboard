@@ -3,7 +3,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { loopbackOnly } from "../middleware/security.js";
 import { reportFailure, reportSuccess } from "../services/healthService.js";
 import { houseCharacter } from "../services/character.js";
-import { keepReply } from "../services/castLines.js";
+import { keepReply, gateReply } from "../services/castLines.js";
+import { logBrief } from "../services/briefLog.js";
 import { castActive, castPersona } from "./cast.js";
 
 const router = express.Router();
@@ -510,6 +511,7 @@ router.post("/api/ai/brief", loopbackOnly("The briefing endpoint"), async (req, 
       const castSystem = castBriefSystem(type);
       const raw = await generateWithClaude(type, castSystem, prompt);
       const summary = raw && keepReply(raw, prompt);
+      if (raw) logBrief({ type, source: "claude-cast", prompt, raw, summary });
       if (summary) {
         reportSuccess("ai");
         return res.json({ summary, source: "claude" });
@@ -519,20 +521,29 @@ router.post("/api/ai/brief", loopbackOnly("The briefing endpoint"), async (req, 
     }
   }
 
+  /* The truth gate (v3TruthGate, sent by the page as `gate`): every sentence is
+     checked against the prompt the model was given, as the cast's already are.
+     A briefing with nothing left is no briefing (owner, 2026-11-16) and does not
+     fall on to the next model: the wall shows nothing rather than a guess. */
+  const gate = body.gate === true;
+
+  // One exit for both models, so neither can be served unchecked or unrecorded.
+  const answer = (raw, source) => {
+    const summary = gateReply(raw, prompt, gate);
+    if (raw) logBrief({ type, source, gate, prompt, raw, summary });
+    reportSuccess("ai");
+    return res.json({ summary, source });
+  };
+
   try {
-    const summary = await generateWithClaude(type, system, prompt);
-    if (summary) {
-      reportSuccess("ai");
-      return res.json({ summary, source: "claude" });
-    }
+    const raw = await generateWithClaude(type, system, prompt);
+    if (raw) return answer(raw, "claude");
   } catch (err) {
     console.error("[AI] Claude brief error, falling back to Ollama:", err.message);
   }
 
   try {
-    const summary = await generateWithOllama(type, system, prompt);
-    reportSuccess("ai");
-    return res.json({ summary, source: "ollama" });
+    return answer(await generateWithOllama(type, system, prompt), "ollama");
   } catch (err) {
     console.error("[AI] brief error:", err.message);
     reportFailure("ai", err.message);

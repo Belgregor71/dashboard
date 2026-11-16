@@ -2,6 +2,12 @@ import { test, expect } from "@playwright/test";
 import { claimFault, keepClaims, keepReply, splitLines, stripTags } from "../server/services/castLines.js";
 import { readCastScript } from "../src/v3/core/cast.js";
 import { takeSentences } from "../server/services/voiceShape.js";
+import { prune, RETENTION_MS } from "../server/services/briefLog.js";
+import express from "express";
+import http from "node:http";
+import os from "node:os";
+import path from "node:path";
+import { readFile, rm } from "node:fs/promises";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    THE CAST'S AI LINES. Invented lines only: the persona is private.
@@ -153,5 +159,96 @@ test.describe("reading a written briefing", () => {
 
   test("nothing stays nothing", () => {
     expect(readCastScript("")).toEqual({ text: "", lines: [] });
+  });
+});
+
+/* ── The truth gate on the ordinary briefing ─────────────────────────────────
+   The real route, with a fake model behind it: no key means Claude is skipped
+   and the Ollama leg answers with whatever `said` holds. Invented lines only. */
+
+test.describe("the truth gate on the ordinary briefing (v3TruthGate)", () => {
+  const FACTS = { type: "evening", time: "Monday evening, 6:00 pm", weather: "24°, clear", events: "Tonight: Meal: Laksa at 6:00 pm" };
+  const TRUE_LINE = "Laksa at six tonight.";
+  const INVENTED = "Bins went out at 8:41.";
+  let model; let app; let said; let logFile; const saved = {};
+
+  const listen = (server) => new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const brief = async (extra = {}) => {
+    const res = await fetch(`http://127.0.0.1:${app.address().port}/api/ai/brief`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...FACTS, ...extra })
+    });
+    return { status: res.status, ...(await res.json()) };
+  };
+  const logged = async () => {
+    // logBrief is not awaited by the route, so the row may land a beat later.
+    await expect.poll(() => readFile(logFile, "utf8").catch(() => "")).not.toBe("");
+    return (await readFile(logFile, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+  };
+
+  test.beforeAll(async () => {
+    for (const key of ["ANTHROPIC_API_KEY", "OLLAMA_URL", "BRIEF_LOG_FILE"]) saved[key] = process.env[key];
+    model = http.createServer((_req, res) => {
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ response: said }));
+    });
+    await listen(model);
+    process.env.ANTHROPIC_API_KEY = "";
+    process.env.OLLAMA_URL = `http://127.0.0.1:${model.address().port}`;
+    const { default: router } = await import("../server/routes/ai.js");
+    const web = express();
+    web.use(express.json());
+    web.use(router);
+    app = http.createServer(web);
+    await listen(app);
+  });
+  test.beforeEach(async () => {
+    logFile = path.join(os.tmpdir(), `brief-log-${process.pid}-${Date.now()}.jsonl`);
+    process.env.BRIEF_LOG_FILE = logFile;
+  });
+  test.afterEach(() => rm(logFile, { force: true }));
+  test.afterAll(async () => {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+    await Promise.all([model, app].map((server) => new Promise((resolve) => server.close(resolve))));
+  });
+
+  test("flag off: the model's text is served as written", async () => {
+    said = `${TRUE_LINE} ${INVENTED}`;
+    expect(await brief()).toEqual({ status: 200, summary: said, source: "ollama" });
+  });
+
+  test("flag on: the invented time is dropped and the true sentence is kept", async () => {
+    said = `${TRUE_LINE} ${INVENTED}`;
+    expect(await brief({ gate: true })).toEqual({ status: 200, summary: TRUE_LINE, source: "ollama" });
+  });
+
+  test("flag on: a wholly true briefing is not touched", async () => {
+    said = `${TRUE_LINE} It's twenty-four and clear.`;
+    expect(await brief({ gate: true })).toEqual({ status: 200, summary: said, source: "ollama" });
+  });
+
+  test("flag on: nothing true left is no briefing, not a guess", async () => {
+    said = INVENTED;
+    expect(await brief({ gate: true })).toEqual({ status: 200, summary: null, source: "ollama" });
+  });
+
+  test("what it was told, what it said and what was let through are on the record", async () => {
+    said = `${TRUE_LINE} ${INVENTED}`;
+    await brief({ gate: true });
+    const rows = await logged();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ type: "evening", source: "ollama", gate: true, raw: said, summary: TRUE_LINE });
+    expect(rows[0].prompt).toContain("Calendar: Tonight: Meal: Laksa at 6:00 pm");
+    expect(typeof rows[0].at).toBe("number");
+  });
+
+  test("the record forgets after thirty days and survives a torn line", () => {
+    const now = 1_800_000_000_000;
+    const row = (at) => JSON.stringify({ at, raw: "x" });
+    const text = [row(now - RETENTION_MS - 1), "{torn", row(now - 1000), ""].join("\n");
+    expect(prune(text, now)).toEqual([row(now - 1000)]);
   });
 });

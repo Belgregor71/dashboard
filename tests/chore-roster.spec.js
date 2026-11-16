@@ -315,6 +315,18 @@ test.describe("the briefing", () => {
     expect(payload.events).not.toContain("Dentist");
   });
 
+  test("the truth gate is asked for only with v3TruthGate on", () => {
+    const had = globalThis.window;
+    try {
+      globalThis.window = { CONFIG: { features: { v3TruthGate: true } } };
+      expect(buildBriefPayload(briefCtx()).gate).toBe(true);
+      globalThis.window = { CONFIG: { features: { v3TruthGate: false } } };
+      expect(buildBriefPayload(briefCtx())).not.toHaveProperty("gate");
+    } finally {
+      if (had === undefined) delete globalThis.window; else globalThis.window = had;
+    }
+  });
+
   test("flag off is no line at all, not an empty one", () => {
     // briefingData does not fetch /api/chores with the flag off, so ctx.chores
     // is null and buildPrompt omits the line entirely — the prompt is byte for

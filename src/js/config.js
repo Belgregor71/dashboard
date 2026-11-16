@@ -2074,6 +2074,14 @@ window.CONFIG = {
     // Rollback: -> false, with a cache-bypass reload for the build.
     v3ParcelVoice: true,
 
+    // The truth gate on the ordinary briefing: the page sends `gate` with
+    // /api/ai/brief and the server drops any sentence holding a number, day,
+    // invented past or claimed action the prompt never gave it (the check the
+    // cast's lines already pass through). All dropped = no briefing. Off: the
+    // model's text is served as written. docs/design/HANDOVER-truth-gate.md.
+    // Rollback: -> false, with a cache-bypass reload for the build.
+    v3TruthGate: false,
+
     // Overlay priority (src/v3/core/overlay-priority.js; visual audit 2026-11-12,
     // phase 3). On: a subject reaching depth 3 takes the dogs off the glass, and
     // the door puts away a finished turn's lingering transcript. The door taking

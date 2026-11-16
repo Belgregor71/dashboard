@@ -70,6 +70,10 @@ data/occupancy-days.json
 # Describes people around the house; owner's ruling 2026-10-22: on disk, 7 days, untracked.
 data/camera-captions.jsonl
 data/camera-captions.jsonl.tmp
+# What each briefing was told and what it said (services/briefLog.js). Names the
+# family and their plans; owner's ruling 2026-11-16: on the box, 30 days, untracked.
+data/brief-log.jsonl
+data/brief-log.jsonl.tmp
 # A floor plan with camera coverage on it, and this repo is public.
 data/house-plan/
 data/cast/

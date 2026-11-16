@@ -193,6 +193,7 @@ export function buildBriefPayload(ctx) {
     news:    ctx.news.length ? ctx.news.join(" | ") : null,
     home:    homeText(ctx),
     ...(globalThis.window?.CONFIG?.features?.v3CastVoice ? { cast: true } : {}),
+    ...(globalThis.window?.CONFIG?.features?.v3TruthGate ? { gate: true } : {}),
   };
 }
 
