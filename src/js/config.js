@@ -2079,8 +2079,13 @@ window.CONFIG = {
     // invented past or claimed action the prompt never gave it (the check the
     // cast's lines already pass through). All dropped = no briefing. Off: the
     // model's text is served as written. docs/design/HANDOVER-truth-gate.md.
+    // Deployed OFF e7797db. Seen flag-on against the live G11 server 11-16
+    // (loopback POST, invented facts): 6 of 6 replies lost an invented "42
+    // minutes" sentence and nothing else. Eval on the box, 46 briefings: 4 drops,
+    // all invented, 0 briefings blanked. FLIPPED ON 2026-11-16.
+    // ⚠ It does not catch today's figures said about tomorrow (see the memory entry).
     // Rollback: -> false, with a cache-bypass reload for the build.
-    v3TruthGate: false,
+    v3TruthGate: true,
 
     // Overlay priority (src/v3/core/overlay-priority.js; visual audit 2026-11-12,
     // phase 3). On: a subject reaching depth 3 takes the dogs off the glass, and
