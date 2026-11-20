@@ -42,12 +42,15 @@ export function recapAway({ entityId, since }) {
         icon: "👀",
         text: recap.text,
         sub: recap.sub ?? undefined,
+        // The camera's own words, on their own line under the tally (spread.js
+        // and attention.js render it; no other candidate carries one).
+        quote: recap.quote ?? undefined,
         score: RECAP_SCORE,
         interrupt: false,
         expiresAt: now + RECAP_LIFE_MS,
         cooldownMs: 0
       });
-      last = { text: recap.text, sub: recap.sub, events: recap.events, since, at: new Date(now).toISOString() };
+      last = { text: recap.text, sub: recap.sub, quote: recap.quote, events: recap.events, since, at: new Date(now).toISOString() };
       return recap;
     }, () => {
       last = { skipped: "fetch failed", since };

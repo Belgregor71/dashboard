@@ -64,7 +64,7 @@ function quoteOf(caption) {
  * @param {object[]} rows  caption rows { at, camera, burst, caption }
  * @param {{ since: number, until: number, laneSince: number|null }} window
  *        laneSince: when the caption lane started this process, null if off.
- * @returns {{ text: string, sub: string|null, events: number, last: number|null }|null}
+ * @returns {{ text: string, sub: string|null, quote: string|null, events: number, last: number|null }|null}
  *          null = nothing honest to say.
  */
 export function recap(rows, { since, until, laneSince }) {
@@ -89,7 +89,7 @@ export function recap(rows, { since, until, laneSince }) {
 
   if (bursts.size === 0) {
     const watched = Number.isFinite(laneSince) && laneSince <= since;
-    return watched ? { text: "All quiet while you were out.", sub: null, events: 0, last: null } : null;
+    return watched ? { text: "All quiet while you were out.", sub: null, quote: null, events: 0, last: null } : null;
   }
 
   const count = (kind) => {
@@ -108,13 +108,14 @@ export function recap(rows, { since, until, laneSince }) {
   const shown = clauses.slice(0, MAX_CLAUSES);
   const list = shown.length === 1 ? shown[0] : `${shown.slice(0, -1).join(", ")} and ${shown.at(-1)}`;
 
-  // The quote: the front door's latest, else the latest anywhere.
+  // The quote: the front door's latest, else the latest anywhere. The label says
+  // whose words they are (owner, 2026-11-20: the quote gets its own line).
   const pick = [...people].sort((a, b) => (a.camera === "doorbell") - (b.camera === "doorbell") || a.at - b.at).at(-1);
-  const sub = pick ? `${PLACES[pick.camera].label}, ${clockOf(pick.at)} — “${quoteOf(pick.caption)}”` : null;
 
   return {
     text: `While you were out: ${list}.`,
-    sub,
+    sub: pick ? `${PLACES[pick.camera].label}, ${clockOf(pick.at)}` : null,
+    quote: pick ? quoteOf(pick.caption) : null,
     events: bursts.size,
     last: Math.max(...[...bursts.values()].map((b) => b.at))
   };

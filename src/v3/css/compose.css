@@ -216,6 +216,21 @@ body[data-holiday] .photo::after {
    always had. */
 .cell:has(.cell__label) { gap: 10px; }
 
+/* The away recap's quoted caption (core/away-recap.js), under its tally: the
+   camera's own words, set apart from the house's line by italic and a dimmer
+   ink. On the --t-rail floor, never below it; two lines at most, because the
+   server already cut it on a word at ~90 characters. */
+.cell__quote {
+  font-size: var(--t-rail);
+  font-style: italic;
+  font-weight: 400;   /* 300 italic was too thin to read at 3 m (stills, 11-20) */
+  color: var(--ink-dim);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 /* ⚠ THE GLANCE CELL'S LABEL IS ITS SECOND CHILD. index.html has carried
    `#glance-said` then `#glance-measured` since V3 shipped, and the eyebrow has
    to sit ABOVE the line. Scoped to [data-labelled] rather than applied

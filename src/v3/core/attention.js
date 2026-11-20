@@ -84,7 +84,7 @@ import { dioramaSee } from "./diorama.js";
 import { castSee } from "./cast-see.js";
 import { wallLine } from "./cast.js";
 import { initPresence, onPresence, isPresent, isDwelling } from "./presence.js";
-import { renderSpread, spreadMounted, setSaidText, contextEnabled } from "./spread.js";
+import { renderSpread, spreadMounted, setSaidText, contextEnabled, quoteNode } from "./spread.js";
 import { logGlance } from "./presentation-log.js";
 
 /* The incumbent's focusHero tick, matched exactly. Not a number worth choosing
@@ -196,6 +196,15 @@ function renderGlance(hero) {
      shift the flag-off wall by 16px. The attribute is what keeps flag-off
      identical rather than merely blank. */
   setLabel(el.cell, el.measured, contextEnabled() ? hero.sub : null);
+  setQuote(hero.quote);
+}
+
+/* The away recap's quoted caption. Made and removed here rather than kept in
+   index.html, so a wall with no quote has exactly the DOM it always had. */
+function setQuote(text) {
+  el.cell.querySelector(".cell__quote")?.remove();
+  const node = quoteNode(text);
+  if (node) el.cell.appendChild(node);
 }
 
 /** Write (or strip) a cell's eyebrow. Shared by the glance and its teardown so
@@ -212,6 +221,7 @@ function clearGlance() {
   if (!el.cell) return;
   setSaidText(el.said, "");
   setLabel(el.cell, el.measured, null);
+  setQuote(null);
   logGlance(null);   // HOUSE-MIND S6a; a no-op with v3PresentationLog off
 }
 

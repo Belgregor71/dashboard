@@ -245,6 +245,16 @@ export function artNode(candidate) {
   return wrap;
 }
 
+/** A quoted line (a camera's own words), or null. Shared with the glance. */
+export function quoteNode(text) {
+  const quote = typeof text === "string" ? text.trim() : "";
+  if (!quote) return null;
+  const node = document.createElement("p");
+  node.className = "cell__quote measured";
+  node.textContent = `“${quote}”`;   // textContent: a language model wrote it
+  return node;
+}
+
 /** The eyebrow node for a cell, or null when there is nothing to label with. */
 export function labelNode(text) {
   const label = typeof text === "string" ? text.trim() : "";
@@ -263,7 +273,7 @@ export function labelNode(text) {
    and changed nothing". */
 function signatureOf(composition) {
   const cells = composition.cells.map(
-    (c) => `${c.id}~${contextEnabled() ? (c.label ?? "") : ""}~${artEnabled() ? (c.candidate?.image ?? "") : ""}`
+    (c) => `${c.id}~${contextEnabled() ? (c.label ?? "") : ""}~${artEnabled() ? (c.candidate?.image ?? "") : ""}~${c.candidate?.quote ?? ""}`
   );
   return `${composition.template}|${cells.join("|")}`;
 }
@@ -331,6 +341,11 @@ export function renderSpread(selection) {
     }
 
     node.appendChild(line);
+
+    // The away recap's quoted caption, under its tally (away-recap.js). Only
+    // that candidate carries `quote`, so every other cell is untouched.
+    const quote = quoteNode(cell.candidate?.quote);
+    if (quote) node.appendChild(quote);
 
     /* The clock, at the depth that earns it. Depth 0 shows no numbers at all —
        the ring and the rule carry the proportion there — so this is the first

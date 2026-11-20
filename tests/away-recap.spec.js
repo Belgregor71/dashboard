@@ -25,7 +25,8 @@ test.describe("away recap — the summariser", () => {
       row("doorbell", 90, "A man rings the doorbell.")
     ], LANE_ON);
     expect(r.text).toBe("While you were out: someone at the front door twice, someone on the patio and a car in the driveway.");
-    expect(r.sub).toMatch(/^Front door, \d{1,2}:\d{2} [ap]m — “A man rings the doorbell\.”$/);
+    expect(r.sub).toMatch(/^Front door, \d{1,2}:\d{2} [ap]m$/);
+    expect(r.quote).toBe("A man rings the doorbell.");
     expect(r.events).toBe(4);
     expect(r.last).toBe(at(90));
   });
@@ -57,11 +58,11 @@ test.describe("away recap — the summariser", () => {
       row("tilt_pan", 12, "A person in the hall.")
     ], LANE_ON);
     expect(r.text).toBe("While you were out: someone at the front door.");
-    expect(r.sub).toContain("“A person waves at the door.”");
+    expect(r.quote).toBe("A person waves at the door.");
   });
 
   test("nothing seen: 'All quiet' only when the lane watched the whole absence", () => {
-    expect(recap([row("driveway", 10, "Nothing.")], LANE_ON)).toEqual({ text: "All quiet while you were out.", sub: null, events: 0, last: null });
+    expect(recap([row("driveway", 10, "Nothing.")], LANE_ON)).toEqual({ text: "All quiet while you were out.", sub: null, quote: null, events: 0, last: null });
     expect(recap([], { ...LANE_ON, laneSince: null })).toBeNull();
     expect(recap([], { ...LANE_ON, laneSince: SINCE + MIN })).toBeNull();
   });
@@ -70,6 +71,7 @@ test.describe("away recap — the summariser", () => {
     const r = recap([row("driveway", 10, "A truck reverses up the driveway.")], LANE_ON);
     expect(r.text).toBe("While you were out: a car in the driveway.");
     expect(r.sub).toBeNull();
+    expect(r.quote).toBeNull();
   });
 
   test("at most three places, and a long caption is cut on a word", () => {
@@ -79,7 +81,7 @@ test.describe("away recap — the summariser", () => {
       row("patio", 3, "A man on the patio."), row("backyard", 4, long)
     ], LANE_ON);
     expect(r.text).toBe("While you were out: someone at the front door, someone in the front yard and someone on the patio.");
-    const quoted = recap([row("backyard", 4, long)], LANE_ON).sub.match(/“(.*)”/)[1];
+    const quoted = recap([row("backyard", 4, long)], LANE_ON).quote;
     expect(quoted.endsWith("…")).toBe(true);
     expect(quoted.length).toBeLessThanOrEqual(QUOTE_MAX + 1);
   });
@@ -105,7 +107,7 @@ test.describe("away recap — the route", () => {
 // Monday midday: the awake view, inside no briefing window.
 const MIDDAY = new Date("2026-07-06T12:00:00");
 const HOUR = 60 * 60 * 1000;
-const RECAP = { text: "While you were out: someone at the front door.", sub: "Front door, 11:02 am — “A spec at the door.”", events: 1, last: 0 };
+const RECAP = { text: "While you were out: someone at the front door.", sub: "Front door, 11:02 am", quote: "A spec at the door.", events: 1, last: 0 };
 
 async function boot(page, on, answer = RECAP) {
   await page.clock.install({ time: MIDDAY });
@@ -148,6 +150,35 @@ test.describe("away recap — on the page", () => {
     expect(cand).not.toBeNull();
     expect(cand.source).toBe("awayRecap");
     expect(cand.score).toBeLessThan(92);   // under the greeting, which holds the glance first
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("ON: after the greeting the glance shows the tally, the label and the quote on its own line — and drops the quote when the recap goes", async ({ page }) => {
+    const { pageErrors } = await boot(page, true);
+    await arrive(page);
+    await expect.poll(() => page.evaluate(() => window.__v3AwayRecap()?.text ?? null)).toBe(RECAP.text);
+    // The greeting (92) holds the glance first; its life is 3 minutes.
+    await page.clock.fastForward(4 * 60 * 1000);
+    const glance = () => page.evaluate(() => {
+      window.__v3Presence(true);
+      window.__v3Tick();
+      const cell = document.getElementById("glance-cell");
+      return {
+        hero: window.__v3().attention?.hero?.id ?? null,
+        said: document.getElementById("glance-said")?.textContent ?? null,
+        label: document.getElementById("glance-measured")?.textContent ?? null,
+        quotes: [...cell.querySelectorAll(".cell__quote")].map((n) => n.textContent)
+      };
+    });
+    await expect.poll(async () => (await glance()).hero).toBe("awayRecap");
+    const shown = await glance();
+    expect(shown.said).toBe(RECAP.text);
+    expect(shown.label).toBe(RECAP.sub);
+    expect(shown.quotes).toEqual(["“A spec at the door.”"]);   // exactly one, with its words
+    // Past the recap's 10-minute life: the quote leaves with it.
+    await page.clock.fastForward(11 * 60 * 1000);
+    await expect.poll(async () => (await glance()).hero).not.toBe("awayRecap");
+    expect((await glance()).quotes).toEqual([]);
     expect(pageErrors).toEqual([]);
   });
 
