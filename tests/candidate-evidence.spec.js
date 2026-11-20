@@ -66,6 +66,7 @@ const PRODUCERS = {
   "src/js/services/memoryEngine.js": 1,
   "src/js/core/personality.js": 1,
   "src/v3/core/arrival.js": 1,
+  "src/v3/core/away-recap.js": 1,
   "src/v3/core/resolutions.js": 1
 };
 

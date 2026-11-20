@@ -1865,6 +1865,16 @@ window.CONFIG = {
     // case was not driven live (it speaks aloud); it is the spec's.
     v3ArrivalYieldsToCamera: true,
 
+    // "While you were out" (src/v3/core/away-recap.js + server/services/
+    // awayRecap.js; field-scan #3 Phase 2, owner's option 2 on 2026-11-20).
+    // On: the first person back to an empty house gets one glass line from the
+    // camera captions — a tally by camera ("someone at the front door twice")
+    // plus one quoted caption under it — or "All quiet while you were out."
+    // when the caption lane watched the whole absence. Never spoken. Needs
+    // CAMERA_CAPTIONS=1 on the server; without it the route says nothing.
+    // Rollback: v3AwayRecap: false — read per arrival, no reload.
+    v3AwayRecap: false,
+
     // ── HOUSE-MIND S6a (docs/design/HOUSE-MIND.md §S6): the wall's log. One
     // row per presentation (glance / spread / stage / voice): id, source,
     // evidence key, arbiter decision, start, end. NO presence, person or home

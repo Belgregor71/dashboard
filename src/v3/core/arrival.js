@@ -37,6 +37,7 @@ import { speak } from "../../js/core/tts.js";
 import { setPhase, trackSpeech } from "./presence-light.js";
 import { announce } from "./attention.js";
 import { record } from "./feature-census.js";
+import { recapAway, lastRecap } from "./away-recap.js";
 
 /* Below this, they never really left — see the header. Ten minutes is the
    incumbent's own re-greet cooldown, reused rather than chosen so both surfaces
@@ -109,6 +110,9 @@ function onStateUpdated(entity) {
   if (previous === undefined || previous === "home") return;
 
   const awayAt = awaySince.get(entityId);
+  /* When the house became empty: the LAST departure among everyone still out
+     plus this person. Read before the delete. Used only by the away recap. */
+  const emptySince = awayAt != null ? Math.max(awayAt, ...awaySince.values()) : NaN;
   awaySince.delete(entityId);
 
   /* The guard. An unknown away time is treated as long enough — the alternative
@@ -120,7 +124,11 @@ function onStateUpdated(entity) {
   }
 
   const name = firstName(entity);
-  const text = greeting(name, othersHome(entityId));
+  const others = othersHome(entityId);
+  const text = greeting(name, others);
+
+  // Only the first one back to an empty house gets "While you were out".
+  if (others.length === 0) recapAway({ entityId, since: emptySince });
 
   /* Tell the personality runtime how long they were out, so a ≥2-day absence can
      fire the budgeted home-after-away delight. Only the incumbent's
@@ -197,6 +205,7 @@ export function initArrival() {
      hook that skipped that would be testing a path the house does not have. */
   window.__v3Arrival = (entityId = "person.greg", state = "home") =>
     (onStateUpdated({ entity_id: entityId, state, attributes: {} }), last);
+  window.__v3AwayRecap = lastRecap;
 
   return unsubscribe;
 }

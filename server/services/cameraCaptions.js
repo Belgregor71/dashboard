@@ -362,6 +362,10 @@ export function createCaptionLane({
 // --- wiring ------------------------------------------------------------------
 
 let lane = null;
+let laneStartedAt = null;
+
+/** When this process started watching, or null if the lane is off. */
+export const laneSince = () => (enabled() ? laneStartedAt : null);
 
 export function captionStatus() {
   return {
@@ -377,6 +381,8 @@ export function captionStatus() {
  */
 export function startCameraCaptions({ manager, cameraIds, fetchImage, timing = {} }) {
   if (!manager || lane) return;
+  // The away recap may say "All quiet" only for a window the lane watched whole.
+  if (enabled()) laneStartedAt = Date.now();
   lane = createCaptionLane({
     ...timing,
     cameraIds: new Set(cameraIds),

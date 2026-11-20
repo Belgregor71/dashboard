@@ -7,7 +7,8 @@ import { normalizeBaseUrl } from "../config.js";
 import { haPost } from "../ha/haRest.js";
 import { fetchWithTimeout } from "../utils/fetch.js";
 import { reportFailure, reportSuccess } from "../services/healthService.js";
-import { readCaptions, captionStatus } from "../services/cameraCaptions.js";
+import { readCaptions, captionStatus, laneSince, MAX_ROWS } from "../services/cameraCaptions.js";
+import { recap } from "../services/awayRecap.js";
 import { loopbackOnly } from "../middleware/security.js";
 
 const router = express.Router();
@@ -331,6 +332,25 @@ router.get("/api/camera-captions", loopbackOnly("Camera captions"), async (req, 
     const rows = await readCaptions({ since, limit });
     res.set("Cache-Control", "no-store");
     res.json({ status: captionStatus(), rows });
+  } catch (err) {
+    res.status(500).json({ error: String(err?.message || err) });
+  }
+});
+
+/* "While you were out" (services/awayRecap.js): the captions for the window the
+   house was empty, as one line + one quote. 200 { recap: null } = nothing
+   honest to say; the page shows no card. Kiosk-only, like the rows. */
+router.get("/api/camera-captions/recap", loopbackOnly("Camera captions"), async (req, res) => {
+  const since = Number(req.query.since);
+  const until = Number(req.query.until) || Date.now();
+  if (!Number.isFinite(since) || since <= 0 || until <= since) {
+    res.status(400).json({ error: "since (ms) is required and must be before until" });
+    return;
+  }
+  try {
+    const rows = await readCaptions({ since, limit: MAX_ROWS });
+    res.set("Cache-Control", "no-store");
+    res.json({ recap: recap(rows, { since, until, laneSince: laneSince() }) });
   } catch (err) {
     res.status(500).json({ error: String(err?.message || err) });
   }
