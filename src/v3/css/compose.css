@@ -69,10 +69,12 @@ html, body {
    already drawing beneath the photograph there. Dimmed to near-black the photo
    was a muddy ground with faces still recognisable under the rows. Opacity on
    the CONTAINER, never display or visibility on the <img>: core/scrim.js and
-   core/ground.js still read the node. Depth 1 keeps its photograph. */
+   core/ground.js still read the node. Depth 1 keeps its photograph.
+   2026-11-20, owner: hidden outright the cards read as sitting on a black
+   screen, so the photograph stays, DIMMED, with the field glowing through. */
 .photo { transition: opacity var(--m-calm) var(--ease); }
 :root[data-subject-field="1"][data-depth="2"] .photo,
-:root[data-subject-field="1"][data-depth="3"] .photo { opacity: 0; }
+:root[data-subject-field="1"][data-depth="3"] .photo { opacity: 0.45; }
 
 /* …and the spread's wrapped-line veil (below, ~L838) is solved for the FIELD,
    not the photograph. It uses --scrim-opacity, which core/scrim.js solves

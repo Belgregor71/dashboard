@@ -39,7 +39,8 @@ for (const on of [true, false]) {
     const pageErrors = await boot(page, on);
     expect(await page.evaluate(() => document.documentElement.dataset.subjectField ?? null)).toBe(on ? "1" : null);
     expect(await page.locator(".photo").count()).toBe(1);
-    for (const [depth, want] of [[1, "1"], [2, on ? "0" : "1"], [3, on ? "0" : "1"], [0, "1"]]) {
+    // Dimmed, never hidden: at 0 the cards sat on a black screen (owner, 2026-11-20).
+    for (const [depth, want] of [[1, "1"], [2, on ? "0.45" : "1"], [3, on ? "0.45" : "1"], [0, "1"]]) {
       await page.evaluate((d) => window.__setDepth(d, "spec"), depth);
       expect(await page.evaluate(() => window.__depth().depth)).toBe(depth);
       /* ⚠ Wait OUT the fade (--m-calm, 350 ms) and then read once. A poll for
