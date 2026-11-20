@@ -1872,8 +1872,12 @@ window.CONFIG = {
     // plus one quoted caption under it — or "All quiet while you were out."
     // when the caption lane watched the whole absence. Never spoken. Needs
     // CAMERA_CAPTIONS=1 on the server; without it the route says nothing.
+    // Deployed OFF fa0e994. Seen on the live wall 2026-11-20 12:39: the box's
+    // real recap (3 places + "A man is standing outside a house.") forced in by
+    // CDP, read cleanly over the photo, cleared with the glance's own hold.
+    // FLIPPED ON 2026-11-20 (owner: /flag-flip).
     // Rollback: v3AwayRecap: false — read per arrival, no reload.
-    v3AwayRecap: false,
+    v3AwayRecap: true,
 
     // ── HOUSE-MIND S6a (docs/design/HOUSE-MIND.md §S6): the wall's log. One
     // row per presentation (glance / spread / stage / voice): id, source,
