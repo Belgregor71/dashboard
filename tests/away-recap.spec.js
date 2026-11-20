@@ -182,6 +182,24 @@ test.describe("away recap — on the page", () => {
     expect(pageErrors).toEqual([]);
   });
 
+  test("ON: the spread carries the quote, and an unchanged tick does not repaint it (the calm law)", async ({ page }) => {
+    const { pageErrors } = await boot(page, true);
+    await arrive(page);
+    await expect.poll(() => page.evaluate(() => window.__v3AwayRecap()?.text ?? null)).toBe(RECAP.text);
+    await page.evaluate(() => { window.__v3Presence("dwell"); window.__v3Tick(); });
+    const quote = page.locator("#spread-lattice .cell__quote");
+    await expect(quote).toHaveText("“A spec at the door.”");   // the node is there before we time it
+    const survived = await page.evaluate(() => {
+      const before = [...document.getElementById("spread-lattice").children];
+      before.forEach((n) => { n.dataset.probe = "1"; });
+      window.__v3Tick();
+      return before.map((n) => n.isConnected && n.dataset.probe === "1");
+    });
+    expect(survived.length).toBeGreaterThan(0);
+    expect(survived.every(Boolean)).toBe(true);
+    expect(pageErrors).toEqual([]);
+  });
+
   test("ON: someone already in — no recap is asked for", async ({ page }) => {
     const { pageErrors, asked } = await boot(page, true);
     await arrive(page, ["person.other"]);

@@ -284,7 +284,9 @@ function mountedSignature(host) {
   const template = host.dataset.template;
   if (!template) return null;
   const cells = Array.from(host.children).map(
-    (n) => `${n.dataset.cellId ?? ""}~${n.dataset.cellLabel ?? ""}~${n.dataset.cellArt ?? ""}`
+    // ⚠ The same fields, in the same order, as signatureOf() — a field on one
+    // side only makes every tick a repaint (the quote did, 2026-11-20).
+    (n) => `${n.dataset.cellId ?? ""}~${n.dataset.cellLabel ?? ""}~${n.dataset.cellArt ?? ""}~${n.dataset.cellQuote ?? ""}`
   );
   return `${template}|${cells.join("|")}`;
 }
@@ -346,6 +348,8 @@ export function renderSpread(selection) {
     // that candidate carries `quote`, so every other cell is untouched.
     const quote = quoteNode(cell.candidate?.quote);
     if (quote) node.appendChild(quote);
+    // Recorded as the candidate carries it, so signatureOf() always matches.
+    if (cell.candidate?.quote) node.dataset.cellQuote = cell.candidate.quote;
 
     /* The clock, at the depth that earns it. Depth 0 shows no numbers at all —
        the ring and the rule carry the proportion there — so this is the first
