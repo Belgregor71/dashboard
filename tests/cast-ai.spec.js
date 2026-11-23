@@ -85,6 +85,17 @@ test.describe("the fact check", () => {
     expect(claimFault("It's only half seven.", fuel)).toBeNull();
   });
 
+  /* Live 2026-11-23 18:00: "one-eighty-three" was read as a bare 83, which has a
+     digit on its left in 183.5, so a true fuel line was dropped twice that day. */
+  test("a price spoken with its hundreds run in is read whole", () => {
+    const fuel = "Fuel: cheapest unleaded 183.5c/L at United Virginia. Time: 2:30 pm.";
+    expect(claimFault("Fuel's down to one-eighty-three-point-five at United Virginia.", fuel)).toBeNull();
+    expect(claimFault("It's two thirty.", fuel)).toBeNull();
+    expect(claimFault("Fuel's one-ninety-three-point-five.", fuel)).toBe("number 93");
+    expect(claimFault("Fuel's seven-eighty-three.", fuel)).toBe("number 83");
+    expect(claimFault("Fuel's seven-eighty-three.", "Fuel: 83c off.")).toBe("number 7");
+  });
+
   test("ordinary speech is not mistaken for a figure", () => {
     expect(claimFault("I've got one word to say to you.", SOURCE)).toBeNull();
     expect(claimFault("You two are a disgrace.", SOURCE)).toBeNull();
