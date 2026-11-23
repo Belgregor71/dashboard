@@ -443,6 +443,11 @@ def drain(proc):
         if not chunk:
             break
         dropped += len(chunk)
+    # A read can end mid-sample, and one byte out of step turns every later int16
+    # into full-scale noise (-4.6 dBFS): the "pinned" mic of 08-30, 09-04, 09-16.
+    # Blocking is fine: arecord writes 32 kB/s, and a dead one gives EOF here too.
+    if dropped % 2 and os.read(fd, 1):
+        dropped += 1
     return dropped / 2 / RATE
 
 

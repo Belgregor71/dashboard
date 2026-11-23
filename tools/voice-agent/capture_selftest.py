@@ -539,6 +539,32 @@ def _():
     assert worst > 60, f"the fixture never stressed the detector (worst {worst:.0f}s)"
 
 
+@case("⚠⚠⚠ 2026-09-04/16 — a drain that ends mid-sample must not leave the stream a byte out of step")
+def _():
+    # Both live "pinned" mics began on the rearm right after an arecord overrun,
+    # and the 08-30 one sat at -4.6 dBFS: int16 read one byte out of step is
+    # uniform noise, rms 32768/sqrt(3) = -4.8 dBFS. A real pipe, because the bug
+    # is in how many bytes os.read() happens to return.
+    if os.name == "nt":
+        print("  skip (select() on a pipe needs POSIX; run on the box)")
+        return
+    import threading
+    va = load()
+    quiet = np.random.default_rng(7).integers(-400, 400, va.FRAME * 8, dtype=np.int16).tobytes()
+    # odd: the pipe holds half a sample; even: a realignment must not invent one
+    for cut in (va.FRAME * 2 * 3 + 1, va.FRAME * 2 * 3):
+        r, w = os.pipe()
+        proc = types.SimpleNamespace(stdout=os.fdopen(r, "rb", buffering=0))
+        os.write(w, quiet[:cut])
+        # arecord keeps writing while we drain, as it does in the room
+        threading.Timer(0.1, lambda: os.write(w, quiet[cut:])).start()
+        va.drain(proc)
+        frame = va.read_frame(proc)
+        os.close(w)
+        assert frame is not None, f"no frame after a {cut}-byte drain"
+        assert va.rms(frame) < 1000, f"out of step after a {cut}-byte drain: rms {va.rms(frame):.0f}"
+
+
 if __name__ == "__main__":
     bad = 0
     for name, fn in CASES:
