@@ -480,7 +480,7 @@ router.post("/api/ai/brief", loopbackOnly("The briefing endpoint"), async (req, 
     try {
       const castSystem = castBriefSystem(type);
       const raw = await generateWithClaude(type, castSystem, prompt);
-      const summary = raw && keepReply(raw, prompt);
+      const summary = raw && keepReply(raw, prompt, { briefing: true });
       if (raw) logBrief({ type, source: "claude-cast", prompt, raw, summary });
       if (summary) {
         reportSuccess("ai");
@@ -501,7 +501,7 @@ router.post("/api/ai/brief", loopbackOnly("The briefing endpoint"), async (req, 
   try {
     const raw = await generateWithClaude(type, system, prompt);
     if (raw) {
-      const summary = gateReply(raw, prompt, gate);
+      const summary = gateReply(raw, prompt, gate, { briefing: true });
       logBrief({ type, source: "claude", gate, prompt, raw, summary });
       reportSuccess("ai");
       return res.json({ summary, source: "claude" });

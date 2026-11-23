@@ -85,6 +85,24 @@ test.describe("the fact check", () => {
     expect(claimFault("It's only half seven.", fuel)).toBeNull();
   });
 
+  /* Live eval 2026-11-23: today's top (26) said about tomorrow (27). The number
+     is in the prompt, so only a clause-level check can tell. */
+  test("a number said about tomorrow must be tomorrow's", () => {
+    const evening = [
+      "Weather: 23°, Clear. 19° to 26°. feels like 24°. Tomorrow: 19° to 27°, Cloudy, 9% rain chance",
+      "Calendar: Tomorrow: Dreamworld/Wetwild at 10:00 am"
+    ].join("\n");
+    const brief = { briefing: true };
+    expect(claimFault("Twenty-three degrees tonight, gorgeous, twenty-six tomorrow, clear as anything.", evening, brief))
+      .toBe("number 26 for tomorrow");
+    // Today's number in its own clause stands; so does tomorrow's in its own.
+    expect(claimFault("Twenty-three degrees tonight, and tomorrow gets up to twenty-seven.", evening, brief)).toBeNull();
+    expect(claimFault("Tomorrow's Dreamworld at 10, it'll be lovely, 19 to 27.", evening, brief)).toBeNull();
+    expect(claimFault("Tomorrow's Dreamworld at ten.", evening, brief)).toBeNull();
+    // Off by default: the voice route's facts carry no "Tomorrow:" label.
+    expect(claimFault("Twenty-six tomorrow.", evening)).toBeNull();
+  });
+
   /* Live 2026-11-23 18:00: "one-eighty-three" was read as a bare 83, which has a
      digit on its left in 183.5, so a true fuel line was dropped twice that day. */
   test("a price spoken with its hundreds run in is read whole", () => {

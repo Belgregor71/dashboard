@@ -72,17 +72,39 @@ const sentencesOf = (text) => spoken(text).match(/.+?[.!?]+["')]*(?=\s|$)/g)?.ma
 /** The most an unprompted or spoken reply may run to, in sentences. */
 export const MAX_REPLY_SENTENCES = 4;
 
-/** Why this sentence must not be spoken, or null. */
-export function claimFault(sentence, source, { toolRan = false } = {}) {
-  const known = String(source).toLowerCase();
-  for (const number of sentence.match(NUMBERS) ?? []) {
+/** The first number in `text` that `known` does not hold, or null. */
+function numberFault(text, known) {
+  for (const number of text.match(NUMBERS) ?? []) {
     if (!new RegExp(`(^|[^\\d.:])${number.replace(/\./g, "\\.")}($|[^\\d])`).test(known)) return `number ${number}`;
   }
-  for (const { lead, value } of spelledNumbers(sentence)) {
+  for (const { lead, value } of spelledNumbers(text)) {
     // Read whole first (183, 1.79, 2:30); failing that, each part is checked as before.
     if (lead !== null && new RegExp(`(^|\\D)${lead}[.:]?${value}(\\D|$)`).test(known)) continue;
     if (!mentions(known, value)) return `number ${value}`;
     if (lead >= 3 && !mentions(known, lead)) return `number ${lead}`;
+  }
+  return null;
+}
+
+/* Live 2026-11-23: "twenty-six tomorrow", where 26 was TODAY's top and tomorrow's
+   was 27. The number is in the prompt, so the whole-prompt check passes it. In a
+   briefing prompt everything about tomorrow follows a "Tomorrow:" label, so a
+   clause that says tomorrow is held to that text alone. */
+const CLAUSES = /[,;—–]|\s-\s|\b(?:and|but)\b/i;
+const tomorrowText = (known) => (known.match(/tomorrow:[^\n]*/g) ?? []).join("\n");
+
+/** Why this sentence must not be spoken, or null. `briefing` turns on the
+ *  tomorrow check, which needs the briefing prompt's "Tomorrow:" labels. */
+export function claimFault(sentence, source, { toolRan = false, briefing = false } = {}) {
+  const known = String(source).toLowerCase();
+  const numbers = numberFault(sentence, known);
+  if (numbers) return numbers;
+  if (briefing) {
+    for (const clause of sentence.split(CLAUSES)) {
+      if (!clause || !/\btomorrow\b/i.test(clause)) continue;
+      const fault = numberFault(clause, tomorrowText(known));
+      if (fault) return `${fault} for tomorrow`;
+    }
   }
   if (INVENTED_PAST.test(sentence)) return "invents a past";
   if (HOUSEHOLD_HABIT.test(sentence)) return "invents a habit";
