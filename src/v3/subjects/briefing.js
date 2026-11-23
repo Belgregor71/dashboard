@@ -32,8 +32,8 @@ import { capSentences } from "../../js/services/localAnswers.js";
 import { readCastScript } from "../core/cast.js";
 
 /* Long enough for a cache miss against Claude, short enough that the room does
-   not conclude the wall is broken. A cold Ollama fallback will lose this race
-   and the turn falls through to a lane that can answer — which is the correct
+   not conclude the wall is broken. A slow model loses this race and the turn
+   falls through to a lane that can answer — which is the correct
    outcome, not a degraded one. */
 const GENERATE_TIMEOUT_MS = 12_000;
 

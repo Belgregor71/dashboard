@@ -59,7 +59,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_M
 // Read per-call, not at module load: a module-scope process.env read sits above
 // dotenv and freezes to undefined (audit 2026-07-26, M2). Overridable so the
 // test suite can point it at a dead port instead of spending someone else's
-// rate limit — the same trick OLLAMA_URL/KOKORO_URL already use.
+// rate limit — the same trick KOKORO_URL already uses.
 function openMeteoEndpoint() {
   return process.env.OPEN_METEO_URL || "https://api.open-meteo.com/v1/forecast";
 }

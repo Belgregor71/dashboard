@@ -285,7 +285,7 @@ function endTurn(said, replied) {
    a manual SSE parse is the whole difference.
 
    Returns the full reply, or null — and null means "fall back to the ordinary
-   JSON route", which still has the Ollama leg behind it. A stream that dies
+   JSON route". A stream that dies
    halfway has already spoken part of an answer, so the caller must not simply
    retry it; see the guard at the call site.
 ─────────────────────────────────────────────────────────────────────────── */
@@ -1014,8 +1014,7 @@ export async function submit(text, { source = "unknown", speaker = null } = {}) 
         endTurn(clean);
         return { handled: false, reason: "stream-cut" };
       }
-      // Nothing was spoken, so the JSON route (which still has the Ollama
-      // fallback behind it) is free to try the whole turn again.
+      // Nothing was spoken, so the JSON route is free to try the whole turn again.
     }
 
     const converse = await postJson("/api/voice/converse", body);

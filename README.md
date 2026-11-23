@@ -82,7 +82,7 @@ The broader direction is in [`docs/vision/`](docs/vision/) and the design track 
 - **Calendars**: iCal URLs (no Google API), with public holidays
 - **Commute, fuel prices, bins, NRL, ABC news**
 - **AI briefings**: morning and evening summaries plus an ambient one-line concierge,
-  written by Claude Haiku, with local Ollama as the automatic fallback (`server/routes/ai.js`)
+  written by Claude Haiku (`server/routes/ai.js`); with no API there is no briefing, not a guess
 - **Voice**: see below
 
 ## Voice
@@ -142,9 +142,8 @@ WEATHER_LON=<lon>
 ```
 
 If `HA_HOST` or `HA_TOKEN` is blank, HA turns itself off and `/api/ha/*` answers 503, but
-the rest of the dashboard still runs. AI text works out of the box on local Ollama. If you
-add `ANTHROPIC_API_KEY`, Claude Haiku is used whenever it is set, and any API error falls
-back to Ollama.
+the rest of the dashboard still runs. AI text needs `ANTHROPIC_API_KEY`. Without it, or
+when the API errors, the briefing and the house voice stay silent.
 
 ## Testing
 

@@ -163,8 +163,8 @@ test.describe("reading a written briefing", () => {
 });
 
 /* ── The truth gate on the ordinary briefing ─────────────────────────────────
-   The real route, with a fake model behind it: no key means Claude is skipped
-   and the Ollama leg answers with whatever `said` holds. Invented lines only. */
+   The real route, with a fake Anthropic API behind it (ANTHROPIC_BASE_URL)
+   answering with whatever `said` holds. Invented lines only. */
 
 test.describe("the truth gate on the ordinary briefing (v3TruthGate)", () => {
   const FACTS = { type: "evening", time: "Monday evening, 6:00 pm", weather: "24°, clear", events: "Tonight: Meal: Laksa at 6:00 pm" };
@@ -188,14 +188,19 @@ test.describe("the truth gate on the ordinary briefing (v3TruthGate)", () => {
   };
 
   test.beforeAll(async () => {
-    for (const key of ["ANTHROPIC_API_KEY", "OLLAMA_URL", "BRIEF_LOG_FILE"]) saved[key] = process.env[key];
+    for (const key of ["ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "BRIEF_LOG_FILE"]) saved[key] = process.env[key];
     model = http.createServer((_req, res) => {
       res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ response: said }));
+      res.end(JSON.stringify({
+        id: "msg_test", type: "message", role: "assistant", model: "stub",
+        content: [{ type: "text", text: said }],
+        stop_reason: "end_turn", stop_sequence: null,
+        usage: { input_tokens: 1, output_tokens: 1 }
+      }));
     });
     await listen(model);
-    process.env.ANTHROPIC_API_KEY = "";
-    process.env.OLLAMA_URL = `http://127.0.0.1:${model.address().port}`;
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    process.env.ANTHROPIC_BASE_URL = `http://127.0.0.1:${model.address().port}`;
     const { default: router } = await import("../server/routes/ai.js");
     const web = express();
     web.use(express.json());
@@ -217,22 +222,22 @@ test.describe("the truth gate on the ordinary briefing (v3TruthGate)", () => {
 
   test("flag off: the model's text is served as written", async () => {
     said = `${TRUE_LINE} ${INVENTED}`;
-    expect(await brief()).toEqual({ status: 200, summary: said, source: "ollama" });
+    expect(await brief()).toEqual({ status: 200, summary: said, source: "claude" });
   });
 
   test("flag on: the invented time is dropped and the true sentence is kept", async () => {
     said = `${TRUE_LINE} ${INVENTED}`;
-    expect(await brief({ gate: true })).toEqual({ status: 200, summary: TRUE_LINE, source: "ollama" });
+    expect(await brief({ gate: true })).toEqual({ status: 200, summary: TRUE_LINE, source: "claude" });
   });
 
   test("flag on: a wholly true briefing is not touched", async () => {
     said = `${TRUE_LINE} It's twenty-four and clear.`;
-    expect(await brief({ gate: true })).toEqual({ status: 200, summary: said, source: "ollama" });
+    expect(await brief({ gate: true })).toEqual({ status: 200, summary: said, source: "claude" });
   });
 
   test("flag on: nothing true left is no briefing, not a guess", async () => {
     said = INVENTED;
-    expect(await brief({ gate: true })).toEqual({ status: 200, summary: null, source: "ollama" });
+    expect(await brief({ gate: true })).toEqual({ status: 200, summary: null, source: "claude" });
   });
 
   test("what it was told, what it said and what was let through are on the record", async () => {
@@ -240,7 +245,7 @@ test.describe("the truth gate on the ordinary briefing (v3TruthGate)", () => {
     await brief({ gate: true });
     const rows = await logged();
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ type: "evening", source: "ollama", gate: true, raw: said, summary: TRUE_LINE });
+    expect(rows[0]).toMatchObject({ type: "evening", source: "claude", gate: true, raw: said, summary: TRUE_LINE });
     expect(rows[0].prompt).toContain("Calendar: Tonight: Meal: Laksa at 6:00 pm");
     expect(typeof rows[0].at).toBe("number");
   });

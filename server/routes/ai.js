@@ -9,9 +9,8 @@ import { castActive, castPersona } from "./cast.js";
 
 const router = express.Router();
 
-// Claude Haiku is the primary generator; the local Ollama model is kept as
-// a fallback so briefings degrade gracefully if the API (or the internet)
-// is unavailable. The example lines anchor the house voice on both models.
+// Claude Haiku is the only generator. There is no local fallback (Ollama was
+// removed 2026-11-23): if the API is down there is no briefing, not a guess.
 // The register (docs/design/VOICE.md) in miniature — quoted by every prompt.
 export const VOICE_REGISTER =
   "Your voice: warm, big, gossipy Australian suburbia — Kath & Kim energy, never a literal quote from the show. Plainly Australian (bins, arvo, tradie) when they're the natural word, never forced slang like 'mate' or 'ya'. " +
@@ -445,34 +444,6 @@ async function generateWithClaude(type, system, prompt) {
   return text.trim() || null;
 }
 
-const OLLAMA_OPTIONS = {
-  morning:   { temperature: 0.75, num_predict: 120 },
-  evening:   { temperature: 0.75, num_predict: 120 },
-  concierge: { temperature: 0.85, num_predict: 25 },
-};
-
-async function generateWithOllama(type, system, prompt) {
-  const ollamaUrl   = process.env.OLLAMA_URL   ?? "http://localhost:11434";
-  const ollamaModel = process.env.OLLAMA_MODEL ?? "llama3.2:1b";
-
-  const r = await fetch(`${ollamaUrl}/api/generate`, {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model:   ollamaModel,
-      system,
-      prompt,
-      stream:  false,
-      options: OLLAMA_OPTIONS[type] ?? OLLAMA_OPTIONS.morning,
-    }),
-    signal: AbortSignal.timeout(30_000),
-  });
-
-  if (!r.ok) throw new Error(`Ollama HTTP ${r.status}`);
-  const data = await r.json();
-  return (data.response ?? "").trim() || null;
-}
-
 router.post("/api/ai/brief", loopbackOnly("The briefing endpoint"), async (req, res) => {
   const body = req.body ?? {};
 
@@ -499,8 +470,7 @@ router.post("/api/ai/brief", loopbackOnly("The briefing endpoint"), async (req, 
   const type   = body.type ?? "morning";
   // Validation above is against SYSTEM_PROMPTS (the contract); the text comes
   // from systemPromptFor(), which is the same string unless the character
-  // briefings flag is set. Both generators — Claude and the Ollama fallback —
-  // are handed this one value, so the two never diverge in voice.
+  // briefings flag is set.
   const system = systemPromptFor(type);
   const prompt = buildPrompt(body);
 
@@ -527,28 +497,21 @@ router.post("/api/ai/brief", loopbackOnly("The briefing endpoint"), async (req, 
      fall on to the next model: the wall shows nothing rather than a guess. */
   const gate = body.gate === true;
 
-  // One exit for both models, so neither can be served unchecked or unrecorded.
-  const answer = (raw, source) => {
-    const summary = gateReply(raw, prompt, gate);
-    if (raw) logBrief({ type, source, gate, prompt, raw, summary });
-    reportSuccess("ai");
-    return res.json({ summary, source });
-  };
-
+  let reason = "no reply";
   try {
     const raw = await generateWithClaude(type, system, prompt);
-    if (raw) return answer(raw, "claude");
+    if (raw) {
+      const summary = gateReply(raw, prompt, gate);
+      logBrief({ type, source: "claude", gate, prompt, raw, summary });
+      reportSuccess("ai");
+      return res.json({ summary, source: "claude" });
+    }
   } catch (err) {
-    console.error("[AI] Claude brief error, falling back to Ollama:", err.message);
+    reason = err.message;
   }
-
-  try {
-    return answer(await generateWithOllama(type, system, prompt), "ollama");
-  } catch (err) {
-    console.error("[AI] brief error:", err.message);
-    reportFailure("ai", err.message);
-    return res.status(502).json({ summary: null });
-  }
+  console.error("[AI] brief error:", reason);
+  reportFailure("ai", reason);
+  return res.status(502).json({ summary: null });
 });
 
 export default router;

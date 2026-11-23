@@ -215,7 +215,7 @@ window.CONFIG = {
     // MACHINE only — the kiosk has no keyboard/mic) opens a voice session: presence enters MODE.VOICE (the attention gate stands down),
     // the transcript walks three lanes — local commands → HA Assist device
     // control (/api/voice/assist) → Claude house-voice (/api/voice/converse,
-    // Haiku primary / Ollama fallback) — the reply is spoken, the session
+    // Haiku, no fallback) — the reply is spoken, the session
     // lingers ~8s for a follow-up, then recedes to GLANCE. GUARDRAIL: text
     // goes upstream only on explicit wake — there is no passive audio path.
     // Flipped ON 2026-07-21 (USB mic acquired) to run the live software-loop

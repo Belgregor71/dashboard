@@ -66,7 +66,6 @@ export default defineConfig({
       ...process.env,
       PORT: String(TEST_PORT),
       ANTHROPIC_API_KEY: "",
-      OLLAMA_URL: "http://127.0.0.1:1",
       KOKORO_URL: "http://127.0.0.1:1",
       // A dev .env that turns camera captions on must not spawn a 7 GB model
       // under the suite, nor write captions of the real house from it.

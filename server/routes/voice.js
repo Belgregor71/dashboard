@@ -257,8 +257,7 @@ function getAnthropic() {
 
 // Execute one tool_use block and shape its tool_result. Never throws: a refusal
 // and a dead HA are both answers the model can speak, and an exception here
-// would drop the whole turn into the Ollama fallback, which has no tools and
-// would cheerfully claim the light is off.
+// would drop the whole turn and the room would hear nothing.
 async function runToolCall(block) {
   const plan = planCall(block.name, block.input);
   if (!plan.ok) {
@@ -366,9 +365,8 @@ async function converseWithClaude(messages, system, tools = [], onChunk = null, 
 
     if (round >= MAX_TOOL_ROUNDS) {
       // Still asking for tools at the cap. The pending calls are deliberately
-      // NOT run. Answer honestly rather than returning null: null falls through
-      // to the Ollama leg, which has no tools, no idea a device was involved,
-      // and would happily say the light is off.
+      // NOT run. Answer honestly rather than returning null, which the room
+      // would hear as silence after asking for something.
       console.warn(`[Voice] tool loop hit ${MAX_TOOL_ROUNDS} rounds; stopping`);
       return text || "I got tangled up doing that — can you ask me again?";
     }
@@ -389,27 +387,6 @@ async function converseWithClaude(messages, system, tools = [], onChunk = null, 
   }
 }
 
-async function converseWithOllama(messages, system) {
-  const ollamaUrl   = process.env.OLLAMA_URL   ?? "http://localhost:11434";
-  const ollamaModel = process.env.OLLAMA_MODEL ?? "llama3.2:1b";
-
-  const r = await fetch(`${ollamaUrl}/api/chat`, {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model:    ollamaModel,
-      messages: [{ role: "system", content: system }, ...messages],
-      stream:   false,
-      options:  { temperature: 0.7, num_predict: 60 },
-    }),
-    signal: AbortSignal.timeout(30_000),
-  });
-
-  if (!r.ok) throw new Error(`Ollama HTTP ${r.status}`);
-  const data = await r.json();
-  return (data.message?.content ?? "").trim() || null;
-}
-
 router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async (req, res) => {
   const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
   if (!text) return res.status(400).json({ error: "text is required" });
@@ -427,8 +404,6 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
     claims = buildClaims(await weatherRecord(), { today: houseDay() });
   } catch { /* no record yet, or unreadable — the house simply has no past */ }
 
-  // Retrieved once and shared by both legs, so the Ollama fallback answers from
-  // the same notes rather than reverting to "I don't know".
   // `house` is the client's houseDigest() — the page already holds the snapshot
   // at submit() time, so grounding the model costs tokens and not a millisecond.
   /* What the house has been like lately — the sibling read, and non-fatal in
@@ -485,10 +460,8 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
      handling it already has for the transcript stream, and so a mid-reply
      failure can be reported as an event rather than a truncated body.
 
-     ⚠ There is no Ollama fallback on this path, deliberately. Falling back
-     mid-stream would mean speaking the first half of one model's answer and
-     the second half of another's. If Claude fails here the client is told, and
-     it retries the ordinary JSON route — which does have the fallback. */
+     If Claude fails here the client is told, and it retries the ordinary JSON
+     route if nothing has been spoken yet. */
   if (req.body?.stream === true) {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -558,22 +531,10 @@ router.post("/api/voice/converse", loopbackOnly("The converse endpoint"), async 
       return res.json({ reply, source: "claude", ...(toolFailed && { toolFailed: true }) });
     }
   } catch (err) {
-    console.error("[Voice] Claude converse error, falling back to Ollama:", err.message);
-  }
-
-  // The local model cannot be trusted with the persona, or be heard in its voices.
-  if (cast) return res.status(502).json({ reply: null });
-
-  try {
-    const reply = await converseWithOllama(messages, system);
-    reportSuccess("ai");
-    remember(reply);
-    return res.json({ reply, source: "ollama" });
-  } catch (err) {
     console.error("[Voice] converse error:", err.message);
     reportFailure("ai", err.message);
-    return res.status(502).json({ reply: null });
   }
+  return res.status(502).json({ reply: null });
 });
 
 // --- Mic bridge: transcript injection + SSE fan-out to the kiosk page ---
