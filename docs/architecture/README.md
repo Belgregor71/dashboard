@@ -59,12 +59,20 @@ A non-zero exit is a failure even though the previous HTML survives it.
 
 ## Last verified
 
-Rendered against `1c43b1c` with archify `72c750b` — 9/9 checks, 0 errors,
-0 warnings, evidence verified across 5 pinned references. `visual-check` clean:
-containment and readability at 1440×900, 1600×1000, 1920×1080 and 2048×1320
-(smallest node text 7.06px at 1440×900, floor 6px), screenshots in both themes
-at 1440×900 and 2048×1320. Redrawn for the incumbent retirement (2026-10-03):
-one surface, `src/js/` as V3's runtime library, the Pi 4 rollback host removed.
-Counts recounted from source on 2026-10-04: 76 flags, 55 `src/js` modules
-imported by V3 (+ `js/config.js` by script tag, per `tests/v3-closure.spec.js`),
-34 route modules, 123 specs in `tests/`.
+Rendered against `a474891` with archify `72c750b` (2026-11-25) — 9/9 checks,
+0 errors, 0 warnings. `visual-check` clean: no overflow at any size, smallest
+node text 6.19px at 1440×900 (floor 6px — it was 7.06px before the Claude API
+node made the layout taller; **one more row will likely break the floor**, so
+widen rather than stack next time).
+
+Changes since `1c43b1c`: a **Claude API** node (`server/routes/ai.js`, called
+server-side only), the voice agent is now in-repo (`tools/voice-agent/`, posting
+to `/api/voice` over loopback), Open-Meteo named under Media & Data, and the
+cited `server.js` lines moved. Counts recounted from source on 2026-11-25:
+106 flags (top-level keys of `features:`), 57 `src/js` modules imported by V3
+(+ `js/config.js` by script tag, per `tests/v3-closure.spec.js`), 34 route
+modules, 151 specs in `tests/`.
+
+Deliberately **not** drawn: features that are routes or V3 modules rather than
+new systems (cast, three.js stage, parcels, robot plan, BOM outlook, truth
+gate). They live inside the existing boxes.
