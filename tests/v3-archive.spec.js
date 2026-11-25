@@ -640,7 +640,7 @@ const groundShown = (page) =>
    tests are about — the burst is — so the stall gets 5 s and a refused
    dissolve is retried. Which of the two it was is NOT established; the
    return value is in the failure message so a recurrence names its own. */
-const nextMemory = async (page, settleMs = 60) => {
+const nextMemory = async (page, settleMs = 60, intervals = [0, 1_000]) => {
   const before = await page.evaluate(() => window.__ground().assetId);
   const tries = [];
   try {
@@ -652,7 +652,7 @@ const nextMemory = async (page, settleMs = 60) => {
           tries.push(await page.evaluate((ms) => window.__groundDissolve(ms, 5_000), settleMs));
           return now;
         },
-        { timeout: 15_000, intervals: [0, 1_000] }
+        { timeout: 15_000, intervals }
       )
       .not.toBe(before);
   } catch (err) {
@@ -3040,10 +3040,20 @@ test.describe("the archive's Live Photo burst", () => {
        that the first burst's orphaned stop timer would kill it — true, but it
        fires ~4s after the exchange, well outside the window that test sampled.
        Both were green with `clearMotionTimers()+stopClip()` deleted from
-       present(). This one is red. */
-    await nextMemory(page, 1200);
+       present(). This one is red.
+
+       ⚠ POLLED EVERY 50 MS, NOT EVERY SECOND (2026-11-25). nextMemory's 1 s
+       poll could see the exchange up to a second late, and under suite load
+       the read then landed after the NEXT burst armed: failed twice in one
+       day ("still loaded", src .../d/clip) and passed alone. HYPOTHESIS, read
+       from the timing; the message now names both assets, so a recurrence
+       says whether the clip was the old memory's (a real defect) or the new
+       one's (the read was late). */
+    const prev = await page.evaluate(() => window.__ground().assetId);
+    await nextMemory(page, 1200, [0, 50]);
     const between = await clip(page);
-    expect(between.src, "the previous burst was still loaded after the exchange").toBeNull();
+    const now = await page.evaluate(() => window.__ground().assetId);
+    expect(between.src, `the previous burst was still loaded after the exchange (previous ${prev}, now ${now})`).toBeNull();
     expect(between.shown, "the previous burst was still on screen").toBe(false);
 
     // …and the new memory then gets its own burst, so this is a teardown rather
