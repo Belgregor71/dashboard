@@ -490,6 +490,23 @@ test("a long list fits the glass, and the count of what it left out is ON the gl
   expect(pageErrors).toEqual([]);
 });
 
+test("a list that already fits keeps the rows it mounted with — nothing is handed a detached node", async ({ page }) => {
+  /* Found by the contrast sweep 2026-11-25: fitRows replaced the <ul> even when
+     nothing needed to step down, so every reader holding a row (the sweep, a
+     deixis address) held a detached node that "put NO pixel on the glass". */
+  const { pageErrors } = await bootV3(page);
+  await page.evaluate(async () => {
+    await window.__v3Subject("show.list", { list: "shopping" }, { todos: { shopping: ["milk", "bread", "eggs"] } });
+    window.__firstRow = document.querySelector("#subject-mount .subject__row");
+  });
+  await expect.poll(async () => (await readList(page))?.fit ?? null, { timeout: 5000 }).toBe("3");
+  const got = await page.evaluate(() => ({ held: Boolean(window.__firstRow), connected: window.__firstRow?.isConnected ?? null, text: window.__firstRow?.textContent }));
+  expect(got.held, "no row was mounted to hold").toBe(true);
+  expect(got.text).toBe("milk");
+  expect(got.connected, "the fit replaced rows that already fitted").toBe(true);
+  expect(pageErrors).toEqual([]);
+});
+
 test("one runaway item takes at most two lines and leaves the rest of the list a place", async ({ page }) => {
   const { pageErrors } = await bootV3(page);
   await page.evaluate(async () => {

@@ -84,11 +84,15 @@ function fitRows(getList, render, max) {
     const last = list.lastElementChild;
     return !last || last.getBoundingClientRect().bottom <= list.getBoundingClientRect().bottom + 0.5;
   };
+  /* Re-render only to step DOWN (or back up to max for a re-fit). A list that
+     already fits keeps the nodes it mounted with: replacing them anyway handed
+     every reader holding a row a detached node (the contrast sweep saw six
+     rows "put NO pixel on the glass"). */
+  let shown = max;
   const fit = () => {
-    let n = max;
-    render(n);
-    while (n > 1 && !fits()) render(--n);
-    getList().dataset.fit = String(n);
+    if (shown !== max) render((shown = max));
+    while (shown > 1 && !fits()) render(--shown);
+    getList().dataset.fit = String(shown);
   };
   const wait = () => {
     raf = null;
