@@ -423,15 +423,18 @@ body[data-holiday] .photo::after {
   transition: opacity var(--m-calm) var(--ease),
               visibility 0s linear var(--m-calm);
 }
+/* Depth 3 yields the corner to subjects whose content reaches it (measured live
+   2026-11-25): ahead's said line, status's measured line, year's photo and
+   caption, and the house plan of lapse/robot (lapse has its own clock). */
 :root[data-corner-clock="1"][data-depth="2"]:not(:has(#spread-lattice[data-template="triple-footer"])) .corner-clock,
-:root[data-corner-clock="1"][data-depth="3"] .corner-clock {
+:root[data-corner-clock="1"][data-depth="3"]:not(:has(#subject-mount > :is(.subject--ahead, .subject--status, .subject--year, .lapse))) .corner-clock {
   opacity: 1;
   visibility: visible;
   transition: opacity var(--m-calm) var(--ease),
               visibility 0s linear 0s;
 }
 :root[data-sun-clock][data-corner-clock="1"][data-depth="2"]:not(:has(#spread-lattice[data-template="triple-footer"])) .corner-clock,
-:root[data-sun-clock][data-corner-clock="1"][data-depth="3"] .corner-clock {
+:root[data-sun-clock][data-corner-clock="1"][data-depth="3"]:not(:has(#subject-mount > :is(.subject--ahead, .subject--status, .subject--year, .lapse))) .corner-clock {
   opacity: var(--clock-dim, 1);
 }
 

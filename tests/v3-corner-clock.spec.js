@@ -155,3 +155,33 @@ test("ON: a depth-3 subject shows the time bottom-right", async ({ page }) => {
   expect(got.bottomGap).toBe(96);
   expect(errors).toEqual([]);
 });
+
+test("ON: a depth-3 subject whose content owns the corner (ahead) holds the clock back — and it returns for one that does not", async ({ page }) => {
+  /* Measured live 2026-11-25: the clock sat on ahead's said line, status's line,
+     year's caption and the lapse/robot plan. Hidden is the starting state, so
+     hold it past a fade, then mount a subject that frees the corner (as above). */
+  const errors = await boot(page, true);
+  const ahead = await page.evaluate(async () => {
+    const ok = await window.__v3Subject("show.ahead", {}, {
+      calendar: [{ title: "Dentist", summary: "Dentist", start: "2026-06-18T09:00:00+10:00" }]
+    });
+    window.__setDepth(3, "spec");
+    return ok && document.querySelector("#subject-mount > .subject--ahead") !== null;
+  });
+  expect(ahead, "ahead did not mount — this tests nothing").toBe(true);
+  await page.waitForTimeout(1500);   // longer than the fade it would have taken
+  const held = await readClock(page);
+  expect(held).not.toBeNull();
+  expect(held.depth).toBe("3");
+  expect(held.text, "the node exists and is current — it is hidden, not stale").toBe(held.hourText);
+  expect(held.opacity, "the clock showed over ahead's content").toBe(0);
+
+  const day = await page.evaluate(async () => {
+    const ok = await window.__v3Subject("show.day", {}, { calendar: [] });
+    window.__setDepth(3, "spec");
+    return ok && document.querySelector("#subject-mount > .subject--calendar") !== null;
+  });
+  expect(day, "day did not mount").toBe(true);
+  await settleShown(page);
+  expect(errors).toEqual([]);
+});

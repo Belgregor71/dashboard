@@ -2147,11 +2147,16 @@ window.CONFIG = {
     // The time at depths 2-3, bottom-right at 72px (css/compose.css
     // .corner-clock; main.js paintHour). Hidden under the triple-footer
     // template, whose side cell owns that corner. Off: no node, as before.
-    v3CornerClock: false,
+    // ON 2026-11-25 after a live in-page check on the G11: depth 2 clear of
+    // every cell; at depth 3 it yields to ahead/status/year/lapse/robot, whose
+    // content reached the corner. Revert: v3CornerClock: false
+    v3CornerClock: true,
     // At depth 2 a forecast keeps the dominant cell only when it starts within
     // 30 min; otherwise the first chore (bins) leads (core/composer.js
     // leadWithChore). Off: dominant by score alone.
-    v3ChoreFirst: false,
+    // ON 2026-11-25 after a live in-page check on the G11: rain 75 min out gave
+    // the bins the dominant cell; 10 min out kept the rain. Revert: v3ChoreFirst: false
+    v3ChoreFirst: true,
 
     // BOM's own forecast for today (src/js/services/weather/bomOutlook.js):
     // a wall line on a storm / 10 mm+ day or a fire danger of High or above,
