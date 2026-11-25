@@ -156,6 +156,36 @@ test("ON: a depth-3 subject shows the time bottom-right", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("ON: a full list keeps the clock's column clear — no item runs under the time", async ({ page }) => {
+  /* Seen in the stills 2026-11-25: a wrapped link at the bottom of a full list
+     ran under the clock. The list keeps the clock (it is where the time is
+     wanted, at the fridge) and reserves its column instead. */
+  const errors = await boot(page, true);
+  const mounted = await page.evaluate(async () => {
+    const items = ["Ask the plumber about the hot water system pressure valve and whether the warranty still covers the tempering valve",
+      "Milk", "Bread", "Eggs", "https://example.com/a-very-long-unbroken-link-that-has-no-spaces-in-it-at-all"];
+    const ok = await window.__v3Subject("show.list", { list: "shopping" }, { todos: { shopping: items } });
+    window.__setDepth(3, "spec");
+    return Boolean(ok);
+  });
+  expect(mounted, "the list did not mount").toBe(true);
+  await expect.poll(() => page.evaluate(() => document.querySelector("#subject-mount .subject__list")?.dataset.fit ?? null)).not.toBeNull();
+  await settleShown(page);
+  const got = await page.evaluate(() => {
+    const c = document.querySelector(".corner-clock").getBoundingClientRect();
+    const texts = [...document.querySelectorAll("#subject-mount .subject__text")];
+    const hits = texts.filter((t) => [...t.getClientRects()].some((r) =>
+      r.width && r.height && r.left < c.right && r.right > c.left && r.top < c.bottom && r.bottom > c.top));
+    const last = texts.at(-1).getBoundingClientRect();
+    return { rows: texts.length, hits: hits.map((t) => t.textContent.slice(0, 30)), lastBottom: last.bottom, clockTop: c.top, clockWidth: c.width };
+  });
+  expect(got.rows).toBe(5);
+  expect(got.clockWidth, "the clock has no box").toBeGreaterThan(40);
+  expect(got.lastBottom, "the fixture no longer reaches the clock's band — this tests nothing").toBeGreaterThan(got.clockTop);
+  expect(got.hits).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
 test("ON: a depth-3 subject whose content owns the corner (ahead) holds the clock back — and it returns for one that does not", async ({ page }) => {
   /* Measured live 2026-11-25: the clock sat on ahead's said line, status's line,
      year's caption and the lapse/robot plan. Hidden is the starting state, so

@@ -450,20 +450,64 @@ test("⚠ a disconnected Home Assistant does not get to say the list is empty", 
   expect(pageErrors).toEqual([]);
 });
 
-test("a long list is capped on the screen too, and says how many it left out", async ({ page }) => {
-  const { pageErrors } = await bootV3(page);
+/** The list as it sits on the glass once fitRows has measured it. */
+const readList = (page) => page.evaluate(() => {
+  const list = document.querySelector("#subject-mount .subject--list .subject__list");
+  if (!list) return null;
+  const rows = [...list.querySelectorAll(".subject__row")];
+  const last = rows.at(-1);
+  return {
+    fit: list.dataset.fit ?? null,
+    viewport: innerHeight,
+    texts: rows.map((r) => r.textContent),
+    lastBottom: last ? Math.round(last.getBoundingClientRect().bottom) : null,
+    lastHeight: last ? Math.round(last.getBoundingClientRect().height) : null,
+    rowHeights: rows.map((r) => Math.round(r.getBoundingClientRect().height))
+  };
+});
 
-  const got = await page.evaluate(async () => {
+test("a long list fits the glass, and the count of what it left out is ON the glass", async ({ page }) => {
+  /* Measured, critique 2026-11-25 (P0): the old count of twelve assumed 96px
+     rows; they pitch at ~120px, so 20 items put a clipped 7th row on the wall
+     and "and 8 more" off the bottom at y≈1722. The fix for a thirteenth is never
+     a smaller row — nothing below the 32px floor is received at 3m. */
+  const { pageErrors } = await bootV3(page);
+  await page.evaluate(async () => {
     const items = Array.from({ length: 20 }, (_, i) => `item ${i + 1}`);
     await window.__v3Subject("show.list", { list: "todo" }, { todos: { tasks: items } });
-    const mount = document.getElementById("subject-mount");
-    return { rows: mount.querySelectorAll(".subject__row").length, text: mount.textContent };
   });
+  await expect.poll(async () => (await readList(page))?.fit ?? null, { timeout: 5000 }).not.toBeNull();
+  const got = await readList(page);
 
-  // Twelve items plus the "and 8 more" line. The fix for a thirteenth is never
-  // a smaller row — nothing below the 32px floor is received at 3m.
-  expect(got.rows).toBe(13);
-  expect(got.text).toContain("and 8 more");
+  expect(got.viewport).toBe(1080);
+  const shown = Number(got.fit);
+  expect(got.texts.length, "the count row is missing").toBe(shown + 1);
+  expect(shown, "fewer than four items on a 1080px panel is a wrong measurement").toBeGreaterThanOrEqual(4);
+  expect(got.texts.slice(0, shown)).toEqual(Array.from({ length: shown }, (_, i) => `item ${i + 1}`));
+  expect(got.texts.at(-1)).toBe(`and ${20 - shown} more`);
+  expect(got.lastHeight, "the count row has no box — a position check on it is vacuous").toBeGreaterThan(40);
+  expect(got.lastBottom, "the count row runs off the safe area").toBeLessThanOrEqual(1080 - 96);
+  expect(pageErrors).toEqual([]);
+});
+
+test("one runaway item takes at most two lines and leaves the rest of the list a place", async ({ page }) => {
+  const { pageErrors } = await bootV3(page);
+  await page.evaluate(async () => {
+    const long = "Ask the plumber about the hot water system pressure valve and whether the warranty " +
+      "still covers the tempering valve that was replaced in March, then book the follow-up";
+    const items = [long, "milk", "bread", "eggs", "https://example.com/a-very-long-unbroken-link-that-has-no-spaces-in-it-at-all"];
+    await window.__v3Subject("show.list", { list: "shopping" }, { todos: { shopping: items } });
+  });
+  await expect.poll(async () => (await readList(page))?.fit ?? null, { timeout: 5000 }).not.toBeNull();
+  const got = await readList(page);
+
+  expect(got.texts.length).toBe(5);                                // all five fit once clamped
+  expect(got.texts).toContain("milk");
+  const oneLine = got.rowHeights[1];                               // "milk"
+  expect(oneLine).toBeGreaterThan(40);
+  expect(got.rowHeights[0], "the long item took more than two lines").toBeLessThanOrEqual(oneLine * 2 + 4);
+  expect(got.rowHeights[4], "the unbroken link took more than two lines").toBeLessThanOrEqual(oneLine * 2 + 4);
+  expect(got.lastBottom).toBeLessThanOrEqual(1080 - 96);
   expect(pageErrors).toEqual([]);
 });
 

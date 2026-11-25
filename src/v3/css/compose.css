@@ -1359,6 +1359,25 @@ body[data-holiday] .photo::after {
 
 .subject__text { min-width: 0; }
 
+/* One list item is at most two lines. A pasted recipe note or a URL on the
+   shopping list would otherwise take the whole glass and fitRows (lists.js)
+   could only show that one item; clamped, the rest of the list still gets a
+   place, and an unbroken token breaks rather than running off the edge. */
+.subject--list .subject__text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+/* With the corner clock on, a full list reaches its corner (a wrapped item at
+   the bottom ran under "3:21" in the stills), so the list keeps the clock's
+   column clear: three 72px figures' width plus a gutter. Short items never
+   reach it, so only a long one wraps earlier. */
+:root[data-corner-clock="1"] .subject--list .subject__list {
+  padding-inline-end: calc(var(--t-measured-1) * 3 + var(--gutter));
+}
+
 /* Ingredients beside method. Two columns because a recipe is read in two
    passes — what to get out, then what to do — and stacking them means the
    method starts below the fold of a fixed panel. */

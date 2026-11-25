@@ -16,9 +16,12 @@
 
 import { frame, title, column, empty } from "./dom.js";
 
-/* Twelve at 96px is the panel's honest ceiling. A shopping list longer than
-   that is a scroll, and a scroll is a thing you operate — this surface has no
-   touch and no pointer, so there is nothing to operate it with. */
+/* A ceiling on what is ever BUILT, not what fits. A shopping list longer than
+   the glass is a scroll, and a scroll is a thing you operate — this surface has
+   no touch and no pointer. What fits is MEASURED after mount (fitRows): rows
+   pitch at ~120px, not the 96px this number once assumed, and the "twelve fit"
+   count put a clipped 7th row and an "and 3 more" at y=1722, off the glass
+   (critique 2026-11-25, P0). The household reads a clipped list as complete. */
 const MAX_ROWS = 12;
 
 const LISTS = {
@@ -47,9 +50,57 @@ export function showList(snapshot, which = "shopping") {
     return { node, teardown };
   }
 
-  const rows = items.slice(0, MAX_ROWS).map((item) => ({ text: String(item) }));
-  if (items.length > MAX_ROWS) rows.push({ text: `and ${items.length - MAX_ROWS} more` });
-  node.appendChild(column(rows));
+  let list = column(rowsFor(items, Math.min(items.length, MAX_ROWS)));
+  node.appendChild(list);
+  const render = (n) => {
+    const next = column(rowsFor(items, n));
+    list.replaceWith(next);
+    list = next;
+  };
+  const stop = fitRows(() => list, render, Math.min(items.length, MAX_ROWS));
 
-  return { node, teardown };
+  return { node, teardown: () => { stop(); teardown(); } };
+}
+
+/** The first n items, then "and N more" for the rest — the count is part of the
+ *  answer, so it must be ON the glass, never the row that gets clipped. */
+function rowsFor(items, n) {
+  const rows = items.slice(0, n).map((item) => ({ text: String(item) }));
+  if (items.length > n) rows.push({ text: `and ${items.length - n} more` });
+  return rows;
+}
+
+/** Step n down until the last row (the count included) ends inside the list's
+ *  own box, which the frame's padding already holds off the safe edge. Measured
+ *  only once mounted and laid out — a detached node measures 0 and "fits"
+ *  (recipe.js's lesson) — and again when a late font face lands, which reflows
+ *  the said voice (spread.js's lesson). Never below one item. */
+function fitRows(getList, render, max) {
+  let raf = null;
+  let tries = 0;
+  let live = true;
+  const fits = () => {
+    const list = getList();
+    const last = list.lastElementChild;
+    return !last || last.getBoundingClientRect().bottom <= list.getBoundingClientRect().bottom + 0.5;
+  };
+  const fit = () => {
+    let n = max;
+    render(n);
+    while (n > 1 && !fits()) render(--n);
+    getList().dataset.fit = String(n);
+  };
+  const wait = () => {
+    raf = null;
+    const list = getList();
+    if (!live) return;
+    if (!list.isConnected || list.clientHeight === 0) {
+      if (++tries <= 120) raf = requestAnimationFrame(wait);   // ~2s, then give up
+      return;
+    }
+    fit();
+    if (document.fonts?.status === "loading") document.fonts.ready.then(() => { if (live && getList().isConnected) fit(); });
+  };
+  raf = requestAnimationFrame(wait);
+  return () => { live = false; if (raf != null) cancelAnimationFrame(raf); raf = null; };
 }
