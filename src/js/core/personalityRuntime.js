@@ -108,9 +108,12 @@ function detectBootSignals(now) {
   }
 }
 
-// First-rain-after-dry: a per-day dry counter driven off the shared weather
-// reading. Approximate by design (day-granular, not hourly) — the moment is
-// rare and the budget makes an over-count harmless.
+// First-rain-after-dry: the dry spell is the days since the last day rain was
+// SEEN, checked on every reading. ⚠ It used to be decided only by the first
+// reading after midnight, so afternoon rain never reset it: on 2026-11-26 the
+// wall read 19 dry days the morning after it rained, and announced "First rain
+// in ages". A record without `lastWet` (cold start, or that old counter) starts
+// counting from today — a guessed spell is never trusted, so the moment waits.
 //
 // Reads the RAW WMO code, not the collapsed `condition`. Those are not the same
 // question: `condition` says what the sky should LOOK like, and it folds drizzle
@@ -122,12 +125,25 @@ function detectBootSignals(now) {
 function updateDryStreak(now) {
   const raining = isRealRainCode(getContext().conditionCode);
   const today = dateKey(now);
-  let st = readJson(DRY_KEY, { day: null, dryDays: 0 });
-  if (st.day !== today) {
-    st = { day: today, dryDays: raining ? 0 : st.dryDays + 1 };
+  let st = readJson(DRY_KEY, null);
+  if (!st?.lastWet) {
+    st = { lastWet: today, brokeDays: 0 };
     writeJson(DRY_KEY, st);
   }
-  return { rainNow: raining, dryStreakDays: st.dryDays, dryBreakKey: today };
+  if (raining && st.lastWet !== today) {
+    // The dry days strictly between the last wet day and today.
+    st = { lastWet: today, brokeDays: daysBetween(st.lastWet, today) - 1 };
+    writeJson(DRY_KEY, st);
+  }
+  // On a wet day, the spell today's rain broke (held all day); otherwise days since rain.
+  const dryStreakDays = st.lastWet === today ? st.brokeDays : daysBetween(st.lastWet, today);
+  return { rainNow: raining, dryStreakDays, dryBreakKey: today };
+}
+
+// Whole local days between two dateKey()s; Math.round absorbs a DST hour.
+function daysBetween(a, b) {
+  const at = (k) => { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d); };
+  return Math.round((at(b) - at(a)) / 86_400_000);
 }
 
 /* ── HOUSE-MIND S2: the observation store (features.v3HouseStorePersonality) ─

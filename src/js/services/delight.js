@@ -19,7 +19,7 @@
 // runtime records on fire and checks before the next), so it is tested, not a
 // convention the runtime might forget.
 
-export const DRY_SPELL_DAYS = 10; // a "long dry spell" before the first-rain moment earns itself
+export const DRY_SPELL_DAYS = 30; // a month without rain before "First rain in ages" earns itself (owner, 2026-11-26)
 export const AWAY_DAYS = 2;       // a "long absence" before the home-again moment earns itself
 
 function year(now) {

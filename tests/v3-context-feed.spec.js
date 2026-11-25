@@ -208,17 +208,21 @@ test("an identical re-reading keeps the SAME slice; a changed field replaces it"
    it is — right until the pinned instant or the zone moved. */
 async function seedDryStreak(page, dryDays) {
   await page.addInitScript((days) => {
+    // The last wet day sits `days` dry days before today.
     const d = new Date();
+    d.setDate(d.getDate() - (days + 1));
     try {
       localStorage.setItem("dashboard:dry-streak", JSON.stringify({
-        day: `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`,
-        dryDays: days
+        lastWet: `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`,
+        brokeDays: 0
       }));
     } catch { /* storage blocked — the assertions below will say so */ }
   }, dryDays);
 }
 
 const pendingDelight = (page) => page.evaluate(() => window.__personality?.().pending ?? null);
+const lastWet = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("dashboard:dry-streak") ?? "{}").lastWet ?? null);
+const todayKey = (page) => page.evaluate(() => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; });
 
 test("a drizzle code still LOOKS like rain, and still carries its own number", async ({ page }) => {
   await page.clock.setFixedTime(MIDDAY);
@@ -230,9 +234,9 @@ test("a drizzle code still LOOKS like rain, and still carries its own number", a
   expect((await context(page)).condition).toBe("rain");
 });
 
-test("thirteen days dry, then real rain — the house says so", async ({ page }) => {
+test("a month dry, then real rain — the house says so, and records the wet day", async ({ page }) => {
   await page.clock.install({ time: MIDDAY });
-  await seedDryStreak(page, 13);
+  await seedDryStreak(page, 31);
   // 61 = slight rain: rain that is actually falling.
   await bootV3(page, { "/api/weather/now": weatherNow(61, "rain") });
 
@@ -243,11 +247,39 @@ test("thirteen days dry, then real rain — the house says so", async ({ page })
   await page.clock.fastForward("05:30"); // past the 5-minute delight tick
 
   await expect.poll(() => pendingDelight(page)).toBe("delight:first-rain-after-dry");
+  /* ⚠ 2026-11-26: rain seen AFTER the first reading of the day was never
+     recorded, so the wall said "First rain in ages" the morning after it rained.
+     The boot reading here races the weather fetch, so the rain lands on a later
+     reading — the one the old counter ignored. */
+  expect(await lastWet(page)).toBe(await todayKey(page));
 });
 
-test("thirteen days dry, then a drizzle CODE — the house keeps its mouth shut", async ({ page }) => {
+test("it rained yesterday — rain today is not the first rain in ages", async ({ page }) => {
   await page.clock.install({ time: MIDDAY });
-  await seedDryStreak(page, 13);
+  await seedDryStreak(page, 0);
+  await bootV3(page, { "/api/weather/now": weatherNow(61, "rain") });
+
+  await expect.poll(async () => (await context(page)).conditionCode).toBe(61);
+  await page.clock.fastForward("05:30");
+  // Not vacuous: the test above fires on this exact sequence with a month behind it.
+  await expect.poll(() => lastWet(page)).toBe(await todayKey(page));
+  expect(await pendingDelight(page)).toBeNull();
+});
+
+test("twenty-nine days dry is not yet a month — the house waits", async ({ page }) => {
+  await page.clock.install({ time: MIDDAY });
+  await seedDryStreak(page, 29);
+  await bootV3(page, { "/api/weather/now": weatherNow(61, "rain") });
+
+  await expect.poll(async () => (await context(page)).conditionCode).toBe(61);
+  await page.clock.fastForward("05:30");
+  await expect.poll(() => lastWet(page)).toBe(await todayKey(page));
+  expect(await pendingDelight(page)).toBeNull();
+});
+
+test("a month dry, then a drizzle CODE — the house keeps its mouth shut", async ({ page }) => {
+  await page.clock.install({ time: MIDDAY });
+  await seedDryStreak(page, 31);
   await bootV3(page, { "/api/weather/now": weatherNow(51, "rain") });
 
   await expect.poll(async () => (await context(page)).conditionCode).toBe(51);
