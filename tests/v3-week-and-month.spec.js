@@ -211,7 +211,7 @@ test("the week mounts a cell per day, each with a name, an icon and two temperat
      stops reading as a row — the icons no longer land on one line across. */
   expect(got.rains.length).toBe(7);
   expect(got.rains).toContain("");           // the 12% day is below the floor
-  expect(got.rains).toContain("71%");
+  expect(got.rains).toContain("71% rain");
   /* …and the dry day's empty line must be as TALL as a wet day's. It was 1em
      against a 1.24 line, so dry days sat ~6px low (measured 2026-11-12). */
   const tops = await page.evaluate(() =>

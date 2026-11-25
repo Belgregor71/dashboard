@@ -25,7 +25,7 @@ import { ROOT_ENTRY, staleSurfaceWarning } from "../server/config.js";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-const V3_SIGNATURE = /<title>\s*V3\s*<\/title>/i;
+const V3_SIGNATURE = /<title>\s*House\s*<\/title>/i;
 // The incumbent's body tag. Nothing on the wall may carry it again.
 const INCUMBENT_SIGNATURE = /<body[^>]*data-view="home"/i;
 

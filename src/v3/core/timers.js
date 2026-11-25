@@ -222,7 +222,7 @@ function paint(state = pillState()) {
   }
   const label = document.getElementById(LABEL_ID);
   const time = document.getElementById(TIME_ID);
-  const words = state.more > 0 ? `${state.label} +${state.more}` : state.label;
+  const words = state.more > 0 ? `${state.label} and ${state.more} more` : state.label;
   if (label && label.textContent !== words) label.textContent = words;
   if (time && time.textContent !== state.time) time.textContent = state.time;
   const r = state.ringing ? "1" : "0";

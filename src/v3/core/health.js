@@ -103,7 +103,7 @@ const POLL_MS = 60_000;
    when you ask — and docs/design/VOICE.md is its authority. */
 const LINES = {
   wan: "The internet's down.",
-  ha: "Home Assistant isn't answering.",
+  ha: "The house sensors aren't answering.",
   motion: "The cameras have stopped reporting motion.",
   cameras: "The cameras aren't sending pictures.",
   weather: "The weather stopped updating.",
@@ -127,13 +127,14 @@ const LINES = {
    need, and the reason the surface fault below shows no stage either. */
 const LABELS = {
   wan: "Internet down",
-  ha: "Home Assistant down",
-  motion: "Motion reporting down",
-  cameras: "Cameras not sending",
+  /* Say what the room loses, not which system broke: the system name is for logs. */
+  ha: "House sensors offline",
+  motion: "Motion alerts paused",
+  cameras: "Camera pictures paused",
   weather: "Weather not updating",
   calendar: "Calendar not updating",
-  ai: "Briefings down",
-  tts: "Voice output down"
+  ai: "Briefings paused",
+  tts: "House voice off"
 };
 
 /* Worst first. ⚠ This order is not severity for its own sake — it is the

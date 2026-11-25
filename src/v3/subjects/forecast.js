@@ -150,7 +150,7 @@ export async function showForecast({ now = new Date(), animate = true } = {}) {
     const pct = Number(day?.rain_chance_pct);
     /* Empty rather than absent: an element that only exists on wet days makes
        the seven cells different heights, and the strip stops reading as a row. */
-    rain.textContent = Number.isFinite(pct) && pct >= RAIN_FLOOR_PCT ? `${Math.round(pct)}%` : "";
+    rain.textContent = Number.isFinite(pct) && pct >= RAIN_FLOOR_PCT ? `${Math.round(pct)}% rain` : "";
     cell.appendChild(rain);
 
     strip.appendChild(cell);
