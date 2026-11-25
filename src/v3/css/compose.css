@@ -393,6 +393,48 @@ body[data-holiday] .photo::after {
    is CSS Values 4 and this wall must not depend on it to keep its clock. */
 :root[data-depth="1"] { --hour-scale: 0.4286; }
 
+/* ── The corner clock (features.v3CornerClock; main.js paintHour) ───────────
+   PRODUCT.md: "Keep a plain corner clock for when the reading glasses are in
+   another room." The hour above leaves at depth 2, which is exactly when
+   someone has stopped to dwell, often cooking. So at depths 2-3 the time takes
+   the BOTTOM-RIGHT corner (owner's call, 2026-11-25): the rail that owns it is
+   depth 1 only, and three of the four spread templates leave it empty.
+   `triple-footer` puts `.cell--side` there, so the clock stands down rather
+   than sit on a cell. Same face, size and weight the hour has at depth 1, so it
+   reads as the same clock that moved corners, not a new one. Its own node,
+   because moving #hour would carry the time across the glass mid-exchange. */
+.corner-clock {
+  position: absolute;
+  right: var(--safe);
+  bottom: var(--safe);
+  z-index: 1;                    /* above a subject's veil, like .heard */
+  font-family: var(--font-measured);
+  font-optical-sizing: auto;
+  font-variation-settings: "GRAD" var(--grade);
+  font-size: var(--t-measured-1);
+  font-weight: 200;
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-shadow: var(--ink-shadow);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--m-calm) var(--ease),
+              visibility 0s linear var(--m-calm);
+}
+:root[data-corner-clock="1"][data-depth="2"]:not(:has(#spread-lattice[data-template="triple-footer"])) .corner-clock,
+:root[data-corner-clock="1"][data-depth="3"] .corner-clock {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--m-calm) var(--ease),
+              visibility 0s linear 0s;
+}
+:root[data-sun-clock][data-corner-clock="1"][data-depth="2"]:not(:has(#spread-lattice[data-template="triple-footer"])) .corner-clock,
+:root[data-sun-clock][data-corner-clock="1"][data-depth="3"] .corner-clock {
+  opacity: var(--clock-dim, 1);
+}
+
 /* ── The fault pill ─────────────────────────────────────────────────────────
    The house saying that a part of ITSELF is broken.
 

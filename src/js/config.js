@@ -2135,6 +2135,21 @@ window.CONFIG = {
     // The week forecast's icons desaturated and slightly dimmed, so the one
     // cartoon-coloured thing on the wall sits nearer the palette. Off: full colour.
     v3ForecastTint: true,
+    // Said lines fit by MEASUREMENT, never a third line (core/spread.js fitSaid):
+    // 132 -> broken at the dot -> 96 -> broken; still over two lines at 96 is
+    // marked data-overfit and left as written. A number is glued to the word
+    // after it ("75 min" never splits). Off: the
+    // 40-character count, which let "Rain in about 75 min — 83% chance." take
+    // three lines at 132px on the wall (critique 2026-11-25).
+    v3SaidFit: false,
+    // The time at depths 2-3, bottom-right at 72px (css/compose.css
+    // .corner-clock; main.js paintHour). Hidden under the triple-footer
+    // template, whose side cell owns that corner. Off: no node, as before.
+    v3CornerClock: false,
+    // At depth 2 a forecast keeps the dominant cell only when it starts within
+    // 30 min; otherwise the first chore (bins) leads (core/composer.js
+    // leadWithChore). Off: dominant by score alone.
+    v3ChoreFirst: false,
 
     // BOM's own forecast for today (src/js/services/weather/bomOutlook.js):
     // a wall line on a storm / 10 mm+ day or a fire danger of High or above,

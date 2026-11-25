@@ -75,13 +75,15 @@ export function setSaidText(node, text) {
   if (!node) return;
   /* Each " · " rides in its own span so markWrapped can turn the first one into
      the line break. textContent is unchanged, which voice.js compares against. */
-  node.replaceChildren(...String(text ?? "").split(SEP).flatMap((part, i) => {
+  node.replaceChildren(...(fitEnabled() ? fitParts(String(text ?? "")) : String(text ?? "").split(SEP).flatMap((part, i) => {
     if (!i) return [part];
     const sep = document.createElement("span");
     sep.className = "said__sep";
     sep.textContent = SEP;
     return [sep, part];
-  }));
+  })));
+  // With v3SaidFit on this is only the guess for a node not laid out yet (the
+  // spread's fragment); markWrapped() replaces it with a measurement.
   if ((text ?? "").trim().length > SAID_LONG_MAX) node.dataset.len = "long";
   else delete node.dataset.len;
   markWrapped(node);
@@ -117,6 +119,23 @@ export function setSaidText(node, text) {
 export function markWrapped(node) {
   if (!node) return;
   delete node.dataset.sepBreak;   // measure the line as written, not as last broken
+  if (fitEnabled() && lineCount(node)) {
+    if (fitSaid(node) > 1) node.dataset.wrapped = "1";
+    else delete node.dataset.wrapped;
+    /* ⚠ MEASURED 2026-11-25: a glyph from a font subset not loaded yet (the em
+       dash was the first) is laid out in the FALLBACK face, the real face lands a
+       frame later, and "Bins tonight — recycling week." went from two lines at
+       fit time to three on screen. `fonts.ready` awaited earlier does not cover
+       a subset this line is the first to need. So fit once more when it lands,
+       if the node still holds the same words. */
+    if (globalThis.document?.fonts?.status === "loading") {
+      const text = node.textContent;
+      document.fonts.ready.then(() => {
+        if (node.isConnected && node.textContent === text) markWrapped(node);
+      });
+    }
+    return;
+  }
   const lines = lineCount(node);
   if (lines > 1) node.dataset.wrapped = "1";
   else delete node.dataset.wrapped;
@@ -127,6 +146,111 @@ export function markWrapped(node) {
     node.dataset.sepBreak = "1";
     if (lineCount(node) > lines) delete node.dataset.sepBreak;
   }
+}
+
+/* ── Fit by measurement (features.v3SaidFit) ────────────────────────────────
+   "Never a third line" was a 40-character count, and a count cannot know the
+   width of the characters it counted: "Rain in about 75 min — 83% chance." (34)
+   stayed at 132px and took THREE lines on the wall, 2026-11-25. So the renderer
+   is asked, a rung at a time, and the first rung that holds two lines wins:
+     132px → 132px broken at the dot → 96px → 96px broken at the dot.
+   A line that still needs a third line at 96px is a copy (or cell-width)
+   problem this file cannot solve without changing the words. It is marked
+   `data-overfit` so a probe can find it, and left as written. A last rung that
+   handed the tail after the dot to the 72px measured voice was built and
+   MEASURED: head two lines + tail one or two came out as tall as the three
+   lines it replaced, so it was a fix in name only and was taken out.
+   textContent never changes (voice.js compares it): only spans and attributes.
+
+   A number is glued to the word after it, so a break can never split a reading
+   from its unit ("Rain in about 75" / "min — 83% chance." on the 96px rung).
+   Dashes are NOT glued: that was built first, and the stills showed it forcing
+   "Bins tonight — recycling week." down from 132px to 96px to avoid a dash at
+   a line end, which is a conventional break. Owner's call, 2026-11-25. */
+const MAX_LINES = 2;
+const NUMBER = /(\d\S*) (\p{L}\S*)/u;
+
+export function fitEnabled() {
+  return Boolean(globalThis.window?.CONFIG?.features?.v3SaidFit);
+}
+
+/** Text nodes with each "number word" glued into one unbreakable span. */
+function glued(part) {
+  const out = [];
+  let rest = part;
+  let m;
+  while ((m = NUMBER.exec(rest))) {
+    if (m.index) out.push(rest.slice(0, m.index));
+    const glue = document.createElement("span");
+    glue.className = "said__glue";
+    glue.textContent = m[0];
+    out.push(glue);
+    rest = rest.slice(m.index + m[0].length);
+  }
+  if (rest) out.push(rest);
+  return out;
+}
+
+/** The flag-off parts, plus glued numbers; the first dot is marked because a
+ *  glue span before it would take `:first-of-type` from it (type.css). */
+function fitParts(text) {
+  return text.split(SEP).flatMap((part, i) => {
+    if (!i) return glued(part);
+    const sep = document.createElement("span");
+    sep.className = i === 1 ? "said__sep said__sep--first" : "said__sep";
+    sep.textContent = SEP;
+    return [sep, ...glued(part)];
+  });
+}
+
+/* Visible line boxes only. A broken dot is a 0-height block, but a Range still
+   reports a full-height line box for its text, so lineCount() would count it as
+   a line of its own whenever the head before it wraps. A dot never sits alone on
+   a line it did not share with text, so skipping dots loses no real line.
+   Rows, not rounded tops: the cell enters on a transform, so two rects on ONE
+   line can read 575.49 and 575.51 and round apart into two "lines". */
+function fitLines(node) {
+  const rects = [];
+  for (const child of node.childNodes) {
+    if (child.classList?.contains("said__sep")) continue;
+    const range = document.createRange();
+    range.selectNodeContents(child);
+    for (const r of range.getClientRects()) if (r.width && r.height) rects.push(r);
+    range.detach();
+  }
+  rects.sort((a, b) => a.top - b.top);
+  let rows = 0;
+  let last = -Infinity;
+  for (const r of rects) if (r.top - last > r.height / 2) { rows++; last = r.top; }
+  return rows;
+}
+
+/** Break at the first dot if that does not cost a line; returns the line count. */
+function trySepBreak(node, lines) {
+  if (!node.querySelector(".said__sep")) return lines;
+  node.dataset.sepBreak = "1";
+  const broken = fitLines(node);
+  if (broken > lines) { delete node.dataset.sepBreak; return lines; }
+  return broken;
+}
+
+function fitSaid(node) {
+  delete node.dataset.overfit;
+  let lines = 0;
+  for (const long of [false, true]) {
+    if (long) node.dataset.len = "long";
+    else delete node.dataset.len;
+    delete node.dataset.sepBreak;
+    lines = fitLines(node);
+    if (lines <= MAX_LINES) {
+      if (lines > 1) trySepBreak(node, lines);
+      return lines;
+    }
+    lines = trySepBreak(node, lines);
+    if (lines <= MAX_LINES) return lines;
+  }
+  node.dataset.overfit = "1";
+  return lines;
 }
 
 /* Line boxes, counted as distinct tops: a separator span adds rects of its own
@@ -302,7 +426,7 @@ export function renderSpread(selection) {
   const host = lattice();
   if (!host) return null;
 
-  const composition = compose(selection);
+  const composition = compose(selection, { choreFirst: Boolean(globalThis.window?.CONFIG?.features?.v3ChoreFirst) });
   if (!composition) {
     clearSpread();
     return null;

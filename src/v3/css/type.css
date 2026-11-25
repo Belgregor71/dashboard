@@ -45,11 +45,18 @@
 
 /* A wrapped line breaks at its first " · " and the dot goes with the break
    (core/spread.js markWrapped). Zero-height block: a line break, nothing drawn. */
-.said[data-sep-break] .said__sep:first-of-type {
+/* --first because with v3SaidFit on, a glued number span (core/spread.js) can
+   come before the first dot and take `:first-of-type` from it. */
+.said[data-sep-break] > .said__sep:first-of-type,
+.said[data-sep-break] > .said__sep--first {
   display: block;
   height: 0;
   overflow: hidden;
 }
+
+/* features.v3SaidFit (core/spread.js fitSaid) ─────────────────────────────────
+   A number travels with the word after it: "75 min" never splits at a break. */
+.said__glue { white-space: nowrap; }
 
 .said--1 { font-size: var(--t-said-1); }
 .said--2 { font-size: var(--t-said-2); }

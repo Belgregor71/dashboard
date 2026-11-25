@@ -198,6 +198,7 @@ function syncFieldMat() {
   mark("subjectField", flag("v3SubjectField"));   // depths 2-3 sit on the field, not the dimmed photograph
   mark("hourHeavy", flag("v3HourWeight"));        // the hour at weight 300 over the journey's photograph
   mark("forecastTint", flag("v3ForecastTint"));   // the week's icons pulled toward the palette
+  mark("cornerClock", flag("v3CornerClock"));     // the time bottom-right at depths 2-3 (css/compose.css)
 }
 function mark(attr, on) {
   if (on) document.documentElement.dataset[attr] = "1";
@@ -214,6 +215,19 @@ function paintHour() {
   const d = new Date();
   const h = d.getHours() % 12 || 12;
   el.hour.textContent = `${h}:${String(d.getMinutes()).padStart(2, "0")}`;
+  /* features.v3CornerClock: the same reading at depths 2-3, where `.cell--wide`
+     owns the hour's corner. A second node rather than moving this one, because
+     moving it would carry the time across the glass mid-exchange. Created only
+     with the flag on, so the flag-off DOM is the one that shipped before. */
+  if (flag("v3CornerClock")) {
+    if (!el.cornerClock) {
+      el.cornerClock = document.createElement("div");
+      el.cornerClock.className = "corner-clock";
+      el.cornerClock.setAttribute("aria-hidden", "true");   // #hour already says it
+      el.hour.after(el.cornerClock);
+    }
+    el.cornerClock.textContent = el.hour.textContent;
+  }
   /* The one-plane archive puts the DAY on the glass beside the hour, and it
      rides this tick rather than owning one: two timers for the same clock is
      two things that can disagree, and the date is wrong for at most twenty

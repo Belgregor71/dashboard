@@ -67,6 +67,7 @@ export function binWeatherClash(ctx, now) {
   return {
     id: `bin-weather:${dateKey(now)}`,
     evidence: { key: "bins", at: now.getTime() },
+    role: "chore",   // read only by V3's composer (v3ChoreFirst)
     icon: "🗑️",
     score: 60,
     text: `Bins out tonight${colours ? ` (${colours})` : ""} — rain's coming, worth beating it.`,

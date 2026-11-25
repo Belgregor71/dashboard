@@ -72,6 +72,9 @@ export function rainIncoming(ctx, now) {
     id: `rain-incoming:${quarterKey(startAt)}`,
     evidence: { key: "nowcast", at: now.getTime() },
     source: SOURCE,
+    // A prediction, not a task. Read only by V3's composer (v3ChoreFirst); NOT
+    // `kind`, which attentionEngine already uses as the phrasing key.
+    role: "forecast",
     icon: "🌧️",
     score: 55 + Math.round(prob * 0.25),
     text,
@@ -106,6 +109,7 @@ export function binNight(ctx, now) {
       id: `bin-last-chance:${dateKey(now)}`,
       evidence: { key: "bins", at: now.getTime() },
       source: SOURCE,
+      role: "chore",
       icon: "🗑️",
       // Above the eve reminder: same chore, far less time left to do it.
       score: 68,
@@ -122,6 +126,7 @@ export function binNight(ctx, now) {
     id: `bin-night:${dateKey(now)}`,
     evidence: { key: "bins", at: now.getTime() },
     source: SOURCE,
+    role: "chore",
     icon: "🗑️",
     score: 50,
     text: `Bins go out tonight${suffix}.`,

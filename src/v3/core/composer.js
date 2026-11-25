@@ -38,6 +38,25 @@ function speaks(candidate) {
   return Boolean(candidate) && typeof candidate.text === "string" && candidate.text.trim() !== "";
 }
 
+/* ── A chore before a forecast (features.v3ChoreFirst) ──────────────────────
+   Score cannot tell a KIND from an urgency: rain at 83% scores 76 and took the
+   dominant cell from the bins at 50, so the thing the house must DO tonight
+   went to 48px under a prediction (critique, 2026-11-25). A forecast keeps the
+   lead only when it is about to happen; otherwise the first chore takes it.
+   Owner's cut-off: 30 minutes. A forecast with no start time (no expiresAt)
+   keeps its place, because "not imminent" cannot be shown. Order is otherwise
+   untouched, and an interrupt still goes first (compose() partitions after). */
+export const FORECAST_LEAD_MIN = 30;
+
+function leadWithChore(stack, now) {
+  const first = stack[0];
+  if (first?.role !== "forecast" || !Number.isFinite(first.expiresAt)) return stack;
+  if ((first.expiresAt - now) / 60_000 <= FORECAST_LEAD_MIN) return stack;
+  const i = stack.findIndex((c) => c.role === "chore");
+  if (i < 1) return stack;
+  return [stack[i], ...stack.slice(0, i), ...stack.slice(i + 1)];
+}
+
 /** Does this supporting candidate stand beside the dominant, or under it? */
 function isPeer(candidate) {
   return candidate.interrupt === true || (candidate.score ?? 0) >= PEER_MIN_SCORE;
@@ -54,9 +73,10 @@ function isPeer(candidate) {
  * @returns {{ template: string, cells: object[] }|null}
  *          null when there is no legal spread. The caller must NOT deepen.
  */
-export function compose(selection) {
-  const stack = (Array.isArray(selection?.stack) ? selection.stack : []).filter(speaks);
+export function compose(selection, { choreFirst = false, now = Date.now() } = {}) {
+  let stack = (Array.isArray(selection?.stack) ? selection.stack : []).filter(speaks);
   if (stack.length < MIN_CELLS) return null;
+  if (choreFirst) stack = leadWithChore(stack, now);
 
   /* An interrupt is never dropped. In practice the ranking already guarantees
      this — the interrupt band is 90–100 and the stack is sorted best-first — but
