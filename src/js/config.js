@@ -2141,7 +2141,9 @@ window.CONFIG = {
     // after it ("75 min" never splits). Off: the
     // 40-character count, which let "Rain in about 75 min — 83% chance." take
     // three lines at 132px on the wall (critique 2026-11-25).
-    v3SaidFit: false,
+    // ON 2026-11-25 after a live in-page check on the G11: that line fit in two
+    // lines at 96px with "75 min" glued. Revert: v3SaidFit: false
+    v3SaidFit: true,
     // The time at depths 2-3, bottom-right at 72px (css/compose.css
     // .corner-clock; main.js paintHour). Hidden under the triple-footer
     // template, whose side cell owns that corner. Off: no node, as before.
